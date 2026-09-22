@@ -1,0 +1,62 @@
+@page "{id:guid?}"
+@model Pegasus.Web.Pages.Administration.ReleaseNotes.EditModel
+@{
+    ViewData["Title"] = Model.Note?.Title ?? OperatorLabels.ReleaseNotes.New;
+    ViewData["Eyebrow"] = OperatorLabels.Admin.ReleaseNotes;
+    ViewData["AdminArea"] = "release-notes";
+}
+<partial name="Shared/_PageHeader" />
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        <partial name="Shared/_ErrorSummary" />
+        @if (TempData["Confirmation"] is string confirmation)
+        {
+            <div class="notice notice--success" role="status">@confirmation</div>
+        }
+        @if (Model.IsPublished && Model.Note is { } published)
+        {
+            <section class="panel release-note" aria-labelledby="release-note-title" data-release-note-published>
+                <div class="panel-head">
+                    <h2 id="release-note-title">@published.Title</h2>
+                    <partial name="Shared/_StatusChip" model="@OperatorLabels.ReleaseNoteStatus(published.Status)" />
+                </div>
+                <div class="panel-body stack">
+                    <div class="definition-list">
+                        <dl class="definition"><dt>Published</dt><dd>@OperatorLabels.OfficeTime(published.PublishedAtUtc, OperatorLabels.CaseWorkspace.AbsentValue)</dd></dl>
+                        <dl class="definition"><dt>Version</dt><dd class="mono">@(published.Version ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></dl>
+                    </div>
+                    <div class="release-note__body">
+                        <partial name="Shared/_ReleaseNoteBody" model="@published.Body" />
+                    </div>
+                </div>
+            </section>
+        }
+        else
+        {
+            <section class="panel" aria-labelledby="release-note-title">
+                <div class="panel-head">
+                    <h2 id="release-note-title">@(Model.Note is null ? OperatorLabels.ReleaseNotes.New : OperatorLabels.ReleaseNotes.Draft)</h2>
+                </div>
+                <form method="post" class="panel-body stack" data-release-note-form>
+                    <input type="hidden" name="Id" value="@Model.Id" />
+                    <input type="hidden" name="ExpectedRowVersion" value="@Model.ExpectedRowVersion" />
+                    <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                    <div class="field">
+                        <label for="release-note-title-input">Title</label>
+                        <input id="release-note-title-input" name="Title" value="@Model.Title" maxlength="@Pegasus.Core.ReleaseNotes.ReleaseNotePolicy.MaximumTitleLength" required />
+                    </div>
+                    <div class="field">
+                        <label for="release-note-body-input">Body</label>
+                        <textarea id="release-note-body-input" name="Body" rows="14" maxlength="@Pegasus.Core.ReleaseNotes.ReleaseNotePolicy.MaximumBodyLength" required>@Model.Body</textarea>
+                    </div>
+                    <div class="button-row">
+                        <a class="btn" asp-page="/Administration/ReleaseNotes/Index">Cancel</a>
+                        <button type="submit" class="btn" asp-page-handler="Save">@OperatorLabels.ReleaseNotes.SaveDraft</button>
+                        <button type="submit" class="btn btn--primary" asp-page-handler="Publish">@OperatorLabels.ReleaseNotes.Publish</button>
+                    </div>
+                </form>
+            </section>
+        }
+    </div>
+</div>

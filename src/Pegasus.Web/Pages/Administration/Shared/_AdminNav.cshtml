@@ -12,6 +12,7 @@
             "logs" => "/Administration/Logs",
             "ai-jobs" => "/Administration/AiJobs",
             "reports" => "/Administration/Reports",
+            "release-notes" => "/Administration/ReleaseNotes/Index",
             "health" => "/Administration/Health",
             "valuation-presets" => "/Administration/ValuationPresets/Index",
             "contacts" => "/Administration/Contacts/Index",
@@ -60,6 +61,10 @@
         <a asp-page="/Administration/Reports" aria-current="@Current("reports")">
             <svg class="icon" aria-hidden="true"><use href="#icon-bar-chart" /></svg>
             <span>@OperatorLabels.Admin.Reports</span>
+        </a>
+        <a asp-page="/Administration/ReleaseNotes/Index" aria-current="@Current("release-notes")">
+            <svg class="icon" aria-hidden="true"><use href="#icon-flag" /></svg>
+            <span>@OperatorLabels.Admin.ReleaseNotes</span>
         </a>
         <a asp-page="/Administration/AiJobs" aria-current="@Current("ai-jobs")">
             <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>

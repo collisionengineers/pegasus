@@ -10,7 +10,8 @@
 - Each Case keeps its own copy of the parties it was accepted with. Editing
   the Contacts directory later never changes that copy.
 - Every staff account has exactly one role: Administrator, Engineer or User.
-  Administrator can do everything, including Engineer work.
+  Every enabled staff role may perform ordinary casework; Administrator alone
+  manages the application.
 - Administrators manage accounts from one Settings dialog. No account action
   asks for confirmation or a reason.
 - Every change is written to permanent action history with who, when and
@@ -62,17 +63,16 @@ stored as non-reversible hashes. This stays the sign-in route until a
 separately accepted identity change replaces it. Each account has exactly one
 current role.
 
-Administrator holds every permission, including every Engineer capability.
-One Administrator role is enough for engineering work, Case assignment and
-sign-off eligibility. Adding an Engineer role to an Administrator is neither
-needed nor allowed. The account must still be enabled and meet any signature
-or workflow prerequisite for the action.
+All three stored staff roles have the same ordinary casework authority.
+Administrator additionally holds application-management authority. Every
+account must still be enabled and meet any signature, workflow, lease or
+state prerequisite for the action.
 
 | Staff role | May view | May create or change | Must not access or perform |
 | --- | --- | --- | --- |
-| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task and transition action; staff account create, disable, delete access, force logout, role assignment and password reset; the Sign-off Engineer account setting; Principals and successor cutover, including a Principal's Provider API credential lifecycle; workflow configuration, including labour-rate cards; the approved-mailbox allowlist; OAuth-client registration and revocation | Pegasus's own credential-secret, cloud or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
-| `Engineer` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action | Accounts, roles, Principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud or release administration, permanent deletion |
-| `User` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action | Accounts, roles, Principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud or release administration, permanent deletion |
+| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task and transition action; staff account create, disable, delete access, force logout, role assignment and password reset; sign-off settings; Principals and successor cutover, including a Principal's Provider API credential lifecycle; workflow configuration, including labour-rate cards; the approved-mailbox allowlist; OAuth-client registration and revocation | Pegasus's own credential-secret, cloud or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
+| `Engineer` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action, including assignment, valuation, findings, estimates, reports and use of the account's own configured Glass's credential | Application management |
+| `User` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action, including assignment, valuation, findings, estimates, reports and use of the account's own configured Glass's credential | Application management |
 
 Andrew and Alex are the initial Administrators. That assignment is
 application data. No person, name, email address or bypass is built into
@@ -188,16 +188,17 @@ cannot later change either record type. Administration saves use
 expected-version checks. The Case edit lease is handled by the Case
 workflow ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)).
 
-Glass's credentials are protected per Engineer, provider and generation.
+Glass's credentials are protected per staff account, provider and generation.
 Administration shows whether one is configured and enabled, its username and
 when it was updated, and offers replace and clear. It never shows the stored
 password. Replacing or deleting a credential invalidates old sessions.
 Disabled or deleted staff cannot start or resume a Glass's session.
 
-**Sign-off Engineer** is an Administrator-only account setting: a flag, the
-account's qualifications and a signature image. An Administrator also marks
-one flagged account as the default Sign-off Engineer. Only flagged accounts
-are offered on a Case; which one a Case gets by default is defined in
+**Sign-off Engineer** is an Administrator-managed account setting available
+for any staff role: a flag, the account's qualifications and a signature
+image. An Administrator also marks one flagged account as the default
+Sign-off Engineer. Only enabled flagged accounts are offered on a Case; which
+one a Case gets by default is defined in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#sign-off-engineer). Reports
 render the flagged account's name, qualifications and signature
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation)).

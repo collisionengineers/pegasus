@@ -22,7 +22,7 @@ public sealed class CaseReportFreshnessTests
         };
 
         var decision = CaseReportFreshness.ClassifyWorkspace(
-            beforeData, afterData, beforeAssessment, afterAssessment, null, null);
+            beforeData, afterData, wordingChanged: false, beforeAssessment, afterAssessment, null, null);
 
         Assert.False(decision.IsStale);
         Assert.Null(decision.ReasonCode);
@@ -149,6 +149,7 @@ public sealed class CaseReportFreshnessTests
         var decision = CaseReportFreshness.ClassifyWorkspace(
             new CaseEditableData(),
             new CaseEditableData(),
+            wordingChanged: false,
             new Dictionary<string, string?>(),
             new Dictionary<string, string?>(),
             Guid.NewGuid(),
@@ -166,6 +167,7 @@ public sealed class CaseReportFreshnessTests
         var decision = CaseReportFreshness.ClassifyWorkspace(
             new CaseEditableData(),
             new CaseEditableData(),
+            wordingChanged: false,
             new Dictionary<string, string?>(),
             new Dictionary<string, string?>(),
             engineerId,
@@ -176,6 +178,22 @@ public sealed class CaseReportFreshnessTests
     }
 
     [Fact]
+    public void ChangedReportWordingStalesWithTheReportContentReason()
+    {
+        var decision = CaseReportFreshness.ClassifyWorkspace(
+            new CaseEditableData(),
+            new CaseEditableData(),
+            wordingChanged: true,
+            new Dictionary<string, string?>(),
+            new Dictionary<string, string?>(),
+            null,
+            null);
+
+        Assert.True(decision.IsStale);
+        Assert.Equal(CaseReportStaleReasons.ReportContentChanged, decision.ReasonCode);
+    }
+
+    [Fact]
     public void EffectivePreparedImageChangesStaleWithTheImageReason()
     {
         var caseId = Guid.NewGuid();
@@ -183,6 +201,21 @@ public sealed class CaseReportFreshnessTests
         var versionId = Guid.NewGuid();
         var before = Preparation(caseId, occurrenceId, versionId, CaseAssetRotation.None);
         var after = before with { Rotation = CaseAssetRotation.Clockwise90 };
+
+        var decision = CaseReportFreshness.ClassifyImages([before], [after]);
+
+        Assert.True(decision.IsStale);
+        Assert.Equal(CaseReportStaleReasons.ImagePreparationChanged, decision.ReasonCode);
+    }
+
+    [Fact]
+    public void ChangingFullPageStalesWithTheImageReason()
+    {
+        var caseId = Guid.NewGuid();
+        var occurrenceId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var before = Preparation(caseId, occurrenceId, versionId, CaseAssetRotation.None);
+        var after = before with { FullPage = true };
 
         var decision = CaseReportFreshness.ClassifyImages([before], [after]);
 
@@ -293,5 +326,6 @@ public sealed class CaseReportFreshnessTests
             CaseAssetCrop.Full,
             1,
             "Staff:test",
-            DateTimeOffset.UnixEpoch);
+            DateTimeOffset.UnixEpoch,
+            false);
 }

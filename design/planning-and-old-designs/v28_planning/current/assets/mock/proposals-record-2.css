@@ -1,0 +1,109 @@
+/* v28 proposals layer, part three: styles for proposals-record-2.js (the fifth
+   pass, P37 to P51). Built on the live tokens so the additions read as part
+   of the record. */
+
+/* P30 and P41 · drag grips */
+.v28-grip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;color:var(--muted);cursor:grab;flex:none}
+.v28-grip:active{cursor:grabbing}
+.v28-grip .icon{width:14px;height:14px}
+.v28-wb.dragging,.image-tile.dragging{opacity:.45}
+.v28-wb.dropmark{box-shadow:0 -3px 0 0 var(--red)}
+.image-tile.dropmark{outline:3px solid var(--red);outline-offset:-3px}
+[data-wb-add].dropmark{box-shadow:0 -3px 0 0 var(--red)}
+
+/* P37 · off-pattern cells */
+#section-estimate input.viol{background:var(--amber-bg);border-color:#e4c289}
+#section-estimate .rr.v28-offpattern dt{color:var(--amber)}
+
+/* P48 · materials per line */
+#section-estimate input.v28-derived{background:var(--surface-2,#f5f6f7);color:var(--muted)}
+#section-estimate [data-v28-material]:disabled{background:transparent;border-color:transparent;text-align:center}
+
+/* P41 · working images */
+html[data-v28-record="edit"] #section-files .image-tile{position:relative}
+.v28-img-tools{display:flex;align-items:center;gap:2px;padding:4px 4px 0;border-top:1px solid var(--line);margin-top:4px}
+.v28-img-tools .icon-button{width:26px;height:26px}
+.v28-img-tools .icon-button[aria-pressed="true"]{color:var(--navy);background:var(--surface-2,#f5f6f7)}
+.v28-fullchip{position:absolute;top:6px;right:6px;z-index:2}
+#section-files [data-image-grid].dragover{outline:2px dashed var(--red);outline-offset:4px}
+#section-files .image-tile [data-tile-image]{transition:transform .15s ease}
+.v28-img-add{margin-top:8px}
+.v28-img-line{margin:6px 0 0;font-size:12px}
+.v28-viewer-tools{display:inline-flex;gap:6px}
+
+/* P43 · versions */
+.v28-origin{font-size:12px;margin:2px 0 0}
+.v28-versions td.num,.v28-versions th.num{text-align:right}
+.v28-versions tr.cur td{background:var(--surface-2,#f5f6f7)}
+.v28-versions .button-row{flex-wrap:wrap;gap:6px}
+
+/* P44 · logged acts read as the live System notes */
+[data-case-history] .note[data-history-event="v28_act"]{border-left:3px solid var(--red)}
+
+/* P42 · the document preview, drawn as a sheet inside the live dialog */
+.v28-preview .dialog-body{background:var(--surface-2,#f1f2f3)}
+.v28-doc-sheet{background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.12);margin:8px auto;max-width:794px;padding:40px 48px;color:#1b1e20;font:13px/1.55 var(--font)}
+.v28-doc h1{font-size:20px;margin:14px 0 8px}
+.v28-doc h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 4px;color:var(--muted)}
+.v28-doc p{margin:0 0 8px}
+.v28-doc-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--red);padding-bottom:8px}
+.v28-doc-head .co{font-weight:800;letter-spacing:.06em;font-size:16px}
+.v28-doc-head .co span{color:var(--red)}
+.v28-doc-head .tag{text-align:right;font-size:11px;color:var(--muted)}
+.v28-doc .addr{font-size:10.5px;color:var(--muted);margin-top:4px}
+.v28-doc-details{border-collapse:collapse;margin:8px 0 12px;font-size:12px}
+.v28-doc-details td{padding:2px 12px 2px 0;vertical-align:top}
+.v28-doc-details td:first-child{color:var(--muted);white-space:nowrap}
+.v28-doc-boxes{display:flex;gap:10px;margin:12px 0}
+.v28-doc-boxes .vbox{flex:1;border:1px solid var(--line);border-radius:4px;padding:8px 10px}
+.v28-doc-boxes .vbox.acc{border-color:var(--red)}
+.v28-doc-boxes .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.v28-doc-boxes .v{font:600 16px var(--mono)}
+.v28-doc-wl .wl{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:8px 0}
+.v28-doc-wl .wt{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px}
+.v28-doc-wl ul{margin:0;padding-left:16px}
+.v28-doc .sig{margin-top:24px;padding-top:12px;border-top:1px solid var(--line);font-size:12px}
+.v28-doc .foot{margin-top:24px;font-size:10px;color:var(--muted);border-top:1px solid var(--line);padding-top:6px}
+.v28-doc-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0}
+.v28-doc-img img{width:100%;height:auto;display:block;border:1px solid var(--line)}
+.v28-doc-img.full img{max-height:640px;object-fit:contain}
+.v28-doc-img .cap{font-size:11px;color:var(--muted);margin-top:4px}
+.v28-doc-img img[data-rot="90"]{transform:rotate(90deg)}
+.v28-doc-img img[data-rot="180"]{transform:rotate(180deg)}
+.v28-doc-img img[data-rot="270"]{transform:rotate(270deg)}
+.v28-doc-kinds{display:inline-flex;gap:4px;margin-right:auto}
+@media print{
+  body[data-v28-print="doc"]>*:not(#v28-preview-dialog){display:none!important}
+  body[data-v28-print="doc"] #v28-preview-dialog{display:block!important;position:static;background:none;padding:0}
+  body[data-v28-print="doc"] #v28-preview-dialog .dialog{max-height:none;max-width:none;width:auto;box-shadow:none}
+  body[data-v28-print="doc"] .dialog-head,body[data-v28-print="doc"] .dialog-foot,body[data-v28-print="doc"] .dialog-body>p{display:none}
+  body[data-v28-print="doc"] .v28-doc-sheet{box-shadow:none;margin:0;padding:0;max-width:none}
+  .v28-doc .pbreak{break-before:page}
+}
+
+/* P45 · sub-cards fold */
+.sub-panel>h3 .v28-sub-collapse{margin-left:auto;width:24px;height:24px}
+.sub-panel>h3{display:flex;align-items:center;gap:8px}
+.sub-panel.is-collapsed>*:not(h3){display:none}
+.sub-panel.is-collapsed>h3 .v28-sub-collapse .icon{transform:rotate(-90deg)}
+
+/* P47 · page-wide stale banner */
+.v28-stale{margin:0;border-radius:0;display:flex;align-items:center;gap:10px}
+.v28-stale .btn{margin-left:auto}
+
+/* P29 · salvage not applicable */
+.v28-salvage-na .muted{font-size:12.5px}
+
+/* P50 · one place for an image: its role and order sit on its tile */
+.v28-role{display:flex;gap:8px;align-items:flex-end;padding:6px 4px 2px;border-top:1px solid var(--line);margin-top:4px;flex-wrap:wrap}
+.v28-role label{display:flex;flex-direction:column;gap:2px;flex:1 1 90px}
+.v28-role label .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.v28-role select.fi,.v28-role input.fi{min-height:30px;padding:0 6px;font-size:12px}
+.v28-role input.num{width:64px;flex:none}
+.v28-img-count{font-weight:600;color:var(--ink)}
+
+/* demo presets scroll without animation so a shot lands where it aims */
+html.v28-instant,html.v28-instant body,html.v28-instant [data-case-main]{scroll-behavior:auto!important}
+
+/* P51 · original report radios read like the P29 decision groups */
+#section-original-report .v28-radiorow{padding-top:4px}

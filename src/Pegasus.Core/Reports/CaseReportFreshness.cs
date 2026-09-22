@@ -144,6 +144,7 @@ public static class CaseReportFreshness
     public static CaseReportFreshnessDecision ClassifyWorkspace(
         CaseEditableData beforeData,
         CaseEditableData afterData,
+        bool wordingChanged,
         IReadOnlyDictionary<string, string?> beforeAssessment,
         IReadOnlyDictionary<string, string?> afterAssessment,
         Guid? beforeSignOffEngineerId,
@@ -153,6 +154,11 @@ public static class CaseReportFreshness
         string? beforeMileageSource = null,
         string? afterMileageSource = null)
     {
+        if (wordingChanged)
+        {
+            return CaseReportFreshnessDecision.Stale(CaseReportStaleReasons.ReportContentChanged);
+        }
+
         var signatory = ClassifySignatory(beforeSignOffEngineerId, afterSignOffEngineerId);
         if (signatory.IsStale)
         {
@@ -302,7 +308,8 @@ public static class CaseReportFreshness
         image.Role,
         image.Order,
         image.Rotation,
-        image.Crop);
+        image.Crop,
+        image.FullPage);
 
     private sealed record MaterialReportImage(
         Guid OccurrenceId,
@@ -310,5 +317,6 @@ public static class CaseReportFreshness
         CaseAssetReportRole Role,
         int? Order,
         CaseAssetRotation Rotation,
-        CaseAssetCrop Crop);
+        CaseAssetCrop Crop,
+        bool FullPage);
 }

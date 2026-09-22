@@ -1,0 +1,3201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pegasus — Case MA59BDY · QDOS26214 (v25 · 9 Sep 2026)</title>
+<style>
+  :root{
+    --canvas:#F1F2F4; --card:#FFFFFF; --raised:#FFFFFF; --ink:#191B1E; --body:#3E4348;
+    --muted:#737981; --faint:#9AA0A7; --line:#DDE0E4;
+    --accent:#DB0816; --accent-wash:rgba(219,8,22,.06);
+    --badge-bg:#FCEBEB; --badge-fg:#791F1F;
+    --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,monospace;
+    --ok:#1F6B42; --ok-bg:#E7F3EC; --warn:#8A5A14; --warn-bg:#FDF3E4;
+    --blue:#1D4E89; --blue-bg:#E8F0F9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--canvas);color:var(--body);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+  button{font:inherit;cursor:pointer}
+  input,select,textarea{font:inherit;color:var(--ink)}
+
+  /* ---------- sticky header + jump tabs ---------- */
+  .top{position:sticky;top:0;z-index:50;background:var(--card);box-shadow:0 1px 0 var(--line)}
+  .id{display:flex;align-items:center;gap:14px;max-width:1120px;margin:0 auto;
+    padding:11px 22px 9px;flex-wrap:wrap}
+  .plate{font:700 15px var(--mono);letter-spacing:.04em;background:#fff;
+    border:1.5px solid var(--ink);border-radius:5px;padding:3px 9px;color:var(--ink)}
+  .id .veh{font-weight:700;color:var(--ink);font-size:15px}
+  .id .ref{font:12.5px var(--mono);color:var(--muted)}
+  .badge{font:700 10.5px/1 var(--mono);letter-spacing:.08em;padding:5px 9px;border-radius:4px}
+  .b-tl{background:#2C2A27;color:#fff}
+  .b-rep{background:var(--ok-bg);color:var(--ok)}
+  .b-ur{background:var(--badge-bg);color:var(--badge-fg)}
+  .b-rw{background:var(--ok-bg);color:var(--ok)}
+  .id .eng{margin-left:auto;font-size:12.5px;color:var(--muted)}
+  .id .eng b{color:var(--ink)}
+  .jump{display:flex;gap:2px;max-width:1120px;margin:0 auto;padding:0 16px 0;
+    overflow-x:auto;scrollbar-width:none}
+  .jump::-webkit-scrollbar{display:none}
+  .jump a{white-space:nowrap;font-size:12.5px;font-weight:600;color:var(--muted);
+    text-decoration:none;padding:8px 12px 10px;border-bottom:2px solid transparent}
+  .jump a:hover{color:var(--ink)}
+  .jump a.on{color:var(--ink);border-bottom-color:var(--accent)}
+
+  .b-ratio{background:#EDEFF2;color:var(--body);font-variant-numeric:tabular-nums}
+  .b-ratio.ok{background:var(--ok-bg);color:var(--ok)}
+  .b-ratio.warn{background:var(--warn-bg);color:var(--warn)}
+  .b-ratio.over{background:var(--accent);color:#fff}
+  /* stale banner (global) */
+  #staleBanner{display:none;background:var(--warn-bg);color:var(--warn);
+    font-size:12.5px;font-weight:600;text-align:center;padding:7px 14px}
+  #staleBanner.show{display:block}
+
+
+  /* ---------- case lock (whole-case, one editor at a time) ---------- */
+  .lockchip{display:inline-flex;align-items:center;gap:6px;font:700 10.5px/1 var(--mono);letter-spacing:.08em;
+    padding:5px 9px;border-radius:4px;background:var(--ok-bg);color:var(--ok)}
+  .lockchip svg{width:11px;height:11px}
+  .lockchip.other{background:var(--blue-bg);color:var(--blue)}
+  .lockchip.stale{background:var(--warn-bg);color:var(--warn)}
+  .demo{display:flex;align-items:center;gap:8px;font:600 10.5px var(--mono);letter-spacing:.06em;color:var(--faint);
+    text-transform:uppercase;max-width:1120px;margin:0 auto;padding:0 22px 8px}
+  .demo select{font:600 11px var(--mono);border:1px dashed var(--line);border-radius:5px;padding:3px 6px;background:#fff;color:var(--muted)}
+  .demo a{color:var(--faint);text-decoration:underline dotted;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:400}
+  #lockBanner{display:none;background:var(--blue-bg);color:var(--blue);font-size:12.5px;padding:8px 22px}
+  #lockBanner.show{display:block}
+  #lockBanner .lb{max-width:1120px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  #lockBanner b{color:inherit}
+  #lockBanner .lbact{margin-left:auto;display:flex;gap:8px}
+  #lockBanner button{font:600 12px/1 inherit;padding:6px 11px;border-radius:5px;border:1px solid var(--blue);background:#fff;color:var(--blue)}
+  #lockBanner button.pri{background:var(--blue);color:#fff}
+  #lockBanner.stale{background:var(--warn-bg);color:var(--warn)}
+  #lockBanner.stale button{border-color:var(--warn);color:var(--warn)}
+  #lockBanner.stale button.pri{background:var(--warn);color:#fff}
+  body.viewonly .frame{pointer-events:none;user-select:text}
+  body.viewonly .frame .sec{opacity:.78}
+  body.viewonly .frame input,body.viewonly .frame select,body.viewonly .frame textarea,body.viewonly .frame button{
+    background:#F7F8F9 !important;border-color:transparent !important;color:var(--body)}
+  .modal{position:fixed;inset:0;background:rgba(25,27,30,.45);display:none;align-items:center;justify-content:center;z-index:100}
+  .modal.show{display:flex}
+  .modal .box{background:#fff;border-radius:10px;padding:22px 24px;max-width:440px;width:92%;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+  .modal h3{font-size:15px;color:var(--ink);margin-bottom:8px}
+  .modal p{font-size:13px;color:var(--body);margin-bottom:12px}
+  .modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+  .modal button{font:600 12.5px inherit;padding:7px 13px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+  .modal button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;
+    padding:9px 14px;border-radius:6px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:90}
+  .toast.show{opacity:1}
+
+  .btn.danger{color:var(--accent);border-color:rgba(219,8,22,.35)}
+  .btn.danger:hover{background:var(--accent-wash);border-color:var(--accent)}
+  .modal button.danger{background:var(--accent);border-color:var(--accent);color:#fff}
+  .grid td.gridEmpty{padding:22px;text-align:center;color:var(--faint);font-size:12.5px}
+  .toast button{margin-left:12px;font:600 12px inherit;color:#fff;background:none;border:1px solid rgba(255,255,255,.5);border-radius:4px;padding:2px 8px;pointer-events:auto}
+  .toast{pointer-events:auto}
+  .grid .delall{border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:1px;
+    width:100%;padding:2px 0 3px;color:var(--faint);cursor:pointer}
+  .grid .delall .x{color:var(--accent);font-size:15px;line-height:1;font-weight:400}
+  .grid .delall .t{font:500 8.5px/1 var(--mono);letter-spacing:.04em;text-transform:lowercase;white-space:nowrap}
+  .grid .delall:hover .t{color:var(--accent)}
+  .grid .delall:hover .x{font-weight:700}
+  /* labour rate bar */
+  .rseg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .rseg button{border:none;background:#fff;padding:5px 11px;font-size:12px;color:var(--muted);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.15}
+  .rseg button:last-child{border-right:none}
+  .rseg button small{font:600 10px var(--mono);color:var(--faint)}
+  .rseg button.on{background:var(--ink);color:#fff}
+  .rseg button.on small{color:rgba(255,255,255,.7)}
+  .ratebox{display:flex;align-items:center;gap:6px;margin-left:auto}
+  .ratebox input:disabled{background:#F7F8F9;border-color:transparent}
+  .ratebox input{width:88px;border:1px solid var(--line);border-radius:5px;padding:5px 8px;font:600 13px var(--mono);text-align:right}
+  .ratebox .per{font-size:12px;color:var(--muted)}
+  .ratework{font:12px var(--mono);color:var(--muted)}
+  #scaleRange{flex:1;min-width:160px;max-width:340px;accent-color:var(--ink)}
+  #scaleRange:disabled{opacity:.4}
+  #scaleOff:disabled{opacity:.4;cursor:default}
+  body.scaling table.grid tbody{pointer-events:none;opacity:.85}
+  body.scaling table.grid tbody input,body.scaling table.grid tbody select{color:var(--warn)}
+  body.scaling table.grid tbody .num{color:var(--warn)}
+  /* versions, compare, supplementary */
+  .modal .box.wide{max-width:1040px;width:96%;max-height:90vh;overflow:auto}
+  table.vt{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
+  .vt th{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  .vt td{padding:7px 8px;border-bottom:1px solid #EEF0F2;vertical-align:middle}
+  .vt td.num,.vt th.num{text-align:right;font-family:var(--mono)}
+  .vt tr.cur td{background:#F7F8F9}
+  .vt .vn{font:700 12px var(--mono);color:var(--ink)}
+  .vt .act{display:flex;gap:6px;justify-content:flex-end}
+  .vt .act button{font:600 11.5px inherit;padding:4px 9px;border-radius:5px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+  .vt .act button:hover{border-color:var(--ink)}
+  .vt tr.added td{background:#FCEBEB}       /* added = red   (cost has come in) */
+  .vt tr.changed td{background:#FDF3E4}     /* changed = orange */
+  .vt tr.removed td{background:#E7F3EC;color:var(--muted)}  /* removed = green (cost has gone) */
+  .vt td.diff{font-weight:700;color:var(--ink)}
+  .vt .tag{font:600 9.5px var(--mono);letter-spacing:.06em;padding:2px 6px;border-radius:3px;margin-left:6px}
+  .tag-add{background:var(--accent);color:#fff}.tag-chg{background:var(--warn);color:#fff}.tag-rem{background:var(--ok);color:#fff}
+  .tag-sent{background:#2C2A27;color:#fff}.tag-work{background:var(--blue-bg);color:var(--blue)}
+  .cmphead{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}
+  .cmphead select{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12.5px;background:#fff}
+  .cmphead .sum{font:12.5px var(--mono);color:var(--muted);margin-left:auto}
+  .cmphead .sum b{color:var(--ink)}
+  .supp{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:12px 16px;margin:0 0 14px;background:#fff}
+  .supp .sg-t{font:600 10.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .supp ul{list-style:none;display:grid;gap:3px;margin:6px 0 10px;font-size:12.5px}
+  .supp li{display:flex;gap:8px;align-items:baseline}
+  .supp li .num{font-family:var(--mono);color:var(--muted);margin-left:auto}
+  .supp .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .supp select{border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12.5px;background:#fff}
+  .dz-s a{color:var(--muted);text-decoration:underline dotted;cursor:pointer}
+  @media print{ body>*{display:none !important} #cmpModal{display:flex !important;position:static;background:none} #cmpModal .box{box-shadow:none;max-height:none;max-width:none;width:100%} #cmpModal .noprint{display:none !important} }
+  /* ---------- page frame ---------- */
+  .frame{max-width:1120px;margin:0 auto;padding:26px 22px 120px;display:grid;gap:22px}
+  .sec{background:var(--card);border-radius:10px;padding:22px 24px;scroll-margin-top:96px}
+  .sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:16px}
+  .sec-h b{font:700 12px var(--mono);color:var(--accent)}
+  .sec-h h2{font-size:16px;font-weight:700;color:var(--ink)}
+  .sec-h .hint{font-size:12px;color:var(--faint);margin-left:auto}
+
+  /* field grid */
+  .fg{display:grid;gap:14px 18px}
+  .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}
+  .g4{grid-template-columns:1fr 1fr 1fr 1fr}
+  .f label{display:block;font:600 10.5px/1 var(--mono);letter-spacing:.09em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .f .v{font-size:13.5px;color:var(--ink)}
+  .f input[type=text],.f input[type=date],.f input[type=number],.f select,.f textarea{
+    width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 10px;
+    font-size:13.5px;background:#fff}
+  .f textarea{resize:vertical;min-height:64px}
+  .f textarea:disabled{background:#F7F8F9;color:var(--ink);border-color:transparent}
+  .f input:focus,.f select:focus,.f textarea:focus{outline:2px solid rgba(219,8,22,.25);outline-offset:0}
+  .chip{display:inline-block;font:600 10px/1 var(--mono);letter-spacing:.06em;
+    padding:3px 7px;border-radius:4px;vertical-align:1px;margin-left:7px}
+  .c-sys{background:#EDEFF2;color:var(--muted)}
+  .c-dvla{background:var(--blue-bg);color:var(--blue)}
+  .c-brian{background:var(--blue-bg);color:var(--blue)}
+  .c-ok{background:var(--ok-bg);color:var(--ok)}
+  .c-warn{background:var(--warn-bg);color:var(--warn)}
+  .c-imp{background:#EDEFF2;color:var(--muted)}
+  .c-amend{background:var(--warn-bg);color:var(--warn)}
+
+  .composed{background:#F7F8F9;border-left:3px solid var(--line);border-radius:0 6px 6px 0;
+    padding:9px 12px;font-size:12.5px;color:var(--body);font-style:italic;margin-top:8px}
+  .composed b{font-style:normal;font:600 10px var(--mono);letter-spacing:.09em;
+    color:var(--faint);display:block;margin-bottom:3px;text-transform:uppercase}
+
+  .subcard{border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:16px}
+  .subcard .sg-t{font:600 10.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .sg-t .rt{margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;font-size:11.5px}
+
+  /* lockable fields */
+  .lockrow{display:flex;gap:6px;align-items:center}
+  .lockrow input,.lockrow textarea{flex:1}
+  .lockrow input:disabled,.lockrow textarea:disabled{background:#F7F8F9;color:var(--ink);border-color:transparent}
+  .lockbtn{width:28px;height:30px;flex-shrink:0;border:1px solid var(--line);border-radius:6px;
+    background:#fff;display:flex;align-items:center;justify-content:center;color:var(--faint)}
+  .lockbtn:hover{color:var(--ink);border-color:var(--faint)}
+  .lockbtn svg{width:13px;height:13px}
+  .lockable.open .lockbtn{border-color:var(--accent);color:var(--accent)}
+  .lockable.open .lockrow input,.lockable.open .lockrow textarea,.lockrow.lockable.open input,.lockrow.lockable.open textarea{border-color:var(--accent)}
+
+  /* odometer units + average */
+  .odorow{display:flex;gap:6px}
+  .odorow input{flex:1}
+  .unit{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .unit button{border:none;background:#fff;padding:0 11px;font:600 12px var(--mono);color:var(--muted)}
+  .unit button.on{background:var(--ink);color:#fff}
+  .warnnote{margin-top:6px;font-size:11.5px;color:var(--warn);background:var(--warn-bg);
+    border-radius:5px;padding:5px 9px}
+  #odo:disabled{background:#F7F8F9;color:var(--ink)}
+
+  /* impact zone picker */
+  .impactwrap{display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:start}
+  .diag svg{width:100%;max-width:300px;display:block}
+  .zone{fill:#E7E9EC;cursor:pointer;transition:fill .1s}
+  .zone:hover{fill:#D7DADF}
+  .zone.on{fill:#FFDE33}
+  .zone.on:hover{fill:#F5D223}
+  .zone.oncar{fill:rgba(25,27,30,.05)}
+  .zone.oncar:hover{fill:rgba(25,27,30,.12)}
+  .zone.oncar.on{fill:rgba(255,222,51,.92)}
+  .carbody{fill:#F4F5F7;stroke:#C9CDD3;stroke-width:1.5}
+  .carglass{fill:#3E4348;opacity:.75}
+  .carline{fill:none;stroke:#C9CDD3;stroke-width:1.2}
+  .zonechips{display:flex;flex-wrap:wrap;gap:6px;min-height:30px}
+  .zc{font:600 11px var(--mono);background:#FFF6C9;border:1px solid #E8CC2E;color:#6B5A00;
+    border-radius:4px;padding:4px 8px}
+  .zc.none{background:#F4F5F6;border-color:var(--line);color:var(--faint)}
+  @media(max-width:900px){.impactwrap{grid-template-columns:1fr}}
+
+  /* buttons */
+  .btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 14px;
+    font-size:13px;font-weight:600;color:var(--ink)}
+  .btn:hover{background:#F5F6F7}
+  .btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+  .btn.primary:hover{background:#000}
+  .btn.primary:disabled{background:#B9BDC3;border-color:#B9BDC3;cursor:not-allowed}
+  .btn.small{padding:4px 10px;font-size:12px}
+  .btn.danger{color:var(--accent);border-color:#F2C6C9}
+
+  /* ---------- valuation guides ---------- */
+  .guides{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .guide{border:1.5px solid var(--line);border-radius:8px;padding:12px 14px;cursor:pointer;
+    transition:border-color .12s}
+  .guide:hover{border-color:var(--faint)}
+  .guide.sel{border-color:var(--accent);background:var(--accent-wash)}
+  .guide .gn{font-weight:700;color:var(--ink);font-size:13px;margin-bottom:8px;
+    display:flex;align-items:center}
+  .guide.sel .gn::after{content:"SELECTED";font:700 9px var(--mono);letter-spacing:.08em;
+    color:var(--accent);margin-left:auto}
+  .guide .gr{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0}
+  .guide .gr span{color:var(--muted)}
+  .guide .gr b{font-family:var(--mono);color:var(--ink);font-weight:600}
+
+  .guide .gin{width:86px;border:1px solid var(--line);border-radius:5px;padding:3px 7px;
+    font:600 12.5px var(--mono);text-align:right;background:#fff}
+  .guide .gin:focus{outline:2px solid rgba(219,8,22,.25)}
+  .engval{margin-top:14px;border:1.5px solid var(--line);border-radius:8px;padding:12px 16px;
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#FAFBFC}
+  .engval .ev-l{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+  .engval input{width:130px;border:1px solid var(--line);border-radius:6px;padding:7px 10px;
+    font:700 15px var(--mono);text-align:right}
+
+  .adjbar{margin-top:14px;border:1px dashed var(--line);border-radius:8px;padding:10px 16px 14px;
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .adjbar .f label{margin-bottom:4px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:14px;opacity:.45;pointer-events:none}
+  .seg.live{opacity:1;pointer-events:auto}
+  .seg button{border:none;background:#fff;padding:6px 12px;font:600 12px var(--mono);color:var(--muted)}
+  .seg button.on{background:var(--ink);color:#fff}
+  .working{font:600 12.5px var(--mono);color:var(--ink);margin-top:14px}
+  .working em{font-style:normal;color:var(--faint)}
+
+  .incpanel{margin-top:14px;border:1px dashed var(--line);border-radius:8px 8px 0 0;border-bottom:none;
+    padding:12px 16px 6px}
+  .incgrid{display:grid;grid-template-columns:1fr 1fr;gap:2px 26px}
+  .inc{display:flex;align-items:center;gap:9px;padding:5px 0}
+  .inc input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;flex-shrink:0}
+  .inc .il{font-size:13px;color:var(--ink);flex:1}
+  .inc input.ilab{flex:1;border:1px solid var(--line);border-radius:5px;padding:4px 8px;font-size:12.5px}
+  .inc input.iamt{width:88px;border:1px solid var(--line);border-radius:5px;padding:4px 8px;
+    font:600 12.5px var(--mono);text-align:right}
+  .inc .pct{font:600 12.5px var(--mono);color:var(--muted);width:88px;text-align:right}
+  .adjbar{border-radius:0 0 8px 8px}
+  .inc.blocked{opacity:.5}
+  .inc.blocked .il{color:var(--muted)}
+
+  /* ---------- images ---------- */
+  .thumbs{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .th{aspect-ratio:4/3;border-radius:6px;position:relative;cursor:pointer;overflow:hidden;
+    border:1.5px solid var(--line);display:flex;align-items:flex-end;padding:6px;
+    font:600 10px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .th .inc{position:absolute;top:5px;right:6px;width:18px;height:18px;border-radius:4px;
+    background:var(--ok);color:#fff;font-size:11px;font-weight:700;display:flex;
+    align-items:center;justify-content:center}
+  .th.off{opacity:.42}
+  .th.off .inc{background:#fff;color:var(--faint);border:1px solid var(--line)}
+
+  /* ---------- repair grid ---------- */
+  table.grid{width:100%;border-collapse:collapse;font-size:12.5px}
+  .grid th{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;
+    color:var(--faint);text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+  .grid td{padding:6px 8px;border-bottom:1px solid #EEF0F2;vertical-align:middle}
+  .grid tr:hover td{background:#FAFBFC}
+  .grid .num{text-align:right;font-family:var(--mono)}
+  .grid input{width:100%;border:1px solid transparent;border-radius:4px;padding:4px 6px;
+    font-size:12.5px;background:transparent}
+  .grid input.num{text-align:right;font-family:var(--mono)}
+  .grid input:hover{border-color:var(--line)}
+  .grid input:focus{border-color:var(--accent);outline:none;background:#fff}
+  .grid select{border:1px solid transparent;border-radius:4px;padding:3px 4px;
+    font-size:12px;background:transparent}
+  .grid select:hover{border-color:var(--line)}
+  .rowchip{font:600 9.5px var(--mono);letter-spacing:.05em;padding:2px 6px;border-radius:3px}
+  .grid td.na{text-align:right;color:#C6CAD0;font-family:var(--mono);padding-right:14px}
+  .grid input.viol{border-color:#E4C289;background:var(--warn-bg)}
+  .grid .del{border:none;background:none;color:var(--faint);font-size:15px;padding:0 4px}
+  .grid .del:hover{color:var(--accent)}
+
+  .rollup{margin-top:14px;border-top:2px solid var(--ink);padding-top:10px;
+    display:grid;gap:5px;max-width:420px;margin-left:auto}
+  .rollup .rr{display:flex;justify-content:space-between;font-size:13px}
+  .rollup .rr span{color:var(--muted)}
+  .rollup .rr b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+  .rollup .rr.tot{border-top:1px solid var(--line);padding-top:7px;margin-top:3px}
+  .rollup .rr.tot span{color:var(--ink);font-weight:700}
+  .rollup .rr.tot b{color:var(--accent);font-size:15px;font-weight:700}
+
+  .wl{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+  .wl .wcol{border:1px dashed var(--line);border-radius:8px;padding:12px 14px}
+  .wl .wt{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:8px}
+  .wl ul{list-style:none;display:grid;gap:4px}
+  .wl li{font-size:12px;color:var(--body)}
+  .wl li::before{content:"·";color:var(--faint);margin-right:6px}
+
+  .dropzone{border:1.5px dashed var(--line);border-radius:8px;padding:14px 18px;display:flex;
+    gap:14px;align-items:center;cursor:pointer;transition:border-color .12s,background .12s}
+  .dropzone:hover,.dropzone.over{border-color:var(--accent);background:var(--accent-wash)}
+  .dropzone .dz-i{font-size:20px;color:var(--faint)}
+  .dropzone b{color:var(--ink);font-size:13px}
+  .dropzone .dz-s{font-size:12px;color:var(--muted);margin-top:2px}
+  .pendimp{margin-top:10px;border:1.5px solid var(--accent);border-radius:8px;padding:12px 16px;
+    background:var(--accent-wash);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .pendimp .pi-t{font-size:13px;color:var(--ink)}
+  .pendimp .pi-t b{display:block}
+
+  .vatbar{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:14px;
+    border:1px dashed var(--line);border-radius:8px;padding:9px 14px}
+  .vatbar .vb-l{font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  .dsc{display:flex;align-items:center;gap:7px}
+  .dsc label{font-size:12.5px;color:var(--ink)}
+  .dsc input{width:64px;border:1px solid var(--line);border-radius:5px;padding:4px 8px;
+    font:600 12.5px var(--mono);text-align:right}
+
+  /* ---------- Brian decision panel ---------- */
+  /* ---- Section 7 direct-entry decisions ---- */
+  .parked{font-size:12px;color:var(--muted);font-style:italic;background:var(--canvas);
+    border:1px dashed var(--line);border-radius:7px;padding:8px 12px;margin-bottom:14px}
+  .drow{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .drow:last-of-type{border-bottom:0}
+  .dl{width:152px;font-weight:600;font-size:13px;color:var(--ink);flex:none}
+  .tickrow{display:flex;gap:8px;flex-wrap:wrap}
+  .tick{border:1px solid var(--line);border-radius:7px;padding:8px 13px;cursor:pointer;
+    font:600 12.5px/1 var(--sans);color:var(--muted);background:var(--card);
+    display:inline-flex;gap:8px;align-items:center}
+  .tick:hover{border-color:var(--muted)}
+  .tick .bx{width:14px;height:14px;border:1.5px solid var(--line);border-radius:3px;position:relative;flex:none}
+  .tick.on{border-color:var(--accent);color:var(--ink)}
+  .tick.on .bx{background:var(--accent);border-color:var(--accent)}
+  .tick.on .bx:after{content:'\2713';color:#fff;font-size:10px;font-weight:700;position:absolute;top:-1px;left:2px}
+  .salslide{flex:1 1 220px;max-width:380px}
+  .salslide input[type=range]{width:100%;display:block}
+  .snaps{display:flex;gap:6px;margin-top:3px}
+  .snaps button{border:1px solid var(--line);background:var(--card);border-radius:10px;
+    font:600 10.5px var(--mono);color:var(--muted);padding:2px 8px;cursor:pointer}
+  .snaps button.on{border-color:var(--accent);color:var(--accent)}
+  .urcard{background:var(--canvas);border:1px solid var(--line);border-left:3px solid var(--warn);
+    border-radius:8px;padding:14px 16px;margin-top:14px}
+  .urcard textarea{background:var(--card)}
+  .bank{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 8px}
+  .bank button{border:1px solid var(--line);background:var(--card);border-radius:12px;
+    font:500 11.5px var(--sans);color:var(--ink);padding:4px 11px;cursor:pointer;text-align:left}
+  .bank button:hover{border-color:var(--accent);color:var(--accent)}
+  .banksave{text-align:right;margin-top:4px;font-size:11px;color:var(--muted)}
+  .banksave a{cursor:pointer;text-decoration:underline;color:var(--muted)}
+  .banksave a:hover{color:var(--accent)}
+  .wordwell{background:var(--canvas);border:1px solid var(--line);border-radius:10px;
+    padding:16px 18px;margin-top:22px}
+  .wordwell .sg-t{margin-bottom:14px}
+  .wb{border:1px solid var(--line);border-left:3px solid var(--faint);border-radius:8px;
+    margin-bottom:14px;background:var(--card);overflow:hidden;
+    box-shadow:0 1px 2px rgba(25,27,30,.05)}
+  .wb:last-of-type{margin-bottom:0}
+  .wb.edited{border-left-color:var(--warn)}
+  .wb .wbh{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid var(--line)}
+  /* ---- preview modal ---- */
+  .pvmodal{position:fixed;inset:0;background:rgba(20,22,26,.7);z-index:90;display:none;
+    align-items:flex-start;justify-content:center;overflow:auto;padding:30px 16px}
+  .pvmodal.open{display:flex}
+  .pvsheetwrap{width:min(880px,96vw)}
+  .pvbar{display:flex;gap:10px;align-items:center;background:var(--card);border-radius:8px 8px 0 0;
+    padding:10px 14px;border:1px solid var(--line);border-bottom:0;font-size:13px}
+  .pvsheet{background:#fff;border:1px solid var(--line);border-radius:0 0 8px 8px;padding:0;overflow:hidden}
+  .pvsheet .doc{transform-origin:top left}
+  /* ---- the printed document ---- */
+  .doc{font:400 11.5pt/1.5 Georgia,'Times New Roman',serif;color:#191B1E;padding:14mm 16mm;background:#fff}
+  .doc .lh{display:flex;align-items:baseline;justify-content:space-between;border-bottom:3px solid #DB0816;
+    padding-bottom:8px;margin-bottom:4px}
+  .doc .lh .co{font:800 20pt/1 Arial,Helvetica,sans-serif;letter-spacing:.02em}
+  .doc .lh .co span{color:#DB0816}
+  .doc .lh .tag{font:600 8.5pt/1.3 Arial,sans-serif;color:#555;text-align:right}
+  .doc .addr{font:400 8pt/1.4 Arial,sans-serif;color:#666;margin-bottom:22px}
+  .doc h1{font:700 15pt/1.3 Arial,sans-serif;margin:0 0 14px}
+  .doc h2{font:700 10.5pt/1.3 Arial,sans-serif;text-transform:uppercase;letter-spacing:.06em;
+    border-bottom:1px solid #DB0816;padding-bottom:3px;margin:20px 0 8px;page-break-after:avoid}
+  .doc p{margin:0 0 9px;text-align:justify}
+  .doc table.dt{width:100%;border-collapse:collapse;font:400 10pt/1.45 Arial,sans-serif;margin-bottom:6px}
+  .doc table.dt td{padding:3px 8px 3px 0;vertical-align:top}
+  .doc table.dt td:first-child{width:34%;font-weight:700;color:#333}
+  .doc table.wl{width:100%;border-collapse:collapse;font:400 9.5pt/1.4 Arial,sans-serif;margin:4px 0 10px}
+  .doc table.wl th{text-align:left;font-weight:700;border-bottom:1.5px solid #191B1E;padding:3px 6px}
+  .doc table.wl td{border-bottom:1px solid #D9DBDF;padding:3px 6px}
+  .doc table.wl td.r, .doc table.wl th.r{text-align:right;font-variant-numeric:tabular-nums}
+  .doc .vboxes{display:flex;gap:10px;margin:14px 0}
+  .doc .vbox{flex:1;border:1.5px solid #191B1E;padding:8px 12px}
+  .doc .vbox .l{font:600 8pt/1.3 Arial,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#555}
+  .doc .vbox .v{font:800 15pt/1.3 Arial,sans-serif}
+  .doc .vbox.acc{border-color:#DB0816}
+  .doc .sig{margin-top:26px;font:400 10.5pt/1.5 Arial,sans-serif}
+  .doc .imgpage{page-break-before:always;padding-top:4mm}
+  .doc .imgframe{height:105mm;display:flex;align-items:center;justify-content:center;overflow:hidden;
+    border:1px solid #C9CCD1;margin-bottom:3mm;background:#f4f4f5}
+  .doc .imgframe.fullpg{height:225mm}
+  .doc .imgframe img{max-width:100%;max-height:100%}
+  .doc .imgframe img.r90{transform:rotate(90deg)}
+  .doc .imgframe img.r180{transform:rotate(180deg)}
+  .doc .imgframe img.r270{transform:rotate(270deg)}
+  .doc .imgcap{font:600 8.5pt/1.3 Arial,sans-serif;margin:0 0 6mm;color:#333}
+  .doc .pbreak{page-break-before:always}
+  .doc .foot{margin-top:20px;font:400 8pt/1.4 Arial,sans-serif;color:#777;border-top:1px solid #D9DBDF;padding-top:6px}
+  #printRoot{display:none}
+  @page{size:A4;margin:0}
+  @media print{
+    body>*{display:none !important}
+    body>#printRoot{display:block !important}
+    #printRoot .doc{padding:14mm 16mm}
+    body{background:#fff}
+  }
+  /* ---- collapsible sections + subcards: less on screen, click a header to fold ---- */
+  .sec-h{cursor:pointer;user-select:none}
+  .sec-h .chev{margin-left:auto;color:var(--faint);font-size:13px;transition:transform .12s;flex:none}
+  .sec.clps .sec-h .chev{transform:rotate(-90deg)}
+  .sec.clps > *:not(.sec-h){display:none !important}
+  .sec.clps .sec-h{margin-bottom:0}
+  .sec-h .foldedhint{display:none;font:500 11px var(--sans);color:var(--faint);font-style:italic;margin-left:10px}
+  .sec.clps .sec-h .foldedhint{display:inline}
+  .sg-t{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+  .sg-t .chev{margin-left:auto;color:var(--faint);font-size:11px;transition:transform .12s}
+  .subcard.clps .sg-t .chev, .wordwell.clps .sg-t .chev{transform:rotate(-90deg)}
+  .subcard.clps > *:not(.sg-t){display:none !important}
+  .wordwell.clps > *:not(.sg-t){display:none !important}
+  .subcard.clps .sg-t{margin-bottom:0}
+  .wordwell.clps .sg-t{margin-bottom:0}
+  .casebar{margin-left:auto;display:flex;gap:6px;align-items:center}
+  .savenote{font:500 10.5px var(--mono);color:var(--faint);margin-right:4px}
+  .imgdrop{position:relative}
+  .imgdrop.dragover .imgdz{display:flex}
+  .imgdz{display:none;position:absolute;inset:0;background:rgba(241,242,244,.92);z-index:5;
+    border:2px dashed var(--accent);border-radius:10px;align-items:center;justify-content:center;
+    font:600 13px var(--sans);color:var(--accent);pointer-events:none}
+  .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .th{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--canvas)}
+  .th .frame{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:zoom-in;background:#3d434d}
+  .th img{max-width:100%;max-height:100%;display:block}
+  .th img.r90{transform:rotate(90deg) scale(1.334)}
+  .th img.r180{transform:rotate(180deg)}
+  .th img.r270{transform:rotate(270deg) scale(1.334)}
+  .th .cap{display:flex;align-items:center;gap:6px;padding:6px 8px;font:500 11px var(--mono);color:var(--ink);background:var(--card)}
+  .th .cap .grip{cursor:grab;color:var(--faint);user-select:none}
+  .th .cap .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .th .ctr{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .12s}
+  .th:hover .ctr{opacity:1}
+  .th .ctr button{border:0;border-radius:5px;background:rgba(25,27,30,.72);color:#fff;
+    width:24px;height:24px;font-size:12px;cursor:pointer;line-height:1}
+  .th .ctr button:hover{background:var(--accent)}
+  .th .inc2{position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:5px;
+    background:rgba(25,27,30,.72);color:#fff;display:flex;align-items:center;justify-content:center;
+    font-size:12px;cursor:pointer}
+  .th.off .frame img{opacity:.35;filter:grayscale(.7)}
+  .th.off .inc2{background:rgba(25,27,30,.4)}
+  .th .fullchip{position:absolute;bottom:34px;left:6px;background:var(--accent);color:#fff;
+    font:700 9px var(--mono);letter-spacing:.06em;padding:2px 6px;border-radius:3px}
+  .th.dropmark{box-shadow:0 0 0 2px var(--accent)}
+  .th.dragging{opacity:.4}
+  .lightbox{position:fixed;inset:0;background:rgba(20,22,26,.88);z-index:100;display:none;
+    align-items:center;justify-content:center;flex-direction:column;gap:14px}
+  .lightbox.open{display:flex}
+  .lightbox .lbframe{max-width:82vw;max-height:74vh;display:flex;align-items:center;justify-content:center}
+  .lightbox img{max-width:82vw;max-height:74vh}
+  .lightbox img.r90,.lightbox img.r270{max-width:74vh;max-height:82vw}
+  .lightbox img.r90{transform:rotate(90deg)}
+  .lightbox img.r180{transform:rotate(180deg)}
+  .lightbox img.r270{transform:rotate(270deg)}
+  .lightbox .lbbar{display:flex;gap:8px;align-items:center;background:var(--card);
+    border-radius:8px;padding:8px 12px}
+  .lightbox .lbbar .nm{font:600 12px var(--mono);margin-right:6px}
+  .undotoast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:110;
+    background:#22262c;color:#fff;border-radius:8px;padding:10px 16px;font:500 12.5px var(--sans);
+    display:none;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+  .undotoast.show{display:flex}
+  .undotoast a{color:#FF7A81;font-weight:700;cursor:pointer;text-decoration:underline}
+  .delivery{background:var(--canvas);border:1px solid var(--line);border-radius:10px;
+    padding:8px 16px;margin:12px 0 14px}
+  .addrwrap{position:relative;flex:1;min-width:280px;max-width:420px}
+  .addrwrap input{width:100%}
+  .ab{position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--card);
+    border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(25,27,30,.12);
+    z-index:30;display:none;overflow:hidden}
+  .ab.open{display:block}
+  .ab .abr{display:flex;gap:8px;align-items:baseline;padding:8px 12px;cursor:pointer;font-size:12.5px}
+  .ab .abr:hover{background:var(--canvas)}
+  .ab .abr .an{font-weight:600;color:var(--ink)}
+  .ab .abr .ae{color:var(--muted);font-family:var(--mono);font-size:11.5px}
+  .ab .abr .at{margin-left:auto;font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+  .ab .abempty{padding:8px 12px;font-size:12px;color:var(--muted);font-style:italic}
+  .ccline{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .ccline:empty{display:none}
+  .ccchip{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:3px 6px 3px 10px;font:500 11.5px var(--mono);color:var(--ink)}
+  .ccchip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 2px}
+  .ccchip button:hover{color:var(--accent)}
+  .ccsugg{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .ccsugg button{border:1px dashed var(--line);background:none;border-radius:12px;
+    font:500 11px var(--sans);color:var(--muted);padding:3px 10px;cursor:pointer}
+  .ccsugg button:hover{border-color:var(--accent);color:var(--accent)}
+  .wb .grip{cursor:grab;color:var(--faint);font-size:13px;line-height:1;padding:1px 3px;user-select:none;flex:none}
+  .wb .grip:hover{color:var(--ink)}
+  .wb .grip:active{cursor:grabbing}
+  .wb.dragging{opacity:.45}
+  .wb.dropmark{box-shadow:0 -2px 0 var(--accent), 0 1px 2px rgba(25,27,30,.05)}
+  .wbadd.dropmark{outline:2px dashed var(--accent);outline-offset:2px;border-radius:6px}
+  .wb .wbt{font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink);
+    border-bottom:1px dashed transparent;outline:none;min-width:40px}
+  .wb .wbt:hover{border-bottom-color:var(--faint);cursor:text}
+  .wb .wbt:focus{border-bottom-color:var(--accent)}
+  .wb .wbh a{font-size:11px;color:var(--muted);cursor:pointer;text-decoration:underline}
+  .wb .wbh a:hover{color:var(--accent)}
+  .wb .wbx{margin-left:auto;border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 2px}
+  .wb .wbx:hover{color:var(--accent)}
+  .wb textarea{border:0;border-radius:0;width:100%;padding:10px 12px;resize:none;overflow:hidden;
+    background:var(--card);font:400 12.5px/1.55 var(--sans);color:var(--ink);display:block;min-height:38px}
+  .wb textarea:focus{outline:none;background:#FBFBFC}
+  .wbadd{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+  .wbadd button{border:1px dashed var(--line);background:none;border-radius:7px;
+    font:600 11.5px var(--sans);color:var(--muted);padding:6px 12px;cursor:pointer}
+  .wbadd button:hover{border-color:var(--accent);color:var(--accent)}
+  .wbadd .note{font-size:11px;color:var(--muted);font-style:italic}
+  .brian-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .brian-head .bh-t{font-weight:700;color:var(--ink);font-size:13.5px}
+  .brian-head .bh-s{font-size:12px;color:var(--muted)}
+  .brow{display:grid;grid-template-columns:150px 1fr 44px 1fr 110px;gap:10px;
+    align-items:center;padding:9px 0;border-bottom:1px solid #EEF0F2}
+  .brow .bl{font:600 10.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;
+    color:var(--faint)}
+  .brow .bv{font-size:13px;background:#F7F8F9;border:1px solid var(--line);border-radius:6px;
+    padding:7px 10px;color:var(--ink)}
+  .brow.done .bv{color:var(--faint)}
+  .brow .arrow{width:34px;height:30px;border:1px solid var(--line);border-radius:6px;
+    background:#fff;font-size:14px;color:var(--muted);display:flex;align-items:center;
+    justify-content:center}
+  .brow .arrow:hover{border-color:var(--accent);color:var(--accent)}
+  .brow input,.brow select{width:100%;border:1px solid var(--line);border-radius:6px;
+    padding:7px 10px;font-size:13px}
+  .brow input.st-acc,.brow select.st-acc{border-color:#9CCBB0}
+  .brow input.st-ovr,.brow select.st-ovr{border-color:#E4C289}
+  .schip{font:600 10px var(--mono);letter-spacing:.05em;padding:4px 8px;border-radius:4px;
+    text-align:center}
+  .s-wait{background:#EDEFF2;color:var(--muted)}
+  .s-acc{background:var(--ok-bg);color:var(--ok)}
+  .s-ovr{background:var(--warn-bg);color:var(--warn)}
+  .s-na{background:#F4F5F6;color:var(--faint)}
+  .brow.collapsed{opacity:.45}
+  .brow.collapsed input,.brow.collapsed select,.brow.collapsed .arrow{pointer-events:none}
+
+  .bfoot{display:flex;align-items:center;gap:14px;padding-top:14px}
+  .bfoot .cnt{font-size:12.5px;color:var(--muted)}
+  .bfoot .cnt b{color:var(--ink)}
+
+  .settle{margin-top:18px;background:#2C2A27;border-radius:8px;padding:16px 20px;
+    display:flex;gap:34px;align-items:center;flex-wrap:wrap}
+  .settle .sl{font:600 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;
+    color:rgba(255,255,255,.55);margin-bottom:4px}
+  .settle .sv{font:700 19px var(--mono);color:#fff}
+  .settle .sv.red{color:#F0524F}
+  .settle .op{color:rgba(255,255,255,.4);font-size:18px}
+
+  /* ---------- report / fee tabs ---------- */
+  .tabs{display:flex;gap:6px;margin-bottom:16px}
+  .tab{border:1px solid var(--line);background:#F5F6F7;border-radius:6px;padding:7px 16px;
+    font-size:13px;font-weight:600;color:var(--muted)}
+  .tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .preview{border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;
+    gap:18px;align-items:center;margin-bottom:14px}
+  .pv-thumb{width:82px;height:112px;border-radius:4px;background:#FDFCFA;
+    border:1px solid #E4DFD8;position:relative;flex-shrink:0}
+  .pv-thumb::before{content:"";position:absolute;inset:10px 10px auto;height:8px;background:#C80A32;border-radius:1px}
+  .pv-thumb::after{content:"";position:absolute;inset:26px 10px 12px;
+    background:repeating-linear-gradient(#EAE6E0 0 2px,transparent 2px 8px)}
+  .pv-meta{flex:1}
+  .pv-meta .pt{font-weight:700;color:var(--ink);font-size:13.5px}
+  .pv-meta .ps{font-size:12px;color:var(--muted);margin-top:3px}
+  .sendrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .sendnote{font-size:12px;color:var(--muted)}
+
+  /* fee */
+  .feetbl{width:100%;max-width:520px;border-collapse:collapse;font-size:13px}
+  .feetbl td{padding:7px 8px;border-bottom:1px solid #EEF0F2}
+  .feetbl .num{text-align:right;font-family:var(--mono)}
+  .feetbl .tot td{font-weight:700;color:var(--ink);border-top:1.5px solid var(--ink);border-bottom:none}
+
+  /* ---------- notes & queries ---------- */
+  .note{display:grid;grid-template-columns:120px 1fr;gap:14px;padding:10px 0;
+    border-bottom:1px solid #EEF0F2;font-size:12.5px}
+  .note .nw{color:var(--faint);font-family:var(--mono);font-size:11.5px}
+  .note .nb b{color:var(--ink)}
+  .empty{border:1px dashed var(--line);border-radius:8px;padding:18px;text-align:center;
+    color:var(--faint);font-size:12.5px}
+
+  .toggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);
+    cursor:pointer;user-select:none}
+  .toggle input{accent-color:var(--accent);width:15px;height:15px}
+
+  @media(max-width:900px){
+    .g2,.g3,.g4,.guides,.wl{grid-template-columns:1fr}
+    .thumbs{grid-template-columns:repeat(3,1fr)}
+    .brow{grid-template-columns:110px 1fr 38px 1fr 84px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ STICKY HEADER ============ -->
+<div class="top">
+  <div class="id">
+    <span class="plate">MA59BDY</span>
+    <span class="veh">MINI First 1.4 · 2009</span>
+    <span class="ref">QDOS26214 · yr Q-88214-LC</span>
+    <span class="badge b-tl" id="hdrOutcome">TOTAL LOSS — CAT N</span>
+    <span class="badge b-ur" id="hdrLegal">UNROADWORTHY</span>
+    <span class="badge b-ratio" id="hdrRatio" style="display:none"></span>
+    <span class="eng">Assigned <b id="hdrEng">A Patterson</b></span>
+    <span class="casebar">
+      <span class="savenote" id="saveNote"></span>
+      <button class="btn small" onclick="caseExport()" title="Download the whole case as a JSON file — images included">Export case</button>
+      <button class="btn small" onclick="document.getElementById('caseFile').click()" title="Load a previously exported case file">Import case</button>
+      <input type="file" id="caseFile" accept=".json,application/json" style="display:none" onchange="caseImportFile(this.files[0]);this.value=''">
+      <button class="btn small" onclick="caseReset()" title="Discard saved work and reload the demo case">Reset demo</button>
+    </span>
+    <span class="lockchip" id="lockChip"></span>
+  </div>
+  <nav class="jump" id="jump">
+    <a href="#s1">1 Case details</a><a href="#s2">2 Claim</a><a href="#s3">3 Inspection</a>
+    <a href="#s4">4 Vehicle</a><a href="#s5">5 Images</a><a href="#s6">6 Repair spec</a>
+    <a href="#s7">7 Decisions</a><a href="#s8">8 Report</a><a href="#s9">9 Notes &amp; queries</a>
+  </nav>
+  <div id="staleBanner">Report preview is out of date — the case has been edited since it was generated. Regenerate before sending.</div>
+  <div id="lockBanner"><div class="lb"><span id="lockMsg"></span>
+    <span class="lbact"><button onclick="askRelease()">Ask to release</button><button class="pri" id="takeBtn" onclick="takeOver()">Take over</button></span>
+  </div></div>
+  <div class="demo">Demo · viewing as
+    <select id="viewer" onchange="renderLock()"><option>A Patterson</option><option>E Mawdsley</option><option>N O'Reilly</option></select>
+    <a onclick="simIdle()">simulate holder idle 20 min</a>
+  </div>
+</div>
+<div class="modal" id="takeModal"><div class="box">
+  <h3>Take over this case?</h3>
+  <p id="takeText"></p>
+  <p style="font-size:12px;color:var(--muted)">Their unsaved typing is already saved field-by-field — nothing is lost. The takeover is logged on the case timeline.</p>
+  <div class="acts"><button onclick="closeModal()">Cancel</button><button class="pri" onclick="confirmTake()">Take over</button></div>
+</div></div>
+<div class="modal" id="clearModal"><div class="box">
+  <h3>Delete all repair lines?</h3>
+  <p id="clearText"></p>
+  <p style="font-size:12px;color:var(--muted)">The current grid is kept under <b>Versions</b>, and the deletion is logged on the case timeline. Discount and VAT settings are left as they are.</p>
+  <div class="acts"><button onclick="document.getElementById('clearModal').classList.remove('show')">Cancel</button><button class="danger" onclick="clearGridDo()">Delete all lines</button></div>
+</div></div>
+<div class="modal" id="verModal"><div class="box wide">
+  <div style="display:flex;align-items:baseline;gap:12px"><h3>Repair specification — versions</h3>
+    <span style="font-size:12px;color:var(--muted)">every import, scale, clear and restore freezes the outgoing grid; sending a report freezes the grid that went out</span>
+    <button class="btn small" style="margin-left:auto" onclick="document.getElementById('verModal').classList.remove('show')">Close</button></div>
+  <div id="verList"></div>
+</div></div>
+<div class="modal" id="cmpModal"><div class="box wide">
+  <div style="display:flex;align-items:baseline;gap:12px"><h3>Compare versions</h3>
+    <span style="font-size:12px;color:var(--muted)">red = added · orange = changed · green = removed</span>
+    <span class="noprint" style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn small" onclick="window.print()">Print comparison sheet</button>
+      <button class="btn small" onclick="document.getElementById('cmpModal').classList.remove('show')">Close</button></span></div>
+  <div class="cmphead noprint">
+    <span class="vb-l">From</span><select id="cmpA" onchange="renderCompare()"></select>
+    <span class="vb-l">To</span><select id="cmpB" onchange="renderCompare()"></select>
+    <span class="sum" id="cmpSum"></span>
+  </div>
+  <div id="cmpBody"></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<div class="frame">
+
+  <!-- ============ 1 CASE DETAILS ============ -->
+  <section class="sec" id="s1">
+    <div class="sec-h"><b>1</b><h2>Case details</h2><span class="hint">system-held identity · padlock to edit</span></div>
+    <div class="fg g4">
+      <div class="f lockable" data-name="Principal"><label>Principal</label>
+        <div class="lockrow"><input type="text" value="QDOS Claims" disabled>
+        <button class="lockbtn" title="Unlock to edit"></button></div></div>
+      <div class="f lockable" data-name="Our ref"><label>Our ref</label>
+        <div class="lockrow"><input type="text" value="QDOS26214" disabled style="font-family:var(--mono)">
+        <button class="lockbtn" title="Unlock to edit"></button></div></div>
+      <div class="f"><label>Principal ref</label><input type="text" id="principalRef" value="Q-88214-LC"></div>
+      <div class="f"><label>Product type</label>
+        <select><option selected>Standard</option><option>Commercial (C.)</option><option>Audit (A.)</option><option>Audit — TL (AP.)</option><option>Diminution (D.)</option></select>
+      </div>
+      <div class="f"><label>Assigned engineer</label>
+        <select id="assignedEng" onchange="assignedChange(this.value)">
+          <option selected>A Patterson</option><option>E Mawdsley</option><option>N O'Reilly</option>
+          <option>Ben Docherty</option><option>Lisa Mckenzie</option><option>Fee Dutton</option>
+          <option>Jake Wells</option><option>Patrick Rooney</option><option>Alex Mercer</option>
+        </select>
+      </div>
+      <div class="f"><label>Sign off engineer</label>
+        <select id="signoffEng" onchange="touch()">
+          <option selected>A Patterson</option><option>E Mawdsley</option><option>N O'Reilly</option>
+        </select>
+      </div>
+      <div class="f lockable" data-name="Case status"><label>Case status</label>
+        <div class="lockrow"><input type="text" value="In assessment" disabled>
+        <button class="lockbtn" title="Unlock to edit"></button></div></div>
+      <div class="f lockable" data-name="Instructed"><label>Instructed</label>
+        <div class="lockrow"><input type="date" value="2026-07-21" id="instrDate" disabled>
+        <button class="lockbtn" title="Unlock to edit"></button></div></div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Principal</div>
+      <div class="fg g2">
+        <div class="f"><label>Generic notes <span class="chip c-sys">PRINCIPAL RECORD — EVERY CASE</span></label>
+          <textarea disabled>In hire via QDOS Rapid — check hire status at triage. CC all reports to claims@qdosclaims.co.uk.</textarea></div>
+        <div class="f"><label>Case-specific notes</label>
+          <textarea>Triage 22 Jul: vehicle confirmed in hire since 21 Jul — expedite.</textarea></div>
+      </div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Claim source</div>
+      <div class="fg g3">
+        <div class="f"><label>Source name</label><input type="text" value="Rapid Hire Solutions"></div>
+        <div class="f"><label>Contact number</label><input type="text" value="0151 496 0102"></div>
+        <div class="f"><label>Email</label><input type="text" value="claims@rapidhire.co.uk"></div>
+      </div>
+      <div class="fg g2" style="margin-top:12px">
+        <div class="f"><label>Generic notes <span class="chip c-sys">SOURCE RECORD — EVERY CASE</span></label>
+          <textarea disabled>Prefer total loss. CC report to rhs-claims@outlook.com. WhatsApp group called RHS.</textarea></div>
+        <div class="f"><label>Case-specific notes</label>
+          <textarea>Source advised in hire.</textarea></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2 CLAIM DETAILS ============ -->
+  <section class="sec" id="s2">
+    <div class="sec-h"><b>2</b><h2>Claim details</h2><span class="hint">paperwork — who, when, what happened</span></div>
+    <div class="fg g3">
+      <div class="f"><label>Claimant name</label><input type="text" value="Ms L Carter"></div>
+      <div class="f"><label>Claimant address</label><input type="text" id="clmAddr" value="14 Grove Street, Liverpool L15 8HY"></div>
+      <div class="f"><label>Claimant VAT status</label>
+        <select id="claimantVat"><option selected>Not VAT registered</option><option>VAT registered</option></select>
+      </div>
+      <div class="f"><label>Accident date</label><input type="date" value="2026-07-14" id="accDate"></div>
+      <div class="f lockable" data-name="Report date"><label>Report date <span class="chip c-sys">AUTO ON GENERATE</span></label>
+        <div class="lockrow"><input type="date" id="reportDate" disabled>
+        <button class="lockbtn" title="Unlock to overwrite"></button></div></div>
+    </div>
+    <div class="fg" style="margin-top:14px">
+      <div class="f"><label>Accident circumstances <span class="chip c-sys">NON-BLOCKING · MAY ARRIVE LATE</span></label>
+        <textarea>Claimant's vehicle stationary in traffic on Smithdown Road when struck in the rear by third party vehicle.</textarea>
+      </div>
+      <div class="f"><label>Notes from client</label>
+        <textarea>Please note claimant requires the vehicle for school runs — expedite where possible.</textarea>
+      </div>
+    </div>
+    <div class="composed"><b>Composed — matter line</b>Road Traffic Accident: Ms L Carter: 14 July 2026</div>
+  </section>
+
+  <!-- ============ 3 INSPECTION DETAILS ============ -->
+  <section class="sec" id="s3">
+    <div class="sec-h"><b>3</b><h2>Inspection details</h2><span class="hint">what actually happened</span></div>
+    <div class="fg g4">
+      <div class="f"><label>Inspection type</label>
+        <select id="inspType"><option value="image" selected>Image based assessment</option><option value="physical">Physical inspection</option></select>
+      </div>
+      <div class="f"><label>Inspection date</label><input type="date" value="2026-08-28"></div>
+      <div class="f"><label>Inspection location (shown on report)</label>
+        <select id="inspLoc">
+          <option value="iba" selected>Image based assessment</option>
+          <option value="claimant">Claimant address</option>
+          <option value="repairer">Repairer address</option>
+          <option value="storage">Storage address</option>
+          <option value="other">Other…</option>
+        </select>
+      </div>
+      <div class="f" id="inspLocWrap" style="display:none"><label>Other location</label>
+        <input type="text" id="inspLocOther" placeholder="Enter manually or pick from address book"></div>
+    </div>
+    <div class="composed" id="desktopSent"><b>Composed — assessment method</b><span id="locSent"></span></div>
+    <div class="subcard">
+      <div class="sg-t">Repairer</div>
+      <div class="fg g3">
+        <div class="f"><label>Repairer name</label><input type="text" value="Merseyside Accident Repair Centre"></div>
+        <div class="f"><label>Repairer address</label><input type="text" id="repAddr" value="Unit 4, Brasenose Rd, Bootle L20 8HL"></div>
+        <div class="f"><label>Repairer VAT status</label>
+          <select id="repVat"><option value="yes" selected>VAT registered</option><option value="no">Not VAT registered</option></select>
+        </div>
+      </div>
+      <div class="composed" style="margin-top:10px"><b>Drives the calculation</b><span id="vatModeSent">VAT registered — VAT at 20% applies to the full repair subtotal.</span></div>
+    </div>
+    <div class="subcard">
+      <div class="sg-t">Storage</div>
+      <div class="fg g4">
+        <div class="f"><label>Storage name</label><input type="text" id="stoName" value="Crosby Vehicle Storage"></div>
+        <div class="f"><label>Storage address</label><input type="text" id="stoAddr" value="Kings Dock Yard, Regent Rd, Liverpool L5 9TF"></div>
+        <div class="f"><label>Daily rate £/day</label><input type="number" id="stoRate" value="25.00" step="0.01"></div>
+        <div class="f"><label>Recovery charge £</label><input type="number" id="stoRec" value="250.00" step="0.01"></div>
+      </div>
+      <div class="composed" id="stoSentWrap" style="margin-top:10px"><b>Composed — appears only when a charge is entered</b><span id="stoSent"></span></div>
+    </div>
+  </section>
+
+  <!-- ============ 4 VEHICLE DETAILS ============ -->
+  <section class="sec" id="s4">
+    <div class="sec-h"><b>4</b><h2>Vehicle details</h2><span class="hint">identity · condition · value · history</span></div>
+    <div class="fg g4">
+      <div class="f"><label>Registration</label><div class="v" style="font-family:var(--mono)">MA59BDY</div></div>
+      <div class="f"><label>Make / model</label><div class="v">MINI First 1.4 <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>First registered</label><div class="v">Sep 2009 <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>Vehicle type</label>
+        <select><option selected>Car</option><option>Van</option><option>Motorcycle</option><option>Scooter</option><option>Bicycle</option><option>Trailer</option><option>Caravan</option><option>Other</option></select>
+      </div>
+      <div class="f"><label>Engine / fuel</label><div class="v">1397cc Petrol <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>Colour</label><div class="v">Silver <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>VIN</label><input type="text" value="WMWMF32040TZ12345"></div>
+      <div class="f"><label>Transmission</label><div class="v">Manual 6-speed <span class="chip c-dvla">LOOKUP</span></div></div>
+      <div class="f"><label>Body style / doors</label><div class="v">Hatchback · 3dr <span class="chip c-dvla">LOOKUP</span></div></div>
+      <div class="f"><label>CO₂ / Euro status</label><div class="v">129 g/km · Euro 4 <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>MOT / tax</label><div class="v">MOT to Mar 2027 · Taxed <span class="chip c-dvla">DVLA</span></div></div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Mileage &amp; condition</div>
+      <div class="fg g3">
+        <div class="f"><label>Odometer</label>
+          <div class="odorow">
+            <input type="number" value="87412" id="odo">
+            <div class="unit"><button id="uMi" class="on" onclick="setUnit('mi')">mi</button><button id="uKm" onclick="setUnit('km')">km</button></div>
+          </div>
+          <label class="toggle" style="margin-top:8px;font-size:12.5px">
+            <input type="checkbox" id="avgTick" onchange="avgMileage()"> Average mileage — 7,100/yr from first registration
+          </label>
+          <div class="warnnote" id="avgWarn" style="display:none">Average basis — not appropriate for imported vehicles or taxis.</div>
+        </div>
+        <div class="f"><label>Mileage source</label>
+          <select id="mileSrc">
+            <option value="online_data" selected>Online data</option><option value="owner">Owner</option>
+            <option value="repairer">Repairer / storage yard</option><option value="principal">Principal</option>
+            <option value="average">Average for age &amp; type</option><option value="tbc">TBC</option>
+          </select>
+        </div>
+        <div class="f"><label>Pre-incident condition</label>
+          <select id="cond">
+            <option value="poor">Poor</option><option value="below_average">Below average</option>
+            <option value="average" selected>Average</option><option value="good">Good</option>
+            <option value="excellent">Excellent</option>
+          </select>
+        </div>
+      </div>
+      <div class="composed"><b>Composed — engineer's comments</b><span id="mileSent"></span></div>
+      <div class="composed"><b>Composed — pre-incident condition</b><span id="condSent"></span></div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Impact <span class="rt">tap zones — multi-select · location auto-follows · N/S–O/S logged</span></div>
+      <div class="impactwrap">
+        <div class="diag"><svg id="carSvg" viewBox="0 0 300 540" aria-label="Damage zone picker"></svg></div>
+        <div class="impfields">
+          <div class="f"><label>Impact severity</label>
+            <select id="sev">
+              <option value="light">Light</option><option value="light_to_moderate">Light to moderate</option>
+              <option value="moderate" selected>Moderate</option>
+              <option value="moderate_to_heavy">Moderate to heavy</option><option value="heavy">Heavy</option>
+            </select>
+          </div>
+          <div class="f" style="margin-top:12px"><label>Impact location <span class="chip c-sys">AUTO FROM ZONES</span></label>
+            <select id="loc">
+              <option>Front</option><option>Left front</option><option>Right front</option>
+              <option>Left side</option><option>Right side</option><option selected>Rear</option>
+              <option>Left rear</option><option>Right rear</option><option>Roof</option>
+              <option>Underside</option><option>Wheel(s)</option><option>Interior</option>
+              <option>Mechanical</option>
+            </select>
+          </div>
+          <div class="f" style="margin-top:12px"><label>Damaged zones</label>
+            <div class="zonechips" id="zoneChips"></div>
+          </div>
+        </div>
+      </div>
+      <div class="composed"><b>Composed — nature of incident (override available)</b><span id="natSent"></span></div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">History / provenance check <button class="btn small" style="margin-left:auto" onclick="alert('Would call the data-provider API (e.g. Experian AutoCheck) and pass the result through verbatim.')">Run check</button></div>
+      <div class="composed" style="margin:0"><b>API pass-through — prints verbatim, clear or adverse</b>Experian AutoCheck: No adverse history recorded. Not previously recorded as a total loss. No outstanding finance. 3 previous keepers.</div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Valuation <span class="rt">click a guide to select · Super CAP &amp; Market research entered manually</span></div>
+      <div class="guides" id="guides">
+        <div class="guide sel" data-g="CAP" data-retail="3100" data-trade="2320">
+          <div class="gn">CAP</div>
+          <div class="gr"><span>Retail</span><b>£3,100</b></div>
+          <div class="gr"><span>Trade</span><b>£2,320</b></div>
+        </div>
+        <div class="guide" data-g="Glass's" data-retail="2950" data-trade="2180">
+          <div class="gn">Glass's</div>
+          <div class="gr"><span>Retail</span><b>£2,950</b></div>
+          <div class="gr"><span>Trade</span><b>£2,180</b></div>
+        </div>
+        <div class="guide" data-g="Cazana" data-retail="2875" data-trade="2090">
+          <div class="gn">Cazana</div>
+          <div class="gr"><span>Retail</span><b>£2,875</b></div>
+          <div class="gr"><span>Trade</span><b>£2,090</b></div>
+        </div>
+        <div class="guide" data-g="Brego" data-retail="3050" data-trade="2260">
+          <div class="gn">Brego</div>
+          <div class="gr"><span>Retail</span><b>£3,050</b></div>
+          <div class="gr"><span>Trade</span><b>£2,260</b></div>
+        </div>
+        <div class="guide manual" data-g="Super CAP">
+          <div class="gn">Super CAP <span class="chip c-sys" style="margin-left:6px">MANUAL</span></div>
+          <div class="gr"><span>Retail</span><input class="gin" id="scRetail" type="number" placeholder="£"></div>
+          <div class="gr"><span>Trade</span><input class="gin" id="scTrade" type="number" placeholder="£"></div>
+        </div>
+        <div class="guide manual" data-g="Market research" data-noTrade="1">
+          <div class="gn">Market research <span class="chip c-sys" style="margin-left:6px">MANUAL</span></div>
+          <div class="gr"><span>Retail</span><input class="gin" id="mrRetail" type="number" value="3195"></div>
+          <div class="gr"><span style="color:var(--faint)">No trade figure</span><b style="color:var(--faint)">—</b></div>
+        </div>
+      </div>
+      <div class="incpanel">
+        <div class="sg-t" style="margin-bottom:10px">Value increases <span class="rt">tick to add · suggested figures — overwrite freely</span></div>
+        <div class="incgrid" id="incGrid"></div>
+      </div>
+      <div class="adjbar">
+        <div class="f" style="width:140px"><label>Condition deduction £</label>
+          <input type="number" id="adjDed" placeholder="e.g. 200" title="Deduct for poor condition" step="1"></div>
+        <label class="toggle" style="margin-top:14px"><input type="checkbox" id="ptlTick"> Previous total loss</label>
+        <div class="seg" id="ptlSeg">
+          <button class="on" data-p="10" onclick="setPtl(10)">−10%</button>
+          <button data-p="20" onclick="setPtl(20)">−20%</button>
+        </div>
+        <div class="working" id="adjWorking"></div>
+        <button class="btn small" id="adjApply" style="margin-left:auto" onclick="applyAdj()">Apply to engineer's value</button>
+      </div>
+      <div class="engval">
+        <div class="ev-l">Engineer's value (PAV)</div>
+        <input type="number" id="pavMirror" placeholder="£" onchange="setPav(this.value)">
+        <span class="chip c-sys">ONE FIELD, TWO PLACES — MIRRORS §7 DECISIONS</span>
+      </div>
+      <div style="display:flex;gap:26px;flex-wrap:wrap;margin-top:12px">
+        <label class="toggle">
+          <input type="checkbox" id="discloseSrc" onchange="compose();adjWork();touch()"> Disclose guide source on report
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="valComm" onchange="adjWork();wbRefresh();touch()"> Include valuation commentary on report
+        </label>
+      </div>
+      <div class="composed" id="valCommWrap" style="display:none"><b>Composed — valuation commentary</b><span id="valCommSent"></span></div>
+      <div class="composed" style="margin-top:10px"><b>Composed — what the report carries</b><span id="valSent"></span></div>
+    </div>
+
+    
+
+    <div class="subcard">
+      <div class="sg-t">Unrelated damage</div>
+      <div class="fg g2">
+        <div class="f"><label>Description</label><input type="text" id="unrelDesc" value="Kerbing to both N/S alloys; dent to O/S front door, inconsistent with this incident" onchange="wbRefresh();touch()"></div>
+        <div class="f" style="align-self:end">
+          <label class="toggle"><input type="checkbox" id="unrelPrint" onchange="wbRefresh();touch()"> Print on report <span class="chip c-sys">OFF BY DEFAULT</span></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5 IMAGES ============ -->
+  <section class="sec" id="s5">
+    <div class="sec-h"><b>5</b><h2>Images</h2>
+      <span class="hint"><span id="imgCount"></span> · tick to include · drag the grip to reorder · order = report order</span></div>
+    <div class="imgdrop" id="imgDrop">
+      <div class="thumbs" id="thumbs"></div>
+      <div class="imgdz" id="imgDz">Drop images anywhere in this panel to add them</div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+      <button class="btn small" onclick="document.getElementById('imgFile').click()">Add images…</button>
+      <input type="file" id="imgFile" accept="image/*" multiple style="display:none" onchange="imgFiles(this.files);this.value=''">
+      <span class="sendnote">Included images print at the back of the report and in the Images PDF — 2 per page; flag an image FULL for its own page.</span>
+    </div>
+  </section>
+
+  <!-- ============ 6 REPAIR SPECIFICATION ============ -->
+  <section class="sec" id="s6">
+    <div class="sec-h"><b>6</b><h2>Repair specification</h2>
+      <span class="hint">the grid is the single source of truth — edit any cell</span></div>
+    <div class="dropzone" id="dropzone">
+      <div class="dz-i">⇣</div>
+      <div><b>Drag an estimate here to populate the grid</b>
+      <div class="dz-s">Audatex PDF · Audatex XML · Glass's repair estimate PDF · or click to browse
+        &nbsp;·&nbsp; demo: <a onclick="event.stopPropagation();mockImport('Audatex supp. est. 88214-02 (PDF)',SUPP_ROWS,'Audatex')">supplementary 88214-02</a>
+        · <a onclick="event.stopPropagation();mockImport('glass_estimate_88214.pdf',GLASS_ROWS,\"Glass's\")">different Glass's estimate</a></div></div>
+    </div>
+    <div class="pendimp" id="pendImp" style="display:none"></div>
+    <div style="display:flex;gap:10px;margin:12px 0 14px;align-items:center">
+      <button class="btn small" onclick="addRow()">Add row</button>
+      <button class="btn small" id="verBtn" onclick="openVersions()">Versions (2)</button>
+      <button class="btn small" onclick="openCompare()">Compare…</button>
+      <span class="sendnote" id="impLog">Populated 28 Aug 14:22 from <b>Audatex est. 88214-01 (PDF)</b> — 15 lines · labour rate <b id="rateShow"></b></span>
+    </div>
+    <div class="supp" id="suppPanel" style="display:none"></div>
+    <table class="grid">
+      <thead><tr>
+        <th style="width:112px">Type</th><th>Description</th><th style="width:70px">Qty</th>
+        <th style="width:86px;text-align:right">Unit £</th><th style="width:70px;text-align:right">Hours</th>
+        <th style="width:86px;text-align:right">Material £</th>
+        <th style="width:96px">Provenance</th><th style="width:44px;padding:0"><button class="delall" onclick="clearGridAsk()" title="Delete all lines and reset the specification to zero"><span class="x">×</span><span class="t">delete all</span></button></th>
+      </tr></thead>
+      <tbody id="gridBody"></tbody>
+    </table>
+    <div class="vatbar">
+      <span class="vb-l">Labour rate</span>
+      <span class="rseg" id="rateSeg">
+        <button class="on" onclick="rateBand('std')">Standard <small>ABP 2026 · £83.28</small></button>
+        <button onclick="rateBand('prem')">Prestige / aluminium <small>ABP 2026 · £103.06</small></button>
+        <button onclick="rateBand('custom')">Custom <small>typed</small></button>
+      </span>
+      <label class="toggle"><input type="checkbox" id="rateUplift"> +15% regional uplift <span class="chip c-sys" id="upliftHint" style="margin-left:4px" title="">LONDON &amp; HOME COUNTIES</span></label>
+      <span class="ratebox">
+        <span class="ratework" id="rateWork"></span>
+        <input type="text" id="rateIn" value="83.28" onchange="rateTyped(this.value)">
+        <span class="per">/hr</span>
+        <span class="chip c-warn" id="rateManChip" style="display:none;margin-left:0">MANUAL</span>
+      </span>
+    </div>
+    <div class="vatbar" id="scaleBar">
+      <span class="vb-l">Target % of PAV</span>
+      <span class="chip c-warn" id="scaleState" style="display:none;margin-left:0">SCALED</span>
+      <input type="range" id="scaleRange" min="0" max="100" step="1" oninput="scaleTo(this.value)">
+      <button class="btn small" id="scaleOff" onclick="scaleOff()" disabled title="Remove all scaling and put the specification back exactly as it was">✕ Remove scaling</button>
+      <span class="ratebox" style="margin-left:0">
+        <input type="number" id="scalePct" step="1" style="width:66px" onchange="scaleTo(this.value)"><span class="per">%</span>
+      </span>
+      <span class="ratework" id="scaleRead"></span>
+      <span class="chip c-warn" id="scalePrev" style="display:none">PREVIEW</span>
+      <span class="ratework" style="margin-left:auto">floors · labour £<input type="number" id="floorRate" value="50" step="1" style="width:52px;border:1px solid var(--line);border-radius:4px;padding:2px 5px;font:600 12px var(--mono);text-align:right" onchange="scaleRefresh(true)">/hr · prices <input type="number" id="floorPrice" value="65" step="5" style="width:48px;border:1px solid var(--line);border-radius:4px;padding:2px 5px;font:600 12px var(--mono);text-align:right" onchange="scaleRefresh(true)">%</span>
+      <button class="btn small primary" id="scaleApply" style="display:none" onclick="scaleApply()">Apply</button>
+
+    </div>
+    <div class="vatbar" id="crBar">
+      <span class="vb-l">Contract repair</span>
+      <label class="toggle"><input type="checkbox" id="crTick" onchange="crToggle(this.checked)"> Contract repair agreed</label>
+      <span class="ratebox" style="margin-left:0">
+        <span class="per">agreed total sum £</span><input type="text" id="crAmt" style="width:104px" disabled placeholder="—" onchange="crAmount(this.value)">
+      </span>
+      <span class="chip c-warn" id="crMis" style="display:none;cursor:pointer" title="The specification total no longer matches the agreed sum — click to rescale the spec to it"></span>
+      <span class="composed" id="crSent" style="display:none;margin:0;flex:1 1 100%"><b>Composed — Contract Repair section</b><span id="crSentTxt"></span></span>
+    </div>
+    <div class="vatbar">
+      <span class="vb-l">Discounts %</span>
+      <span class="dsc"><label>Parts</label><input type="number" id="d_parts" min="0" max="100" step="0.5" placeholder="0"></span>
+      <span class="dsc"><label>Materials</label><input type="number" id="d_paint" min="0" max="100" step="0.5" placeholder="0"></span>
+      <span class="dsc"><label>Specialist</label><input type="number" id="d_spec" min="0" max="100" step="0.5" placeholder="0"></span>
+      <span class="dsc"><label>Overall</label><input type="number" id="d_all" min="0" max="100" step="0.5" placeholder="0"></span>
+    </div>
+    <div class="vatbar">
+      <span class="vb-l">VAT applies to</span>
+      <label class="toggle"><input type="checkbox" id="vc_labour" onchange="vatManual()"> Labour</label>
+      <label class="toggle"><input type="checkbox" id="vc_parts" onchange="vatManual()"> Parts</label>
+      <label class="toggle"><input type="checkbox" id="vc_materials" onchange="vatManual()"> Materials</label>
+      <label class="toggle"><input type="checkbox" id="vc_specialist" onchange="vatManual()"> Specialist</label>
+      <span class="chip c-warn" id="vatManChip" style="display:none">MANUAL OVERRIDE</span>
+      <button class="btn small" id="vatReset" style="display:none;margin-left:auto" onclick="vatDefaults();recalc();touch()">Reset to repairer status</button>
+    </div>
+    <div class="rollup" id="rollup"></div>
+    <div class="wl">
+      <div class="wcol"><div class="wt">→ Main new parts required</div><ul id="wlNew"></ul></div>
+      <div class="wcol"><div class="wt">→ Repairs required</div><ul id="wlRep"></ul></div>
+      <div class="wcol"><div class="wt">→ Additional operations</div><ul id="wlOps"></ul></div>
+    </div>
+  </section>
+
+  <!-- ============ 7 ENGINEER'S DECISIONS ============ -->
+  <section class="sec" id="s7">
+    <div class="sec-h"><b>7</b><h2>Engineer's decisions</h2><span class="hint">direct entry — tick, don't type · everything logged</span></div>
+    <div class="parked">AI pre-assessment (Brian) — parked for a future phase. The suggest/decide diff panel returns here when it lands; until then decisions are entered directly.</div>
+
+    <div class="drow">
+      <div class="dl">Outcome</div>
+      <div class="tickrow" id="outRow"></div>
+      <span class="chip c-sys" title="Ticking Contract repair here is the same act as ticking the Section 6 contract repair bar — one field, two places">CONTRACT REPAIR MIRRORS §6</span>
+    </div>
+
+    <div class="drow">
+      <div class="dl">Engineer's PAV</div>
+      <span class="ratebox" style="margin-left:0"><span class="per">£</span><input type="text" id="pavIn" style="width:100px" onchange="setPav(this.value)"></span>
+      <span class="chip c-sys">ONE FIELD, TWO PLACES — MIRRORS §4 VALUATION</span>
+    </div>
+
+    <div class="drow" id="salvCatRow">
+      <div class="dl">Salvage category</div>
+      <div class="tickrow" id="salcatRow"></div>
+    </div>
+    <div class="drow" id="salvValRow">
+      <div class="dl">Salvage value</div>
+      <span class="ratebox" style="margin-left:0"><span class="per">£</span><input type="text" id="salvIn" style="width:88px" onchange="salvTyped(this.value)"></span>
+      <div class="salslide">
+        <input type="range" id="salvRange" min="0" max="100" step="1" oninput="salvSlide(this.value)">
+        <div class="snaps" id="salvSnaps"></div>
+      </div>
+      <span class="ratework" id="salvRead"></span>
+    </div>
+    <div class="drow" id="salvNa" style="display:none">
+      <div class="dl">Salvage</div>
+      <span class="sendnote">N/A — outcome is not Total loss. Category and value collapse and nothing prints; the log records the change of applicability.</span>
+    </div>
+
+    <div class="drow">
+      <div class="dl">Roadworthy status</div>
+      <div class="tickrow" id="roadRow"></div>
+    </div>
+
+    <div class="fg urcard" id="urWrap">
+      <div class="f"><label>Unroadworthy reason <span class="chip c-warn">MANDATORY WHEN UNROADWORTHY</span> <span class="chip c-sys">BANK — CLICK TO INSERT, EDIT FREELY</span></label>
+        <div class="bank" id="urBank"></div>
+        <textarea id="urReason">the rear lamp assemblies are inoperative and the rear impact has compromised the tailgate closure.</textarea>
+        <div class="banksave"><a onclick="saveUr()">save this wording to the bank</a><span id="urSaved"></span></div>
+        <div class="composed"><b>Composed — engineer's comments</b><span id="urSent"></span></div>
+      </div>
+    </div>
+
+    <div class="wordwell">
+      <div class="sg-t">Report wording — as it will print <span class="rt">every narrative block, report order · edit in place · an edited block stops tracking its fields until recomposed</span></div>
+      <div id="wbList"></div>
+      <div class="wbadd" id="wbAdd"></div>
+    </div>
+
+    <div class="settle" id="settle"></div>
+    <div class="bfoot"><span class="cnt" id="mandNote"></span></div>
+  </section>
+
+  <!-- ============ 8 PRODUCE & SEND REPORT ============ -->
+  <section class="sec" id="s8">
+    <div class="sec-h"><b>8</b><h2>Produce &amp; send report</h2><span class="hint">send is the approval act</span></div>
+    <div class="tabs">
+      <button class="tab on" id="tabReport" onclick="switchTab('report')">Report</button>
+      <button class="tab" id="tabFee" onclick="switchTab('fee')">Fee</button>
+    </div>
+
+    <div id="paneReport">
+      <div class="preview">
+        <div class="pv-thumb"></div>
+        <div class="pv-meta">
+          <div class="pt" id="pvTitle">Total Loss Report — MA59BDY</div>
+          <div class="ps" id="pvStatus">No preview generated yet.</div>
+        </div>
+        <button class="btn" onclick="genPreview()">Generate preview</button>
+      </div>
+      <div class="delivery">
+        <div class="drow" style="border-bottom:0;padding:6px 0">
+          <div class="dl">Channel</div>
+          <div class="tickrow">
+            <button class="tick on" id="chEmail" onclick="setChannel('email')"><span class="bx"></span>Email</button>
+            <button class="tick" id="chWa" onclick="setChannel('wa')"><span class="bx"></span>WhatsApp</button>
+          </div>
+          <span class="chip c-warn" id="waChip" style="display:none">CLOUD API — NOT YET LIVE · WILL SEND THE ATTACHMENTS DIRECT FROM THE PEGASUS NUMBER</span>
+        </div>
+        <div class="drow" style="border-bottom:0;padding:6px 0">
+          <div class="dl">To</div>
+          <div class="addrwrap">
+            <input type="text" id="toIn" value="claims@qdosclaims.co.uk" onfocus="abOpen('to')" oninput="abFilter('to')" onblur="abClose()">
+            <div class="ab" id="abTo"></div>
+          </div>
+          <span class="chip c-sys">DEFAULT FROM THE PRINCIPAL RECORD</span>
+        </div>
+        <div class="drow" style="border-bottom:0;padding:6px 0;align-items:flex-start">
+          <div class="dl" style="padding-top:7px">CC</div>
+          <div style="flex:1;min-width:280px">
+            <div class="ccline" id="ccLine"></div>
+            <div class="addrwrap">
+              <input type="text" id="ccIn" placeholder="Type a name or address, or pick from the book…" onfocus="abOpen('cc')" oninput="abFilter('cc')" onblur="abClose()"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();ccAddTyped();}">
+              <div class="ab" id="abCc"></div>
+            </div>
+            <div class="ccsugg" id="ccSugg"></div>
+          </div>
+        </div>
+        <div class="drow" style="border-bottom:0;padding:6px 0">
+          <div class="dl">Attach</div>
+          <div class="tickrow" id="docRow"></div>
+          <span class="ratework" id="fnameShow" title="An extra '.' before .pdf per re-send — a CE-side version tell; recipients usually rename the file anyway"></span>
+        </div>
+        <div class="composed" style="margin:4px 0 6px"><b>Composed — message body <span class="chip c-sys" style="margin-left:6px">AUTO — SWITCHES TO "UPDATED REPORT, SUPERSEDES…" ON A RE-SEND</span></b><span id="emailBody"></span></div>
+      </div>
+      <div class="sendrow">
+        <button class="btn" onclick="if(!decisionsMissing().length){pvOpen()}else{genPreview()}">Produce PDF…</button>
+        <button class="btn primary" id="sendBtn" disabled onclick="sendReport()">Attach and Send</button>
+        <span class="sendnote" id="sendNote">Locked — generate and check a preview first. Any edit after preview locks send again.</span>
+      </div>
+    </div>
+
+    <div id="paneFee" style="display:none">
+      <table class="feetbl">
+        <tr><td>Vehicle Damage Assessment Report — MA59BDY<br>
+          <span style="color:var(--muted);font-size:12px">QDOS standard fee — desktop total loss</span></td>
+          <td class="num">132.00</td></tr>
+        <tr><td>Subtotal (net)</td><td class="num">132.00</td></tr>
+        <tr><td>VAT @ 20%</td><td class="num">26.40</td></tr>
+        <tr class="tot"><td>TOTAL DUE</td><td class="num">£158.40</td></tr>
+      </table>
+      <p class="sendnote" style="margin-top:10px">Fee pulled from the QDOS principal fee table. Additional charges → open question: this tab or a separate .ADD reference.</p>
+    </div>
+  </section>
+
+  <!-- ============ 9 NOTES & QUERIES ============ -->
+  <section class="sec" id="s9">
+    <div class="sec-h"><b>9</b><h2>Notes &amp; queries</h2><span class="hint">case timeline · post-report work</span></div>
+    <div id="noteTop"></div>
+    <div class="note"><div class="nw">28 Aug 09:14</div><div class="nb"><b>System</b> — Brian pre-assessment completed. 5 suggestions ready for review.</div></div>
+    <div class="note"><div class="nw">28 Aug 09:02</div><div class="nb"><b>System</b> — Case set up from holding pen by E Mawdsley. Instruction + 24 images paired on registration.</div></div>
+    <div class="note"><div class="nw">27 Aug 16:44</div><div class="nb"><b>E Mawdsley</b> — Claimant confirmed vehicle at home address, not at repairer. Images requested via chase link.</div></div>
+    <div class="fg" style="margin:14px 0">
+      <div class="f"><label>Add note</label><input type="text" placeholder="Type a note and press Enter…"></div>
+    </div>
+    <div class="subcard">
+      <div class="sg-t">Queries (post-report)</div>
+      <div class="empty">No queries on this case. PAV disputes, TP cost challenges, Part 35 questions and supplementaries land here after the report has gone.</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ================= state ================= */
+const S = {
+  rate: 83.28,
+  previewed:false, stale:false, sent:false,
+  guide:{name:'CAP', retail:3100, trade:2320},
+};
+const fmt = n => '£' + n.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+const clone=rows=>rows.map(r=>({...r}));
+
+/* ================= composed sentences ================= */
+const MILE = {
+  online_data:"The mileage has been calculated from online data.",
+  owner:"The mileage was advised by the owner.",
+  repairer:"The mileage was advised by the repairer/storage yard.",
+  principal:"The mileage was advised by our instructing principal.",
+  average:"The mileage has been based on average mileage for the vehicle's age and type.",
+  tbc:"The mileage is to be confirmed."};
+const CONDW = {poor:"poor",below_average:"below average",average:"average",good:"good",excellent:"excellent"};
+function compose(){
+  document.getElementById('mileSent').textContent = MILE[val('mileSrc')];
+  document.getElementById('condSent').textContent =
+    `The vehicle is considered to be in ${CONDW[val('cond')]} condition for its age and type.`;
+  const sev = document.getElementById('sev').selectedOptions[0].text.toLowerCase();
+  const nat = document.getElementById('natSent');
+  if(S.regions && S.regions.length>1){
+    nat.innerHTML = `The vehicle has suffered ${sev} collision/impact damage to the following areas:`+
+      S.regions.map(r=>`<br>&mdash; ${r}`).join('');
+  } else {
+    nat.textContent =
+      `The vehicle has suffered ${sev} collision/impact damage to the ${val('loc').toLowerCase()}.`;
+  }
+  document.getElementById('urSent').textContent =
+    `Please note the vehicle is unroadworthy due to ${document.getElementById('urReason').value.trim()}`;
+  const fm=v=>v==null?'—':'£'+v.toLocaleString();
+  const disclose=document.getElementById('discloseSrc').checked;
+  const src=disclose?`${S.guide.name} — `:'Source not disclosed — ';
+  const tradeBit=S.guide.trade==null?'':` · Trade ${fm(S.guide.trade)}`;
+  const pav=D.pav?'£'+D.pav.toLocaleString():'—';
+  document.getElementById('valSent').textContent =
+    src+`Retail ${fm(S.guide.retail)}${tradeBit} · Engineer's value ${pav}.`;
+  if(typeof wbRefresh==='function') wbRefresh();
+}
+const val = id => document.getElementById(id).value;
+
+/* ================= images ================= */
+/* ================= image viewer — working ================= */
+/* demo placeholders are SVG data-URLs: zero dependencies, print fine, survive save/load */
+function svgPh(label,shade){
+  const s=`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="${shade}"/><rect x="20" y="20" width="760" height="560" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="2"/><text x="400" y="290" text-anchor="middle" font-family="monospace" font-size="34" fill="rgba(255,255,255,.85)">${label}</text><text x="400" y="330" text-anchor="middle" font-family="monospace" font-size="16" fill="rgba(255,255,255,.5)">MA59BDY · demo image</text></svg>`;
+  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s);
+}
+const PH=[['Rear 3/4 O/S','#5B6472'],['Rear straight','#6E7582'],['Tailgate','#7A8290'],['Rear panel','#616977'],
+ ['Lamp O/S','#8A93A1'],['Boot floor','#565E6B'],['Rear 3/4 N/S','#6B7380'],['Interior boot','#78808E'],
+ ['Odometer 87,412','#525A67'],['VIN plate','#8F98A6'],['Front 3/4','#5F6774'],['Dash warning','#737B89']];
+let IMGSEQ=1;
+let imgState = PH.map(([n,c],i)=>({id:'i'+(IMGSEQ++), n, data:svgPh(n,c), rot:0, on:i<9, full:false}));
+let IMGDRAG=null, imgTrash=[];
+
+function rotClass(r){ return r?` r${r}`:''; }
+function renderImgs(){
+  const t=document.getElementById('thumbs'); t.innerHTML='';
+  imgState.forEach((im,i)=>{
+    const d=document.createElement('div');
+    d.className='th'+(im.on?'':' off');
+    d.dataset.img=im.id;
+    d.innerHTML=`
+      <span class="inc2" title="${im.on?'Included in the report — click to exclude':'Excluded — click to include'}" onclick="imgInc('${im.id}')">${im.on?'✓':'–'}</span>
+      ${im.full?'<span class="fullchip">FULL PAGE</span>':''}
+      <div class="ctr">
+        <button title="Rotate 90°" onclick="imgRot('${im.id}')">⟳</button>
+        <button title="${im.full?'Print at standard size (2 per page)':'Print full page'}" onclick="imgFull('${im.id}')">⤢</button>
+        <button title="Remove image" onclick="imgDel('${im.id}')">×</button>
+      </div>
+      <div class="frame" onclick="lbOpen('${im.id}')"><img src="${im.data}" class="${rotClass(im.rot).trim()}" alt="${im.n}"></div>
+      <div class="cap"><span class="grip" draggable="true" title="Drag to reorder — order = report order">⠿</span><span class="nm" title="${im.n}">${im.n}</span></div>`;
+    const grip=d.querySelector('.grip');
+    grip.addEventListener('dragstart',e=>{ IMGDRAG=im.id; d.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',im.id); e.dataTransfer.setDragImage(d,40,30); });
+    grip.addEventListener('dragend',()=>{ IMGDRAG=null; d.classList.remove('dragging');
+      document.querySelectorAll('.th').forEach(x=>x.classList.remove('dropmark')); });
+    d.addEventListener('dragover',e=>{ if(!IMGDRAG||IMGDRAG===im.id) return; e.preventDefault();
+      document.querySelectorAll('.th').forEach(x=>x.classList.remove('dropmark')); d.classList.add('dropmark'); });
+    d.addEventListener('dragleave',()=>d.classList.remove('dropmark'));
+    d.addEventListener('drop',e=>{ e.preventDefault(); if(IMGDRAG&&IMGDRAG!==im.id) imgMove(IMGDRAG,im.id); });
+    t.appendChild(d);
+  });
+  const c=imgState.filter(x=>x.on).length;
+  document.getElementById('imgCount').textContent=`${c} of ${imgState.length} in report`;
+  if(typeof lbSync==='function') lbSync();
+}
+const imgById=id=>imgState.find(x=>x.id===id);
+function imgInc(id){ const im=imgById(id); im.on=!im.on; renderImgs(); touch(); }
+function imgRot(id){ const im=imgById(id); im.rot=(im.rot+90)%360; renderImgs(); touch(); }
+function imgFull(id){ const im=imgById(id); im.full=!im.full;
+  logNote(`Image "${im.n}" set to print ${im.full?'full page':'standard size (2 per page)'} by ${val('assignedEng')}.`);
+  renderImgs(); touch(); }
+function imgDel(id){
+  const i=imgState.findIndex(x=>x.id===id); if(i<0) return;
+  imgTrash.push({im:imgState[i], at:i});
+  imgState.splice(i,1);
+  logNote(`Image "${imgTrash[imgTrash.length-1].im.n}" removed by ${val('assignedEng')}.`);
+  renderImgs(); touch(); undoShow(`Image removed — "${imgTrash[imgTrash.length-1].im.n}"`);
+}
+function imgUndo(){
+  const t=imgTrash.pop(); if(!t) return;
+  imgState.splice(Math.min(t.at,imgState.length),0,t.im);
+  logNote(`Image "${t.im.n}" restored by ${val('assignedEng')}.`);
+  renderImgs(); touch(); undoHide();
+}
+function imgMove(dragId,targetId){
+  const from=imgState.findIndex(x=>x.id===dragId), to=imgState.findIndex(x=>x.id===targetId);
+  if(from<0||to<0) return;
+  const [im]=imgState.splice(from,1);
+  imgState.splice(imgState.findIndex(x=>x.id===targetId),0,im);
+  logNote(`Images reordered by ${val('assignedEng')} — "${im.n}" moved. Order = report order.`);
+  renderImgs(); touch();
+}
+/* add images — file picker or drop; downscaled to ~1600px JPEG where canvas allows */
+function imgFiles(files){
+  [...files].forEach(f=>{
+    if(!/^image\//.test(f.type)) return;
+    const rd=new FileReader();
+    rd.onload=()=>imgIngest(rd.result, f.name.replace(/\.[a-z0-9]+$/i,''));
+    rd.readAsDataURL(f);
+  });
+}
+function imgIngest(dataUrl,name){
+  const push=d=>{ imgState.push({id:'i'+(IMGSEQ++), n:name||('Image '+IMGSEQ), data:d, rot:0, on:true, full:false});
+    logNote(`Image "${name}" added by ${val('assignedEng')}.`); renderImgs(); touch(); };
+  try{
+    let done=false;
+    const img=new Image();
+    setTimeout(()=>{ if(!done){ done=true; push(dataUrl); } },400);
+    img.onload=()=>{ if(done) return; done=true; try{
+        const max=1600, sc=Math.min(1, max/Math.max(img.width,img.height));
+        if(sc>=1 || dataUrl.startsWith('data:image/svg')) return push(dataUrl);
+        const c=document.createElement('canvas');
+        c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        push(c.toDataURL('image/jpeg',.82));
+      }catch(e){ push(dataUrl); } };
+    img.onerror=()=>{ if(!done){ done=true; push(dataUrl); } };
+    img.src=dataUrl;
+  }catch(e){ push(dataUrl); }
+}
+/* undo toast */
+let undoT=null;
+function undoShow(msg){
+  const t=document.getElementById('undoToast');
+  t.querySelector('.msg').textContent=msg;
+  t.classList.add('show');
+  clearTimeout(undoT); undoT=setTimeout(undoHide,6000);
+}
+function undoHide(){ document.getElementById('undoToast').classList.remove('show'); }
+/* lightbox */
+let LB=null;
+function lbOpen(id){ LB=id; lbSync(); document.getElementById('lightbox').classList.add('open'); }
+function lbClose(){ LB=null; document.getElementById('lightbox').classList.remove('open'); }
+function lbStep(d){
+  const i=imgState.findIndex(x=>x.id===LB); if(i<0) return lbClose();
+  LB=imgState[(i+d+imgState.length)%imgState.length].id; lbSync();
+}
+function lbSync(){
+  if(!LB) return;
+  const im=imgById(LB); if(!im){ lbClose(); return; }
+  const lb=document.getElementById('lightbox');
+  lb.querySelector('img').src=im.data;
+  lb.querySelector('img').className=rotClass(im.rot).trim();
+  lb.querySelector('.nm').textContent=im.n+(im.full?' · FULL PAGE':'')+(im.on?'':' · excluded');
+}
+
+/* ================= repair grid ================= */
+let ROWS = [
+ {t:'New',d:'Bumper rear (primed)',q:1,u:286.40,h:0,m:0,p:'imported'},
+ {t:'New',d:'Tailgate',q:1,u:512.30,h:0,m:0,p:'imported'},
+ {t:'New',d:'Lamp assembly rear O/S',q:1,u:148.75,h:0,m:0,p:'imported'},
+ {t:'New',d:'Impact absorber rear',q:1,u:96.20,h:0,m:0,p:'imported'},
+ {t:'Repair',d:'Rear panel — repair',q:0,u:0,h:3.5,m:0,p:'imported'},
+ {t:'Repair',d:'Floor pan rear — repair',q:0,u:0,h:1.2,m:0,p:'amended'},
+ {t:'R&R',d:'Rear bumper — R&R',q:0,u:0,h:0.8,m:0,p:'imported'},
+ {t:'R&R',d:'Tailgate trim — R&R',q:0,u:0,h:0.5,m:0,p:'imported'},
+ {t:'Paint',d:'Paint — tailgate (new)',q:0,u:0,h:2.1,m:96.40,p:'imported'},
+ {t:'Paint',d:'Paint — bumper rear (new)',q:0,u:0,h:1.5,m:78.20,p:'imported'},
+ {t:'Paint',d:'Paint — rear panel (repair)',q:0,u:0,h:1.8,m:72.90,p:'imported'},
+ {t:'Blend',d:'Blend — quarter panel O/S',q:0,u:0,h:0.9,m:38.50,p:'imported'},
+ {t:'Specialist',d:'Four-wheel alignment check',q:1,u:65.00,h:0,m:0,p:'imported'},
+ {t:'Specialist',d:'Diagnostic scan & fault report',q:1,u:85.00,h:0,m:0,p:'imported'},
+];
+const TYPES=['New','Repair','R&R','Paint','Blend','Specialist'];
+/* column availability per row type: [qty, unit, hours, material] */
+const COLS={
+  'New':       {q:1,u:1,h:1,m:1},
+  'Repair':    {q:0,u:0,h:1,m:1},
+  'R&R':       {q:0,u:0,h:1,m:0},
+  'Paint':     {q:0,u:0,h:1,m:1},
+  'Blend':     {q:0,u:0,h:1,m:1},
+  'Specialist':{q:1,u:1,h:1,m:1},
+};
+function renderGrid(){
+  const b=document.getElementById('gridBody'); b.innerHTML='';
+  ROWS.forEach((r,i)=>{
+    const tr=document.createElement('tr');
+    const c=COLS[r.t]||{q:1,u:1,h:1,m:1};
+    const cellIn=(k,shown)=>{
+      const n=parseFloat(shown)||0;
+      const meaningful = k==='q' ? n>1 : n>0;   // qty 1 on a non-qty row is furniture, not data
+      if(c[k]) return `<td><input class="num" value="${shown}" onchange="cell(${i},'${k}',this.value)"></td>`;
+      if(meaningful) return `<td><input class="num viol" title="Outside the usual pattern for ${r.t} — imported as received. Zero it or retype the row to normalise." value="${shown}" onchange="cell(${i},'${k}',this.value)"></td>`;
+      return `<td class="na">—</td>`;
+    };
+    tr.innerHTML=`
+      <td><select onchange="cell(${i},'t',this.value)">${TYPES.map(t=>`<option${t===r.t?' selected':''}>${t}</option>`).join('')}</select></td>
+      <td><input value="${r.d}" onchange="cell(${i},'d',this.value)"></td>
+      ${cellIn('q', r.q)}
+      ${cellIn('u', r.u?r.u.toFixed(2):'')}
+      ${cellIn('h', r.h||'')}
+      ${cellIn('m', r.m?r.m.toFixed(2):'')}
+      <td><span class="rowchip ${r.p==='imported'?'c-imp':'c-amend'}" title="${r.p==='scaled'?'Scaled to target % of PAV':(r.src||'Audatex est. 88214-01')}">${r.p.toUpperCase()}${r.p==='scaled'?'':(r.src?" · "+(r.src==="Glass's"?"GL":r.src):" · AX")}</span></td>
+      <td><button class="del" onclick="delRow(${i})">×</button></td>`;
+    b.appendChild(tr);
+  });
+  if(!ROWS.length) b.innerHTML=`<tr><td colspan="8" class="gridEmpty">No repair lines. Drop an estimate above or <a href="#" onclick="addRow();return false" style="color:var(--ink)">add a row</a>.</td></tr>`;
+  recalc();
+}
+function cell(i,k,v){
+  if(k==='q'||k==='u'||k==='h'||k==='m') v=parseFloat(v)||0;
+  ROWS[i][k]=v;
+  if(k==='t'){
+    const c=COLS[v];
+    if(c.q&&!ROWS[i].q) ROWS[i].q=1;   // values never cleared — off-pattern cells go amber instead
+  }
+  if(ROWS[i].p==='imported'){ROWS[i].p='amended';}
+  renderGrid(); touch();
+}
+function rowMoney(r){ const c=COLS[r.t]||{};
+  const money=((c.u||r.u>0)?(r.q||1)*r.u:0)+(c.h&&r.t!=='Specialist'?r.h*S.rate:0)+(r.m||0);
+  return money>0?fmt(money):(r.h?`${r.h} h`:'no value'); }
+function delRow(i){
+  const r=ROWS[i]; ROWS.splice(i,1); renderGrid(); touch();
+  logNote(`Repair line removed by ${val('assignedEng')} — "${r.d}" (${r.t}, ${rowMoney(r)}).`);
+  const e=document.getElementById('toast');
+  e.innerHTML=`Removed "${r.d}" <button onclick="undoDel()">Undo</button>`; e.classList.add('show');
+  S.undo={i,r}; clearTimeout(S.undoT); S.undoT=setTimeout(()=>{e.classList.remove('show');S.undo=null;},6000);
+}
+function undoDel(){ if(!S.undo) return; ROWS.splice(S.undo.i,0,S.undo.r); renderGrid(); touch();
+  logNote(`Repair line restored — "${S.undo.r.d}".`); S.undo=null; document.getElementById('toast').classList.remove('show'); }
+function clearGridAsk(){
+  if(!ROWS.length){ toast('The grid is already empty.'); return; }
+  document.getElementById('clearText').innerHTML=
+    `This removes all <b>${ROWS.length} lines</b> from the repair specification and resets every cost to <b>£0.00</b>.`;
+  document.getElementById('clearModal').classList.add('show');
+}
+function addRow(){ROWS.push({t:'New',d:'New item',q:1,u:0,h:0,m:0,p:'manual'});renderGrid();touch();}
+
+function grossFor(rows, rate){
+  const parts = rows.filter(r=>r.t==='New').reduce((s,r)=>s+r.q*r.u,0);
+  const panelH = rows.filter(r=>['New','Repair','R&R'].includes(r.t)).reduce((s,r)=>s+r.h,0);
+  const paintH = rows.filter(r=>r.t==='Paint'||r.t==='Blend').reduce((s,r)=>s+r.h,0);
+  const paintMat = rows.reduce((s,r)=>s+(r.m||0),0);
+  const spec = rows.filter(r=>r.t==='Specialist').reduce((s,r)=>s+(r.q||1)*r.u,0);
+  const offPat = rows.filter(r=>!['New','Specialist'].includes(r.t)&&r.u>0).reduce((s,r)=>s+(r.q||1)*r.u,0);
+  const labour=(panelH+paintH)*rate;
+  const pc=id=>Math.min(100,Math.max(0,parseFloat(val(id))||0))/100;
+  const dP=pc('d_parts'), dM=pc('d_paint'), dS=pc('d_spec'), dA=pc('d_all');
+  const afterCat = parts*(1-dP)+labour+paintMat*(1-dM)+(spec+offPat)*(1-dS);
+  const net = afterCat*(1-dA);
+  let vatBase=((VATC.labour?labour:0)+(VATC.parts?parts*(1-dP):0)+(VATC.materials?paintMat*(1-dM):0)+(VATC.specialist?(spec+offPat)*(1-dS):0))*(1-dA);
+  return net+vatBase*0.2;
+}
+function recalc(){
+  const parts = ROWS.filter(r=>r.t==='New').reduce((s,r)=>s+r.q*r.u,0);
+  const panelH = ROWS.filter(r=>['New','Repair','R&R'].includes(r.t)).reduce((s,r)=>s+r.h,0);
+  const paintH = ROWS.filter(r=>r.t==='Paint'||r.t==='Blend').reduce((s,r)=>s+r.h,0);
+  const paintMat = ROWS.reduce((s,r)=>s+(r.m||0),0);
+  const specH = ROWS.filter(r=>r.t==='Specialist').reduce((s,r)=>s+r.h,0);
+  const spec = ROWS.filter(r=>r.t==='Specialist').reduce((s,r)=>s+(r.q||1)*r.u,0);   // hours listed, never costed
+  const offPat = ROWS.filter(r=>!['New','Specialist'].includes(r.t)&&r.u>0).reduce((s,r)=>s+(r.q||1)*r.u,0);
+  const labour = panelH*S.rate, paintLab = paintH*S.rate;
+  const pc=id=>Math.min(100,Math.max(0,parseFloat(val(id))||0))/100;
+  const dP=pc('d_parts'), dM=pc('d_paint'), dS=pc('d_spec'), dA=pc('d_all');
+  const partsDisc=parts*dP, paintDisc=paintMat*dM, specDisc=(spec+offPat)*dS;   // materials column only
+  const afterCat = parts+labour+paintLab+paintMat+spec+offPat - partsDisc-paintDisc-specDisc;
+  const allDisc = afterCat*dA;
+  const net = afterCat - allDisc;
+  let vatBase=(VATC.labour?labour+paintLab:0)+(VATC.parts?parts*(1-dP):0)
+    +(VATC.materials?paintMat*(1-dM):0)+(VATC.specialist?(spec+offPat)*(1-dS):0);   // off-pattern rides with Specialist
+  vatBase*=(1-dA);
+  const vat = vatBase*0.2;
+  const gross = net+vat;
+  S.gross = gross; S.hours = panelH+paintH;
+  const rs=document.getElementById('rateShow'); if(rs) rs.textContent = fmt(S.rate)+'/hr';
+  document.getElementById('vatModeSent').textContent = (val('repVat')==='yes')
+    ? 'VAT registered — VAT defaults to all categories.'+(VATMAN?' Category ticks manually overridden in the repair specification.':'')
+    : 'NOT VAT registered — VAT defaults to parts & materials only.'+(VATMAN?' Category ticks manually overridden in the repair specification.':'');
+  document.getElementById('rollup').innerHTML = `
+    <div class="rr"><span>Parts (${ROWS.filter(r=>r.t==='New').length} lines)</span><b>${fmt(parts)}</b></div>
+    <div class="rr"><span>Panel labour ${panelH.toFixed(2)} h × ${fmt(S.rate)}</span><b>${fmt(labour)}</b></div>
+    <div class="rr"><span>Paint labour ${paintH.toFixed(2)} h × ${fmt(S.rate)} <em style="color:var(--faint);font-style:normal">(single rate — open item)</em></span><b>${fmt(paintLab)}</b></div>
+    <div class="rr"><span>Materials (column total)</span><b>${fmt(paintMat)}</b></div>
+    <div class="rr"><span>Specialist operations${specH?` <em style="color:var(--faint);font-style:normal">(+ ${specH.toFixed(2)} h listed, not costed)</em>`:''}</span><b>${fmt(spec)}</b></div>
+    ${offPat?`<div class="rr"><span style="color:var(--warn)">Off-pattern items (imported) <em style="font-style:normal;color:var(--faint)">treated as specialist</em></span><b style="color:var(--warn)">${fmt(offPat)}</b></div>`:''}
+    ${partsDisc?`<div class="rr"><span>Parts discount (${(dP*100).toFixed(1).replace('.0','')}%)</span><b>−${fmt(partsDisc)}</b></div>`:''}
+    ${paintDisc?`<div class="rr"><span>Materials discount (${(dM*100).toFixed(1).replace('.0','')}%)</span><b>−${fmt(paintDisc)}</b></div>`:''}
+    ${specDisc?`<div class="rr"><span>Specialist discount (${(dS*100).toFixed(1).replace('.0','')}%)</span><b>−${fmt(specDisc)}</b></div>`:''}
+    ${allDisc?`<div class="rr"><span>Overall discount (${(dA*100).toFixed(1).replace('.0','')}%)</span><b>−${fmt(allDisc)}</b></div>`:''}
+    <div class="rr"><span>VAT (20% on: ${['labour','parts','materials','specialist'].filter(k=>VATC[k]).map(k=>k[0].toUpperCase()+k.slice(1)).join(', ')||'nothing'})${VATMAN?' <em style="color:var(--warn);font-style:normal">manual</em>':''}</span><b>${fmt(vat)}</b></div>
+    <div class="rr tot"><span>Repair cost inc VAT</span><b>${fmt(gross)}</b></div>`;
+  // derived worklists
+  fillWL('wlNew', ROWS.filter(r=>r.t==='New').map(r=>r.d));
+  fillWL('wlRep', ROWS.filter(r=>r.t==='Repair'||r.t==='R&R').map(r=>r.d));
+  fillWL('wlOps', ROWS.filter(r=>['Paint','Blend','Specialist'].includes(r.t)).map(r=>r.d));
+  renderSettle();
+}
+function fillWL(id,items){
+  document.getElementById(id).innerHTML = items.map(x=>`<li>${x}</li>`).join('')||'<li style="color:var(--faint)">none</li>';
+}
+
+/* estimate imports */
+const GLASS_ROWS=[
+ {t:'New',d:'Bumper rear complete',q:1,u:301.12,h:0,m:0,p:'imported',src:"Glass's"},
+ {t:'New',d:'Tailgate assembly',q:1,u:498.90,h:0,m:0,p:'imported',src:"Glass's"},
+ {t:'New',d:'Lamp unit rear O/S',q:1,u:152.30,h:0,m:0,p:'imported',src:"Glass's"},
+ {t:'Repair',d:'Rear panel — repair',q:0,u:0,h:3.2,m:0,p:'imported',src:"Glass's"},
+ {t:'R&R',d:'Rear bumper — R&R',q:0,u:0,h:0.9,m:0,p:'imported',src:"Glass's"},
+ {t:'Paint',d:'Paint — tailgate (new)',q:0,u:0,h:2.0,m:92.00,p:'imported',src:"Glass's"},
+ {t:'Paint',d:'Paint — bumper rear (new)',q:0,u:0,h:1.4,m:74.50,p:'imported',src:"Glass's"},
+ {t:'Blend',d:'Blend — quarter panel O/S',q:0,u:0,h:0.9,m:68.30,p:'imported',src:"Glass's"},
+ {t:'Specialist',d:'Four-wheel alignment check',q:1,u:65.00,h:0,m:0,p:'imported',src:"Glass's"},
+ {t:'Repair',d:'Wheel refurbishment O/S rear',q:0,u:95.00,h:0,m:0,p:'imported',src:"Glass's"},
+];
+let VERS=2;
+const SUPP_ROWS=[
+ {t:'New',d:'Bumper rear (primed)',q:1,u:286.40,h:0,m:0,p:'imported'},
+ {t:'New',d:'Tailgate',q:1,u:512.30,h:0,m:0,p:'imported'},
+ {t:'New',d:'Lamp assembly rear O/S',q:1,u:148.75,h:0,m:0,p:'imported'},
+ {t:'New',d:'Impact absorber rear',q:1,u:96.20,h:0,m:0,p:'imported'},
+ {t:'New',d:'Rear floor crossmember',q:1,u:118.60,h:1.2,m:0,p:'imported'},
+ {t:'Repair',d:'Rear panel — repair',q:0,u:0,h:4.5,m:0,p:'imported'},
+ {t:'Repair',d:'Floor pan rear — repair',q:0,u:0,h:1.2,m:0,p:'imported'},
+ {t:'Repair',d:'Quarter panel O/S — repair',q:0,u:0,h:2.4,m:0,p:'imported'},
+ {t:'R&R',d:'Rear bumper — R&R',q:0,u:0,h:0.8,m:0,p:'imported'},
+ {t:'R&R',d:'Tailgate trim — R&R',q:0,u:0,h:0.5,m:0,p:'imported'},
+ {t:'Paint',d:'Paint — tailgate (new)',q:0,u:0,h:2.1,m:96.40,p:'imported'},
+ {t:'Paint',d:'Paint — bumper rear (new)',q:0,u:0,h:1.5,m:78.20,p:'imported'},
+ {t:'Paint',d:'Paint — rear panel (repair)',q:0,u:0,h:1.8,m:72.90,p:'imported'},
+ {t:'Paint',d:'Paint — quarter panel O/S (repair)',q:0,u:0,h:1.6,m:64.20,p:'imported'},
+ {t:'Specialist',d:'Four-wheel alignment check',q:1,u:65.00,h:0,m:0,p:'imported'},
+ {t:'Specialist',d:'Diagnostic scan & fault report',q:1,u:85.00,h:0,m:0,p:'imported'},
+];
+/* ---- versions store: frozen snapshots; the live grid is the working copy ---- */
+const stampNow=()=>new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+const VERSIONS=[
+ {n:1, when:'28 Aug 14:22', who:'System', origin:'Imported from Audatex est. 88214-01 (PDF)', rows:[
+   {t:'New',d:'Bumper rear (primed)',q:1,u:286.40,h:0,m:0,p:'imported'},{t:'New',d:'Tailgate',q:1,u:512.30,h:0,m:0,p:'imported'},
+   {t:'New',d:'Lamp assembly rear O/S',q:1,u:148.75,h:0,m:0,p:'imported'},{t:'New',d:'Impact absorber rear',q:1,u:96.20,h:0,m:0,p:'imported'},
+   {t:'Repair',d:'Rear panel — repair',q:0,u:0,h:3.5,m:0,p:'imported'},{t:'R&R',d:'Rear bumper — R&R',q:0,u:0,h:0.8,m:0,p:'imported'},
+   {t:'R&R',d:'Tailgate trim — R&R',q:0,u:0,h:0.5,m:0,p:'imported'},{t:'Paint',d:'Paint — tailgate (new)',q:0,u:0,h:2.1,m:96.40,p:'imported'},
+   {t:'Paint',d:'Paint — bumper rear (new)',q:0,u:0,h:1.5,m:78.20,p:'imported'},{t:'Paint',d:'Paint — rear panel (repair)',q:0,u:0,h:1.8,m:72.90,p:'imported'},
+   {t:'Blend',d:'Blend — quarter panel O/S',q:0,u:0,h:0.9,m:38.50,p:'imported'},{t:'Specialist',d:'Four-wheel alignment check',q:1,u:65.00,h:0,m:0,p:'imported'},
+   {t:'Specialist',d:'Diagnostic scan & fault report',q:1,u:85.00,h:0,m:0,p:'imported'}], rate:83.28, sent:null},
+ {n:2, when:'28 Aug 16:40', who:'A Patterson', origin:'Imported from Audatex est. 88214-01 (PDF) + manual edits (floor pan repair added)', rows:null, rate:83.28, sent:'Report sent 28 Aug 16:52'},
+];
+S.gridOrigin='Imported from Audatex est. 88214-01 (PDF)'; S.gridEdited=true;
+const gridKey=(rows,rate)=>JSON.stringify([rate,rows.map(r=>[r.t,r.d,r.q||0,r.u||0,r.h||0,r.m||0])]);
+function snapshot(extra){
+  const last=VERSIONS[VERSIONS.length-1];
+  if(last && gridKey(last.rows,last.rate)===gridKey(ROWS,S.rate)) return last.n;   // unchanged since last freeze — reuse it
+  const v={n:VERSIONS.length+1, when:stampNow(), who:val('assignedEng'), origin:S.gridOrigin+(S.gridEdited?' + manual edits':''), rows:clone(ROWS), rate:S.rate, sent:null};
+  if(extra) v.origin+=extra;
+  VERSIONS.push(v); VERS=VERSIONS.length;
+  document.getElementById('verBtn').textContent=`Versions (${VERS})`;
+  return v.n;
+}
+function setOrigin(o){ S.gridOrigin=o; S.gridEdited=false; }
+function verGross(v){ return grossFor(v.rows, v.rate); }
+function lastSent(){ return [...VERSIONS].reverse().find(v=>v.sent); }
+
+function mockImport(fname, rows, srcName){
+  const pi=document.getElementById('pendImp');
+  pi.style.display='flex';
+  const edited=S.gridEdited?` <b style="color:var(--warn)">The current grid has manual edits</b> — they will be preserved only in the version, not carried forward.`:'';
+  pi.innerHTML=`<div class="pi-t"><b>${fname}</b>Parsed as ${srcName} estimate — ${rows.length} lines, labour rate £83.28/hr.
+      This will overwrite the current ${ROWS.length}-line grid (frozen as v${VERSIONS.length+1}).${edited}</div>
+    <div style="display:flex;gap:8px;margin-left:auto">
+      <button class="btn small primary" id="impGo">Overwrite grid</button>
+      <button class="btn small" onclick="document.getElementById('pendImp').style.display='none'">Cancel</button>
+    </div>`;
+  document.getElementById('impGo').onclick=()=>doImport(fname,rows,srcName);
+  pi.scrollIntoView({block:'nearest'});
+}
+function doImport(fname, rows, srcName){
+  const before=clone(ROWS), beforeRate=S.rate;
+  const vn=snapshot();                                  // outgoing grid frozen
+  ROWS=rows.map(r=>({...r, src:srcName==="Glass's"?"Glass's":undefined}));
+  setOrigin(`Imported from ${fname}`);
+  document.getElementById('pendImp').style.display='none';
+  document.getElementById('impLog').innerHTML=
+    `Populated ${stampNow()} from <b>${fname}</b> — ${rows.length} lines (previous grid frozen as v${vn}) · labour rate <b id="rateShow">${fmt(S.rate)}/hr</b>`;
+  logNote(`Repair grid overwritten from ${fname} by ${val('assignedEng')} — previous grid frozen as v${vn}.`);
+  renderGrid(); touch();
+  /* supplementary: diff against what went out on the last report (else the grid just replaced) */
+  const base=lastSent()||VERSIONS[vn-1];
+  showSupp(base, {rows:before, rate:beforeRate}, fname);
+}
+function clearGridDo(){
+  const n=ROWS.length; const vn=snapshot(); ROWS=[]; setOrigin('Cleared');
+  document.getElementById('clearModal').classList.remove('show');
+  document.getElementById('impLog').innerHTML=`Grid cleared ${stampNow()} by <b>${val('assignedEng')}</b> — ${n} lines removed (previous grid frozen as v${vn}) · labour rate <b id="rateShow">${fmt(S.rate)}/hr</b>`;
+  logNote(`All repair lines deleted by ${val('assignedEng')} — ${n} lines, specification reset to £0.00. Previous grid frozen as v${vn}.`);
+  hideSupp(); renderGrid(); touch();
+}
+
+/* ---- diff ---- */
+const normd=s=>s.toLowerCase().replace(/[^a-z0-9/]+/g,' ').trim();
+function diffRows(A,B){
+  const ma=new Map(A.map(r=>[normd(r.d),r])), mb=new Map(B.map(r=>[normd(r.d),r]));
+  const added=[],removed=[],changed=[],same=[];
+  B.forEach(b=>{ const a=ma.get(normd(b.d));
+    if(!a){added.push(b);return;}
+    const f=['t','q','u','h','m'].filter(k=>(a[k]||0)!==(b[k]||0) && !(k==='q'&&(a.q||1)===(b.q||1)));
+    if(f.length) changed.push({a,b,f}); else same.push({a,b}); });
+  A.forEach(a=>{ if(!mb.has(normd(a.d))) removed.push(a); });
+  return {added,removed,changed,same};
+}
+const rowVal=(r,rate)=>((r.u>0?(r.q||1)*r.u:0)+(r.t!=='Specialist'?(r.h||0)*rate:0)+(r.m||0));
+
+/* ---- versions modal ---- */
+function openVersions(){
+  const el=document.getElementById('verList');
+  const rows=[...VERSIONS].reverse().map(v=>`<tr>
+    <td><span class="vn">v${v.n}</span>${v.sent?`<span class="tag tag-sent" title="${v.sent}">SENT ON REPORT</span>`:''}</td>
+    <td>${v.when}<br><span style="color:var(--muted);font-size:11.5px">${v.who}</span></td>
+    <td>${v.origin}${v.sent?`<br><span style="color:var(--muted);font-size:11.5px">${v.sent}</span>`:''}</td>
+    <td class="num">${v.rows.length}</td><td class="num">${fmt(v.rate)}</td><td class="num"><b>${fmt(verGross(v))}</b></td>
+    <td><div class="act"><button onclick="openCompare(${v.n},'cur')">Compare with current</button><button onclick="restoreVersion(${v.n})">Restore</button></div></td></tr>`).join('');
+  el.innerHTML=`<table class="vt"><thead><tr><th>Version</th><th>When</th><th>How it came about</th><th class="num">Lines</th><th class="num">Rate</th><th class="num">Total inc VAT</th><th></th></tr></thead>
+    <tbody><tr class="cur"><td><span class="vn">Working</span><span class="tag tag-work">CURRENT GRID</span></td><td>now<br><span style="color:var(--muted);font-size:11.5px">${val('assignedEng')}</span></td>
+      <td>${S.gridOrigin}${S.gridEdited?' + manual edits':''}</td><td class="num">${ROWS.length}</td><td class="num">${fmt(S.rate)}</td><td class="num"><b>${fmt(S.gross||0)}</b></td><td></td></tr>${rows}</tbody></table>`;
+  document.getElementById('verModal').classList.add('show');
+}
+function restoreVersion(n){
+  const v=VERSIONS.find(x=>x.n===n); if(!v) return;
+  const vn=snapshot();
+  ROWS=clone(v.rows); S.rate=v.rate; S.rateBand='custom'; S.natural=null; S.scale=null; document.body.classList.remove('scaling');
+  document.querySelectorAll('#rateSeg button').forEach((x,i)=>x.classList.toggle('on',i===2));
+  const up=document.getElementById('rateUplift'); up.checked=false; up.disabled=true;
+  setOrigin(`Restored from v${n} (${v.origin})`);
+  document.getElementById('impLog').innerHTML=`Restored ${stampNow()} from <b>v${n}</b> by ${val('assignedEng')} — ${ROWS.length} lines (outgoing grid frozen as v${vn}) · labour rate <b id="rateShow">${fmt(S.rate)}/hr</b>`;
+  logNote(`Repair grid restored from v${n} by ${val('assignedEng')} — outgoing grid frozen as v${vn}.`);
+  document.getElementById('verModal').classList.remove('show');
+  rateCalc(false); renderGrid(); touch(); scaleRefresh(); hideSupp();
+  toast(`Restored v${n} — ${fmt(S.gross)} inc VAT.`);
+}
+
+/* ---- compare modal ---- */
+function verOptions(sel, chosen){
+  const opts=[...VERSIONS].reverse().map(v=>`<option value="${v.n}" ${String(chosen)===String(v.n)?'selected':''}>v${v.n} — ${v.when} — ${fmt(verGross(v))}${v.sent?' · sent':''}</option>`).join('');
+  sel.innerHTML=`<option value="cur" ${chosen==='cur'?'selected':''}>Working grid — now — ${fmt(S.gross||0)}</option>`+opts;
+}
+function pick(v){ return v==='cur'?{label:'Working grid',rows:ROWS,rate:S.rate}:(x=>({label:`v${x.n}`,rows:x.rows,rate:x.rate}))(VERSIONS.find(x=>String(x.n)===String(v))); }
+function openCompare(a,b){
+  const A=document.getElementById('cmpA'), B=document.getElementById('cmpB');
+  const ls=lastSent();
+  verOptions(A, a!=null?a:(ls?ls.n:VERSIONS[VERSIONS.length-1].n)); verOptions(B, b!=null?b:'cur');
+  renderCompare(); document.getElementById('cmpModal').classList.add('show');
+}
+function renderCompare(){
+  const a=pick(val('cmpA')), b=pick(val('cmpB')), d=diffRows(a.rows,b.rows);
+  const ga=grossFor(a.rows,a.rate), gb=grossFor(b.rows,b.rate), delta=gb-ga;
+  document.getElementById('cmpSum').innerHTML=`${a.label} <b>${fmt(ga)}</b> → ${b.label} <b>${fmt(gb)}</b> · <b style="color:${delta>0?'var(--accent)':delta<0?'var(--ok)':'inherit'}">${delta>=0?'+':'−'}${fmt(Math.abs(delta))}</b> · ${d.added.length} added · ${d.changed.length} changed · ${d.removed.length} removed`+(a.rate!==b.rate?` · rate ${fmt(a.rate)} → ${fmt(b.rate)}`:'');
+  const cell=(r,k,other)=>{ if(!r) return '<td class="num">—</td>'; const v=r[k]; const show=k==='q'?(v>1?v:'—'):k==='h'?(v||'—'):(v?Number(v).toFixed(2):'—'); const dif=other&&(other[k]||0)!==(v||0)&&!(k==='q'&&(other.q||1)===(v||1)); return `<td class="num${dif?' diff':''}">${show}</td>`; };
+  const line=(cls,tag,a,b)=>`<tr class="${cls}"><td>${(b||a).t}${a&&b&&a.t!==b.t?` <span style="color:var(--faint)">(was ${a.t})</span>`:''}</td><td>${(b||a).d}${tag?`<span class="tag ${tag[0]}">${tag[1]}</span>`:''}</td>
+      ${cell(a,'q')}${cell(a,'u')}${cell(a,'h')}${cell(a,'m')}<td class="num">${a?fmt(rowVal(a,pick(val('cmpA')).rate)):'—'}</td>
+      ${cell(b,'q',a)}${cell(b,'u',a)}${cell(b,'h',a)}${cell(b,'m',a)}<td class="num">${b?fmt(rowVal(b,pick(val('cmpB')).rate)):'—'}</td></tr>`;
+  const body=[...d.added.map(r=>line('added',['tag-add','ADDED'],null,r)),
+              ...d.changed.map(c=>line('changed',['tag-chg','CHANGED'],c.a,c.b)),
+              ...d.removed.map(r=>line('removed',['tag-rem','REMOVED'],r,null)),
+              ...d.same.map(c=>line('',null,c.a,c.b))].join('');
+  document.getElementById('cmpBody').innerHTML=`<table class="vt"><thead><tr><th>Type</th><th>Description</th>
+    <th class="num" colspan="5" style="border-left:1px solid var(--line)">${a.label} · £${a.rate.toFixed(2)}/hr</th><th class="num" colspan="5" style="border-left:1px solid var(--line)">${b.label} · £${b.rate.toFixed(2)}/hr</th></tr>
+    <tr><th></th><th></th><th class="num" style="border-left:1px solid var(--line)">Qty</th><th class="num">Unit £</th><th class="num">Hrs</th><th class="num">Mat £</th><th class="num">Line £</th><th class="num" style="border-left:1px solid var(--line)">Qty</th><th class="num">Unit £</th><th class="num">Hrs</th><th class="num">Mat £</th><th class="num">Line £</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
+/* ---- supplementary panel (after an import) ---- */
+S.supp=null;
+function hideSupp(){ S.supp=null; document.getElementById('suppPanel').style.display='none'; if(typeof wbRefresh==='function') wbRefresh(); }
+function showSupp(base, before, fname){
+  const d=diffRows(base.rows, ROWS);
+  if(!d.added.length&&!d.changed.length&&!d.removed.length){ hideSupp(); return; }
+  S.supp={base, fname, d, reason:'estimate', print:false};
+  renderSupp();
+}
+const SUPP_REASON={
+  estimate:'Following receipt of a supplementary estimate',
+  dismantle:'Following dismantling of the vehicle, further damage was identified and',
+  inspect:'Following a further inspection of the vehicle',
+  images:'Following receipt of further images'};
+function suppSentence(){
+  const s=S.supp, d=s.d, ga=grossFor(s.base.rows,s.base.rate), gb=S.gross||0;
+  const add=d.added.map(r=>r.d), chg=d.changed.filter(c=>c.f.includes('h')).map(c=>`${c.b.d} (${c.a.h||0} h → ${c.b.h||0} h)`), rem=d.removed.map(r=>r.d);
+  let t=SUPP_REASON[s.reason];
+  if(add.length) t+=` the following additional items are now required: ${add.join('; ')}.`;
+  else t+=' the repair specification has been revised.';
+  if(chg.length) t+=` The repair time for ${chg.join('; ')} has been revised.`;
+  if(rem.length) t+=` ${rem.join('; ')} ${rem.length>1?'are':'is'} no longer required.`;
+  t+=` The estimated repair cost has ${gb>=ga?'increased':'reduced'} from ${fmt(ga)} to ${fmt(gb)}.`;
+  return t;
+}
+function renderSupp(){
+  const s=S.supp, p=document.getElementById('suppPanel'); if(!s){hideSupp();return;}
+  const d=s.d, ga=grossFor(s.base.rows,s.base.rate), gb=S.gross||0, delta=gb-ga;
+  const li=(r,cls,tag,extra)=>`<li><span class="tag ${tag}" style="margin:0">${cls}</span>${r.d}${extra||''}<span class="num">${extra?'':fmt(rowVal(r,S.rate))}</span></li>`;
+  p.style.display='';
+  p.innerHTML=`<div class="sg-t">Supplementary — changes vs ${s.base.n?`v${s.base.n}`:'previous grid'}${s.base.sent?` <span class="tag tag-sent">SENT ON REPORT</span>`:''}
+      <span style="margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;font-size:11.5px">${fmt(ga)} → <b>${fmt(gb)}</b> (<b style="color:${delta>=0?'var(--accent)':'var(--ok)'}">${delta>=0?'+':'−'}${fmt(Math.abs(delta))}</b>) · <a onclick="openCompare(${s.base.n||VERSIONS.length},'cur')" style="cursor:pointer;text-decoration:underline">full comparison</a></span></div>
+    <ul>${d.added.map(r=>li(r,'ADDED','tag-add')).join('')}
+        ${d.changed.map(c=>li(c.b,'CHANGED','tag-chg',` <span style="color:var(--muted)">— ${c.f.map(k=>({t:'type',q:'qty',u:'unit',h:'hours',m:'materials'})[k]+' '+(c.a[k]||0)+' → '+(c.b[k]||0)).join(', ')}</span>`)).join('')}
+        ${d.removed.map(r=>li(r,'REMOVED','tag-rem')).join('')}</ul>
+    <div class="row">
+      <label class="toggle"><input type="checkbox" id="suppPrint" ${s.print?'checked':''} onchange="S.supp.print=this.checked;renderSupp();touch()"> Explain the change on the report</label>
+      <select id="suppReason" onchange="S.supp.reason=this.value;renderSupp();touch()">${Object.entries(SUPP_REASON).map(([k,v])=>`<option value="${k}" ${s.reason===k?'selected':''}>${{estimate:'Supplementary estimate received',dismantle:'Further damage found on dismantling',inspect:'Further inspection',images:'Further images received'}[k]}</option>`).join('')}</select>
+      <button class="btn small" style="margin-left:auto" onclick="hideSupp();touch()" title="Dismiss — the versions still hold the history">Dismiss</button>
+    </div>
+    ${s.print?`<div class="composed" style="margin-top:10px"><b>Composed — printed in Engineer's comments</b>${suppSentence()}</div>`:''}`;
+  if(typeof wbRefresh==='function') wbRefresh();
+}
+{ const _rc3=recalc; recalc=function(){ _rc3.apply(this,arguments); if(S.supp) renderSupp(); }; }
+/* sending a report freezes the grid that went out */
+{ const _send=sendReport; sendReport=function(){ if(S.stale) return; _send.apply(this,arguments);
+    const vn=snapshot(); VERSIONS[vn-1].sent=`Report sent ${stampNow()}`; setOrigin(S.gridOrigin); S.gridEdited=false;
+    logNote(`Repair grid as sent frozen as v${vn}.`); }; }
+/* manual cell edits mark the working grid as edited */
+{ const _cell=cell, _add=addRow, _del=delRow; cell=function(){ S.gridEdited=true; _cell.apply(this,arguments); }; addRow=function(){ S.gridEdited=true; _add.apply(this,arguments); }; delRow=function(){ S.gridEdited=true; _del.apply(this,arguments); }; }
+VERSIONS[1].rows=clone(ROWS);
+document.getElementById('verBtn').textContent=`Versions (${VERSIONS.length})`;
+
+/* VAT categories */
+let VATC={labour:true,parts:true,materials:true,specialist:true}, VATMAN=false;
+function vatDefaults(){
+  const reg=val('repVat')==='yes';
+  VATC=reg?{labour:true,parts:true,materials:true,specialist:true}
+          :{labour:false,parts:true,materials:true,specialist:false};
+  VATMAN=false; vatPaint();
+}
+function vatPaint(){
+  ['labour','parts','materials','specialist'].forEach(k=>
+    document.getElementById('vc_'+k).checked=VATC[k]);
+  document.getElementById('vatManChip').style.display=VATMAN?'inline-block':'none';
+  document.getElementById('vatReset').style.display=VATMAN?'inline-block':'none';
+}
+function vatManual(){
+  ['labour','parts','materials','specialist'].forEach(k=>
+    VATC[k]=document.getElementById('vc_'+k).checked);
+  VATMAN=true; vatPaint(); recalc(); touch();
+}
+
+/* ================= Engineer's decisions — direct entry (Brian parked) ================= */
+const D = { outcome:'Total loss', pav:2900, salcat:'N', salval:725, road:'Unroadworthy' };
+const OUTCOMES=['Repairable','Total loss','Cash in lieu','Contract repair'];
+const SALCATS=['A','B','S','N'];
+function tickRow(el,opts,cur,fn){
+  el.innerHTML=opts.map(o=>`<button class="tick${o===cur?' on':''}" onclick="${fn}('${o}')"><span class="bx"></span>${o}</button>`).join('');
+}
+function renderDecisions(){
+  tickRow(document.getElementById('outRow'),OUTCOMES,D.outcome,'setOutcome');
+  tickRow(document.getElementById('salcatRow'),SALCATS,D.salcat,'setSalcat');
+  tickRow(document.getElementById('roadRow'),['Roadworthy','Unroadworthy'],D.road,'setRoad');
+  const tl=D.outcome==='Total loss';
+  document.getElementById('salvCatRow').style.display=tl?'':'none';
+  document.getElementById('salvValRow').style.display=tl?'':'none';
+  document.getElementById('salvNa').style.display=tl?'none':'';
+  document.getElementById('pavIn').value=D.pav||'';
+  const pm=document.getElementById('pavMirror'); if(pm) pm.value=D.pav||'';
+  salvRefresh();
+  document.getElementById('urWrap').style.display = D.road==='Roadworthy'?'none':'block';
+  /* header badges follow decisions */
+  const hb=document.getElementById('hdrOutcome');
+  hb.textContent = tl ? `TOTAL LOSS — CAT ${D.salcat||'—'}` : (D.outcome||'—').toUpperCase();
+  hb.className='badge '+(tl?'b-tl':'b-rep');
+  const hl=document.getElementById('hdrLegal'); const ur=D.road!=='Roadworthy';
+  hl.textContent=ur?'UNROADWORTHY':'ROADWORTHY'; hl.className='badge '+(ur?'b-ur':'b-rw');
+  document.getElementById('pvTitle').textContent =
+    ({'Total loss':'Total Loss','Contract repair':'Contract Repair','Cash in lieu':'Cash in Lieu'}[D.outcome]||D.outcome)+' Report — MA59BDY';
+  if(typeof bodyRefresh==='function') bodyRefresh();
+  compose(); mandRefresh(); renderSettle();
+}
+function setOutcome(o,fromCR){
+  if(D.outcome===o) return;
+  const was=D.outcome; D.outcome=o;
+  logNote(`Outcome set to ${o} by ${val('assignedEng')}${was?` (was ${was})`:''}`+
+    (was==='Total loss'&&o!=='Total loss'?' — salvage category and value recorded as not applicable after outcome change':'')+'.');
+  if(!fromCR){
+    if(o==='Contract repair' && !S.cr.on) crToggle(true,true);
+    if(o!=='Contract repair' && S.cr.on) crToggle(false,true);
+  }
+  renderDecisions(); touch();
+}
+function setPav(v){
+  const n=parseFloat(String(v).replace(/[£,]/g,''));
+  D.pav = n>0 ? +n.toFixed(2) : 0;
+  renderDecisions(); if(typeof scaleRefresh==='function') scaleRefresh(); touch();
+}
+function setSalcat(c){ D.salcat=c; renderDecisions(); touch(); }
+function setRoad(r){ D.road=r; renderDecisions(); touch(); }
+
+/* salvage value — the amount and the % are the same fact; last touch wins; whole pounds */
+const SAL_SNAPS=[5,10,15,20,25];
+function salvSlide(p){ D.salval=Math.round((D.pav||0)*p/100); salvAfter(); }
+function salvSnap(p){ document.getElementById('salvRange').value=p; salvSlide(p); }
+function salvTyped(v){
+  const n=parseFloat(String(v).replace(/[£,]/g,''));
+  D.salval = n>=0 ? Math.round(n) : 0;
+  salvAfter();
+}
+function salvAfter(){ salvRefresh(); compose(); renderSettle(); mandRefresh(); touch(); }
+function salvRefresh(){
+  const pct = D.pav>0 ? (D.salval/D.pav*100) : 0;
+  document.getElementById('salvIn').value = D.salval!=null ? D.salval : '';
+  document.getElementById('salvRange').value = Math.max(0,Math.min(100,Math.round(pct)));
+  document.getElementById('salvRead').textContent =
+    D.pav>0 ? `= ${(+pct.toFixed(1)).toString()}% of ${fmt(D.pav)}` : 'enter a PAV to drive the slider';
+  document.getElementById('salvSnaps').innerHTML =
+    SAL_SNAPS.map(p=>`<button class="${Math.abs(pct-p)<0.5?'on':''}" onclick="salvSnap(${p})">${p}%</button>`).join('');
+}
+
+/* unroadworthy reason bank — firm-level, click to insert, edit freely, quiet save */
+let UR_BANK=[
+ 'the steering and suspension geometry has been compromised',
+ 'the rear lamp assemblies are inoperative',
+ 'the headlamp assemblies are inoperative',
+ 'the vehicle presents sharp edges likely to cause injury',
+ 'the supplementary restraint systems have deployed',
+ 'structural distortion is evident to the body shell',
+ 'there is a loss of essential fluids',
+];
+function renderBank(){
+  document.getElementById('urBank').innerHTML =
+    UR_BANK.map((r,i)=>`<button onclick="bankIns(${i})" title="Insert — combine and edit freely">${r}</button>`).join('');
+}
+function bankIns(i){
+  const t=document.getElementById('urReason');
+  const cur=t.value.trim().replace(/\.+$/,'');
+  t.value = cur ? cur+' and '+UR_BANK[i]+'.' : UR_BANK[i]+'.';
+  compose(); mandRefresh(); touch();
+}
+function saveUr(){
+  const t=document.getElementById('urReason').value.trim().replace(/\.+$/,'');
+  if(!t || UR_BANK.includes(t)) return;
+  UR_BANK.push(t); renderBank();
+  logNote(`Unroadworthy reason saved to the firm bank by ${val('assignedEng')}: "${t}".`);
+  const s=document.getElementById('urSaved'); s.textContent=' · saved — firm-level, everyone sees it';
+  setTimeout(()=>s.textContent='',3500);
+}
+
+/* ================= report wording — every narrative block, report order ================= */
+const txtOf=el=>el?(el.innerText!==undefined?el.innerText:el.textContent):'';
+const HIST_DEFAULT='Experian AutoCheck: no adverse history recorded. The vehicle has not previously been recorded as a total loss and no outstanding finance interest was disclosed.';
+function engComText(){
+  const bits=[MILE[val('mileSrc')]];
+  if(D.road!=='Roadworthy'){
+    const r=document.getElementById('urReason').value.trim();
+    if(r) bits.push('Please note the vehicle is unroadworthy due to '+r);
+  }
+  return bits.filter(Boolean).join('\n\n');
+}
+/* settlement paragraph — outcome-driven; repairable takes a reserve rounded UP to the next £50
+   (rounding step to become a per-principal preset) */
+const ceil50 = n => Math.ceil((n||0)/50)*50;
+function settleText(){
+  const g=S.gross||0;
+  if(D.outcome==='Total loss'){
+    if(!(D.pav>0)) return '';
+    return `We consider that an equitable settlement would be ${fmt(D.pav-(D.salval||0))}, which represents the pre-accident engineer value of the vehicle of ${fmt(D.pav)} less the value of the salvage of ${fmt(D.salval||0)}.`;
+  }
+  if(D.outcome==='Cash in lieu')
+    return `We recommend settlement by way of a cash in lieu payment based upon the estimated repair cost of ${fmt(g)}.`;
+  if(D.outcome==='Contract repair')
+    return `A contract repair has been agreed for the total sum of ${fmt(S.cr&&S.cr.amt!=null?S.cr.amt:g)}. Costs cannot increase above this figure.`;
+  return `This vehicle is considered a repairable proposition and we have calculated a repair cost of ${fmt(g)}. We recommend a repair reserve of ${fmt(ceil50(g))} would be reasonable on this occasion.`;
+}
+/* per-category salvage paragraph — S wording from the generator; A/B/N drafted (generator holds TBC) */
+const SALV_T={
+ A:'Under the current salvage categorisation matrix, within the scope of our inspection, we consider that this is Category A (scrap only — the vehicle must be crushed in its entirety with no parts recovery). We suggest that the sale of the salvage will realise in the order of {s}. We have not taken any action towards removal of the salvage at this time.',
+ B:'Under the current salvage categorisation matrix, within the scope of our inspection, we consider that this is Category B (break for spare parts — the body shell must be crushed). We suggest that the sale of the salvage will realise in the order of {s}. We have not taken any action towards removal of the salvage at this time.',
+ S:'Under the current salvage categorisation matrix, within the scope of our inspection, we consider that this is Category S (structural damage) and can be sold as repairable salvage. Further information is available at www.abi.org.uk. We suggest that the sale of the salvage will realise in the order of {s}. We have not taken any action towards removal of the salvage at this time.',
+ N:'Under the current salvage categorisation matrix, within the scope of our inspection, we consider that this is Category N (non-structural damage) and can be sold as repairable salvage. Further information is available at www.abi.org.uk. We suggest that the sale of the salvage will realise in the order of {s}. We have not taken any action towards removal of the salvage at this time.',
+};
+function salvText(){
+  if(D.outcome!=='Total loss'||!D.salcat) return '';
+  return SALV_T[D.salcat].replace('{s}',fmt(D.salval||0));
+}
+const WB=[
+ {id:'nature', t:'Nature of incident',    src:()=>txtOf(document.getElementById('natSent')), always:true},
+ {id:'engcom', t:"Engineer's comments",   src:()=>engComText(), always:true,
+   hint:'composed from mileage source + roadworthy fields — add anything free-form below the composed lines'},
+ {id:'suppl',  t:'Supplementary damage',  src:()=>(S.supp&&S.supp.print)?suppSentence():'', auto:true},
+ {id:'pavcom', t:'PAV commentary',        src:()=>txtOf(document.getElementById('valCommSent')), opt:true, tick:'valComm'},
+ {id:'unrel',  t:'Unrelated damage',      src:()=>{const d=val('unrelDesc').trim(); return d?('Unrelated pre-existing damage was noted: '+d+'. This damage is inconsistent with the reported incident and has been disregarded for the purposes of this assessment.'):'';}, opt:true, tick:'unrelPrint'},
+ {id:'hist',   t:'Vehicle history check', src:()=>HIST_DEFAULT, always:true, pass:true},
+ {id:'precon', t:'Pre-incident condition',src:()=>txtOf(document.getElementById('condSent')), always:true},
+ {id:'settle', t:'Settlement',             src:()=>settleText(), always:true},
+ {id:'salv',   t:'Salvage',                src:()=>salvText(), vis:()=>D.outcome==='Total loss'},
+];
+const WBS={}; WB.forEach(w=>WBS[w.id]={edited:false, text:'', off:false, title:null});
+let CUSTOM=[], CSEQ=1;
+let WBORDER = WB.map(w=>w.id);        /* print order — removed blocks keep their slot for re-add */
+const wbAll = () => WB.concat(CUSTOM);
+const wbOrdered = () => WBORDER.map(id=>wbAll().find(w=>w.id===id)).filter(Boolean);
+const wbTitle = w => (WBS[w.id]&&WBS[w.id].title) || w.t;
+const wbOn = w => {
+  if(WBS[w.id]&&WBS[w.id].off) return false;
+  if(w.custom) return true;
+  return w.vis ? w.vis() : (w.always || (w.auto ? !!(S.supp&&S.supp.print) : document.getElementById(w.tick).checked));
+};
+function wbRefresh(){
+  const list=document.getElementById('wbList'); if(!list) return;
+  list.innerHTML='';
+  wbOrdered().forEach(w=>{
+    if(!wbOn(w)) return;
+    const st=WBS[w.id];
+    const txt = st.edited ? st.text : w.src();
+    const box=document.createElement('div'); box.className='wb'+(st.edited?' edited':'');
+    const chip = w.custom ? '<span class="chip c-sys">MANUAL — FREE TEXT</span>'
+      : st.edited ? '<span class="chip c-warn">EDITED — NO LONGER TRACKING FIELDS</span>'
+      : w.pass ? '<span class="chip c-sys">PASS-THROUGH — HISTORY API</span>'
+      : w.auto ? '<span class="chip c-sys">COMPOSED — §6 SUPPLEMENTARY PANEL</span>'
+      : '<span class="chip c-ok">COMPOSED — TRACKS FIELDS LIVE</span>';
+    box.dataset.wb=w.id;
+    box.innerHTML=`
+      <div class="wbh"><span class="grip" draggable="true" title="Drag to reorder — the window order is the print order">⠿</span><span class="wbt" contenteditable="true" spellcheck="false" title="Click to rename this heading"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+          onblur="wbRename('${w.id}',this.textContent)">${wbTitle(w)}</span>${chip}
+        ${st.edited&&!w.custom?`<a onclick="wbRecompose('${w.id}')">recompose from fields</a>`:''}
+        <button class="wbx" title="Remove this paragraph — the heading will not print" onclick="wbRemove('${w.id}')">×</button>
+      </div>`;
+    const ta=document.createElement('textarea');
+    ta.value=txt;
+    ta.oninput=function(){
+      this.style.height='auto'; this.style.height=this.scrollHeight+'px';
+      if(w.custom){ WBS[w.id].text=this.value; touch(); return; }
+      const live=w.src();
+      const was=WBS[w.id];
+      if(this.value===live){ WBS[w.id]={...was, edited:false, text:''}; }
+      else { WBS[w.id]={...was, edited:true, text:this.value}; }
+      wbChipOnly(w.id,this);
+      this.closest('.wb').classList.toggle('edited', WBS[w.id].edited);
+      touch();
+    };
+    if(w.custom && !WBS[w.id].text) ta.placeholder='Type the paragraph…';
+    box.appendChild(ta);
+    const grip=box.querySelector('.grip');
+    grip.addEventListener('dragstart',e=>{ WBDRAG=w.id; box.classList.add('dragging');
+      e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',w.id);
+      e.dataTransfer.setDragImage(box,20,20); });
+    grip.addEventListener('dragend',()=>{ WBDRAG=null; box.classList.remove('dragging');
+      document.querySelectorAll('#wbList .wb').forEach(b=>b.classList.remove('dropmark')); });
+    box.addEventListener('dragover',e=>{ if(!WBDRAG||WBDRAG===w.id) return; e.preventDefault();
+      document.querySelectorAll('#wbList .wb').forEach(b=>b.classList.remove('dropmark'));
+      box.classList.add('dropmark'); });
+    box.addEventListener('dragleave',()=>box.classList.remove('dropmark'));
+    box.addEventListener('drop',e=>{ e.preventDefault(); if(WBDRAG&&WBDRAG!==w.id) wbMoveBefore(WBDRAG,w.id); });
+    list.appendChild(box);
+    ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px';
+  });
+  /* dropping on the add row sends the block to the end */
+  const addRow=document.getElementById('wbAdd');
+  addRow.ondragover=e=>{ if(WBDRAG){ e.preventDefault(); addRow.classList.add('dropmark'); } };
+  addRow.ondragleave=()=>addRow.classList.remove('dropmark');
+  addRow.ondrop=e=>{ e.preventDefault(); addRow.classList.remove('dropmark'); if(WBDRAG) wbMoveBefore(WBDRAG,null); };
+  /* add row for optional blocks currently off */
+  const add=document.getElementById('wbAdd');
+  const back=WB.filter(w=>{
+    if(WBS[w.id].off) return w.vis ? w.vis() : true;        /* removed by hand — offer it back (vis blocks only when applicable) */
+    return w.opt && !wbOn(w);                               /* optional, tick currently off */
+  });
+  add.innerHTML = back.map(w=>`<button onclick="wbAddOn('${w.id}')">+ ${wbTitle(w)}</button>`).join('')
+    + `<button onclick="wbNew()" title="A blank manually-written paragraph with its own heading">+ New paragraph</button>`
+    + ((S.supp&&S.supp.print)?'':'<span class="note">Supplementary damage appears here automatically when a supplementary import is explained in §6.</span>');
+}
+function wbChipOnly(id,ta){
+  /* swap the chip without a full re-render (keeps focus in the textarea) */
+  const w=wbAll().find(x=>x.id===id); if(w.custom) return;
+  const st=WBS[id], h=ta.parentElement.querySelector('.wbh');
+  h.innerHTML=`<span class="wbt" contenteditable="true" spellcheck="false" title="Click to rename this heading"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+      onblur="wbRename('${id}',this.textContent)">${wbTitle(w)}</span>`+
+    (st.edited?'<span class="chip c-warn">EDITED — NO LONGER TRACKING FIELDS</span>'
+             +`<a onclick="wbRecompose('${id}')">recompose from fields</a>`
+     : w.pass?'<span class="chip c-sys">PASS-THROUGH — HISTORY API</span>'
+     : w.auto?'<span class="chip c-sys">COMPOSED — §6 SUPPLEMENTARY PANEL</span>'
+     :'<span class="chip c-ok">COMPOSED — TRACKS FIELDS LIVE</span>')+
+    `<button class="wbx" onclick="wbRemove('${id}')">×</button>`;
+}
+function wbRecompose(id){
+  const w=WB.find(x=>x.id===id);
+  if(!w) return;
+  if(!confirm(`Recompose "${w.t}" from the fields? Hand edits to this block are discarded.`)) return;
+  WBS[id]={edited:false,text:''};
+  logNote(`Report wording block "${w.t}" recomposed from fields by ${val('assignedEng')} — hand edits discarded.`);
+  wbRefresh(); touch();
+}
+function wbRemove(id){
+  const w=wbAll().find(x=>x.id===id);
+  if(w.custom){
+    if(WBS[id].text.trim() && !confirm(`Delete the manual paragraph "${wbTitle(w)}"? Its text is discarded.`)) return;
+    CUSTOM=CUSTOM.filter(x=>x.id!==id); delete WBS[id];
+    WBORDER=WBORDER.filter(x=>x!==id);
+    logNote(`Manual report paragraph "${w.t}" deleted by ${val('assignedEng')}.`);
+    wbRefresh(); touch(); return;
+  }
+  if(w.tick){
+    document.getElementById(w.tick).checked=false;
+    if(w.tick==='valComm') adjWork();
+  } else {
+    WBS[id].off=true;
+  }
+  logNote(`Report wording block "${wbTitle(w)}" removed from the report by ${val('assignedEng')} — heading will not print.`);
+  wbRefresh(); touch();
+}
+function wbAddOn(id){
+  const w=WB.find(x=>x.id===id);
+  if(WBS[id].off){ WBS[id].off=false; }
+  if(w.tick){
+    document.getElementById(w.tick).checked=true;
+    if(w.tick==='valComm') adjWork();
+  }
+  logNote(`Report wording block "${wbTitle(w)}" added to the report by ${val('assignedEng')}${WBS[id].edited?' — held hand edits restored':''}.`);
+  wbRefresh(); touch();
+}
+function wbRename(id,t){
+  const w=wbAll().find(x=>x.id===id); if(!w) return;
+  const clean=(t||'').trim().replace(/\s+/g,' ');
+  const cur=wbTitle(w);
+  if(!clean){ wbRefresh(); return; }                     /* blank rename — put the old title back */
+  if(clean===cur) return;
+  if(w.custom){ w.t=clean; } else { WBS[id].title = clean===w.t ? null : clean; }
+  logNote(`Report heading "${cur}" renamed to "${clean}" by ${val('assignedEng')}.`);
+  wbRefresh(); touch();
+}
+let WBDRAG=null;
+function wbMoveBefore(dragId, targetId){
+  if(dragId===targetId) return;
+  WBORDER=WBORDER.filter(x=>x!==dragId);
+  if(targetId==null) WBORDER.push(dragId);
+  else WBORDER.splice(WBORDER.indexOf(targetId),0,dragId);
+  const dw=wbAll().find(w=>w.id===dragId), tw=targetId&&wbAll().find(w=>w.id===targetId);
+  logNote(`Report wording reordered by ${val('assignedEng')} — "${wbTitle(dw)}" moved ${tw?`above "${wbTitle(tw)}"`:'to the end'}. The window order is the print order.`);
+  wbRefresh(); touch();
+}
+function wbNew(){
+  const id='c'+(CSEQ++);
+  CUSTOM.push({id, t:'New paragraph', custom:true});
+  WBORDER.push(id);
+  WBS[id]={edited:true, text:'', off:false, title:null};
+  logNote(`Manual report paragraph added by ${val('assignedEng')}.`);
+  wbRefresh(); touch();
+  const boxes=document.querySelectorAll('#wbList .wb');
+  const last=boxes[boxes.length-1];
+  if(last) last.querySelector('.wbt').focus();
+}
+
+/* mandatory decisions gate — no approval button; Attach and Send (§8) is the approval act */
+function decisionsMissing(){
+  const m=[];
+  if(!D.outcome) m.push('outcome');
+  if(!(D.pav>0)) m.push("engineer's PAV");
+  if(D.outcome==='Total loss'){
+    if(!D.salcat) m.push('salvage category');
+    if(!(D.salval>0)) m.push('salvage value');
+  }
+  if(!D.road) m.push('roadworthy status');
+  if(D.road==='Unroadworthy' && !document.getElementById('urReason').value.trim()) m.push('unroadworthy reason');
+  return m;
+}
+function mandRefresh(){
+  const m=decisionsMissing();
+  document.getElementById('mandNote').innerHTML = m.length
+    ? `<b>${m.length}</b> mandatory decision${m.length>1?'s':''} outstanding — ${m.join(', ')}. Generate preview (§8) stays locked until complete.`
+    : `All mandatory decisions complete. No separate approval act — <b>Attach and Send</b> (§8) is the approval.`;
+}
+function renderSettle(){
+  const s=document.getElementById('settle');
+  const o=D.outcome||'Total loss';
+  const pav=D.pav||0, sal=D.salval||0;
+  const gross=S.gross||0;
+  if(o==='Total loss'){
+    const set=pav-sal;
+    s.innerHTML=`
+      <div><div class="sl">Pre-accident value</div><div class="sv">${pav?fmt(pav):'—'}</div></div>
+      <div class="op">−</div>
+      <div><div class="sl">Salvage value</div><div class="sv">${sal?fmt(sal):'—'}</div></div>
+      <div class="op">=</div>
+      <div><div class="sl">Recommended settlement</div><div class="sv red">${pav?fmt(set):'—'}</div></div>
+      <div style="margin-left:auto"><div class="sl">Repair cost (from grid)</div>
+        <div class="sv" style="font-size:15px">${fmt(gross)} ${gross>pav&&pav?'· exceeds PAV':''}</div></div>`;
+  } else {
+    s.innerHTML=`
+      <div><div class="sl">Pre-accident value</div><div class="sv">${pav?fmt(pav):'—'}</div></div>
+      <div><div class="sl">Labour hours</div><div class="sv">${(S.hours||0).toFixed(2)}</div></div>
+      <div><div class="sl">${o==='Cash in lieu'?'Cash in lieu settlement':o==='Contract repair'?'Agreed contract repair (total)':'Repair cost inc VAT'}</div>
+        <div class="sv red">${o==='Contract repair'&&S.cr&&S.cr.amt!=null?fmt(S.cr.amt):fmt(gross)}</div></div>`;
+  }
+}
+
+/* ================= collapsible sections + subcards — view state kept per browser, separate from the case ================= */
+const VIEWKEY='pegasus_view_QDOS26214';
+let VIEW={};
+function viewLoad(){ try{ VIEW=JSON.parse(localStorage.getItem(VIEWKEY))||{}; }catch(e){ VIEW={}; } }
+function viewSave(){ try{ localStorage.setItem(VIEWKEY, JSON.stringify(VIEW)); }catch(e){} }
+function foldInit(){
+  viewLoad();
+  document.querySelectorAll('section.sec').forEach(sec=>{
+    const h=sec.querySelector('.sec-h'); if(!h||h.querySelector('.chev')) return;
+    const hint=document.createElement('span'); hint.className='foldedhint'; hint.textContent='collapsed — click to expand';
+    const ch=document.createElement('span'); ch.className='chev'; ch.textContent='▾';
+    h.appendChild(hint); h.appendChild(ch);
+    h.addEventListener('click',e=>{
+      if(e.target.closest('button,a,input,select,textarea,[contenteditable]')) return;
+      sec.classList.toggle('clps');
+      VIEW[sec.id]=sec.classList.contains('clps'); viewSave();
+    });
+    if(VIEW[sec.id]) sec.classList.add('clps');
+  });
+  document.querySelectorAll('.subcard,.wordwell').forEach((card,i)=>{
+    const t=card.querySelector(':scope > .sg-t'); if(!t||t.querySelector('.chev')) return;
+    const key='sub'+i; card.dataset.fold=key;
+    const ch=document.createElement('span'); ch.className='chev'; ch.textContent='▾';
+    t.appendChild(ch);
+    t.addEventListener('click',e=>{
+      if(e.target.closest('button,a,input,select,textarea,[contenteditable]')) return;
+      card.classList.toggle('clps');
+      VIEW[key]=card.classList.contains('clps'); viewSave();
+    });
+    if(VIEW[key]) card.classList.add('clps');
+  });
+}
+
+/* ================= persistence — autosave to this browser + export/import as a case file ================= */
+const SAVEKEY='pegasus_case_QDOS26214';
+function caseSnapshot(){
+  const vals={};
+  document.querySelectorAll('input[id],select[id],textarea[id]').forEach(el=>{
+    if(el.id==='imgFile'||el.id==='caseFile') return;
+    vals[el.id]= el.type==='checkbox' ? {c:el.checked} : {v:el.value};
+  });
+  return {when:new Date().toISOString(), vals, S, D, ROWS, WBS, WBORDER, CUSTOM, UR_BANK,
+    IMG:imgState, IMGSEQ, VERSIONS, CSEQ};
+}
+function applySnapshot(sn){
+  Object.keys(S).forEach(k=>delete S[k]); Object.assign(S,sn.S);
+  Object.keys(D).forEach(k=>delete D[k]); Object.assign(D,sn.D);
+  ROWS.length=0; sn.ROWS.forEach(r=>ROWS.push(r));
+  Object.keys(WBS).forEach(k=>delete WBS[k]); Object.assign(WBS,sn.WBS);
+  WBORDER=sn.WBORDER.slice(); CUSTOM=(sn.CUSTOM||[]).slice(); CSEQ=sn.CSEQ||CUSTOM.length+1;
+  UR_BANK=sn.UR_BANK.slice();
+  imgState=sn.IMG.map(x=>({...x})); IMGSEQ=sn.IMGSEQ||imgState.length+1;
+  VERSIONS.length=0; (sn.VERSIONS||[]).forEach(v=>VERSIONS.push(v));
+  Object.entries(sn.vals||{}).forEach(([id,x])=>{
+    const el=document.getElementById(id); if(!el) return;
+    if('c' in x) el.checked=x.c; else el.value=x.v;
+  });
+  renderAll();
+}
+function renderAll(){
+  renderImgs(); renderGrid(); renderBank(); renderDecisions(); renderCc(); renderDocs(); bodyRefresh();
+  if(typeof crRefresh==='function') crRefresh();
+  if(typeof scaleRefresh==='function') scaleRefresh();
+  compose(); composeLoc(); composeStorage(); adjWork(); wbRefresh(); mandRefresh();
+  document.getElementById('verBtn').textContent=`Versions (${VERSIONS.length})`;
+}
+let saveT=null, savedOnce=false;
+function saveSoon(){ clearTimeout(saveT); saveT=setTimeout(saveNow,800); }
+function saveNow(){
+  try{
+    localStorage.setItem(SAVEKEY, JSON.stringify(caseSnapshot()));
+    note('Saved '+new Date().toTimeString().slice(0,5));
+  }catch(e){
+    try{ const sn=caseSnapshot(); sn.IMG=sn.IMG.map(x=>({...x,data:''}));
+      localStorage.setItem(SAVEKEY, JSON.stringify(sn));
+      note('Saved — images too large for browser storage; use Export case to keep them');
+    }catch(e2){ note('Autosave failed — use Export case'); }
+  }
+  function note(t){ const n=document.getElementById('saveNote'); if(n) n.textContent=t; }
+}
+function caseExport(){
+  const blob=new Blob([JSON.stringify(caseSnapshot(),null,1)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${SAVEKEY}_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+  logNote(`Case exported to file by ${val('assignedEng')}.`);
+}
+function caseImportFile(f){
+  if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{
+      const sn=JSON.parse(rd.result);
+      if(!sn.ROWS||!sn.D) throw new Error('not a Pegasus case file');
+      applySnapshot(sn); saveNow();
+      logNote(`Case imported from ${f.name} by ${val('assignedEng')}.`);
+    }catch(e){ alert('Could not import — '+e.message); } };
+  rd.readAsText(f);
+}
+function caseReset(){
+  if(!confirm('Discard the saved case in this browser and reload the demo?')) return;
+  localStorage.removeItem(SAVEKEY);
+  location.reload();
+}
+function caseRestore(){
+  try{
+    const raw=localStorage.getItem(SAVEKEY); if(!raw) return;
+    const sn=JSON.parse(raw);
+    applySnapshot(sn);
+    const n=document.getElementById('saveNote');
+    if(n) n.textContent='Restored autosave · '+new Date(sn.when).toTimeString().slice(0,5);
+  }catch(e){ /* corrupt save — leave the demo case */ }
+}
+
+/* ================= print engine — the document is built from the case, browser print = the PDF ================= */
+const CASE={ref:'QDOS26214', reg:'MA59BDY', veh:'MINI First 1.6 Pepper (2009)', vin:'WMWMF32000TT12345',
+  principal:'QDOS Claims', principalRef:'Q-88214', claimant:'Miss J Carter', incident:'14 Aug 2026', inspected:'2 Sep 2026'};
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>');
+function docHead(kind){
+  return `<div class="lh"><div class="co">COLLISION <span>ENGINEERS</span></div>
+    <div class="tag">Independent Automotive Engineering Experts<br>Engineer's ${kind}</div></div>
+    <div class="addr">Collision Engineers Ltd · Birkenhead · claims@collisionengineers.co.uk · Our ref ${CASE.ref}</div>`;
+}
+function docDetails(){
+  return `<table class="dt">
+    <tr><td>Our reference</td><td>${CASE.ref}</td></tr>
+    <tr><td>Principal / their ref</td><td>${CASE.principal} · ${val('principalRef')||CASE.principalRef}</td></tr>
+    <tr><td>Claimant</td><td>${CASE.claimant}</td></tr>
+    <tr><td>Vehicle</td><td>${CASE.veh} · ${CASE.reg} · VIN ${CASE.vin}</td></tr>
+    <tr><td>Date of incident</td><td>${CASE.incident}</td></tr>
+    <tr><td>Assessed</td><td>${CASE.inspected} — image-based assessment by ${val('assignedEng')}</td></tr>
+  </table>`;
+}
+function worklists(){
+  const groups=[
+    ['Main new parts', ROWS.filter(r=>r.t==='New'), r=>fmt(r.q*r.u), 'Qty × unit'],
+    ['Repairs required', ROWS.filter(r=>r.t==='Repair'||r.t==='R&R'), r=>r.h+' h', 'Hours'],
+    ['Additional operations', ROWS.filter(r=>['Paint','Blend','Specialist'].includes(r.t)), r=>r.t==='Specialist'?(r.u>0?fmt((r.q||1)*r.u):r.h+' h'):(r.h+' h'+(r.m?' · mat '+fmt(r.m):'')), 'Basis'],
+  ];
+  return groups.map(([t,rows,money,col])=> rows.length?`
+    <h2>${t}</h2>
+    <table class="wl"><tr><th>Description</th><th style="width:70px">Type</th><th class="r" style="width:110px">${col}</th></tr>
+    ${rows.map(r=>`<tr><td>${esc(r.d)}</td><td>${r.t}</td><td class="r">${money(r)}</td></tr>`).join('')}
+    </table>`:'').join('');
+}
+function valueBoxes(){
+  const g=S.gross||0;
+  if(D.outcome==='Total loss') return `<div class="vboxes">
+    <div class="vbox"><div class="l">Pre-accident value</div><div class="v">${fmt(D.pav)}</div></div>
+    <div class="vbox"><div class="l">Salvage — Cat ${D.salcat}</div><div class="v">${fmt(D.salval)}</div></div>
+    <div class="vbox acc"><div class="l">Recommended settlement</div><div class="v">${fmt(D.pav-(D.salval||0))}</div></div></div>`;
+  if(D.outcome==='Contract repair') return `<div class="vboxes">
+    <div class="vbox"><div class="l">Pre-accident value</div><div class="v">${fmt(D.pav)}</div></div>
+    <div class="vbox acc"><div class="l">Contract repair (total)</div><div class="v">${fmt(S.cr&&S.cr.amt!=null?S.cr.amt:g)}</div></div></div>`;
+  if(D.outcome==='Cash in lieu') return `<div class="vboxes">
+    <div class="vbox"><div class="l">Pre-accident value</div><div class="v">${fmt(D.pav)}</div></div>
+    <div class="vbox acc"><div class="l">Cash in lieu — estimated repair cost</div><div class="v">${fmt(g)}</div></div></div>`;
+  return `<div class="vboxes">
+    <div class="vbox"><div class="l">Pre-accident value</div><div class="v">${fmt(D.pav)}</div></div>
+    <div class="vbox"><div class="l">Repair cost (inc VAT)</div><div class="v">${fmt(g)}</div></div>
+    <div class="vbox acc"><div class="l">Repair reserve</div><div class="v">${fmt(ceil50(g))}</div></div></div>`;
+}
+function imgSheet(standalone){
+  const inc=imgState.filter(x=>x.on);
+  if(!inc.length) return '';
+  let html=standalone?'':'<div class="imgpage"><h2>Images — '+inc.length+'</h2></div>';
+  let cell=0;
+  inc.forEach((im)=>{
+    if(im.full){
+      html+=`<div class="${cell>0||!standalone?'pbreak':''}"><div class="imgframe fullpg"><img src="${im.data}" class="${rotClass(im.rot).trim()}"></div><div class="imgcap">${esc(im.n)} — full page</div></div>`;
+      cell=0; return;
+    }
+    if(cell===0) html+=`<div class="${standalone&&html==='' ?'':'pbreak'}">`;
+    html+=`<div class="imgframe"><img src="${im.data}" class="${rotClass(im.rot).trim()}"></div><div class="imgcap">${esc(im.n)}</div>`;
+    cell++;
+    if(cell===2){ html+='</div>'; cell=0; }
+  });
+  if(cell===1) html+='</div>';
+  return html;
+}
+function buildDoc(mode){
+  const title=document.getElementById('pvTitle').textContent;
+  if(mode==='breakdown'){
+    return `<div class="doc">${docHead('Repair Specification')}<h1>Repair specification — ${CASE.reg}</h1>${docDetails()}
+      ${worklists()}
+      <h2>Costs</h2><p>Labour rate ${fmt(S.rate)}/hr · ${S.hours||0} hours specified · Repair cost including VAT <b>${fmt(S.gross||0)}</b>.</p>
+      <div class="foot">Produced by Pegasus · ${CASE.ref} · this document accompanies our ${title}.</div></div>`;
+  }
+  if(mode==='images'){
+    return `<div class="doc">${docHead('Image Pack')}<h1>Images — ${CASE.reg} (${imgState.filter(x=>x.on).length})</h1>${imgSheet(true)}
+      <div class="foot">Produced by Pegasus · ${CASE.ref}.</div></div>`;
+  }
+  const blocks=wbOrdered().filter(w=>wbOn(w)).map(w=>{
+    const txt=(WBS[w.id].edited?WBS[w.id].text:w.src()).trim();
+    return txt?`<h2>${esc(wbTitle(w))}</h2><p>${esc(txt)}</p>`:'';
+  }).join('');
+  return `<div class="doc">${docHead('Report')}<h1>${esc(title)}</h1>${docDetails()}
+    ${blocks}
+    ${valueBoxes()}
+    ${worklists()}
+    <div class="sig">Prepared and authorised by<br><b>${val('assignedEng')}</b> — Collision Engineers Ltd<br>${CASE.inspected==='2 Sep 2026'?'15 Sep 2026':CASE.inspected}</div>
+    ${imgSheet(false)}
+    <div class="foot">Produced by Pegasus · ${CASE.ref} · ${reportFname()}</div></div>`;
+}
+function producePdf(mode){
+  const root=document.getElementById('printRoot');
+  root.innerHTML=buildDoc(mode);
+  const old=document.title;
+  document.title = mode==='report' ? reportFname().replace(/\.pdf$/,'')
+    : mode==='breakdown' ? `${CASE.ref} ${CASE.reg} Breakdown` : `${CASE.ref} ${CASE.reg} Images`;
+  const done=()=>{ document.title=old; window.removeEventListener('afterprint',done); };
+  window.addEventListener('afterprint',done);
+  window.print();
+  setTimeout(done,2000);
+}
+function pvOpen(){
+  document.getElementById('pvSheet').innerHTML=buildDoc('report');
+  document.getElementById('pvModalNote').textContent='Save as PDF from the print dialog — the filename is pre-set, dots and all.';
+  document.getElementById('pvModal').classList.add('open');
+}
+function pvClose(){ document.getElementById('pvModal').classList.remove('open'); }
+
+/* ================= delivery — channel, address book, cc, attachments ================= */
+S.delivery={channel:'email', cc:[], docs:{report:true, fee:true, breakdown:false, images:false}};
+S.sentCount=0; S.lastSentDate=null;
+/* filename convention: an extra '.' before .pdf per re-send — a CE-side version tell (recipients rename anyway) */
+function reportFname(){
+  return `QDOS26214 MA59BDY ${document.getElementById('pvTitle').textContent.replace(' — MA59BDY','')}${'.'.repeat(S.sentCount)}.pdf`;
+}
+function emailBodyText(){
+  const t=document.getElementById('pvTitle').textContent.replace(' — MA59BDY','');
+  return S.sentCount===0
+    ? `Please find attached our ${t} in respect of MA59BDY.`
+    : `Please find attached our updated ${t} in respect of MA59BDY, which supersedes our report dated ${S.lastSentDate}.`;
+}
+function bodyRefresh(){
+  const e=document.getElementById('emailBody'); if(e) e.textContent=emailBodyText();
+  const f=document.getElementById('fnameShow'); if(f) f.textContent=reportFname();
+}
+/* firm + principal + case address book — searchable; SUGG rows surface as one-click cc suggestions */
+const ABOOK=[
+ {n:'QDOS Claims — claims inbox', e:'claims@qdosclaims.co.uk', t:'Principal', sugg:false},
+ {n:'J Simmonds — QDOS handler', e:'j.simmonds@qdosclaims.co.uk', t:'Principal', sugg:true},
+ {n:'QDOS accounts', e:'accounts@qdosclaims.co.uk', t:'Principal', sugg:false},
+ {n:'Fastlane Hire — claim source', e:'claims@fastlanehire.co.uk', t:'This case', sugg:true},
+ {n:'A Patterson', e:'ap@collisionengineers.co.uk', t:'CE', sugg:false},
+ {n:'CE admin', e:'admin@collisionengineers.co.uk', t:'CE', sugg:false},
+];
+function setChannel(c){
+  S.delivery.channel=c;
+  document.getElementById('chEmail').classList.toggle('on',c==='email');
+  document.getElementById('chWa').classList.toggle('on',c==='wa');
+  document.getElementById('waChip').style.display=c==='wa'?'':'none';
+  sendSummary();   /* delivery choices never stale the preview — the PDF is unchanged */
+}
+let abTarget=null;
+function abOpen(t){ abTarget=t; abFilter(t); }
+function abClose(){ setTimeout(()=>{ document.querySelectorAll('.ab').forEach(x=>x.classList.remove('open')); },160); }
+function abFilter(t){
+  const q=(document.getElementById(t==='to'?'toIn':'ccIn').value||'').toLowerCase();
+  const box=document.getElementById(t==='to'?'abTo':'abCc');
+  const rows=ABOOK.filter(a=>!q || a.n.toLowerCase().includes(q) || a.e.toLowerCase().includes(q));
+  box.innerHTML = rows.length
+    ? rows.map(a=>`<div class="abr" onmousedown="abPick('${t}','${a.e}')"><span class="an">${a.n}</span><span class="ae">${a.e}</span><span class="at">${a.t}</span></div>`).join('')
+    : '<div class="abempty">No matches — press Enter to add the typed address.</div>';
+  box.classList.add('open');
+}
+function abPick(t,e){
+  if(t==='to'){ document.getElementById('toIn').value=e; }
+  else ccAdd(e);
+  abClose(); sendSummary();
+}
+function ccAdd(e){
+  if(!e || S.delivery.cc.includes(e)) return;
+  S.delivery.cc.push(e); document.getElementById('ccIn').value='';
+  renderCc(); sendSummary();
+}
+function ccAddTyped(){ ccAdd(document.getElementById('ccIn').value.trim()); }
+function ccDrop(e){ S.delivery.cc=S.delivery.cc.filter(x=>x!==e); renderCc(); sendSummary(); }
+function renderCc(){
+  document.getElementById('ccLine').innerHTML =
+    S.delivery.cc.map(e=>`<span class="ccchip">${e}<button title="Remove" onclick="ccDrop('${e}')">×</button></span>`).join('');
+  document.getElementById('ccSugg').innerHTML =
+    ABOOK.filter(a=>a.sugg&&!S.delivery.cc.includes(a.e))
+      .map(a=>`<button onclick="ccAdd('${a.e}')" title="${a.e}">+ ${a.n}</button>`).join('');
+}
+const DOCS=[
+ ['report','Report','The engineer\'s report PDF'],
+ ['fee','Fee note','Fee note PDF from the principal fee table'],
+ ['breakdown','Breakdown','The repair specification as its own PDF'],
+ ['images','Images','Included images alone — PDF contact sheet, 2 per page']];
+function renderDocs(){
+  document.getElementById('docRow').innerHTML =
+    DOCS.map(([k,l,tip])=>`<button class="tick${S.delivery.docs[k]?' on':''}" title="${tip}" onclick="docToggle('${k}')"><span class="bx"></span>${l}</button>`).join('');
+}
+function docToggle(k){ S.delivery.docs[k]=!S.delivery.docs[k]; renderDocs(); sendSummary(); }
+function docList(){ return DOCS.filter(([k])=>S.delivery.docs[k]).map(d=>d[1]); }
+function sendSummary(){
+  if(!S.previewed||S.stale||S.sent) return;
+  const dl=docList();
+  document.getElementById('sendNote').textContent = dl.length
+    ? `Sends ${dl.join(' + ')} to ${val('toIn')}${S.delivery.cc.length?` (cc ${S.delivery.cc.length})`:''} via ${S.delivery.channel==='wa'?'WhatsApp':'email'} — the send act is the approval act.`
+    : 'Nothing ticked to attach — tick at least one document.';
+  document.getElementById('sendBtn').disabled = dl.length===0;
+}
+
+/* ================= report / send ================= */
+function genPreview(){
+  const m=decisionsMissing();
+  if(m.length){
+    document.getElementById('pvStatus').innerHTML =
+      '<span style="color:var(--warn)">Locked — outstanding decisions: '+m.join(', ')+' (§7).</span>';
+    return;
+  }
+  S.previewed=true; S.stale=false;
+  const rd=document.getElementById('reportDate');
+  if(!rd.value) rd.value=new Date().toISOString().slice(0,10);
+  const nimg=imgState.filter(x=>x.on).length;
+  document.getElementById('pvStatus').innerHTML =
+    'Preview generated <b>just now</b> · '+nimg+' images · will send as <b>'+reportFname()+'</b> · <a onclick="pvOpen()" style="text-decoration:underline;cursor:pointer">open preview</a> · check it, then send.';
+  pvOpen();
+  document.getElementById('sendBtn').disabled=false;
+  sendSummary();
+  document.getElementById('staleBanner').classList.remove('show');
+}
+function sendReport(){
+  if(S.stale) return;
+  const dl=docList(); if(!dl.length) return;
+  S.sent=true;
+  document.getElementById('sendBtn').disabled=true;
+  const ch=S.delivery.channel==='wa'?'WhatsApp (Pegasus number — attachments direct)':'email';
+  const fn=reportFname();
+  document.getElementById('sendNote').textContent=`Sent ${fn} (${dl.join(' + ')}) to ${val('toIn')}${S.delivery.cc.length?` cc ${S.delivery.cc.join(', ')}`:''} via ${ch} · report date stamped · case moves to Issued.`;
+  logNote(`${dl.join(' + ')} sent as ${fn} to ${val('toIn')}${S.delivery.cc.length?` (cc ${S.delivery.cc.join(', ')})`:''} via ${ch} by ${val('assignedEng')} — send is the approval act. Case status → Issued.`);
+  alert('Attach and Send — the send act is the approval act.\n\n'+fn+' ('+dl.join(' + ')+') transmitted. Case status → Issued.');
+  S.sentCount++; S.lastSentDate='15 Sep 2026';
+  bodyRefresh(); saveSoon();
+}
+function touch(){
+  if(typeof saveSoon==='function') saveSoon();
+  if(S.sent){
+    /* working direction: an edit after issue reopens the case implicitly — no separate reopen act */
+    S.sent=false; S.stale=true;
+    document.getElementById('sendBtn').disabled=true;
+    document.getElementById('pvStatus').innerHTML='<span style="color:var(--warn)">Case edited after issue — reopened. Regenerate the preview to re-send.</span>';
+    document.getElementById('sendNote').textContent='Locked — regenerate the preview. The re-send takes the next filename dot and the "supersedes" body line.';
+    document.getElementById('staleBanner').classList.add('show');
+    logNote(`Case reopened — edited after issue by ${val('assignedEng')}. Status Issued → In progress.`);
+    bodyRefresh();
+    return;
+  }
+  if(S.previewed && !S.sent){
+    S.stale=true;
+    document.getElementById('sendBtn').disabled=true;
+    document.getElementById('pvStatus').innerHTML='<span style="color:var(--warn)">Preview stale — case edited after generation.</span>';
+    document.getElementById('sendNote').textContent='Locked — regenerate the preview to send.';
+    document.getElementById('staleBanner').classList.add('show');
+  }
+}
+function switchTab(t){
+  document.getElementById('tabReport').classList.toggle('on',t==='report');
+  document.getElementById('tabFee').classList.toggle('on',t==='fee');
+  document.getElementById('paneReport').style.display=t==='report'?'block':'none';
+  document.getElementById('paneFee').style.display=t==='fee'?'block':'none';
+}
+
+/* ================= wiring ================= */
+function readGuide(g){
+  if(g.dataset.g==='Super CAP')
+    return {name:'Super CAP', retail:parseFloat(val('scRetail'))||null, trade:parseFloat(val('scTrade'))||null};
+  if(g.dataset.g==='Market research')
+    return {name:'Market research', retail:parseFloat(val('mrRetail'))||null, trade:null};
+  return {name:g.dataset.g, retail:+g.dataset.retail, trade:+g.dataset.trade};
+}
+document.getElementById('guides').addEventListener('click',e=>{
+  if(e.target.classList.contains('gin')) return;   // typing ≠ selecting
+  const g=e.target.closest('.guide'); if(!g)return;
+  document.querySelectorAll('.guide').forEach(x=>x.classList.remove('sel'));
+  g.classList.add('sel');
+  S.guide=readGuide(g);
+  compose(); adjWork(); touch();
+});
+['scRetail','scTrade','mrRetail'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{
+    const sel=document.querySelector('.guide.sel');
+    if(sel) S.guide=readGuide(sel);
+    compose(); adjWork(); touch();
+  }));
+['mileSrc','cond','sev','loc'].forEach(id=>
+  document.getElementById(id).addEventListener('change',()=>{compose();touch();}));
+document.getElementById('urReason').addEventListener('input',()=>{compose();touch();});
+document.getElementById('repVat').addEventListener('change',()=>{vatDefaults();recalc();touch();});
+['d_parts','d_paint','d_spec','d_all'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{recalc();touch();}));
+/* inspection location + desktop sentence */
+function composeLoc(){
+  const l=val('inspLoc');
+  const src={iba:'Image Based Assessment', claimant:val('clmAddr'), repairer:val('repAddr'),
+    storage:val('stoAddr'), other:val('inspLocOther')||'—'}[l];
+  let s=`Vehicle located at: ${src}.`;
+  document.getElementById('locSent').textContent=s;
+  document.getElementById('inspLocWrap').style.display = l==='other'?'block':'none';
+}
+['inspType','inspLoc','inspLocOther','clmAddr','repAddr','stoAddr'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{composeLoc();touch();}));
+/* storage charges sentence */
+const gbp=n=>'£'+n.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+function composeStorage(){
+  const rate=parseFloat(val('stoRate'))||0, rec=parseFloat(val('stoRec'))||0;
+  const el=document.getElementById('stoSent');
+  if(rec&&rate) el.textContent=`We understand recovery and storage charges are accruing at ${gbp(rec)} and ${gbp(rate)}pd, plus VAT.`;
+  else if(rec) el.textContent=`We understand recovery charges of ${gbp(rec)} have been incurred, plus VAT.`;
+  else if(rate) el.textContent=`We understand storage charges are accruing at ${gbp(rate)}pd, plus VAT.`;
+  else el.innerHTML='<span style="color:var(--faint)">No charges entered — no line appears on the report.</span>';
+}
+['stoRate','stoRec'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{composeStorage();touch();}));
+document.getElementById('claimantVat').addEventListener('change',()=>{regateVat();touch();});
+// any other input edits mark the preview stale
+document.querySelector('.frame').addEventListener('change',e=>{ touch(); });
+
+// jump-tab scroll tracking
+const links=[...document.querySelectorAll('#jump a')];
+const obs=new IntersectionObserver(es=>{
+  es.forEach(en=>{ if(en.isIntersecting){
+    links.forEach(l=>l.classList.toggle('on', l.getAttribute('href')==='#'+en.target.id));
+  }});
+},{rootMargin:'-40% 0px -55% 0px'});
+document.querySelectorAll('.sec').forEach(s=>obs.observe(s));
+
+/* ================= section 1: locks, engineers, days ================= */
+const LOCK_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+const UNLOCK_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
+function logNote(text){
+  const now=new Date();
+  const stamp=now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '
+    +now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const d=document.createElement('div');
+  d.className='note';
+  d.innerHTML=`<div class="nw">${stamp}</div><div class="nb"><b>System</b> — ${text}</div>`;
+  document.getElementById('noteTop').prepend(d);
+}
+document.querySelectorAll('.lockable').forEach(w=>{
+  const btn=w.querySelector('.lockbtn'), inp=w.querySelector('input,textarea');
+  btn.innerHTML=LOCK_SVG;
+  let before='';
+  btn.addEventListener('click',()=>{
+    const open=w.classList.toggle('open');
+    inp.disabled=!open;
+    btn.innerHTML=open?UNLOCK_SVG:LOCK_SVG;
+    if(open){ before=inp.value; inp.focus(); }
+    else if(inp.value!==before){
+      logNote(`${w.dataset.name} amended by ${val('assignedEng')} — "${before}" → "${inp.value}".`);
+        touch();
+    }
+  });
+  if(inp.tagName==='INPUT')
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') btn.click(); });
+});
+const SIGNOFF=['A Patterson','E Mawdsley',"N O'Reilly"];
+function assignedChange(name){
+  document.getElementById('hdrEng').textContent=name;
+  if(SIGNOFF.includes(name)) document.getElementById('signoffEng').value=name;
+  touch();
+}
+
+/* ================= section 4: units, average mileage, zones ================= */
+let UNIT='mi';
+function setUnit(u){
+  if(u===UNIT) return;
+  const o=document.getElementById('odo');
+  const v=parseFloat(o.value)||0;
+  o.value=Math.round(u==='km'? v*1.609344 : v/1.609344);
+  UNIT=u;
+  document.getElementById('uMi').classList.toggle('on',u==='mi');
+  document.getElementById('uKm').classList.toggle('on',u==='km');
+  touch();
+}
+const FIRST_REG=new Date('2009-09-01');
+function avgMileage(){
+  const on=document.getElementById('avgTick').checked;
+  const o=document.getElementById('odo');
+  document.getElementById('avgWarn').style.display=on?'block':'none';
+  o.disabled=on;
+  if(on){
+    const yrs=(new Date()-FIRST_REG)/(365.25*864e5);
+    let mi=Math.round(yrs*7100);
+    o.value=UNIT==='km'?Math.round(mi*1.609344):mi;
+    document.getElementById('mileSrc').value='average';
+  } else {
+    o.value=UNIT==='km'?Math.round(87412*1.609344):87412;
+    document.getElementById('mileSrc').value='online_data';
+  }
+  compose(); touch();
+}
+
+/* damage zone picker */
+const ZONES=[
+ // outside rows/columns  [id,label,region, x,y,w,h]
+ ['f_ns','Front N/S corner','Left front',   85,26,40,58],
+ ['f_c','Front centre','Front',            130,26,40,58],
+ ['f_os','Front O/S corner','Right front', 175,26,40,58],
+ ['ns_wing','N/S front wing','Left front',  38,95,42,84],
+ ['ns_fdoor','N/S front door','Left side',  38,186,42,84],
+ ['ns_rdoor','N/S rear door','Left side',   38,277,42,84],
+ ['ns_qtr','N/S rear quarter','Left rear',  38,368,42,88],
+ ['os_wing','O/S front wing','Right front',220,95,42,84],
+ ['os_fdoor','O/S front door','Right side',220,186,42,84],
+ ['os_rdoor','O/S rear door','Right side', 220,277,42,84],
+ ['os_qtr','O/S rear quarter','Right rear',220,368,42,88],
+ ['r_ns','Rear N/S corner','Left rear',     85,462,40,58],
+ ['r_c','Rear centre','Rear',              130,462,40,58],
+ ['r_os','Rear O/S corner','Right rear',   175,462,40,58],
+];
+const CAR_ZONES=[
+ ['bonnet','Bonnet','Front',           97,108,106,58],
+ ['wscreen','Windscreen','Front',      99,172,102,42],
+ ['roof','Roof','Roof',                99,220,102,108],
+ ['rscreen','Rear screen','Rear',      99,334,102,40],
+ ['boot','Boot / tailgate','Rear',     97,380,106,62],
+];
+const WHEELS=[
+ ['w_nsf','N/S front wheel','Wheel(s)', 84,140],
+ ['w_osf','O/S front wheel','Wheel(s)',216,140],
+ ['w_nsr','N/S rear wheel','Wheel(s)',  84,408],
+ ['w_osr','O/S rear wheel','Wheel(s)', 216,408],
+];
+let zoneSel=new Set(['r_c','boot']);   // demo: rear impact pre-picked
+function buildCar(){
+  const svg=document.getElementById('carSvg');
+  const rr=(x,y,w,h,r,cls,id,label)=>
+    `<rect class="${cls}" data-z="${id}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"><title>${label}</title></rect>`;
+  let out='';
+  // outside zones first
+  ZONES.forEach(([id,l,,x,y,w,h])=>out+=rr(x,y,w,h,14,'zone',id,l));
+  // car silhouette
+  out+=`<rect class="carbody" x="85" y="92" width="130" height="366" rx="34"/>
+        <path class="carline" d="M97 170 Q150 158 203 170"/>
+        <path class="carglass" d="M101 176 Q150 164 199 176 L196 212 Q150 202 104 212 Z"/>
+        <path class="carglass" d="M103 336 Q150 344 197 336 L195 372 Q150 380 105 372 Z"/>
+        <path class="carline" d="M99 444 Q150 452 201 444"/>
+        <rect class="carline" x="70" y="196" width="15" height="8" rx="2"/>
+        <rect class="carline" x="215" y="196" width="15" height="8" rx="2"/>`;
+  // on-car zones
+  CAR_ZONES.forEach(([id,l,,x,y,w,h])=>out+=rr(x,y,w,h,12,'zone oncar',id,l));
+  // wheels
+  WHEELS.forEach(([id,l,,cx,cy])=>
+    out+=`<circle class="zone" data-z="${id}" cx="${cx}" cy="${cy}" r="15"><title>${l}</title></circle>`);
+  svg.innerHTML=out;
+  svg.addEventListener('click',e=>{
+    const z=e.target.closest('[data-z]'); if(!z) return;
+    const id=z.dataset.z;
+    zoneSel.has(id)?zoneSel.delete(id):zoneSel.add(id);
+    paintZones(); zonesToLoc(); touch();
+  });
+  paintZones();
+}
+const ALLZ=[...ZONES,...CAR_ZONES,...WHEELS];
+function paintZones(){
+  document.querySelectorAll('#carSvg [data-z]').forEach(el=>
+    el.classList.toggle('on',zoneSel.has(el.dataset.z)));
+  const chips=document.getElementById('zoneChips');
+  if(!zoneSel.size){chips.innerHTML='<span class="zc none">No zones selected</span>';return;}
+  chips.innerHTML=[...zoneSel].map(id=>{
+    const z=ALLZ.find(a=>a[0]===id); return `<span class="zc">${z[1]}</span>`;}).join('');
+}
+function zonesToLoc(){
+  const regions=[...new Set([...zoneSel].map(id=>ALLZ.find(a=>a[0]===id)[2]))];
+  S.regions=regions;
+  const sel=document.getElementById('loc');
+  if(regions.length===1){ sel.value=regions[0]; sel.disabled=false; }
+  else if(regions.length>1){ sel.disabled=true; }   // listed lines take over
+  else { sel.disabled=false; }                       // nothing picked — manual
+  compose();
+}
+
+/* value increases */
+const INCS=[
+ {id:'tow',   label:'Tow bar',            sug:300},
+ {id:'pco',   label:'PCO plated',         sug:1500},
+ {id:'dec',   label:'Decals',             sug:500},
+ {id:'vat',   label:'VAT (on commercial)',pct:20},
+ {id:'camp',  label:'Camper conversion',  sug:0},
+ {id:'tuit',  label:'Driving tuition',    sug:500},
+ {id:'oth1',  label:'',                   sug:0, other:true},
+ {id:'oth2',  label:'',                   sug:0, other:true},
+];
+function renderIncs(){
+  const g=document.getElementById('incGrid');
+  const vatBlocked = val('claimantVat')==='VAT registered';
+  g.innerHTML=INCS.map(i=>{
+    const blocked = i.pct && vatBlocked;
+    return `
+    <div class="inc${blocked?' blocked':''}" ${blocked?'title="Claimant is VAT registered — VAT cannot be added to the value."':''}>
+      <input type="checkbox" id="inc_${i.id}" ${blocked?'disabled':''}>
+      ${i.other
+        ? `<input class="ilab" id="lab_${i.id}" placeholder="Other…">`
+        : `<span class="il">${i.label}${blocked?' <span class="chip c-warn">CLAIMANT VAT REG</span>':''}</span>`}
+      ${i.pct
+        ? `<span class="pct">+${i.pct}%</span>`
+        : `<input class="iamt" id="amt_${i.id}" type="number" value="${i.sug}">`}
+    </div>`;}).join('');
+  INCS.forEach(i=>{
+    document.getElementById('inc_'+i.id).addEventListener('change',()=>{adjWork();touch();});
+    if(!i.pct) document.getElementById('amt_'+i.id).addEventListener('input',()=>{adjWork();touch();});
+    if(i.other) document.getElementById('lab_'+i.id).addEventListener('input',()=>{adjWork();});
+  });
+}
+function regateVat(){
+  const st=INCS.map(i=>({id:i.id,
+    on:document.getElementById('inc_'+i.id)?.checked||false,
+    amt:i.pct?null:val('amt_'+i.id), lab:i.other?val('lab_'+i.id):null}));
+  renderIncs();
+  const vatBlocked = val('claimantVat')==='VAT registered';
+  st.forEach(x=>{
+    const i=INCS.find(a=>a.id===x.id);
+    const cb=document.getElementById('inc_'+x.id);
+    cb.checked = (i.pct&&vatBlocked)?false:x.on;   // force-untick blocked VAT
+    if(!i.pct) document.getElementById('amt_'+x.id).value=x.amt;
+    if(i.other) document.getElementById('lab_'+x.id).value=x.lab;
+  });
+  adjWork();
+}
+function activeIncs(){
+  return INCS.filter(i=>document.getElementById('inc_'+i.id).checked).map(i=>({
+    label: i.other ? (val('lab_'+i.id)||'Other') : i.label,
+    pct: i.pct||null,
+    amt: i.pct?null:(parseFloat(val('amt_'+i.id))||0)
+  }));
+}
+
+/* valuation adjustments */
+let PTL=10;
+function setPtl(p){ PTL=p;
+  document.querySelectorAll('#ptlSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.p===p));
+  adjWork(); }
+function adjCalc(){
+  const base=S.guide.retail;
+  if(base==null) return null;
+  const incs=activeIncs();
+  let sub=base;
+  const pctIncs=incs.filter(i=>i.pct);
+  pctIncs.forEach(i=>{ i.calc=Math.round(base*i.pct/100); sub+=i.calc; });   // 1. VAT on guide value
+  const ptlOn=document.getElementById('ptlTick').checked;
+  let ptlAmt=0;
+  if(ptlOn){ ptlAmt=Math.round(sub*PTL/100); sub-=ptlAmt; }                  // 2. prev. total loss on VAT-inc value
+  const fixed=incs.filter(i=>!i.pct).reduce((s,i)=>s+i.amt,0);
+  sub+=fixed;                                                                // 3. extras
+  const ded=parseFloat(val('adjDed'))||0;
+  sub-=ded;                                                                  // 4. condition deduction
+  return {base,incs,ded,ptlOn,ptlAmt,out:Math.round(sub)};
+}
+function adjWork(){
+  const w=document.getElementById('adjWorking');
+  const c=adjCalc();
+  document.getElementById('ptlSeg').classList.toggle('live',document.getElementById('ptlTick').checked);
+  if(!c){ w.innerHTML='<em>Select a guide with a retail figure first.</em>';
+    document.getElementById('adjApply').disabled=true; return; }
+  const bits=[`£${c.base.toLocaleString()}`];
+  c.incs.filter(i=>i.pct).forEach(i=>bits.push(`+ ${i.pct}% VAT <em>(£${i.calc.toLocaleString()})</em>`));
+  if(c.ptlOn) bits.push(`− ${PTL}% <em>(prev. TL, £${c.ptlAmt.toLocaleString()})</em>`);
+  c.incs.filter(i=>!i.pct).forEach(i=>bits.push(`+ ${i.label} £${i.amt.toLocaleString()}`));
+  if(c.ded) bits.push(`− £${c.ded.toLocaleString()} <em>(condition)</em>`);
+  w.innerHTML = bits.length>1 ? bits.join(' ')+` = <b>£${c.out.toLocaleString()}</b>`
+    : `<em>Retail £${c.base.toLocaleString()} — no adjustments; apply sets the engineer's value to the guide retail.</em>`;
+  document.getElementById('adjApply').disabled = false;   // bare guide retail is a valid engineer's value
+  // report commentary
+  const cw=document.getElementById('valCommWrap');
+  if(document.getElementById('valComm').checked && bits.length>1){
+    cw.style.display='block';
+    const disclose=document.getElementById('discloseSrc').checked;
+    const lines=[`${disclose?S.guide.name+' retail value':'Guide retail value'}: £${c.base.toLocaleString()}`];
+    c.incs.filter(i=>i.pct).forEach(i=>lines.push(`VAT applicable (claimant not VAT registered): +£${i.calc.toLocaleString()}`));
+    if(c.ptlOn) lines.push(`Deduction for previous total loss history (${PTL}%): −£${c.ptlAmt.toLocaleString()}`);
+    c.incs.filter(i=>!i.pct).forEach(i=>lines.push(`${i.label}: +£${i.amt.toLocaleString()}`));
+    if(c.ded) lines.push(`Deduction for condition: −£${c.ded.toLocaleString()}`);
+    lines.push(`Engineer's assessed pre-accident value: £${c.out.toLocaleString()}`);
+    document.getElementById('valCommSent').innerHTML=lines.join('<br>');
+  } else cw.style.display='none';
+}
+function applyAdj(){
+  const c=adjCalc(); if(!c) return;
+  setPav(String(c.out));
+  const adj=c.incs.length||c.ded||c.ptlOn;
+  if(!adj){ logNote(`Engineer's value set to ${S.guide.name} retail £${c.base.toLocaleString()} (no adjustments).`); return; }
+  logNote(`Engineer's value set from ${S.guide.name} retail: £${c.base.toLocaleString()}`+
+    c.incs.map(i=>i.pct?` + ${i.pct}% VAT`:` + ${i.label} £${i.amt.toLocaleString()}`).join('')+
+    (c.ded?` − £${c.ded.toLocaleString()}`:'')+(c.ptlOn?` − ${PTL}% previous total loss`:'')+
+    ` = £${c.out.toLocaleString()}.`);
+}
+{ const _aw=adjWork; adjWork=function(){ _aw.apply(this,arguments); if(typeof wbRefresh==='function') wbRefresh(); }; }
+document.getElementById('adjDed').addEventListener('input',()=>{adjWork();touch();});
+document.getElementById('ptlTick').addEventListener('change',()=>{adjWork();touch();});
+
+/* init */
+
+/* init */
+{ const dz=document.getElementById('imgDrop');
+  ['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{ if([...e.dataTransfer.types].includes('Files')){ e.preventDefault(); dz.classList.add('dragover'); } }));
+  ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{ dz.classList.remove('dragover'); }));
+  dz.addEventListener('drop',e=>{ if(e.dataTransfer.files.length){ e.preventDefault(); imgFiles(e.dataTransfer.files); } });
+}
+vatDefaults(); renderImgs(); renderGrid(); renderBank(); renderDecisions(); renderCc(); renderDocs(); bodyRefresh(); buildCar(); zonesToLoc(); renderIncs(); compose(); composeLoc(); composeStorage(); adjWork(); wbRefresh(); caseRestore(); foldInit();
+
+/* ================= case lock ================= */
+const LOCKED_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+S.lock={holder:'A Patterson', since:new Date(Date.now()-14*60000), lastActive:new Date(Date.now()-40000)};
+const hm=d=>d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+function ago(d){const s=Math.round((Date.now()-d)/1000); if(s<60) return 'active just now';
+  const m=Math.round(s/60); return `active ${m} min ago`;}
+function lockStale(){ return (Date.now()-S.lock.lastActive) > 15*60000; }
+function renderLock(){
+  const me=document.getElementById('viewer').value, L=S.lock, chip=document.getElementById('lockChip'),
+        ban=document.getElementById('lockBanner'), stale=lockStale();
+  document.body.classList.toggle('viewonly', L.holder!==me);
+  ban.classList.toggle('stale', stale);
+  if(L.holder===me){
+    chip.className='lockchip'; chip.innerHTML=LOCKED_SVG+`EDITING · YOU · SINCE ${hm(L.since)}`;
+    ban.classList.remove('show');
+  } else {
+    chip.className='lockchip other'+(stale?' stale':'');
+    chip.innerHTML=LOCKED_SVG+`VIEW ONLY · ${L.holder.toUpperCase()} EDITING`;
+    document.getElementById('lockMsg').innerHTML = stale
+      ? `<b>${L.holder}</b> opened this case at ${hm(L.since)} but has been idle for ${Math.round((Date.now()-L.lastActive)/60000)} minutes — the lock looks abandoned. You're viewing read-only.`
+      : `<b>${L.holder}</b> is editing this case — opened ${hm(L.since)}, ${ago(L.lastActive)}. You're viewing read-only.`;
+    document.getElementById('takeBtn').textContent = stale ? 'Take over (lock is stale)' : 'Take over';
+    ban.classList.add('show');
+  }
+}
+function toast(t){const e=document.getElementById('toast'); e.textContent=t; e.classList.add('show'); setTimeout(()=>e.classList.remove('show'),2600);}
+function askRelease(){
+  const me=document.getElementById('viewer').value;
+  logNote(`${me} asked ${S.lock.holder} to release the case.`);
+  toast(`Request sent to ${S.lock.holder} — they'll see it on their screen.`);
+}
+function takeOver(){
+  const me=document.getElementById('viewer').value;
+  document.getElementById('takeText').innerHTML = lockStale()
+    ? `<b>${S.lock.holder}</b> has been idle for over 15 minutes. Taking over will release their lock and switch their screen to view-only if they come back.`
+    : `<b>${S.lock.holder}</b> was ${ago(S.lock.lastActive)}. Taking over will switch their screen to view-only immediately — they'll see that it was you.`;
+  document.getElementById('takeModal').classList.add('show');
+}
+function closeModal(){document.getElementById('takeModal').classList.remove('show');}
+function confirmTake(){
+  const me=document.getElementById('viewer').value, from=S.lock.holder, stale=lockStale();
+  S.lock={holder:me, since:new Date(), lastActive:new Date()};
+  logNote(`Case taken over by ${me} from ${from}${stale?' (lock was stale)':''}.`);
+  closeModal(); renderLock();
+  toast(`You now hold this case. ${from} has been switched to view-only.`);
+}
+function simIdle(){ S.lock.lastActive=new Date(Date.now()-20*60000); renderLock(); toast('Holder now shows as idle 20 min — lock is stale.'); }
+/* any edit refreshes the holder's heartbeat */
+document.addEventListener('input',()=>{ if(!document.body.classList.contains('viewonly')) S.lock.lastActive=new Date(); },true);
+renderLock();
+
+/* ================= labour rate ================= */
+const ABP={std:83.28, prem:103.06};
+S.rateBand='std';
+function rateBand(b){
+  S.rateBand=b;
+  document.querySelectorAll('#rateSeg button').forEach((x,i)=>x.classList.toggle('on',['std','prem','custom'][i]===b));
+  const up=document.getElementById('rateUplift');
+  if(b==='custom'){ up.checked=false; up.disabled=true; const inp=document.getElementById('rateIn'); inp.focus(); inp.select(); }
+  else up.disabled=false;
+  rateCalc(true);
+}
+function rateCalc(log){
+  const up=document.getElementById('rateUplift').checked, band=S.rateBand, prev=S.rate;
+  if(band==='custom'){
+    S.rate=+(parseFloat(document.getElementById('rateIn').value)||0).toFixed(2);
+    document.getElementById('rateWork').textContent='';
+  } else {
+    S.rate=+(ABP[band]*(up?1.15:1)).toFixed(2);
+    document.getElementById('rateWork').textContent = up?`${fmt(ABP[band])} × 1.15 =`:'';
+  }
+  document.getElementById('rateIn').value=S.rate.toFixed(2);
+  document.getElementById('rateManChip').style.display = band==='custom'?'inline-block':'none';
+  document.getElementById('upliftHint').style.opacity = band==='custom'?'.4':'1';
+  const label={std:'ABP standard',prem:'ABP prestige/aluminium',custom:'custom'}[band]+(up?' + 15% regional uplift':'');
+  if(log && prev!==S.rate) logNote(`Labour rate set to ${fmt(S.rate)}/hr (${label}) by ${val('assignedEng')}.`);
+  recalc(); if(log) touch();
+}
+function rateTyped(v){
+  /* typing a figure makes it a custom rate — the box always shows the effective rate */
+  S.rateBand='custom';
+  document.querySelectorAll('#rateSeg button').forEach((x,i)=>x.classList.toggle('on',i===2));
+  const up=document.getElementById('rateUplift'); up.checked=false; up.disabled=true;
+  rateCalc(true);
+}
+document.getElementById('rateUplift').addEventListener('change',()=>rateCalc(true));
+rateCalc(false);
+
+/* ================= regional uplift suggestion (CE home-county rule) ================= */
+const HC_FULL=new Set('SS RM DA BR CR SM KT TW SL UB HA WD AL EN IG LU HP GU RH BN TN ME CT E EC N NW SE SW W WC'.split(' '));
+const HC_DIST={SG:[1,2,3,4,5,9,10,11,12,13,14],OX:[1,3,4,5,9,10,11,14,25,39,44,49],
+  RG:[1,2,4,5,6,7,8,9,10,12,18,21,22,23,24,25,27,29,30,31,40,41,42,45],CM:[0,9]};
+function outward(s){ /* pull the last thing that looks like a UK outward code out of an address */
+  const m=(s||'').toUpperCase().match(/\b([A-Z]{1,2})(\d{1,2}[A-Z]?|\d[A-Z]{2})\b(?:\s*\d[A-Z]{2})?(?!.*\b[A-Z]{1,2}\d)/);
+  return m?{area:m[1],dist:parseInt(m[2],10),raw:m[1]+m[2]}:null; }
+function isHomeCounty(o){ if(!o) return false;
+  if(HC_FULL.has(o.area)) return true;
+  return !!(HC_DIST[o.area]&&HC_DIST[o.area].includes(o.dist)); }
+function upliftSuggest(){
+  const srcs=[['Repairer',val('repAddr')],['Claimant',val('clmAddr')],['Storage',val('stoAddr')]];
+  const il=document.getElementById('inspLoc'); if(il&&il.value==='other') srcs.push(['Inspection location',val('inspLocOther')]);
+  const hits=srcs.map(([n,a])=>[n,outward(a)]).filter(([n,o])=>isHomeCounty(o));
+  const chip=document.getElementById('upliftHint'), tick=document.getElementById('rateUplift');
+  if(hits.length){
+    chip.className='chip c-warn'; chip.textContent='SUGGESTED';
+    chip.title='In scope: '+hits.map(([n,o])=>`${n} (${o.raw})`).join(', ');
+    if(!tick.checked && !S.upliftDismissed && S.rateBand!=='custom' && !S.upliftAuto){
+      S.upliftAuto=true; /* suggest once — the tick is still the engineer's act */
+    }
+  } else { chip.className='chip c-sys'; chip.textContent='LONDON & HOME COUNTIES'; chip.title='No repairer, claimant or storage postcode in scope'; }
+  return hits;
+}
+document.getElementById('upliftHint').style.cursor='pointer';
+document.getElementById('upliftHint').addEventListener('click',()=>{
+  const t=document.getElementById('rateUplift'); if(t.disabled||t.checked) return;
+  if(document.getElementById('upliftHint').textContent!=='SUGGESTED') return;
+  t.checked=true; rateCalc(true);
+});
+['repAddr','clmAddr','stoAddr','inspLocOther'].forEach(id=>{const e=document.getElementById(id); if(e) e.addEventListener('input',upliftSuggest);});
+document.getElementById('inspLoc').addEventListener('change',upliftSuggest);
+upliftSuggest();
+
+/* ================= header: repairs as % of PAV ================= */
+const fmt0=n=>'£'+Math.round(n).toLocaleString('en-GB');
+function hdrRatio(){
+  const b=document.getElementById('hdrRatio'), gross=S.gross||0, pav=D.pav||0;
+  if(!gross){ b.style.display='none'; return; }
+  b.style.display='';
+  if(!pav){ b.className='badge b-ratio'; b.textContent=`REPAIRS ${fmt(gross)} · PAV —`; b.title='No engineer\'s value yet'; return; }
+  const pct=Math.round(gross/pav*100);
+  b.className='badge b-ratio '+(pct>=80?'over':pct>=66?'warn':'ok');
+  b.textContent=`REPAIRS ${pct}% OF PAV · ${fmt0(gross)} / ${fmt0(pav)}`;
+  b.title=`Repair cost inc VAT ${fmt(gross)} ÷ engineer's value ${fmt(pav)}`;
+}
+{ const _rc=recalc, _rs=renderSettle;
+  recalc=function(){ _rc.apply(this,arguments); hdrRatio(); };
+  renderSettle=function(){ _rs.apply(this,arguments); hdrRatio(); }; }
+hdrRatio();
+
+/* ================= scale repair spec to a % of PAV ================= */
+S.scale=null;   // {rows, rate, band, up} snapshot while previewing
+function pavNow(){ return D.pav||0; }
+function scaledRows(base, k){
+  const fp=Math.max(0,Math.min(1,(parseFloat(val('floorPrice'))||0)/100));
+  const kk=Math.max(fp,k);           // price floor
+  return base.map(r=>{ const o={...r};
+    if(o.u>0) o.u=+(o.u*kk).toFixed(2);
+    if(o.m>0) o.m=+(o.m*kk).toFixed(2);
+    if(o.u!==r.u||o.m!==r.m) o.p='scaled';
+    return o; });
+}
+function scaledRate(baseRate,k){ const fr=parseFloat(val('floorRate'))||0; return Math.max(fr, Math.round(baseRate*k*2)/2); }   // scaled rates land on whole £ or 50p
+function scaleBounds(){
+  const base=S.scale?S.scale.rows:ROWS, rate=S.scale?S.scale.rate:S.rate, pav=pavNow();
+  if(!pav) return null;
+  const top=grossFor(base,rate)/pav*100;
+  const bottom=grossFor(scaledRows(base,0),scaledRate(rate,0))/pav*100;
+  return {top,bottom,base,rate,pav};
+}
+function scaleRefresh(force){
+  const b=scaleBounds(), rg=document.getElementById('scaleRange'), pc=document.getElementById('scalePct'), rd=document.getElementById('scaleRead');
+  if(!b){ rg.disabled=true; pc.disabled=true; rd.innerHTML=S.natural?`<b>${fmt(S.gross)}</b> — scaled from estimate ${fmt(S.natural.gross)} · % needs an engineer's value`:'needs an engineer\'s value'; scaleOffState(); return; }
+  rg.disabled=false; pc.disabled=false;
+  rg.min=Math.ceil(b.bottom); rg.max=Math.floor(b.top); pc.min=rg.min; pc.max=rg.max;
+  if(!S.scale){ const cur=Math.round(b.top); rg.value=cur; pc.value=cur;
+    rd.innerHTML = S.natural ? `<b>${fmt(S.gross)}</b> — scaled from estimate ${fmt(S.natural.gross)}` : `${fmt(S.gross)} — as estimated`;
+    scaleOffState(); }
+  else if(force) scaleTo(pc.value);
+}
+function scaleTo(v){
+  const b=scaleBounds(); if(!b) return;
+  let pct=Math.max(b.bottom,Math.min(b.top,parseFloat(v)||0));
+  scaleToAmount(b.pav*pct/100);
+}
+function scaleToAmount(target){
+  if(!S.scale) S.scale={rows:clone(ROWS), rate:S.rate, band:S.rateBand, up:document.getElementById('rateUplift').checked};
+  if(!S.natural) S.natural={rows:clone(S.scale.rows), rate:S.scale.rate, band:S.scale.band, up:S.scale.up, gross:grossFor(S.scale.rows,S.scale.rate), origin:S.gridOrigin+(S.gridEdited?' + manual edits':'')};
+  const pav=pavNow();
+  const top=grossFor(S.scale.rows,S.scale.rate), bottom=grossFor(scaledRows(S.scale.rows,0),scaledRate(S.scale.rate,0));
+  target=Math.max(bottom,Math.min(top,target));
+  const b={pav:pav||1, top:pav?top/pav*100:0, bottom:pav?bottom/pav*100:0};
+  /* solve k so that gross(scaled) == target; gross is monotone in k */
+  let lo=0, hi=1;
+  for(let i=0;i<40;i++){ const mid=(lo+hi)/2; const g=grossFor(scaledRows(S.scale.rows,mid),scaledRate(S.scale.rate,mid)); if(g>target) hi=mid; else lo=mid; }
+  const k=(lo+hi)/2;
+  ROWS=scaledRows(S.scale.rows,k); S.rate=scaledRate(S.scale.rate,k);
+  S.k=k;
+  /* rate bar shows the scaled rate as a custom figure */
+  S.rateBand='custom'; document.querySelectorAll('#rateSeg button').forEach((x,i)=>x.classList.toggle('on',i===2));
+  const up=document.getElementById('rateUplift'); up.checked=false; up.disabled=true;
+  document.getElementById('rateIn').value=S.rate.toFixed(2); document.getElementById('rateWork').textContent='';
+  document.getElementById('rateManChip').style.display='inline-block';
+  document.body.classList.add('scaling');
+  renderGrid();   // -> recalc -> scaleRefresh (no-op while previewing)
+  const got=pav?S.gross/pav*100:0, pct=got;
+  if(pav){ document.getElementById('scaleRange').value=Math.round(pct); document.getElementById('scalePct').value=Math.round(pct); }
+  const fp=(parseFloat(val('floorPrice'))||0)/100;
+  document.getElementById('scaleRead').innerHTML=`${fmt(grossFor(S.scale.rows,S.scale.rate))} → <b>${fmt(S.gross)}</b>${pav?` (${got.toFixed(1)}%)`:''} · prices ×${Math.max(fp,k).toFixed(2)}${S.rate<=parseFloat(val('floorRate'))?' · labour at floor':''}`;
+  ['scalePrev','scaleApply'].forEach(id=>document.getElementById(id).style.display='');
+  scaleOffState();
+}
+function scaleReset(){
+  if(!S.scale) return;
+  ROWS=S.scale.rows; S.rate=S.scale.rate; S.rateBand=S.scale.band;
+  const up=document.getElementById('rateUplift'); up.disabled=S.rateBand==='custom'; up.checked=S.scale.up;
+  document.querySelectorAll('#rateSeg button').forEach((x,i)=>x.classList.toggle('on',['std','prem','custom'][i]===S.rateBand));
+  S.scale=null; document.body.classList.remove('scaling');
+  if(S.natural && !S.natural.applied) S.natural=null;
+  ['scalePrev','scaleApply'].forEach(id=>document.getElementById(id).style.display='none');
+  rateCalc(false); renderGrid(); scaleRefresh();
+}
+function scaleApply(){
+  if(!S.scale) return;
+  const pav=pavNow(), fp=(parseFloat(val('floorPrice'))||0)/100;
+  const why = S.cr.on ? `to the agreed contract sum ${fmt(S.gross)}` : `to ${(S.gross/pav*100).toFixed(1)}% of PAV`;
+  const vn=snapshot();
+  logNote(`Repair specification scaled ${why} by ${val('assignedEng')} — prices ×${Math.max(fp,S.k).toFixed(2)}, labour ${fmt(S.scale.rate)} → ${fmt(S.rate)}/hr, hours unchanged; ${fmt(grossFor(S.scale.rows,S.scale.rate))} → ${fmt(S.gross)} inc VAT. Previous grid frozen as v${vn}.`);
+  setOrigin(`Scaled ${why}`);
+  S.natural.applied=true;
+  S.scale=null; document.body.classList.remove('scaling');
+  ['scalePrev','scaleApply'].forEach(id=>document.getElementById(id).style.display='none');
+  renderGrid(); touch(); scaleRefresh(); crRefresh();
+}
+scaleRefresh();
+
+/* ================= contract repair ================= */
+S.cr={on:false, amt:null, prevOutcome:null};
+const CR_SENT=a=>`A contract repair has been agreed for the total sum of ${fmt(a)}. Costs cannot increase above this figure.`;
+function crToggle(on, fromOutcome){
+  S.cr.on=on;
+  const box=document.getElementById('crAmt');
+  document.getElementById('crTick').checked=on;
+  if(on){
+    if(S.cr.amt==null) S.cr.amt=+(S.gross||0).toFixed(2);   // seed from the spec
+    box.disabled=false; box.value=S.cr.amt.toFixed(2);
+    if(!fromOutcome){ S.cr.prevOutcome=D.outcome; D.outcome='Contract repair'; }
+    logNote(`Contract repair agreed at ${fmt(S.cr.amt)} — outcome set to Contract repair by ${val('assignedEng')}.`);
+  } else {
+    box.disabled=true; box.value=''; S.cr.amt=null;
+    if(!fromOutcome && D.outcome==='Contract repair'){
+      D.outcome=S.cr.prevOutcome||'Repairable';
+    }
+    logNote(`Contract repair un-ticked by ${val('assignedEng')}.`);
+  }
+  renderDecisions(); crRefresh(); touch();
+}
+function crAmount(v){
+  const n=parseFloat(String(v).replace(/[£,]/g,''));
+  if(!(n>0)){ document.getElementById('crAmt').value=S.cr.amt?S.cr.amt.toFixed(2):''; return; }
+  S.cr.amt=+n.toFixed(2); document.getElementById('crAmt').value=S.cr.amt.toFixed(2);
+  logNote(`Agreed contract sum set to ${fmt(S.cr.amt)} by ${val('assignedEng')}.`);
+  if(Math.abs(S.cr.amt-(S.gross||0))>0.005) scaleToAmount(S.cr.amt);   // the agreed sum drives the spec
+  crRefresh(); touch();
+}
+function crRefresh(){
+  const mis=document.getElementById('crMis'), sent=document.getElementById('crSent');
+  if(!S.cr.on){ mis.style.display='none'; sent.style.display='none'; return; }
+  sent.style.display=''; document.getElementById('crSentTxt').textContent=CR_SENT(S.cr.amt);
+  const diff=(S.gross||0)-S.cr.amt;
+  if(Math.abs(diff)>0.5 && !S.scale){
+    mis.style.display='';
+    mis.textContent = diff>0 ? `SPEC ${fmt(S.gross)} ABOVE AGREED — RESCALE` : `SPEC ${fmt(S.gross)} BELOW AGREED — RESCALE`;
+  } else mis.style.display='none';
+}
+document.getElementById('crMis').addEventListener('click',()=>{ if(S.cr.on) scaleToAmount(S.cr.amt); });
+{ const _rc2=recalc; recalc=function(){ _rc2.apply(this,arguments); if(typeof crRefresh==='function') crRefresh(); if(typeof wbRefresh==='function') wbRefresh(); }; }
+
+function scaleBack(){
+  if(!S.natural || S.scale) return;
+  const n=S.natural, was=S.gross;
+  const vn=snapshot();
+  ROWS=clone(n.rows); S.rate=n.rate; S.rateBand=n.band;
+  const up=document.getElementById('rateUplift'); up.disabled=S.rateBand==='custom'; up.checked=n.up;
+  document.querySelectorAll('#rateSeg button').forEach((x,i)=>x.classList.toggle('on',['std','prem','custom'][i]===S.rateBand));
+  S.natural=null;
+  rateCalc(false); renderGrid(); touch(); scaleRefresh();
+  logNote(`Repair specification restored to the estimate by ${val('assignedEng')} — ${fmt(was)} → ${fmt(S.gross)} inc VAT, labour ${fmt(S.rate)}/hr. Scaled grid frozen as v${vn}.`);
+  setOrigin(n.origin||'Estimate (before scaling)');
+  if(S.cr.on) crRefresh();
+}
+/* a fresh import or a cleared grid is a new baseline */
+{ const _di=doImport, _cg=clearGridDo; doImport=function(){ S.natural=null; _di.apply(this,arguments); scaleRefresh(); scaleOffState(); }; clearGridDo=function(){ S.natural=null; _cg.apply(this,arguments); scaleRefresh(); scaleOffState(); }; }
+
+/* one switch: remove scaling, whatever state it is in */
+function scaleOffState(){
+  const active=!!(S.scale||S.natural);
+  document.getElementById('scaleOff').disabled=!active;
+  const chip=document.getElementById('scaleState');
+  chip.style.display = S.natural&&!S.scale ? '' : 'none';
+}
+function scaleOff(){
+  if(S.scale){ scaleReset(); }          // throws away a live preview (and any un-applied baseline)
+  if(S.natural){ scaleBack(); }         // restores the estimate if a scale had been applied
+  scaleOffState();
+  toast('Scaling removed — specification back to the estimate.');
+}
+scaleOffState();
+</script>
+<div id="printRoot"></div>
+<div class="pvmodal" id="pvModal" onclick="if(event.target===this)pvClose()">
+  <div class="pvsheetwrap">
+    <div class="pvbar">
+      <b>Preview — the document as it will print</b>
+      <span class="sendnote" id="pvModalNote"></span>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn small" onclick="producePdf('report')">Report PDF</button>
+        <button class="btn small" onclick="producePdf('breakdown')">Breakdown PDF</button>
+        <button class="btn small" onclick="producePdf('images')">Images PDF</button>
+        <button class="btn small" onclick="pvClose()">Close</button>
+      </span>
+    </div>
+    <div class="pvsheet" id="pvSheet"></div>
+  </div>
+</div>
+<div class="lightbox" id="lightbox" onclick="if(event.target===this)lbClose()">
+  <div class="lbframe"><img alt=""></div>
+  <div class="lbbar">
+    <span class="nm"></span>
+    <button class="btn small" onclick="lbStep(-1)">‹ Prev</button>
+    <button class="btn small" onclick="lbStep(1)">Next ›</button>
+    <button class="btn small" onclick="imgRot(LB)">Rotate ⟳</button>
+    <button class="btn small" onclick="imgFull(LB)">Full page ⤢</button>
+    <button class="btn small" onclick="imgInc(LB)">Include ✓/–</button>
+    <button class="btn small" onclick="imgDel(LB);lbClose()">Remove ×</button>
+    <button class="btn small" onclick="lbClose()">Close</button>
+  </div>
+</div>
+<div class="undotoast" id="undoToast"><span class="msg"></span><a onclick="imgUndo()">Undo</a></div>
+</body>
+</html>

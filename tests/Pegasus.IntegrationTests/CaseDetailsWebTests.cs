@@ -104,6 +104,9 @@ public sealed class CaseDetailsWebTests
         Assert.Equal(
             ["vehicle", "valuation", "files", "notes"],
             DeferredSections(html));
+        Assert.Matches(
+            "data-lazy=\"valuation\"\\s+data-section-parent=\"vehicle\"",
+            html);
     }
 
     /// <summary>

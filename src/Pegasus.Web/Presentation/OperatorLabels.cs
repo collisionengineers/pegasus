@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using Pegasus.Core;
 using Pegasus.Core.Assessment;
@@ -161,7 +161,7 @@ public static class OperatorLabels
         CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => "With Engineer",
         CaseLifecycleState.PostReportComplete => "Completed",
         CaseLifecycleState.Query => "Query",
-        CaseLifecycleState.ProviderCancelled => "Closed · Provider cancelled",
+        CaseLifecycleState.ProviderCancelled => "Closed · Cancelled",
         CaseLifecycleState.CollisionEngineersRejected => "Closed · Collision Engineers rejected",
         CaseLifecycleState.CreatedInError => "Closed · Created in error",
         CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
@@ -176,7 +176,7 @@ public static class OperatorLabels
     public static string CaseClosure(CaseClosureOutcome outcome) => outcome switch
     {
         CaseClosureOutcome.PostReportComplete => "Completed",
-        CaseClosureOutcome.ProviderCancelled => "Provider cancelled",
+        CaseClosureOutcome.ProviderCancelled => "Cancelled",
         CaseClosureOutcome.CollisionEngineersRejected => "Collision Engineers rejected",
         CaseClosureOutcome.CreatedInError => "Created in error",
         CaseClosureOutcome.SourceEmailUnlinked => "E-mail unlinked",
@@ -295,7 +295,38 @@ public static class OperatorLabels
         public const string ValuationPresets = "Valuation presets";
         public const string ClaimSources = "Claim sources";
         // C08 shell administration areas end
+        public const string ReleaseNotes = "Release notes";
     }
+
+    /// <summary>
+    /// A received-mail subtype in operator words. The two chasing subtypes are
+    /// one category to the operator, "Update Request" (18 September 2026), and
+    /// "provider" never appears on the front end.
+    /// </summary>
+    private static string SubtypeWord(string subtype) => subtype switch
+    {
+        "client-chasing-for-update" or "provider-chasing-for-update" => "Update Request",
+        _ => HumanizeSlug(subtype).Replace("Provider", "Principal", StringComparison.Ordinal)
+    };
+
+    /// <summary>Release notes (FRD-12 What's new; FRD-17): the labels, statuses and acknowledgements.</summary>
+    public static class ReleaseNotes
+    {
+        public const string New = "New release note";
+        public const string Draft = "Draft";
+        public const string None = "No release notes";
+        public const string SaveDraft = "Save draft";
+        public const string Publish = "Publish";
+        public const string Saved = "Release note saved.";
+        public const string Published = "Release note published.";
+        public const string Conflict = "The release note changed before this edit was saved. Reload and try again.";
+    }
+
+    public static string ReleaseNoteStatus(Pegasus.Core.ReleaseNotes.ReleaseNoteStatus status) => status switch
+    {
+        Pegasus.Core.ReleaseNotes.ReleaseNoteStatus.Published => "Published",
+        _ => "Draft"
+    };
 
     /// <summary>The freshness words the shell and every page header share.</summary>
     public static class Freshness
@@ -330,6 +361,9 @@ public static class OperatorLabels
         public const string AccessDenied = "Access denied";
         public const string AccessDeniedSentence = "Your account does not have access to this page.";
         public const string AdministrationDenied = "Administration is available to Administrators only.";
+        public const string WhatsNew = "What’s new";
+        public const string GotIt = "Got it";
+        public const string ReleaseNotes = "Release notes";
 
         /// <summary>"Notifications · 3 unread", the bell's accessible name while anything is unread.</summary>
         public static string BellLabel(int unread) =>
@@ -1380,7 +1414,7 @@ public static class OperatorLabels
             ? $"Sent · {family}"
             : family;
         return category.Subtype is { } subtype
-            ? $"{prefixed} · {HumanizeSlug(subtype)}"
+            ? $"{prefixed} · {SubtypeWord(subtype)}"
             : prefixed;
     }
 
@@ -1716,20 +1750,12 @@ public static class OperatorLabels
             "Enter the printed name for the Sign-off Engineer.";
         public const string SignatureInvalid =
             "Select a PNG signature image no larger than 1 MiB.";
-        public const string EngineerRoleRequired =
-            "Only an Engineer account can be a Sign-off Engineer.";
         public const string DefaultRequiresEligible =
             "The default Sign-off Engineer must be eligible to sign off.";
         public const string SignOffUpdated = "Sign-off Engineer settings updated.";
 
         public static string SignOffState(StaffAccountSummary account)
         {
-            if (account.Role is not (Pegasus.Core.Identity.StaffRole.Administrator
-                or Pegasus.Core.Identity.StaffRole.Engineer))
-            {
-                return "—";
-            }
-
             if (!account.SignOff.IsSignOffEngineer)
             {
                 return No;
@@ -1747,9 +1773,9 @@ public static class OperatorLabels
 
             if (account.SignOff.IsDefault)
             {
-                // Role, sign-off flag, and signature presence are already
-                // confirmed by the earlier branches; only enabled state
-                // remains to determine eligibility here.
+                // Sign-off flag and signature presence are already confirmed
+                // by the earlier branches; only enabled state remains to
+                // determine eligibility here.
                 return account.IsEnabled ? Default : NotEligible;
             }
 
@@ -2087,7 +2113,6 @@ public static class OperatorLabels
             public const string ToBeConfirmed = "To be confirmed";
 
             public const string ReadOnlyOnceComplete = "Read-only once Complete";
-            public const string EngineerOnlyImport = "Only an Engineer can import an estimate";
             public const string SendingToAiDisabled = "Sending to AI is disabled by an Administrator";
             public const string ConfirmedEngineerValueRequired = "A confirmed Engineer's Value is required";
             public const string NotAvailableForCase = "Not available for this case";
@@ -2227,13 +2252,6 @@ public static class OperatorLabels
         };
 
         /// <summary>The chip tone for an outcome: green when it became work, amber when a person must act, red when processing failed.</summary>
-        public static string OutcomeTone(IntakeLogOutcome outcome) => outcome switch
-        {
-            IntakeLogOutcome.CaseCreated or IntakeLogOutcome.VehicleImages or IntakeLogOutcome.Triage => "green",
-            IntakeLogOutcome.ProcessingFailed or IntakeLogOutcome.AllocationFailed or IntakeLogOutcome.OcrFailed => "red",
-            IntakeLogOutcome.Closed => "neutral",
-            _ => "amber"
-        };
 
         /// <summary>The page a produced record opens.</summary>
         public static string BecameHref(IntakeLogBecame became) => became.Kind switch

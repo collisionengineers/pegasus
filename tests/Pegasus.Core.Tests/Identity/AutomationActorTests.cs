@@ -43,6 +43,7 @@ public sealed class AutomationActorTests
     [InlineData(StaffAccessRight.ManageApprovedMailboxes)]
     [InlineData(StaffAccessRight.ManageApprovedOutlookCategories)]
     [InlineData(StaffAccessRight.ManageAutomationClients)]
+    [InlineData(StaffAccessRight.PublishReleaseNotes)]
     [InlineData(StaffAccessRight.ExecuteSystemWork)]
     public void AutomationIsDeniedEveryOtherRight(StaffAccessRight permission)
     {

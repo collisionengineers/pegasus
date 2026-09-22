@@ -1,48 +1,26 @@
 # Unidentified
 
-- **Mockup route:** `pegasus_triage_unidentified_v28.html` (`tu-area=unidentified`) in [`../../../current/`](../../../current/README.md)
-- **Live source:** `src/Pegasus.Web/Pages/Cases/Index.cshtml` (tab `unidentified`, the list), `src/Pegasus.Web/Pages/Unidentified/Details.cshtml` (the item). `src/Pegasus.Web/Pages/Unidentified/Index.cshtml` is a permanent redirect to `/Cases?tab=unidentified` and renders nothing of its own.
-
+- **Parent:** [Cases](../index/README.md)
+- **Live source:** `src/Pegasus.Web/Pages/Unidentified/Details.cshtml`, `src/Pegasus.Web/Pages/Unidentified/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Cases/Index.cshtml`, `src/Pegasus.Web/wwwroot/css/unidentified.css`
 - [**How it works**](how-it-works.md)
 
-## Screenshots
+`/Unidentified` has no list of its own; it answers with a permanent redirect to `/Cases?tab=unidentified`.
 
-- [s27-unidentified-detail-1580.png](../../../current/v28-shots/s27-unidentified-detail-1580.png) · [1440](../../../current/v28-shots/s27-unidentified-detail-1440.png) · [760](../../../current/v28-shots/s27-unidentified-detail-760.png)
-- [s28-unidentified-closed-1580.png](../../../current/v28-shots/s28-unidentified-closed-1580.png) · [1440](../../../current/v28-shots/s28-unidentified-closed-1440.png) · [760](../../../current/v28-shots/s28-unidentified-closed-760.png)
+## Captured states
 
-## Notes
+Each state is the running application's own HTML for the route shown, saved with the live CSS and JS. Nothing in it is transcribed.
 
-- `Pages/Unidentified/Index.cshtml` never renders — `IndexModel.OnGet`
-  always `RedirectPermanent`s to `/Cases?tab=unidentified`. The list this
-  mockup calls "Unidentified — LIST" is transcribed from the `unidentified`
-  tab of the unified Cases queue page, with its `Show` filter (`open` /
-  `closed`) reproduced exactly, including the distinct column sets
-  (`Reason` on open rows, `Outcome` on closed rows) and the distinct empty
-  strings ("Nothing Unidentified" vs "No closed items").
-- The "closed with a reason" / reopen flow (CONTEXT.md: "Readable material
-  that must not become a Case is closed with a reason, and a closed item
-  can be reopened") is captured as its own record state (`tu-unident-state:
-  closed`) with the Resolution panel's Outcome fact reading `Closed ·
-  <reason>` and a Reopen control that opens the same reason-required
-  dialog shape as Close.
-- "Could not be read" is captured as one of the six reason values
-  (`tu-unident-reason: could_not_be_read`), which additionally shows the
-  `Could not be read · <file kind>` warning banner that the other five
-  reasons never show, per `DetailsModel.CouldNotBeRead`.
-- The Image Intake Reference / association-to-Case flow (`Link to Case`
-  dialog with case search and a per-candidate `Link` action, and `Register
-  images` for the image-only path) is captured on this page as the
-  Unidentified item's own resolve actions; the Image intake record itself
-  — what an Image Intake Reference looks like once registered, and its own
-  association reversal — is the `image_intake` lane's scope, not
-  duplicated here.
-- No bulk or merge action exists on the live Unidentified list or record;
-  none is shown here.
-- Registration readings and History are read-only lists on the live page;
-  the mockup keeps one illustrative reading (pending, dismissible) and one
-  illustrative history entry rather than a long scroll, per the fixture
-  sheet's "representative fixture data" instruction.
-- Per the note on the Triage README, `cases-index.css`'s list-page
-  refinements are not inlined into this build; the list view's table/pane
-  spacing uses `site.css`'s base rules while the real Cases-page class
-  names are kept in the markup.
+| State | Live route | Open | Screenshots |
+| --- | --- | --- | --- |
+| Cases, Unidentified tab | `/Cases?tab=unidentified` | [frame](../../../current/pegasus_triage_unidentified_v28.html#cases-unidentified) · [page](../../../current/states/cases-unidentified.html) | [1580](../../../current/v28-shots/s24-cases-unidentified-1580.png) · [1440](../../../current/v28-shots/s24-cases-unidentified-1440.png) · [760](../../../current/v28-shots/s24-cases-unidentified-760.png) |
+| Cases, Unidentified tab, row selected | `/Cases?tab=unidentified&selected=fe35ab69-545c-4047-8541-c92e645274e7` | [frame](../../../current/pegasus_triage_unidentified_v28.html#cases-unidentified-selected) · [page](../../../current/states/cases-unidentified-selected.html) | [1580](../../../current/v28-shots/s25-cases-unidentified-selected-1580.png) · [1440](../../../current/v28-shots/s25-cases-unidentified-selected-1440.png) · [760](../../../current/v28-shots/s25-cases-unidentified-selected-760.png) |
+| Cases, Unidentified tab, showing closed | `/Cases?tab=unidentified&show=closed` | [frame](../../../current/pegasus_triage_unidentified_v28.html#cases-unidentified-closed) · [page](../../../current/states/cases-unidentified-closed.html) | [1580](../../../current/v28-shots/s26-cases-unidentified-closed-1580.png) · [1440](../../../current/v28-shots/s26-cases-unidentified-closed-1440.png) · [760](../../../current/v28-shots/s26-cases-unidentified-closed-760.png) |
+| Unidentified record, document | `/Unidentified/fe35ab69-545c-4047-8541-c92e645274e7` | [frame](../../../current/pegasus_triage_unidentified_v28.html#unidentified-record) · [page](../../../current/states/unidentified-record.html) | [1580](../../../current/v28-shots/s27-unidentified-record-1580.png) · [1440](../../../current/v28-shots/s27-unidentified-record-1440.png) · [760](../../../current/v28-shots/s27-unidentified-record-760.png) |
+| Unidentified record, uploaded image group, Register images | `/Unidentified/81fe0b5a-6e46-4995-b470-9feb5d2feb54?action=register-image` | [frame](../../../current/pegasus_triage_unidentified_v28.html#unidentified-record-upload-group) · [page](../../../current/states/unidentified-record-upload-group.html) | [1580](../../../current/v28-shots/s28-unidentified-record-upload-group-1580.png) · [1440](../../../current/v28-shots/s28-unidentified-record-upload-group-1440.png) · [760](../../../current/v28-shots/s28-unidentified-record-upload-group-760.png) |
+| Unidentified record, mailbox image group, Add to an existing case | `/Unidentified/7c187d69-01c4-4313-9ff3-22afa24380b4?action=add-existing-case` | [frame](../../../current/pegasus_triage_unidentified_v28.html#unidentified-record-mailbox-group) · [page](../../../current/states/unidentified-record-mailbox-group.html) | [1580](../../../current/v28-shots/s29-unidentified-record-mailbox-group-1580.png) · [1440](../../../current/v28-shots/s29-unidentified-record-mailbox-group-1440.png) · [760](../../../current/v28-shots/s29-unidentified-record-mailbox-group-760.png) |
+| Close dialog (on "Unidentified record, document") | `/Unidentified/fe35ab69-545c-4047-8541-c92e645274e7` | [frame](../../../current/pegasus_triage_unidentified_v28.html#unidentified-record?dialog=unidentified-close-dialog) | [1580](../../../current/v28-shots/s105-unidentified-close-dialog-1580.png) · [1440](../../../current/v28-shots/s105-unidentified-close-dialog-1440.png) · [760](../../../current/v28-shots/s105-unidentified-close-dialog-760.png) |
+| Link to Case dialog (on "Unidentified record, document") | `/Unidentified/fe35ab69-545c-4047-8541-c92e645274e7` | [frame](../../../current/pegasus_triage_unidentified_v28.html#unidentified-record?dialog=unidentified-link-dialog) | [1580](../../../current/v28-shots/s106-unidentified-link-dialog-1580.png) · [1440](../../../current/v28-shots/s106-unidentified-link-dialog-1440.png) · [760](../../../current/v28-shots/s106-unidentified-link-dialog-760.png) |
+
+## Not captured
+
+- A closed item with Reopen, an e-mail-kind item, and the "Original file unavailable" state.

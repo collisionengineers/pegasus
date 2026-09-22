@@ -486,6 +486,19 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|StaffNotifications")
     }
+    # 20260920200240_ReleaseNotes: release notes written and published by an
+    # Administrator (ADR-0054) and each person's acknowledgement. Web alone
+    # writes them and is denied DELETE; the Worker has no part in either.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|ReleaseNotes")
+    }
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|ReleaseNoteAcknowledgements")
+    }
+    foreach ($table in @('ReleaseNotes', 'ReleaseNoteAcknowledgements')) {
+        $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
+        $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
+    }
     # 20260913200000_CaseFieldProposals: the AI's proposed value per decision field,
     # kept so Settlement can show Awaiting, Accepted or Corrected. Web and Worker
     # both record and resolve proposals; neither deletes them.
