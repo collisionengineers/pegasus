@@ -59,7 +59,7 @@ public static class DamagePlanGeometry
     /// <summary>The disc a damage's plan areas draw as, in this plan's coordinates; null for the other areas.</summary>
     public static DamageDisc? Disc(IReadOnlyList<string> areas)
     {
-        var disc = DamageAreaGeometry.Disc(areas, PlanWidth, PlanHeight);
+        var disc = DamageAreaGeometry.RenderDisc(areas, PlanWidth, PlanHeight);
         return disc is null ? null : disc with { CentreX = disc.CentreX + PlanLeft, CentreY = disc.CentreY + PlanTop };
     }
 

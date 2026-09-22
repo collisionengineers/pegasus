@@ -255,6 +255,21 @@ public sealed class CaseValuationV26WebTests
         AssertEditorCommit(after, "case-valuation-form", operationKey, applied.ExpectedVersion);
     }
 
+    [Fact]
+    public async Task SelectableValuationBasisCardsAreFocusable()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+
+        var entry = EntryCard(html, "glasses");
+        Assert.Contains($"data-valuation-card=\"{glasses.ValuationId:D}\"", entry, StringComparison.Ordinal);
+        Assert.Contains("tabindex=\"0\"", entry, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// A guide source with no connected provider answers with the not-connected
     /// notice, records nothing, and leaves the edit session as it was.

@@ -613,6 +613,17 @@ public static class AssessmentPolicy
             {
                 throw new ArgumentException("A damage impact names one or more plan areas, or one other area recorded once.", nameof(root));
             }
+            if (areas.All(AssessmentVocabulary.DamagePlanAreas.Contains))
+            {
+                var completed = DamageAreaGeometry.CompletePlanAreas(areas);
+                if (completed.Count != areas.Count
+                    || completed.Any(area => !areas.Contains(area, StringComparer.Ordinal)))
+                {
+                    throw new ArgumentException(
+                        "A damage impact must record every plan area positively covered by its disc.",
+                        nameof(root));
+                }
+            }
             areas.Sort((left, right) => AssessmentVocabulary.DamageAreaOrder(left).CompareTo(AssessmentVocabulary.DamageAreaOrder(right)));
             var severity = severityElement.GetString()!;
             var note = noteElement.GetString()!.Trim();

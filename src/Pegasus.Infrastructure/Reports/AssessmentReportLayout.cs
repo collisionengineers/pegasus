@@ -558,7 +558,7 @@ internal static class AssessmentReportLayout
     private static void ImpactDiagram(ColumnDescriptor column, IReadOnlyList<ReportImpact> impacts)
     {
         var discs = impacts
-            .Select(impact => DamageAreaGeometry.Disc(impact.Codes, PlanWidth, PlanHeight))
+            .Select(impact => DamageAreaGeometry.RenderDisc(impact.Codes, PlanWidth, PlanHeight))
             .Where(disc => disc is not null)
             .Select(disc => disc!)
             .ToArray();
