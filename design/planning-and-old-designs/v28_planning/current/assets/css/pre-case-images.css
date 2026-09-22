@@ -1,0 +1,74 @@
+/* Pre-Case image crop and tag (v26): the evidence viewer's Crop / Apply /
+   Clear / Cancel and Tag select, and the gallery tile's Cropped badge and tag
+   chips. Linked from the image record, Triage and Unidentified pages. */
+
+.evidence-viewer .dialog-body { position: relative; }
+
+.evidence-precase {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.evidence-precase-set {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.evidence-precase-set[hidden] { display: none; }
+
+.evidence-precase select { min-width: 10rem; }
+
+.precase-crop-layer {
+  position: absolute;
+  cursor: crosshair;
+  touch-action: none;
+  outline: 1px dashed var(--line-strong);
+}
+
+/* The recorded crop in view mode: a picture over the image, never a target. */
+.precase-crop-layer--view {
+  cursor: default;
+  pointer-events: none;
+  outline: 0;
+  overflow: hidden;
+}
+
+.precase-crop-selection {
+  position: absolute;
+  border: 2px solid var(--red);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .45);
+  pointer-events: none;
+}
+
+.precase-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.gallery-caption .precase-tags { margin-top: 4px; }
+
+.precase-badge {
+  display: inline-block;
+  margin-top: 2px;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.precase-tag-remove {
+  margin-left: 4px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}

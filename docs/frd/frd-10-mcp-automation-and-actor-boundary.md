@@ -35,7 +35,7 @@ authority.
 
 **Grants.** Each connector grant has its own durable identity. History keeps
 the grant identity, the shared client ID and the human approver separately.
-An approved scope never grants Engineer authority. Code exchange and refresh
+An approved scope never grants human staff authority. Code exchange and refresh
 keep the grant. A revoked, expired or wrong-audience credential fails before
 any tool runs. Production signing and encryption use separate persistent
 certificate purposes with a rotation overlap, so a restart or replica change
@@ -106,7 +106,7 @@ Case edit lease and version guards. Each action calls the same Core query or
 command staff use, supplies the resolved Automation identity rather than
 caller-provided actor data, and keeps Triage distinct from Unidentified.
 
-Assignment names a selected Engineer, separate from the acting principal.
+Assignment names a selected staff assignee, separate from the acting principal.
 An actor-relative `Assign to me` is not part of the Automation contract and
 is not offered to it.
 

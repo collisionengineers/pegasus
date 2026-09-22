@@ -54,6 +54,31 @@ public sealed class GlassRepairEstimateSessionPolicyTests
                 Session(GlassRepairEstimateSessionState.Active)));
     }
 
+    [Fact]
+    public void AUserOwnerMayCloseItsSessionWhileOtherStaffAndNonHumanActorsAreRefused()
+    {
+        var userOwner = ActionActor.Staff(EngineerId, [StaffRole.User]);
+        var session = Session(GlassRepairEstimateSessionState.Active);
+
+        GlassRepairEstimateSessionPolicy.ValidateClosure(
+            new(userOwner, Guid.NewGuid(), 3, true, "Closed in Glass's."),
+            session);
+
+        foreach (var actor in new[]
+        {
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            ActionActor.Automation("pegasus-automation"),
+            ActionActor.SystemWorker("worker"),
+            ActionActor.Provider(Guid.NewGuid())
+        })
+        {
+            Assert.Throws<GlassRepairEstimateRefusalException>(() =>
+                GlassRepairEstimateSessionPolicy.ValidateClosure(
+                    new(actor, Guid.NewGuid(), 3, true, "Closed in Glass's."),
+                    session));
+        }
+    }
+
     private static GlassRepairEstimateSession Session(GlassRepairEstimateSessionState state) =>
         new(
             Guid.NewGuid(),

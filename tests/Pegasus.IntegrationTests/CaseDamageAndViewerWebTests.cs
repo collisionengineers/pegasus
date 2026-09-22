@@ -61,6 +61,7 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.Equal(1, Regex.Count(damage, "<circle class=\"area\""));
         Assert.DoesNotContain("data-damage-zone", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("dm-guides", damage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-damage-plan-area", damage, StringComparison.Ordinal);
         foreach (var chip in AssessmentVocabulary.DamageOtherAreas)
         {
             Assert.Contains($"data-damage-area=\"{chip}\"", damage, StringComparison.Ordinal);
@@ -119,6 +120,24 @@ public sealed class CaseDamageAndViewerWebTests
         // The band guides and Reset show only while editing.
         Assert.Contains("class=\"dm-guides\"", damage, StringComparison.Ordinal);
         Assert.Contains("data-damage-reset", damage, StringComparison.Ordinal);
+        Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Count, Regex.Count(damage, "data-damage-plan-area=\""));
+        Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Count, Regex.Count(damage, "role=\"button\" tabindex=\"0\" data-damage-plan-area=\""));
+        foreach (var area in AssessmentVocabulary.DamagePlanAreas)
+        {
+            Assert.Contains($"data-damage-plan-area=\"{area}\"", damage, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ExactDamageCoverageKeepsTheBoundaryCrossingLeftFrontArea()
+    {
+        // The centre and eight circumference samples used to miss this area:
+        // the disc crosses the left-front/front boundary between sample points.
+        var disc = new DamageDisc(0.38, 0.42, 0.10);
+
+        Assert.Contains(
+            "left_front",
+            DamageAreaGeometry.IntersectedPlanAreas(disc, 1, 1));
     }
 
     /// <summary>
@@ -375,6 +394,8 @@ public sealed class CaseDamageAndViewerWebTests
         });
 
         var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        const string closedBoundaryImpact =
+            "[{\"areas\":[\"front\",\"left_front\",\"right_front\",\"left_side\",\"right_side\"],\"severity\":\"light\",\"note\":\"Boundary\"}]";
         using var saveResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=Save",
             Form(
@@ -384,7 +405,7 @@ public sealed class CaseDamageAndViewerWebTests
                 ("operationKey", DetailsModelOperationKey),
                 ("editLeaseToken", store.LeaseToken),
                 ("reason", "Recorded damage observations"),
-                ("damageImpacts", "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Scuffed\"}]"),
+                ("damageImpacts", closedBoundaryImpact),
                 (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageTyreRightFront), "damaged"),
                 (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageBeltLeftRear), "deployed"),
                 (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated), "Old rear bumper scrape"),
@@ -395,8 +416,8 @@ public sealed class CaseDamageAndViewerWebTests
         var damage = Assert.Single(store.Saves).Damage;
         Assert.NotNull(damage);
         var impact = Assert.Single(damage.Impacts!);
-        Assert.Equal(["front"], impact.Areas);
-        Assert.Equal(("light", "Scuffed"), (impact.Severity, impact.Note));
+        Assert.Equal(["front", "left_front", "right_front", "left_side", "right_side"], impact.Areas);
+        Assert.Equal(("light", "Boundary"), (impact.Severity, impact.Note));
         Assert.Equal("damaged", damage.AssessmentFields![AssessmentVocabulary.DamageTyreRightFront]);
         Assert.Equal("deployed", damage.AssessmentFields[AssessmentVocabulary.DamageBeltLeftRear]);
         Assert.Equal("Old rear bumper scrape", damage.AssessmentFields[AssessmentVocabulary.DamageUnrelated]);

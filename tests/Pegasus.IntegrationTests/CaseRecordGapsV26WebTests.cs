@@ -176,6 +176,83 @@ public sealed class CaseRecordGapsV26WebTests
     }
 
     [Fact]
+    public async Task AuditOriginalReportFieldsPassTheCaseEditorAllowListAndPersist()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            SummaryCaseType = CaseType.Audit,
+            State = CaseLifecycleState.NotReady,
+            CaseState = CaseLifecycleState.NotReady
+        };
+        var ports = new RecordGapPorts(store);
+        using var workspace = await EnterEditModeAsync(store, ports.Register);
+
+        var originalReport = SectionHtml(await workspace.GetWorkspaceAsync(), "original-report");
+        var values = new[]
+        {
+            (AssessmentVocabulary.OriginalReportAssessor, "Northside Assessors"),
+            (AssessmentVocabulary.OriginalReportDate, "2031-05-06"),
+            (AssessmentVocabulary.OriginalReportRoadworthiness, "roadworthy"),
+            (AssessmentVocabulary.OriginalReportOutcome, "repairable")
+        };
+        foreach (var (path, _) in values)
+        {
+            Assert.Contains(
+                $"name=\"{CaseWorkspaceLabels.Editors.FormName(path)}\" form=\"case-edit-form\"",
+                originalReport,
+                StringComparison.Ordinal);
+        }
+
+        using var response = await SaveAsync(
+            workspace,
+            values.Select(item => (CaseWorkspaceLabels.Editors.FormName(item.Item1), item.Item2)).ToArray());
+
+        AssertPrg(response, store.CaseId);
+        var fields = Assert.Single(store.Saves).Settlement!.AssessmentFields!;
+        Assert.Equal(4, fields.Count);
+        foreach (var (path, value) in values)
+        {
+            Assert.Equal(value, fields[path]);
+        }
+    }
+
+    [Fact]
+    public async Task TheValuationSectionOwnsTheReportContentSummaryAndAllThreeSwitches()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            CaseState = CaseLifecycleState.ReportPreparation
+        };
+        var ports = new RecordGapPorts(store);
+        ports.Staff(AssessmentVocabulary.ReportDiscloseGuideSource, "true");
+        ports.Staff(AssessmentVocabulary.ReportValuationCommentary, "true");
+        ports.Staff(AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true");
+        using var workspace = await EnterEditModeAsync(store, ports.Register);
+
+        var html = await workspace.GetWorkspaceAsync();
+        var valuation = SectionHtml(html, "valuation");
+        var report = SectionHtml(html, "report");
+
+        Assert.Equal(1, Occurrences(valuation, "data-report-content"));
+        Assert.Equal(1, Occurrences(valuation, "data-report-switches"));
+        Assert.Contains(
+            "Guide source disclosed · valuation commentary · unrelated damage",
+            WebUtility.HtmlDecode(valuation),
+            StringComparison.Ordinal);
+        foreach (var path in new[]
+        {
+            AssessmentVocabulary.ReportDiscloseGuideSource,
+            AssessmentVocabulary.ReportValuationCommentary,
+            AssessmentVocabulary.ReportIncludeUnrelatedDamage
+        })
+        {
+            Assert.Equal(1, Occurrences(valuation, $"data-report-switch=\"{path}\""));
+        }
+        Assert.DoesNotContain("data-report-content", report, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task TheVehicleSectionEditsVinTypeAndBodyOutsideTheEngineerSections()
     {
         var store = new RecordingCaseDetailsStore();

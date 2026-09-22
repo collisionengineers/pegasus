@@ -1,43 +1,22 @@
 # Case record dialogs
 
-Every named dialog the Case record opens, its trigger, and its live source
-partial. All are `.dialog-backdrop[data-dialog="<id>"]`, opened by any
-`[data-dialog-open="<id>"]` control (mock-engine.js mirrors site.js's
-convention exactly).
+- **Parent:** [Case record](../README.md)
+- **Live source:** `src/Pegasus.Web/Pages/Cases/Shared/_CaseDialogs.cshtml`, `src/Pegasus.Web/Pages/Shared/_ReasonDialog.cshtml`, `src/Pegasus.Web/Pages/Shared/_EditFinishConfirm.cshtml`
 
-## Frame-level (`Shared/_CaseDialogs.cshtml`)
+These dialogs exist only inside the edit session, so they are presets over that state. Each is opened by the live page's own opener.
 
-| Dialog id | Trigger | Shape |
-| --- | --- | --- |
-| `case-hold-dialog` | Actions → Place on Hold | Reason + optional Review on date |
-| `case-release-hold-dialog` | Actions → Release Hold | Reason dialog (`Shared/_ReasonDialog.cshtml`) |
-| `case-complete-dialog` | Actions → Mark completed | Reason dialog |
-| `case-return-review-dialog` | Actions → Return to Review; Overview → Lifecycle actions | Reason dialog |
-| `case-unlink-evidence-dialog` | Overview → Lifecycle actions → Unlink report evidence | Reason dialog |
-| `case-correct-principal-dialog` | Actions → Correct principal | Replacement principal code + reason; creates a linked replacement Case |
-| `case-archive-dialog` | Actions → Archive case; Overview → Lifecycle actions | Reason dialog |
-| `case-close-dialog` | Actions → Close case (red, after a divider) | Outcome chooser (the four adverse `CaseClosureOutcome` names) + reason |
-| `case-return-engineer-dialog` | Actions → Return to Engineer | Reason dialog |
-| `case-handoff-dialog` | Actions → Hand to Engineer | Engineer picker + reason envelope, plus an "Assign to me" second form for an eligible unassigned Engineer |
-| `eva-handoff-dialog` | Actions → Send to EVA (also a real link to `/Cases/Eva/Send`) | `Shared/_EvaHandoff.cshtml`: Sign-off Engineer, Export ZIP / Send via API |
-| `case-report-sent-dialog` | Actions → Mark report sent | One confirmation form per detected Sent-evidence candidate |
-| `case-create-audit-dialog` | Actions → Create audit | Original Case, Outcome, derived Audit reference; no reason field |
+## Captured states
 
-## Section-owned
+Each state is the running application's own HTML for the route shown, saved with the live CSS and JS. Nothing in it is transcribed.
 
-| Dialog id | Trigger | Source partial |
-| --- | --- | --- |
-| `import-estimate-dialog` | Estimate head → Import | `Shared/_CaseEstimate.cshtml` |
-| `compare-estimates-dialog` | Estimate → More → Compare | `Shared/_CaseEstimate.cshtml` |
-| `delete-estimate-dialog` | Estimate → Discard | `Shared/_CaseEstimate.cshtml` |
-| `send-to-ai-dialog` | Estimate head → Send to AI | `Shared/_CaseEstimate.cshtml` |
-| `case-chase-dialog` | Notes → Record chase | `Shared/_CaseHistory.cshtml` |
-| `remove-doc-<occurrenceId>` (one per document row) | Files → Documents tab → Remove | `Shared/_CaseDocuments.cshtml` (via `Shared/_ReasonDialog.cshtml`) |
+| State | Live route | Open | Screenshots |
+| --- | --- | --- | --- |
+| Place on Hold dialog (on "Page-wide edit session") | `/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f` | [frame](../../../../current/pegasus_case_record_v28.html#case-record-editing?dialog=case-hold-dialog) | [1580](../../../../current/v28-shots/s94-case-record-hold-dialog-1580.png) · [1440](../../../../current/v28-shots/s94-case-record-hold-dialog-1440.png) · [760](../../../../current/v28-shots/s94-case-record-hold-dialog-760.png) |
+| Close Case dialog (on "Page-wide edit session") | `/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f` | [frame](../../../../current/pegasus_case_record_v28.html#case-record-editing?dialog=case-close-dialog) | [1580](../../../../current/v28-shots/s95-case-record-close-dialog-1580.png) · [1440](../../../../current/v28-shots/s95-case-record-close-dialog-1440.png) · [760](../../../../current/v28-shots/s95-case-record-close-dialog-760.png) |
+| Correct principal dialog (on "Page-wide edit session") | `/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f` | [frame](../../../../current/pegasus_case_record_v28.html#case-record-editing?dialog=case-correct-principal-dialog) | [1580](../../../../current/v28-shots/s96-case-record-correct-principal-dialog-1580.png) · [1440](../../../../current/v28-shots/s96-case-record-correct-principal-dialog-1440.png) · [760](../../../../current/v28-shots/s96-case-record-correct-principal-dialog-760.png) |
+| Return to Review dialog (on "Page-wide edit session") | `/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f` | [frame](../../../../current/pegasus_case_record_v28.html#case-record-editing?dialog=case-return-review-dialog) | [1580](../../../../current/v28-shots/s97-case-record-return-review-dialog-1580.png) · [1440](../../../../current/v28-shots/s97-case-record-return-review-dialog-1440.png) · [760](../../../../current/v28-shots/s97-case-record-return-review-dialog-760.png) |
+| Import estimate dialog (on "Page-wide edit session") | `/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f` | [frame](../../../../current/pegasus_case_record_v28.html#case-record-editing?dialog=import-estimate-dialog) | [1580](../../../../current/v28-shots/s98-case-record-import-estimate-dialog-1580.png) · [1440](../../../../current/v28-shots/s98-case-record-import-estimate-dialog-1440.png) · [760](../../../../current/v28-shots/s98-case-record-import-estimate-dialog-760.png) |
 
-## Non-dialog full-screen overlay
+## Not captured
 
-The **image viewer** (`data-case-viewer`, `Shared/_CaseViewer.cshtml`) is
-not a `.dialog-backdrop` — it is its own full-screen `role="dialog"` region
-opened from any `[data-evidence-item]` inside a `[data-evidence-set]`
-(Files' Documents/Images tabs, the Report section's images-in-report strip).
-Crop happens on its stage, not in a separate dialog.
+- Create audit, Release Hold, reopen and the delete-estimate confirmation. The fixture Case does not offer them in its current state.

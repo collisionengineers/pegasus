@@ -84,6 +84,22 @@ public sealed class SettlementDecisionTests
         Assert.Single(store.Rows);
     }
 
+    [Fact]
+    public async Task AStaleListReadMakesTheLosingAddReturnNoSavedWording()
+    {
+        var store = new StaleListBank();
+        var save = new SaveUnroadworthyReason(store);
+        var request = new SaveUnroadworthyReasonRequest(
+            "QDOS", "The brake line is severed.", Engineer);
+
+        var results = await Task.WhenAll(
+            save.ExecuteAsync(request, CancellationToken.None),
+            save.ExecuteAsync(request, CancellationToken.None));
+
+        Assert.Equal(1, results.Count(result => result is not null));
+        Assert.Single(store.Rows);
+    }
+
     private sealed class RecordingBank : IUnroadworthyReasonBankStore
     {
         public List<UnroadworthyReason> Rows { get; } = [];
@@ -92,13 +108,61 @@ public sealed class SettlementDecisionTests
             Task.FromResult<IReadOnlyList<UnroadworthyReason>>(
                 Rows.Where(row => row.PrincipalCode == principalCode).ToArray());
 
-        public Task<UnroadworthyReason> AddAsync(
+        public Task<UnroadworthyReason?> AddAsync(
             SaveUnroadworthyReasonRequest request, string normalized, CancellationToken cancellationToken)
         {
             var row = new UnroadworthyReason(
                 Guid.NewGuid(), request.PrincipalCode, normalized, request.Actor.SubjectId, DateTimeOffset.UtcNow);
             Rows.Add(row);
-            return Task.FromResult(row);
+            return Task.FromResult<UnroadworthyReason?>(row);
+        }
+    }
+
+    private sealed class StaleListBank : IUnroadworthyReasonBankStore
+    {
+        private readonly object sync = new();
+        private readonly TaskCompletionSource<bool> listReads =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> addCalls =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int listReadCount;
+        private int addCallCount;
+
+        public List<UnroadworthyReason> Rows { get; } = [];
+
+        public async Task<IReadOnlyList<UnroadworthyReason>> ListAsync(
+            string principalCode, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref listReadCount) == 2)
+            {
+                listReads.TrySetResult(true);
+            }
+            await listReads.Task.WaitAsync(cancellationToken);
+            return [];
+        }
+
+        public async Task<UnroadworthyReason?> AddAsync(
+            SaveUnroadworthyReasonRequest request, string normalized, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref addCallCount) == 2)
+            {
+                addCalls.TrySetResult(true);
+            }
+            await addCalls.Task.WaitAsync(cancellationToken);
+            lock (sync)
+            {
+                if (Rows.Any(row => row.PrincipalCode == request.PrincipalCode
+                    && string.Equals(row.Text, normalized, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return null;
+                }
+
+                var row = new UnroadworthyReason(
+                    Guid.NewGuid(), request.PrincipalCode, normalized, request.Actor.SubjectId,
+                    DateTimeOffset.UtcNow);
+                Rows.Add(row);
+                return row;
+            }
         }
     }
 }

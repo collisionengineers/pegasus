@@ -15,7 +15,7 @@ public static class GlassRepairEstimateSessionPolicy
         or GlassRepairEstimateSessionState.AwaitingImport or GlassRepairEstimateSessionState.Unknown;
 
     /// <summary>
-    /// Which sessions the owning Engineer may close: every one that still
+    /// Which sessions the owning staff member may close: every one that still
     /// holds the account except one mid-import, whose claim is acting on the
     /// provider's return and must be allowed to settle.
     /// </summary>
@@ -25,12 +25,12 @@ public static class GlassRepairEstimateSessionPolicy
     public static void ValidateClosure(
         GlassRepairEstimateCloseRequest request, GlassRepairEstimateSession session)
     {
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        ArgumentNullException.ThrowIfNull(request.Actor);
         if (request.Actor.Kind != ActorKind.Staff
             || !Guid.TryParse(request.Actor.SubjectId, out var staffId)
             || staffId != session.PegasusUserId)
         {
-            throw new GlassRepairEstimateRefusalException("This Glass's session belongs to another Engineer.");
+            throw new GlassRepairEstimateRefusalException("This Glass's session belongs to another staff member.");
         }
         if (!CanClose(session.State)
             || !request.ExternalSessionClosed || string.IsNullOrWhiteSpace(request.Reason)

@@ -15,7 +15,7 @@ namespace Pegasus.Core.Assessment;
 /// enforced against the merged state; and the actor rules implement the
 /// operator-decided direct-write model: staff saves record confirmed values,
 /// Automation saves record unconfirmed values, and a professional-finding
-/// field is confirmable only by a staff Engineer (the EngineerFindingPolicy
+/// field is confirmable only by an authenticated staff actor (the EngineerFindingPolicy
 /// precedent). Estimate derivation (totals, worklists) is deliberately absent
 /// until its formulas hold accepted authority (EXT-09, open decision D2).
 /// </summary>
@@ -75,7 +75,7 @@ public static class AssessmentPolicy
 
     /// <summary>
     /// The one owner of who may confirm a professional finding: a staff
-    /// member only when that member is an authenticated Engineer. The
+    /// member only when that member is authenticated staff. The
     /// assessment save applies it to its staff branch (the Automation actor
     /// records unconfirmed working data instead); a caller that writes a
     /// finding field as a confirmed value outside that save - the Engineer's
@@ -84,11 +84,10 @@ public static class AssessmentPolicy
     public static void RequireFindingConfirmationAuthority(ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        if (actor.Kind != ActorKind.Staff || !actor.IsInRole(StaffRole.Engineer))
+        if (actor.Kind != ActorKind.Staff)
         {
             throw new InvalidOperationException(
-                "A professional finding can be recorded by staff only when the staff member "
-                + "is an authenticated Engineer.");
+                "A professional finding can be recorded only by authenticated staff.");
         }
     }
 
@@ -356,6 +355,20 @@ public static class AssessmentPolicy
             }
         }
 
+        var contractRepair = string.Equals(
+            fields.GetValueOrDefault(AssessmentVocabulary.Outcome),
+            "contract_repair",
+            StringComparison.Ordinal);
+        if (contractRepair
+            && projection.Field(AssessmentVocabulary.SettlementContractSum) is not { IsConfirmed: true })
+        {
+            items.Add(new(
+                "Agreed contract sum",
+                "Assessment record",
+                "The outcome is Contract repair without a confirmed agreed contract sum.",
+                "Record and confirm the agreed sum on the Settlement section."));
+        }
+
         if (includeReviewEntryRequirements
             && string.Equals(
                 projection.CaseOwned.InspectionMode,
@@ -373,13 +386,14 @@ public static class AssessmentPolicy
         // field or line and who recorded it. A single aggregate count is
         // prohibited: an unmet requirement has to identify its own material,
         // provenance, reason, and permitted resolution.
-        foreach (var field in projection.Fields.Where(field => !field.IsConfirmed))
+        foreach (var field in projection.Fields.Where(field => !field.IsConfirmed
+            && !(contractRepair && field.Path == AssessmentVocabulary.SettlementContractSum)))
         {
             items.Add(new(
                 $"{field.Path} awaits review",
                 $"Recorded by {field.RecordedByKind} ({field.RecordedBy})",
-                "The value is unconfirmed working data until an Engineer confirms it.",
-                "Review the value and re-save it as the assigned Engineer to confirm it."));
+                "The value is unconfirmed working data until a staff member confirms it.",
+                "Review the value and re-save it as the assigned staff member to confirm it."));
         }
 
         foreach (var line in projection.EstimateLines.Where(line => !line.IsConfirmed))
@@ -387,8 +401,8 @@ public static class AssessmentPolicy
             items.Add(new(
                 $"Estimate line {line.Position} ({line.Type}) awaits review",
                 $"Recorded by {line.RecordedByKind} ({line.RecordedBy})",
-                "The line is unconfirmed working data until an Engineer confirms it.",
-                "Review the line and re-save the estimate as the assigned Engineer to confirm it."));
+                "The line is unconfirmed working data until a staff member confirms it.",
+                "Review the line and re-save the estimate as the assigned staff member to confirm it."));
         }
 
         return items;
@@ -612,6 +626,17 @@ public static class AssessmentPolicy
                 || (areas.Any(AssessmentVocabulary.DamageOtherAreas.Contains) && (areas.Count > 1 || !alone.Add(areas[0]))))
             {
                 throw new ArgumentException("A damage impact names one or more plan areas, or one other area recorded once.", nameof(root));
+            }
+            if (areas.All(AssessmentVocabulary.DamagePlanAreas.Contains))
+            {
+                var completed = DamageAreaGeometry.CompletePlanAreas(areas);
+                if (completed.Count != areas.Count
+                    || completed.Any(area => !areas.Contains(area, StringComparer.Ordinal)))
+                {
+                    throw new ArgumentException(
+                        "A damage impact must record every plan area positively covered by its disc.",
+                        nameof(root));
+                }
             }
             areas.Sort((left, right) => AssessmentVocabulary.DamageAreaOrder(left).CompareTo(AssessmentVocabulary.DamageAreaOrder(right)));
             var severity = severityElement.GetString()!;
