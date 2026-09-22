@@ -1,0 +1,75 @@
+@page
+@model Pegasus.Web.Pages.Administration.ProblemReportsModel
+@{
+    ViewData["Title"] = OperatorLabels.Admin.ProblemReports;
+    ViewData["Eyebrow"] = "Administration";
+    ViewData["AdminArea"] = "problem-reports";
+}
+<partial name="Shared/_PageHeader" />
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        <section class="panel" aria-labelledby="problem-reports-title">
+            <div class="panel-head"><h2 id="problem-reports-title">@OperatorLabels.Admin.ProblemReports</h2></div>
+            <div class="table-wrap no-border">
+                <table class="table table--compact" data-problem-reports>
+                    <caption class="sr-only">@OperatorLabels.Admin.ProblemReports</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">When</th>
+                            <th scope="col">Who</th>
+                            <th scope="col">Page</th>
+                            <th scope="col">Case</th>
+                            <th scope="col">What happened</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Issue</th>
+                            <th scope="col"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var report in Model.Reports)
+                    {
+                        <tr data-problem-report="@report.Id">
+                            <td><time datetime="@report.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(report.CreatedAtUtc)</time></td>
+                            <td>@Model.ReportedBy(report)</td>
+                            <td class="mono">@report.Snapshot.Route</td>
+                            <td class="mono">@(report.Snapshot.CaseReference ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                            <td>@report.Description</td>
+                            <td>
+                                <partial name="Shared/_StatusChip" model="@OperatorLabels.ProblemReportStatus(report.Status)" />
+                                @if (report.Failure is { Length: > 0 } failure)
+                                {
+                                    <span class="muted">@failure</span>
+                                }
+                            </td>
+                            <td>
+                                @if (report.IssueUrl is { Length: > 0 } url && report.IssueNumber is { } number)
+                                {
+                                    <a href="@url" rel="noopener" target="_blank">#@number</a>
+                                }
+                                else
+                                {
+                                    @OperatorLabels.CaseWorkspace.AbsentValue
+                                }
+                            </td>
+                            <td>
+                                @if (report.Status == Pegasus.Core.Support.ProblemReportStatus.NotSent)
+                                {
+                                    <form method="post" asp-page-handler="Retry" asp-route-id="@report.Id">
+                                        <input type="hidden" name="operationKey" value="@ProblemReportsModel.NewOperationKey()" />
+                                        <button type="submit" class="btn btn--small">@OperatorLabels.ProblemReports.Retry</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (Model.Reports.Count == 0)
+                    {
+                        <tr><td colspan="8" class="muted">@OperatorLabels.ProblemReports.None</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>

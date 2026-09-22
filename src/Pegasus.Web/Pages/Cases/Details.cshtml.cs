@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
@@ -109,13 +110,14 @@ public sealed partial class DetailsModel(
 {
     public string? CommittedEditorCommand => TempData["CaseEditorCommit"] as string;
 
-    private void RecordEditorCommit(string editor, string operationKey, long expectedVersion)
+    private void RecordEditorCommit(
+        string editor, string operationKey, long expectedVersion, long? resultingVersion = null)
     {
-        // These three commands each complete exactly one guarded Case mutation.
-        // Use its expected version, not a later read which may include another write.
+        // Use the operation's original authority version and its known result
+        // version, not a later read which could include an intervening write.
         TempData["CaseEditorCommit"] = JsonSerializer.Serialize(new
         {
-            editor, operationKey, expectedVersion, version = checked(expectedVersion + 1)
+            editor, operationKey, expectedVersion, version = resultingVersion ?? checked(expectedVersion + 1)
         });
     }
 
@@ -377,12 +379,6 @@ public sealed partial class DetailsModel(
     public RepairSpecificationVersion? AcceptedSpecification { get; private set; }
 
     public IReadOnlyList<RepairSpecificationVersion> Estimates { get; private set; } = [];
-
-    public IReadOnlyList<CaseFile> PendingEstimateSources => Case is null ? [] :
-        CaseFiles.Live(Case.Documents)
-            .Where(file => file.Occurrence.SourceOccurrenceIdentity.StartsWith("estimate-import:", StringComparison.Ordinal)
-                && !Estimates.Any(estimate => string.Equals(estimate.Source.Sha256, file.Version.Sha256, StringComparison.OrdinalIgnoreCase)))
-            .ToArray();
 
     public RepairSpecificationVersion? SelectedEstimate { get; private set; }
 
@@ -1002,7 +998,6 @@ public sealed partial class DetailsModel(
         await LoadGlassSessionAsync(id, actor, cancellationToken);
         OpenDialog = dialog switch
         {
-            "import-estimate" when ImportCondition is null => "import-estimate",
             "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
             "compare-estimates" when Estimates.Count >= 2 => "compare-estimates",
             "versions" when SelectedEstimate is not null => "versions",
@@ -3560,12 +3555,45 @@ public sealed partial class DetailsModel(
         IFormFile? estimateFile,
         CancellationToken cancellationToken)
     {
-        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
-        if (guard is not null) return guard;
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (estimateFile is null || estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes)
+        if (!TryGetActor(out var actor))
         {
-            TempData["CaseError"] = "Choose a non-empty estimate file of 10 MB or less.";
+            ClearLeaseState();
+            return Forbid();
+        }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access?.CanOpen != true) return NotFound();
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null) return NotFound();
+        if (access.IsReadOnly || details.Workflow.Archive is not null
+            || CaseLifecycleRules.IsTerminal(details.Workflow.State))
+        {
+            TempData["CaseError"] = "The Case is read-only and cannot accept estimate imports.";
+            return RedirectToEstimate(id);
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+        if (details.Workflow.Version != expectedVersion)
+        {
+            TempData["CaseError"] = "The Case changed before the estimate was imported. Reload and try again.";
+            return RedirectToEstimate(id);
+        }
+        if (!Request.HasFormContentType || Request.Form.Files.Count != 1
+            || !string.Equals(Request.Form.Files[0].Name, "estimateFile", StringComparison.Ordinal)
+            || estimateFile is null)
+        {
+            TempData["CaseError"] = "Choose exactly one estimate file.";
+            return RedirectToEstimate(id);
+        }
+        estimateFile = Request.Form.Files[0];
+        var fileName = Path.GetFileName(estimateFile.FileName);
+        var extension = Path.GetExtension(fileName);
+        if (estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes
+            || !new[] { ".pdf", ".xml", ".json" }.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        {
+            TempData["CaseError"] = "Choose a non-empty PDF, XML or JSON estimate file of 10 MB or less.";
             return RedirectToEstimate(id);
         }
 
@@ -3583,75 +3611,149 @@ public sealed partial class DetailsModel(
             }
             buffer.Write(chunk, 0, count);
         }
-        AddCaseDocumentResult retained;
+        if (buffer.Length == 0)
+        {
+            TempData["CaseError"] = "Choose a non-empty estimate file.";
+            return RedirectToEstimate(id);
+        }
+
+        var fileBytes = buffer.ToArray();
+        var uploadedSha256 = Convert.ToHexStringLower(SHA256.HashData(fileBytes));
+        var activeLeaseToken = editLeaseToken;
+        if (string.IsNullOrWhiteSpace(activeLeaseToken))
+        {
+            try
+            {
+                var lease = await acquireLease.ExecuteAsync(
+                    new(id, expectedVersion, actor, NewOperationKey()), cancellationToken);
+                activeLeaseToken = lease.Token;
+                StoreLeaseAuthority(id, lease.Token);
+            }
+            catch (StaffAuthorizationException) { return Forbid(); }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                HandleLeaseFailure(id, null, exception);
+                TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
+                return RedirectToEstimate(id);
+            }
+        }
+
         try
         {
-            retained = await addCaseDocument.ExecuteAsync(
-                new(id, Path.GetFileName(estimateFile.FileName), estimateFile.ContentType, buffer.ToArray(),
-                    DocumentSemanticRole.Other, DocumentSource.StaffUpload, $"estimate-import:{operationKey}",
-                    actor, $"{operationKey}-document", expectedVersion, editLeaseToken!),
-                cancellationToken);
+            await repairSpecifications.RequireImportAuthorityAsync(
+                new(actor, id, expectedVersion, activeLeaseToken!, Guid.Empty, Guid.Empty,
+                    uploadedSha256, operationKey, string.Empty), cancellationToken);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(exception, "The estimate source could not be retained.");
+            HandleLeaseFailure(id, activeLeaseToken, exception);
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
             return RedirectToEstimate(id);
         }
 
-        if (retained.IsReplay || retained.Version.CustodyStatus != DocumentCustodyStatus.Confirmed)
-        {
-            // Retention replay makes no new Case mutation and cannot resurrect an
-            // old form's authority. Pending custody is not yet readable evidence.
-            // Complete the confirmed source from the current form in either case.
-            if (!retained.IsReplay) ClearLeaseState();
-            TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.SourceRetained;
-            return RedirectToEstimate(id);
-        }
         try
         {
-            // A fresh staff AddCaseDocument consumes exactly one version. Never
-            // adopt currentCaseVersion, which could include an intervening edit.
-            var importVersion = checked(expectedVersion + 1);
-            var lease = await acquireLease.ExecuteAsync(new(id, importVersion, actor, NewOperationKey()), cancellationToken);
-            StoreLeaseAuthority(id, lease.Token);
-            return await ImportRetainedEstimateAsync(new(actor, id, importVersion, lease.Token,
-                retained.Occurrence.Id, retained.Version.Id, retained.Version.Sha256, operationKey, string.Empty),
-                cancellationToken);
+            if (await repairSpecifications.ProbeSourceHashReplayAsync(
+                    id, operationKey, uploadedSha256, cancellationToken)
+                is { } replay)
+            {
+                RecordEditorCommit("case-estimate-import-form", operationKey, expectedVersion, expectedVersion);
+                TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
+                return RedirectToEstimate(id, replay.EstimateId.ToString("D"));
+            }
+        }
+        catch (StaffAuthorizationException) { return Forbid(); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
+            return RedirectToEstimate(id);
+        }
+
+        var sourceIdentity = $"estimate-import:{operationKey}";
+        var reusable = CaseFiles.Live(details.Documents)
+            .Where(file => file.Occurrence.SourceOccurrenceIdentity.StartsWith("estimate-import:", StringComparison.Ordinal)
+                && file.Version.ContentLength == fileBytes.LongLength
+                && string.Equals(file.Version.Sha256, uploadedSha256, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(file => file.Occurrence.Ordinal)
+            .FirstOrDefault();
+
+        CaseFile source;
+        var newDocumentStored = false;
+        if (reusable is not null
+            && !string.Equals(reusable.Occurrence.SourceOccurrenceIdentity, sourceIdentity, StringComparison.Ordinal))
+        {
+            // A retry with the same bytes but a new operation key reuses the
+            // confirmed Case file instead of creating another Box document.
+            source = reusable;
+        }
+        else
+        {
+            AddCaseDocumentResult retained;
+            try
+            {
+                retained = await addCaseDocument.ExecuteAsync(
+                    new(id, fileName, estimateFile.ContentType, fileBytes,
+                        DocumentSemanticRole.Other, DocumentSource.StaffUpload, sourceIdentity,
+                        actor, $"{operationKey}-document", expectedVersion, activeLeaseToken),
+                    cancellationToken);
+            }
+            catch (StaffAuthorizationException) { return Forbid(); }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                HandleLeaseFailure(id, activeLeaseToken, exception);
+                TempData["CaseError"] = MutationRefusalMessage(
+                    exception, Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.StorageFailed);
+                return RedirectToEstimate(id);
+            }
+            source = new(retained.Occurrence, retained.Version);
+            newDocumentStored = !retained.IsReplay;
+        }
+
+        var importVersion = expectedVersion;
+        var importLeaseToken = activeLeaseToken;
+        try
+        {
+            if (newDocumentStored)
+            {
+                // A new Case document consumes one version and its lease. Claim
+                // exactly that version before the importer performs its mutation.
+                importVersion = checked(expectedVersion + 1);
+                var lease = await acquireLease.ExecuteAsync(
+                    new(id, importVersion, actor, NewOperationKey()), cancellationToken);
+                importLeaseToken = lease.Token;
+                StoreLeaseAuthority(id, lease.Token);
+            }
+
+            if (source.Version.CustodyStatus != DocumentCustodyStatus.Confirmed)
+            {
+                TempData["CaseError"] = "The estimate source could not be confirmed in Case Files, so nothing was imported.";
+                return RedirectToEstimate(id);
+            }
+
+            var importedBefore = (await listEstimates.ExecuteAsync(id, cancellationToken))
+                .Any(estimate => string.Equals(
+                    estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
+            var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
+            return await ImportRetainedEstimateAsync(new(actor, id, importVersion, importLeaseToken,
+                source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty),
+                cancellationToken, expectedVersion, resultingVersion);
         }
         catch (StaffAuthorizationException) { return Forbid(); }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             HandleLeaseFailure(id, PeekLeaseToken(), exception);
-            TempData["CaseError"] = MutationRefusalMessage(exception, "The source was retained; complete import using the current edit authority.");
-            return RedirectToEstimate(id);
-        }
-    }
-
-    public async Task<IActionResult> OnPostCompleteEstimateImportAsync(
-        Guid id, long expectedVersion, string operationKey, string? editLeaseToken,
-        Guid occurrenceId, Guid documentVersionId, string sha256, CancellationToken cancellationToken)
-    {
-        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
-        if (guard is not null) return guard;
-        if (!TryGetActor(out var actor)) return Forbid();
-        try
-        {
-            return await ImportRetainedEstimateAsync(new(actor, id, expectedVersion, editLeaseToken!,
-                occurrenceId, documentVersionId, sha256, operationKey, string.Empty), cancellationToken);
-        }
-        catch (StaffAuthorizationException) { return Forbid(); }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(exception, "The import requires current edit authority.");
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
             return RedirectToEstimate(id);
         }
     }
 
     private async Task<IActionResult> ImportRetainedEstimateAsync(
-        ImportRawEstimateRequest request, CancellationToken cancellationToken)
+        ImportRawEstimateRequest request,
+        CancellationToken cancellationToken,
+        long? commandExpectedVersion = null,
+        long? commandResultingVersion = null)
     {
         try
         {
@@ -3668,6 +3770,10 @@ public sealed partial class DetailsModel(
             else
             {
                 StoreLeaseAuthority(request.CaseId, request.EditLeaseToken);
+            }
+            if (commandExpectedVersion is { } originalVersion && commandResultingVersion is { } finalVersion)
+            {
+                RecordEditorCommit("case-estimate-import-form", request.OperationKey, originalVersion, finalVersion);
             }
             TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
             return RedirectToEstimate(request.CaseId, result.EstimateId.ToString("D"));

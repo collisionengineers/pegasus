@@ -53,3 +53,19 @@ Use managed identity and scoped RBAC. General application secrets retain their a
 [ADR-0043](../adr/0043-per-engineer-vendor-credential-protection.md) exception
 protects per-staff-account vendor credentials and session material with Data
 Protection in existing SQL, with the matching key-ring recovery contract. Never commit secret values, connection strings, readable passwords, generated credentials, or data not approved for public source control.
+
+## Problem reports
+
+`GitHub:ProblemReports:Token` and `GitHub:ProblemReports:Repository` connect
+Report a problem ([ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md))
+to one repository's issues; `GitHub:ProblemReports:Labels` is an optional
+comma-separated label list applied to every issue. The two required
+settings are configured together or not at all: with neither, every report
+is kept as Not sent with the reason and an Administrator retries once the
+settings exist; with only one, the host refuses to start. The token is a
+fine-grained personal access token scoped to that repository with Issues
+read and write only, held in Key Vault and delivered to Web as
+`GitHub__ProblemReports__Token` through a versioned secret URI reference;
+the Worker receives neither setting. Rotating the token is a new secret
+version and a configuration read-back, not a release. The repository must
+stay private: issue bodies carry Case references and staff names.
