@@ -394,15 +394,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     item => item.CaseId == caseId && item.EventType == "valuation_applied"));
         }
 
-        // A later manual correction keeps the applied basis and adds its own
-        // reason: a further snapshot row, never an edit of the first.
+        // A later adoption with changed inputs records its own calculated
+        // proposal and reason as a further snapshot row.
         harness.Advance(TimeSpan.FromMinutes(1));
         var correctionLease = await LeaseAsync("valuation-correction-lease");
         var corrected = await apply.ExecuteAsync(
-            ApplyRequest(correctionLease, selection, "valuation-correction") with
+            ApplyRequest(correctionLease, selection with { ConditionDeduction = 26m }, "valuation-correction") with
             {
-                Reason = "Corrected the adopted value after re-reading the guide.",
-                CorrectedEngineerValue = 3250m
+                Reason = "Corrected the valuation inputs after re-reading the guide."
             },
             CancellationToken.None);
         version++;
@@ -410,7 +409,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(3250m, corrected.AcceptedEngineerValue);
         Assert.Equal(applied.GuideValuationId, corrected.GuideValuationId);
         Assert.Equal(applied.GuideValuationStampUtc, corrected.GuideValuationStampUtc);
-        Assert.Equal(3176m, corrected.Calculation.Proposal);
+        Assert.Equal(3250m, corrected.Calculation.Proposal);
         Assert.NotEqual(applied.Id, corrected.Id);
         Assert.Equal(
             "3250.00",

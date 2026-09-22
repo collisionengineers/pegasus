@@ -102,9 +102,7 @@ public sealed class DetailsModel(
     public bool IsEditing => EditLease is not null;
 
     /// <summary>
-    /// Set when this operator is already editing this record in another window,
-    /// so the page offers the take-over that ends the other window's claim
-    /// instead of an Edit that would be refused again.
+    /// An authorised editor may replace a live scope held in another window.
     /// </summary>
     public bool CanTakeOverEdit { get; private set; }
 
@@ -120,6 +118,12 @@ public sealed class DetailsModel(
         }
 
         Detail = detail;
+        if (!IsEditing && TryGetActor(out var editActor)
+            && StaffAuthorization.IsAuthorized(editActor, StaffAccessRight.PerformCasework))
+        {
+            CanTakeOverEdit = await editScopes.GetActiveAsync(
+                EditScopeKind.ImageIntake, id, editActor, cancellationToken) is not null;
+        }
         Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
         if (TryGetActor(out var sourceActor))
         {
@@ -227,6 +231,7 @@ public sealed class DetailsModel(
         }
         catch (EditScopeConflictException)
         {
+            CanTakeOverEdit = true;
             ModelState.AddModelError(
                 string.Empty,
                 await EditConflictMessageAsync(id, actor, cancellationToken));

@@ -445,7 +445,7 @@ public static class CaseWorkspaceLabels
         public const string Importing = "Importing estimate…";
         public const string ExactlyOneFile = "Choose exactly one estimate file.";
         public const string NonEmptyFile = "Choose a non-empty estimate file.";
-        public const string FileTooLarge = "Choose an estimate file of 10 MB or less.";
+        public const string FileTooLarge = "Choose an estimate file of 32 MiB or less.";
         public const string UnsupportedFile = "Choose a PDF, XML or JSON estimate file.";
         public const string UnsavedEstimate = "Save or cancel the estimate changes before importing another estimate.";
         public const string ActionInProgress = "Wait for the current Case action to finish before importing an estimate.";

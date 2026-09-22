@@ -774,14 +774,21 @@ public sealed class CaseReportGenerationTests
                     PendingDocumentId, PendingVersionId, null, null, null, null, null, null, null, null),
             ]);
 
-        private static CaseReportGenerationSnapshot Snapshot() => new(
-            CaseId, 7, "CE-100", "operation-1", CaseReportActor.Of(Engineer), RecordedAtUtc,
-            SignatoryId, Sha256Of([1, 2, 3]), "image/png",
-            Guid.NewGuid(), 2, ReportRepairCosts.For(Estimate()), 5_000m, Guid.NewGuid(),
-            CaseReportContentSwitches.None, ReportGuideSources.None,
-            new DateOnly(2026, 9, 6), false, 120m, ["Engineering assessment"], [], [],
-            AssessmentReportContract.TemplateVersion, "fake",
-            AssessmentReportRenderingTests.Snapshot(AssessmentReportOutcome.Repairable));
+        private static CaseReportGenerationSnapshot Snapshot()
+        {
+            var estimate = Estimate();
+            return new(
+                CaseId, 7, "CE-100", "operation-1", CaseReportActor.Of(Engineer), RecordedAtUtc,
+                SignatoryId, Sha256Of([1, 2, 3]), "image/png",
+                estimate.SpecificationId, estimate.Version, ReportRepairCosts.For(estimate), 5_000m, Guid.NewGuid(),
+                CaseReportContentSwitches.None, ReportGuideSources.None,
+                new DateOnly(2026, 9, 6), false, 120m, ["Engineering assessment"], [], [],
+                AssessmentReportContract.TemplateVersion, "fake",
+                AssessmentReportRenderingTests.Snapshot(AssessmentReportOutcome.Repairable))
+            {
+                CurrentEstimate = estimate
+            };
+        }
     }
 
     private sealed class FakeContentSource : ICaseReportContentSource

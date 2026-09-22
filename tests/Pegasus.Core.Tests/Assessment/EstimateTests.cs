@@ -1203,6 +1203,8 @@ public sealed class EstimateTests
     private sealed class StubParser(
         RepairSpecificationSourceRoute route, string extension, string providerName) : IEstimateDocumentParser
     {
+        public IReadOnlyList<string> FileExtensions { get; } = [extension];
+
         public bool CanParse(string fileName, string mediaType) =>
             string.Equals(Path.GetExtension(fileName), extension, StringComparison.OrdinalIgnoreCase);
 

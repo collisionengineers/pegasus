@@ -62,6 +62,7 @@ public sealed class AdministrationAiJobsTests
         public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) => Task.FromResult(new AiJobQueryPage([], false));
         public Task<IReadOnlyList<AiJobRecord>> ListForSubjectAsync(Guid subjectId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
+        public Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AiJobRecord>>([]);
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) => Task.FromResult(new AiJobCounts(2, 1));
     }
     private sealed class Control(bool enabled) : ISendToAiControl

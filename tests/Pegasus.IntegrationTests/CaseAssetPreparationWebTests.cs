@@ -204,6 +204,12 @@ public sealed class CaseAssetPreparationWebTests
         var grid = ImageGrid(await GetFilesFragmentAsync(workspace, leased));
 
         Assert.Contains("data-preparation-crop", grid, StringComparison.Ordinal);
+        Assert.Contains("<noscript>", grid, StringComparison.Ordinal);
+        Assert.Contains("name=\"preparationEdits[0].Role\"", grid, StringComparison.Ordinal);
+        Assert.Contains("name=\"preparationEdits[0].Order\"", grid, StringComparison.Ordinal);
+        Assert.Contains("name=\"preparationEdits[0].Rotation\"", grid, StringComparison.Ordinal);
+        Assert.Contains("name=\"preparationEdits[0].FullPage\"", grid, StringComparison.Ordinal);
+        Assert.Contains("Remove from report", grid, StringComparison.Ordinal);
         Assert.Contains(
             $"data-preparation-occurrence=\"{fixture.OverviewOccurrenceId:D}\"",
             grid,
@@ -282,6 +288,41 @@ public sealed class CaseAssetPreparationWebTests
     /// offered wherever the Case edit lease is held, so the Save that carries
     /// one is accepted in Review along with the editable Engineer sections.
     /// </summary>
+    [Fact]
+    public async Task NativeRemoveFromReportPostsTheSameCasePreparationCommand()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store(CaseLifecycleState.ReportPreparation);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+        var leased = await workspace.GetWorkspaceAsync();
+        var grid = ImageGrid(await GetFilesFragmentAsync(workspace, leased));
+        Assert.Contains("Remove from report", grid, StringComparison.Ordinal);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "0a0b0c0d0e0f01020304050607080903",
+                ReportImageLabels.SaveReason,
+                ("preparationEdits[0].OccurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
+                ("preparationEdits[0].ExpectedPreparationVersion", "4"),
+                ("preparationEdits[0].Role", nameof(CaseAssetReportRole.NotUsed)),
+                ("preparationEdits[0].Rotation", "0"),
+                ("preparationEdits[0].CropLeft", "0.05"),
+                ("preparationEdits[0].CropTop", "0.1"),
+                ("preparationEdits[0].CropWidth", "0.5"),
+                ("preparationEdits[0].CropHeight", "0.6"),
+                ("preparationEdits[0].FullPage", "false")));
+
+        AssertPrg(response, store.CaseId);
+        var edit = Assert.Single(Assert.Single(store.Saves).ImagePreparation!.Edits!);
+        Assert.Equal(CaseAssetReportRole.NotUsed, edit.Role);
+        Assert.False(edit.FullPage);
+    }
+
     [Fact]
     public async Task ACropIsSavedOnAReviewStateCase()
     {
@@ -451,17 +492,18 @@ public sealed class CaseAssetPreparationWebTests
     }
 
     [Fact]
-    public async Task TheInitialCaseResponseDoesNotLoadAssetPreparationsWhileFilesIsDeferred()
+    public async Task TheInitialCaseResponseLoadsReportImageOfferWhileFilesIsDeferred()
     {
         var store = new PreparedImages().Store();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
-            Substitute<ICaseAssetPreparationQueries>(services, new ThrowingAssetPreparationQueries());
+            Substitute<ICaseAssetPreparationQueries>(services, store);
         });
 
         var html = await workspace.GetWorkspaceAsync();
 
         Assert.Contains("data-lazy=\"files\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-report-preview-images", html, StringComparison.Ordinal);
     }
     /// <summary>
     /// Without the Case's edit lease a tile states the report role it holds
@@ -702,22 +744,6 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Contains("image-tile", fragment, StringComparison.Ordinal);
         Assert.Contains("data-preparation-crop", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("report-images", fragment, StringComparison.Ordinal);
-    }
-
-    private sealed class ThrowingAssetPreparationQueries : ICaseAssetPreparationQueries
-    {
-        public Task<CaseAssetPreparation?> GetForOccurrenceAsync(
-            Guid caseId,
-            Guid occurrenceId,
-            CancellationToken cancellationToken) =>
-            Task.FromException<CaseAssetPreparation?>(
-                new InvalidOperationException("Asset preparations must remain deferred."));
-
-        public Task<IReadOnlyList<CaseAssetPreparation>> ListForCaseAsync(
-            Guid caseId,
-            CancellationToken cancellationToken) =>
-            Task.FromException<IReadOnlyList<CaseAssetPreparation>>(
-                new InvalidOperationException("Asset preparations must remain deferred."));
     }
 
     /// <summary>

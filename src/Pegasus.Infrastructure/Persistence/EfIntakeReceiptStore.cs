@@ -172,13 +172,16 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var decisions = await context.IntakeReceipts
             .AsNoTracking()
-            .Where(item => !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id))
+            .Where(item => !context.CaseIntakeLinks.Any(link => link.IntakeReceiptId == item.Id)
+                && !context.UnidentifiedItems.Any(unidentified =>
+                    unidentified.OriginKind == "Receipt"
+                    && unidentified.OriginId == item.Id
+                    && unidentified.State == "Resolved"
+                    && unidentified.ResolutionTargetKind == "Closed"))
             .Select(item => item.Decision)
             .ToListAsync(cancellationToken);
         var parsedDecisions = decisions.Select(ParseDecision).ToArray();
-        return new(
-            parsedDecisions.Count(item => item == IntakeDecision.NeedsSorting),
-            parsedDecisions.Count(item => item == IntakeDecision.BlockedIntake));
+        return new(parsedDecisions.Count(item => item == IntakeDecision.NeedsSorting));
     }
 
     public async Task<IntakeListPage> ListAsync(
@@ -1385,7 +1388,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     {
         IntakeDecision.CaseCreated => "case_created",
         IntakeDecision.NeedsSorting => "needs_sorting",
-        IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",
@@ -1397,7 +1399,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     {
         "case_created" => IntakeDecision.CaseCreated,
         "needs_sorting" => IntakeDecision.NeedsSorting,
-        "blocked_intake" => IntakeDecision.BlockedIntake,
         "unsupported" => IntakeDecision.Unsupported,
         "ocr_required" => IntakeDecision.OcrRequired,
         "technical_failure" => IntakeDecision.TechnicalFailure,

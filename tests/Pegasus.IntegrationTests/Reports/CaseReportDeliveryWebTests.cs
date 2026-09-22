@@ -808,16 +808,20 @@ public sealed partial class AssessmentReportDraftWebTests
         string? imagePackOperationKey = null)
     {
         reportOperationKey ??= "operation-1";
-        var projected = AssessmentReportProjection.Project(ReadyInput(caseId)).Snapshot!;
+        var input = ReadyInput(caseId);
+        var projected = AssessmentReportProjection.Project(input).Snapshot!;
         var report = projected with { IncludeFeeNote = includeFeeNote };
         var generationId = Guid.NewGuid();
         var snapshot = new CaseReportGenerationSnapshot(
             caseId, 0, "CE-100", reportOperationKey, CaseReportActor.None, ReportFixtureAtUtc,
-            Guid.NewGuid(), new string('a', 64), "image/png", Guid.NewGuid(), 2,
+            Guid.NewGuid(), new string('a', 64), "image/png", input.CurrentEstimate!.SpecificationId, input.CurrentEstimate.Version,
             report.Costs, report.EngineerValue, Guid.NewGuid(),
             report.Content, report.Guides, report.ReportDate, false,
             report.AgreedFee, report.FeeDescriptionLines, [], [],
-            AssessmentReportContract.TemplateVersion, "fake", report);
+            AssessmentReportContract.TemplateVersion, "fake", report)
+        {
+            CurrentEstimate = input.CurrentEstimate
+        };
         var reportConfirmed = reportStatus == CaseReportArtifactStatus.Confirmed;
         List<CaseReportArtifactRecord> artifacts =
         [

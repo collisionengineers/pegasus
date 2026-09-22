@@ -9,8 +9,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// MI-02's periods: per Principal and London month, the confirmed report and
 /// fee-note artifacts produced, the reports sent, and the agreed fees on the
-/// Cases whose reports were produced that month (each Case's fee counted once,
-/// in the month of its first qualifying report globally). Reads the same
+/// Cases whose first reports were produced in the selected period (each Case's
+/// fee counted once, in the month of its first qualifying report globally). Reads the same
 /// records as the per-Principal report so the two agree.
 /// </summary>
 internal sealed class EfMonthlyReportActivityQueries(
@@ -80,12 +80,12 @@ internal sealed class EfMonthlyReportActivityQueries(
 
         var firstReportByCase = firstReports
             .GroupBy(x => x.CaseId)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderBy(x => x.GeneratedAtUtc)
-                    .ThenBy(x => x.GenerationId)
-                    .First());
+            .Select(group => group
+                .OrderBy(x => x.GeneratedAtUtc)
+                .ThenBy(x => x.GenerationId)
+                .First())
+            .Where(first => FirstReportFeeAttribution.InPeriod(first.GeneratedAtUtc, fromUtc, toUtc))
+            .ToDictionary(first => first.CaseId);
         var fees = firstReportByCase.ToDictionary(
             pair => pair.Key,
             pair => FrozenFeeOf(pair.Value));
@@ -108,8 +108,7 @@ internal sealed class EfMonthlyReportActivityQueries(
                 sent.Count(x => x.PrincipalId == key.PrincipalId && MonthOf(x.ObservedSentAtUtc) == key.Month),
                 feeMonthByCase
                     .Where(pair => pair.Value == key.Month
-                        && artifacts.Any(x => x.CaseId == pair.Key && x.PrincipalId == key.PrincipalId)
-                        && fees.ContainsKey(pair.Key))
+                        && artifacts.Any(x => x.CaseId == pair.Key && x.PrincipalId == key.PrincipalId))
                     .Sum(pair => fees[pair.Key])))
             .OrderByDescending(x => x.Year).ThenByDescending(x => x.Month)
             .ThenBy(x => x.PrincipalCode, StringComparer.OrdinalIgnoreCase)

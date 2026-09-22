@@ -433,7 +433,7 @@ public sealed class InstructionEvidenceImagesTests
     private sealed class FakeReceiptQueries(IntakeReceipt receipt) : IIntakeReceiptQueries
     {
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0, 0));
+            Task.FromResult(new IntakeQueueCounts(0));
 
         public Task<IntakeListPage> ListAsync(
             IntakeDecision? decision,

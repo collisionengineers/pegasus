@@ -61,11 +61,10 @@ public sealed class CaseRecordFrameV26WebTests
 
     /// <summary>
     /// Outside an edit session the menu is absent when none of its items
-    /// needs no lease, and a colleague's live lease offers no Take over
-    /// (13 September) — only the colleague chip.
+    /// needs no lease. A colleague's live lease offers Take over.
     /// </summary>
     [Fact]
-    public async Task OutsideAnEditSessionTheMenuIsAbsentAndAColleaguesLeaseOffersNoTakeOver()
+    public async Task OutsideAnEditSessionTheMenuIsAbsentAndAColleaguesLeaseOffersTakeOver()
     {
         var store = new RecordingCaseDetailsStore();
         var reading = RecordBar(await ReadCaseAsync(store));
@@ -75,8 +74,9 @@ public sealed class CaseRecordFrameV26WebTests
         var held = new RecordingCaseDetailsStore { LeaseHolder = "colleague-staff-id" };
         var html = await ReadCaseAsync(held);
         Assert.Contains("data-edit-authority", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(CaseWorkspaceLabels.Frame.TakeOver, html, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Frame.TakeOver, html, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"takeOver\" value=\"true\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>

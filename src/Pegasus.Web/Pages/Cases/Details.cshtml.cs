@@ -35,6 +35,7 @@ namespace Pegasus.Web.Pages.Cases;
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+[RequestSizeLimit(ImportRawEstimate.MaximumDocumentBytes + 64 * 1024)]
 public sealed partial class DetailsModel(
     IGetCase getCase,
     IGetCasePageFrame getCasePageFrame,
@@ -66,6 +67,7 @@ public sealed partial class DetailsModel(
     ISetCurrentEstimate setCurrentEstimate,
     IRepairSpecificationStore repairSpecifications,
     IImportRawEstimate importRawEstimate,
+    IEnumerable<IEstimateDocumentParser> estimateParsers,
     IRepairSpecificationSnapshotStore specificationSnapshots,
     IUnroadworthyReasonBankStore unroadworthyReasonBank,
     ISaveUnroadworthyReason saveUnroadworthyReasonAction,
@@ -254,6 +256,7 @@ public sealed partial class DetailsModel(
         !string.Equals(key, Section, StringComparison.Ordinal)
         // A nested section's parent renders with it, so the reader lands on both.
         && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
+        && !(string.Equals(Section, "vehicle", StringComparison.Ordinal) && IsNestedSection(key))
         && LazySectionViews.ContainsKey(key)
         && (LeaseToken is null || string.Equals(key, "files", StringComparison.Ordinal));
 
@@ -371,7 +374,11 @@ public sealed partial class DetailsModel(
     /// </summary>
     public bool AssessmentCanOpen { get; private set; }
 
-    private const long MaximumEstimateUploadBytes = 10 * 1024 * 1024;
+    public int EstimateImportMaximumBytes => ImportRawEstimate.MaximumDocumentBytes;
+
+    public string EstimateImportExtensions => string.Join(',', estimateParsers
+        .SelectMany(parser => parser.FileExtensions)
+        .Distinct(StringComparer.OrdinalIgnoreCase));
     private const string NotInEditMode = "Enter edit mode to change the assessment.";
 
     public CaseAssessmentProjection? Assessment { get; private set; }
@@ -387,6 +394,12 @@ public sealed partial class DetailsModel(
     public EstimateDetails? EditorDetails { get; private set; }
 
     public IReadOnlyList<EstimateEditorLine> EditorLines { get; private set; } = [];
+    public bool ShowingPostedEstimate { get; private set; }
+
+    public string? PostedEstimateValue(string name) =>
+        ShowingPostedEstimate && Request.HasFormContentType
+            ? Request.Form[name].FirstOrDefault() ?? string.Empty
+            : null;
 
     public bool CaseIsArchived => Case?.Workflow.Archive is not null;
 
@@ -893,9 +906,11 @@ public sealed partial class DetailsModel(
                 if (!SectionIsDeferred("files"))
                 {
                     await LoadFilesAsync(id, cancellationToken);
-                    await LoadAssetPreparationsAsync(id, cancellationToken);
                     await LoadIntakeGalleriesAsync(cancellationToken);
                 }
+                // Report Preview is part of the initial Case response even when
+                // the heavier Files gallery is deferred.
+                await LoadAssetPreparationsAsync(id, cancellationToken);
                 if (!SectionIsDeferred("valuation"))
                 {
                     await LoadValuationSectionAsync(id, actor, cancellationToken);
@@ -1307,6 +1322,7 @@ public sealed partial class DetailsModel(
         Guid id,
         long expectedVersion,
         string operationKey,
+        bool takeOver,
         string? section,
         CancellationToken cancellationToken) =>
         ClaimLeaseAsync(
@@ -1314,6 +1330,7 @@ public sealed partial class DetailsModel(
             id,
             expectedVersion,
             operationKey,
+            takeOver,
             () => RedirectToSection(id, section),
             cancellationToken);
 
@@ -1559,6 +1576,9 @@ public sealed partial class DetailsModel(
                         && !(string.IsNullOrWhiteSpace(field.Value)
                             && assessment?.Field(field.Key) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false }))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
+                AssessmentPolicy.RequireOriginalReportScope(
+                    settlementFields.Keys,
+                    current.Summary.CaseType);
                 var reportSubmitted = reportFields.Count > 0 || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
                 var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
                     nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
@@ -1784,8 +1804,13 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken)
     {
         var inputs = await reportSnapshotSource.GetAsync(caseId, actor, cancellationToken);
-        var snapshot = inputs is null ? null : WordingOf(inputs.Projection).Snapshot;
-        var presentation = snapshot?.Presentation();
+        if (inputs is null)
+        {
+            throw new InvalidOperationException("The report wording is unavailable. Refresh the Case and retry.");
+        }
+        var snapshot = WordingOf(inputs.Projection).Snapshot
+            ?? throw new InvalidOperationException("The report wording is unavailable. Refresh the Case and retry.");
+        var presentation = snapshot.Presentation();
         return new([.. edits.Select(edit => edit.ToRecord(snapshot, presentation))]);
     }
 
@@ -2237,18 +2262,12 @@ public sealed partial class DetailsModel(
         }
         var operationKey = preparationId.ToString("N");
 
-        Guid reportSpecificationId;
         StaffMailOperation operation;
         try
         {
             var preparation = await deliveryPreparations.GetAsync(
                 actor, id, preparationId, cancellationToken)
                 ?? throw new InvalidOperationException("The report delivery preparation is unavailable.");
-            var generation = await reportGenerations.GetAsync(
-                actor, id, preparation.Preparation.GenerationId, cancellationToken)
-                ?? throw new InvalidOperationException("The report generation is unavailable.");
-            reportSpecificationId = generation.Snapshot.CurrentEstimateId;
-
             operation = await sendPreparedReport.ExecuteAsync(
                 new(actor, id, preparationId, expectedPreparationVersion, operationKey),
                 cancellationToken);
@@ -2265,14 +2284,6 @@ public sealed partial class DetailsModel(
                 exception,
                 "The report was not sent because the case changed or the preparation is no longer current. Prepare it again.");
             return RedirectToReport(id);
-        }
-
-        if (operation.State is StaffMailState.Sent or StaffMailState.Submitted)
-        {
-            // The immutable generation snapshot the report went out with is frozen and marked (v28 P43).
-            await specificationSnapshots.FreezeAsync(
-                new(id, reportSpecificationId, actor, RepairSpecificationSnapshotKind.Sent, "As sent on the report"),
-                cancellationToken);
         }
 
         switch (operation.State)
@@ -2580,13 +2591,13 @@ public sealed partial class DetailsModel(
         if (expectedVersion is null)
         {
             TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToEstimate(id, estimateId?.ToString("D"));
+            return await RedrawEditorAsync(id, estimateId, editor, editor.Rows, cancellationToken);
         }
         if (editor.Lines is null)
         {
             TempData["CaseError"] =
                 "Check the estimate's lines: an operation, a quantity, hours or an amount does not read as a number.";
-            return RedirectToEstimate(id, estimateId?.ToString("D"));
+            return await RedrawEditorAsync(id, estimateId, editor, editor.Rows, cancellationToken);
         }
 
         try
@@ -2629,7 +2640,7 @@ public sealed partial class DetailsModel(
         {
             TempData["CaseError"] = MutationRefusalMessage(
                 exception, "The estimate was not saved because the case changed or another editor holds it. Retry the operation.");
-            return RedirectToEstimate(id, estimateId?.ToString("D"));
+            return await RedrawEditorAsync(id, estimateId, editor, editor.Rows, cancellationToken);
         }
     }
 
@@ -2715,7 +2726,6 @@ public sealed partial class DetailsModel(
         decimal? targetPercent,
         decimal? floorRate,
         decimal? floorPrice,
-        bool contractTarget,
         CancellationToken cancellationToken)
     {
         var editor = ReadEditorPost();
@@ -2757,9 +2767,9 @@ public sealed partial class DetailsModel(
                          Supplementary = supplementary,
                      },
                      targetPercent.Value,
-                     floors,
-                     ContractTarget: contractTarget),
+                     floors),
                 cancellationToken);
+            RecordEditorCommit("case-estimate-form", operationKey, expectedVersion.Value);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
             TempData["CaseStatus"] = "The repair spec was scaled.";
@@ -2779,6 +2789,7 @@ public sealed partial class DetailsModel(
     /// <summary>Remove scaling (v28 P34): the specification returns to the version frozen before the last Apply.</summary>
     public async Task<IActionResult> OnPostRemoveEstimateScalingAsync(
         Guid id,
+        long expectedVersion,
         string operationKey,
         string? editLeaseToken,
         Guid estimateId,
@@ -2796,7 +2807,7 @@ public sealed partial class DetailsModel(
         try
         {
             await removeRepairSpecificationScaling.ExecuteAsync(
-                new(id, currentCaseVersion, actor, operationKey, editLeaseToken!, estimateId),
+                new(id, expectedVersion, actor, operationKey, editLeaseToken!, estimateId),
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
@@ -3332,6 +3343,7 @@ public sealed partial class DetailsModel(
         // is read back on exactly the terms the save reads it.
         EditorDetails = EditorDetailsFrom(editor, SelectedEstimate);
         EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null, null)];
+        ShowingPostedEstimate = true;
         return Page();
     }
 
@@ -3589,11 +3601,10 @@ public sealed partial class DetailsModel(
         }
         estimateFile = Request.Form.Files[0];
         var fileName = Path.GetFileName(estimateFile.FileName);
-        var extension = Path.GetExtension(fileName);
-        if (estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes
-            || !new[] { ".pdf", ".xml", ".json" }.Contains(extension, StringComparer.OrdinalIgnoreCase))
+        if (estimateFile.Length is <= 0 or > ImportRawEstimate.MaximumDocumentBytes
+            || estimateParsers.Count(parser => parser.CanParse(fileName, estimateFile.ContentType)) != 1)
         {
-            TempData["CaseError"] = "Choose a non-empty PDF, XML or JSON estimate file of 10 MB or less.";
+            TempData["CaseError"] = "Choose a non-empty supported estimate file of 32 MiB or less.";
             return RedirectToEstimate(id);
         }
 
@@ -3604,9 +3615,9 @@ public sealed partial class DetailsModel(
         int count;
         while ((count = await input.ReadAsync(chunk, cancellationToken)) > 0)
         {
-            if (buffer.Length + count > MaximumEstimateUploadBytes)
+            if (buffer.Length + count > ImportRawEstimate.MaximumDocumentBytes)
             {
-                TempData["CaseError"] = "Choose an estimate file of 10 MB or less.";
+                TempData["CaseError"] = "Choose an estimate file of 32 MiB or less.";
                 return RedirectToEstimate(id);
             }
             buffer.Write(chunk, 0, count);

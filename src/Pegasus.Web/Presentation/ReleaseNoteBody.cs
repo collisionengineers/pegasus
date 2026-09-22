@@ -23,7 +23,7 @@ public static class ReleaseNoteBody
                 continue;
             }
 
-            if (line.StartsWith("- ", StringComparison.Ordinal) || line.StartsWith("* ", StringComparison.Ordinal))
+            if (line.StartsWith("- ", StringComparison.Ordinal))
             {
                 if (paragraph.Count > 0)
                 {

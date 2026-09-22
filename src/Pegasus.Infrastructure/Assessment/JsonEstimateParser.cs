@@ -50,6 +50,8 @@ namespace Pegasus.Infrastructure.Assessment;
 /// </summary>
 public sealed class JsonEstimateParser : IEstimateDocumentParser
 {
+    public IReadOnlyList<string> FileExtensions { get; } = [".json"];
+
     public const string Schema = "pegasus-estimate/1";
 
     /// <summary>Titles the Draft an import of this document lands as.</summary>

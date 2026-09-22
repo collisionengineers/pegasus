@@ -78,10 +78,25 @@ public sealed class V1ActivityReportTests
     public void CsvUsesTheSharedFormulaSafeEscaping()
     {
         var csv = PrincipalReportActivityCsv.ToCsv(
-            [new(Guid.NewGuid(), "=QDOS", 1, 1, 1, 1, 0, 0, 0, 0, TimeSpan.FromHours(1), TimeSpan.FromHours(2), TimeSpan.FromHours(1), null, 0, null, 0, null, 0, [])]);
+            [new(Guid.NewGuid(), "=QDOS", 1, 1, 1, 1, 0, 0, 0, 0, TimeSpan.FromHours(1), TimeSpan.FromHours(2), TimeSpan.FromHours(1), null, 0, null, 0, null, 0,
+                [new(nameof(CaseReportArtifactKind.AssessmentReport), 1, 0)])]);
 
         Assert.StartsWith(PrincipalReportActivityCsv.Header + "\r\n", csv, StringComparison.Ordinal);
-        Assert.Contains("'=QDOS,1,1,0,1,1,0,0,0,0,01:00:00,02:00:00,01:00:00,,0,,0,,0,,0.00\r\n", csv, StringComparison.Ordinal);
+        Assert.Contains("'=QDOS,1,1,0,1,1,0,0,0,0,01:00:00,02:00:00,01:00:00", csv, StringComparison.Ordinal);
+        Assert.Contains("AssessmentReport: 1 generated", csv, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FirstReportFeeBelongsToOnlyOneHalfOfASplitMonth()
+    {
+        var first = new DateTimeOffset(2031, 9, 1, 10, 0, 0, TimeSpan.Zero);
+        var split = new DateTimeOffset(2031, 9, 15, 0, 0, 0, TimeSpan.Zero);
+        var monthEnd = new DateTimeOffset(2031, 10, 1, 0, 0, 0, TimeSpan.Zero);
+
+        Assert.True(FirstReportFeeAttribution.InPeriod(first, first, split));
+        Assert.False(FirstReportFeeAttribution.InPeriod(first, split, monthEnd));
+        Assert.False(FirstReportFeeAttribution.InPeriod(split, first, split));
+        Assert.True(FirstReportFeeAttribution.InPeriod(split, split, monthEnd));
     }
 
     private static ActionActor Administrator() =>

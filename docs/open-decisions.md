@@ -61,5 +61,3 @@ for each: write it into the named owner, or drop it.
 | ENG-02 | Narratives derived from Engineer-owned figures without retyping | FRD-24 |
 | OPS-08 | An alert for matching failures | ADR-0002 |
 | OPS-13 | Policy and quota checks before deployment | ADR-0007 |
-| MI-01 | Query rate and types, and Audit uplift | FRD-17 |
-| MI-02 | Report counts feeding invoice generation | FRD-17 |

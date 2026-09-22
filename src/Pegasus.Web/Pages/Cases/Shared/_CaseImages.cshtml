@@ -109,7 +109,7 @@ else
                 @* P50: the report role and its order, staged into the one Case
                    form by the same contract the preparation card used. P41 adds
                    the tools beside them. *@
-                <div class="image-tile-report" data-image-report>
+                <div class="image-tile-report" data-image-report hidden="@(mayPrepareImages && preparation is not null ? "hidden" : null)">
                     @if (mayPrepareImages && preparation is not null)
                     {
                         <label class="fc">
@@ -129,7 +129,7 @@ else
                             <span class="grip" draggable="true" title="@ReportImageLabels.DragToReorder" aria-hidden="true"><svg class="icon"><use href="#icon-grip-vertical" /></svg></span>
                             <button type="button" class="icon-button" data-preparation-rotate="90" title="@ReportImageLabels.Rotate" aria-label="@ReportImageLabels.Rotate"><svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg></button>
                             <button type="button" class="icon-button" data-image-full-page hidden="@(preparation.Role == CaseAssetReportRole.NotUsed ? "hidden" : null)" aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.FullPage"><svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg></button>
-                            <button type="button" class="icon-button" data-image-remove data-undo-title="@ReportImageLabels.ImageRemoved" hidden="@(preparation.Role == CaseAssetReportRole.NotUsed ? "hidden" : null)" title="@ReportImageLabels.Remove" aria-label="@ReportImageLabels.Remove"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+                            <button type="button" class="icon-button" data-image-remove data-undo-title="@ReportImageLabels.ImageRemoved" data-undo-label="@ReportImageLabels.Undo" hidden="@(preparation.Role == CaseAssetReportRole.NotUsed ? "hidden" : null)" title="@ReportImageLabels.Remove" aria-label="@ReportImageLabels.Remove"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
                         </div>
                         <span class="status status--plain status--navy" data-image-full-chip hidden="@(preparation.FullPage ? null : "hidden")">@ReportImageLabels.FullPage</span>
                     }
@@ -144,6 +144,68 @@ else
                         }
                     }
                 </div>
+                @if (mayPrepareImages && preparation is not null)
+                {
+                    <noscript>
+                        <form method="post" asp-page-handler="Save" asp-route-id="@workflow.CaseId" class="stack">
+                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                            <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                            <input type="hidden" name="section" value="files" />
+                            <input type="hidden" name="preparationEdits[0].OccurrenceId" value="@occurrence.Id" />
+                            <input type="hidden" name="preparationEdits[0].ExpectedPreparationVersion" value="@preparation.PreparationVersion" />
+                            <input type="hidden" name="preparationEdits[0].CropLeft" value="@preparation.Crop.Left.ToString(CultureInfo.InvariantCulture)" />
+                            <input type="hidden" name="preparationEdits[0].CropTop" value="@preparation.Crop.Top.ToString(CultureInfo.InvariantCulture)" />
+                            <input type="hidden" name="preparationEdits[0].CropWidth" value="@preparation.Crop.Width.ToString(CultureInfo.InvariantCulture)" />
+                            <input type="hidden" name="preparationEdits[0].CropHeight" value="@preparation.Crop.Height.ToString(CultureInfo.InvariantCulture)" />
+                            <label>@ReportImageLabels.Role
+                                <select name="preparationEdits[0].Role">
+                                    @foreach (var role in reportRoles)
+                                    {
+                                        <option value="@role" selected="@(preparation.Role == role)">@ReportImageLabels.RoleLabel(role)</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>@ReportImageLabels.Order
+                                <input name="preparationEdits[0].Order" type="number" min="1" step="1" value="@preparation.Order" />
+                            </label>
+                            <label>@ReportImageLabels.Rotation
+                                <select name="preparationEdits[0].Rotation">
+                                    @foreach (var rotation in new[] { CaseAssetRotation.None, CaseAssetRotation.Clockwise90, CaseAssetRotation.Half, CaseAssetRotation.Clockwise270 })
+                                    {
+                                        <option value="@((int)rotation)" selected="@(preparation.Rotation == rotation)">@((int)rotation)°</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>@ReportImageLabels.PrintOnItsOwnPage
+                                <select name="preparationEdits[0].FullPage">
+                                    <option value="false" selected="@(!preparation.FullPage)">No</option>
+                                    <option value="true" selected="@(preparation.FullPage)">Yes</option>
+                                </select>
+                            </label>
+                            <button type="submit" class="btn btn--small">Save image preparation</button>
+                        </form>
+                        @if (preparation.Role != CaseAssetReportRole.NotUsed)
+                        {
+                            <form method="post" asp-page-handler="Save" asp-route-id="@workflow.CaseId">
+                                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                                <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                                <input type="hidden" name="section" value="files" />
+                                <input type="hidden" name="preparationEdits[0].OccurrenceId" value="@occurrence.Id" />
+                                <input type="hidden" name="preparationEdits[0].ExpectedPreparationVersion" value="@preparation.PreparationVersion" />
+                                <input type="hidden" name="preparationEdits[0].Role" value="NotUsed" />
+                                <input type="hidden" name="preparationEdits[0].Rotation" value="@((int)preparation.Rotation)" />
+                                <input type="hidden" name="preparationEdits[0].CropLeft" value="@preparation.Crop.Left.ToString(CultureInfo.InvariantCulture)" />
+                                <input type="hidden" name="preparationEdits[0].CropTop" value="@preparation.Crop.Top.ToString(CultureInfo.InvariantCulture)" />
+                                <input type="hidden" name="preparationEdits[0].CropWidth" value="@preparation.Crop.Width.ToString(CultureInfo.InvariantCulture)" />
+                                <input type="hidden" name="preparationEdits[0].CropHeight" value="@preparation.Crop.Height.ToString(CultureInfo.InvariantCulture)" />
+                                <input type="hidden" name="preparationEdits[0].FullPage" value="false" />
+                                <button type="submit" class="btn btn--small">Remove from report</button>
+                            </form>
+                        }
+                    </noscript>
+                }
                 @if (mayEdit)
                 {
                     <div class="image-tile-actions">

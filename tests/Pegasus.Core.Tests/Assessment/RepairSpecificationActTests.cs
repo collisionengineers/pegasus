@@ -193,7 +193,7 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
-    public async Task ContractTargetUsesThePersistedSumInsteadOfPostedPercentage()
+    public async Task PostedPercentageIsUsedEvenWhenAContractSumExists()
     {
         var specification = Estimate(Header(rate: 80m), Line("new_part", price: 500m));
         var store = new RecordingStore(specification);
@@ -205,12 +205,11 @@ public sealed class RepairSpecificationActTests
                     specification.SpecificationId, specification.Details,
                     specification.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
                     specification.Source),
-                1m,
-                ScalingFloors.Default,
-                ContractTarget: true),
+                37m,
+                ScalingFloors.Default),
             CancellationToken.None);
 
-        Assert.Equal(45m, Assert.Single(store.ScaleSaves).TargetPercentOfValue);
+        Assert.Equal(37m, Assert.Single(store.ScaleSaves).TargetPercentOfValue);
     }
 
     [Fact]

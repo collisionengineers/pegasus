@@ -337,6 +337,9 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("pegasus_worker_runtime_role|G|$permission|$table")
         }
     }
+    # 20260921084154_ReportImageFullPage: Case image preparation updates
+    # occurrence role, order, crop, rotation, and full-page state.
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|DocumentOccurrences')
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|DocumentVersions")
     }

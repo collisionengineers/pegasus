@@ -296,40 +296,6 @@ public sealed class UploadOutcomeQueriesTests
     }
 
     [Fact]
-    public async Task BlockedIntakeCannotBecomeACaseAndIsNotOfferedOne()
-    {
-        var receiptId = Guid.NewGuid();
-        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
-        var receipt = MakeReceipt(receiptId, IntakeDecision.BlockedIntake);
-
-        var result = await BuildAsync(status, receipt);
-
-        Assert.Equal(UploadOutcomeKind.CannotBecomeCase, result.Kind);
-        Assert.Contains("blocked", result.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task BlockedGroupedImageRemainsTerminal()
-    {
-        var receiptId = Guid.NewGuid();
-        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
-        var receipt = MakeReceipt(
-            receiptId,
-            IntakeDecision.BlockedIntake,
-            mediaType: "image/jpeg");
-
-        var result = await BuildAsync(
-            status,
-            receipt,
-            submissionGroupId: Guid.NewGuid());
-
-        Assert.Equal(UploadOutcomeKind.CannotBecomeCase, result.Kind);
-        Assert.False(result.IsStillWorking);
-        Assert.False(result.IsOpenDecision);
-        Assert.Null(result.Attach);
-    }
-
-    [Fact]
     public async Task OpenStaffDecisionsCarryTheAddToExistingCaseOffer()
     {
         var receiptId = Guid.NewGuid();

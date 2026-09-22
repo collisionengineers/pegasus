@@ -245,6 +245,11 @@ public sealed partial class OrganizationAdministrationWebTests
         var keyId = Pegasus.Web.ProviderApi.ProviderApi.TryReadKeyId("Bearer " + secret)!;
         Assert.False(string.IsNullOrWhiteSpace(secret));
 
+        using var pauseFromIssuePage = await client.PostAsync(
+            $"{settingsPath}?handler=PauseCredential",
+            new FormUrlEncodedContent(CredentialForm(issuedHtml)));
+        Assert.Equal(HttpStatusCode.Redirect, pauseFromIssuePage.StatusCode);
+
         using var replay = await client.PostAsync(
             $"{settingsPath}?handler=IssueCredential", new FormUrlEncodedContent(issueForm));
         replay.EnsureSuccessStatusCode();
@@ -257,7 +262,7 @@ public sealed partial class OrganizationAdministrationWebTests
         var authenticate = scope.ServiceProvider.GetRequiredService<IAuthenticatePrincipalCredential>();
         Assert.NotNull(await authenticate.ExecuteAsync(keyId, secret, default));
 
-        foreach (var handler in new[] { "PauseCredential", "ResumeCredential" })
+        foreach (var handler in new[] { "ResumeCredential", "PauseCredential", "ResumeCredential" })
         {
             using var response = await client.PostAsync(
                 $"{settingsPath}?handler={handler}", new FormUrlEncodedContent(CredentialForm(settings)));

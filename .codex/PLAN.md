@@ -1,3 +1,6 @@
+<!-- Historical role-parity planning record. The work was implemented before
+PR 808. ADR-0054 now names Release notes; the obsolete proposed ADR number
+below is retained only as provenance. Current FRDs and ADRs govern. -->
 <proposed_plan>
 # Remove Engineer-role casework restrictions
 
@@ -63,7 +66,8 @@ Administrator-only administration remains unchanged. Automation, Provider, and S
 
 # Step-by-step implementation guide
 
-Status: planning only. Application changes and tests below have not been run.
+Status: historical planning only. The role-parity application change was
+implemented before PR 808; this is not an instruction to repeat the work.
 The original session plan above is preserved verbatim. This guide expands it
 and takes precedence where it explicitly corrects an instruction. It is a
 temporary implementation handoff, not a new permanent requirements owner.

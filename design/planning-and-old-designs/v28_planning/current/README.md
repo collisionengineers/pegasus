@@ -1,5 +1,9 @@
 # v28 current
 
+This is the historical 18 September baseline and proposal overlay. The
+Stage 2 implementation belongs to the PR 808 candidate and the current
+FRD/design owners; these captured pages are not a live acceptance record.
+
 A temporary design review artifact created at operator request on
 18 September 2026, under the [documentation index](../../../../docs/index.md)
 carve-out. Not application code, not design authority, and not implementation

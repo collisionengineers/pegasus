@@ -258,12 +258,12 @@ public sealed class EditModel(
                 if (action == "issue")
                 {
                     var result = await issueCredential.ExecuteAsync(request, cancellationToken);
+                    await PopulateAsync(actor, cancellationToken);
+                    ExpectedVersion = Contact!.Version;
                     Credential = result.Credential;
                     IssuedSecret = result.Secret;
                     CredentialVersion = Credential.Version;
                     CredentialOperationKey = NewOperationKey();
-                    InitializePrincipalSettings();
-                    if (Contact is not null) CopyFrom(Contact);
                     return Page();
                 }
                 Credential = action switch

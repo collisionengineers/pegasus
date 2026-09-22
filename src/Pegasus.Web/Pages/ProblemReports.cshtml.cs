@@ -31,6 +31,7 @@ public sealed class ProblemReportsModel(
         string? viewport,
         bool editing,
         string? errors,
+        string? operationKey,
         string? returnUrl,
         CancellationToken cancellationToken)
     {
@@ -58,7 +59,7 @@ public sealed class ProblemReportsModel(
                     actor,
                     build,
                     cache,
-                    new ProblemReportRequests.PostedFacts(description, route, method, traceId, caseReference, viewport, editing, errors)),
+                    new ProblemReportRequests.PostedFacts(description, route, method, traceId, caseReference, viewport, editing, errors, operationKey)),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -70,10 +71,24 @@ public sealed class ProblemReportsModel(
             TempData["ProblemReportError"] = exception.Message;
             return LocalRedirect(back);
         }
+        catch (ProblemReportOperationConflictException exception)
+        {
+            TempData["ProblemReportError"] = exception.Message;
+            return LocalRedirect(back);
+        }
+        catch (ProblemReportClaimConflictException)
+        {
+            TempData["ProblemReportError"] = OperatorLabels.ProblemReports.Unknown;
+            return LocalRedirect(back);
+        }
 
         if (report.Status == ProblemReportStatus.Sent && report.IssueNumber is { } number)
         {
             TempData["Confirmation"] = OperatorLabels.ProblemReports.Reported(number);
+        }
+        else if (report.Status == ProblemReportStatus.Unknown)
+        {
+            TempData["ProblemReportError"] = OperatorLabels.ProblemReports.Unknown;
         }
         else
         {

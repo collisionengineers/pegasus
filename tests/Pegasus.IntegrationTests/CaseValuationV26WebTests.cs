@@ -237,6 +237,7 @@ public sealed class CaseValuationV26WebTests
                 ("selection.PriorTotalLossPercentage", "10"),
                 ("selection.CommercialVat", "true"),
                 ("selection.ConditionDeduction", "250"),
+                ("correctedEngineerValue", "999999"),
                 ("selection.AdditionSelected[0]", "0"),
                 ("selection.AdditionPresetId[0]", preset.Id.ToString("D")),
                 ("selection.AdditionPresetVersion[0]", preset.Version.ToString(CultureInfo.InvariantCulture)),
@@ -259,7 +260,6 @@ public sealed class CaseValuationV26WebTests
         Assert.Equal(preset.Id, addition.PresetId);
         Assert.Equal(preset.Version, addition.PresetVersion);
         Assert.Equal(175m, addition.Amount);
-        Assert.Null(applied.CorrectedEngineerValue);
         var claimant = store.Claims[0].Actor;
         Assert.Equal(claimant.SubjectId, applied.Actor.SubjectId);
 

@@ -28,16 +28,18 @@ public sealed class CaseReportFreshnessTests
         Assert.Null(decision.ReasonCode);
     }
 
-    [Fact]
-    public void PrintedAssessmentFactChangesStaleWithTheAssessmentReason()
+    [Theory]
+    [InlineData(AssessmentVocabulary.ValueEngineer)]
+    [InlineData(AssessmentVocabulary.SettlementContractSum)]
+    public void PrintedAssessmentFactChangesStaleWithTheAssessmentReason(string path)
     {
         var before = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            [AssessmentVocabulary.ValueEngineer] = "5000.00",
+            [path] = "5000.00",
         };
         var after = new Dictionary<string, string?>(before, StringComparer.Ordinal)
         {
-            [AssessmentVocabulary.ValueEngineer] = "5250.00",
+            [path] = "5250.00",
         };
 
         var decision = CaseReportFreshness.ClassifyAssessment(before, after);

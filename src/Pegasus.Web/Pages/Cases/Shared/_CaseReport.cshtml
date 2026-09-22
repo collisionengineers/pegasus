@@ -233,36 +233,6 @@
             <button type="button" class="report-tab" role="tab" aria-selected="true" aria-controls="report-pane-report" data-report-tab="report">@Words.ReportTab</button>
             <button type="button" class="report-tab" role="tab" aria-selected="false" aria-controls="report-pane-fee" data-report-tab="fee">@Words.FeeTab</button>
         </div>
-        <div id="report-pane-fee" class="stack" role="tabpanel" aria-label="@Words.FeeTab" data-report-pane="fee">
-            <dl class="detail-list" data-report-fee-note>
-                @if (feeNote is { } fee)
-                {
-                    <div><dt>@Words.FeeNet</dt><dd class="mono">@FeeMoney(fee.Net)</dd></div>
-                    <div><dt>@Words.FeeVat</dt><dd class="mono">@FeeMoney(fee.Vat)</dd></div>
-                    <div><dt>@Words.FeeTotal</dt><dd class="mono"><b>@FeeMoney(fee.Total)</b></dd></div>
-                }
-                else
-                {
-                    <div><dt>@Words.FeeNet</dt><dd class="empty">@Words.NoAgreedFee</dd></div>
-                }
-            </dl>
-            <div class="fg g4" data-report-fee-fields>
-                @{ await Field(AssessmentVocabulary.AgreedFee, labels[AssessmentVocabulary.AgreedFee]);
-                    await Field(AssessmentVocabulary.FeeDescriptionLines, labels[AssessmentVocabulary.FeeDescriptionLines], multi: true, extraClass: "span3");
-                }
-            </div>
-            @if (feeNoteArtifact is { Status: CaseReportArtifactStatus.Confirmed } confirmedFeeNote && generation is not null)
-            {
-                <div class="cluster">
-                    <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
-                       asp-route-id="@caseId" asp-route-generationId="@generation.Id"
-                       asp-route-artifactId="@confirmedFeeNote.Id" target="_blank" rel="noopener" data-report-fee-artifact>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                        <span>@ReportLabels.DownloadFeeNote</span>
-                    </a>
-                </div>
-            }
-        </div>
         <div id="report-pane-report" class="stack" role="tabpanel" aria-label="@Words.ReportTab" data-report-pane="report">
         @if (!Model.AssessmentIsReadOnly && Model.ReportDraftNotReady)
         {
@@ -504,6 +474,36 @@
         @* P50: an image has one place. Its report role, its order and the
            tools that change it are on its tile under Files; the Report
            section no longer repeats the strip or the preparation cards. *@
+        </div>
+        <div id="report-pane-fee" class="stack" role="tabpanel" aria-label="@Words.FeeTab" data-report-pane="fee">
+            <dl class="detail-list" data-report-fee-note>
+                @if (feeNote is { } fee)
+                {
+                    <div><dt>@Words.FeeNet</dt><dd class="mono">@FeeMoney(fee.Net)</dd></div>
+                    <div><dt>@Words.FeeVat</dt><dd class="mono">@FeeMoney(fee.Vat)</dd></div>
+                    <div><dt>@Words.FeeTotal</dt><dd class="mono"><b>@FeeMoney(fee.Total)</b></dd></div>
+                }
+                else
+                {
+                    <div><dt>@Words.FeeNet</dt><dd class="empty">@Words.NoAgreedFee</dd></div>
+                }
+            </dl>
+            <div class="fg g4" data-report-fee-fields>
+                @{ await Field(AssessmentVocabulary.AgreedFee, labels[AssessmentVocabulary.AgreedFee]);
+                    await Field(AssessmentVocabulary.FeeDescriptionLines, labels[AssessmentVocabulary.FeeDescriptionLines], multi: true, extraClass: "span3");
+                }
+            </div>
+            @if (feeNoteArtifact is { Status: CaseReportArtifactStatus.Confirmed } confirmedFeeNote && generation is not null)
+            {
+                <div class="cluster">
+                    <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
+                       asp-route-id="@caseId" asp-route-generationId="@generation.Id"
+                       asp-route-artifactId="@confirmedFeeNote.Id" target="_blank" rel="noopener" data-report-fee-artifact>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <span>@ReportLabels.DownloadFeeNote</span>
+                    </a>
+                </div>
+            }
         </div>
     </div>
 </section>

@@ -8,17 +8,13 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// The Case workspace's due work: tasks, manual chases, and the report-Sent evidence links
+/// The Case workspace's due work: manual chases and the report-Sent evidence links
 /// that drive chasing. Every action redirects back to the workspace.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class TasksModel(
-    ICreateCaseTask createCaseTask,
-    IAssignCaseTask assignCaseTask,
-    ICompleteCaseTask completeCaseTask,
-    ICancelCaseTask cancelCaseTask,
     IRecordManualCaseChase recordManualCaseChase,
     IAddCaseNote addCaseNote,
     ILinkReportEvidence linkReportEvidence,
@@ -64,114 +60,6 @@ public sealed class TasksModel(
     /// <summary>The Notes section is where a note or a chase is read back.</summary>
     private RedirectToPageResult RedirectToNotes(Guid id) =>
         RedirectToPage("/Cases/Details", new { id, section = "notes" });
-
-    public Task<IActionResult> OnPostCreateTaskAsync(
-        Guid id,
-        Guid taskId,
-        long expectedVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        string description,
-        Guid? assigneeId,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
-            id,
-            editLeaseToken,
-            "create_case_task",
-            actor => createCaseTask.ExecuteAsync(
-                new(
-                    id,
-                    taskId,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken,
-                    description,
-                    assigneeId),
-                cancellationToken),
-            "The case task was created.");
-
-    public Task<IActionResult> OnPostAssignTaskAsync(
-        Guid id,
-        Guid taskId,
-        long expectedVersion,
-        long expectedTaskVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        Guid? assigneeId,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
-            id,
-            editLeaseToken,
-            "assign_case_task",
-            actor => assignCaseTask.ExecuteAsync(
-                new(
-                    id,
-                    taskId,
-                    expectedVersion,
-                    expectedTaskVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken,
-                    assigneeId),
-                cancellationToken),
-            "The case task assignment was updated.");
-
-    public Task<IActionResult> OnPostCompleteTaskAsync(
-        Guid id,
-        Guid taskId,
-        long expectedVersion,
-        long expectedTaskVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
-            id,
-            editLeaseToken,
-            "complete_case_task",
-            actor => completeCaseTask.ExecuteAsync(
-                new(
-                    id,
-                    taskId,
-                    expectedVersion,
-                    expectedTaskVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken),
-                cancellationToken),
-            "The case task was completed.");
-
-    public Task<IActionResult> OnPostCancelTaskAsync(
-        Guid id,
-        Guid taskId,
-        long expectedVersion,
-        long expectedTaskVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
-            id,
-            editLeaseToken,
-            "cancel_case_task",
-            actor => cancelCaseTask.ExecuteAsync(
-                new(
-                    id,
-                    taskId,
-                    expectedVersion,
-                    expectedTaskVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken),
-                cancellationToken),
-            "The case task was cancelled.");
 
     public Task<IActionResult> OnPostRecordManualChaseAsync(
         Guid id,

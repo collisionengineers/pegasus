@@ -237,7 +237,10 @@ public sealed record ClaimCaseEditLeaseRequest(
     Guid CaseId,
     long ExpectedVersion,
     ActionActor Actor,
-    string OperationKey);
+    string OperationKey)
+{
+    public bool TakeOver { get; init; }
+}
 
 public sealed record RenewCaseEditLeaseRequest(
     Guid CaseId,

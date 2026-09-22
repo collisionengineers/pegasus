@@ -51,9 +51,8 @@ public sealed record ClaimEditScopeRequest(
     string OperationKey)
 {
     /// <summary>
-    /// Set when the holder has decided to continue editing here rather than in
-    /// the window that still holds the scope. It replaces the holder's own live
-    /// scope with a new token; it never takes a scope from another actor.
+    /// An authorised editor explicitly replaces a live scope, including one
+    /// another staff member holds. The old token is invalidated atomically.
     /// </summary>
     public bool TakeOver { get; init; }
 }
@@ -109,10 +108,7 @@ public class EditScopeConflictException : InvalidOperationException
 }
 
 /// <summary>
-/// The requesting actor already holds this scope in another live window. It is
-/// not a refusal on another actor's behalf: the holder may continue here by
-/// claiming again with <see cref="ClaimEditScopeRequest.TakeOver"/>, which
-/// rotates the token so the abandoned window can no longer save.
+/// The requesting actor already holds this scope in another live window.
 /// </summary>
 public sealed class EditScopeHeldElsewhereException(EditScopeKind scopeKind, Guid recordId)
     : EditScopeConflictException(

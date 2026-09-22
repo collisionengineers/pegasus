@@ -1178,7 +1178,7 @@ public sealed class AnalyzeRetainedInstructionTests
         : IIntakeReceiptQueries
     {
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0, 0));
+            Task.FromResult(new IntakeQueueCounts(0));
 
         public Task<IntakeListPage> ListAsync(
             IntakeDecision? decision,

@@ -10,6 +10,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
@@ -348,36 +349,24 @@ internal sealed class EfIntakeMutationStore(
             editLeaseToken: null,
             (context, receipt, _, _) =>
             {
-                if (request.Kind == IntakeResolutionKind.Block)
-                {
-                    receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.BlockedIntake);
-                    receipt.DecisionReason = request.Reason.Trim();
-                    receipt.FailureCode = "blocked_intake";
-                    receipt.FailureReason = request.Reason.Trim();
-                    return Task.CompletedTask;
-                }
-
                 var correctedDraft = request.CorrectedDraft
                     ?? throw new ArgumentException(
                         "A corrected draft is required for a draft correction.",
                         nameof(request));
                 ApplyResolvedDraft(receipt, correctedDraft);
                 ApplyDraftToReviewFields(receipt, correctedDraft);
-                // Only identity-critical facts fail a correction closed. Thin
-                // ordinary detail is not a blocked intake: the requirement is to
-                // allocate once Principal and Case type are established and
-                // carry the gap on the case as `Not ready`. Blocking on it made
-                // `Blocked intake` mean "some field is empty", which is not its
-                // settled meaning, and left real instructions with no case.
+                // Missing identity-critical facts leave the material in
+                // Unidentified for a person to resolve; ordinary thin detail
+                // can travel with an allocated Case as Not ready.
                 var missing = InstructionDraftCompleteness
                     .MissingIdentityCriticalFieldNames(correctedDraft);
                 var canBecomeCase = missing.Count == 0;
                 receipt.Decision = EfIntakeReceiptStore.ToCode(
-                    canBecomeCase ? IntakeDecision.CaseCreated : IntakeDecision.BlockedIntake);
+                    canBecomeCase ? IntakeDecision.CaseCreated : IntakeDecision.NeedsSorting);
                 receipt.DecisionReason = canBecomeCase
                     ? "The intake correction produced a reviewable instruction draft."
                     : "The intake correction was retained but the instruction does not say which claim it is about.";
-                receipt.FailureCode = canBecomeCase ? null : "blocked_intake";
+                receipt.FailureCode = null;
                 receipt.FailureReason = canBecomeCase
                     ? null
                     : $"{string.Join(", ", missing)} remains unresolved.";
@@ -434,10 +423,8 @@ internal sealed class EfIntakeMutationStore(
                 workItem.LeaseToken = null;
                 workItem.LeaseExpiresAtUtc = null;
                 workItem.FailureCode = null;
-                receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.BlockedIntake);
-                receipt.DecisionReason = "A policy re-evaluation of the retained source is queued.";
-                receipt.FailureCode = "reevaluation_pending";
-                receipt.FailureReason = null;
+                // The pending work item is the processing status. Preserve the
+                // last decision until the Worker actually re-evaluates the source.
             },
             occurredAtUtc,
             cancellationToken);
@@ -952,6 +939,16 @@ internal sealed class EfIntakeMutationStore(
         {
             throw new InvalidOperationException(
                 "An accepted intake receipt cannot be changed through the pre-case intake workflow.");
+        }
+        if (await context.UnidentifiedItems.AsNoTracking().AnyAsync(item =>
+                item.OriginKind == nameof(UnidentifiedOriginKind.Receipt)
+                && item.OriginId == receiptId
+                && item.State == nameof(UnidentifiedState.Resolved)
+                && item.ResolutionTargetKind == nameof(UnidentifiedResolutionTargetKind.Closed),
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "Reopen the closed Unidentified item before changing its source.");
         }
         if (eventType == "intake_case_linked"
             && acceptedCaseId is not null

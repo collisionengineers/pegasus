@@ -46,7 +46,8 @@ public interface ICaseDueWorkQueries
 
     Task<IReadOnlyList<CaseDueWork>> GetDueAsync(
         DateTimeOffset asOfUtc,
-        int maximumResults,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken);
 }
 

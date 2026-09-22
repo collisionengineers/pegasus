@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Support;
+using Pegasus.Infrastructure.Support;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration;
@@ -15,6 +16,7 @@ namespace Pegasus.Web.Pages.Administration;
 public sealed class ProblemReportsModel(
     ListProblemReports listReports,
     RetryProblemReport retryReport,
+    ReconcileProblemReport reconcileReport,
     IStaffAccountQueries staffAccounts) : AdministrationPageModel
 {
     public IReadOnlyList<ProblemReport> Reports { get; private set; } = [];
@@ -52,6 +54,47 @@ public sealed class ProblemReportsModel(
             TempData["Confirmation"] = OperatorLabels.ProblemReports.Reported(number);
         }
 
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostConfirmIssueAsync(
+        Guid id, int issueNumber, string operationKey, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (!IsOperationKeyValid(operationKey) || id == Guid.Empty || issueNumber <= 0)
+        {
+            TempData["ProblemReportError"] = "A valid issue number is required.";
+            return RedirectToPage();
+        }
+
+        try
+        {
+            var issueUrl = $"https://github.com/{GitHubProblemReportOptions.ApprovedRepository}/issues/{issueNumber}";
+            await reconcileReport.ConfirmIssueAsync(
+                actor, id, new ProblemReportDelivery(issueNumber, issueUrl), cancellationToken);
+            TempData["Confirmation"] = OperatorLabels.ProblemReports.Reported(issueNumber);
+        }
+        catch (ProblemReportClaimConflictException)
+        {
+            TempData["ProblemReportError"] = "The report status changed. Reload and check it again.";
+        }
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostConfirmNoIssueAsync(
+        Guid id, string operationKey, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (!IsOperationKeyValid(operationKey) || id == Guid.Empty) return RedirectToPage();
+        try
+        {
+            await reconcileReport.ConfirmNoIssueAsync(actor, id, cancellationToken);
+            TempData["Confirmation"] = "The report can now be retried.";
+        }
+        catch (ProblemReportClaimConflictException)
+        {
+            TempData["ProblemReportError"] = "The report status changed. Reload and check it again.";
+        }
         return RedirectToPage();
     }
 

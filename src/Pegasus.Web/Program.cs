@@ -172,7 +172,9 @@ if (productionProfile)
         "Glass:MarketValueAssessorBaseUri",
         "Glass:EstimatorBaseUri",
         "Glass:CallbackBaseUri",
-        "Glass:RepairProfileId"
+        "Glass:RepairProfileId",
+        "GitHub:ProblemReports:Token",
+        "GitHub:ProblemReports:Repository"
     })
     {
         if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
@@ -758,12 +760,17 @@ builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
 builder.Services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
 builder.Services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>();
 builder.Services.AddSingleton(new Pegasus.Core.ReleaseNotes.ApplicationBuild(productVersion, sourceSha));
+builder.Services.AddScoped<Pegasus.Core.ReleaseNotes.ReleaseNoteAdministration>();
+builder.Services.AddScoped<Pegasus.Core.Support.ReportProblem>();
+builder.Services.AddScoped<Pegasus.Core.Support.RetryProblemReport>();
+builder.Services.AddScoped<Pegasus.Core.Support.ReconcileProblemReport>();
 // Report a problem (ADR-0055): reports become issues on one repository when
 // the token and repository are configured; otherwise every report is kept
 // as Not sent with the reason, and an Administrator retries once connected.
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient(Pegasus.Infrastructure.Support.GitHubIssueProblemReportSink.HttpClientName, client =>
-    client.Timeout = TimeSpan.FromSeconds(30));
+    client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddSingleton<Pegasus.Core.Support.IProblemReportSink>(provider =>
 {
     var configuration = provider.GetRequiredService<IConfiguration>();

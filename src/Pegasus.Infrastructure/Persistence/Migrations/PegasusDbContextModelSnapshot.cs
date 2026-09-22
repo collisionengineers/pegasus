@@ -2610,6 +2610,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SpecificationId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("SupplementaryJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CaseId");
@@ -6336,6 +6340,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(400)
                         .HasColumnType("nvarchar(400)");
 
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
                     b.Property<string>("Route")
                         .HasMaxLength(400)
                         .HasColumnType("nvarchar(400)");
@@ -6360,9 +6375,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("CreatedAtUtc")
                         .IsDescending();
 
+                    b.HasIndex("OperationKey")
+                        .IsUnique();
+
                     b.ToTable("ProblemReports", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ProblemReports_Status", "[Status] IN ('Sent', 'NotSent')");
+                            t.HasCheckConstraint("CK_ProblemReports_Status", "[Status] IN ('Sent', 'NotSent', 'Unknown')");
                         });
                 });
 
@@ -6455,6 +6473,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("BodySha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
                     b.Property<string>("DeclaredInstructionJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -6525,11 +6549,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CreatedByStaffId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<DateTimeOffset?>("PublishedAtUtc")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<Guid?>("PublishedByStaffId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
 
                     b.Property<long>("RowVersion")
                         .IsConcurrencyToken()
@@ -6557,6 +6592,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(64)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OperationKey")
+                        .IsUnique();
 
                     b.HasIndex("UpdatedAtUtc");
 

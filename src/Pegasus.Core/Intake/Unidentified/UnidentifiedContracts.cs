@@ -43,7 +43,6 @@ public enum UnidentifiedResolutionTargetKind
     InstructionCase,
     ImageIntake,
     Triage,
-    BlockedIntake,
     ExternalReference,
 
     /// <summary>
@@ -489,8 +488,7 @@ public sealed class ResolveUnidentified(
     IUnidentifiedStore store,
     ICaseQueryStore? caseQueries = null,
     IImageIntakeQueries? imageIntakeQueries = null,
-    ITriageQueries? triageQueries = null,
-    IIntakeReceiptQueries? intakeReceiptQueries = null) : IResolveUnidentified
+    ITriageQueries? triageQueries = null) : IResolveUnidentified
 {
     public async Task<UnidentifiedResolveResult> ExecuteAsync(
         ResolveUnidentifiedRequest request,
@@ -517,10 +515,6 @@ public sealed class ResolveUnidentified(
             UnidentifiedResolutionTargetKind.Triage => Guid.TryParse(targetId, out var triageId)
                 && triageQueries is not null
                 && await triageQueries.GetAsync(triageId, cancellationToken) is not null,
-            UnidentifiedResolutionTargetKind.BlockedIntake => Guid.TryParse(targetId, out var receiptId)
-                && intakeReceiptQueries is not null
-                && await intakeReceiptQueries.GetAsync(receiptId, cancellationToken) is
-                    { Decision: IntakeDecision.BlockedIntake },
             // Free-form external reference; no Core-owned destination to validate.
             UnidentifiedResolutionTargetKind.ExternalReference => true,
             // Close with reason names no destination: the reason is the record.

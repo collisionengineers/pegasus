@@ -49,12 +49,41 @@ public sealed class EditModel(ReleaseNoteAdministration administration) : Admini
     }
 
     public Task<IActionResult> OnPostSaveAsync(CancellationToken cancellationToken) =>
-        SubmitAsync(publish: false, cancellationToken);
+        SaveAsync(cancellationToken);
 
-    public Task<IActionResult> OnPostPublishAsync(CancellationToken cancellationToken) =>
-        SubmitAsync(publish: true, cancellationToken);
+    public async Task<IActionResult> OnPostPublishAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (!IsOperationKeyValid(OperationKey) || Id is not { } id || id == Guid.Empty)
+        {
+            ModelState.AddModelError(string.Empty, "Save the draft before publishing it.");
+            return await ReloadAsync(actor, cancellationToken);
+        }
 
-    private async Task<IActionResult> SubmitAsync(bool publish, CancellationToken cancellationToken)
+        try
+        {
+            await administration.PublishAsync(
+                actor, id, ExpectedRowVersion, Title, Body, cancellationToken);
+            TempData["Confirmation"] = OperatorLabels.ReleaseNotes.Published;
+            return RedirectToPage("/Administration/ReleaseNotes/Index");
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await ReloadAsync(actor, cancellationToken);
+        }
+        catch (ReleaseNoteConflictException)
+        {
+            ModelState.AddModelError(string.Empty, OperatorLabels.ReleaseNotes.Conflict);
+            return await ReloadAsync(actor, cancellationToken, preserveExpectedRowVersion: true);
+        }
+    }
+
+    private async Task<IActionResult> SaveAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -75,16 +104,10 @@ public sealed class EditModel(ReleaseNoteAdministration administration) : Admini
                 Id is null ? null : ExpectedRowVersion,
                 Title,
                 Body,
+                OperationKey,
                 cancellationToken);
-            if (!publish)
-            {
-                TempData["Confirmation"] = OperatorLabels.ReleaseNotes.Saved;
-                return RedirectToPage("/Administration/ReleaseNotes/Edit", new { id = saved.Id });
-            }
-
-            await administration.PublishAsync(actor, saved.Id, saved.RowVersion, cancellationToken);
-            TempData["Confirmation"] = OperatorLabels.ReleaseNotes.Published;
-            return RedirectToPage("/Administration/ReleaseNotes/Index");
+            TempData["Confirmation"] = OperatorLabels.ReleaseNotes.Saved;
+            return RedirectToPage("/Administration/ReleaseNotes/Edit", new { id = saved.Id });
         }
         catch (StaffAuthorizationException)
         {

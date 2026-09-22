@@ -24,7 +24,19 @@ public sealed record PrincipalReportActivity(
     DateTimeOffset? OldestHeldAtUtc,
     int HeldWithoutRecordedHoldEvent,
     IReadOnlyList<PrincipalReportArtifactTypeActivity> ArtifactTypes,
-    decimal AgreedFeeTotal = 0);
+    decimal AgreedFeeTotal = 0)
+{
+    public int ReportsProduced => ArtifactTypes
+        .Where(type => type.Kind == nameof(CaseReportArtifactKind.AssessmentReport))
+        .Sum(type => type.Generated);
+}
+
+/// <summary>The frozen fee belongs only to the exact period containing the first confirmed report.</summary>
+public static class FirstReportFeeAttribution
+{
+    public static bool InPeriod(DateTimeOffset firstReportAtUtc, DateTimeOffset fromUtc, DateTimeOffset toUtc) =>
+        firstReportAtUtc >= fromUtc && firstReportAtUtc < toUtc;
+}
 
 public sealed record PrincipalReportArtifactTypeActivity(
     string Kind,
@@ -47,7 +59,7 @@ public interface IV1ActivityReportQueries
 public static class PrincipalReportActivityCsv
 {
     public const string Header =
-        "Principal,Generation events,Generated artifacts,Pending or failed,Sent,Ready transitions,Missing origin for generated turnaround,Missing origin for Ready turnaround,Missing origin for Sent turnaround,Missing sender attribution,Received to generation,Received to generated artifact,Received to Ready,Received to Sent,Current Triage,Oldest current Triage created UTC,Current held cases,Oldest held UTC,Held without recorded hold event,Report types,Agreed fees";
+        "Principal,Generation events,Reports produced,Pending or failed,Sent,Ready transitions,Missing origin for generated turnaround,Missing origin for Ready turnaround,Missing origin for Sent turnaround,Missing sender attribution,Received to generation,Received to generated artifact,Received to Ready,Received to Sent,Current Triage,Oldest current Triage created UTC,Current held cases,Oldest held UTC,Held without recorded hold event,Report types,Agreed fees";
 
     public static string ToCsv(IReadOnlyList<PrincipalReportActivity> rows)
     {
@@ -57,7 +69,7 @@ public static class PrincipalReportActivityCsv
         {
             builder.Append(EngineerActivityReportCsv.EscapeField(row.PrincipalCode)).Append(',')
                 .Append(row.GenerationEvents).Append(',')
-                .Append(row.GeneratedArtifacts).Append(',')
+                .Append(row.ReportsProduced).Append(',')
                 .Append(row.ArtifactTypes.Sum(x => x.PendingOrFailed)).Append(',')
                 .Append(row.Sent).Append(',')
                 .Append(row.Ready).Append(',')

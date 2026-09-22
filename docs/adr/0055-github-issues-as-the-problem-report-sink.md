@@ -13,7 +13,8 @@ tags: [problem-reports, support, github, persistence]
 
 ## Status
 
-Accepted, recording the operator's 20 September 2026 decision. FRD-12 owns
+Accepted, recording the operator's 20 September 2026 decision and the 22
+September choice of the public `collisionengineers/pegasus` repository. FRD-12 owns
 the Report a problem action; FRD-17 owns the Administrator's list; this
 record owns where a report goes and what it carries.
 
@@ -36,14 +37,16 @@ from the action log, and the browser's window, agent, editing state and
 last ten script errors. It never carries document content, images, e-mail
 bodies or a claimant's personal data.
 
-Every report is stored first, then raised as an issue on one configured
-repository through the GitHub REST API by an outbound-only sink. A failed
+Every report is stored first, then raised as an issue on the configured public
+`collisionengineers/pegasus` repository through the GitHub REST API by an
+outbound-only sink. The public issue contains only the opaque local report ID;
+the full description and snapshot remain visible to authorised staff in
+Administration → Problem reports. A failed
 raise leaves the row Not sent with the reason; an Administrator retries
 from Administration → Problem reports. The token is a fine-grained personal
 access token scoped to that repository with Issues read and write only,
 held in Key Vault and read as configuration; it appears in no source, log or
-document. The repository must remain private, because issue bodies carry
-Case references.
+document. The sink verifies the repository identity before creating the issue.
 
 ## Consequences
 

@@ -203,6 +203,7 @@ public sealed class V1ActivityReportPersistenceTests
         Assert.Equal("QDOS", row.PrincipalCode);
         Assert.Equal(1, row.GenerationEvents);
         Assert.Equal(1, row.GeneratedArtifacts);
+        Assert.Equal(1, row.ReportsProduced);
         Assert.Equal(1, row.Sent);
         Assert.Equal(2, row.Ready);
         Assert.Equal(TimeSpan.FromDays(2), row.AverageReceivedToGeneration);

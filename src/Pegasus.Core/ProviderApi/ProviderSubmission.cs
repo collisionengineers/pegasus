@@ -74,6 +74,7 @@ public sealed record ProviderSubmissionRecord(
     string IdempotencyKey,
     string? ProviderReference,
     DateTimeOffset ReceivedAtUtc,
+    string BodySha256,
     ProviderInstruction? Instruction = null,
     Guid? StagedReceiptId = null);
 
@@ -201,6 +202,13 @@ public interface ISubmitProviderInstruction
 {
     Task<ProviderSubmissionReceipt> ExecuteAsync(
         ProviderSubmissionRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IProviderAttachmentAdmission
+{
+    Task RequireSupportedAsync(
+        IReadOnlyList<ProviderSubmissionFile> files,
         CancellationToken cancellationToken);
 }
 
@@ -418,6 +426,7 @@ public static class ProviderSubmissionPolicy
 public sealed class SubmitProviderInstruction(
     IProviderSubmissionStore store,
     IIntakeSubmission intakeSubmission,
+    IProviderAttachmentAdmission attachmentAdmission,
     IActionHistoryWriter actionHistory,
     TimeProvider timeProvider) : ISubmitProviderInstruction
 {
@@ -438,6 +447,7 @@ public sealed class SubmitProviderInstruction(
         var files = ProviderSubmissionPolicy.RequireEnvelope(request.Files);
         ProviderSubmissionPolicy.RequireRetainableBody(request.RawBody);
         ProviderSubmissionPolicy.RequireOriginalReport(instruction.Kind, files);
+        var bodySha256 = ProviderSubmissionPolicy.Sha256(request.RawBody);
         var principalId = request.Credential.PrincipalId;
 
         // The credential establishes the Principal. A body that names a
@@ -450,6 +460,7 @@ public sealed class SubmitProviderInstruction(
         {
             throw new ProviderSubmissionException(ProviderSubmissionError.PrincipalMismatch);
         }
+        await attachmentAdmission.RequireSupportedAsync(files, cancellationToken);
 
         var existing = await store.FindByIdempotencyKeyAsync(principalId, idempotencyKey, cancellationToken);
         if (existing is null)
@@ -461,6 +472,7 @@ public sealed class SubmitProviderInstruction(
                 idempotencyKey,
                 instruction.ClaimNumber,
                 timeProvider.GetUtcNow(),
+                bodySha256,
                 instruction);
             try
             {
@@ -475,6 +487,15 @@ public sealed class SubmitProviderInstruction(
                 existing = await store.FindByIdempotencyKeyAsync(principalId, idempotencyKey, cancellationToken)
                     ?? throw new ProviderSubmissionException(ProviderSubmissionError.OperationConflict);
             }
+        }
+
+        if (!string.Equals(existing.BodySha256, bodySha256, StringComparison.Ordinal))
+        {
+            await actionHistory.AppendAsync(
+                SubmissionHistory(Guid.NewGuid(), actor, existing.Id, "Refused", request.CorrelationId,
+                    "The idempotency key was reused with a different submission."),
+                cancellationToken);
+            throw new ProviderSubmissionException(ProviderSubmissionError.IdempotencyKeyConflict);
         }
 
         // One submission is one receipt, and the retained source is the request

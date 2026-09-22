@@ -64,6 +64,7 @@ public sealed class ReportsModel(
     public async Task<IActionResult> OnGetCsvAsync(CancellationToken cancellationToken)
     {
         if (!await LoadAsync(cancellationToken)) return Forbid();
+        if (ReportsUnavailable) return StatusCode(StatusCodes.Status422UnprocessableEntity);
         return File(
             Encoding.UTF8.GetBytes(EngineerActivityReportCsv.ToCsv(EngineerResult.Rows)),
             "text/csv; charset=utf-8",
@@ -73,6 +74,7 @@ public sealed class ReportsModel(
     public async Task<IActionResult> OnGetPrincipalCsvAsync(CancellationToken cancellationToken)
     {
         if (!await LoadAsync(cancellationToken)) return Forbid();
+        if (ReportsUnavailable) return StatusCode(StatusCodes.Status422UnprocessableEntity);
         return File(
             Encoding.UTF8.GetBytes(ReportsByPrincipalCsv(PrincipalActivity)),
             "text/csv; charset=utf-8",
@@ -82,6 +84,7 @@ public sealed class ReportsModel(
     public async Task<IActionResult> OnGetTurnaroundCsvAsync(CancellationToken cancellationToken)
     {
         if (!await LoadAsync(cancellationToken)) return Forbid();
+        if (ReportsUnavailable) return StatusCode(StatusCodes.Status422UnprocessableEntity);
         return File(
             Encoding.UTF8.GetBytes(TurnaroundCsv(PrincipalActivity)),
             "text/csv; charset=utf-8",
@@ -103,6 +106,8 @@ public sealed class ReportsModel(
         var to = LondonCalendar.DateAt(EngineerResult.ToUtc).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         return File(bytes, WorkbookMediaType, $"administration-reports-{from}-{to}.xlsx");
     }
+
+    private bool ReportsUnavailable => EngineerActivityUnavailable || PrincipalActivity is null || Monthly is null;
 
     private async Task<bool> LoadAsync(CancellationToken cancellationToken)
     {
@@ -194,10 +199,10 @@ public sealed class ReportsModel(
     {
         var builder = new StringBuilder("Principal,Reports produced,Reports sent,Agreed fees,Report types").Append("\r\n");
         if (report is null) return builder.ToString();
-        foreach (var row in report.Rows.Where(row => row.GeneratedArtifacts > 0 || row.Sent > 0))
+        foreach (var row in report.Rows.Where(row => row.ReportsProduced > 0 || row.Sent > 0))
         {
             builder.Append(EngineerActivityReportCsv.EscapeField(row.PrincipalCode)).Append(',')
-                .Append(row.GeneratedArtifacts).Append(',')
+                .Append(row.ReportsProduced).Append(',')
                 .Append(row.Sent).Append(',')
                 .Append(row.AgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
                 .Append(EngineerActivityReportCsv.EscapeField(string.Join(

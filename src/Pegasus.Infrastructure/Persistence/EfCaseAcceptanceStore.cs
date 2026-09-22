@@ -9,6 +9,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -179,7 +180,7 @@ public sealed class EfCaseAcceptanceStore(
         // Two decisions can produce a case, and they are the two the business
         // recognises: a definitive instruction, which processing allocates
         // automatically, and material a person has sorted (INT-26). Anything
-        // else - blocked, unreadable, unsupported, an image registration - is
+        // else - unreadable, unsupported, an image registration - is
         // refused here, so the fail-closed boundary does not depend on which
         // caller asked.
         if (!IntakeDecisionPolicy.CanBecomeCase(
@@ -187,6 +188,16 @@ public sealed class EfCaseAcceptanceStore(
         {
             throw new InvalidOperationException(
                 "Only a definitive instruction or an item that needs sorting can become a case.");
+        }
+        if (await context.UnidentifiedItems.AsNoTracking().AnyAsync(item =>
+                item.OriginKind == nameof(UnidentifiedOriginKind.Receipt)
+                && item.OriginId == receipt.Id
+                && item.State == nameof(UnidentifiedState.Resolved)
+                && item.ResolutionTargetKind == nameof(UnidentifiedResolutionTargetKind.Closed),
+                cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "Reopen the closed Unidentified item before creating a case from its source.");
         }
         var standaloneAuditEvidence = await ResolveStandaloneAuditEvidenceAsync(
             context,

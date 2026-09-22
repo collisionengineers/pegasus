@@ -77,11 +77,11 @@ public sealed class IntakeEnvelopeLimitsTests
     [Fact]
     public void AProviderApiFileIsNeverAllowedPastTheEnvelopeThatCarriesIt()
     {
+        Assert.Equal(10 * 1024 * 1024, IntakeEnvelopeLimits.MaximumProviderApiFileLength);
         Assert.True(
             IntakeEnvelopeLimits.MaximumProviderApiFileLength
                 <= IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
-            "The Provider API's per-file bound is its decoded envelope, so it "
-                + "can never exceed it.");
+            "The Provider API's per-file bound cannot exceed its decoded envelope.");
         Assert.True(
             IntakeEnvelopeLimits.MaximumProviderApiFileLength
                 < IntakeEnvelopeLimits.MaximumContentLength,

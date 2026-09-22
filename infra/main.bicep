@@ -46,7 +46,7 @@ param boxClientSecretSecretUri string
 @description('Versioned Key Vault secret URI containing the fine-grained GitHub token that raises problem reports as issues.')
 param gitHubProblemReportTokenSecretUri string
 @description('The owner/name repository that receives problem reports as issues.')
-param gitHubProblemReportRepository string = 'collisionengineers/pegasus'
+param gitHubProblemReportRepository string
 @description('Operator-created Box holding folder below the approved Pegasus root.')
 @minLength(1)
 param boxHoldingFolderId string

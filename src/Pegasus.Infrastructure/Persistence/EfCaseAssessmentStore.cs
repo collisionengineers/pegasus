@@ -88,6 +88,9 @@ public sealed class EfCaseAssessmentStore(
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         RequireVersion(workflow, request.ExpectedVersion);
+        AssessmentPolicy.RequireOriginalReportScope(
+            request.Fields.Keys,
+            EfCaseQueryStore.ParseCaseType(workflow.Case.Type));
         var now = UtcNow();
         RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
         ArchivedCaseGuard.RequireMutable(workflow);
@@ -148,8 +151,8 @@ public sealed class EfCaseAssessmentStore(
             .OrderBy(item => item.Position)
             .ToListAsync(cancellationToken);
 
-        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields);
-        AssessmentPolicy.ValidateMergedState(request.Fields, merged);
+        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields, request.Actor.Kind);
+        AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);
         var confirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null;
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,

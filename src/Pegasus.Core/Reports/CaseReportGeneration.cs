@@ -204,6 +204,9 @@ public sealed record CaseReportGenerationSnapshot(
     string RendererVersion,
     AssessmentReportSnapshot Report)
 {
+    /// <summary>The exact Current repair specification used by this generation.</summary>
+    public required RepairSpecificationVersion CurrentEstimate { get; init; }
+
     /// <summary>The estimate calculation policy version the money was priced at.</summary>
     [JsonIgnore]
     public string CalculationPolicyVersion =>

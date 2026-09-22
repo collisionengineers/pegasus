@@ -101,6 +101,8 @@ public sealed class MarketResearchTests
 
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 

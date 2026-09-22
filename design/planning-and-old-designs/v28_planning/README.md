@@ -1,10 +1,13 @@
 # v28 planning
 
+Historical capture and proposal record. Stage 2 was implemented on `dev` in
+the PR 808 candidate; its current behavior is governed by the linked FRDs
+and design catalogue, not by this 18 September planning snapshot.
+
 A temporary design review artifact under the [documentation index](../../../docs/index.md)
 carve-out, created at operator request on 18 September 2026. Not application
 code, not design authority, not implementation evidence. Remove or retain it
-by operator instruction in the final Stage 2 PR, if a Stage 2 round is ever
-run from this capture.
+by operator instruction after the Stage 2 review.
 
 **Purpose.** A faithful baseline of the whole application shell as it runs on
 `origin/dev` (commit `904903fd1`) on 18 September 2026, and, from the same

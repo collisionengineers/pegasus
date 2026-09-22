@@ -154,11 +154,11 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             return;
         }
 
-        ClaimLeaseOperationKey = claimOperationId.ToString("N");
-        StoreClaimLeaseOperation(caseId, ClaimLeaseOperationKey);
         var storedToken = PeekLeaseToken();
         if (PeekGuid(LeaseCaseIdKey) == caseId && !string.IsNullOrWhiteSpace(storedToken))
         {
+            ClaimLeaseOperationKey = claimOperationId.ToString("N");
+            StoreClaimLeaseOperation(caseId, ClaimLeaseOperationKey);
             LeaseToken = storedToken;
             ReleaseLeaseOperationKey = GetOrCreateOperationKey(ReleaseLeaseOperationKeyName);
             return;
@@ -166,6 +166,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 
         ClearLeaseAuthority();
         CanRecoverLease = true;
+        ClaimLeaseOperationKey = NewOperationKey();
+        StoreClaimLeaseOperation(caseId, ClaimLeaseOperationKey);
     }
 
     /// <summary>
@@ -187,6 +189,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         Guid id,
         long expectedVersion,
         string operationKey,
+        bool takeOver,
         Func<IActionResult> redirect,
         CancellationToken cancellationToken)
     {
@@ -200,7 +203,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         {
             var normalizedOperationKey = RequireOperationKey(operationKey);
             var lease = await acquireLease.ExecuteAsync(
-                new(id, expectedVersion, actor, normalizedOperationKey),
+                new ClaimCaseEditLeaseRequest(id, expectedVersion, actor, normalizedOperationKey)
+                {
+                    TakeOver = takeOver
+                },
                 cancellationToken);
             StoreClaimLeaseOperation(id, normalizedOperationKey);
             StoreLeaseAuthority(id, lease.Token);

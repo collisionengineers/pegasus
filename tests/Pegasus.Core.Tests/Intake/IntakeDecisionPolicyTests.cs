@@ -21,7 +21,6 @@ public sealed class IntakeDecisionPolicyTests
         Assert.True(IntakeDecisionPolicy.CanBecomeCase(decision));
 
     [Theory]
-    [InlineData(IntakeDecision.BlockedIntake)]
     [InlineData(IntakeDecision.Unsupported)]
     [InlineData(IntakeDecision.OcrRequired)]
     [InlineData(IntakeDecision.TechnicalFailure)]

@@ -97,14 +97,18 @@ public sealed class AssessmentReportRenderingTests
     }
 
     [Fact]
-    public void ContractRepairCapIsTheEstimatesOwnPrintedTotal()
+    public void ContractRepairUsesTheAgreedSumWhileKeepingTheComputedRepairTotal()
     {
-        var costs = Snapshot(AssessmentReportOutcome.ContractRepair).Costs;
+        var snapshot = Snapshot(AssessmentReportOutcome.ContractRepair);
+        var costs = snapshot.Costs;
 
         Assert.Equal(150m, costs.Printed.PanelLabour);
         Assert.Equal(225m, costs.Printed.Net);
         Assert.Equal(45m, costs.Printed.Vat);
         Assert.Equal(270m, costs.Total);
+        Assert.Equal(300m, snapshot.Presentation().RecommendedSettlement);
+        Assert.Contains("£300.00", snapshot.Presentation().SettlementText, StringComparison.Ordinal);
+        Assert.DoesNotContain("£270.00", snapshot.Presentation().SettlementText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -425,7 +429,8 @@ public sealed class AssessmentReportRenderingTests
             SalvageValue: outcome == AssessmentReportOutcome.TotalLoss ? 500m : null,
             Costs: Costs(20m),
             NewParts: ["Front bumper"], Repairs: ["Bonnet"], Operations: ["Paint front panels"],
-            Damage: Damage(), Settlement: Settlement(),
+            Damage: Damage(), Settlement: outcome == AssessmentReportOutcome.ContractRepair
+                ? Settlement() with { ContractSum = 300m } : Settlement(),
             HistoryCheck: "History clear", EngineerComments: null,
             Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"),
             AgreedFee: 120m, FeeDescriptionLines: ["Engineering assessment"],

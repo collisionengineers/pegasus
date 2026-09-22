@@ -1583,7 +1583,6 @@ public sealed class ProcessIntake(
     {
         IntakeDecision.CaseCreated => "case_created",
         IntakeDecision.NeedsSorting => "needs_sorting",
-        IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",

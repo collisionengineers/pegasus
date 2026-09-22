@@ -234,13 +234,6 @@ public sealed class GetOperationsSnapshot(
     /// </summary>
     public const int MaximumAttentionRows = 10;
 
-    /// <summary>
-    /// How many rows of one kind the composition reads before it stops counting.
-    /// Well past any office's open work; a source read to this bound is still
-    /// exact for the counts and the paging.
-    /// </summary>
-    public const int MaximumSourceRows = 500;
-
     private const int SourcePageSize = 100;
 
     private readonly IIntakeReceiptQueries intakeQueries =
@@ -359,9 +352,8 @@ public sealed class GetOperationsSnapshot(
     }
 
     /// <summary>
-    /// The needs-attention sources, fetched once. Each is read in full (to
-    /// <see cref="MaximumSourceRows"/>) because the counts are of the whole list
-    /// and the page is cut afterwards (D4).
+    /// The needs-attention sources, fetched in full because the counts are of
+    /// the whole list and the page is cut afterwards (D4).
     /// </summary>
     private async Task<AttentionInputs> FetchAttentionInputsAsync(
         ActionActor actor,
@@ -372,7 +364,7 @@ public sealed class GetOperationsSnapshot(
         // are queried directly.
         var openRead = ReadTriageAsync(actor, TriageState.Open, cancellationToken);
         var awaitingRead = ReadTriageAsync(actor, TriageState.AwaitingInformation, cancellationToken);
-        var dueRead = dueWorkQueries.GetDueAsync(asOfUtc, MaximumSourceRows, cancellationToken);
+        var dueRead = ReadDueWorkAsync(asOfUtc, cancellationToken);
         var heldRead = ReadCasesAsync(actor, CaseLifecycleState.Held, cancellationToken);
         var reviewRead = ReadCasesAsync(actor, CaseLifecycleState.Review, cancellationToken);
         var configurationRead = workflowConfiguration.GetCurrentAsync(cancellationToken);
@@ -421,7 +413,7 @@ public sealed class GetOperationsSnapshot(
     {
         List<TriageSummary> items = [];
         var total = 0;
-        for (var page = 1; items.Count < MaximumSourceRows; page++)
+        for (var page = 1; ; page++)
         {
             var result = await listTriage.ExecuteAsync(new(actor, state, page, SourcePageSize), cancellationToken);
             total = result.TotalCount;
@@ -441,7 +433,7 @@ public sealed class GetOperationsSnapshot(
         CancellationToken cancellationToken)
     {
         List<CaseSearchItem> items = [];
-        for (var page = 1; items.Count < MaximumSourceRows; page++)
+        for (var page = 1; ; page++)
         {
             var result = await searchCases.ExecuteAsync(
                 new(actor, new(State: state), page, SourcePageSize),
@@ -454,6 +446,23 @@ public sealed class GetOperationsSnapshot(
         }
 
         return items;
+    }
+
+    private async Task<IReadOnlyList<CaseDueWork>> ReadDueWorkAsync(
+        DateTimeOffset asOfUtc,
+        CancellationToken cancellationToken)
+    {
+        List<CaseDueWork> items = [];
+        for (var page = 1; ; page++)
+        {
+            var batch = await dueWorkQueries.GetDueAsync(
+                asOfUtc, page, SourcePageSize, cancellationToken);
+            items.AddRange(batch);
+            if (batch.Count < SourcePageSize)
+            {
+                return items;
+            }
+        }
     }
 
     private readonly record struct AttentionInputs(

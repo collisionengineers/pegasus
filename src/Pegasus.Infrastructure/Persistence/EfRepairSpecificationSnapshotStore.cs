@@ -22,6 +22,10 @@ public sealed class EfRepairSpecificationSnapshotStore(
         FreezeRepairSpecificationRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.Kind == RepairSpecificationSnapshotKind.Sent)
+        {
+            throw new InvalidOperationException("A Sent version is recorded only with observed mail evidence.");
+        }
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.CaseRepairSpecifications.Include(item => item.Lines).AsNoTracking()
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId && item.Id == request.SpecificationId, cancellationToken)
@@ -59,7 +63,9 @@ public sealed class EfRepairSpecificationSnapshotStore(
         var detailsJson = JsonSerializer.Serialize(specification.Details, Json);
         var linesJson = JsonSerializer.Serialize(
             specification.Lines.OrderBy(line => line.Position).ToArray(), Json);
-        var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(detailsJson + linesJson)));
+        var supplementaryJson = JsonSerializer.Serialize(specification.Supplementary, Json);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(
+            Encoding.UTF8.GetBytes(detailsJson + linesJson + supplementaryJson)));
         var marks = kind is RepairSpecificationSnapshotKind.BeforeScaling
             or RepairSpecificationSnapshotKind.Scaled
             or RepairSpecificationSnapshotKind.ScalingRemoved
@@ -82,8 +88,9 @@ public sealed class EfRepairSpecificationSnapshotStore(
             CreatedAtUtc = now,
             DetailsJson = detailsJson,
             LinesJson = linesJson,
+            SupplementaryJson = supplementaryJson,
             ContentHash = hash,
-            Gross = EstimateTotals.Compute(specification).Printed.Gross,
+            Gross = EstimateTotals.ForProjection(specification).Printed.Gross,
             SentOnReport = kind == RepairSpecificationSnapshotKind.Sent,
         };
         context.CaseRepairSpecificationSnapshots.Add(entity);
@@ -117,5 +124,6 @@ public sealed class EfRepairSpecificationSnapshotStore(
         JsonSerializer.Deserialize<EstimateDetails>(entity.DetailsJson, Json)
             ?? throw new InvalidOperationException("A frozen version has no header."),
         JsonSerializer.Deserialize<CaseEstimateLineRecord[]>(entity.LinesJson, Json) ?? [],
-        entity.Gross, entity.SentOnReport);
+        entity.Gross, entity.SentOnReport,
+        JsonSerializer.Deserialize<RepairSpecificationSupplementary?>(entity.SupplementaryJson, Json));
 }

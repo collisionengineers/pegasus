@@ -91,6 +91,9 @@ function New-ValidPreProvisionEnvironment {
         PEGASUS_WORKER_ACTIVATION = 'disabled'
         BOX_HOLDING_FOLDER_ID = 'test-holding-folder'
         AZURE_KEY_VAULT_NAME = 'pegasusprodkv252ow37g'
+        GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI =
+            'https://pegasusprodkv252ow37g.vault.azure.net/secrets/problem-report-token/version-one'
+        GITHUB_PROBLEM_REPORT_REPOSITORY = 'example/private-problem-reports'
         AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS =
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/signing-current/version-one,' +
             'https://pegasusprodkv252ow37g.vault.azure.net/secrets/signing-retained/version-two'
@@ -291,7 +294,9 @@ try {
 
     # --- Test-AzureDeploymentPlan.ps1 -Mode PreProvision ---------------------
 
-    foreach ($key in 'BOX_HOLDING_FOLDER_ID', 'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS', 'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS') {
+    foreach ($key in 'BOX_HOLDING_FOLDER_ID', 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
+        'GITHUB_PROBLEM_REPORT_REPOSITORY', 'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
+        'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS') {
         foreach ($value in @($null, '', '   ')) {
             $environment = New-ValidPreProvisionEnvironment
             if ($null -eq $value) { $environment.Remove($key) } else { $environment[$key] = $value }
@@ -301,6 +306,20 @@ try {
             Assert-True ($result.Output.Contains("missing $key")) $case 'did not name the missing key.' $result.Diagnostic
             Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.Diagnostic
         }
+    }
+
+    foreach ($value in @(
+        'http://pegasusprodkv252ow37g.vault.azure.net/secrets/problem-report-token/version-one',
+        'https://pegasusprodkv252ow37g.vault.azure.net/secrets/problem-report-token',
+        'https://pegasusprodkv252ow37g.vault.azure.net/secrets/problem-report-token/version-one?x=1',
+        'https://another-vault.vault.azure.net/secrets/problem-report-token/version-one')) {
+        $environment = New-ValidPreProvisionEnvironment
+        $environment['GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI'] = $value
+        $result = Invoke-PreProvision -Environment $environment
+        $case = "Invalid problem-report secret URI $value"
+        Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+        Assert-True ($result.Output.Contains('GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI must be')) $case 'did not name the rule.' $result.Diagnostic
+        Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.Diagnostic
     }
 
     foreach ($value in @(

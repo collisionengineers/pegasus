@@ -72,14 +72,11 @@ public static class IntakeEnvelopeLimits
     /// One file inside a Provider API submission.
     /// </summary>
     /// <remarks>
-    /// The channel's decoded envelope is the effective ceiling for one file as
-    /// well as for the batch, so the per-file bound is the envelope itself. It
-    /// is stated separately, and used separately, so that the Provider API can
-    /// never inherit the manual channel's larger
-    /// <see cref="MaximumContentLength"/> the next time that cap moves
-    /// (C07 item 5).
+    /// FRD-09 limits each Provider file to 10 MiB while the decoded envelope
+    /// can hold up to 30 MiB across files. This is separate from the larger
+    /// staff Upload per-file bound.
     /// </remarks>
-    public const int MaximumProviderApiFileLength = MaximumProviderApiEnvelopeLength;
+    public const int MaximumProviderApiFileLength = 10 * 1024 * 1024;
 
     /// <summary>
     /// The request body that carries it. Base64 costs a third again, plus the
@@ -131,8 +128,8 @@ public static class IntakeEnvelopeLimits
 /// send only ambiguous provider, instruction-type or case evidence — and any
 /// unidentified e-mail — to <see cref="NeedsSorting"/>. So a definitive
 /// instruction is <see cref="CaseCreated"/> with the reference already
-/// allocated, ambiguity is <see cref="NeedsSorting"/>, and a reasoned refusal
-/// is <see cref="BlockedIntake"/>.
+/// allocated, ambiguity is <see cref="NeedsSorting"/>. A reasoned refusal is
+/// recorded by closing an Unidentified item.
 ///
 /// <see cref="CaseCreated"/> is a processing decision — the instruction is
 /// definitive enough to allocate on — not proof that a Case exists. The
@@ -142,7 +139,6 @@ public enum IntakeDecision
 {
     CaseCreated,
     NeedsSorting,
-    BlockedIntake,
     Unsupported,
     OcrRequired,
     TechnicalFailure,
@@ -808,7 +804,7 @@ public sealed record IntakeSearchDocument(
 /// intake count was cumulative for all time and creating a case from a receipt
 /// never decremented anything.
 /// </remarks>
-public sealed record IntakeQueueCounts(int NeedsSorting, int BlockedIntake = 0);
+public sealed record IntakeQueueCounts(int NeedsSorting);
 
 /// <summary>
 /// One row of the Inbox.
@@ -1128,8 +1124,7 @@ public interface IDownloadIntakeSource
 
 public enum IntakeResolutionKind
 {
-    CorrectDraft,
-    Block
+    CorrectDraft
 }
 
 public sealed record ResolveIntakeRequest(

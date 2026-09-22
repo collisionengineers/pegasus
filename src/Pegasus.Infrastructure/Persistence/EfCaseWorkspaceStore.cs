@@ -65,6 +65,9 @@ public sealed class EfCaseWorkspaceStore(
             .SingleAsync(item => item.CaseId == request.CaseId, cancellationToken);
 
         CaseMutationGuard.RequireVersion(workflow, request.ExpectedVersion);
+        AssessmentPolicy.RequireOriginalReportScope(
+            CaseWorkspacePolicy.AssessmentFields(request).Keys,
+            EfCaseQueryStore.ParseCaseType(workflow.Case.Type));
         var now = UtcNow();
         CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
         ArchivedCaseGuard.RequireMutable(workflow);
@@ -133,8 +136,8 @@ public sealed class EfCaseWorkspaceStore(
         var beforeAssessment = assessmentFields.ToDictionary(
             item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
         var requestedFields = CaseWorkspacePolicy.AssessmentFields(request);
-        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields);
-        AssessmentPolicy.ValidateMergedState(requestedFields, merged);
+        var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields, request.Actor.Kind);
+        AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
             workflow.Case,

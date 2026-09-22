@@ -24,6 +24,10 @@ internal static class ProviderSubmissionModelConfiguration
             entity.Property(item => item.IdempotencyKey)
                 .HasMaxLength(ProviderSubmissionPolicy.MaximumIdempotencyKeyLength)
                 .IsRequired();
+            entity.Property(item => item.BodySha256)
+                .HasMaxLength(64)
+                .IsFixedLength()
+                .IsRequired();
             entity.Property(item => item.ProviderReference)
                 .HasMaxLength(ProviderSubmissionPolicy.MaximumProviderReferenceLength);
             entity.Property(item => item.DeclaredInstructionJson).IsRequired();

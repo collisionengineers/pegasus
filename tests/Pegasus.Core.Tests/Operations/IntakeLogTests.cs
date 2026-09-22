@@ -17,7 +17,6 @@ public sealed class IntakeLogTests
     [InlineData(IntakeDecision.TechnicalFailure, false, false, false, IntakeLogOutcome.CouldNotBeRead)]
     [InlineData(IntakeDecision.TechnicalFailure, false, false, true, IntakeLogOutcome.ProcessingFailed)]
     [InlineData(IntakeDecision.Unsupported, false, true, false, IntakeLogOutcome.Closed)]
-    [InlineData(IntakeDecision.BlockedIntake, false, false, false, IntakeLogOutcome.Closed)]
     public void TheOutcomeReadsInOperatorWords(
         IntakeDecision decision, bool triageOpened, bool unidentifiedClosed, bool processingFailed, IntakeLogOutcome expected) =>
         Assert.Equal(expected, IntakeLogPolicy.Outcome(decision, triageOpened, unidentifiedClosed, processingFailed));

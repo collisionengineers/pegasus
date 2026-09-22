@@ -67,5 +67,6 @@ fine-grained personal access token scoped to that repository with Issues
 read and write only, held in Key Vault and delivered to Web as
 `GitHub__ProblemReports__Token` through a versioned secret URI reference;
 the Worker receives neither setting. Rotating the token is a new secret
-version and a configuration read-back, not a release. The repository must
-stay private: issue bodies carry Case references and staff names.
+version and a configuration read-back, not a release. The selected repository
+is the public `collisionengineers/pegasus` repository; issue titles and bodies
+carry only the opaque local report ID. The full report remains in Pegasus.

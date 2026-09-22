@@ -57,7 +57,7 @@ internal sealed class IntakeMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, unidentified, blocked_intake, unsupported, ocr_required, technical_failure, or no filter for all. Uses protected continuations; limit defaults to 50 and is at most 100.")]
+    [Description("Lists intake receipts with processing decision and allocation state kept separate. Filters are case_created, unidentified, unsupported, ocr_required, technical_failure, or no filter for all. Uses protected continuations; limit defaults to 50 and is at most 100.")]
     public async Task<IntakeQueueToolResult> ListAsync(
         [Description("Optional decision filter code; omit for every decision.")] string? decision = null,
         [Description("Opaque continuation returned by the preceding list call.")] string? cursor = null,
@@ -79,7 +79,6 @@ internal sealed class IntakeMcpTools(
                     {
                         "case_created" => IntakeDecision.CaseCreated,
                         "unidentified" => IntakeDecision.NeedsSorting,
-                        "blocked_intake" => IntakeDecision.BlockedIntake,
                         "unsupported" => IntakeDecision.Unsupported,
                         "ocr_required" => IntakeDecision.OcrRequired,
                         "technical_failure" => IntakeDecision.TechnicalFailure,
@@ -178,7 +177,6 @@ internal sealed class IntakeMcpTools(
     {
         IntakeDecision.CaseCreated => "case_created",
         IntakeDecision.NeedsSorting => "unidentified",
-        IntakeDecision.BlockedIntake => "blocked_intake",
         IntakeDecision.Unsupported => "unsupported",
         IntakeDecision.OcrRequired => "ocr_required",
         IntakeDecision.TechnicalFailure => "technical_failure",

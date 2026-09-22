@@ -32,6 +32,7 @@ internal sealed class EfProviderSubmissionStore(
             PrincipalId = record.PrincipalId,
             KeyId = record.KeyId,
             IdempotencyKey = record.IdempotencyKey,
+            BodySha256 = record.BodySha256,
             ProviderReference = record.ProviderReference,
             ReceivedAtUtc = record.ReceivedAtUtc,
             DeclaredInstructionJson = ProviderInstructionJson.Serialize(
@@ -155,6 +156,7 @@ internal sealed class EfProviderSubmissionStore(
         entity.IdempotencyKey,
         entity.ProviderReference,
         entity.ReceivedAtUtc,
+        entity.BodySha256,
         ProviderInstructionJson.Deserialize(entity.DeclaredInstructionJson),
         entity.StagedReceiptId);
 

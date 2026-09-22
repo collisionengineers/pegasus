@@ -118,6 +118,7 @@ public sealed class MonthlyReportActivityPersistenceTests
             new MonthlyReportActivity(principalId, "QDOS", 2031, 6, 1, 1, 0, 120m)
         ], rows);
         Assert.Equal(principalRow.GeneratedArtifacts, rows.Sum(row => row.ReportsGenerated + row.FeeNotesGenerated));
+        Assert.Equal(principalRow.ReportsProduced, rows.Sum(row => row.ReportsGenerated));
         Assert.Equal(principalRow.AgreedFeeTotal, rows.Sum(row => row.AgreedFeeTotal));
 
         var laterOnlyRows = await queries.GetAsync(From.AddMonths(1), To, CancellationToken.None);

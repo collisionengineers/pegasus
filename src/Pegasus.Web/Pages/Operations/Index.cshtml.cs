@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core;
 using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Eva;
@@ -41,13 +42,6 @@ public sealed class IndexModel(
 
     /// <summary>The failure kinds Operations lists, in the order it lists them.</summary>
     public static readonly IReadOnlyList<IntakeLogOutcome> FailureKinds = IntakeLogPolicy.RetryableFailures;
-
-    /// <summary>
-    /// How far back the list reaches for the terminal jobs of the current day
-    /// (FRD-27 &#167; AI Job List). Non-terminal jobs never depend on this
-    /// bound: they come from the unbounded <see cref="IAiJobQueries.ListOpenAsync"/>.
-    /// </summary>
-    private const int RecentJobWindow = 200;
 
     /// <summary>
     /// What one Unidentified-resolution job is asked to do. FRD-27 gives this
@@ -396,9 +390,7 @@ public sealed class IndexModel(
     /// that reached a terminal state today, newest first.
     /// </summary>
     /// <remarks>
-    /// Non-terminal membership comes from the unbounded persisted-open query,
-    /// so no live job can fall outside <see cref="RecentJobWindow"/>; the
-    /// window bounds only the terminal tail. That open query can also return a
+    /// Non-terminal membership comes from the persisted-open query. That query can also return a
     /// persisted Queued row whose effective state is Expired. Its terminal
     /// instant is <see cref="AiJobRecord.ExpiresAtUtc"/>, because expiry is
     /// derived at read time and does not write <see cref="AiJobRecord.ClosedAtUtc"/>.
@@ -407,12 +399,14 @@ public sealed class IndexModel(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        var today = OperatorLabels.OfficeDate(nowUtc);
+        var (dayStartUtc, dayEndUtc, _) = LondonCalendar.DayAndWeekBoundariesAt(nowUtc);
         var open = await aiJobQueries.ListOpenAsync(cancellationToken);
-        var recent = await aiJobQueries.ListRecentAsync(RecentJobWindow, cancellationToken);
+        var terminal = await aiJobQueries.ListTerminalInWindowAsync(
+            dayStartUtc, dayEndUtc, cancellationToken);
         return open
-            .Where(job => !AiJobStates.IsTerminal(job.State) || ReachedTerminalToday(job, today))
-            .Concat(recent.Where(job => ReachedTerminalToday(job, today)))
+            .Where(job => !AiJobStates.IsTerminal(job.State)
+                || ReachedTerminalToday(job, dayStartUtc, dayEndUtc))
+            .Concat(terminal.Where(job => ReachedTerminalToday(job, dayStartUtc, dayEndUtc)))
             .DistinctBy(job => job.JobId)
             .OrderByDescending(job => job.CreatedAtUtc)
             .ThenByDescending(job => job.JobId)
@@ -431,7 +425,10 @@ public sealed class IndexModel(
         return await listIntakeLog.ListRetryableFailuresAsync(actor, cancellationToken);
     }
 
-    private static bool ReachedTerminalToday(AiJobRecord job, string today)
+    private static bool ReachedTerminalToday(
+        AiJobRecord job,
+        DateTimeOffset dayStartUtc,
+        DateTimeOffset dayEndUtc)
     {
         if (!AiJobStates.IsTerminal(job.State))
         {
@@ -442,7 +439,7 @@ public sealed class IndexModel(
             ? job.ExpiresAtUtc
             : job.ClosedAtUtc;
         return terminalAtUtc is { } terminalAt
-            && OperatorLabels.OfficeDate(terminalAt) == today;
+            && terminalAt >= dayStartUtc && terminalAt < dayEndUtc;
     }
 
 }

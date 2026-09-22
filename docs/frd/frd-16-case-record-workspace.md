@@ -109,9 +109,9 @@ return to engineering record a reason.
 **Sections**, in order: **Case details**, **Claim**, **Original report** (an
 Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
 **Valuation** inside it, each its own foldable panel under the Vehicle link),
-**Estimate**, **Decisions**, **Report**, **Files**, **Notes**.
+**Repair Spec**, **Decisions**, **Report**, **Files**, **Notes**.
 Every section can always be read. The Engineer sections (Damage, Valuation,
-Estimate, Settlement, Report) are editable by every enabled staff role in Not
+Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
 in Held and after completion. Adopting the Engineer's Value is an explicit
 human staff act.
@@ -244,14 +244,14 @@ Read mode shows only applied increases. The calculator applies presets and
 custom lines through Core. Valuation sources are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources).
 
-### Estimate
+### Repair Spec
 
-Estimate carries the estimate set and raw estimate import. See
+Repair Spec carries the specification set and raw estimate import. See
 [Assessment](#assessment).
 
-### Settlement
+### Decisions
 
-Settlement shows outcome, category, salvage value, excess, betterment,
+Decisions shows outcome, category, salvage value, excess, betterment,
 claimant VAT registered, reserve, equity (derived), repair duration and
 delays, report delay, storage per day, recovery, hire start and daily cost,
 diminution and salvage logistics. Financial ratio lines are permitted. The
@@ -260,12 +260,10 @@ field meanings are owned by
 
 ### Report
 
-**Report position** is the only report-composition control: one Close-up,
-one Overview, the rest Supporting, with order, rotation and crop. An image's
-own classification is its tags on the Files Images tab, not this section.
-The section also shows the readiness list of named outstanding items, the
-agreed fee and description lines with the fee note preview, and Generate /
-Preview report draft
+Image role, order, rotation and crop live on the image tile in Files. The
+Report section shows the readiness list, wording blocks and content switches,
+Generate / Preview report draft, and a separate Fee pane for the agreed fee,
+description lines and fee note preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 The report renders the sign-off Engineer tuple and the marked damage
 diagram.
@@ -327,7 +325,7 @@ presentation.
 
 ### Assessment
 
-The Engineer workbench is the Damage, Valuation, Estimate, Settlement and
+The Engineer workbench is the Damage, Valuation, Repair Spec, Decisions and
 Report sections of the Case record. `/Cases/{id}/Assessment` is a permanent
 redirect to `/Cases/{id}?section=estimate`. The sections can always be read
 and are read-only in Completed. An image has one place (v28 P50): its report
@@ -360,7 +358,7 @@ Source chip (P18); a cell Core finds off-pattern reads amber and named
 Off-pattern, and the rollup carries the off-pattern amount as specialist
 (P37). **Delete all lines** sits beside Add line and asks first; a removed
 line or lines can be put back from the toast for eight seconds (P16). No
-comparison or savings figure is shown. The More menu holds New repair spec
+provider-versus-assessed savings figure is shown. The More menu holds New repair spec
 (editing), **Print Repair Spec** for a saved spec with lines, and Compare,
 greyed out until the Case holds two specs (P9). Previewing the document
 does not save or discard pending edits. The section also
@@ -397,9 +395,9 @@ Report-draft generation and preview sit
 on the Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 
-**Raw estimate import** (`EXT-12`) is available to Engineers in editable Case
-states from the Estimate section. The keyboard-accessible **Import** action
-opens the native file picker; dropping a file over the Estimate section uses
+**Raw estimate import** (`EXT-12`) is available to staff with Case edit rights
+in editable states from Repair Spec. The keyboard-accessible **Import** action
+opens the native file picker; dropping a file over Repair Spec uses
 the same upload path and shows a temporary drop overlay. Exactly one supported
 PDF, XML or JSON file is accepted. From read mode, the server acquires the Case
 edit lease against the submitted Case version before storing the file through

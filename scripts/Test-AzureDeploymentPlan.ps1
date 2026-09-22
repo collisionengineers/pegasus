@@ -308,6 +308,9 @@ if ($Mode -eq 'PreProvision') {
         'WORKER_APP_NAME',
         'PEGASUS_WORKER_ACTIVATION',
         'BOX_HOLDING_FOLDER_ID',
+        'AZURE_KEY_VAULT_NAME',
+        'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
+        'GITHUB_PROBLEM_REPORT_REPOSITORY',
         'AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',
         'AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'
     )
@@ -316,6 +319,23 @@ if ($Mode -eq 'PreProvision') {
             [string]::IsNullOrWhiteSpace([string]$environmentValues[$key])) {
             throw "azd environment $Environment is missing $key."
         }
+    }
+    $problemReportUri = $null
+    $problemReportSecret = [string]$environmentValues['GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI']
+    if (-not [Uri]::TryCreate($problemReportSecret, [UriKind]::Absolute, [ref]$problemReportUri) -or
+        $problemReportUri.Scheme -ne 'https' -or
+        -not $problemReportUri.IsDefaultPort -or
+        $problemReportUri.UserInfo.Length -ne 0 -or
+        $problemReportUri.Query.Length -ne 0 -or
+        $problemReportUri.Fragment.Length -ne 0 -or
+        $problemReportUri.AbsolutePath -cnotmatch '^/secrets/[^/]+/[^/]+/?$' -or
+        -not $problemReportUri.Host.Equals(
+            "$($environmentValues['AZURE_KEY_VAULT_NAME']).vault.azure.net",
+            [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI must be a versioned HTTPS secret URI in the deployment Azure Key Vault.'
+    }
+    if ([string]$environmentValues['GITHUB_PROBLEM_REPORT_REPOSITORY'] -cnotmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
+        throw 'GITHUB_PROBLEM_REPORT_REPOSITORY must be an explicit GitHub owner/name.'
     }
     $certificateVaultHost = $null
     foreach ($key in @('AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS',

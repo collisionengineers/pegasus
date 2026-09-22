@@ -110,11 +110,11 @@ public static class AiJobPolicy
         }
         if (job.Kind == AiJobKind.Estimate)
         {
-            if (job.TargetPercentOfEngineerValue is not (>= 1 and <= 100))
+            if (job.TargetPercentOfEngineerValue is { } target && target is < 0 or > 80)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(job),
-                    "The target must be between 1 and 100 percent of the Engineer's Value.");
+                    "The target must be between 0 and 80 percent of the Engineer's Value.");
             }
             if (job.EngineerValueAtSend is not > 0)
             {
@@ -163,7 +163,7 @@ public static class AiJobPolicy
                 when transition.Actor.Kind != ActorKind.Staff:
                 throw new InvalidOperationException(
                     "Cancelling or confirming an AI job is a staff action.");
-            case AiJobState.Failed
+            case AiJobState.Failed or AiJobState.Cancelled
                 when string.IsNullOrWhiteSpace(transition.Reason):
                 throw new ArgumentException(
                     $"Marking an AI job {transition.TargetState} requires a reason.",

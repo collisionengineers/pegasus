@@ -13,7 +13,8 @@ public sealed class ProblemReportTests
     private static ActionActor User() => ActionActor.Staff(UserId, [StaffRole.User]);
     private static ActionActor Administrator() => ActionActor.Staff(AdministratorId, [StaffRole.Administrator]);
 
-    private static ProblemReportRequest Request(ActionActor actor, string? description = "The Save button did nothing.") => new(
+    private static ProblemReportRequest Request(
+        ActionActor actor, string? description = "The Save button did nothing.", string? operationKey = null) => new(
         actor,
         description,
         "0.1.0-alpha.1",
@@ -26,10 +27,11 @@ public sealed class ProblemReportTests
         "QDOS26001",
         null,
         null,
-        new ProblemReportClientFacts("1580x1000", "Mozilla/5.0", true, ["2026-09-20T14:59:00Z TypeError: x is undefined"]));
+        new ProblemReportClientFacts("1580x1000", "Mozilla/5.0", true, ["2026-09-20T14:59:00Z TypeError: x is undefined"]),
+        operationKey ?? Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task AReportIsStoredThenRaisedWithThePersonsWordsFirst()
+    public async Task AReportIsStoredWithFullDetailButItsPublicIssueCarriesOnlyTheReportId()
     {
         var store = new FakeStore();
         var sink = new FakeSink();
@@ -38,19 +40,40 @@ public sealed class ProblemReportTests
 
         Assert.Equal(ProblemReportStatus.Sent, report.Status);
         Assert.Equal(42, report.IssueNumber);
-        Assert.Equal("https://github.com/example/pegasus/issues/42", report.IssueUrl);
+        Assert.Equal("https://github.com/collisionengineers/pegasus/issues/42", report.IssueUrl);
         Assert.Equal(Now, report.SentAtUtc);
         Assert.Equal(UserId, report.StaffId);
         var sent = Assert.Single(sink.Sent);
-        Assert.Equal("Problem report: /Cases/1f2e?section=estimate (QDOS26001)", ProblemReportPolicy.Title(sent));
+        Assert.Equal($"Pegasus problem report {sent.Id:D}", ProblemReportPolicy.Title(sent));
         var body = ProblemReportPolicy.Body(sent);
-        Assert.StartsWith("The Save button did nothing.", body, StringComparison.Ordinal);
-        Assert.Contains("source     " + new string('c', 40), body, StringComparison.Ordinal);
-        Assert.Contains("Cases / Save  QDOS26001  Succeeded", body, StringComparison.Ordinal);
-        Assert.Contains("TypeError: x is undefined", body, StringComparison.Ordinal);
+        Assert.Contains(sent.Id.ToString("D"), body, StringComparison.Ordinal);
+        Assert.DoesNotContain(sent.Description, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("QDOS26001", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("integration-user", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("TypeError: x is undefined", body, StringComparison.Ordinal);
+        Assert.Equal("QDOS26001", sent.Snapshot.CaseReference);
         Assert.Null(logs.LastFilter!.Actor);
         Assert.Equal(UserId.ToString("D"), logs.LastFilter.ActingActor);
         Assert.Equal(ProblemReportPolicy.RecentActionCount, logs.LastFilter.PageSize);
+    }
+
+    [Fact]
+    public async Task ASlowAcceptedPostRecordsSentWhileItsOriginalClaimIsStillOwned()
+    {
+        var store = new FakeStore();
+        var sink = new BlockingSink();
+        var clock = new MutableClock(Now);
+        var sending = new ReportProblem(store, sink, new FakeLogs([]), clock)
+            .ExecuteAsync(Request(User()), default);
+        await sink.Entered.Task;
+
+        clock.Now = Now.Add(ProblemReportPolicy.DispatchClaimLease).AddSeconds(1);
+        sink.Release.TrySetResult(true);
+        var report = await sending;
+
+        Assert.Equal(ProblemReportStatus.Sent, report.Status);
+        Assert.Equal(42, report.IssueNumber);
+        Assert.Single(sink.Sent);
     }
 
     [Fact]
@@ -100,6 +123,50 @@ public sealed class ProblemReportTests
         var again = await retry.ExecuteAsync(Administrator(), report.Id, default);
         Assert.Single(sink.Sent);
         Assert.Equal(ProblemReportStatus.Sent, again!.Status);
+    }
+
+    [Fact]
+    public async Task SameOperationReturnsTheFirstReportWithoutPostingTwiceAndChangedDetailsConflict()
+    {
+        var store = new FakeStore();
+        var sink = new FakeSink();
+        var action = new ReportProblem(store, sink, new FakeLogs([]), new FixedClock(Now));
+        var key = Guid.NewGuid().ToString("N");
+
+        var first = await action.ExecuteAsync(Request(User(), operationKey: key), default);
+        var replay = await action.ExecuteAsync(Request(User(), operationKey: key), default);
+
+        Assert.Equal(first.Id, replay.Id);
+        Assert.Single(store.Reports);
+        Assert.Single(sink.Sent);
+        await Assert.ThrowsAsync<ProblemReportOperationConflictException>(() =>
+            action.ExecuteAsync(Request(User(), "Different details", key), default));
+        Assert.Single(sink.Sent);
+    }
+
+    [Fact]
+    public async Task AmbiguousDeliveryIsHeldUntilAnAdministratorConfirmsTheIssue()
+    {
+        var store = new FakeStore();
+        var sink = new FakeSink
+        {
+            Failure = new ProblemReportDeliveryUnknownException("The GitHub issue POST outcome is unknown.")
+        };
+        var clock = new FixedClock(Now);
+        var report = await new ReportProblem(store, sink, new FakeLogs([]), clock)
+            .ExecuteAsync(Request(User()), default);
+
+        Assert.Equal(ProblemReportStatus.Unknown, report.Status);
+        sink.Failure = null;
+        var retry = new RetryProblemReport(store, sink, clock);
+        Assert.Equal(ProblemReportStatus.Unknown,
+            (await retry.ExecuteAsync(Administrator(), report.Id, default))!.Status);
+        Assert.Empty(sink.Sent);
+        var delivery = new ProblemReportDelivery(123, "https://github.com/collisionengineers/pegasus/issues/123");
+        var reconciled = await new ReconcileProblemReport(store, clock)
+            .ConfirmIssueAsync(Administrator(), report.Id, delivery, default);
+        Assert.Equal(123, reconciled.IssueNumber);
+        Assert.Equal(ProblemReportStatus.Sent, reconciled.Status);
     }
 
     [Fact]
@@ -199,7 +266,7 @@ public sealed class ProblemReportTests
     }
 
     [Fact]
-    public async Task AnExpiredClaimCanBeReclaimedAfterAnAbandonedAttempt()
+    public async Task AnExpiredClaimRequiresReconciliationBeforeAnotherPost()
     {
         var store = new FakeStore();
         var sink = new FakeSink { Failure = new HttpRequestException("temporary failure") };
@@ -210,8 +277,13 @@ public sealed class ProblemReportTests
         Assert.Equal("abandoned", abandoned!.DispatchClaimToken);
 
         sink.Failure = null;
-        var recovered = await new RetryProblemReport(store, sink, new FixedClock(Now)).ExecuteAsync(Administrator(), failed.Id, default);
+        var unresolved = await new RetryProblemReport(store, sink, new FixedClock(Now)).ExecuteAsync(Administrator(), failed.Id, default);
 
+        Assert.Equal(ProblemReportStatus.Unknown, unresolved!.Status);
+        Assert.Empty(sink.Sent);
+        await new ReconcileProblemReport(store, new FixedClock(Now))
+            .ConfirmNoIssueAsync(Administrator(), failed.Id, default);
+        var recovered = await new RetryProblemReport(store, sink, new FixedClock(Now)).ExecuteAsync(Administrator(), failed.Id, default);
         Assert.Equal(ProblemReportStatus.Sent, recovered!.Status);
         Assert.Single(sink.Sent);
     }
@@ -219,6 +291,12 @@ public sealed class ProblemReportTests
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class MutableClock(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 
     private sealed class FakeLogs(IReadOnlyList<ActionLogRow> rows) : IActionLogQueries
@@ -246,7 +324,7 @@ public sealed class ProblemReportTests
             }
 
             Sent.Add(report);
-            return Task.FromResult(new ProblemReportDelivery(42, "https://github.com/example/pegasus/issues/42"));
+            return Task.FromResult(new ProblemReportDelivery(42, "https://github.com/collisionengineers/pegasus/issues/42"));
         }
     }
 
@@ -263,7 +341,7 @@ public sealed class ProblemReportTests
             Entered.TrySetResult(true);
             await Release.Task.WaitAsync(cancellationToken);
             Sent.Add(report);
-            return new ProblemReportDelivery(42, "https://github.com/example/pegasus/issues/42");
+            return new ProblemReportDelivery(42, "https://github.com/collisionengineers/pegasus/issues/42");
         }
     }
 
@@ -273,12 +351,19 @@ public sealed class ProblemReportTests
         public Exception? MarkSentFailure { get; init; }
         public int MarkNotSentCalls { get; private set; }
 
-        public Task<ProblemReport> AddAsync(NewProblemReport report, CancellationToken cancellationToken)
+        public Task<ProblemReportAddResult> AddAsync(NewProblemReport report, CancellationToken cancellationToken)
         {
+            var existing = Reports.SingleOrDefault(item => item.OperationKey == report.OperationKey);
+            if (existing is not null)
+            {
+                if (existing.StaffId != report.StaffId || existing.RequestHash != report.RequestHash)
+                    throw new ProblemReportOperationConflictException();
+                return Task.FromResult(new ProblemReportAddResult(existing, true));
+            }
             var added = new ProblemReport(Guid.NewGuid(), report.StaffId, report.Description, report.Snapshot, report.CreatedAtUtc,
-                ProblemReportStatus.NotSent, null, null, null, null, null, null);
+                ProblemReportStatus.NotSent, null, null, null, null, null, null, report.OperationKey, report.RequestHash);
             Reports.Add(added);
-            return Task.FromResult(added);
+            return Task.FromResult(new ProblemReportAddResult(added, false));
         }
 
         public Task<ProblemReport?> GetAsync(Guid id, CancellationToken cancellationToken) =>
@@ -298,12 +383,18 @@ public sealed class ProblemReportTests
             lock (Reports)
             {
                 var index = Reports.FindIndex(report => report.Id == id
-                    && report.Status == ProblemReportStatus.NotSent
-                    && (report.DispatchClaimToken is null
-                        || report.DispatchClaimExpiresAtUtc is null
-                        || report.DispatchClaimExpiresAtUtc <= nowUtc));
+                    && report.Status == ProblemReportStatus.NotSent);
                 if (index < 0)
                 {
+                    return Task.FromResult<ProblemReport?>(null);
+                }
+                if (Reports[index].DispatchClaimToken is not null)
+                {
+                    if (Reports[index].DispatchClaimExpiresAtUtc is null
+                        || Reports[index].DispatchClaimExpiresAtUtc <= nowUtc)
+                        Reports[index] = Reports[index] with { Status = ProblemReportStatus.Unknown,
+                            Failure = "Previous outcome unknown.", DispatchClaimToken = null,
+                            DispatchClaimExpiresAtUtc = null };
                     return Task.FromResult<ProblemReport?>(null);
                 }
 
@@ -330,7 +421,7 @@ public sealed class ProblemReportTests
                     DispatchClaimExpiresAtUtc = null,
                     DispatchClaimToken = null
                 }
-                : report));
+                : throw new ProblemReportClaimConflictException()));
 
         public Task<ProblemReport> MarkNotSentAsync(Guid id, string claimToken, string failure, CancellationToken cancellationToken)
         {
@@ -343,8 +434,25 @@ public sealed class ProblemReportTests
                     DispatchClaimExpiresAtUtc = null,
                     DispatchClaimToken = null
                 }
-                : report));
+                : throw new ProblemReportClaimConflictException()));
         }
+
+        public Task<ProblemReport> MarkUnknownAsync(Guid id, string claimToken, string reason, CancellationToken cancellationToken) =>
+            Task.FromResult(Replace(id, report => report.DispatchClaimToken == claimToken
+                ? report with { Status = ProblemReportStatus.Unknown, Failure = reason,
+                    DispatchClaimToken = null, DispatchClaimExpiresAtUtc = null }
+                : throw new ProblemReportClaimConflictException()));
+
+        public Task<ProblemReport> ConfirmIssueAsync(Guid id, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(Replace(id, report => report.Status == ProblemReportStatus.Unknown
+                ? report with { Status = ProblemReportStatus.Sent, IssueNumber = delivery.IssueNumber,
+                    IssueUrl = delivery.IssueUrl, SentAtUtc = atUtc, Failure = null }
+                : throw new ProblemReportClaimConflictException()));
+
+        public Task<ProblemReport> ConfirmNoIssueAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(Replace(id, report => report.Status == ProblemReportStatus.Unknown
+                ? report with { Status = ProblemReportStatus.NotSent, Failure = null }
+                : throw new ProblemReportClaimConflictException()));
 
         private ProblemReport Replace(Guid id, Func<ProblemReport, ProblemReport> change)
         {

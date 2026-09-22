@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -475,6 +476,31 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
+    public async Task AValidJsonEstimateAboveTenMibImportsWithinTheCoreBound()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        var content = Encoding.UTF8.GetBytes(
+            "{\"schema\":\"pegasus-estimate/1\",\"sourceVersion\":\"large-json\"," +
+            "\"lines\":[{\"operation\":\"Replace\",\"description\":\"Front bumper\",\"price\":120.00}]}"
+            .PadRight(10 * 1024 * 1024 + 1024, ' '));
+        Assert.InRange(content.Length, 10 * 1024 * 1024 + 1, ImportRawEstimate.MaximumDocumentBytes);
+
+        using var form = ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), content,
+            fileName: "estimate.json", mediaType: "application/json");
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate", form);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(content.Length, Assert.Single(store.AddedDocuments).Content.Length);
+        Assert.Equal(RepairSpecificationSourceRoute.Json, Assert.Single(store.SavedEstimates).Source.Route);
+    }
+
+    [Fact]
     public async Task UnsupportedEmptyOversizedAndMultipleFilesAreRejectedBeforeLeaseOrStorage()
     {
         var caseId = Guid.NewGuid();
@@ -501,14 +527,14 @@ public sealed partial class AssessmentEstimateImportWebTests
         html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.Contains("non-empty", html, StringComparison.OrdinalIgnoreCase);
 
-        var tooLarge = new byte[10 * 1024 * 1024 + 1];
+        var tooLarge = new byte[ImportRawEstimate.MaximumDocumentBytes + 1];
         using (var oversized = ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), tooLarge))
         using (var response = await client.PostAsync($"/Cases/{caseId:D}?handler=ImportEstimate", oversized))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         }
         html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
-        Assert.Contains("10 MB", html, StringComparison.Ordinal);
+        Assert.Contains("32 MiB", html, StringComparison.Ordinal);
 
         using (var multiple = ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), [1, 2, 3]))
         {
@@ -2129,6 +2155,10 @@ public sealed partial class AssessmentEstimateImportWebTests
             CancellationToken cancellationToken = default)
         {
             SubmittedEstimates.Add(request);
+            if (request.ExpectedVersion != WorkflowVersion)
+            {
+                throw new CaseVersionConflictException(caseId, request.ExpectedVersion, WorkflowVersion);
+            }
             request = EstimatePolicy.ApplyEditorEvidence(
                 EstimatePolicy.ValidateSave(request), request.EstimateId is null ? null : CurrentDraft, Clock.GetUtcNow());
             SavedEstimates.Add(request);

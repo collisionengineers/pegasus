@@ -15,9 +15,53 @@ public sealed class CaseWorkflowMigrationTests
     private const string EditScopeRemovalMigration = "20260918090000_RemoveAdministrationEditScopes";
     private const string CapValuationMigration = "20260921060711_CapValuationSource";
     private const string DamageMigration = "20260921070000_DamageImpactsAsAreas";
+    private const string RepairHeaderMigration = "20260921070455_RepairSpecHeaderByLine";
     private const string PrePublicUploadRemovalMigration = "20260917153000_CaseClaimSourceContactOverride";
     private const string ReviewCaseId = "60000000-0000-0000-0000-000000000001";
     private const string NotReadyCaseId = "60000000-0000-0000-0000-000000000002";
+
+    [Fact]
+    public async Task RepairHeaderMigrationMovesMaterialsWithAndWithoutExistingLinesAndDropsOldColumns()
+    {
+        const string emptySpecificationId = "61000000-0000-0000-0000-000000000001";
+        const string linedSpecificationId = "61000000-0000-0000-0000-000000000002";
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync(DamageMigration);
+        await database.ExecuteAsync(ExistingCasesSql(withStaffConfirmationColumns: false));
+        await database.ExecuteAsync(
+            $"""
+            INSERT INTO CaseRepairSpecifications
+                (Id, CaseId, Version, State, SourceRoute, Name, IsCurrent,
+                 RepairerVatStatus, VatPercent, PaintMaterials,
+                 CreatedBy, CreationOperationKey, CreatedAtUtc)
+            VALUES
+                ('{emptySpecificationId}', '{ReviewCaseId}', 1, 'Draft', 'Manual',
+                 N'Materials only', 1, 'Unknown', 20, 15,
+                 'migration-test', 'materials-only', SYSUTCDATETIME()),
+                ('{linedSpecificationId}', '{NotReadyCaseId}', 1, 'Draft', 'Manual',
+                 N'Existing paint line', 1, 'Unknown', 20, 20,
+                 'migration-test', 'paint-line', SYSUTCDATETIME());
+            INSERT INTO CaseEstimateLines
+                (Id, CaseId, RepairSpecificationId, Position, LineType,
+                 Description, Materials, Unpriced, RecordedByKind, RecordedBy, RecordedAtUtc)
+            VALUES
+                (NEWID(), '{NotReadyCaseId}', '{linedSpecificationId}', 1, 'paint_repair',
+                 N'Existing paint', 5, 0, 'Staff', 'migration-test', SYSUTCDATETIME());
+            """);
+
+        await context.Database.MigrateAsync(RepairHeaderMigration);
+
+        Assert.Equal(15m, await database.ScalarAsync<decimal>(
+            $"SELECT Materials FROM CaseEstimateLines WHERE RepairSpecificationId = '{emptySpecificationId}'"));
+        Assert.Equal("paint_prep", await database.ScalarAsync<string>(
+            $"SELECT LineType FROM CaseEstimateLines WHERE RepairSpecificationId = '{emptySpecificationId}'"));
+        Assert.Equal(25m, await database.ScalarAsync<decimal>(
+            $"SELECT Materials FROM CaseEstimateLines WHERE RepairSpecificationId = '{linedSpecificationId}'"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.CaseRepairSpecifications') " +
+            "AND name IN (N'PaintMaterials', N'RepairDays', N'Notes')"));
+    }
 
     [Fact]
     public async Task AdministrationEditScopeCleanupRemovesOnlyRetiredKindsAndFreshMigrationAppliesIt()
@@ -370,7 +414,11 @@ public sealed class CaseWorkflowMigrationTests
                 "20260921081236_UnroadworthyReasonBank",
                 "20260921084154_ReportImageFullPage",
                 "20260921090527_ReportWordingBlocks",
-                "20260921142708_ProblemReportDispatchClaims"
+                "20260921142708_ProblemReportDispatchClaims",
+                "20260922213214_ProviderSubmissionBodyDigest",
+                "20260922223104_RepairSpecificationSnapshotSupplementary",
+                "20260922224715_ProblemReportDispatchIdentity",
+                "20260922225349_ReleaseNoteCreateIdentity"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

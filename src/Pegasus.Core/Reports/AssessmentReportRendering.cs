@@ -492,6 +492,10 @@ public sealed record AssessmentReportSnapshot(
         {
             throw new ReportRenderRejectedException($"Unsupported payload version '{PayloadVersion}'.");
         }
+        if (Outcome == AssessmentReportOutcome.ContractRepair && Settlement.ContractSum is not > 0)
+        {
+            throw new ReportRenderRejectedException("Contract repair requires a confirmed positive agreed sum.");
+        }
     }
 
     public AssessmentReportPresentation Presentation() => Outcome switch
@@ -516,8 +520,8 @@ public sealed record AssessmentReportSnapshot(
         AssessmentReportOutcome.ContractRepair => new(
             "CONTRACT REPAIR REPORT", "CONTRACT REPAIR",
             "Contract Repair", "Agreed contract repair",
-            $"A contract repair has been agreed for the sum of {Money(Costs.Total)} including VAT. Costs cannot increase above this figure.",
-            Costs.Total),
+            $"A contract repair has been agreed for the sum of {Money(Settlement.ContractSum!.Value)} including VAT. Costs cannot increase above this figure.",
+            Settlement.ContractSum!.Value),
         _ => throw new ReportRenderRejectedException("Unsupported assessment outcome."),
     };
 

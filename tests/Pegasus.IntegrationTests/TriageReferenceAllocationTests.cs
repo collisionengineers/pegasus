@@ -191,6 +191,38 @@ public sealed class TriageReferenceAllocationTests
         Assert.Equal(created.Reference, reread.Record.Reference);
     }
 
+    [Fact]
+    public async Task AColleagueCanTakeOverTriageAndThePreviousTokenCannotRenew()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-TAKEOVER");
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var first = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var second = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var held = await leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.Id, created.Version, first, "triage-first"),
+            CancellationToken.None);
+
+        var taken = await leases.ClaimAsync(
+            new ClaimEditScopeRequest(
+                EditScopeKind.Triage, created.Id, created.Version, second, "triage-takeover")
+            {
+                TakeOver = true
+            }, CancellationToken.None);
+
+        Assert.NotEqual(held.Token, taken.Token);
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.HeartbeatAsync(
+            new(EditScopeKind.Triage, created.Id, first, held.Token), CancellationToken.None));
+        var detail = Assert.IsType<TriageDetail>(
+            await services.GetRequiredService<ITriageQueries>()
+                .GetAsync(created.Id, CancellationToken.None));
+        Assert.Contains(detail.History,
+            entry => entry.EventType == "edit_lease_taken_over");
+    }
+
     /// <summary>
     /// One receipt with its retained accepted-match evidence and its
     /// evaluation revision — everything Triage creation requires, and nothing

@@ -406,18 +406,17 @@ public sealed class ValuationCalculationTests
 
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
             apply.ExecuteAsync(
-                ApplyRequest(Engineer) with { CorrectedEngineerValue = 4000m },
+                ApplyRequest(Engineer) with { Selection = Selection(conditionDeduction: 100m) },
                 CancellationToken.None));
         Assert.Single(store.Applied);
     }
 
     /// <summary>
-    /// A later manual correction is a further row over the same basis: the
-    /// guide card and its stamp are unchanged, the accepted figure is the
-    /// Engineer's own, and the reason travels with it.
+    /// A further adoption records the proposal from its selected inputs and
+    /// retains the guide basis and reason.
     /// </summary>
     [Fact]
-    public async Task AManualCorrectionKeepsTheAppliedBasisAndAddsItsOwnReason()
+    public async Task AFurtherAdoptionKeepsTheAppliedBasisAndCalculatedValue()
     {
         var store = new RecordingStore { Bases = { [GuideId] = Basis(3100m) } };
         var apply = new ApplyValuationCalculation(store);
@@ -426,16 +425,16 @@ public sealed class ValuationCalculationTests
         var corrected = await apply.ExecuteAsync(
             ApplyRequest(Engineer, "valuation-correction") with
             {
-                CorrectedEngineerValue = 3250m,
+                Selection = Selection(conditionDeduction: 100m),
                 Reason = "Corrected the adopted value after re-reading the guide."
             },
             CancellationToken.None);
 
         Assert.Equal(3100m, first.AcceptedEngineerValue);
-        Assert.Equal(3250m, corrected.AcceptedEngineerValue);
+        Assert.Equal(3000m, corrected.AcceptedEngineerValue);
         Assert.Equal(first.GuideValuationId, corrected.GuideValuationId);
         Assert.Equal(first.GuideValuationStampUtc, corrected.GuideValuationStampUtc);
-        Assert.Equal(first.Calculation.Proposal, corrected.Calculation.Proposal);
+        Assert.Equal(corrected.Calculation.Proposal, corrected.AcceptedEngineerValue);
         Assert.Equal(
             "Corrected the adopted value after re-reading the guide.",
             corrected.Reason);

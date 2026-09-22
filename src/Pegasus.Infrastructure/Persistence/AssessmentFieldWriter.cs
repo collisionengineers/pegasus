@@ -72,7 +72,8 @@ internal static class AssessmentWriteSet
 {
     public static (Dictionary<string, string?> ToWrite, Dictionary<string, string> Merged) Build(
         IReadOnlyDictionary<string, string?> requested,
-        IEnumerable<CaseAssessmentFieldEntity> persisted)
+        IEnumerable<CaseAssessmentFieldEntity> persisted,
+        ActorKind actorKind)
     {
         ArgumentNullException.ThrowIfNull(requested);
         ArgumentNullException.ThrowIfNull(persisted);
@@ -80,7 +81,9 @@ internal static class AssessmentWriteSet
             item => item.FieldPath,
             item => item.Value,
             StringComparer.Ordinal);
-        foreach (var (path, value) in requested)
+        var toWrite = new Dictionary<string, string?>(requested, StringComparer.Ordinal);
+        AssessmentPolicy.CompleteCoupledWrites(toWrite, merged, actorKind);
+        foreach (var (path, value) in toWrite)
         {
             if (value is null)
             {
@@ -92,8 +95,7 @@ internal static class AssessmentWriteSet
             }
         }
 
-        var toWrite = new Dictionary<string, string?>(requested, StringComparer.Ordinal);
-        if (requested.TryGetValue(AssessmentVocabulary.DamageImpacts, out var impacts))
+        if (toWrite.TryGetValue(AssessmentVocabulary.DamageImpacts, out var impacts))
         {
             var derived = AssessmentPolicy.DeriveImpactValues(impacts);
             toWrite[AssessmentVocabulary.ImpactLocation] = derived.Location;

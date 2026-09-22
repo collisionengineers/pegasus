@@ -1,5 +1,6 @@
-using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 
@@ -44,7 +45,8 @@ public sealed record ProblemReportSnapshot(
 public enum ProblemReportStatus
 {
     Sent,
-    NotSent
+    NotSent,
+    Unknown
 }
 
 public sealed record ProblemReport(
@@ -59,20 +61,39 @@ public sealed record ProblemReport(
     string? Failure,
     DateTimeOffset? SentAtUtc,
     DateTimeOffset? DispatchClaimExpiresAtUtc,
-    string? DispatchClaimToken);
+    string? DispatchClaimToken,
+    string OperationKey = "",
+    string RequestHash = "");
 
 public sealed record NewProblemReport(
     Guid StaffId,
     string Description,
     ProblemReportSnapshot Snapshot,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    string OperationKey,
+    string RequestHash);
+
+public sealed record ProblemReportAddResult(ProblemReport Report, bool IsReplay);
+
+public sealed class ProblemReportOperationConflictException : InvalidOperationException
+{
+    public ProblemReportOperationConflictException() : base("This problem report form was already used with different details.") { }
+}
+
+public sealed class ProblemReportClaimConflictException : InvalidOperationException
+{
+    public ProblemReportClaimConflictException() : base("The problem report dispatch claim changed; reconcile the report before retrying.") { }
+}
+
+public sealed class ProblemReportDeliveryUnknownException(string message, Exception? inner = null)
+    : Exception(message, inner);
 
 /// <summary>Where the report went: the issue it became.</summary>
 public sealed record ProblemReportDelivery(int IssueNumber, string IssueUrl);
 
 public interface IProblemReportStore
 {
-    Task<ProblemReport> AddAsync(NewProblemReport report, CancellationToken cancellationToken);
+    Task<ProblemReportAddResult> AddAsync(NewProblemReport report, CancellationToken cancellationToken);
 
     Task<ProblemReport?> GetAsync(Guid id, CancellationToken cancellationToken);
 
@@ -90,6 +111,12 @@ public interface IProblemReportStore
     Task<ProblemReport> MarkSentAsync(Guid id, string claimToken, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken);
 
     Task<ProblemReport> MarkNotSentAsync(Guid id, string claimToken, string failure, CancellationToken cancellationToken);
+
+    Task<ProblemReport> MarkUnknownAsync(Guid id, string claimToken, string reason, CancellationToken cancellationToken);
+
+    Task<ProblemReport> ConfirmIssueAsync(Guid id, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken);
+
+    Task<ProblemReport> ConfirmNoIssueAsync(Guid id, CancellationToken cancellationToken);
 }
 
 /// <summary>The outward side: raises the report as an issue, or throws with the reason it could not.</summary>
@@ -119,65 +146,37 @@ public static class ProblemReportPolicy
         return value;
     }
 
-    /// <summary>"Problem report: /Cases/… (QDOS26001)" — the route and the Case, so the issue list reads on its own.</summary>
+    public static string NormalizeOperationKey(string? operationKey) =>
+        Guid.TryParse(operationKey, out var value) && value != Guid.Empty
+            ? value.ToString("N")
+            : throw new ArgumentException("The problem report form has expired. Open it again.", nameof(operationKey));
+
+    public static string RequestHash(Guid staffId, string description, ProblemReportRequest request) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+        {
+            staffId,
+            description,
+            request.Route,
+            request.Method,
+            request.TraceId,
+            request.CaseReference,
+            request.Client.Viewport,
+            request.Client.Editing,
+            Errors = request.Client.RecentErrors.Take(RecentErrorCount).ToArray()
+        }))));
+
+    /// <summary>The public issue identifies the full report kept in Pegasus.</summary>
     public static string Title(ProblemReport report)
     {
         ArgumentNullException.ThrowIfNull(report);
-        var route = report.Snapshot.Route.Length > 80 ? report.Snapshot.Route[..80] + "…" : report.Snapshot.Route;
-        return report.Snapshot.CaseReference is { Length: > 0 } reference
-            ? $"Problem report: {route} ({reference})"
-            : $"Problem report: {route}";
+        return $"Pegasus problem report {report.Id:D}";
     }
 
-    /// <summary>The issue body: the person's words first, then the snapshot as a fenced block.</summary>
+    /// <summary>The public issue contains no Case, staff or diagnostic content.</summary>
     public static string Body(ProblemReport report)
     {
         ArgumentNullException.ThrowIfNull(report);
-        var snapshot = report.Snapshot;
-        var builder = new StringBuilder();
-        builder.Append(report.Description.Trim()).Append("\n\n");
-        builder.Append("Reported by ").Append(snapshot.ActorName).Append(" (").Append(snapshot.ActorRole).Append(") at ")
-            .Append(snapshot.OccurredAtUtc.ToString("O", CultureInfo.InvariantCulture)).Append(".\n\n");
-        builder.Append("```\n");
-        builder.Append("version    ").Append(snapshot.Version).Append('\n');
-        builder.Append("source     ").Append(snapshot.SourceSha).Append('\n');
-        builder.Append("route      ").Append(snapshot.Method).Append(' ').Append(snapshot.Route).Append('\n');
-        builder.Append("trace      ").Append(snapshot.TraceId).Append('\n');
-        builder.Append("case       ").Append(snapshot.CaseReference ?? "-").Append('\n');
-        if (snapshot.ExceptionType is not null)
-        {
-            builder.Append("exception  ").Append(snapshot.ExceptionType).Append(": ").Append(snapshot.ExceptionMessage).Append('\n');
-        }
-
-        builder.Append("viewport   ").Append(snapshot.Client.Viewport ?? "-").Append('\n');
-        builder.Append("agent      ").Append(snapshot.Client.UserAgent ?? "-").Append('\n');
-        builder.Append("editing    ").Append(snapshot.Client.Editing ? "yes" : "no").Append('\n');
-        builder.Append("```\n");
-        if (snapshot.RecentActions.Count > 0)
-        {
-            builder.Append("\nRecent actions (newest first)\n\n```\n");
-            foreach (var action in snapshot.RecentActions)
-            {
-                builder.Append(action.OccurredAtUtc.ToString("u", CultureInfo.InvariantCulture)).Append("  ")
-                    .Append(action.Area).Append(" / ").Append(action.Operation).Append("  ")
-                    .Append(action.Reference).Append("  ").Append(action.Result).Append('\n');
-            }
-
-            builder.Append("```\n");
-        }
-
-        if (snapshot.Client.RecentErrors.Count > 0)
-        {
-            builder.Append("\nBrowser errors (newest first)\n\n```\n");
-            foreach (var error in snapshot.Client.RecentErrors)
-            {
-                builder.Append(error).Append('\n');
-            }
-
-            builder.Append("```\n");
-        }
-
-        return builder.ToString();
+        return $"Report ID: {report.Id:D}\n\nFull details are available to authorised staff in Pegasus Administration → Problem reports.";
     }
 
     public static Guid RequireStaff(ActionActor actor, StaffAccessRight right)
@@ -207,7 +206,8 @@ public sealed record ProblemReportRequest(
     string? CaseReference,
     string? ExceptionType,
     string? ExceptionMessage,
-    ProblemReportClientFacts Client);
+    ProblemReportClientFacts Client,
+    string OperationKey = "");
 
 /// <summary>
 /// Stores the report, then raises it. A failed raise leaves the row Not sent
@@ -230,6 +230,8 @@ public sealed class ReportProblem(
         ArgumentNullException.ThrowIfNull(request);
         var staffId = ProblemReportPolicy.RequireStaff(request.Actor, StaffAccessRight.AccessStaffApplication);
         var description = ProblemReportPolicy.ValidateDescription(request.Description);
+        var operationKey = ProblemReportPolicy.NormalizeOperationKey(request.OperationKey);
+        var requestHash = ProblemReportPolicy.RequestHash(staffId, description, request);
         var now = _timeProvider.GetUtcNow();
         var actions = await RecentActionsAsync(request.Actor, now, cancellationToken);
         var snapshot = new ProblemReportSnapshot(
@@ -249,9 +251,15 @@ public sealed class ReportProblem(
             {
                 RecentErrors = request.Client.RecentErrors.Take(ProblemReportPolicy.RecentErrorCount).ToArray()
             });
-        var report = await _store.AddAsync(new NewProblemReport(staffId, description, snapshot, now), cancellationToken);
-        return await ProblemReportDispatch.SendAsync(_store, _sink, report.Id, _timeProvider, cancellationToken)
-            ?? throw new InvalidOperationException($"Problem report {report.Id:D} was not found after it was stored.");
+        var added = await _store.AddAsync(new NewProblemReport(
+            staffId, description, snapshot, now, operationKey, requestHash), cancellationToken);
+        if (added.IsReplay)
+        {
+            return added.Report;
+        }
+
+        return await ProblemReportDispatch.SendAsync(_store, _sink, added.Report.Id, _timeProvider, cancellationToken)
+            ?? throw new InvalidOperationException($"Problem report {added.Report.Id:D} was not found after it was stored.");
     }
 
     private async Task<IReadOnlyList<ProblemReportAction>> RecentActionsAsync(
@@ -304,6 +312,35 @@ public sealed class RetryProblemReport(
     }
 }
 
+/// <summary>An Administrator resolves an unknown GitHub outcome after checking the report ID.</summary>
+public sealed class ReconcileProblemReport(IProblemReportStore store, TimeProvider timeProvider)
+{
+    public Task<ProblemReport> ConfirmIssueAsync(
+        ActionActor actor, Guid id, ProblemReportDelivery delivery, CancellationToken cancellationToken)
+    {
+        ProblemReportPolicy.RequireStaff(actor, StaffAccessRight.ViewOperationalReports);
+        if (id == Guid.Empty || delivery.IssueNumber <= 0
+            || string.IsNullOrWhiteSpace(delivery.IssueUrl))
+        {
+            throw new ArgumentException("A matching issue is required to reconcile this report.");
+        }
+
+        return store.ConfirmIssueAsync(id, delivery, timeProvider.GetUtcNow(), cancellationToken);
+    }
+
+    public Task<ProblemReport> ConfirmNoIssueAsync(
+        ActionActor actor, Guid id, CancellationToken cancellationToken)
+    {
+        ProblemReportPolicy.RequireStaff(actor, StaffAccessRight.ViewOperationalReports);
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("A report ID is required.");
+        }
+
+        return store.ConfirmNoIssueAsync(id, cancellationToken);
+    }
+}
+
 public sealed class ListProblemReports(IProblemReportStore store)
 {
     private readonly IProblemReportStore _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -342,12 +379,33 @@ internal static class ProblemReportDispatch
         {
             delivery = await sink.SendAsync(report, cancellationToken);
         }
+        catch (ProblemReportDeliveryUnknownException exception)
+        {
+            var reason = exception.Message.Length > 400 ? exception.Message[..400] : exception.Message;
+            return await store.MarkUnknownAsync(report.Id, claimToken, reason, cancellationToken);
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             var failure = exception.Message.Length > 400 ? exception.Message[..400] : exception.Message;
             return await store.MarkNotSentAsync(report.Id, claimToken, failure, cancellationToken);
         }
 
-        return await store.MarkSentAsync(report.Id, claimToken, delivery, timeProvider.GetUtcNow(), cancellationToken);
+        try
+        {
+            return await store.MarkSentAsync(report.Id, claimToken, delivery, timeProvider.GetUtcNow(), cancellationToken);
+        }
+        catch (ProblemReportClaimConflictException)
+        {
+            try
+            {
+                return await store.MarkUnknownAsync(report.Id, claimToken,
+                    "GitHub accepted the issue, but the local dispatch claim changed. Reconcile by report ID.",
+                    cancellationToken);
+            }
+            catch (ProblemReportClaimConflictException)
+            {
+                return await store.GetAsync(report.Id, cancellationToken);
+            }
+        }
     }
 }

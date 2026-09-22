@@ -287,7 +287,9 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Glass:MarketValueAssessorBaseUri"] = "https://mva.test/",
             ["Glass:EstimatorBaseUri"] = "https://ere.test/",
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
-            ["Glass:RepairProfileId"] = "4063"
+            ["Glass:RepairProfileId"] = "4063",
+            ["GitHub:ProblemReports:Token"] = "inert-test-token",
+            ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
         };
         foreach (var setting in settings)
         {

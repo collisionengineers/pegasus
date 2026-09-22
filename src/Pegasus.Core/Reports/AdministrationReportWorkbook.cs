@@ -78,10 +78,10 @@ public static class AdministrationReportTables
                 new("Report types", WorkbookColumnKind.Text)
             ],
             principalReport.Rows
-                .Where(row => row.GeneratedArtifacts > 0 || row.Sent > 0)
+                .Where(row => row.ReportsProduced > 0 || row.Sent > 0)
                 .Select(row => (IReadOnlyList<object?>)
                 [
-                    row.PrincipalCode, row.GeneratedArtifacts, row.Sent, row.AgreedFeeTotal,
+                    row.PrincipalCode, row.ReportsProduced, row.Sent, row.AgreedFeeTotal,
                     string.Join("; ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{type.Kind} {type.Generated}"))
                 ]).ToArray(),
             Totals: true));

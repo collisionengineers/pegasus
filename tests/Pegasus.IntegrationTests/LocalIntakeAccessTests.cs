@@ -124,6 +124,8 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Glass:EstimatorBaseUri")]
     [InlineData("Glass:CallbackBaseUri")]
     [InlineData("Glass:RepairProfileId")]
+    [InlineData("GitHub:ProblemReports:Token")]
+    [InlineData("GitHub:ProblemReports:Repository")]
     public void ProductionFailsClosedWithoutTheExternalConfigurationItComposes(string missingKey)
     {
         // Production now composes Box-backed custody and managed document content,
@@ -157,7 +159,9 @@ public sealed class LocalIntakeAccessTests
             ["Glass:MarketValueAssessorBaseUri"] = "https://mva.test/",
             ["Glass:EstimatorBaseUri"] = "https://ere.test/",
             ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
-            ["Glass:RepairProfileId"] = "4063"
+            ["Glass:RepairProfileId"] = "4063",
+            ["GitHub:ProblemReports:Token"] = "inert-test-token",
+            ["GitHub:ProblemReports:Repository"] = "example/private-problem-reports"
         };
         configuration[missingKey] = null;
 

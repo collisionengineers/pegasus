@@ -152,6 +152,10 @@
 #section-damage .impact-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
 #section-damage .impact-list .muted{font-size:12.5px}
 #section-damage .impact-row{display:grid;grid-template-columns:1fr 150px 1fr 30px;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
+#section-damage .impact-row--areas{grid-template-columns:1fr minmax(200px,2fr) 150px 1fr 30px}
+#section-damage .damage-area-set{display:flex;flex-wrap:wrap;gap:4px 10px;min-width:0;margin:0;padding:4px;border:1px solid var(--line);border-radius:var(--radius)}
+#section-damage .damage-area-set legend{font-size:11px;color:var(--quiet);padding:0 4px}
+#section-damage .damage-area-set label{display:inline-flex;align-items:center;gap:4px;font-size:11px}
 #section-damage .impact-row.is-hover{border-color:var(--navy)}
 #section-damage .impact-row .zc{font:600 11px var(--mono);color:var(--ink);display:inline-flex;align-items:center;min-width:0}
 #section-damage .impact-row .zn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font:700 10px/1 var(--font);margin-right:6px;flex:none}
@@ -167,6 +171,7 @@
 @media(max-width:1180px){#section-damage .thumbs.evidence{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:900px){#section-damage .damage-workbench{grid-template-columns:1fr}#section-damage .damage-view{max-width:320px}}
 @media(max-width:760px){#section-damage .impact-row{grid-template-columns:1fr 1fr}#section-damage .thumbs.evidence{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){#section-damage .impact-row--areas .damage-area-set{grid-column:1/-1}}
 
 
 /* ==== valuation ==== */

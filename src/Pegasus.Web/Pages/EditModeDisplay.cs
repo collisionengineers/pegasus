@@ -5,9 +5,8 @@ namespace Pegasus.Web.Pages;
 /// <summary>
 /// Operator wording for the one server-owned edit authority a case carries. Other authorised staff
 /// stay read-only and are told who is editing; the holder is named by staff account only, never by
-/// identifier, and an unresolved holder is described without one. No colleague may take an edit
-/// from another; the only take-over control is the one <see cref="HeldElsewhere"/> offers a holder
-/// over their own second window.
+/// identifier, and an unresolved holder is described without one. An authorised colleague may take
+/// over the lease; the prior editor's next save is refused.
 /// </summary>
 /// <remarks>
 /// None of this copy names a time. An open editor's page keeps its own lease alive, so the moment
@@ -57,9 +56,7 @@ public static class EditModeDisplay
     }
 
     /// <summary>
-    /// The holder's own second window. This is the only edit-ownership sentence with a control
-    /// beside it, because the operator it addresses is the one person entitled to end the other
-    /// window's claim.
+    /// The holder's own second window.
     /// </summary>
     public static string HeldElsewhere(string recordName)
     {

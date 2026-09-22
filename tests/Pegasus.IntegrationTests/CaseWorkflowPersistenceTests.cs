@@ -1606,6 +1606,36 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
+    public async Task AuthorisedColleagueTakeoverRotatesTheCaseTokenAndRecordsThePriorHolder()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var first = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var second = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, first, "first-claim"), default);
+
+        var taken = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, second, "colleague-takeover")
+            {
+                TakeOver = true
+            }, default);
+
+        Assert.NotEqual(held.Token, taken.Token);
+        Assert.Equal(second.SubjectId, taken.Holder);
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.HeartbeatAsync(
+                new HeartbeatCaseEditLeaseRequest(harness.CaseId, first, held.Token), default));
+        Assert.Equal(1, await harness.WorkflowEventCountAsync("colleague-takeover"));
+        var replay = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, second, "colleague-takeover")
+            {
+                TakeOver = true
+            }, default);
+        Assert.Equal(taken.Token, replay.Token);
+        Assert.Equal(1, await harness.WorkflowEventCountAsync("colleague-takeover"));
+    }
+
+    [Fact]
     public async Task LeaseReleaseAndExpiryDiscardReplayCredentialBeforeReplacement()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
@@ -1878,10 +1908,10 @@ public sealed class CaseWorkflowPersistenceTests
     /// <summary>
     /// A beat is refused for a non-holder and after a takeover, but the holder's own beat with its
     /// own token revives a lease that lapsed unbeaten: nobody else could have taken it without
-    /// rewriting the retained hash, so nothing another editor relied on changes.
+    /// rewriting the retained hash. An expired holder must claim again.
     /// </summary>
     [Fact]
-    public async Task HeartbeatIsRefusedForANonHolderAndAfterATakeoverButRevivesTheHoldersOwnLapsedLease()
+    public async Task HeartbeatIsRefusedForANonHolderAfterExpiryAndAfterAnotherClaim()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -1894,12 +1924,9 @@ public sealed class CaseWorkflowPersistenceTests
             harness.Store.HeartbeatAsync(new(harness.CaseId, other, lease.Token), default));
 
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
-        var revived = await harness.Store.HeartbeatAsync(
-            new(harness.CaseId, holder, lease.Token), default);
-        Assert.Equal(holder.SubjectId, revived.Holder);
-        Assert.True(revived.ExpiresAtUtc > harness.TimeProvider.GetUtcNow());
+        await Assert.ThrowsAsync<CaseEditLeaseExpiredException>(() =>
+            harness.Store.HeartbeatAsync(new(harness.CaseId, holder, lease.Token), default));
 
-        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
         var taken = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, other, "claim-after-lapse"),
             default);
