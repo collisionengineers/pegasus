@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -273,7 +273,7 @@ public sealed class EfRepairSpecificationStore(
             throw new ArgumentException("Select a labour-rate card for the specified version.");
         }
 
-        context.CaseEstimateLines.RemoveRange(entity.Lines);
+        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
         entity.Lines.Clear();
         entity.SourceRoute = save.Source.Route.ToString();
         entity.SourceArtifactReference = save.Source.ArtifactReference;
@@ -304,7 +304,7 @@ public sealed class EfRepairSpecificationStore(
             context, edited, request.Save.Actor, RepairSpecificationSnapshotKind.BeforeScaling,
             "Before scaling", now, latest);
 
-        context.CaseEstimateLines.RemoveRange(entity.Lines);
+        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
         entity.Lines.Clear();
         ApplyDetails(entity, result.Details);
         AddLines(context, entity, result.Lines, request.Save.Actor, now);
@@ -383,7 +383,7 @@ public sealed class EfRepairSpecificationStore(
             now,
             latest);
 
-        context.CaseEstimateLines.RemoveRange(entity.Lines);
+        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
         entity.Lines.Clear();
         ApplyDetails(entity, version.Details);
         AddLines(
@@ -468,7 +468,7 @@ public sealed class EfRepairSpecificationStore(
         EstimatePolicy.ValidateEditable(Map(entity), request.Actor);
         var before = EfRepairSpecificationSnapshotStore.Map(beforeRow);
 
-        context.CaseEstimateLines.RemoveRange(entity.Lines);
+        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
         entity.Lines.Clear();
         ApplyDetails(entity, before.Details);
         AddLines(
@@ -581,7 +581,7 @@ public sealed class EfRepairSpecificationStore(
         request = EstimatePolicy.ApplyEditorEvidence(request, existing, now);
         if (existing is not null)
         {
-            context.CaseEstimateLines.RemoveRange(entity.Lines);
+            context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
             entity.Lines.Clear();
         }
         entity.SourceRoute = request.Source.Route.ToString();

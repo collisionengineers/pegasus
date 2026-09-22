@@ -1826,6 +1826,22 @@
         var deleteAll = form.querySelector('[data-estimate-delete-all]');
         var confirmDialog = document.querySelector('[data-dialog="delete-lines-dialog"]');
         if (deleteAll && confirmDialog) {
+            var pendingDeleteRows = null;
+            var yes = confirmDialog.querySelector('[data-delete-lines-confirm]');
+            if (yes) {
+                yes.addEventListener('click', function () {
+                    var rows = pendingDeleteRows;
+                    pendingDeleteRows = null;
+                    if (!rows) { return; }
+                    confirmDialog.hidden = true;
+                    rows.forEach(function (row) { row.remove(); });
+                    renumber();
+                    undoToast(rows.length + ' ' + (form.getAttribute('data-lines-removed-label') || 'lines removed'), function () {
+                        rows.forEach(function (row) { body.insertBefore(row, body.querySelector('tr[data-estimate-phantom]')); });
+                        renumber();
+                    });
+                });
+            }
             deleteAll.addEventListener('click', function (event) {
                 event.preventDefault();
                 var rows = Array.prototype.slice.call(body.querySelectorAll('tr[data-estimate-line]'));
@@ -1834,19 +1850,8 @@
                 }
                 var count = confirmDialog.querySelector('[data-delete-lines-count]');
                 if (count) { count.textContent = String(rows.length); }
+                pendingDeleteRows = rows;
                 confirmDialog.hidden = false;
-                var yes = confirmDialog.querySelector('[data-delete-lines-confirm]');
-                var once = function () {
-                    yes.removeEventListener('click', once);
-                    confirmDialog.hidden = true;
-                    rows.forEach(function (row) { row.remove(); });
-                    renumber();
-                    undoToast(rows.length + ' ' + (form.getAttribute('data-lines-removed-label') || 'lines removed'), function () {
-                        rows.forEach(function (row) { body.insertBefore(row, body.querySelector('tr[data-estimate-phantom]')); });
-                        renumber();
-                    });
-                };
-                if (yes) { yes.addEventListener('click', once); }
             });
         }
 
@@ -2270,7 +2275,14 @@
                 if (!link || !role) { return; }
                 event.preventDefault();
                 event.stopPropagation();
-                role.value = role.value === 'NotUsed' ? 'Supporting' : 'NotUsed';
+                if (role.value === 'NotUsed') {
+                    // P41: putting an image back restores the role it had,
+                    // not a default. Close-up must not return as Supporting.
+                    role.value = role.getAttribute('data-role-before-removal') || 'Supporting';
+                } else {
+                    role.setAttribute('data-role-before-removal', role.value);
+                    role.value = 'NotUsed';
+                }
                 role.dispatchEvent(new Event('change', { bubbles: true }));
             }, true);
         });
@@ -2455,7 +2467,13 @@
                 });
             }
             function choose(button, focus) {
-                select.value = button.getAttribute('data-radio-value');
+                var choice = button.getAttribute('data-radio-value');
+                select.value = choice;
+                if (choice === '') {
+                    select.dataset.decisionExplicitUnset = 'true';
+                } else {
+                    delete select.dataset.decisionExplicitUnset;
+                }
                 select.dispatchEvent(new Event('input', { bubbles: true }));
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 paint();
@@ -2605,7 +2623,7 @@
             // An awaiting AI proposal leaves its control empty until accepted,
             // so the rows it implies follow the proposal until a person decides.
             function decided(path, control) {
-                if (control && control.value) {
+                if (control && (control.value || control.dataset.decisionExplicitUnset === 'true')) {
                     return control.value;
                 }
                 var awaiting = section.querySelector('[data-proposal="' + path + '"][data-proposal-status="Awaiting"] [data-proposal-value]');
@@ -2999,8 +3017,14 @@
             // follow the same staged state as the role.
             var orderCell = card.querySelector('[data-image-order-cell]');
             if (orderCell) { orderCell.hidden = value.role !== 'Supporting'; }
+            var reportActionsAvailable = value.role !== 'NotUsed';
             var fullButton = card.querySelector('[data-image-full-page]');
-            if (fullButton) { fullButton.setAttribute('aria-pressed', value.fullPage ? 'true' : 'false'); }
+            if (fullButton) {
+                fullButton.hidden = !reportActionsAvailable;
+                fullButton.setAttribute('aria-pressed', value.fullPage ? 'true' : 'false');
+            }
+            var removeButton = card.querySelector('[data-image-remove]');
+            if (removeButton) { removeButton.hidden = !reportActionsAvailable; }
             var fullChip = card.querySelector('[data-image-full-chip]');
             if (fullChip) { fullChip.hidden = !value.fullPage; }
             if (roleLabelElement) { roleLabelElement.textContent = roleLabel(value.role); }
@@ -3093,8 +3117,9 @@
         var line = document.querySelector('[data-image-report-count]');
         var grid = document.querySelector('[data-image-grid]');
         if (!line || !grid) { return; }
-        var tiles = all(grid, '[data-image-tile][data-preparation-card]');
+        var tiles = all(grid, '[data-image-tile]');
         var included = tiles.filter(function (tile) {
+            if (!tile.hasAttribute('data-preparation-card')) { return false; }
             var staged = get(tile.getAttribute('data-preparation-occurrence'));
             return staged ? staged.role !== 'NotUsed' : tile.getAttribute('data-preparation-role') !== 'NotUsed';
         }).length;
