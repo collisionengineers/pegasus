@@ -365,6 +365,40 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     [Fact]
+    public async Task ConfirmedFeeNoteDownloadIsLimitedToFeePane()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
+                    caseId,
+                    includeFeeNote: false,
+                    feeNoteStatus: CaseReportArtifactStatus.Confirmed));
+            }));
+        using var client = Client(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+        var reportPaneStart = html.IndexOf("<div id=\"report-pane-report\"", StringComparison.Ordinal);
+        var feePaneStart = html.IndexOf("<div id=\"report-pane-fee\"", StringComparison.Ordinal);
+        Assert.True(reportPaneStart >= 0);
+        Assert.True(feePaneStart >= 0 && feePaneStart < reportPaneStart);
+
+        var reportPane = html[reportPaneStart..];
+        var feePane = html[feePaneStart..reportPaneStart];
+        Assert.Contains("data-report-artifact=\"AssessmentReport\"", reportPane, StringComparison.Ordinal);
+        Assert.Contains("data-report-fee-artifact", feePane, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-artifact=\"FeeNote\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PrepareDeliveryCarriesGenerationAndServerAuthorityWithoutSending()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
