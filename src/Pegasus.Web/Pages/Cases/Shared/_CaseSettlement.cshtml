@@ -41,6 +41,7 @@
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.settlement") @Model.ActiveTabClass("settlement") @(Model.IsEditing && !Model.SectionIsEditable("settlement") ? "is-locked" : null)" id="section-settlement" data-section="settlement" data-collapse="case.settlement" aria-labelledby="section-settlement-title"
+         data-settlement-repair-cost="@(repairCost?.ToString("0.##", CultureInfo.InvariantCulture))"
          data-settlement data-settlement-outcome="@outcome" data-settlement-editable="@(editing ? "true" : "false")">
     <div class="panel-head">
         <h2 id="section-settlement-title">@EngineerLabels.Settlement</h2>
@@ -49,13 +50,6 @@
         </div>
     </div>
     <div class="panel-body stack">
-        @if (editing && Model.CanEditAssessmentField(AssessmentVocabulary.UnroadworthyReason))
-        {
-            <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveUnroadworthyReason"
-                  asp-route-id="@Model.Case!.Workflow.CaseId" id="case-unroadworthy-bank-form" hidden>
-                <input type="hidden" name="wording" data-bank-wording-field />
-            </form>
-        }
         @* The figures the decision produces, from the Engineer's Value, the
            recorded salvage value and the Current estimate's printed total. *@
         <div class="metric-strip" data-settlement-figures>
@@ -115,7 +109,7 @@
                 }
                 <div class="fc ro">
                     <span class="lbl">@SettlementLabels.EngineersValue</span>
-                    <div class="fv mono" data-decision-engineer-value>
+                    <div class="fv mono" data-decision-engineer-value data-engineer-value="@(engineerValue?.ToString("0.##", CultureInfo.InvariantCulture))">
                         <span>@Money(engineerValue)</span>
                         <a class="src-tag" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ValuationLink</a>
                     </div>
@@ -146,7 +140,8 @@
                         {
                             <button type="button" class="btn btn--small" data-bank-wording="@wording">@wording</button>
                         }
-                        <button type="submit" class="btn btn--small" form="case-unroadworthy-bank-form" data-bank-save>
+                        <button type="submit" class="btn btn--small" form="case-edit-form"
+                                name="saveUnroadworthyReason" value="true">
                             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
                             <span>@SettlementLabels.SaveWordingToTheBank</span>
                         </button>
@@ -168,7 +163,10 @@
             <div class="fg g4">
                 <div class="fc ro" data-settlement-computed-reserve>
                     <span class="lbl">@SettlementLabels.ComputedRepairReserve</span>
-                    <div class="fv mono derived @(computedReserve is null ? "empty" : null)">@(computedReserve is { } reserve ? Money(reserve) + " (" + SettlementLabels.RoundedUpToFifty + ")" : SettlementLabels.NotApplicable)</div>
+                    <div class="fv mono derived @(computedReserve is null ? "empty" : null)"
+                         data-settlement-computed-reserve-value
+                         data-not-applicable="@SettlementLabels.NotApplicable"
+                         data-rounded-up="@SettlementLabels.RoundedUpToFifty">@(computedReserve is { } reserve ? Money(reserve) + " (" + SettlementLabels.RoundedUpToFifty + ")" : SettlementLabels.NotApplicable)</div>
                 </div>
                 @{ await Field(AssessmentVocabulary.SettlementReserve, labels[AssessmentVocabulary.SettlementReserve]);
                     await Field(AssessmentVocabulary.SettlementDiminution, labels[AssessmentVocabulary.SettlementDiminution]);
@@ -235,7 +233,7 @@
                     : "—";
                 @* P14: the salvage value as a share of the Engineer's Value. The
                    money field stays the posted control; the slider writes into it. *@
-                <div class="salvage-share" data-salvage-share data-engineer-value="@(engineerValueForShare?.ToString("0.##", CultureInfo.InvariantCulture))">
+                <div class="salvage-share" data-salvage-share>
                     @if (engineerValueForShare is null)
                     {
                         <span class="muted">@SettlementLabels.ApplyInValuation</span>
