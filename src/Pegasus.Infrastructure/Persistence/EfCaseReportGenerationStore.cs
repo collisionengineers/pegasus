@@ -191,6 +191,9 @@ public sealed class EfCaseReportGenerationStore(
         }
 
         var snapshot = BuildSnapshot(request, reportInputs, readiness, projected.Snapshot, reportDate, overridden, now, operationKey);
+        // v28 P40: a report generated without an overridden date is dated
+        // today, and the record says so rather than leaving the cell empty.
+        await StampReportDateAsync(context, request, reportDate, now, cancellationToken).ConfigureAwait(false);
         var profiles = await new EfStaffAccountQueries(context)
             .ListSignOffEngineersAsync(cancellationToken).ConfigureAwait(false);
         if (!SignatoryMatches(snapshot, CaseSignOffEngineerResolver.Resolve(
@@ -803,6 +806,55 @@ public sealed class EfCaseReportGenerationStore(
                 await MarkStaleAsync(context, row.Generation.CaseId,
                     CaseReportStaleReasons.SignatoryChanged, nowUtc, cancellationToken);
             }
+        }
+    }
+
+    /// <summary>
+    /// Writes the report date a generation used into the Case's own record
+    /// when none was held (v28 P40). A date already recorded — typed or
+    /// stamped by an earlier generation — is left exactly as it stands.
+    /// </summary>
+    private static async Task StampReportDateAsync(
+        PegasusDbContext context,
+        FreezeCaseReportGenerationRequest request,
+        DateOnly reportDate,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var existing = await context.CaseAssessmentFields
+            .SingleOrDefaultAsync(
+                field => field.CaseId == request.CaseId
+                    && field.FieldPath == AssessmentVocabulary.ReportDate,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (existing is not null && !string.IsNullOrWhiteSpace(existing.Value))
+        {
+            return;
+        }
+        var value = reportDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        if (existing is null)
+        {
+            context.CaseAssessmentFields.Add(new()
+            {
+                CaseId = request.CaseId,
+                FieldPath = AssessmentVocabulary.ReportDate,
+                Value = value,
+                RecordedByKind = request.Actor.Kind.ToString(),
+                RecordedBy = request.Actor.SubjectId,
+                RecordedAtUtc = now,
+                ConfirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null,
+                ConfirmedAtUtc = request.Actor.Kind == ActorKind.Staff ? now : null,
+            });
+            return;
+        }
+        existing.Value = value;
+        existing.RecordedByKind = request.Actor.Kind.ToString();
+        existing.RecordedBy = request.Actor.SubjectId;
+        existing.RecordedAtUtc = now;
+        if (request.Actor.Kind == ActorKind.Staff)
+        {
+            existing.ConfirmedBy = request.Actor.SubjectId;
+            existing.ConfirmedAtUtc = now;
         }
     }
 

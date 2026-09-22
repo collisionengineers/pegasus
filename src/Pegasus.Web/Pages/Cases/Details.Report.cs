@@ -123,6 +123,30 @@ public sealed partial class DetailsModel
         _ => "status--amber"
     };
 
+    /// <summary>The agreed fee as a figure, if one is recorded.</summary>
+    public decimal? AgreedFeeFigure =>
+        decimal.TryParse(Assessment?.Field(AssessmentVocabulary.AgreedFee)?.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var fee)
+            ? fee
+            : null;
+
+    /// <summary>
+    /// The fee note the Fee tab reads (v28 P24): the agreed fee, the VAT the
+    /// report charges on it and their total. The rate is the report
+    /// contract's own, so the tab and the printed fee note agree.
+    /// </summary>
+    public (decimal Net, decimal Vat, decimal Total)? FeeNote
+    {
+        get
+        {
+            if (AgreedFeeFigure is not { } net)
+            {
+                return null;
+            }
+            var vat = decimal.Round(net * AssessmentReportContract.FeeVatRate, 2, MidpointRounding.AwayFromZero);
+            return (net, vat, net + vat);
+        }
+    }
+
     /// <summary>The recorded outcome code, confirmed or proposed, else null.</summary>
     public string? RecordedOutcome => Assessment?.Field(AssessmentVocabulary.Outcome)?.Value;
 

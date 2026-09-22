@@ -183,6 +183,11 @@ A fee-note preview shows the recorded fee and description without saving
 anything. Native Hand to Engineer opens engineering work without an EVA
 export; EVA is optional and never gates report readiness.
 
+A report generated without an overridden report date is dated the day it was
+generated, and that date is written into the Case's own record so the screen
+and the document agree (v28 P40). A date already recorded is never
+overwritten.
+
 The Repair Spec section offers **Print Repair Spec**, an unretained Estimate
 document in the house style for any saved estimate version from
 `EstimateTotals`. Viewing it records `case_estimate_document_previewed`. It
