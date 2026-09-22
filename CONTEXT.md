@@ -79,7 +79,7 @@ The settled outcome for an Image intake whose evidence has been linked to one el
 _Avoid_: Merged, delete, erase
 
 **AI Proposal**:
-An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until a named Engineer explicitly accepts or applies it.
+An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until an authorised human staff member explicitly accepts or applies it.
 _Avoid_: AI assessment, automatic repair specification
 
 **Estimate document**:

@@ -416,7 +416,7 @@ public sealed record CaseEstimateLineRecord(
 /// One recorded assessment field value with its provenance. A value written
 /// by the Automation actor is stored unconfirmed; a staff save records a
 /// confirmed value, and confirmation of a professional-finding field is
-/// staff-Engineer-only. The permanent action history carries every before and
+/// staff-only. The permanent action history carries every before and
 /// after value, so the current row never erases evidence.
 /// </summary>
 public sealed record AssessmentFieldValue(

@@ -1,9 +1,6 @@
 namespace Pegasus.Core.Identity;
 
-public sealed record CaseEngineerEligibility(
-    bool AccountExists,
-    bool IsEnabled,
-    bool HasEngineerRole);
+public sealed record CaseEngineerEligibility(bool AccountExists, bool IsEnabled);
 
 public interface ICaseEngineerEligibility
 {

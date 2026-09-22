@@ -114,12 +114,15 @@ public sealed class CaseValuationV26WebTests
     /// the operation key and the editing Engineer; the job takes no lease, so
     /// the edit session carries on as it was.
     /// </summary>
-    [Fact]
-    public async Task StartMarketResearchReachesThePortWithThePostedMonthAndKeepsTheSession()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task StartMarketResearchReachesThePortWithThePostedMonthAndKeepsTheSession(StaffRole role)
     {
         var store = new RecordingCaseDetailsStore();
         var valuation = new RecordingValuationSection(store.CaseId);
-        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
+        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register, role);
         const string operationKey = "2f2e2d2c2b2a29282726252423222120";
 
         using var response = await workspace.Client.PostAsync(
@@ -133,6 +136,7 @@ public sealed class CaseValuationV26WebTests
 
         AssertValuationPrg(response, store.CaseId);
         var started = Assert.Single(valuation.Started);
+        Assert.True(started.Actor.IsInRole(role));
         Assert.Equal(store.CaseId, started.CaseId);
         Assert.Equal(new DateOnly(2026, 9, 1), started.GuideMonth);
         Assert.Equal(operationKey, started.OperationKey);
@@ -179,14 +183,17 @@ public sealed class CaseValuationV26WebTests
     /// total loss of 10 per cent) and Core's port receives the policy shape
     /// (a fraction of 0.10). Decision F: an immediate post keeps the session.
     /// </summary>
-    [Fact]
-    public async Task ApplyValuationPostsTheSelectionToThePortAsThePolicyShape()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task ApplyValuationPostsTheSelectionToThePortAsThePolicyShape(StaffRole role)
     {
         var store = new RecordingCaseDetailsStore();
         var valuation = new RecordingValuationSection(store.CaseId);
         var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
         var preset = valuation.AddPreset("Tow bar", 150m);
-        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
+        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register, role);
         var stamp = Pegasus.Web.Pages.Cases.DetailsModel.StampOf(glasses).ToString("o", CultureInfo.InvariantCulture);
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
@@ -230,6 +237,7 @@ public sealed class CaseValuationV26WebTests
 
         AssertValuationPrg(response, store.CaseId);
         var applied = Assert.Single(valuation.Applied);
+        Assert.True(applied.Actor.IsInRole(role));
         Assert.Equal(store.CaseId, applied.CaseId);
         Assert.Equal(store.CaseVersion, applied.ExpectedVersion);
         Assert.Equal(store.LeaseToken, applied.EditLeaseToken);
@@ -296,7 +304,7 @@ public sealed class CaseValuationV26WebTests
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
         Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
         Assert.Contains(
-            CaseWorkspaceLabels.Valuation.NotConnected(ValuationSource.SuperCap),
+            CaseWorkspaceLabels.Valuation.Error,
             html,
             StringComparison.Ordinal);
         Assert.Contains("data-case-editing=\"true\"", html, StringComparison.Ordinal);
@@ -309,8 +317,11 @@ public sealed class CaseValuationV26WebTests
     /// card; nothing is recorded until the card is saved, and the edit session
     /// continues.
     /// </summary>
-    [Fact]
-    public async Task GetValuationWithAConnectedProviderFillsTheSourcesCardAndRecordsNothing()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task GetValuationWithAConnectedProviderFillsTheSourcesCardAndRecordsNothing(StaffRole role)
     {
         var store = new RecordingCaseDetailsStore();
         var valuation = new RecordingValuationSection(store.CaseId);
@@ -320,7 +331,7 @@ public sealed class CaseValuationV26WebTests
             valuation.Register(services);
             Substitute<ICaseDataQueries>(services, store);
             services.AddSingleton<IGuideValuationProvider>(provider);
-        });
+        }, role);
         const string operationKey = "5f5e5d5c5b5a59585756555453525150";
 
         using var response = await workspace.Client.PostAsync(

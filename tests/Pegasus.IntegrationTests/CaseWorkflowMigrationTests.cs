@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Pegasus.Core.Assessment;
@@ -337,6 +337,7 @@ public sealed class CaseWorkflowMigrationTests
                 "20260917153000_CaseClaimSourceContactOverride",
                 "20260917161519_RemovePublicUploadLinks",
                 "20260918090000_RemoveAdministrationEditScopes",
+                "20260920200240_ReleaseNotes",
                 "20260921060711_CapValuationSource",
                 "20260921070000_DamageImpactsAsAreas"
             ],
