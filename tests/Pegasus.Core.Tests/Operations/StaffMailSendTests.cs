@@ -244,7 +244,7 @@ public sealed class StaffMailSendTests
         var custodyAttachment = new StaffMailAttachment(
             Guid.NewGuid(), Guid.NewGuid(),
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
-            bytes.Length, "CE_100_assessment.pdf", "application/pdf");
+            bytes.Length, "AssessmentReport.pdf", "application/pdf");
         var deliveryAttachment = custodyAttachment with
         {
             FileName = "QDOS26001 PK12TMZ Repairable report.pdf"

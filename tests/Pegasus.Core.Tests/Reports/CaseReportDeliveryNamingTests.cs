@@ -14,7 +14,7 @@ public sealed class CaseReportDeliveryNamingTests
     private static readonly Guid GenerationId = Guid.NewGuid();
 
     private static readonly StaffMailAttachment ReportAttachment = new(
-        Guid.NewGuid(), Guid.NewGuid(), new string('a', 64), 120, "CE_100_assessment.pdf", "application/pdf");
+        Guid.NewGuid(), Guid.NewGuid(), new string('a', 64), 120, "AssessmentReport.pdf", "application/pdf");
 
     private static readonly StaffMailAttachment FeeAttachment = new(
         Guid.NewGuid(), Guid.NewGuid(), new string('b', 64), 60, "CE_100_fee_note.pdf", "application/pdf");

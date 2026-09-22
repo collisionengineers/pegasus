@@ -135,11 +135,11 @@ public sealed class StaffReportSend(
         IReadOnlyList<StaffMailAttachment> prepared)
     {
         return frozen.Count == prepared.Count
-            && frozen.Zip(prepared).All(pair =>
-                pair.First with { FileName = pair.Second.FileName } == pair.Second
-                && (string.Equals(pair.First.FileName, pair.Second.FileName, StringComparison.Ordinal)
-                    || (pair.First.FileName.EndsWith(
-                            "_assessment.pdf", StringComparison.OrdinalIgnoreCase)
+            && frozen.Select((attachment, index) => (attachment, index))
+                .Zip(prepared).All(pair =>
+                pair.First.attachment with { FileName = pair.Second.FileName } == pair.Second
+                && (string.Equals(pair.First.attachment.FileName, pair.Second.FileName, StringComparison.Ordinal)
+                    || (pair.First.index == 0
                         && pair.Second.FileName is { Length: > 4 } deliveryFileName
                         && deliveryFileName.EndsWith(".pdf", StringComparison.Ordinal)
                         && !string.IsNullOrWhiteSpace(

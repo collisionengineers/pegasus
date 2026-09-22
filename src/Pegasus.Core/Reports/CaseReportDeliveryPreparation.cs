@@ -129,8 +129,7 @@ public static class CaseReportDeliveryNaming
         ArgumentException.ThrowIfNullOrWhiteSpace(reportName);
         return
         [
-            .. attachments.Select(attachment => attachment.FileName.EndsWith(
-                "_assessment.pdf", StringComparison.OrdinalIgnoreCase)
+            .. attachments.Select((attachment, index) => index == 0
                 ? attachment with { FileName = reportName + ".pdf" }
                 : attachment)
         ];
