@@ -289,7 +289,7 @@ public sealed class CaseValuationV26WebTests
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
         Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
         Assert.Contains(
-            CaseWorkspaceLabels.Valuation.NotConnected(ValuationSource.SuperCap),
+            CaseWorkspaceLabels.Valuation.Error,
             html,
             StringComparison.Ordinal);
         Assert.Contains("data-case-editing=\"true\"", html, StringComparison.Ordinal);

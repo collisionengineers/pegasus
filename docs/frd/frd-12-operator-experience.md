@@ -111,7 +111,9 @@ that cannot become a Case is refused with the reason and Open message / Open
 file.
 
 A skip link precedes the rail. Toasts announce in a live region. Every
-dialog traps focus and inerts the page behind it.
+dialog traps focus and inerts the page behind it. Access denied renders in
+the navless frame with the rest of the error family: the area as the
+eyebrow, the refusal in one sentence and Return to Work Centre.
 
 **The bell** is the signed-in person's own notifications, never office-wide
 work or queue counts. It shows the unread count, absent at zero. A
