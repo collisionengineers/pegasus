@@ -52,7 +52,7 @@ for each: write it into the named owner, or drop it.
 | UI-15 | Inspection, vehicle, media, salvage, text and administration as workbench parts | FRD-16 |
 | DOC-07 | A document export action | FRD-05 |
 | EXT-02 | The supplied, external and estimated mileage classification named in the MOT section | FRD-06, FRD-23 |
-| EXT-11 | Engineer cost and payment inputs, accounting status, role-restricted visibility | FRD-11 |
+| EXT-11 | Engineer cost and payment inputs, accounting status, staff-role-neutral visibility | FRD-11 |
 | EXT-13 | Independently licensed valuation-source adapters | FRD-24 |
 | MCP-05 | Automation Actor actions for the classified-email workspace | FRD-10 |
 | API-04 | Credential reset and resume | FRD-09 |

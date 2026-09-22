@@ -1397,14 +1397,14 @@ public sealed class CustodyOutboxIntegrationTests
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
             CancellationToken.None));
-        Assert.Contains("after an Engineer is assigned", missingExport.Message, StringComparison.Ordinal);
+        Assert.Contains("after a staff member is assigned", missingExport.Message, StringComparison.Ordinal);
         var missingSubmission = await Assert.ThrowsAsync<InvalidOperationException>(() => submitter.ExecuteAsync(
             new(
                 outcome.Identity.CaseId,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                 "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
             CancellationToken.None));
-        Assert.Contains("after an Engineer is assigned", missingSubmission.Message, StringComparison.Ordinal);
+        Assert.Contains("after a staff member is assigned", missingSubmission.Message, StringComparison.Ordinal);
 
         var disabledEngineerId = Guid.NewGuid();
         await using (var disabledEngineer = await services
@@ -1441,14 +1441,14 @@ public sealed class CustodyOutboxIntegrationTests
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                 "cccccccccccccccccccccccccccccccc"),
             CancellationToken.None));
-        Assert.Contains("Engineer account is disabled", disabledExport.Message, StringComparison.Ordinal);
+        Assert.Contains("assigned staff account is disabled", disabledExport.Message, StringComparison.Ordinal);
         var disabledSubmission = await Assert.ThrowsAsync<InvalidOperationException>(() => submitter.ExecuteAsync(
             new(
                 outcome.Identity.CaseId,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                 "dddddddddddddddddddddddddddddddd"),
             CancellationToken.None));
-        Assert.Contains("Engineer account is disabled", disabledSubmission.Message, StringComparison.Ordinal);
+        Assert.Contains("assigned staff account is disabled", disabledSubmission.Message, StringComparison.Ordinal);
         Assert.Equal(0, evaTransport.CallCount);
         await using (var assignEnabledEngineer = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
@@ -2013,7 +2013,9 @@ public sealed class CustodyOutboxIntegrationTests
             ConcurrencyStamp = Guid.NewGuid().ToString("N")
         };
         Assert.True((await userManager.CreateAsync(user)).Succeeded);
-        Assert.True((await userManager.AddToRoleAsync(user, StaffRoleNames.Engineer)).Succeeded);
+        // EVA consumes the configured sign-off profile. A User role with the
+        // required enabled profile and signature is eligible for that role.
+        Assert.True((await userManager.AddToRoleAsync(user, StaffRoleNames.User)).Succeeded);
 
         var signature = new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a };
         user.IsSignOffEngineer = true;

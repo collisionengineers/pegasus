@@ -28,6 +28,17 @@ public sealed class RepairSpecificationPolicyTests
                 ActionActor.Automation("automation")));
     }
 
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStaffRoleMayAcceptAConfirmedDraft(StaffRole role)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+
+        RepairSpecificationPolicy.ValidateAcceptance(Draft(), actor);
+    }
+
     [Fact]
     public void UnconfirmedLineBlocksAcceptance()
     {

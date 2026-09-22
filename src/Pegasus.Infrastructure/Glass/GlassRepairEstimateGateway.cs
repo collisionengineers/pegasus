@@ -58,13 +58,13 @@ namespace Pegasus.Infrastructure.Glass;
 /// </para>
 ///
 /// <para>
-/// <b>The launch's Case authority is carried, not re-asked.</b> The Engineer
-/// proved version and lease when they launched; the callback arrives on an
+/// <b>The launch's Case authority is carried, not re-asked.</b> The staff
+/// member proved version and lease when they launched; the callback arrives on an
 /// anonymous page minutes later and has no lease of its own. Replaying the
 /// launch's version and lease into the import is what makes the completion the
 /// same authorised act — and when the Case has moved on since, the import
 /// refuses, the artifacts stay retained, and the session waits in
-/// <see cref="GlassRepairEstimateSessionState.AwaitingImport"/> for the Engineer
+/// <see cref="GlassRepairEstimateSessionState.AwaitingImport"/> for the staff member
 /// to regain edit authority.
 /// </para>
 /// </summary>
@@ -112,7 +112,7 @@ public sealed partial class GlassRepairEstimateGateway(
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
 
         var facts = await caseAuthority.RequireEditAuthorityAsync(
             request.Actor, request.CaseId, request.ExpectedCaseVersion, request.LeaseToken, cancellationToken);
@@ -246,12 +246,12 @@ public sealed partial class GlassRepairEstimateGateway(
     /// a launch but not the URL it produced — and that URL carries the one-use
     /// callback token, so it cannot be a field on a read model the Case page
     /// projects. It is read back here, from the protected state, by the
-    /// Engineer who launched it.
+    /// staff member who launched it.
     /// </remarks>
     public async Task<Uri?> GetEstimatorUrlAsync(
         ActionActor actor, Guid sessionId, CancellationToken cancellationToken)
     {
-        RepairSpecificationPolicy.RequireEngineer(actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(actor);
         var material = await store.GetAsync(sessionId, cancellationToken);
         if (material is null)
         {
@@ -279,7 +279,7 @@ public sealed partial class GlassRepairEstimateGateway(
         GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         var material = await RequireSessionAsync(request.SessionId, request.ExpectedVersion, cancellationToken);
         var session = material.Session;
         RequireOwner(request.Actor, session);
@@ -293,7 +293,7 @@ public sealed partial class GlassRepairEstimateGateway(
             {
                 throw new GlassRepairEstimateRefusalException(
                     "Importing a waiting Glass's session needs the Case version and edit lease the "
-                    + "Engineer has regained; resume it through the request that carries them.");
+                    + "staff member has regained; resume it through the request that carries them.");
             }
 
             provider.CaseVersion = caseVersion;
@@ -451,7 +451,7 @@ public sealed partial class GlassRepairEstimateGateway(
     {
         ArgumentNullException.ThrowIfNull(callback);
         ArgumentNullException.ThrowIfNull(callback.RawQuery);
-        RepairSpecificationPolicy.RequireEngineer(callback.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(callback.Actor);
         var material = await RequireCorrelatedAsync(callback, cancellationToken);
         var session = material.Session;
         var provider = Unprotect(material.ProtectedProviderState);
@@ -516,7 +516,7 @@ public sealed partial class GlassRepairEstimateGateway(
         if (credential is null || credential.Reference.CredentialGeneration != session.CredentialGeneration)
         {
             // The credential that launched this has been replaced or turned
-            // off; the session it opened is no longer this Engineer's to finish.
+            // off; the session it opened is no longer this staff member's to finish.
             return await ExpireAsync(session, provider, material.CallbackDigest, results, cancellationToken);
         }
         if (Query(callback.RawQuery, "DoSave") != "1")
@@ -722,7 +722,7 @@ public sealed partial class GlassRepairEstimateGateway(
         {
             // The Case moved on while the operator was in Glass's. Everything
             // the provider produced is already retained; the estimate lands
-            // when the Engineer takes the Case back.
+            // when the staff member takes the Case back.
             return await WriteAsync(
                 session,
                 GlassRepairEstimateSessionState.AwaitingImport,
@@ -841,7 +841,7 @@ public sealed partial class GlassRepairEstimateGateway(
         await credentials.GetEnabledAsync(
             actor, ExternalCredentialProvider.GlassRepairEstimate, cancellationToken)
         ?? throw new GlassRepairEstimateRefusalException(
-            "The signed-in Engineer has no enabled Glass's account, so no estimate can be started.");
+            "The signed-in staff member has no enabled Glass's account, so no estimate can be started.");
 
     private async Task<GlassRepairEstimateSessionMaterial> RequireSessionAsync(
         Guid sessionId, long expectedVersion, CancellationToken cancellationToken)
@@ -894,7 +894,7 @@ public sealed partial class GlassRepairEstimateGateway(
             throw Conflict(
                 GlassRepairEstimateSessionConflict.Callback,
                 session.Id,
-                "This Glass's session belongs to another Engineer.");
+                "This Glass's session belongs to another staff member.");
         }
     }
 
