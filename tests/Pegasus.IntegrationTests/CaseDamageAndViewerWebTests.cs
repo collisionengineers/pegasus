@@ -28,17 +28,17 @@ public sealed class CaseDamageAndViewerWebTests
     private const string PlanViewBox = "0 0 240 434";
 
     /// <summary>
-    /// The Plan clicker (decided 13 September): one panel or wheel per
-    /// detailed zone, the three chips for the areas the silhouette cannot
-    /// show, one numbered marker per zone, the five graded fills as a legend,
-    /// and the recorded-zones list numbered in the same order as the markers.
+    /// Damage by area (v28 P5): one disc per recorded damage drawn from its
+    /// plan areas, the three chips for the areas the plan cannot show, the
+    /// five graded fills as a legend, and the recorded-areas list numbered
+    /// in the same order as the discs, with the derived cells.
     /// </summary>
     [Fact]
-    public async Task TheDamageSectionRendersThePlanClickerOnTheLiveZoneModel()
+    public async Task TheDamageSectionRendersTheRecordedAreasOnThePlan()
     {
         var source = new DamageSource(
-            "[{\"zone\":\"rear_centre\",\"severity\":\"moderate\",\"note\":\"Rear panel deformed\"}," +
-            "{\"zone\":\"tailgate\",\"severity\":\"heavy\",\"note\":\"\"}]");
+            "[{\"areas\":[\"rear\",\"left_rear\"],\"severity\":\"moderate\",\"note\":\"Rear panel deformed\"}," +
+            "{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"\"}]");
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services => source.Substitute(services)));
@@ -53,46 +53,48 @@ public sealed class CaseDamageAndViewerWebTests
         var damage = Section(html, "section-damage-title");
 
         Assert.Contains($"viewBox=\"{PlanViewBox}\"", damage, StringComparison.Ordinal);
-        foreach (var code in AssessmentVocabulary.DetailedDamageZones)
+        // The disc of the first damage, drawn from its two areas; the
+        // underside damage has no disc. No panel zones remain.
+        Assert.Contains("data-damage-marks", damage, StringComparison.Ordinal);
+        Assert.Contains("data-mark=\"0\" data-sev=\"moderate\"", damage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-mark=\"1\"", damage, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(damage, "<circle class=\"area\""));
+        Assert.DoesNotContain("data-damage-zone", damage, StringComparison.Ordinal);
+        Assert.DoesNotContain("dm-guides", damage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-damage-plan-area", damage, StringComparison.Ordinal);
+        foreach (var chip in AssessmentVocabulary.DamageOtherAreas)
         {
-            Assert.Contains($"data-damage-zone=\"{code}\"", damage, StringComparison.Ordinal);
-            Assert.Contains($"data-damage-marker=\"{code}\"", damage, StringComparison.Ordinal);
+            Assert.Contains($"data-damage-area=\"{chip}\"", damage, StringComparison.Ordinal);
         }
-        foreach (var chip in new[] { "underside", "interior", "mechanical" })
-        {
-            Assert.Contains($"data-damage-zone=\"{chip}\"", damage, StringComparison.Ordinal);
-        }
-        // Exactly the live model: 19 panels + 4 wheels + 3 chips, no more.
-        Assert.Equal(
-            AssessmentVocabulary.DetailedDamageZones.Count + 3,
-            Regex.Count(damage, "data-damage-zone=\""));
+        Assert.Equal(3, Regex.Count(damage, "data-damage-area=\""));
+        Assert.Contains("is-damaged\" data-damage-area=\"underside\" aria-pressed=\"true\"", damage, StringComparison.Ordinal);
         foreach (var severity in AssessmentVocabulary.DamageSeverities.Keys)
         {
             Assert.Contains($"data-sev=\"{severity}\"", damage, StringComparison.Ordinal);
         }
 
-        // The recorded zones, numbered in recorded order, and the derived cells.
-        var first = Row(damage, "rear_centre");
-        var second = Row(damage, "tailgate");
-        Assert.Contains("<i class=\"zn\">1</i>", first, StringComparison.Ordinal);
-        Assert.Contains("<i class=\"zn\">2</i>", second, StringComparison.Ordinal);
+        // The recorded areas, numbered in recorded order, and the derived cells.
+        Assert.Contains(">Recorded areas<", damage, StringComparison.Ordinal);
+        var first = Row(damage, "0");
+        var second = Row(damage, "1");
+        Assert.Contains("<i class=\"zn\">1</i>Rear, LH Rear<", first, StringComparison.Ordinal);
+        Assert.Contains("<i class=\"zn\">2</i>Underside<", second, StringComparison.Ordinal);
         Assert.Contains("Rear panel deformed", first, StringComparison.Ordinal);
-        Assert.Contains("data-damage-location", damage, StringComparison.Ordinal);
-        Assert.Contains(">Rear<", Cell(damage, "data-damage-location"), StringComparison.Ordinal);
+        Assert.Contains(">Multiple &#xB7; Rear, LH Rear, Underside<", Cell(damage, "data-damage-location"), StringComparison.Ordinal);
         Assert.Contains(">Heavy<", Cell(damage, "data-damage-severity"), StringComparison.Ordinal);
         Assert.Contains(">2<", Cell(damage, "data-damage-count"), StringComparison.Ordinal);
 
         // Read mode: the one hidden JSON field the Save reads is not rendered
-        // while nothing edits, and the section names its availability rule only
-        // inside a session.
+        // while nothing edits, and neither is Reset.
         Assert.DoesNotContain("name=\"damageImpacts\"", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("data-damage-input", damage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-damage-reset", damage, StringComparison.Ordinal);
         Assert.Equal("false", DamageEditable(damage));
     }
 
     /// <summary>
     /// While the Engineer's session holds the section, the hidden impacts
-    /// field joins the one Case form and the clicker is live.
+    /// field joins the one Case form and the plan is live.
     /// </summary>
     [Fact]
     public async Task TheDamageSectionStagesItsImpactsIntoTheCaseFormWhileEditing()
@@ -115,6 +117,27 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.Contains("data-damage-input", damage, StringComparison.Ordinal);
         Assert.Contains($"viewBox=\"{PlanViewBox}\"", damage, StringComparison.Ordinal);
         Assert.Contains("data-damage-empty", damage, StringComparison.Ordinal);
+        // The band guides and Reset show only while editing.
+        Assert.Contains("class=\"dm-guides\"", damage, StringComparison.Ordinal);
+        Assert.Contains("data-damage-reset", damage, StringComparison.Ordinal);
+        Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Count, Regex.Count(damage, "data-damage-plan-area=\""));
+        Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Count, Regex.Count(damage, "role=\"button\" tabindex=\"0\" data-damage-plan-area=\""));
+        foreach (var area in AssessmentVocabulary.DamagePlanAreas)
+        {
+            Assert.Contains($"data-damage-plan-area=\"{area}\"", damage, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ExactDamageCoverageKeepsTheBoundaryCrossingLeftFrontArea()
+    {
+        // The centre and eight circumference samples used to miss this area:
+        // the disc crosses the left-front/front boundary between sample points.
+        var disc = new DamageDisc(0.38, 0.42, 0.10);
+
+        Assert.Contains(
+            "left_front",
+            DamageAreaGeometry.IntersectedPlanAreas(disc, 1, 1));
     }
 
     /// <summary>
@@ -190,7 +213,7 @@ public sealed class CaseDamageAndViewerWebTests
         return match.Groups[1].Value;
     }
 
-    /// <summary>One recorded-zone row of the impact list, and nothing beside it.</summary>
+    /// <summary>One recorded-damage row of the list, by its index, and nothing beside it.</summary>
     private static string Row(string damage, string zone)
     {
         var start = damage.IndexOf($"data-damage-row=\"{zone}\"", StringComparison.Ordinal);
@@ -371,6 +394,8 @@ public sealed class CaseDamageAndViewerWebTests
         });
 
         var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        const string closedBoundaryImpact =
+            "[{\"areas\":[\"front\",\"left_front\",\"right_front\",\"left_side\",\"right_side\"],\"severity\":\"light\",\"note\":\"Boundary\"}]";
         using var saveResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=Save",
             Form(
@@ -380,7 +405,7 @@ public sealed class CaseDamageAndViewerWebTests
                 ("operationKey", DetailsModelOperationKey),
                 ("editLeaseToken", store.LeaseToken),
                 ("reason", "Recorded damage observations"),
-                ("damageImpacts", "[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"Scuffed\"}]"),
+                ("damageImpacts", closedBoundaryImpact),
                 (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageTyreRightFront), "damaged"),
                 (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageBeltLeftRear), "deployed"),
                 (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated), "Old rear bumper scrape"),
@@ -390,7 +415,9 @@ public sealed class CaseDamageAndViewerWebTests
 
         var damage = Assert.Single(store.Saves).Damage;
         Assert.NotNull(damage);
-        Assert.Equal(new AssessmentImpact("front", "light", "Scuffed"), Assert.Single(damage.Impacts!));
+        var impact = Assert.Single(damage.Impacts!);
+        Assert.Equal(["front", "left_front", "right_front", "left_side", "right_side"], impact.Areas);
+        Assert.Equal(("light", "Boundary"), (impact.Severity, impact.Note));
         Assert.Equal("damaged", damage.AssessmentFields![AssessmentVocabulary.DamageTyreRightFront]);
         Assert.Equal("deployed", damage.AssessmentFields[AssessmentVocabulary.DamageBeltLeftRear]);
         Assert.Equal("Old rear bumper scrape", damage.AssessmentFields[AssessmentVocabulary.DamageUnrelated]);

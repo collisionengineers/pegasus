@@ -37,7 +37,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             caseId, lease.Version, harness.AutomationActor, "damage-save-1", "Record damage.", lease.Token,
             new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                [AssessmentVocabulary.DamageImpacts] = "[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"Bonnet\"},{\"zone\":\"right_rear\",\"severity\":\"heavy\",\"note\":\"Quarter\"}]"
+                [AssessmentVocabulary.DamageImpacts] = "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Bonnet\"},{\"areas\":[\"right_rear\"],\"severity\":\"heavy\",\"note\":\"Quarter\"}]"
             }), CancellationToken.None);
 
         Assert.Equal("multiple", saved.Field(AssessmentVocabulary.ImpactLocation)?.Value);

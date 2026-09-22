@@ -23,7 +23,14 @@ public enum AssessmentFieldType
     Json
 }
 
-public sealed record AssessmentImpact(string Zone, string Severity, string Note);
+/// <summary>
+/// One recorded damage (v28 P5, ruled 20 September 2026): the areas it
+/// covers in the vocabulary's order, a severity and a note. A disc drawn on
+/// the plan names one or more of the eight plan areas; Underside, Interior
+/// and Mechanical are each recorded alone. The record keeps the areas only;
+/// the disc is drawn from them.
+/// </summary>
+public sealed record AssessmentImpact(IReadOnlyList<string> Areas, string Severity, string Note);
 
 public sealed record AssessmentFieldDefinition(
     string Path,
@@ -137,64 +144,38 @@ public static class AssessmentVocabulary
     /// <c>wheel</c>. A broad impact recorded before the detailed diagram
     /// existed stays a broad fact and is never split into detailed regions.
     /// </summary>
-    public static IReadOnlyDictionary<string, (string Display, string ImpactLocation)> DamageZones { get; } =
-        new Dictionary<string, (string, string)>(StringComparer.Ordinal)
-        {
-            ["front"] = ("Front", "front"), ["left_front"] = ("Left front", "left_front"),
-            ["right_front"] = ("Right front", "right_front"), ["left_side"] = ("Left side", "left_side"),
-            ["right_side"] = ("Right side", "right_side"), ["rear"] = ("Rear", "rear"),
-            ["left_rear"] = ("Left rear", "left_rear"), ["right_rear"] = ("Right rear", "right_rear"),
-            ["roof"] = ("Roof", "roof"), ["wheel_right_front"] = ("Right front wheel", "wheel"),
-            ["wheel_left_front"] = ("Left front wheel", "wheel"), ["wheel_right_rear"] = ("Right rear wheel", "wheel"),
-            ["wheel_left_rear"] = ("Left rear wheel", "wheel"), ["underside"] = ("Underside", "underside"),
-            ["interior"] = ("Interior", "interior"), ["mechanical"] = ("Mechanical", "mechanical"),
-            ["front_left_corner"] = ("Front N/S corner", "left_front"),
-            ["front_centre"] = ("Front centre", "front"),
-            ["front_right_corner"] = ("Front O/S corner", "right_front"),
-            ["left_front_wing"] = ("N/S front wing", "left_front"),
-            ["left_front_door"] = ("N/S front door", "left_side"),
-            ["left_rear_door"] = ("N/S rear door", "left_side"),
-            ["left_quarter"] = ("N/S rear quarter", "left_rear"),
-            ["right_front_wing"] = ("O/S front wing", "right_front"),
-            ["right_front_door"] = ("O/S front door", "right_side"),
-            ["right_rear_door"] = ("O/S rear door", "right_side"),
-            ["right_quarter"] = ("O/S rear quarter", "right_rear"),
-            ["rear_left_corner"] = ("Rear N/S corner", "left_rear"),
-            ["rear_centre"] = ("Rear centre", "rear"),
-            ["rear_right_corner"] = ("Rear O/S corner", "right_rear"),
-            ["bonnet"] = ("Bonnet", "front"),
-            ["windscreen"] = ("Windscreen", "front"),
-            ["rear_screen"] = ("Rear screen", "rear"),
-            ["tailgate"] = ("Boot / tailgate", "rear")
-        };
-
     /// <summary>
-    /// The eight broad regions the record kept before the detailed diagram.
-    /// Each is its own headline, and each remains an independent entry: a
-    /// detailed region beside its broad parent is two impacts, not one.
+    /// The eight areas of the plan (v28 P5): front, the sides and the rear,
+    /// each split left, centre and right. A disc drawn on the vehicle records
+    /// the areas under it.
     /// </summary>
-    public static IReadOnlySet<string> BroadDamageZones { get; } = new HashSet<string>(
-        StringComparer.Ordinal)
-    {
+    public static IReadOnlyList<string> DamagePlanAreas { get; } =
+    [
         "front", "left_front", "right_front", "left_side",
         "right_side", "rear", "left_rear", "right_rear"
-    };
+    ];
 
-    /// <summary>
-    /// The twenty-three regions of the damage diagram. The four wheels and the
-    /// roof keep the keys the record already persisted rather than gaining a
-    /// second spelling.
-    /// </summary>
-    public static IReadOnlySet<string> DetailedDamageZones { get; } = new HashSet<string>(
-        StringComparer.Ordinal)
+    /// <summary>The three areas the plan cannot show, each recorded alone.</summary>
+    public static IReadOnlyList<string> DamageOtherAreas { get; } = ["underside", "interior", "mechanical"];
+
+    /// <summary>Every recordable area with its name, as the record, the cells and the report print it.</summary>
+    public static IReadOnlyDictionary<string, string> DamageAreas { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["front"] = "Front", ["left_front"] = "LH Front", ["right_front"] = "RH Front",
+            ["left_side"] = "LH Side", ["right_side"] = "RH Side", ["rear"] = "Rear",
+            ["left_rear"] = "LH Rear", ["right_rear"] = "RH Rear",
+            ["underside"] = "Underside", ["interior"] = "Interior", ["mechanical"] = "Mechanical"
+        };
+
+    private static readonly string[] DamageAreaSequence = [.. DamagePlanAreas, .. DamageOtherAreas];
+
+    /// <summary>An area's position in the record's order; an unknown code sorts last.</summary>
+    public static int DamageAreaOrder(string code)
     {
-        "front_left_corner", "front_centre", "front_right_corner",
-        "left_front_wing", "left_front_door", "left_rear_door", "left_quarter",
-        "right_front_wing", "right_front_door", "right_rear_door", "right_quarter",
-        "rear_left_corner", "rear_centre", "rear_right_corner",
-        "bonnet", "windscreen", "roof", "rear_screen", "tailgate",
-        "wheel_left_front", "wheel_right_front", "wheel_left_rear", "wheel_right_rear"
-    };
+        var index = Array.IndexOf(DamageAreaSequence, code);
+        return index < 0 ? DamageAreaSequence.Length : index;
+    }
 
     public static IReadOnlyDictionary<string, (string Display, int Rank)> DamageSeverities { get; } =
         new Dictionary<string, (string, int)>(StringComparer.Ordinal)
@@ -237,7 +218,7 @@ public static class AssessmentVocabulary
         new(ImpactSeverity, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: DamageSeverities.Keys.ToArray()),
         new(ImpactLocation, AssessmentFieldType.Enumerated, 20, IsFinding: false,
-            Codes: [.. DamageZones.Values.Select(zone => zone.ImpactLocation).Distinct(StringComparer.Ordinal), "multiple"]),
+            Codes: [.. DamagePlanAreas, .. DamageOtherAreas, "multiple"]),
         new(DamageImpacts, AssessmentFieldType.Json, 4000, IsFinding: false),
         new(DamageTyreRightFront, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: TyreCodes),
         new(DamageTyreLeftFront, AssessmentFieldType.Enumerated, 20, IsFinding: false, Codes: TyreCodes),

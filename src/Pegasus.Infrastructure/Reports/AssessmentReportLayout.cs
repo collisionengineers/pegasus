@@ -456,7 +456,7 @@ internal static class AssessmentReportLayout
         });
         table.Header(header =>
         {
-            HeaderCell(header.Cell(), "Zone");
+            HeaderCell(header.Cell(), "Areas");
             HeaderCell(header.Cell(), "Severity");
             HeaderCell(header.Cell(), "Note");
         });
@@ -468,7 +468,7 @@ internal static class AssessmentReportLayout
         for (var i = 0; i < impacts.Count; i++)
         {
             var even = i % 2 == 1;
-            BodyCell(table.Cell(), even).Text(impacts[i].Zone);
+            BodyCell(table.Cell(), even).Text(impacts[i].Areas);
             BodyCell(table.Cell(), even).Text(impacts[i].Severity);
             BodyCell(table.Cell(), even).Text(impacts[i].Note);
         }
@@ -550,18 +550,19 @@ internal static class AssessmentReportLayout
         .FitArea();
 
     /// <summary>
-    /// The marked top-down damage diagram, drawn from the shared
-    /// <see cref="DamageDiagramGeometry"/> so the report shows the same
-    /// selected regions as the Case workspace. Nothing is drawn when no
-    /// impact carries a canonical zone code.
+    /// The top-down damage diagram: one disc per recorded damage, drawn from
+    /// its plan areas by the shared <see cref="DamageAreaGeometry"/> so the
+    /// report shows what the Case workspace shows. Nothing is drawn when no
+    /// damage names a plan area.
     /// </summary>
     private static void ImpactDiagram(ColumnDescriptor column, IReadOnlyList<ReportImpact> impacts)
     {
-        var marked = impacts
-            .Where(impact => !string.IsNullOrWhiteSpace(impact.Code))
-            .Select(impact => Slug(impact.Code))
-            .ToHashSet(StringComparer.Ordinal);
-        if (marked.Count == 0)
+        var discs = impacts
+            .Select(impact => DamageAreaGeometry.RenderDisc(impact.Codes, PlanWidth, PlanHeight))
+            .Where(disc => disc is not null)
+            .Select(disc => disc!)
+            .ToArray();
+        if (discs.Length == 0)
         {
             return;
         }
@@ -571,7 +572,7 @@ internal static class AssessmentReportLayout
             .Column(figure =>
             {
                 DiagramLabel(figure.Item(), "FRONT");
-                figure.Item().Height(75, Unit.Millimetre).AlignCenter().Svg(DiagramSvg(marked)).FitHeight();
+                figure.Item().Height(75, Unit.Millimetre).AlignCenter().Svg(DiagramSvg(discs)).FitHeight();
                 DiagramLabel(figure.Item(), "REAR");
             });
     }
@@ -584,31 +585,39 @@ internal static class AssessmentReportLayout
         .FontColor(DiagramInk)
         .LetterSpacing(0.08f);
 
-    private static string DiagramSvg(HashSet<string> marked)
+    // The report's plan silhouette, and the body box the unit plan maps onto.
+    private const string PlanViewBox = "20 0 200 390";
+    private const string PlanBodyPath = "M75 62 L58 84 L58 316 L75 338 Q120 372 165 338 L182 316 L182 84 L165 62 Q120 8 75 62 Z";
+    private const string PlanFrontGlassPath = "M92 100 Q120 86 148 100 L152 150 L88 150 Z";
+    private const string PlanRearGlassPath = "M92 250 L148 250 L146 300 Q120 312 94 300 Z";
+    private const string PlanStrongLinesPath = "M92 150 V250 M148 150 V250";
+    private const string PlanLinesPath = "M58 150 H182 M58 250 H182";
+    private const double PlanLeft = 58;
+    private const double PlanTop = 8;
+    private const double PlanWidth = 124;
+    private const double PlanHeight = 364;
+    private static readonly (int CentreX, int CentreY)[] PlanWheels = [(44, 96), (176, 96), (44, 286), (176, 286)];
+
+    private static string DiagramSvg(IReadOnlyList<DamageDisc> discs)
     {
-        const string markedStyle = "fill=\"#f8dce1\" stroke=\"#c80a32\" stroke-width=\"1.5\"";
         var svg = new StringBuilder();
-        svg.Append(CultureInfo.InvariantCulture, $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"{DamageDiagramGeometry.ViewBox}\">");
-        foreach (var wheel in DamageDiagramGeometry.Wheels)
+        svg.Append(CultureInfo.InvariantCulture, $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"{PlanViewBox}\">");
+        foreach (var wheel in PlanWheels)
         {
             svg.Append(CultureInfo.InvariantCulture, $"<rect fill=\"#30383d\" x=\"{wheel.CentreX - 10}\" y=\"{wheel.CentreY - 22}\" width=\"20\" height=\"44\" rx=\"6\"/>");
-            if (marked.Contains(Slug(wheel.Code)))
-            {
-                svg.Append(CultureInfo.InvariantCulture, $"<rect {markedStyle} x=\"{wheel.CentreX - 14}\" y=\"{wheel.CentreY - 26}\" width=\"28\" height=\"52\" rx=\"8\"/>");
-            }
         }
-        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"#ffffff\" stroke=\"#9ba7ad\" stroke-width=\"1.5\" d=\"{DamageDiagramGeometry.BodyPath}\"/>");
-        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"#e9eef0\" stroke=\"#9ba7ad\" stroke-width=\"1\" d=\"{DamageDiagramGeometry.FrontGlassPath}\"/>");
-        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"#e9eef0\" stroke=\"#9ba7ad\" stroke-width=\"1\" d=\"{DamageDiagramGeometry.RearGlassPath}\"/>");
-        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"none\" stroke=\"#9ba7ad\" stroke-width=\"1\" d=\"{DamageDiagramGeometry.StrongStructuralLinesPath}\"/>");
-        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"none\" stroke=\"#75828a\" stroke-width=\"1\" d=\"{DamageDiagramGeometry.StructuralLinesPath}\"/>");
-        foreach (var zone in DamageDiagramGeometry.Zones.Where(zone => marked.Contains(Slug(zone.Code))))
+        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"#ffffff\" stroke=\"#9ba7ad\" stroke-width=\"1.5\" d=\"{PlanBodyPath}\"/>");
+        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"#e9eef0\" stroke=\"#9ba7ad\" stroke-width=\"1\" d=\"{PlanFrontGlassPath}\"/>");
+        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"#e9eef0\" stroke=\"#9ba7ad\" stroke-width=\"1\" d=\"{PlanRearGlassPath}\"/>");
+        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"none\" stroke=\"#9ba7ad\" stroke-width=\"1\" d=\"{PlanStrongLinesPath}\"/>");
+        svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"none\" stroke=\"#75828a\" stroke-width=\"1\" d=\"{PlanLinesPath}\"/>");
+        foreach (var disc in discs)
         {
-            svg.Append(CultureInfo.InvariantCulture, $"<path {markedStyle} d=\"{zone.Path}\"/>");
+            svg.Append(CultureInfo.InvariantCulture, $"<circle fill=\"#f8dce1\" fill-opacity=\"0.75\" stroke=\"#c80a32\" stroke-width=\"1.5\" cx=\"{PlanLeft + disc.CentreX:0.#}\" cy=\"{PlanTop + disc.CentreY:0.#}\" r=\"{disc.Radius:0.#}\"/>");
         }
-        foreach (var marker in DamageDiagramGeometry.Markers.Where(marker => marked.Contains(Slug(marker.Code))))
+        foreach (var disc in discs)
         {
-            svg.Append(CultureInfo.InvariantCulture, $"<g transform=\"translate({marker.CentreX - 9} {marker.CentreY - 9})\"><circle cx=\"9\" cy=\"9\" r=\"9\" fill=\"#c80a32\"/><path transform=\"translate(3 3) scale(.5)\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M14.5 0 3 14h8l-1.5 10L21 9h-8z\"/></g>");
+            svg.Append(CultureInfo.InvariantCulture, $"<circle fill=\"#c80a32\" cx=\"{PlanLeft + disc.CentreX:0.#}\" cy=\"{PlanTop + disc.CentreY:0.#}\" r=\"4\"/>");
         }
         svg.Append("</svg>");
         return svg.ToString();

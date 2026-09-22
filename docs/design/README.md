@@ -175,9 +175,10 @@ Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review or
 Engineer, Archive, Place on Hold or Release Hold, Correct
 principal, Create audit — then, after a separator and in red, Close case.
 Outside an edit session the menu appears only when Send to EVA is available.
-Damage uses the **Plan** clicker only: a top-down silhouette drawn as the
-panels, five graded severity fills with a legend, and numbered markers that
-match the recorded-zones list. Images open in a full-screen **viewer** (title,
+Damage uses the **plan** only: a top-down silhouette drawn as the panels,
+one numbered disc per recorded damage sized and placed by dragging, five
+graded severity fills with a legend, and a recorded-areas list numbered like
+the discs. Images open in a full-screen **viewer** (title,
 tag, position, Rotate, Zoom, Download, In report while editing, and a filmstrip
 with excluded images greyed); crop happens on the viewer stage itself (drag,
 handles, move, Aspect, Rotate left and right, Full frame, Reset, Save crop). A
@@ -862,8 +863,8 @@ deleted in wave 5.
 | `fg`, `fc`, `fv`, `fi`, `ro`, `idn` | One-geometry cells: a value that becomes its input while editing; `ro` never edits; `idn` reads with a lock while the rest edits |
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
 | `gated`, `avail` | The dashed availability label, stated once per section head |
-| `damage-workbench`, `damage-markers`, `stepper`, `figures`, `figure` | The Damage Plan clicker and its numbered markers, the workflow stepper and the aside figures |
-| `damage-diagram`, `impact` | The clickable damage diagram and its zone markers; `impact` marks a zone with recorded damage |
+| `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its numbered discs, and the aside figures |
+| `damage-diagram`, `dm`, `dm-guides` | The plan silhouette, one disc per recorded damage, and the dashed band guides shown while editing |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
 | `valuation-card` | One valuation entry: source, date, time, mileage, guide month, retail, trade |
 | `outcome-option` | Settlement outcome choice |

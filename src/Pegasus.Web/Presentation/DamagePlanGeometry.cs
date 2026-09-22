@@ -3,14 +3,13 @@ using Pegasus.Core.Assessment;
 namespace Pegasus.Web.Presentation;
 
 /// <summary>
-/// The Plan clicker (v26, decided 13 September): one top-down silhouette
-/// drawn as the actual panels — bumper ends wrap to the corners, wings sit
-/// beside the bonnet, doors beside the glasshouse, quarters beside the rear
-/// screen. Presentation only: the zone codes are Core's own
-/// (<see cref="DamageDiagramGeometry"/>: the 19 detailed panels and the four
-/// wheels), so the recorded-zones list, the derived impact location and
-/// severity and the report's diagram read the same facts. The paths are the
-/// mockup's <c>PLAN_*</c> verbatim.
+/// The plan (v28 P5): one top-down silhouette drawn as the actual panels —
+/// bumper ends wrap to the corners, wings sit beside the bonnet, doors beside
+/// the glasshouse, quarters beside the rear screen. Presentation only: the
+/// areas, the bands that divide the plan and the disc a damage is drawn as
+/// are Core's own (<see cref="DamageAreaGeometry"/>), mapped onto this
+/// silhouette's body box, so the discs here and on the report read the same
+/// facts. The paths are the mockup's <c>PLAN_*</c> verbatim.
 /// </summary>
 public static class DamagePlanGeometry
 {
@@ -47,29 +46,26 @@ public static class DamagePlanGeometry
         (196, 160, 22, 11)
     ];
 
-    /// <summary>The 19 panels, in the mockup's draw order, each with its marker centre.</summary>
-    public static IReadOnlyList<DamagePlanZone> Zones { get; } =
-    [
-        new("front_centre", "M64 0 H176 V46 C150 34 90 34 64 46 Z", 120, 30),
-        new("front_right_corner", "M176 0 H240 V100 H182 L176 46 Z", 184, 68),
-        new("front_left_corner", "M64 0 H0 V100 H58 L64 46 Z", 56, 68),
-        new("bonnet", "M64 46 C90 34 150 34 176 46 L182 118 H58 Z", 120, 84),
-        new("windscreen", "M58 118 H182 L172 160 C150 154 90 154 68 160 Z", 120, 140),
-        new("right_front_wing", "M182 100 H240 V160 H172 L182 118 Z", 188, 132),
-        new("left_front_wing", "M58 100 H0 V160 H68 L58 118 Z", 52, 132),
-        new("right_front_door", "M172 160 H240 V238 H172 Z", 186, 199),
-        new("left_front_door", "M68 160 H0 V238 H68 Z", 54, 199),
-        new("right_rear_door", "M172 238 H240 V300 H172 Z", 186, 269),
-        new("left_rear_door", "M68 238 H0 V300 H68 Z", 54, 269),
-        new("roof", "M68 160 C90 154 150 154 172 160 V300 C150 306 90 306 68 300 Z", 120, 232),
-        new("right_quarter", "M172 300 H240 V366 H172 Z", 186, 334),
-        new("left_quarter", "M68 300 H0 V366 H68 Z", 54, 334),
-        new("rear_screen", "M68 300 C90 306 150 306 172 300 L168 334 H72 Z", 120, 318),
-        new("tailgate", "M72 334 H168 L172 366 Q120 392 68 366 Z", 120, 356),
-        new("rear_right_corner", "M172 366 H240 V430 H148 V382 Q166 378 172 366 Z", 180, 390),
-        new("rear_left_corner", "M68 366 H0 V430 H92 V382 Q74 378 68 366 Z", 60, 390),
-        new("rear_centre", "M92 380 Q120 390 148 380 V430 H92 Z", 120, 400)
-    ];
+    /// <summary>The body box the unit plan maps onto: x 42 to 198, y 16 to 410.</summary>
+    public const int PlanLeft = 42;
+    public const int PlanTop = 16;
+    public const int PlanWidth = 156;
+    public const int PlanHeight = 394;
+
+    /// <summary>The dashed band lines shown while editing: Core's bands on this plan.</summary>
+    public static string GuidesPath { get; } = FormattableString.Invariant(
+        $"M{PlanLeft} {PlanY(DamageAreaGeometry.FrontBand)} H{PlanLeft + PlanWidth} M{PlanLeft} {PlanY(DamageAreaGeometry.RearBand)} H{PlanLeft + PlanWidth} M{PlanX(DamageAreaGeometry.LeftBand)} {PlanTop} V{PlanTop + PlanHeight} M{PlanX(DamageAreaGeometry.RightBand)} {PlanTop} V{PlanTop + PlanHeight}");
+
+    /// <summary>The disc a damage's plan areas draw as, in this plan's coordinates; null for the other areas.</summary>
+    public static DamageDisc? Disc(IReadOnlyList<string> areas)
+    {
+        var disc = DamageAreaGeometry.RenderDisc(areas, PlanWidth, PlanHeight);
+        return disc is null ? null : disc with { CentreX = disc.CentreX + PlanLeft, CentreY = disc.CentreY + PlanTop };
+    }
+
+    private static double PlanX(double fraction) => Math.Round(PlanLeft + fraction * PlanWidth, 1);
+
+    private static double PlanY(double fraction) => Math.Round(PlanTop + fraction * PlanHeight, 1);
 
     /// <summary>The four wheels as 16×48 rounded rects centred on (x, y).</summary>
     public static IReadOnlyList<DamagePlanWheel> Wheels { get; } =
@@ -79,11 +75,6 @@ public static class DamagePlanGeometry
         new("wheel_left_rear", 36, 324),
         new("wheel_right_rear", 204, 324)
     ];
-
-    /// <summary>The three areas the diagram cannot draw, offered as chips.</summary>
-    public static IReadOnlyList<string> ExtraZones { get; } = ["underside", "interior", "mechanical"];
 }
-
-public sealed record DamagePlanZone(string Code, string Path, int MarkerX, int MarkerY);
 
 public sealed record DamagePlanWheel(string Code, int CentreX, int CentreY);

@@ -11,10 +11,10 @@ public sealed class AssessmentReportRenderingTests
     private static readonly DateTimeOffset RecordedAtUtc = new(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void ExpandedSnapshotUsesVersionFourAndImpactRetainsItsCanonicalZone()
+    public void ExpandedSnapshotUsesVersionFiveAndImpactRetainsItsAreaCodes()
     {
-        Assert.Equal("rendererref1-v4", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
-        Assert.Equal(["Zone", "Severity", "Note", "Code"], typeof(ReportImpact).GetProperties().Select(property => property.Name));
+        Assert.Equal("rendererref1-v5", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
+        Assert.Equal(["Areas", "Severity", "Note", "Codes"], typeof(ReportImpact).GetProperties().Select(property => property.Name));
     }
 
     [Theory]
@@ -465,7 +465,7 @@ public sealed class AssessmentReportRenderingTests
             ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, Quantity: 1);
 
     internal static ReportDamage Damage() => new(
-        [new("Right rear", "Moderate", "Quarter panel")],
+        [new("RH Rear", "Moderate", "Quarter panel", ["right_rear"])],
         "ok", "worn", "damaged", "illegal", "ok", "locked", "deployed", "not_fitted",
         "repair_kit", "not_fitted", "Door scratch", 75m, "Red paint");
 
