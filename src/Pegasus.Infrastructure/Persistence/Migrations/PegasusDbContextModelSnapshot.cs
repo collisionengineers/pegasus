@@ -7762,6 +7762,40 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.UnroadworthyReasonEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PrincipalCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PrincipalCode", "Text")
+                        .IsUnique();
+
+                    b.ToTable("UnroadworthyReasons", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_UnroadworthyReasons_Text", "[Text] <> ''");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.UserExternalCredentialEntity", b =>
                 {
                     b.Property<Guid>("Id")

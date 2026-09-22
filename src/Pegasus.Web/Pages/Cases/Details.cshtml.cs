@@ -65,6 +65,8 @@ public sealed partial class DetailsModel(
     IRepairSpecificationStore repairSpecifications,
     IImportRawEstimate importRawEstimate,
     IRepairSpecificationSnapshotStore specificationSnapshots,
+    IUnroadworthyReasonBankStore unroadworthyReasonBank,
+    ISaveUnroadworthyReason saveUnroadworthyReasonAction,
     ISaveAndScaleRepairSpecification saveAndScaleRepairSpecification,
     IRemoveRepairSpecificationScaling removeRepairSpecificationScaling,
     IRestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot,
@@ -579,6 +581,17 @@ public sealed partial class DetailsModel(
 
     public string RestoreOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>
+    /// The unroadworthy reason wordings offered on this Case (v28 P15): the
+    /// standard ones, then the Principal's own, in the order they were saved.
+    /// </summary>
+    public IReadOnlyList<string> UnroadworthyReasonWordings { get; private set; } =
+        UnroadworthyReasonBank.Standard;
+
+    /// <summary>The repair reserve the Current repair specification implies (v28 P30), or null.</summary>
+    public decimal? ComputedRepairReserve =>
+        SettlementPolicy.ComputedRepairReserve(RepairCostIncVat, RecordedOutcome);
+
     /// <summary>The selected specification's frozen versions, oldest first (v28 P43).</summary>
     public IReadOnlyList<RepairSpecificationSnapshot> SelectedEstimateSnapshots { get; private set; } = [];
 
@@ -909,6 +922,12 @@ public sealed partial class DetailsModel(
         Estimates = await listEstimates.ExecuteAsync(id, cancellationToken);
         LabourRateCards = await labourRateCards.ListAsync(actor, cancellationToken);
         ApplyEstimateSelection(estimate);
+        if (Case is not null)
+        {
+            var saved = await unroadworthyReasonBank.ListAsync(
+                Case.Workflow.Identity.PrincipalCode, cancellationToken);
+            UnroadworthyReasonWordings = [.. UnroadworthyReasonBank.Standard, .. saved.Select(item => item.Text)];
+        }
         if (SelectedEstimate is not null)
         {
             SelectedEstimateSnapshots = await specificationSnapshots.ListAsync(id, SelectedEstimate.SpecificationId, cancellationToken);
@@ -1346,11 +1365,12 @@ public sealed partial class DetailsModel(
             () => RedirectToSection(id, section),
             cancellationToken);
 
-    public Task<IActionResult> OnPostSaveAsync(
+    public async Task<IActionResult> OnPostSaveAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string? reason,
+        bool saveUnroadworthyReason,
         string editLeaseToken,
         string? claimantName,
         string? claimNumber,
@@ -1394,19 +1414,42 @@ public sealed partial class DetailsModel(
         string? claimSourceContactTelephone,
         string? claimSourceContactEmail,
         string? section,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
+        CancellationToken cancellationToken)
+    {
+        assessmentFields ??= [];
+        string? bankWording = null;
+        if (saveUnroadworthyReason)
+        {
+            assessmentFields.TryGetValue(AssessmentVocabulary.UnroadworthyReason, out bankWording);
+        }
+
+        string? bankStatus = null;
+        string? bankError = null;
+        var result = await ExecuteCaseCommandAsync(
             id,
             editLeaseToken,
             "save_case",
             async actor =>
             {
+                if (saveUnroadworthyReason)
+                {
+                    try
+                    {
+                        _ = UnroadworthyReasonBank.Normalize(bankWording);
+                    }
+                    catch (ArgumentException exception)
+                    {
+                        bankError = MutationRefusalMessage(
+                            exception, "The wording was not saved to the bank. Retry the operation.");
+                        throw;
+                    }
+                }
+
                 if (!ModelState.IsValid)
                 {
                     throw new InvalidOperationException("A submitted Case field is invalid.");
                 }
 
-                assessmentFields ??= [];
                 if (assessmentFields.Keys.Any(path => !EditorLabels.IsAssessmentField(path)))
                 {
                     throw new InvalidOperationException("This field is not part of the Case editor.");
@@ -1635,10 +1678,41 @@ public sealed partial class DetailsModel(
                         Submitted(nameof(reportDate), reportDate, recordedDate))
                 }, cancellationToken);
                 RecordEditorCommit("case-edit-form", operationKey, expectedVersion);
+
+                if (saveUnroadworthyReason)
+                {
+                    try
+                    {
+                        var saved = await saveUnroadworthyReasonAction.ExecuteAsync(
+                            new(current.Workflow.Identity.PrincipalCode, bankWording!, actor),
+                            cancellationToken);
+                        bankStatus = saved is null
+                            ? "The bank already offers that wording."
+                            : "The wording was saved to the bank.";
+                    }
+                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    {
+                        bankError = MutationRefusalMessage(
+                            exception, "The wording was not saved to the bank. Retry the operation.");
+                    }
+                }
             },
             "Case saved.",
             caseId => RedirectToSection(caseId, section),
             keepEditing: true);
+
+        if (bankError is not null)
+        {
+            TempData.Remove("CaseStatus");
+            TempData["CaseError"] = bankError;
+        }
+        else if (bankStatus is not null)
+        {
+            TempData["CaseStatus"] = bankStatus;
+        }
+
+        return result;
+    }
 
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 

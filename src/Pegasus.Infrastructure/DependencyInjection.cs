@@ -1,4 +1,4 @@
-using Pegasus.Core.AiWork;
+﻿using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
@@ -484,6 +484,8 @@ public static class DependencyInjection
         services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddScoped<IRepairSpecificationSnapshotStore, EfRepairSpecificationSnapshotStore>();
+        services.AddScoped<IUnroadworthyReasonBankStore, EfUnroadworthyReasonBankStore>();
+        services.AddScoped<ISaveUnroadworthyReason, SaveUnroadworthyReason>();
         services.AddScoped<ISaveAndScaleRepairSpecification, SaveAndScaleRepairSpecification>();
         services.AddScoped<IRemoveRepairSpecificationScaling, RemoveRepairSpecificationScaling>();
         services.AddScoped<IRestoreRepairSpecificationSnapshot, RestoreRepairSpecificationSnapshot>();

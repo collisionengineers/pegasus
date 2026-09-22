@@ -281,6 +281,16 @@ public static class CaseWorkspaceLabels
         public const string StorageCharge = "Storage charge";
         public const string AwaitingReview = "awaiting review";
         public const string AiProposal = "AI proposal";
+        public const string NotApplicable = "Not applicable";
+        public const string ComputedRepairReserve = "Repair reserve (computed)";
+        public const string RoundedUpToFifty = "repair cost rounded up to the next \u00a350";
+        public const string SalvageShare = "Salvage value as a percentage of the Engineer\u2019s Value";
+        public const string ReasonBank = "Reason bank";
+        public const string SaveWordingToTheBank = "Save this wording to the bank";
+
+        /// <summary>The share a recorded salvage value is of the Engineer's Value.</summary>
+        public static string ShareOfValue(decimal percent, string value) =>
+            "= " + percent.ToString("0.#", CultureInfo.InvariantCulture) + "% of " + value;
     }
 
     /// <summary>The Report section's own words (v26 § Report).</summary>

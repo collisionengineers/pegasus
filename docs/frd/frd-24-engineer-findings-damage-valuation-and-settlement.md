@@ -135,6 +135,25 @@ Financial ratio lines are allowed, not required; the "no percentage" rule in
 only to completeness. Outcome meanings are owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
 
+**The Decisions surface (v28, ruled 20 September 2026).** Outcome, Salvage
+category and Roadworthiness are chosen from a radio group of their codes,
+with the unset state offered as "Not recorded"; the select stays the posted
+control, so a browser without script picks the same value from it. Salvage
+value carries a slider reading the share of the Engineer's Value, with 5,
+10, 15, 20 and 25 % snaps: the amount and the share are one fact and the
+last touch wins. While the outcome is not a total loss the salvage rows are
+absent and a "Salvage · Not applicable" line stands in their place. Beside
+the typed reserve, a computed **Repair reserve** reads the Current repair
+specification's VAT-inclusive cost rounded up to the next £50 on a
+Repairable outcome, and Not applicable otherwise; it is never written.
+
+**The unroadworthy reason bank (v28 P15).** An Engineer inserts a wording
+into the reason, joined to what is already there with "and", and may save
+the typed reason to the Principal's own bank. Seven standard wordings are
+offered to every firm; a firm's saved wordings follow them. The wordings
+print on the assessment report, so they are report wording. Nothing deletes
+a wording.
+
 Settlement saves with the Case's single workspace Save. Storage per day and
 recovery use the existing typed Inspection members; a lump storage charge is
 a separate fact. The repair total is read from the Current accepted repair

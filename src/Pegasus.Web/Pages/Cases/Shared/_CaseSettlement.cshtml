@@ -1,4 +1,12 @@
 @*
+    Decisions (v26 § Settlement, renamed by v28 P26). The figures strip, then
+    the Decisions strip with its radio groups (v28 P29: the select stays the
+    posted control and the buttons drive it, so the live show-and-hide rules
+    still fire), the salvage share slider (P14), the firm's unroadworthy
+    reason bank (P15), the computed repair reserve (P30) and the
+    "Salvage · Not applicable" line (P29) while the outcome is not a total
+    loss. Historic head comment follows.
+
     Settlement (v26 § Settlement). The figures strip, then the Decisions strip
     (manager's v24 decision folded in: Outcome, Engineer's Value, Salvage
     category and value, Roadworthiness and the unroadworthy reason in one
@@ -28,9 +36,12 @@
     var equity = engineerValue is { } ev ? ev - (salvage ?? 0m) : (decimal?)null;
 
     string Money(decimal? value) => value is { } figure ? Pegasus.Web.Pages.Cases.DetailsModel.FormatPounds(figure) : "—";
+
+    var computedReserve = Model.ComputedRepairReserve;
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.settlement") @Model.ActiveTabClass("settlement") @(Model.IsEditing && !Model.SectionIsEditable("settlement") ? "is-locked" : null)" id="section-settlement" data-section="settlement" data-collapse="case.settlement" aria-labelledby="section-settlement-title"
+         data-settlement-repair-cost="@(repairCost?.ToString("0.##", CultureInfo.InvariantCulture))"
          data-settlement data-settlement-outcome="@outcome" data-settlement-editable="@(editing ? "true" : "false")">
     <div class="panel-head">
         <h2 id="section-settlement-title">@EngineerLabels.Settlement</h2>
@@ -98,20 +109,44 @@
                 }
                 <div class="fc ro">
                     <span class="lbl">@SettlementLabels.EngineersValue</span>
-                    <div class="fv mono" data-decision-engineer-value>
+                    <div class="fv mono" data-decision-engineer-value data-engineer-value="@(engineerValue?.ToString("0.##", CultureInfo.InvariantCulture))">
                         <span>@Money(engineerValue)</span>
                         <a class="src-tag" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ValuationLink</a>
                     </div>
                 </div>
             </div>
+            @* While the outcome is not a total loss the salvage rows are gone;
+               this says so as a label and a value, never as a sentence (P29). *@
+            <div class="dec" data-decision-salvage-absent data-hidden-when="total-loss" hidden="@(isTotalLoss ? "hidden" : null)">
+                <span class="dl">@SettlementLabels.Salvage</span>
+                <div class="fc ro"><span class="lbl">@SettlementLabels.Salvage</span><div class="fv">@SettlementLabels.NotApplicable</div></div>
+            </div>
             @{ await DecisionRow(AssessmentVocabulary.SalvageCategory, labels[AssessmentVocabulary.SalvageCategory], !isTotalLoss, "total-loss");
-                await DecisionRow(AssessmentVocabulary.SalvageValue, labels[AssessmentVocabulary.SalvageValue], !isTotalLoss, "total-loss");
+                await DecisionRow(
+                    AssessmentVocabulary.SalvageValue, labels[AssessmentVocabulary.SalvageValue], !isTotalLoss, "total-loss",
+                    share: true);
                 await DecisionRow(AssessmentVocabulary.LegalStatus, labels[AssessmentVocabulary.LegalStatus], false);
             }
             <div class="dec wide" data-decision="@AssessmentVocabulary.UnroadworthyReason" data-shown-when="unroadworthy" hidden="@(isUnroadworthy ? null : "hidden")">
                 <span class="dl">@labels[AssessmentVocabulary.UnroadworthyReason]</span>
                 @{ Proposal(AssessmentVocabulary.UnroadworthyReason);
                     await Field(AssessmentVocabulary.UnroadworthyReason, labels[AssessmentVocabulary.UnroadworthyReason], multi: true); }
+                @if (editing && Model.CanEditAssessmentField(AssessmentVocabulary.UnroadworthyReason))
+                {
+                    @* The firm's bank (P15): a wording is inserted into the reason,
+                       joined with "and"; the typed reason can be saved to the bank. *@
+                    <div class="reason-bank" data-reason-bank aria-label="@SettlementLabels.ReasonBank">
+                        @foreach (var wording in Model.UnroadworthyReasonWordings)
+                        {
+                            <button type="button" class="btn btn--small" data-bank-wording="@wording">@wording</button>
+                        }
+                        <button type="submit" class="btn btn--small" form="case-edit-form"
+                                name="saveUnroadworthyReason" value="true">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                            <span>@SettlementLabels.SaveWordingToTheBank</span>
+                        </button>
+                    </div>
+                }
             </div>
         </div>
 
@@ -126,6 +161,13 @@
 
         <div class="sub-panel @Model.CollapsedClass("case.settlement.costs")" data-collapse="case.settlement.costs"><h3>@SettlementLabels.CostsHireDelays <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.settlement.costs")" /></h3>
             <div class="fg g4">
+                <div class="fc ro" data-settlement-computed-reserve>
+                    <span class="lbl">@SettlementLabels.ComputedRepairReserve</span>
+                    <div class="fv mono derived @(computedReserve is null ? "empty" : null)"
+                         data-settlement-computed-reserve-value
+                         data-not-applicable="@SettlementLabels.NotApplicable"
+                         data-rounded-up="@SettlementLabels.RoundedUpToFifty">@(computedReserve is { } reserve ? Money(reserve) + " (" + SettlementLabels.RoundedUpToFifty + ")" : SettlementLabels.NotApplicable)</div>
+                </div>
                 @{ await Field(AssessmentVocabulary.SettlementReserve, labels[AssessmentVocabulary.SettlementReserve]);
                     await Field(AssessmentVocabulary.SettlementDiminution, labels[AssessmentVocabulary.SettlementDiminution]);
                     await Field(AssessmentVocabulary.SettlementHireStart, labels[AssessmentVocabulary.SettlementHireStart]);
@@ -155,12 +197,63 @@
 @functions {
     // One decision row: the label column, the Proposed column when the strip
     // carries proposals, and the cell itself.
-    private async Task DecisionRow(string path, string label, bool hidden, string? shownWhen = null)
+    private async Task DecisionRow(string path, string label, bool hidden, string? shownWhen = null, bool share = false)
     {
+        var definition = AssessmentVocabulary.Definitions[path];
+        var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
+        var chosen = Model.AssessmentEditorValue(path);
         <div class="dec" data-decision="@path" data-shown-when="@shownWhen" hidden="@(hidden ? "hidden" : null)">
             <span class="dl">@label</span>
             @{ Proposal(path); }
             @{ await Field(path, label); }
+            @if (editable && definition.Type == AssessmentFieldType.Enumerated)
+            {
+                @* P29: the codes as a radio group. The select above stays the
+                   posted control; script shows this group and hides the select,
+                   so without script the select is what the operator uses. *@
+                <div class="radiorow" role="radiogroup" aria-label="@label" data-decision-radios="@path" hidden>
+                    <button type="button" class="pick-radio" role="radio" aria-checked="@(chosen is null ? "true" : "false")" tabindex="@(chosen is null ? "0" : "-1")" data-radio-value=""><span class="dot"></span>@OperatorLabels.CaseWorkspace.AbsentValue</button>
+                    @foreach (var code in definition.Codes ?? [])
+                    {
+                        <button type="button" class="pick-radio" role="radio" aria-checked="@(chosen == code ? "true" : "false")" tabindex="@(chosen == code ? "0" : "-1")" data-radio-value="@code"><span class="dot"></span>@Pegasus.Web.Pages.Cases.DetailsModel.CodeWords(code)</button>
+                    }
+                </div>
+            }
+            @if (share)
+            {
+                var engineerValueForShare = Model.EngineerValue;
+                var recordedSalvage = Model.SalvageValueFigure;
+                var salvageShare = engineerValueForShare is { } evForShare && evForShare > 0m && recordedSalvage is { } salvageFigure
+                    ? Math.Round(salvageFigure / evForShare * 100m, 1)
+                    : (decimal?)null;
+                var salvageSnaps = new[] { 5, 10, 15, 20, 25 };
+                var engineerValueText = engineerValueForShare is { } valueForText
+                    ? Pegasus.Web.Pages.Cases.DetailsModel.FormatPounds(valueForText)
+                    : "—";
+                @* P14: the salvage value as a share of the Engineer's Value. The
+                   money field stays the posted control; the slider writes into it. *@
+                <div class="salvage-share" data-salvage-share>
+                    @if (engineerValueForShare is null)
+                    {
+                        <span class="muted">@SettlementLabels.ApplyInValuation</span>
+                    }
+                    else
+                    {
+                        @if (editable)
+                        {
+                            <input type="range" min="0" max="100" step="1" value="@(salvageShare is { } share0 ? Math.Round(share0).ToString(CultureInfo.InvariantCulture) : "0")"
+                                   aria-label="@SettlementLabels.SalvageShare" data-salvage-range />
+                            <span class="snaps">
+                                @foreach (var snap in salvageSnaps)
+                                {
+                                    <button type="button" class="@(salvageShare is { } at && Math.Abs(at - snap) < 0.5m ? "on" : null)" data-salvage-snap="@snap">@snap%</button>
+                                }
+                            </span>
+                        }
+                        <span class="read mono" data-salvage-read>@(salvageShare is { } read ? SettlementLabels.ShareOfValue(read, engineerValueText) : string.Empty)</span>
+                    }
+                </div>
+            }
         </div>
     }
 
