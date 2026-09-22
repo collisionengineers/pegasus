@@ -388,6 +388,22 @@ public sealed class RepairSpecificationActTests
         public Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
             Guid caseId, int? afterVersion, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+        // Replay belongs to the import route (PR 793); these acts never take it.
+        public Task<EstimateImportResult?> ProbeSourceHashReplayAsync(
+            Guid caseId,
+            string operationKey,
+            string sourceSha256,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<EstimateImportResult?>(null);
+
+        public Task<EstimateImportResult> BindSourceHashReplayAsync(
+            Guid caseId,
+            string operationKey,
+            string sourceSha256,
+            Guid estimateId,
+            ActionActor actor,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new EstimateImportResult(estimateId));
     }
 
     private sealed class RecordingAssessment(decimal engineerValue, decimal? contractSum = null) : ICaseAssessmentStore
@@ -442,6 +458,7 @@ public sealed class RepairSpecificationActTests
         public Task<CaseAssessmentProjection> SaveAsync(
             SaveAssessmentRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
     }
 
 }
