@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -19,10 +19,18 @@ public sealed class CaseEstimateScalingWebTests
     public async Task ApplyUsesThePercentageThenRemovalBecomesUnavailable()
     {
         var caseId = Guid.NewGuid();
-        var baseEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
+        var acceptedDraft = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
         {
             SpecificationId = Guid.NewGuid(),
-            State = RepairSpecificationState.Accepted
+        };
+        // Accepting a version freezes its calculation with it, and the report
+        // reads only that frozen record. A version that says Accepted while
+        // carrying none is a state the store cannot produce, and asking the
+        // page to project it is what turned this into a 500.
+        var baseEstimate = acceptedDraft with
+        {
+            State = RepairSpecificationState.Accepted,
+            RecordedTotals = EstimateTotals.Compute(acceptedDraft),
         };
         var store = new AssessmentEstimateImportWebTests.RecordingStores(caseId, 1_000m)
         {

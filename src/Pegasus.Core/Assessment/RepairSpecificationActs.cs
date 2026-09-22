@@ -128,7 +128,7 @@ public static class RepairSpecificationScaling
                 low = mid;
             }
         }
-        var factor = (low + high) / 2m;
+        var factor = low;
         var scaled = Scaled(specification, factor, floors);
         return new(
             scaled.Details,
