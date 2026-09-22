@@ -1,4 +1,4 @@
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
 
@@ -138,7 +138,7 @@ public sealed class SaveUnroadworthyReason(IUnroadworthyReasonBankStore store) :
         SaveUnroadworthyReasonRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PrincipalCode);
         var normalized = UnroadworthyReasonBank.Normalize(request.Text);
         var saved = await store.ListAsync(request.PrincipalCode, cancellationToken);
