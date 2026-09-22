@@ -2310,7 +2310,10 @@
             function renumber() {
                 rows().forEach(function (row, at) {
                     var order = row.querySelector('[data-wording-order]');
-                    if (order) { order.value = String(at); }
+                    if (order && order.value !== String(at)) {
+                        order.value = String(at);
+                        order.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
                 });
             }
             function move(row, delta) {
