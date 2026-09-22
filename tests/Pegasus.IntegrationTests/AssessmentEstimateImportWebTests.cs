@@ -630,6 +630,113 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
+    public async Task ASourceReplayOperationKeyRejectsDifferentBytesBeforeRetainingAnotherDocument()
+    {
+        var caseId = Guid.NewGuid();
+        var fixture = AudatexEstimateFixture.Build();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        using var first = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), fixture));
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+
+        html = await GetHtmlAsync(client, first.Headers.Location!.OriginalString);
+        var replayOperationKey = NewOperationKey();
+        using var replay = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, replayOperationKey, fixture,
+                editLeaseToken: InputValue(html, "editLeaseToken"),
+                expectedVersion: long.Parse(InputValue(html, "expectedVersion"), CultureInfo.InvariantCulture)));
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        Assert.Single(store.SourceReplayBindings);
+        var documentCallCount = store.DocumentCalls.Count;
+        var documentCount = store.AddedDocuments.Count;
+        var savedCount = store.SavedEstimates.Count;
+        var workflowVersion = store.WorkflowVersion;
+
+        html = await GetHtmlAsync(client, replay.Headers.Location!.OriginalString);
+        var changed = fixture.Concat(new byte[] { 0x01 }).ToArray();
+        using var conflict = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, replayOperationKey, changed,
+                editLeaseToken: InputValue(html, "editLeaseToken"),
+                expectedVersion: long.Parse(InputValue(html, "expectedVersion"), CultureInfo.InvariantCulture)));
+
+        Assert.Equal(HttpStatusCode.Redirect, conflict.StatusCode);
+        Assert.Equal(documentCallCount, store.DocumentCalls.Count);
+        Assert.Equal(documentCount, store.AddedDocuments.Count);
+        Assert.Equal(savedCount, store.SavedEstimates.Count);
+        Assert.Equal(workflowVersion, store.WorkflowVersion);
+        Assert.Single(store.SourceReplayBindings);
+    }
+
+    [Fact]
+    public async Task ASourceReplayRequiresCurrentEditAuthorityBeforeAcknowledgingReplay()
+    {
+        var caseId = Guid.NewGuid();
+        var fixture = AudatexEstimateFixture.Build();
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        using var first = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), fixture));
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+
+        html = await GetHtmlAsync(client, first.Headers.Location!.OriginalString);
+        var replayOperationKey = NewOperationKey();
+        using var replay = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, replayOperationKey, fixture,
+                editLeaseToken: InputValue(html, "editLeaseToken"),
+                expectedVersion: long.Parse(InputValue(html, "expectedVersion"), CultureInfo.InvariantCulture)));
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        Assert.Single(store.SourceReplayBindings);
+
+        var estimateId = store.LastCreatedEstimateId;
+        var documentCalls = store.DocumentCalls.Count;
+        var savedEstimates = store.SavedEstimates.Count;
+        var workflowVersion = store.WorkflowVersion;
+        var leaseClaims = store.LeaseClaims.Count;
+
+        html = await GetHtmlAsync(client, replay.Headers.Location!.OriginalString);
+        using var stale = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, replayOperationKey, fixture,
+                editLeaseToken: "stale-lease-token",
+                expectedVersion: workflowVersion));
+        Assert.Equal(HttpStatusCode.Redirect, stale.StatusCode);
+
+        var refusedHtml = await GetHtmlAsync(client, stale.Headers.Location!.OriginalString);
+        Assert.Contains("The Case cannot be edited right now.", refusedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.EstimateImport.Imported, refusedHtml, StringComparison.Ordinal);
+        Assert.Equal(documentCalls, store.DocumentCalls.Count);
+        Assert.Equal(savedEstimates, store.SavedEstimates.Count);
+        Assert.Equal(workflowVersion, store.WorkflowVersion);
+        Assert.Single(store.SourceReplayBindings);
+
+        using var reacquired = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(refusedHtml), caseId, replayOperationKey, fixture,
+                expectedVersion: workflowVersion));
+        Assert.Equal(HttpStatusCode.Redirect, reacquired.StatusCode);
+        Assert.Contains(estimateId.ToString("D"), reacquired.Headers.Location!.OriginalString, StringComparison.Ordinal);
+        Assert.Equal(leaseClaims + 1, store.LeaseClaims.Count);
+        Assert.Equal("lease-4", store.CurrentLeaseToken);
+        Assert.Equal(documentCalls, store.DocumentCalls.Count);
+        Assert.Equal(savedEstimates, store.SavedEstimates.Count);
+        Assert.Equal(workflowVersion, store.WorkflowVersion);
+    }
+
+    [Fact]
     public async Task ACallerSuppliedSourceLabelCannotOverrideTheDetectedDocumentFormat()
     {
         var caseId = Guid.NewGuid();
@@ -1591,6 +1698,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         private int importedMutations;
         private int documentMutations;
         private readonly Dictionary<string, AddCaseDocumentResult> retainedByOperation = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, (string Sha256, Guid EstimateId)> sourceReplayBindings = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Guid> ordinaryImportOperations = new(StringComparer.Ordinal);
         private readonly Dictionary<Guid, byte[]> retainedBytes = [];
         private string? currentLeaseToken;
 
@@ -1622,6 +1731,7 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         public List<SaveEstimateRequest> SavedEstimates { get; } = [];
         public List<SaveEstimateRequest> SubmittedEstimates { get; } = [];
+        public List<(string OperationKey, string Sha256, Guid EstimateId)> SourceReplayBindings { get; } = [];
 
         public List<DuplicateEstimateRequest> DuplicatedEstimates { get; } = [];
 
@@ -1805,10 +1915,65 @@ public sealed partial class AssessmentEstimateImportWebTests
             return Task.CompletedTask;
         }
 
+        public Task<EstimateImportResult?> ProbeSourceHashReplayAsync(
+            Guid ownerCaseId,
+            string operationKey,
+            string sourceSha256,
+            CancellationToken cancellationToken)
+        {
+            Assert.Equal(caseId, ownerCaseId);
+            if (!sourceReplayBindings.TryGetValue(operationKey, out var binding))
+            {
+                return Task.FromResult<EstimateImportResult?>(null);
+            }
+
+            if (!string.Equals(binding.Sha256, sourceSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new CaseOperationConflictException(caseId, operationKey);
+            }
+
+            return Task.FromResult<EstimateImportResult?>(new(binding.EstimateId));
+        }
+
+        public Task<EstimateImportResult> BindSourceHashReplayAsync(
+            Guid ownerCaseId,
+            string operationKey,
+            string sourceSha256,
+            Guid estimateId,
+            ActionActor actor,
+            CancellationToken cancellationToken)
+        {
+            Assert.Equal(caseId, ownerCaseId);
+            if (sourceReplayBindings.TryGetValue(operationKey, out var binding))
+            {
+                if (!string.Equals(binding.Sha256, sourceSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new CaseOperationConflictException(caseId, operationKey);
+                }
+
+                return Task.FromResult(new EstimateImportResult(binding.EstimateId));
+            }
+
+            if (ordinaryImportOperations.TryGetValue(operationKey, out var ordinaryEstimateId))
+            {
+                if (ordinaryEstimateId != estimateId)
+                {
+                    throw new CaseOperationConflictException(caseId, operationKey);
+                }
+
+                return Task.FromResult(new EstimateImportResult(estimateId));
+            }
+
+            sourceReplayBindings.Add(operationKey, (sourceSha256, estimateId));
+            SourceReplayBindings.Add((operationKey, sourceSha256, estimateId));
+            return Task.FromResult(new EstimateImportResult(estimateId));
+        }
+
         public async Task<RepairSpecificationVersion> SaveImportedEstimateAsync(
             SaveEstimateRequest request, CancellationToken cancellationToken)
         {
             var result = await ExecuteAsync(request, cancellationToken);
+            ordinaryImportOperations[request.OperationKey] = result.SpecificationId;
             importedMutations++;
             ActiveLease = null;
             currentLeaseToken = null;
