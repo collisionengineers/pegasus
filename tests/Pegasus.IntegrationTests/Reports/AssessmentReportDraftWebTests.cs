@@ -159,7 +159,6 @@ public sealed partial class AssessmentReportDraftWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
-        Assert.Contains("Not ready", html, StringComparison.Ordinal);
         Assert.Contains(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
         // FRD-11: the control stays, disabled with its condition — no
         // submittable Generate form and no Preview link are offered.

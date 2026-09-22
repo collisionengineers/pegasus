@@ -1,0 +1,92 @@
+@*
+    Original report (v28 P51): what an Audit audits — who wrote the original
+    report, when, and what it found. Shown on an Audit Case only. The four
+    cells are Case data (assessment fields under original_report.*), edited in
+    the page-wide session by anyone who may edit Case data; a filed original
+    report's extraction is the Stage 2 source for pre-filling them (ruled 20
+    September 2026, not yet wired).
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Assessment
+@using Pegasus.Core.Intake.ThirdPartyReports
+@using Pegasus.Web.Pages
+@using Pegasus.Web.Presentation
+@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
+@{
+    var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "original-report");
+    var editable = Model.SectionIsEditable("original-report") && Model.Case!.Data is not null;
+    var labels = CaseWorkspaceLabels.Editors.OriginalReport;
+}
+
+<section class="record-section panel @Model.CollapsedClass("case.original-report") @Model.ActiveTabClass("original-report") @(Model.IsEditing && !Model.SectionIsEditable("original-report") ? "is-locked" : null)" id="section-original-report" data-section="original-report" data-collapse="case.original-report" aria-labelledby="section-original-report-title">
+    <div class="panel-head">
+        <h2 id="section-original-report-title">@Frame.OriginalReport</h2>
+        <div class="panel-actions"><partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" /></div>
+    </div>
+    <div class="panel-body stack">
+        <div class="fg g4">
+            @{
+                await Field(AssessmentVocabulary.OriginalReportAssessor, labels[AssessmentVocabulary.OriginalReportAssessor]);
+                await Field(AssessmentVocabulary.OriginalReportDate, labels[AssessmentVocabulary.OriginalReportDate]);
+                await Field(AssessmentVocabulary.OriginalReportRoadworthiness, labels[AssessmentVocabulary.OriginalReportRoadworthiness]);
+                await Field(AssessmentVocabulary.OriginalReportOutcome, labels[AssessmentVocabulary.OriginalReportOutcome]);
+            }
+        </div>
+        @if (editable)
+        {
+            @* The assessors Core's third-party report profiles know, offered as
+               completions; any other name is typed. *@
+            <datalist id="original-report-assessors">
+                @foreach (var issuer in ThirdPartyReportProfiles.KnownIssuers)
+                {
+                    <option value="@issuer"></option>
+                }
+            </datalist>
+        }
+    </div>
+</section>
+
+@functions {
+    private async Task Field(string path, string label)
+    {
+        var definition = AssessmentVocabulary.Definitions[path];
+        var editable = Model.SectionIsEditable("original-report") && Model.Case!.Data is not null;
+        var value = Model.AssessmentEditorValue(path);
+        var absent = string.IsNullOrWhiteSpace(Model.Assessment?.Field(path)?.Value);
+        var name = CaseWorkspaceLabels.Editors.FormName(path);
+        var id = "f-" + path.Replace('.', '-').Replace('_', '-');
+        <div class="fc" data-field="@path">
+            @if (editable)
+            {
+                <label for="@id">@label</label>
+            }
+            else
+            {
+                <span class="lbl">@label</span>
+            }
+            <div class="fv @(absent ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
+            @if (editable)
+            {
+                if (definition.Type == AssessmentFieldType.Enumerated)
+                {
+                    <select id="@id" class="fi" name="@name" form="case-edit-form">
+                        <option value="" selected="@(value is null)"></option>
+                        @foreach (var code in definition.Codes ?? [])
+                        {
+                            <option value="@code" selected="@(value == code)">@Pegasus.Web.Pages.Cases.DetailsModel.CodeWords(code)</option>
+                        }
+                    </select>
+                }
+                else if (definition.Type == AssessmentFieldType.Date)
+                {
+                    <input id="@id" class="fi" type="date" name="@name" form="case-edit-form" value="@value" />
+                }
+                else
+                {
+                    <input id="@id" class="fi" name="@name" form="case-edit-form" maxlength="@definition.MaximumLength" value="@value" list="@(path == AssessmentVocabulary.OriginalReportAssessor ? "original-report-assessors" : null)" />
+                }
+            }
+        </div>
+        await Task.CompletedTask;
+    }
+}

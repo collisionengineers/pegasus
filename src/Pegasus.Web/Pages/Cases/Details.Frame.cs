@@ -137,6 +137,18 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>The Case type chip; absent for a plain Inspection.</summary>
+    /// <summary>An Audit Case (standalone, or linked by Create audit) carries the Original report section (v28 P51).</summary>
+    public bool IsAuditCase => Case?.Summary.CaseType == CaseType.Audit;
+
+    /// <summary>Damage and Valuation read inside Vehicle (v28 P26): their hosts stay, their links go, the Vehicle link speaks for them.</summary>
+    public static bool IsNestedSection(string key) => key is "damage" or "valuation";
+
+    /// <summary>Whether the section row shows this key on this Case.</summary>
+    public bool SectionIsShown(string key) => !IsNestedSection(key) && (key != "original-report" || IsAuditCase);
+
+    /// <summary>The link the section row marks current: a nested section is its parent's.</summary>
+    public string SectionLinkKey => IsNestedSection(Section) ? "vehicle" : Section;
+
     public string? CaseTypeChip => Case?.Summary.CaseType switch
     {
         CaseType.Audit => "Audit",

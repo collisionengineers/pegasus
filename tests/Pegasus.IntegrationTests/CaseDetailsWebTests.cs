@@ -96,7 +96,7 @@ public sealed class CaseDetailsWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
 
         Assert.Equal(CaseSectionKeys, HostOrder(html));
-        Assert.Equal(CaseSectionKeys, JumpLinkOrder(html));
+        Assert.Equal(CaseSectionLinkKeys, JumpLinkOrder(html));
 
         // The four sections that have a body below the fold are served as
         // fragments; every other host, including the Engineer shells,
@@ -104,6 +104,9 @@ public sealed class CaseDetailsWebTests
         Assert.Equal(
             ["vehicle", "valuation", "files", "notes"],
             DeferredSections(html));
+        Assert.Matches(
+            "data-lazy=\"valuation\"\\s+data-section-parent=\"vehicle\"",
+            html);
     }
 
     /// <summary>
@@ -118,6 +121,8 @@ public sealed class CaseDetailsWebTests
     [InlineData("?section=overview", "overview")]
     [InlineData("?section=engineer-notes", "overview")]
     [InlineData("?section=vehicle", "vehicle")]
+    [InlineData("?section=damage", "vehicle")]
+    [InlineData("?section=valuation", "vehicle")]
     [InlineData("?section=estimate", "estimate")]
     [InlineData("?section=files", "files")]
     [InlineData("?section=notes", "notes")]
@@ -156,6 +161,38 @@ public sealed class CaseDetailsWebTests
             $"data-lazy=\"{currentSection}\"",
             html,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task HiddenOriginalReportSectionFallsBackToOverviewInTabs()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add("Cookie", "pegasus-case-layout=tabs");
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=original-report");
+
+        Assert.Contains("data-section-current=\"overview\"", html, StringComparison.Ordinal);
+        Assert.Equal("overview", CurrentSectionKey(html));
+        Assert.Contains("is-active", Section(html, "section-overview-title"), StringComparison.Ordinal);
+        Assert.DoesNotContain("data-section-link=\"original-report\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"section-original-report\"", html, StringComparison.Ordinal);
     }
 
     [Theory]

@@ -190,6 +190,19 @@ public static class ThirdPartyReportProfiles
     /// <summary>The document role recorded on a selected report's candidates.</summary>
     public const string ReportDocumentRole = "third-party-engineer-report";
 
+    /// <summary>
+    /// The assessors the signature table names, by display name and once each,
+    /// offered where an Audit's Original report names its assessor (v28 P51).
+    /// </summary>
+    public static IReadOnlyList<string> KnownIssuers =>
+        SignatureTable
+            .Select(signature => signature.Issuer)
+            .Where(issuer => !string.IsNullOrWhiteSpace(issuer))
+            .Select(issuer => issuer!)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
     private const string ExclusiveIssuer = @"Exclusive\s*Vehicle\s*Assessors";
     private const string ConnexusIssuer = @"Connexus\s*Vehicle\s*Assessors";
     private const string ErehrClaimReference = @"Your\s+Ref\s*:?\s*(?:ER)?EHR\s*\d{4,}";
