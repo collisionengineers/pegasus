@@ -35,6 +35,12 @@
     "boxConfigJsonSecretUri": {
       "value": "${BOX_CONFIG_JSON_SECRET_URI}"
     },
+    "gitHubProblemReportTokenSecretUri": {
+      "value": "${GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI}"
+    },
+    "gitHubProblemReportRepository": {
+      "value": "${GITHUB_PROBLEM_REPORT_REPOSITORY=collisionengineers/pegasus}"
+    },
     "boxClientSecretSecretUri": {
       "value": "${BOX_CLIENT_SECRET_SECRET_URI}"
     },

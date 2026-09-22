@@ -127,8 +127,15 @@ public sealed class ImportRawEstimate(
     {
         CaseLifecycleRules.ValidateMutation(request);
         EstimatePolicy.RequireImportActor(request.Actor);
-        var sha256 = NormalizedHash(request.Sha256);
+        var sha256 = NormalizeSha256(request.Sha256);
         await store.RequireImportAuthorityAsync(request, cancellationToken);
+        if (await store.ProbeSourceHashReplayAsync(
+                request.CaseId, request.OperationKey, sha256, cancellationToken)
+            is { } boundReplay)
+        {
+            return boundReplay;
+        }
+
         var retained = await metadata.ExecuteAsync(
             new(request.CaseId, request.OccurrenceId, request.DocumentVersionId, request.Actor),
             cancellationToken);
@@ -143,7 +150,13 @@ public sealed class ImportRawEstimate(
         if (existing.FirstOrDefault(estimate =>
                 string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal)) is { } replayed)
         {
-            return new(replayed.SpecificationId);
+            return await store.BindSourceHashReplayAsync(
+                request.CaseId,
+                request.OperationKey,
+                sha256,
+                replayed.SpecificationId,
+                request.Actor,
+                cancellationToken);
         }
 
         await using var document = await documents.OpenAsync(
@@ -258,7 +271,7 @@ public sealed class ImportRawEstimate(
         return $"{prefix}{highest + 1}";
     }
 
-    private static string NormalizedHash(string sha256)
+    public static string NormalizeSha256(string sha256)
     {
         var normalized = sha256?.Trim().ToLowerInvariant();
         return normalized is { Length: 64 } && normalized.All(Uri.IsHexDigit)
