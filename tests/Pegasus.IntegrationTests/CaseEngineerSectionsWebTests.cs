@@ -64,6 +64,8 @@ public sealed class CaseEngineerSectionsWebTests
         Assert.Contains("repairable", html, StringComparison.Ordinal);
         Assert.Contains("Engineer comments recorded", html, StringComparison.Ordinal);
         Assert.Contains("Estimate 1", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-salvage-range", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-salvage-snap", html, StringComparison.Ordinal);
         Assert.DoesNotContain("staff-reviewed", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("reviewed by staff", html, StringComparison.OrdinalIgnoreCase);
 

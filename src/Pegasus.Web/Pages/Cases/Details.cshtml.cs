@@ -208,7 +208,18 @@ public sealed partial class DetailsModel(
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? SectionFilter { get; set; }
 
-    public string Section => NormalizeSection(SectionFilter);
+    public string Section
+    {
+        get
+        {
+            var section = NormalizeSection(SectionFilter);
+            return section == "original-report"
+                && Case is not null
+                && !IsAuditCase
+                ? Labels.CaseWorkspace.DefaultSectionKey
+                : section;
+        }
+    }
 
     private static string NormalizeSection(string? value)
     {
@@ -2101,9 +2112,18 @@ public sealed partial class DetailsModel(
         }
         var operationKey = preparationId.ToString("N");
 
+        Guid reportSpecificationId;
         StaffMailOperation operation;
         try
         {
+            var preparation = await deliveryPreparations.GetAsync(
+                actor, id, preparationId, cancellationToken)
+                ?? throw new InvalidOperationException("The report delivery preparation is unavailable.");
+            var generation = await reportGenerations.GetAsync(
+                actor, id, preparation.Preparation.GenerationId, cancellationToken)
+                ?? throw new InvalidOperationException("The report generation is unavailable.");
+            reportSpecificationId = generation.Snapshot.CurrentEstimateId;
+
             operation = await sendPreparedReport.ExecuteAsync(
                 new(actor, id, preparationId, expectedPreparationVersion, operationKey),
                 cancellationToken);
@@ -2124,14 +2144,10 @@ public sealed partial class DetailsModel(
 
         if (operation.State is StaffMailState.Sent or StaffMailState.Submitted)
         {
-            // The version the report went out with is frozen and marked (v28 P43).
-            var current = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
-            if (current is not null)
-            {
-                await specificationSnapshots.FreezeAsync(
-                    new(id, current.SpecificationId, actor, RepairSpecificationSnapshotKind.Sent, "As sent on the report"),
-                    cancellationToken);
-            }
+            // The immutable generation snapshot the report went out with is frozen and marked (v28 P43).
+            await specificationSnapshots.FreezeAsync(
+                new(id, reportSpecificationId, actor, RepairSpecificationSnapshotKind.Sent, "As sent on the report"),
+                cancellationToken);
         }
 
         switch (operation.State)
