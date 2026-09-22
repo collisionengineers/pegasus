@@ -43,7 +43,8 @@ stale containment blocks SQL.
      'AZURE_TENANT_ID', 'BOX_HOLDING_FOLDER_ID', 'EVA_BASE_URI',
      'EVA_REQUEST_FROM', 'EVA_INSPECTION_TYPE', 'EVA_INSTRUCTION_EMAIL',
      'GLASS_MARKET_VALUE_ASSESSOR_BASE_URI', 'GLASS_ESTIMATOR_BASE_URI',
-     'GLASS_REPAIR_PROFILE_ID')
+     'GLASS_REPAIR_PROFILE_ID', 'GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI',
+     'GITHUB_PROBLEM_REPORT_REPOSITORY')
    $missing = @($required | Where-Object { [string]::IsNullOrWhiteSpace($values[$_]) })
    if ($missing.Count) { throw "azd environment is missing: $($missing -join ', ')" }
 
@@ -76,17 +77,21 @@ stale containment blocks SQL.
      Glass__EstimatorBaseUri = $values['GLASS_ESTIMATOR_BASE_URI']
      Glass__CallbackBaseUri = $webOrigin
      Glass__RepairProfileId = $values['GLASS_REPAIR_PROFILE_ID']
+     GitHub__ProblemReports__Token = 'migration-host-placeholder'
+     GitHub__ProblemReports__Repository = $values['GITHUB_PROBLEM_REPORT_REPOSITORY']
    }
    foreach ($entry in $migrationHost.GetEnumerator()) {
      [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
    }
    ```
 
-   `Graph__ChangeNotificationClientState`, `Box__ConfigJson`,
+   `GitHub__ProblemReports__Token`, `Graph__ChangeNotificationClientState`, `Box__ConfigJson`,
    `Box__ClientSecret`, `Eva__ClientId`, and `Eva__ClientSecret` above are
    intentionally non-empty process-only placeholders, not azd configuration
-   or secrets. The Box value is shape-valid JWT JSON. The migration host builds
-   its deferred Box and EVA factories but does not use their external routes.
+   or secrets. The migration host validates the GitHub configuration but does
+   not dispatch problem reports. The Box value is shape-valid JWT JSON. The
+   migration host builds its deferred Box and EVA factories but does not use
+   their external routes.
    The four `Glass__*` values are the Web host's Production required keys;
    the two provider origins and the profile id are the same
    non-secret azd values bicep hands the Web App, and the callback origin is
