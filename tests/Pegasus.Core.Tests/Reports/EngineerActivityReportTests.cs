@@ -14,7 +14,9 @@ public sealed class EngineerActivityReportTests
     {
         var knownId = Guid.NewGuid();
         var goneId = Guid.NewGuid();
-        var queries = new Counts([new(goneId, 4, 1), new(knownId, 2, 7)]);
+        var queries = new Counts([
+            new(goneId, 4, 1),
+            new(knownId, 2, 7, 3, 4, 2, TimeSpan.FromHours(6))]);
         var useCase = new GetEngineerActivityReport(queries, new Accounts(knownId, "engineer.one"));
 
         var report = await useCase.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None);
@@ -23,7 +25,9 @@ public sealed class EngineerActivityReportTests
         Assert.Equal((From, To, (Guid?)null), queries.Request);
         Assert.Collection(
             report.Rows,
-            row => Assert.Equal(new EngineerActivityRow(knownId, "engineer.one", 2, 7), row),
+            row => Assert.Equal(
+                new EngineerActivityRow(knownId, "engineer.one", 2, 7, 3, 4, 2, TimeSpan.FromHours(6)),
+                row),
             row => Assert.Equal(new EngineerActivityRow(goneId, ActorDisplayNames.FormerStaff, 4, 1), row));
     }
 
@@ -72,7 +76,7 @@ public sealed class EngineerActivityReportTests
     }
 
     [Fact]
-    public async Task ReportRefusesADuplicateOrNegativeRowFromTheAdapter()
+    public async Task ReportRefusesDuplicateNegativeOrContradictoryRowsFromTheAdapter()
     {
         var id = Guid.NewGuid();
         var duplicate = new GetEngineerActivityReport(
@@ -81,11 +85,36 @@ public sealed class EngineerActivityReportTests
         var negative = new GetEngineerActivityReport(
             new Counts([new(id, -1, 0)]),
             new Accounts(id, "engineer.one"));
+        var negativeDisputes = new GetEngineerActivityReport(
+            new Counts([new(id, 1, 1, Disputes: -1)]),
+            new Accounts(id, "engineer.one"));
+        var excessiveDisputes = new GetEngineerActivityReport(
+            new Counts([new(id, 1, 1, Disputes: 2)]),
+            new Accounts(id, "engineer.one"));
+        var excessiveAmendments = new GetEngineerActivityReport(
+            new Counts([new(id, 1, 1, AmendmentRequests: 2)]),
+            new Accounts(id, "engineer.one"));
+        var excessiveAuditReports = new GetEngineerActivityReport(
+            new Counts([new(id, 1, 1, AuditReportsSent: 2)]),
+            new Accounts(id, "engineer.one"));
+        var negativeTurnaround = new GetEngineerActivityReport(
+            new Counts([new(id, 1, 1, AverageReceivedToSent: TimeSpan.FromHours(-1))]),
+            new Accounts(id, "engineer.one"));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             duplicate.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             negative.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            negativeDisputes.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            excessiveDisputes.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            excessiveAmendments.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            excessiveAuditReports.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            negativeTurnaround.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
     }
 
     [Fact]
@@ -98,18 +127,18 @@ public sealed class EngineerActivityReportTests
         ]);
 
         Assert.Equal(
-            "Recorded send actor,Queries received for assigned Engineer,Reports sent by recorded actor\r\n"
-            + "engineer.one,5,3\r\n"
-            + "\"Smith, \"\"J\"\"\",1,0\r\n",
+            "Recorded send actor,Queries received for assigned Engineer,Disputes,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent\r\n"
+            + "engineer.one,5,0,0,3,0,\r\n"
+            + "\"Smith, \"\"J\"\"\",1,0,0,0,0,\r\n",
             csv);
-        Assert.Equal("Recorded send actor,Queries received for assigned Engineer,Reports sent by recorded actor\r\n", EngineerActivityReportCsv.ToCsv([]));
+        Assert.Equal("Recorded send actor,Queries received for assigned Engineer,Disputes,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent\r\n", EngineerActivityReportCsv.ToCsv([]));
     }
 
     [Fact]
     public void CsvMakesFormulaLookingNamesLiteral()
     {
         var csv = EngineerActivityReportCsv.ToCsv([new(Guid.NewGuid(), "=SUM(A1:A2)", 0, 0)]);
-        Assert.Contains("'=SUM(A1:A2),0,0\r\n", csv, StringComparison.Ordinal);
+        Assert.Contains("'=SUM(A1:A2),0,0,0,0,0,\r\n", csv, StringComparison.Ordinal);
     }
 
     private static ActionActor Administrator() =>
