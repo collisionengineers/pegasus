@@ -30,6 +30,7 @@ public sealed class ReportsModel(
     [BindProperty(SupportsGet = true, Name = "dir")] public string? Direction { get; set; }
 
     public EngineerActivityReport EngineerResult { get; private set; } = new(default, default, []);
+    public bool EngineerActivityUnavailable { get; private set; }
     public IReadOnlyList<StaffAccountSummary> People { get; private set; } = [];
 
     /// <summary>
@@ -92,7 +93,7 @@ public sealed class ReportsModel(
     {
         if (!await LoadAsync(cancellationToken)) return Forbid();
         if (!TryGetActor(out var actor)) return Forbid();
-        if (PrincipalActivity is null || Monthly is null)
+        if (EngineerActivityUnavailable || PrincipalActivity is null || Monthly is null)
         {
             return StatusCode(StatusCodes.Status422UnprocessableEntity);
         }
@@ -130,6 +131,12 @@ public sealed class ReportsModel(
         {
             ModelState.AddModelError(string.Empty, "Choose a valid London period.");
         }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException
+            && exception is not StaffAuthorizationException)
+        {
+            EngineerActivityUnavailable = true;
+        }
 
         try
         {
@@ -140,7 +147,9 @@ public sealed class ReportsModel(
             // The invalid-period case is already reported above; the two
             // reports share one period filter.
         }
-        catch (InvalidDataException)
+        catch (Exception exception) when (
+            exception is not OperationCanceledException
+            && exception is not StaffAuthorizationException)
         {
             PrincipalActivity = null;
         }
@@ -153,7 +162,9 @@ public sealed class ReportsModel(
         {
             // As above: one period filter, reported once.
         }
-        catch (InvalidDataException)
+        catch (Exception exception) when (
+            exception is not OperationCanceledException
+            && exception is not StaffAuthorizationException)
         {
             Monthly = null;
         }

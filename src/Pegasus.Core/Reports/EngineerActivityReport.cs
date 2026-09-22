@@ -146,7 +146,8 @@ public sealed class GetEngineerActivityReport(
             || item.AmendmentRequests < 0
             || item.AmendmentRequests > item.QueriesReceived
             || item.AuditReportsSent < 0
-            || item.AuditReportsSent > item.ReportsSent))
+            || item.AuditReportsSent > item.ReportsSent
+            || item.AverageReceivedToSent < TimeSpan.Zero))
         {
             throw new InvalidDataException("The Engineer activity query returned an invalid row.");
         }
