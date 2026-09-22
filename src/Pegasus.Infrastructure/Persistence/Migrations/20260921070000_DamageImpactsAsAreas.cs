@@ -64,7 +64,8 @@ public partial class DamageImpactsAsAreas : Migration
                 FROM #DamageImpactsAsAreas converted
                 CROSS APPLY OPENJSON(converted.Impacts) impactJson
                 CROSS APPLY OPENJSON(impactJson.[value])
-                    WITH (areas nvarchar(max) '$.areas', severity nvarchar(100) '$.severity') impact
+                    WITH (areas nvarchar(max) '$.areas' AS JSON,
+                          severity nvarchar(100) '$.severity') impact
                 CROSS APPLY OPENJSON(impact.areas) area
                 GROUP BY converted.CaseId
             )
