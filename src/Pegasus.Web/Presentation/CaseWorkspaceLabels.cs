@@ -423,9 +423,17 @@ public static class CaseWorkspaceLabels
 
     public static class EstimateImport
     {
-        public const string Complete = "Complete import";
-        public const string Sources = "Retained estimate sources";
-        public const string SourceRetained = "Estimate source retained.";
+        public const string FileLabel = "Estimate file";
+        public const string DropEstimate = "Drop estimate to import";
+        public const string DropHint = "One PDF, XML or JSON file, up to 10 MB.";
+        public const string Importing = "Importing estimate…";
+        public const string ExactlyOneFile = "Choose exactly one estimate file.";
+        public const string NonEmptyFile = "Choose a non-empty estimate file.";
+        public const string FileTooLarge = "Choose an estimate file of 10 MB or less.";
+        public const string UnsupportedFile = "Choose a PDF, XML or JSON estimate file.";
+        public const string UnsavedEstimate = "Save or cancel the estimate changes before importing another estimate.";
+        public const string ActionInProgress = "Wait for the current Case action to finish before importing an estimate.";
+        public const string StorageFailed = "The estimate source could not be retained.";
         public const string Imported = "Estimate imported as a Draft.";
     }
 

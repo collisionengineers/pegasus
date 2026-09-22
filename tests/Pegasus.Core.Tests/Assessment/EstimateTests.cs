@@ -993,16 +993,20 @@ public sealed class EstimateTests
         {
             Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", ImportSha256),
         };
+        var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
             Retained,
-            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
+            documents,
             new StubList(already),
             save);
 
         var id = await import.ExecuteAsync(ImportRequest(operationKey: "op-import-2"), CancellationToken.None);
 
         Assert.Equal(already.SpecificationId, id.EstimateId);
+        Assert.Equal((CaseId, "op-import-2", ImportSha256, already.SpecificationId),
+            Assert.Single(save.SourceReplayBindings));
+        Assert.Empty(documents.Requests);
         Assert.Empty(save.Saved);
     }
 
@@ -1332,6 +1336,7 @@ public sealed class EstimateTests
     private sealed class FakeSpecificationStore : IRepairSpecificationStore
     {
         public List<ImportRawEstimateRequest> AuthorityChecks { get; } = [];
+        public List<(Guid CaseId, string OperationKey, string SourceSha256, Guid EstimateId)> SourceReplayBindings { get; } = [];
         public List<DuplicateEstimateRequest> Duplicates { get; } = [];
         public List<DiscardEstimateRequest> Discards { get; } = [];
         public bool RefuseAuthority { get; set; }
@@ -1344,6 +1349,25 @@ public sealed class EstimateTests
                 throw new InvalidOperationException("Current persisted authority is required.");
             }
             return Task.CompletedTask;
+        }
+
+        public Task<EstimateImportResult?> ProbeSourceHashReplayAsync(
+            Guid caseId,
+            string operationKey,
+            string sourceSha256,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<EstimateImportResult?>(null);
+
+        public Task<EstimateImportResult> BindSourceHashReplayAsync(
+            Guid caseId,
+            string operationKey,
+            string sourceSha256,
+            Guid estimateId,
+            ActionActor actor,
+            CancellationToken cancellationToken)
+        {
+            SourceReplayBindings.Add((caseId, operationKey, sourceSha256, estimateId));
+            return Task.FromResult(new EstimateImportResult(estimateId));
         }
 
         public Task<RepairSpecificationVersion> SaveImportedEstimateAsync(SaveEstimateRequest request, CancellationToken cancellationToken) =>
