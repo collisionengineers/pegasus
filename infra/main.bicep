@@ -43,6 +43,10 @@ param graphChangeNotificationClientStateSecretUri string
 param boxConfigJsonSecretUri string
 @description('Versioned Key Vault secret URI containing the Box client secret.')
 param boxClientSecretSecretUri string
+@description('Versioned Key Vault secret URI containing the fine-grained GitHub token that raises problem reports as issues.')
+param gitHubProblemReportTokenSecretUri string
+@description('The owner/name repository that receives problem reports as issues.')
+param gitHubProblemReportRepository string = 'collisionengineers/pegasus'
 @description('Operator-created Box holding folder below the approved Pegasus root.')
 @minLength(1)
 param boxHoldingFolderId string
@@ -118,6 +122,8 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     boxConfigJsonSecretUri: boxConfigJsonSecretUri
     boxHoldingFolderId: boxHoldingFolderId
     boxClientSecretSecretUri: boxClientSecretSecretUri
+    gitHubProblemReportTokenSecretUri: gitHubProblemReportTokenSecretUri
+    gitHubProblemReportRepository: gitHubProblemReportRepository
     automationMcpClientSecretUri: automationMcpClientSecretUri
     automationMcpSigningCertificateSecretUris: automationMcpSigningCertificateSecretUris
     automationMcpEncryptionCertificateSecretUris: automationMcpEncryptionCertificateSecretUris

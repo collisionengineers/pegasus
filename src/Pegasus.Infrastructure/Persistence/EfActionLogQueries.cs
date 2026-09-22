@@ -31,6 +31,11 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
             securityQuery = securityQuery.Where(item =>
                 item.ActorSubjectId == actor || item.SubjectId == actor);
         }
+        if (filter.ActingActor is { } actingActor)
+        {
+            actionQuery = actionQuery.Where(item => item.ActorSubjectId == actingActor);
+            securityQuery = securityQuery.Where(item => item.ActorSubjectId == actingActor);
+        }
         if (filter.ActorType is { } actorType)
         {
             actionQuery = actionQuery.Where(item => item.ActorKind == actorType);
