@@ -72,6 +72,7 @@ never renumbered or reused.
 | [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | — | — |
 | [ADR-0053](0053-personal-staff-notification-store.md) | Personal staff notification store | accepted | — | — |
 | [ADR-0054](0054-release-notes-authored-in-the-application.md) | Release notes are authored in the application by an Administrator | accepted | — | — |
+| [ADR-0055](0055-github-issues-as-the-problem-report-sink.md) | GitHub issues as the problem-report sink | accepted | — | — |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
