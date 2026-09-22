@@ -22,8 +22,8 @@ Pegasus-v2-Refined-Pack as its visual reference: compact 13.5px body text,
 36px controls, restrained surfaces, aligned bounded forms, and contextual
 dialogs. The private prototype and its customer-derived fixtures must not be
 published. Current operator requirements override conflicting prototype
-behaviour: keep one Case Notes timeline, exactly one staff role, all engineering
-powers for Administrators, and the agreed EVA retry behaviour. Prototype
+behaviour: keep one Case Notes timeline, exactly one staff role, equal ordinary
+casework powers for enabled staff accounts, and the agreed EVA retry behaviour. Prototype
 handlers and illustrative figures are not application policy. Review actual
 routed pages and their error/edit states against the reference at 1580×1000
 and a smaller desktop width; shared-layout changes also need a 760px capture.
@@ -792,7 +792,7 @@ and trade boxes, a Get valuation button that looks the figures up and fills
 the boxes (answering with a notice while that source has no connected
 provider), and Save, which records the card; the boxes are typed by hand
 just as well. There is no separate Add valuation dialog. This does not
-remove the Estimate section's selected configured-Engineer Glass's
+remove the Estimate section's selected configured-staff-account Glass's
 repair-estimate launch; a connected Glass's valuation provider
 supersedes the earlier rule that Pegasus "records no Glass's valuation". Glass's and Audatex file
 import stays in scope through the whole-page drop; Cazana remains the

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -126,6 +127,61 @@ public sealed class StaffAccountsAndRolesWebTests
         Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
         Assert.Contains("The staff account changed. Reload and try again.",
             await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SettingsSaveCanMakeAUserTheDefaultSignOffEngineer()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IStaffAccountQueries>();
+        var administrator = (await queries.ListAsync(0, ListStaffAccounts.MaximumPageSize, default))
+            .Accounts.Single(item => item.UserName == DevelopmentOfflineIdentity.UserName);
+        var created = await scope.ServiceProvider.GetRequiredService<ICreateStaffAccount>()
+            .ExecuteAsync(
+                new(
+                    ActionActor.Staff(administrator.Id, [administrator.Role]),
+                    "user-sign-off-profile",
+                    "Tempor4ryPassword!",
+                    Guid.NewGuid().ToString("D")),
+                default);
+        Assert.Equal(StaffRole.User, created.Account.Role);
+
+        var path = AreaRoute + "?editStaffId=" + created.Account.Id + "&expectedVersion=" + created.Account.Version;
+        using var edit = await client.GetAsync(path);
+        var html = await edit.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+
+        using var form = new MultipartFormDataContent();
+        foreach (var (name, value) in new[]
+        {
+            ("staffId", created.Account.Id.ToString("D")),
+            ("role", StaffRole.User.ToString()),
+            ("isSignOffEngineer", "true"),
+            ("printedName", "User Signatory"),
+            ("qualifications", "MEng"),
+            ("isDefaultSignOffEngineer", "true"),
+            ("expectedVersion", Field(html, "expectedVersion")),
+            ("operationKey", Field(html, "operationKey")),
+            ("__RequestVerificationToken", Field(html, "__RequestVerificationToken"))
+        })
+        {
+            form.Add(new StringContent(value), name);
+        }
+
+        var signature = new ByteArrayContent([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        signature.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        form.Add(signature, "signature", "signature.png");
+        using var saved = await client.PostAsync(AreaRoute + "?handler=Settings", form);
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+
+        var updated = await queries.GetAsync(created.Account.Id, default);
+        Assert.NotNull(updated);
+        Assert.Equal(StaffRole.User, updated!.Role);
+        Assert.True(updated.SignOff.IsSignOffEngineer);
+        Assert.True(updated.SignOff.IsDefault);
+        Assert.True(updated.SignOff.HasSignature);
     }
 
     // The settings dialog auto-opens (data-dialog-open-on-load) and carries

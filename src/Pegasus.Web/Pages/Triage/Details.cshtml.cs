@@ -178,8 +178,7 @@ public sealed class DetailsModel(
     public string? Message { get; private set; }
 
     /// <summary>
-    /// The engineers this Triage may be assigned to — the enabled accounts
-    /// holding the Engineer role, and nobody else.
+    /// The enabled staff accounts this Triage may be assigned to.
     /// </summary>
     public IReadOnlyList<CaseEngineerChoice> EngineerChoices { get; private set; } = [];
 

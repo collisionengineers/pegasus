@@ -30,7 +30,7 @@ public sealed partial class DetailsModel
     /// <summary>The Case's Draft ready AI jobs, oldest first, for the Next action panel.</summary>
     public IReadOnlyList<AiDraft> AiDrafts { get; private set; } = [];
 
-    /// <summary>Whether this Engineer may take the unassigned Case for themself (P8).</summary>
+    /// <summary>Whether this staff member may take the unassigned Case for themself (P8).</summary>
     public bool CanAssignToMe { get; private set; }
 
     /// <summary>
@@ -171,8 +171,7 @@ public sealed partial class DetailsModel
         HasGeneratedReport = details.Summary.CaseType == CaseType.InspectionAndAudit
             && await reportGenerated.HasGeneratedReportAsync(caseId, cancellationToken);
         AiDrafts = await aiDrafts.ListForCaseAsync(caseId, cancellationToken);
-        CanAssignToMe = actor.IsInRole(StaffRole.Engineer)
-            && CaseLifecycleRules.CanAssignToSelf(details.Workflow);
+        CanAssignToMe = CaseLifecycleRules.CanAssignToSelf(details.Workflow);
     }
 
     /// <summary>

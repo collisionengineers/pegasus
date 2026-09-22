@@ -778,7 +778,7 @@ public static class CaseWorkspacePolicy
                 nameof(estimate));
         }
 
-        RepairSpecificationPolicy.RequireEngineer(actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(actor);
         return estimate with
         {
             Details = estimate.Details is null
