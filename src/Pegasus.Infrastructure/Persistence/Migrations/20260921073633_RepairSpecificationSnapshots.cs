@@ -62,7 +62,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_CaseRepairSpecificationSnapshots", x => x.Id);
-                    table.CheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", "[Kind] IN ('Imported', 'BeforeScaling', 'Scaled', 'BeforeRestore', 'Sent')");
+                    table.CheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", "[Kind] IN ('Imported', 'BeforeScaling', 'Scaled', 'ScalingRemoved', 'BeforeRestore', 'Restored', 'Sent')");
                     table.CheckConstraint("CK_CaseRepairSpecificationSnapshots_Number", "[Number] > 0");
                     table.ForeignKey(
                         name: "FK_CaseRepairSpecificationSnapshots_Cases_CaseId",

@@ -2619,7 +2619,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CaseRepairSpecificationSnapshots", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", "[Kind] IN ('Imported', 'BeforeScaling', 'Scaled', 'BeforeRestore', 'Sent')");
+                            t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", "[Kind] IN ('Imported', 'BeforeScaling', 'Scaled', 'ScalingRemoved', 'BeforeRestore', 'Restored', 'Sent')");
 
                             t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Number", "[Number] > 0");
                         });

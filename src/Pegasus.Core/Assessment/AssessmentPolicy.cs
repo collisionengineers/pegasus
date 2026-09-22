@@ -356,6 +356,20 @@ public static class AssessmentPolicy
             }
         }
 
+        var contractRepair = string.Equals(
+            fields.GetValueOrDefault(AssessmentVocabulary.Outcome),
+            "contract_repair",
+            StringComparison.Ordinal);
+        if (contractRepair
+            && projection.Field(AssessmentVocabulary.SettlementContractSum) is not { IsConfirmed: true })
+        {
+            items.Add(new(
+                "Agreed contract sum",
+                "Assessment record",
+                "The outcome is Contract repair without a confirmed agreed contract sum.",
+                "Record and confirm the agreed sum on the Settlement section."));
+        }
+
         if (includeReviewEntryRequirements
             && string.Equals(
                 projection.CaseOwned.InspectionMode,
@@ -373,7 +387,8 @@ public static class AssessmentPolicy
         // field or line and who recorded it. A single aggregate count is
         // prohibited: an unmet requirement has to identify its own material,
         // provenance, reason, and permitted resolution.
-        foreach (var field in projection.Fields.Where(field => !field.IsConfirmed))
+        foreach (var field in projection.Fields.Where(field => !field.IsConfirmed
+            && !(contractRepair && field.Path == AssessmentVocabulary.SettlementContractSum)))
         {
             items.Add(new(
                 $"{field.Path} awaits review",

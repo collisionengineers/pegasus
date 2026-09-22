@@ -473,7 +473,7 @@ public static class DependencyInjection
         services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddScoped<IRepairSpecificationSnapshotStore, EfRepairSpecificationSnapshotStore>();
-        services.AddScoped<IScaleRepairSpecification, ScaleRepairSpecification>();
+        services.AddScoped<ISaveAndScaleRepairSpecification, SaveAndScaleRepairSpecification>();
         services.AddScoped<IRemoveRepairSpecificationScaling, RemoveRepairSpecificationScaling>();
         services.AddScoped<IRestoreRepairSpecificationSnapshot, RestoreRepairSpecificationSnapshot>();
         // Every retained-source caller uses this same format set. One PDF

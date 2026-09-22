@@ -316,6 +316,18 @@ public interface IRepairSpecificationStore
         SaveEstimateRequest request,
         CancellationToken cancellationToken);
 
+    Task<RepairSpecificationVersion> SaveAndScaleAsync(
+        SaveAndScaleRepairSpecificationRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RepairSpecificationVersion> RemoveScalingAsync(
+        RemoveRepairSpecificationScalingRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RepairSpecificationVersion> RestoreSnapshotAsync(
+        RestoreRepairSpecificationSnapshotRequest request,
+        CancellationToken cancellationToken);
+
     Task<RepairSpecificationVersion> DuplicateEstimateAsync(
         DuplicateEstimateRequest request,
         CancellationToken cancellationToken);
