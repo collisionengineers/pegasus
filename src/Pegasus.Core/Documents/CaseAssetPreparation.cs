@@ -118,7 +118,8 @@ public sealed record CaseAssetPreparation(
     CaseAssetCrop Crop,
     long PreparationVersion,
     string? PreparedBy,
-    DateTimeOffset? PreparedAtUtc);
+    DateTimeOffset? PreparedAtUtc,
+    bool FullPage = false);
 
 /// <summary>
 /// One requested change to a single occurrence's preparation, guarded by its
@@ -134,7 +135,8 @@ public sealed record CaseAssetPreparationEdit(
     CaseAssetReportRole Role,
     int? Order,
     CaseAssetRotation Rotation,
-    CaseAssetCrop Crop);
+    CaseAssetCrop Crop,
+    bool FullPage = false);
 
 public sealed record SaveCaseAssetPreparationRequest(
     Guid CaseId,
@@ -163,8 +165,8 @@ public sealed record ResetCaseAssetPreparationRequest(
 
 /// <summary>
 /// One image as the report will use it: its confirmed source identity/hash
-/// and the prepared role/order/rotation/crop. Files and Report read the same
-/// preparation through this and <see cref="ICaseAssetPreparationQueries"/>.
+/// and the prepared role/order/rotation/crop/full-page choice. Files and Report
+/// read the same preparation through this and <see cref="ICaseAssetPreparationQueries"/>.
 /// </summary>
 public sealed record PreparedReportImage(
     Guid OccurrenceId,
@@ -174,7 +176,8 @@ public sealed record PreparedReportImage(
     CaseAssetReportRole Role,
     int? Order,
     CaseAssetRotation Rotation,
-    CaseAssetCrop Crop);
+    CaseAssetCrop Crop,
+    bool FullPage = false);
 
 public interface ICaseAssetPreparationQueries
 {
@@ -229,6 +232,19 @@ public sealed class CaseAssetPreparationVersionConflictException(
 /// </summary>
 public static class CaseAssetPreparationPolicy
 {
+    /// <summary>
+    /// Full page is a flag on an image the report uses (v28 P41, ruled 20
+    /// September 2026): an image not in the report cannot claim a page of
+    /// its own, so the flag comes off with the role.
+    /// </summary>
+    public static CaseAssetPreparationEdit ValidateFullPage(CaseAssetPreparationEdit edit)
+    {
+        ArgumentNullException.ThrowIfNull(edit);
+        return edit.Role == CaseAssetReportRole.NotUsed && edit.FullPage
+            ? edit with { FullPage = false }
+            : edit;
+    }
+
     /// <summary>
     /// Validates and renormalizes a proposed complete preparation set for one
     /// Case: at most one Close-up and one Overview (exactly one each is
@@ -353,7 +369,8 @@ public static class CaseAssetPreparationPolicy
                 item.Role,
                 item.Order,
                 item.Rotation,
-                item.Crop))
+                item.Crop,
+                item.FullPage))
             .ToArray();
     }
 

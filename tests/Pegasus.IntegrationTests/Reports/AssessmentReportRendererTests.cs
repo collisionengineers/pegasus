@@ -212,6 +212,43 @@ public sealed partial class AssessmentReportRendererTests
         Assert.True(artifact.PageCount >= 5);
     }
 
+    [Fact]
+    public async Task NormalImagesArePagedInPairsAndFullPageImageIsIsolated()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var draft = new GenerateAssessmentReportDraft(renderer);
+        var bytes = Bitmap(160, 120, SKEncodedImageFormat.Jpeg);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+
+        ReportImageEvidence Photo(int index, bool fullPage = false) => new(
+            $"site-{index}.jpg",
+            "image/jpeg",
+            bytes,
+            hash,
+            CaseAssetReportRole.Supporting,
+            index,
+            CaseAssetRotation.None,
+            CaseAssetCrop.Full,
+            FullPage: fullPage);
+
+        var fourNormal = ReadySnapshot() with
+        {
+            Photos = [Photo(1), Photo(2), Photo(3), Photo(4)],
+        };
+        var normalArtifact = await draft.ExecuteAsync(
+            fourNormal, CaseReportArtifactKind.AssessmentReport);
+        Assert.Equal(2, VehicleImagePageCount(normalArtifact.Pdf));
+
+        var isolated = fourNormal with
+        {
+            Photos = [Photo(1), Photo(2), Photo(3, fullPage: true), Photo(4)],
+        };
+        var isolatedArtifact = await draft.ExecuteAsync(
+            isolated, CaseReportArtifactKind.AssessmentReport);
+        Assert.Equal(3, VehicleImagePageCount(isolatedArtifact.Pdf));
+    }
+
     /// <summary>
     /// Phase 5b: the valuation commentary text frozen into the snapshot prints
     /// when the switch is on, and not when it is off.
@@ -331,6 +368,18 @@ public sealed partial class AssessmentReportRendererTests
         return document.GetPages()
             .Select(page => WhitespaceRegex().Replace(ContentOrderTextExtractor.GetText(page), " ").Trim())
             .ToArray();
+    }
+
+    private static int VehicleImagePageCount(byte[] pdf)
+    {
+        var pages = PageTexts(pdf);
+        var imagePage = Array.FindIndex(
+            pages, page => page.Contains("Vehicle Images", StringComparison.Ordinal));
+        var statementPage = Array.FindIndex(
+            pages, page => page.Contains("Statement of Truth", StringComparison.Ordinal));
+        Assert.True(imagePage >= 0, "The report did not render the Vehicle Images section.");
+        Assert.True(statementPage > imagePage, "The Statement of Truth did not follow the image pages.");
+        return statementPage - imagePage;
     }
 
     [GeneratedRegex(@"\s+")]

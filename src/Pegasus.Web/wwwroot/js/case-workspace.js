@@ -2383,6 +2383,97 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();
 
+// --- images: the grid's own acts (v28 P41 drag, P27 click to include) --------
+// Both write through the role and order controls the preparation binder
+// already owns, so the tile, the viewer and the Case Save cannot disagree.
+(function () {
+    'use strict';
+
+    function bind(root) {
+        root.querySelectorAll('[data-image-grid]').forEach(function (grid) {
+            if (grid.dataset.imageGridBound === 'true') {
+                return;
+            }
+            grid.dataset.imageGridBound = 'true';
+            var dragging = null;
+
+            function tileOf(element) {
+                return element ? element.closest('[data-image-tile][data-preparation-card]') : null;
+            }
+            function renumber() {
+                var at = 0;
+                grid.querySelectorAll('[data-image-tile][data-preparation-card]').forEach(function (tile) {
+                    var role = tile.querySelector('[data-preparation-role-select]');
+                    var order = tile.querySelector('[data-preparation-order]');
+                    if (!role || !order || role.value !== 'Supporting') { return; }
+                    at += 1;
+                    if (order.value !== String(at)) {
+                        order.value = String(at);
+                        order.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                });
+            }
+
+            grid.addEventListener('dragstart', function (event) {
+                var grip = event.target.closest('.grip');
+                dragging = grip ? tileOf(grip) : null;
+                if (!dragging) { return; }
+                dragging.classList.add('is-dragging');
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', dragging.getAttribute('data-preparation-occurrence') || '');
+            });
+            grid.addEventListener('dragover', function (event) {
+                var over = tileOf(event.target);
+                if (!dragging || !over || over === dragging) { return; }
+                event.preventDefault();
+                over.classList.add('is-drop');
+            });
+            grid.addEventListener('dragleave', function (event) {
+                var over = tileOf(event.target);
+                if (over) { over.classList.remove('is-drop'); }
+            });
+            grid.addEventListener('drop', function (event) {
+                var over = tileOf(event.target);
+                if (!dragging || !over || over === dragging) { return; }
+                event.preventDefault();
+                over.classList.remove('is-drop');
+                grid.insertBefore(dragging, over);
+                renumber();
+            });
+            grid.addEventListener('dragend', function () {
+                if (dragging) { dragging.classList.remove('is-dragging'); }
+                dragging = null;
+                grid.querySelectorAll('.is-drop').forEach(function (tile) { tile.classList.remove('is-drop'); });
+            });
+
+            // P27: while the tile carries its report controls, clicking the
+            // image itself toggles whether the report uses it.
+            grid.addEventListener('click', function (event) {
+                if (event.target.closest('[data-image-report], .image-tile-actions')) { return; }
+                var link = event.target.closest('a[data-evidence-item]');
+                var tile = tileOf(link);
+                var role = tile ? tile.querySelector('[data-preparation-role-select]') : null;
+                if (!link || !role) { return; }
+                event.preventDefault();
+                event.stopPropagation();
+                if (role.value === 'NotUsed') {
+                    // P41: putting an image back restores the role it had,
+                    // not a default. Close-up must not return as Supporting.
+                    role.value = role.getAttribute('data-role-before-removal') || 'Supporting';
+                } else {
+                    role.setAttribute('data-role-before-removal', role.value);
+                    role.value = 'NotUsed';
+                }
+                role.dispatchEvent(new Event('change', { bubbles: true }));
+            }, true);
+        });
+    }
+
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+
 // --- report: the Report and Fee tabs (v28 P24) -------------------------------
 // Two panes of one section. The server renders both, so a browser without
 // script reads the fee note under the report; this shows the tabs and keeps
@@ -2955,6 +3046,7 @@
                 previousRole: role === 'NotUsed' ? 'Supporting' : role,
                 order: card.getAttribute('data-preparation-order') ? number(card.getAttribute('data-preparation-order'), null) : null,
                 rotation: normalRotation(number(card.getAttribute('data-preparation-rotation'), 0)),
+                fullPage: card.getAttribute('data-preparation-full-page') === 'true',
                 crop: crop,
                 stored: { rotation: normalRotation(number(card.getAttribute('data-preparation-rotation'), 0)), crop: { left: crop.left, top: crop.top, width: crop.width, height: crop.height } },
                 preview: card.getAttribute('data-preparation-preview') || '',
@@ -2983,7 +3075,8 @@
                 ['OccurrenceId', value.id], ['ExpectedPreparationVersion', value.version], ['Role', value.role],
                 ['Order', value.role === 'Supporting' && value.order !== null ? value.order : ''], ['Rotation', value.rotation],
                 ['CropLeft', round7(value.crop.left)], ['CropTop', round7(value.crop.top)],
-                ['CropWidth', round7(value.crop.width)], ['CropHeight', round7(value.crop.height)]
+                ['CropWidth', round7(value.crop.width)], ['CropHeight', round7(value.crop.height)],
+                ['FullPage', value.fullPage ? 'true' : 'false']
             ].forEach(function (field) {
                 var input = document.createElement('input');
                 input.type = 'hidden';
@@ -3015,6 +3108,20 @@
             var cropLabelElement = card.querySelector('[data-preparation-crop-label]');
             if (role) { role.value = value.role; }
             if (order) { order.value = value.order === null ? '' : value.order; order.disabled = value.role !== 'Supporting'; }
+            // v28 P41 and P50: the tile's Full page flag and its order cell
+            // follow the same staged state as the role.
+            var orderCell = card.querySelector('[data-image-order-cell]');
+            if (orderCell) { orderCell.hidden = value.role !== 'Supporting'; }
+            var reportActionsAvailable = value.role !== 'NotUsed';
+            var fullButton = card.querySelector('[data-image-full-page]');
+            if (fullButton) {
+                fullButton.hidden = !reportActionsAvailable;
+                fullButton.setAttribute('aria-pressed', value.fullPage ? 'true' : 'false');
+            }
+            var removeButton = card.querySelector('[data-image-remove]');
+            if (removeButton) { removeButton.hidden = !reportActionsAvailable; }
+            var fullChip = card.querySelector('[data-image-full-chip]');
+            if (fullChip) { fullChip.hidden = !value.fullPage; }
             if (roleLabelElement) { roleLabelElement.textContent = roleLabel(value.role); }
             if (rotationLabelElement) { rotationLabelElement.textContent = rotationLabel(value.rotation); }
             if (cropLabelElement) { cropLabelElement.textContent = cropLabel(value.crop); }
@@ -3072,6 +3179,9 @@
             if (value.role !== 'Supporting') { value.order = null; }
         }
         if (patch.order !== undefined) { value.order = patch.order === null ? null : Math.max(1, Math.floor(number(patch.order, 1))); }
+        // An image the report does not use never claims a page of its own.
+        if (patch.fullPage !== undefined) { value.fullPage = !!patch.fullPage; }
+        if (value.role === 'NotUsed') { value.fullPage = false; }
         if (patch.rotation !== undefined) { value.rotation = normalRotation(patch.rotation); }
         if (patch.crop !== undefined) {
             value.crop = {
@@ -3097,6 +3207,20 @@
     };
     window.pegasusOpenCaseCrop = function (id) { window.pegasusCasePreparation.openCrop(id); };
 
+    // v28 P50: how many of the Case's images the report uses, under the grid.
+    function countImagesInReport() {
+        var line = document.querySelector('[data-image-report-count]');
+        var grid = document.querySelector('[data-image-grid]');
+        if (!line || !grid) { return; }
+        var tiles = all(grid, '[data-image-tile]');
+        var included = tiles.filter(function (tile) {
+            if (!tile.hasAttribute('data-preparation-card')) { return false; }
+            var staged = get(tile.getAttribute('data-preparation-occurrence'));
+            return staged ? staged.role !== 'NotUsed' : tile.getAttribute('data-preparation-role') !== 'NotUsed';
+        }).length;
+        line.textContent = included + ' of ' + tiles.length + ' in report';
+    }
+
     function bindPreparationCards(root) {
         all(root, '[data-preparation-card]').forEach(function (card) {
             if (card.dataset.preparationBound === 'true') { sync(card.getAttribute('data-preparation-occurrence')); return; }
@@ -3106,7 +3230,7 @@
             sync(value.id);
             var role = card.querySelector('[data-preparation-role-select]');
             var order = card.querySelector('[data-preparation-order]');
-            if (role) { role.addEventListener('change', function () { set(value.id, { role: role.value }); }); }
+            if (role) { role.addEventListener('change', function () { set(value.id, { role: role.value }); countImagesInReport(); }); }
             if (order) { order.addEventListener('change', function () { set(value.id, { order: order.value === '' ? null : order.value }); }); }
             all(card, '[data-preparation-rotate]').forEach(function (button) {
                 button.addEventListener('click', function () {
@@ -3114,10 +3238,40 @@
                     set(value.id, { rotation: current.rotation + number(button.getAttribute('data-preparation-rotate'), 0) });
                 });
             });
-            var reset = card.querySelector('[data-preparation-reset]');
-            if (reset) {
-                reset.addEventListener('click', function () {
-                    set(value.id, { role: 'NotUsed', order: null, rotation: 0, crop: { left: 0, top: 0, width: 1, height: 1 } });
+            // v28 P41: Full page is a flag on an image the report uses;
+            // Remove sets the role to Not used and the file stays on the Case,
+            // so Undo simply puts the role back.
+            var fullPage = card.querySelector('[data-image-full-page]');
+            if (fullPage) {
+                fullPage.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    var current = get(value.id);
+                    if (!current || current.role === 'NotUsed') { return; }
+                    set(value.id, { fullPage: !current.fullPage });
+                    countImagesInReport();
+                });
+            }
+            var removeImage = card.querySelector('[data-image-remove]');
+            if (removeImage) {
+                removeImage.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    var current = get(value.id);
+                    if (!current || current.role === 'NotUsed') { return; }
+                    var was = current.role;
+                    var wasOrder = current.order;
+                    var wasFullPage = current.fullPage;
+                    set(value.id, { role: 'NotUsed', fullPage: false });
+                    countImagesInReport();
+                    if (window.pegasusUndoToast) {
+                        window.pegasusUndoToast(
+                            removeImage.getAttribute('data-undo-title') || 'Image removed',
+                            function () {
+                                set(value.id, { role: was, order: wasOrder, fullPage: wasFullPage });
+                                countImagesInReport();
+                            });
+                    }
                 });
             }
         });

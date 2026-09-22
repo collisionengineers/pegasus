@@ -1926,6 +1926,25 @@
 
     window.pegasusToast = toast;
 
+    // An act that can be put back for eight seconds: the toast carries the
+    // one Undo (v28 P16, P41).
+    window.pegasusUndoToast = function (title, restore) {
+        var element = document.createElement('div');
+        element.className = 'toast toast--undo';
+        element.setAttribute('role', 'status');
+        var strong = document.createElement('strong');
+        strong.textContent = title;
+        var undo = document.createElement('button');
+        undo.type = 'button';
+        undo.className = 'btn btn--small';
+        undo.textContent = element.getAttribute('data-undo-label') || 'Undo';
+        undo.addEventListener('click', function () { restore(); element.remove(); });
+        element.appendChild(strong);
+        element.appendChild(undo);
+        region.appendChild(element);
+        window.setTimeout(function () { element.remove(); }, 8000);
+    };
+
     var confirmation = document.querySelector('[data-confirmation]');
     if (confirmation) {
         toast(confirmation.textContent.trim());

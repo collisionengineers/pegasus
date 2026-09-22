@@ -3367,6 +3367,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<int>("Ordinal")
                         .HasColumnType("int");
 
+                    b.Property<bool>("PreparationFullPage")
+                        .HasColumnType("bit");
+
                     b.Property<string>("PreparationRole")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");

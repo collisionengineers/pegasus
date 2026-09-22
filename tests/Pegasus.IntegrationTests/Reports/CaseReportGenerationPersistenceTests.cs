@@ -443,6 +443,9 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(harness.CloseUp.VersionId, image.VersionId);
         Assert.Equal($"box-file-{harness.CloseUp.VersionId:N}", image.BoxFileId);
         Assert.Equal($"box-version-{harness.CloseUp.VersionId:N}", image.BoxVersionId);
+        Assert.True(image.FullPage);
+        Assert.True(Assert.Single(harness.RehydratedPhotos(generation.Snapshot),
+            photo => photo.OccurrenceId == harness.CloseUp.OccurrenceId).FullPage);
         Assert.Equal(3, generation.Snapshot.Sources.Count);
         Assert.Contains(generation.Snapshot.Sources, item => item.DocumentId == harness.CloseUp.DocumentId);
         Assert.Contains(generation.Snapshot.Sources, item => item.DocumentId == harness.Overview.DocumentId);
@@ -1551,7 +1554,8 @@ public sealed class CaseReportGenerationPersistenceTests
                 .Select(image => new ReportImageEvidence(
                     $"{image.OccurrenceId:D}.png", image.ContentType, EvidenceContent[image.Sha256],
                     image.Sha256, image.Role, image.Order, image.Rotation, image.Crop,
-                    image.OccurrenceId, image.VersionId, image.BoxFileId, image.BoxVersionId))
+                    image.OccurrenceId, image.VersionId, image.BoxFileId, image.BoxVersionId,
+                    image.FullPage))
                 .ToArray();
 
         private readonly Dictionary<Guid, Guid> occurrences = [];
@@ -1938,13 +1942,14 @@ public sealed class CaseReportGenerationPersistenceTests
                 $"{document.OccurrenceId:D}.png", "image/png", document.Content,
                 document.Sha256, role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
                 document.OccurrenceId, document.VersionId,
-                $"box-file-{document.VersionId:N}", $"box-version-{document.VersionId:N}");
+                $"box-file-{document.VersionId:N}", $"box-version-{document.VersionId:N}",
+                role == CaseAssetReportRole.CloseUp);
 
         private CaseAssetPreparation Preparation(
             Harness.SeededDocument document, CaseAssetReportRole role) => new(
                 caseId, document.OccurrenceId, document.DocumentId, document.VersionId, 1,
                 document.Sha256, "image/png", role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
-                1, "engineer-1", RecordedAtUtc);
+                1, "engineer-1", RecordedAtUtc, role == CaseAssetReportRole.CloseUp);
 
     }
 

@@ -185,17 +185,10 @@ public sealed partial class DetailsModel(
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
 
     /// <summary>
-    /// Every image occurrence's report preparation (B06), loaded once for the
-    /// Files and Report sections so the two can never disagree about the
-    /// role, order, rotation or crop of the same image.
+    /// Every image occurrence's report preparation (B06), loaded with the
+    /// Files section so its tile, viewer and Case Save share one state.
     /// </summary>
     public IReadOnlyList<CaseAssetPreparation> AssetPreparations { get; private set; } = [];
-
-    /// <summary>
-    /// The same set in the report's own order, from Core's one projection
-    /// rule: Close-up, Overview, then Supporting by order; Not used omitted.
-    /// </summary>
-    public IReadOnlyList<PreparedReportImage> PreparedReportImages { get; private set; } = [];
 
     /// <summary>
     /// Which section of the Case record the request addresses.
@@ -873,13 +866,7 @@ public sealed partial class DetailsModel(
                 if (!SectionIsDeferred("files"))
                 {
                     await LoadFilesAsync(id, cancellationToken);
-                }
-                // The Report section is never deferred, so its prepared cards are
-                // rendered on every full response; the Files section reads the
-                // same loaded set rather than asking a second time.
-                await LoadAssetPreparationsAsync(id, cancellationToken);
-                if (!SectionIsDeferred("files"))
-                {
+                    await LoadAssetPreparationsAsync(id, cancellationToken);
                     await LoadIntakeGalleriesAsync(cancellationToken);
                 }
                 if (!SectionIsDeferred("valuation"))
@@ -1196,7 +1183,6 @@ public sealed partial class DetailsModel(
     private async Task LoadAssetPreparationsAsync(Guid caseId, CancellationToken cancellationToken)
     {
         AssetPreparations = await caseAssetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
-        PreparedReportImages = CaseAssetPreparationPolicy.ForReport(AssetPreparations);
     }
 
     /// <summary>
@@ -2307,6 +2293,8 @@ public sealed partial class DetailsModel(
 
         public decimal CropHeight { get; set; }
 
+        public bool FullPage { get; set; }
+
         public CaseAssetPreparationEdit ToRequest() =>
             new(
                 OccurrenceId,
@@ -2314,7 +2302,8 @@ public sealed partial class DetailsModel(
                 Role,
                 Role == CaseAssetReportRole.Supporting ? Order : null,
                 (CaseAssetRotation)Rotation,
-                new(CropLeft, CropTop, CropWidth, CropHeight));
+                new(CropLeft, CropTop, CropWidth, CropHeight),
+                FullPage);
     }
 
     public async Task<IActionResult> OnPostSendToClaudeAsync(

@@ -3,14 +3,12 @@
     readiness the projection states) and one More menu (Preview draft,
     Generate fee note, Include fee note). Body: the readiness notice, the
     preview card, the generation facts and artifacts, the stale notice, the
-    reviewed recipients and delivery, the report fields, the images in the
-    report and — while editing — their preparation. Mark report sent is the
+    reviewed recipients and delivery, and the report fields. Mark report sent is the
     ribbon's Actions item and Unlink report evidence is Overview's Lifecycle
     actions; neither is repeated here.
 *@
 @using System.Globalization
 @using Pegasus.Core.Assessment
-@using Pegasus.Core.Documents
 @using Pegasus.Core.Reports
 @using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
@@ -58,8 +56,6 @@
         : Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm", CultureInfo.InvariantCulture);
     var draftFileName = Model.ReportTitle + Words.DraftSuffix;
     var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId, includeFeeNote = false })!;
-    var tiles = Model.ReportImageTiles;
-    var inReport = tiles.Count(tile => tile.Preparation.Role != CaseAssetReportRole.NotUsed);
     var canPrepareDelivery = editing
         && generation is not null
         && preparation is null
@@ -322,50 +318,6 @@
             <div class="fc ro span4"><span class="lbl">@EngineerLabels.StatementOfTruth</span><div class="fv derived multi @(Model.AssessmentIsAbsent(AssessmentVocabulary.StatementOfTruth) ? "empty" : null)">@Model.AssessmentDisplay(AssessmentVocabulary.StatementOfTruth)</div></div>
         </div>
 
-        @if (tiles.Count > 0)
-        {
-            @* Every readable Case image, the ones in the report ticked; a tile
-               opens the viewer, whose In report toggle drives the set while
-               editing (the Files lane's viewer binds [data-report-image-toggle]). *@
-            <div class="sub-panel" data-report-images>
-                <h3>@Words.ImagesInReport <span class="rt" data-report-image-count>@inReport of @tiles.Count @Words.InReport</span></h3>
-                <div class="thumbs" data-report-images-strip data-evidence-set>
-                    @foreach (var (file, prep) in tiles)
-                    {
-                        var occurrence = file.Occurrence;
-                        var version = file.Version;
-                        var included = prep.Role != CaseAssetReportRole.NotUsed;
-                        var previewUrl = Model.PreviewUrl(file);
-                        var downloadUrl = Model.DownloadUrl(file);
-                        var thumbnailUrl = Model.ThumbnailUrl(file);
-                        <a class="th @(included ? null : "off")" href="@previewUrl"
-                           data-evidence-item data-download-href="@downloadUrl" data-media-type="@version.MediaType" data-file-name="@version.FileName"
-                           data-report-image="@occurrence.Id" data-report-image-role="@prep.Role"
-                           @(Model.CanEditCaseData ? Html.Raw($"data-report-image-toggle=\"{occurrence.Id:D}\" data-evidence-preparation-occurrence=\"{occurrence.Id:D}\"") : null)>
-                            <img src="@thumbnailUrl" alt="" loading="lazy" data-gallery-image />
-                            <span class="inc" aria-hidden="true">@(included ? "✓" : "–")</span>
-                            @if (included)
-                            {
-                                <span class="tag">@CaseWorkspaceLabels.ReportImages.RoleLabel(prep.Role)</span>
-                            }
-                            <span class="th-name">@version.FileName</span>
-                        </a>
-                    }
-                </div>
-            </div>
-        }
-
-        @* B06/B08: the prepared images exactly as the report will use them,
-           with the same preparation controls the Files section offers, from the
-           one shared partial. Shown only while the Case edits. *@
-        @if (Model.CanEditCaseData && Model.PreparedReportImages.Count > 0)
-        {
-            <div class="sub-panel" data-report-preparation>
-                <h3>@Words.ReportImagePreparation</h3>
-                <partial name="Cases/Shared/_CaseReportImagePreparation"
-                         model="ReportImagePreparationView.Report(Model)" />
-            </div>
-        }
         </div>
     </div>
 </section>
