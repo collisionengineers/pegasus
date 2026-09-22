@@ -31,7 +31,7 @@ public sealed class TriageQueuesWebTests
 {
     private static ActionActor StaffActor() => ActionActor.Staff(
         DevelopmentOfflineIdentity.AdministratorId,
-        [StaffRole.Administrator]);
+        [StaffRole.User]);
 
     /// <summary>
     /// The Missing filter is exclusive: "Instructions" lists the cases whose

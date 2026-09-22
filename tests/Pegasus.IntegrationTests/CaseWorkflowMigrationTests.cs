@@ -294,7 +294,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260917152000_CaseDueByStaffOverride",
                 "20260917153000_CaseClaimSourceContactOverride",
                 "20260917161519_RemovePublicUploadLinks",
-                "20260918090000_RemoveAdministrationEditScopes"
+                "20260918090000_RemoveAdministrationEditScopes",
+                "20260920200240_ReleaseNotes"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

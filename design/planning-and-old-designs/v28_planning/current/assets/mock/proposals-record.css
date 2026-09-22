@@ -1,0 +1,147 @@
+/* v28 proposals layer, part two: styles for proposals-record.js. Built on the
+   live tokens (--line, --line-strong, --red, --amber-bg, --control, --radius)
+   so the additions read as part of the record. */
+
+/* P29 · decisions as radio groups: one answer, so a radio, not a tick box */
+html[data-v28-record="edit"] #section-settlement select.v28-driven{display:none}
+.v28-radiorow{display:flex;gap:8px;flex-wrap:wrap}
+.v28-radio{border:1px solid var(--line-strong);border-radius:var(--radius);padding:0 12px;min-height:var(--control,36px);cursor:pointer;font:500 12.5px var(--font);color:var(--muted);background:#fff;display:inline-flex;gap:8px;align-items:center}
+.v28-radio .dot{width:14px;height:14px;border:1.5px solid var(--line-strong);border-radius:50%;position:relative;flex:none}
+.v28-radio[aria-checked="true"]{border-color:var(--red);color:var(--ink)}
+.v28-radio[aria-checked="true"] .dot{border-color:var(--red)}
+.v28-radio[aria-checked="true"] .dot::after{content:"";position:absolute;inset:2.5px;border-radius:50%;background:var(--red)}
+.v28-radio:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+
+/* P14 · salvage slider */
+.v28-salvage{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0}
+.v28-salvage input[type=range]{flex:1 1 160px;min-width:120px;accent-color:var(--ink)}
+.v28-salvage .snaps{display:flex;gap:4px}
+.v28-salvage .snaps button{border:1px solid var(--line);background:#fff;border-radius:999px;font:600 10.5px var(--mono);color:var(--muted);padding:2px 8px;cursor:pointer}
+.v28-salvage .snaps button.on{border-color:var(--red);color:var(--red)}
+.v28-salvage .snaps button:disabled{opacity:.5;cursor:default}
+.v28-salvage .read{font-size:12px;color:var(--muted)}
+
+/* P15 · reason bank */
+.v28-bank{display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 0}
+.v28-bank button{border:1px solid var(--line);background:#fff;border-radius:12px;font:500 11.5px var(--font);color:var(--ink);padding:4px 11px;cursor:pointer;text-align:left}
+.v28-bank button:hover{border-color:var(--red);color:var(--red)}
+.v28-bank .v28-bank-save{flex-basis:100%;border:0;padding:2px 0;font-size:11px;color:var(--muted);text-decoration:underline;background:none}
+
+/* P16 · estimate lines */
+.v28-est-tools{justify-content:flex-end}
+.toast.v28-undo{display:flex;align-items:center;gap:12px}
+
+/* P17 · regional uplift */
+.src-tag--warn{border-color:#e4c289;background:var(--amber-bg);color:var(--amber)}
+
+/* P19 · compare */
+.v28-cmphead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.v28-cmphead label{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:600}
+.v28-cmphead select{width:auto}
+.v28-cmphead .sum{margin-left:auto;font-size:12.5px;color:var(--muted)}
+.v28-cmp-diff tr.added td{background:#fdecec}
+.v28-cmp-diff tr.changed td{background:var(--amber-bg)}
+.v28-cmp-diff tr.removed td{background:var(--green-bg);color:var(--muted)}
+.v28-cmp-diff td.diff{font-weight:700}
+@media print{
+  body[data-v28-print="compare"]>*:not(#compare-estimates-dialog):not([data-case-dialogs]){display:none!important}
+  body[data-v28-print="compare"] #compare-estimates-dialog{display:block!important;position:static;background:none;padding:0}
+  body[data-v28-print="compare"] #compare-estimates-dialog .dialog{max-height:none;max-width:none;width:auto;box-shadow:none}
+  body[data-v28-print="compare"] .dialog-foot,body[data-v28-print="compare"] .dialog-close{display:none}
+}
+
+/* P20 · supplementary */
+.v28-supp{border-left:3px solid var(--red)}
+.v28-supp-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.v28-supp-row label{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:600}
+.v28-supp-row select{width:auto}
+.v28-supp ul{list-style:none;margin:8px 0 10px;padding:0;display:grid;gap:4px;font-size:12.5px}
+.v28-supp li{display:flex;gap:8px;align-items:center}
+.v28-supp li.total{border-top:1px solid var(--line);padding-top:4px;font-weight:600}
+.v28-supp li .num{margin-left:auto}
+
+/* P21 to P23 · delivery */
+.v28-delivery .v28-addr{position:relative;min-width:0}
+.v28-abook{position:absolute;top:calc(100% + 3px);left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow,0 6px 18px rgba(0,0,0,.12));z-index:30;overflow:hidden}
+.v28-abook .abr{display:flex;gap:8px;align-items:baseline;padding:7px 10px;cursor:pointer;font-size:12.5px}
+.v28-abook .abr:hover{background:var(--surface-2,#f5f6f7)}
+.v28-abook .an{font-weight:600}
+.v28-abook .ae{color:var(--muted);font:11.5px var(--mono)}
+.v28-abook .at{margin-left:auto;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.v28-abook .abempty{padding:7px 10px;font-size:12px;color:var(--muted)}
+.v28-cc{display:flex;gap:6px;flex-wrap:wrap}
+.v28-cc .ccchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:12px;padding:3px 6px 3px 10px;font:500 11.5px var(--mono)}
+.v28-cc .ccchip button{border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 2px}
+.v28-ccsugg{display:flex;gap:6px;flex-wrap:wrap}
+.v28-ccsugg button{border:1px dashed var(--line-strong);background:none;border-radius:12px;font:500 11px var(--font);color:var(--muted);padding:3px 10px;cursor:pointer}
+.v28-attach{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+
+/* P24 · Report and Fee tabs */
+.v28-report-tabs{margin-bottom:4px}
+
+/* P27 · click to include */
+.v28-include{position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:50%;border:1.5px solid #fff;background:rgba(27,30,32,.55);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.v28-include.on{background:var(--red);border-color:var(--red)}
+html[data-v28-record="edit"] #section-files [data-evidence-item]{position:relative;cursor:pointer}
+
+/* P26 · nine sections */
+.overview-grid.v28-two{grid-template-columns:1fr 1fr}
+.record-section.v28-nested{margin-top:12px;box-shadow:none}
+.record-section.v28-nested>.panel-head{min-height:36px;padding:6px 12px}
+.record-section.v28-nested>.panel-head h2{font-size:10.5px;color:var(--muted);font-weight:650;text-transform:uppercase;letter-spacing:.08em}
+
+/* P12 · one-line composed sentences */
+.fc.v28-composed .fv.derived{min-height:0}
+
+/* P17 · uplift cell reads like its neighbours */
+.v28-uplift{display:flex;align-items:center;gap:10px;min-height:var(--control,36px);flex-wrap:wrap}
+.v28-uplift label.choice{font-weight:500}
+
+/* selects the layer adds outside a record cell */
+.v28-supp select,.v28-cmphead select{min-height:var(--control,36px);border:1px solid var(--line-strong);border-radius:var(--radius);background:#fff;font:inherit;padding:0 28px 0 10px}
+
+/* P22 · Attach: ordinary tick boxes inside the live recipients form */
+.v28-delivery .v28-attach label.choice{display:inline-flex;align-items:center;gap:7px;font-weight:500}
+#section-report .recip-form.v28-delivery .v28-attach input[type=checkbox]{width:1.125rem;height:1.125rem;min-height:0;padding:0;border:0;flex:none}
+.v28-delivery .fv{padding:6px 0}
+
+/* P30 · report wording */
+.v28-wording h3 .rt{font-weight:400}
+.v28-wb{border:1px solid var(--line);border-left:3px solid var(--line-strong);border-radius:var(--radius);background:#fff;overflow:hidden}
+.v28-wb.edited{border-left-color:var(--amber)}
+.v28-wbh{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--surface-2,#f7f8f8);flex-wrap:wrap}
+.v28-wbt{font-size:10.5px;color:var(--ink);font-weight:650;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px dashed transparent;outline:none;min-width:40px}
+.v28-wbt:hover{border-bottom-color:var(--muted);cursor:text}
+.v28-wbt:focus{border-bottom-color:var(--red)}
+.v28-wb-tools{margin-left:auto;display:inline-flex;gap:2px}
+.v28-wb-tools .icon-button{width:26px;height:26px;font-size:14px;line-height:1}
+.v28-wb textarea.fi{display:block;width:100%;border:0;border-radius:0;resize:vertical;min-height:0;padding:9px 10px;box-shadow:none}
+
+.v28-wording .fc.ro .fv.derived{min-height:0}
+
+/* P6-I · a panel head's "not yet" text is a quiet line, not an empty-state block */
+html[data-v28-proposals] .record-section>.panel-head .meta.empty{padding:0;text-align:left}
+
+/* P16 · Delete all lines sits beside Add line */
+#section-estimate .est-add-line{display:flex;flex-direction:row;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* P33 · one labour rate control: the card chooses, the figure can be typed */
+.v28-rate{display:flex;gap:6px;align-items:stretch}
+.v28-rate select{flex:1 1 auto;min-width:0}
+.v28-rate input{flex:0 0 92px;width:92px;text-align:right}
+
+/* P34 and P35 · bars in the live estimate bar pattern */
+#section-estimate .bar.v28-scale input[type=range]{flex:1 1 180px;min-width:140px;accent-color:var(--ink)}
+#section-estimate .bar.v28-scale .v28-scale-read{font-size:12.5px;color:var(--muted)}
+#section-estimate .bar.v28-scale .v28-scale-read b{color:var(--ink)}
+#section-estimate .bar.v28-scale .v28-floors{display:inline-flex;align-items:center;gap:8px;margin-left:auto;font-size:12px;color:var(--muted)}
+#section-estimate.v28-scaling [data-estimate-grid] input[name=linePartPounds],#section-estimate.v28-scaling #estimate-labour-rate,#section-estimate.v28-scaling #estimate-materials{background:var(--amber-bg);border-color:#e4c289}
+#section-estimate .bar.v28-contract .dsc input{width:110px}
+#section-estimate .bar.v28-contract .fc{flex:1 1 100%}
+
+/* P32 · a tab being renamed */
+#section-estimate .estimate-tab [contenteditable="true"]{outline:1px dashed var(--red);outline-offset:2px;cursor:text}
+
+/* P8 · a valuation card is chosen by clicking it */
+html[data-v28-record="edit"] #section-valuation .valuation-card.v28-pickable{cursor:pointer}
+html[data-v28-record="edit"] #section-valuation .valuation-card.v28-pickable:focus-visible{outline:2px solid var(--navy);outline-offset:2px}

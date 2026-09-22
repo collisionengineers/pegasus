@@ -1,45 +1,30 @@
 # Work Centre
 
-- **Mockup route:** `pegasus_work_centre_v28.html` in [`../../current/`](../../current/README.md)
-- **Live source:** `src/Pegasus.Web/Pages/Index.cshtml` (partial `Pages/_WorkCentreBody.cshtml`, model `Pages/Index.cshtml.cs`)
-
+- **Live source:** `src/Pegasus.Web/Pages/Index.cshtml`, `src/Pegasus.Web/Pages/_WorkCentreBody.cshtml`, `src/Pegasus.Web/Pages/Shared/_Layout.cshtml`, `src/Pegasus.Web/Pages/Shared/_ShellDialogs.cshtml`
 - [**How it works**](how-it-works.md)
 
-## Screenshots
+The shell (rail, utility bar, open-records strip, account and notifications dialogs) is part of every captured page; its own presets are listed here because the Work Centre is where it is first met.
 
-- [s13-work-centre-1580.png](../../current/v28-shots/s13-work-centre-1580.png) · [1440](../../current/v28-shots/s13-work-centre-1440.png) · [760](../../current/v28-shots/s13-work-centre-760.png)
-- [s14-work-centre-empty-1580.png](../../current/v28-shots/s14-work-centre-empty-1580.png) · [1440](../../current/v28-shots/s14-work-centre-empty-1440.png) · [760](../../current/v28-shots/s14-work-centre-empty-760.png)
-- [s15-work-centre-unavailable-1580.png](../../current/v28-shots/s15-work-centre-unavailable-1580.png) · [1440](../../current/v28-shots/s15-work-centre-unavailable-1440.png) · [760](../../current/v28-shots/s15-work-centre-unavailable-760.png)
+## Captured states
 
-## Notes
+Each state is the running application's own HTML for the route shown, saved with the live CSS and JS. Nothing in it is transcribed.
 
-- The Office/Mine scope switch and the seven kind-filter chips are rendered as
-  the live page's real links, but this offline capture does not re-run a
-  filtered list when they are followed (no server). The strip's "Kind filter"
-  control demonstrates the one filter-active visual (`chip.on` plus the "All
-  kinds" clear chip) rather than wiring every combination.
-- The Needs attention list's default selection is the Today-group Review Case
-  row (the fixture "hero" Case, `QDOS26214`) rather than literally the first
-  row in due-day order, so the Today pane can show the hero's full fact grid.
-  The live page always selects the first row of the ordered list; this is
-  documented as a deliberate fixture simplification, not a captured behaviour.
-- The Assign Engineer dialog is reachable from the mockup strip
-  ("Assign Engineer dialog") rather than only by selecting the one
-  Unassigned-Engineer row (`QDOS26205`) in the list, since this capture does
-  not re-select rows dynamically. Its content (registration, claimant,
-  Principal, Engineer, the Engineer picker, and the role-gated "Assign to me"
-  button) is otherwise the live dialog's own markup and fixture-appropriate
-  values.
-- "Assign to me" inside that dialog is shown only when the strip's Role is
-  set to Engineer, matching `WorkCentreAssignment.CanAssignToMe`
-  (`actor.IsInRole(StaffRole.Engineer)`), which the Administrator default
-  never satisfies.
-- Only one AI job row of each state actually read by the page (Queued, Taken,
-  Draft ready, Failed) is shown; Completed, Cancelled and Expired jobs are
-  never listed here in the live page either (`ReadAiJobsAsync` filters to
-  Queued/Taken/DraftReady plus Failed jobs from the last 7 days), so they are
-  not fixture rows.
-- Every reference used (`QDOS26214`, `QDOS26198`, `QDOS26177`, `QDOS26150`,
-  `QDOS26205`, `T-2601`, `U-1140`) is drawn from the shared fixture sheet;
-  `QDOS26090` is an additional Completed-tab example invented in the same
-  numbering style because the fixture sheet names no Completed-state Case.
+| State | Live route | Open | Screenshots |
+| --- | --- | --- | --- |
+| Office-wide work | `/` | [frame](../../current/pegasus_work_centre_v28.html#work-centre) · [page](../../current/states/work-centre.html) | [1580](../../current/v28-shots/s01-work-centre-1580.png) · [1440](../../current/v28-shots/s01-work-centre-1440.png) · [760](../../current/v28-shots/s01-work-centre-760.png) |
+| Mine | `/?scope=mine` | [frame](../../current/pegasus_work_centre_v28.html#work-centre-mine) · [page](../../current/states/work-centre-mine.html) | [1580](../../current/v28-shots/s02-work-centre-mine-1580.png) · [1440](../../current/v28-shots/s02-work-centre-mine-1440.png) · [760](../../current/v28-shots/s02-work-centre-mine-760.png) |
+| Triage item selected | `/?scope=office&selected=78da3cb3-01fb-4d8c-801c-85f93855b44f` | [frame](../../current/pegasus_work_centre_v28.html#work-centre-selected-triage) · [page](../../current/states/work-centre-selected-triage.html) | [1580](../../current/v28-shots/s03-work-centre-selected-triage-1580.png) · [1440](../../current/v28-shots/s03-work-centre-selected-triage-1440.png) · [760](../../current/v28-shots/s03-work-centre-selected-triage-760.png) |
+| Unidentified item selected | `/?scope=office&selected=fe35ab69-545c-4047-8541-c92e645274e7` | [frame](../../current/pegasus_work_centre_v28.html#work-centre-selected-unidentified) · [page](../../current/states/work-centre-selected-unidentified.html) | [1580](../../current/v28-shots/s04-work-centre-selected-unidentified-1580.png) · [1440](../../current/v28-shots/s04-work-centre-selected-unidentified-1440.png) · [760](../../current/v28-shots/s04-work-centre-selected-unidentified-760.png) |
+| Filtered to Unidentified | `/?scope=office&kind=unidentified` | [frame](../../current/pegasus_work_centre_v28.html#work-centre-kind-unidentified) · [page](../../current/states/work-centre-kind-unidentified.html) | [1580](../../current/v28-shots/s05-work-centre-kind-unidentified-1580.png) · [1440](../../current/v28-shots/s05-work-centre-kind-unidentified-1440.png) · [760](../../current/v28-shots/s05-work-centre-kind-unidentified-760.png) |
+| Filtered to Review (nothing) | `/?scope=office&kind=review` | [frame](../../current/pegasus_work_centre_v28.html#work-centre-kind-review) · [page](../../current/states/work-centre-kind-review.html) | [1580](../../current/v28-shots/s06-work-centre-kind-review-1580.png) · [1440](../../current/v28-shots/s06-work-centre-kind-review-1440.png) · [760](../../current/v28-shots/s06-work-centre-kind-review-760.png) |
+| Notifications route (/Notifications redirects here) | `/?notifications=1` | [frame](../../current/pegasus_work_centre_v28.html#work-centre-notifications) · [page](../../current/states/work-centre-notifications.html) | [1580](../../current/v28-shots/s07-work-centre-notifications-1580.png) · [1440](../../current/v28-shots/s07-work-centre-notifications-1440.png) · [760](../../current/v28-shots/s07-work-centre-notifications-760.png) |
+| Account dialog (on "Office-wide work") | `/` | [frame](../../current/pegasus_work_centre_v28.html#work-centre?dialog=account-dialog) | [1580](../../current/v28-shots/s74-shell-account-dialog-1580.png) · [1440](../../current/v28-shots/s74-shell-account-dialog-1440.png) · [760](../../current/v28-shots/s74-shell-account-dialog-760.png) |
+| Notifications dialog (on "Office-wide work") | `/` | [frame](../../current/pegasus_work_centre_v28.html#work-centre?dialog=notifications-dialog) | [1580](../../current/v28-shots/s75-shell-notifications-dialog-1580.png) · [1440](../../current/v28-shots/s75-shell-notifications-dialog-1440.png) · [760](../../current/v28-shots/s75-shell-notifications-dialog-760.png) |
+| Rail collapsed (on "Office-wide work") | `/` | [frame](../../current/pegasus_work_centre_v28.html#work-centre?click=%5Bdata-rail-toggle%5D) | [1580](../../current/v28-shots/s76-shell-rail-collapsed-1580.png) · [1440](../../current/v28-shots/s76-shell-rail-collapsed-1440.png) · [760](../../current/v28-shots/s76-shell-rail-collapsed-760.png) |
+
+## Not captured
+
+- Partial, Stale and Unavailable freshness. The local fixture cannot force a failed or partial read.
+- A selected Case item with the Assign Engineer dialog, a populated AI jobs table and a populated New cases list. The fixture holds one Case, already assigned.
+- A populated notifications list. The fixture user has no notifications.
+- The command palette. It is opened from the keyboard and lists live search results.

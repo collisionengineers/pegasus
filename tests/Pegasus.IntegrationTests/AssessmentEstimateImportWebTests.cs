@@ -25,7 +25,7 @@ namespace Pegasus.IntegrationTests;
 /// a dropped PDF is retained through the case-document custody path, then
 /// parsed through the canonical Core import with the retained version's
 /// provenance. Only the stores are substituted, so the page's own
-/// guards (Engineer-only, retain-before-parse, two-lease sequencing) are
+/// guards (human-staff authority, retain-before-parse, two-lease sequencing) are
 /// exercised for real.
 /// </summary>
 [Trait("Category", "SqlServer")]
@@ -51,7 +51,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var store = new RecordingStores(caseId);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
-        using var client = CreateEngineerClient(factory);
+        using var client = CreateEngineerClient(factory, StaffRole.User);
         var fixture = AudatexEstimateFixture.Build();
 
         // v26: the section's controls render inside the page-wide edit session.
@@ -423,15 +423,13 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
-    public async Task AnAdministratorCanImport()
+    public async Task AUserCanImport()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
-        // The default test identity is an Administrator, who has the same
-        // estimate-import capability as an Engineer.
-        using var client = CreateClient(factory);
+        using var client = CreateEngineerClient(factory, StaffRole.User);
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         using var response = await client.PostAsync(
@@ -440,7 +438,7 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Single(store.AddedDocuments);
-        Assert.Single(store.SavedEstimates);
+        Assert.True(Assert.Single(store.SavedEstimates).Actor.IsInRole(StaffRole.User));
     }
 
     [Fact]
@@ -477,14 +475,14 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
-    public async Task UseEstimateRecordsTheEngineersAcceptance()
+    public async Task UseEstimateRecordsTheUsersAcceptance()
     {
         var caseId = Guid.NewGuid();
         var draft = DraftSpecification(caseId);
         var store = new RecordingStores(caseId) { CurrentDraft = draft };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
-        using var client = CreateEngineerClient(factory);
+        using var client = CreateEngineerClient(factory, StaffRole.User);
 
         var html = await EnterEditModeAsync(client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
         Assert.Contains("data-estimate-use", html, StringComparison.Ordinal);
@@ -502,6 +500,7 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var use = Assert.Single(store.SetCurrentRequests);
+        Assert.True(use.Actor.IsInRole(StaffRole.User));
         Assert.Equal(draft.SpecificationId, use.EstimateId);
         Assert.Equal(RecordingStores.CaseVersion, use.ExpectedVersion);
         Assert.Equal(RecordingStores.HeldLeaseToken, use.EditLeaseToken);
@@ -1157,10 +1156,12 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.AddSingleton<ISetCurrentEstimate>(store);
             }));
 
-    private static HttpClient CreateEngineerClient(WebApplicationFactory<Program> factory)
+    private static HttpClient CreateEngineerClient(
+        WebApplicationFactory<Program> factory,
+        StaffRole role = StaffRole.Engineer)
     {
         var client = CreateClient(factory);
-        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+        client.DefaultRequestHeaders.Add("X-Test-Roles", role.ToString());
         return client;
     }
 

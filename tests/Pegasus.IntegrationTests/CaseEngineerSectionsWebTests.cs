@@ -50,7 +50,7 @@ public sealed class CaseEngineerSectionsWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
-        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         using var response = await client.GetAsync($"/Cases/{source.CaseId:D}?section=estimate");
 

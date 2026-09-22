@@ -10,37 +10,26 @@ public sealed class AssignToMeTests
 {
     private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly Guid TriageId = Guid.NewGuid();
-    private static readonly Guid EngineerId = Guid.NewGuid();
-    private static readonly ActionActor Engineer = ActionActor.Staff(EngineerId, [StaffRole.Engineer]);
-    private static readonly ActionActor User = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-
-    [Fact]
-    public async Task AnEngineerTakesAnUnassignedReviewCaseAsThemself()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task EveryStaffRoleTakesAnUnassignedReviewCaseAsThemself(StaffRole role)
     {
+        var staffId = Guid.NewGuid();
+        var actor = ActionActor.Staff(staffId, [role]);
         var assign = new RecordingAssign();
         var sut = new AssignCaseToMe(new Queries(Workflow(CaseLifecycleState.Review, null)), assign);
 
-        await sut.ExecuteAsync(new(CaseId, 3, Engineer, "take-1", "lease-token"), default);
+        await sut.ExecuteAsync(new(CaseId, 3, actor, "take-1", "lease-token"), default);
 
         var request = Assert.Single(assign.Requests);
-        Assert.Equal(EngineerId, request.EngineerId);
-        Assert.Same(Engineer, request.Actor);
+        Assert.Equal(staffId, request.EngineerId);
+        Assert.Same(actor, request.Actor);
         Assert.Equal(3, request.ExpectedVersion);
         Assert.Equal("take-1", request.OperationKey);
         Assert.Equal("lease-token", request.EditLeaseToken);
         Assert.Equal(AssignCaseToMe.Reason, request.Reason);
-    }
-
-    [Fact]
-    public async Task AUserCannotTakeACase()
-    {
-        var assign = new RecordingAssign();
-        var sut = new AssignCaseToMe(new Queries(Workflow(CaseLifecycleState.Review, null)), assign);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sut.ExecuteAsync(new(CaseId, 3, User, "take-2", "lease-token"), default));
-
-        Assert.Empty(assign.Requests);
     }
 
     [Fact]
@@ -50,9 +39,9 @@ public sealed class AssignToMeTests
         var sut = new AssignCaseToMe(new Queries(Workflow(CaseLifecycleState.Review, Guid.NewGuid())), assign);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sut.ExecuteAsync(new(CaseId, 3, Engineer, "take-3", "lease-token"), default));
+            () => sut.ExecuteAsync(new(CaseId, 3, Staff(StaffRole.Engineer), "take-3", "lease-token"), default));
 
-        Assert.Contains("already has an Engineer", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("already has an assigned staff member", exception.Message, StringComparison.Ordinal);
         Assert.Empty(assign.Requests);
     }
 
@@ -67,22 +56,27 @@ public sealed class AssignToMeTests
         var sut = new AssignCaseToMe(new Queries(Workflow(state, null)), assign);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => sut.ExecuteAsync(new(CaseId, 3, Engineer, "take-4", "lease-token"), default));
+            () => sut.ExecuteAsync(new(CaseId, 3, Staff(StaffRole.Engineer), "take-4", "lease-token"), default));
 
         Assert.Empty(assign.Requests);
         Assert.False(CaseLifecycleRules.CanAssignToSelf(Workflow(state, null)));
     }
 
-    [Fact]
-    public async Task AnEngineerTakesAnUnassignedOpenTriage()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task EveryStaffRoleTakesAnUnassignedOpenTriage(StaffRole role)
     {
+        var staffId = Guid.NewGuid();
+        var actor = ActionActor.Staff(staffId, [role]);
         var assign = new RecordingTriageAssign();
         var sut = new AssignTriageToMe(new TriageQueries(Triage(TriageState.Open, null)), assign);
 
-        await sut.ExecuteAsync(new(TriageId, 2, Engineer, "take-t1") { EditLeaseToken = "lease" }, default);
+        await sut.ExecuteAsync(new(TriageId, 2, actor, "take-t1") { EditLeaseToken = "lease" }, default);
 
         var request = Assert.Single(assign.Requests);
-        Assert.Equal(EngineerId, request.AssigneeId);
+        Assert.Equal(staffId, request.AssigneeId);
         Assert.Equal(2, request.ExpectedVersion);
         Assert.Equal("lease", request.EditLeaseToken);
         Assert.Equal(AssignTriageToMe.Reason, request.Reason);
@@ -95,13 +89,10 @@ public sealed class AssignToMeTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => new AssignTriageToMe(new TriageQueries(Triage(TriageState.Open, Guid.NewGuid())), assign)
-                .ExecuteAsync(new(TriageId, 2, Engineer, "take-t2"), default));
+                .ExecuteAsync(new(TriageId, 2, Staff(StaffRole.Engineer), "take-t2"), default));
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => new AssignTriageToMe(new TriageQueries(Triage(TriageState.Completed, null)), assign)
-                .ExecuteAsync(new(TriageId, 2, Engineer, "take-t3"), default));
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => new AssignTriageToMe(new TriageQueries(Triage(TriageState.Open, null)), assign)
-                .ExecuteAsync(new(TriageId, 2, User, "take-t4"), default));
+                .ExecuteAsync(new(TriageId, 2, Staff(StaffRole.Engineer), "take-t3"), default));
 
         Assert.Empty(assign.Requests);
         Assert.True(TriageLifecycleRules.CanAssignToSelf(Triage(TriageState.Open, null)));
@@ -120,6 +111,9 @@ public sealed class AssignToMeTests
         null,
         null,
         3);
+
+    private static ActionActor Staff(StaffRole role) =>
+        ActionActor.Staff(Guid.NewGuid(), [role]);
 
     private static TriageRecord Triage(TriageState state, Guid? assigneeId) => new(
         TriageId,
