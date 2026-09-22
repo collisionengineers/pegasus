@@ -140,7 +140,13 @@ public sealed class GetEngineerActivityReport(
         ArgumentNullException.ThrowIfNull(counts);
         if (counts.Any(item => item.EngineerId == Guid.Empty
             || item.ReportsSent < 0
-            || item.QueriesReceived < 0))
+            || item.QueriesReceived < 0
+            || item.Disputes < 0
+            || item.Disputes > item.QueriesReceived
+            || item.AmendmentRequests < 0
+            || item.AmendmentRequests > item.QueriesReceived
+            || item.AuditReportsSent < 0
+            || item.AuditReportsSent > item.ReportsSent))
         {
             throw new InvalidDataException("The Engineer activity query returned an invalid row.");
         }
@@ -158,7 +164,11 @@ public sealed class GetEngineerActivityReport(
                 item.EngineerId,
                 ActorDisplayNames.Resolve(ActorKind.Staff, item.EngineerId.ToString("D"), names),
                 item.ReportsSent,
-                item.QueriesReceived))
+                item.QueriesReceived,
+                item.Disputes,
+                item.AmendmentRequests,
+                item.AuditReportsSent,
+                item.AverageReceivedToSent))
             .OrderBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(row => row.EngineerId)
             .ToList();

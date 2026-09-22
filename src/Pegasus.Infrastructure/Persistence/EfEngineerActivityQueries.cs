@@ -67,7 +67,7 @@ internal sealed class EfEngineerActivityQueries(
                 EngineerId = group.Key,
                 Count = group.Count(),
                 Audit = group.Count(item => sentCases.TryGetValue(item.ContextId, out var sentCase)
-                    && sentCase.Type != nameof(Pegasus.Core.Cases.CaseType.Inspection)),
+                    && sentCase.Type == "audit"),
                 Turnaround = Average(group
                     .Where(item => sentCases.TryGetValue(item.ContextId, out var sentCase) && sentCase.ReceivedAtUtc is not null)
                     .Select(item => item.SentAtUtc - sentCases[item.ContextId].ReceivedAtUtc!.Value))

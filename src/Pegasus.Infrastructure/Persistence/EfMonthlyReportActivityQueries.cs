@@ -1,7 +1,6 @@
-using System.Globalization;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
-using Pegasus.Core.Assessment;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
 
@@ -11,8 +10,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// MI-02's periods: per Principal and London month, the confirmed report and
 /// fee-note artifacts produced, the reports sent, and the agreed fees on the
 /// Cases whose reports were produced that month (each Case's fee counted once,
-/// in the month of its first report). Reads the same records as the
-/// per-Principal report so the two agree.
+/// in the month of its first qualifying report globally). Reads the same
+/// records as the per-Principal report so the two agree.
 /// </summary>
 internal sealed class EfMonthlyReportActivityQueries(
     IDbContextFactory<PegasusDbContext> factory) : IMonthlyReportActivityQueries
@@ -37,7 +36,12 @@ internal sealed class EfMonthlyReportActivityQueries(
                 && artifact.Sha256 != null
                 && artifact.Sha256 == documentVersion.Sha256
                 && documentVersion.CustodyStatus == Pegasus.Core.Documents.DocumentCustodyStatus.Confirmed
-            select new ArtifactRow(@case.PrincipalId, @case.Principal.Code, @case.Id, generation.GeneratedAtUtc, artifact.Kind))
+            select new ArtifactRow(
+                @case.PrincipalId,
+                @case.Principal.Code,
+                @case.Id,
+                generation.GeneratedAtUtc,
+                artifact.Kind))
             .ToListAsync(cancellationToken));
 
         var sent = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
@@ -54,20 +58,40 @@ internal sealed class EfMonthlyReportActivityQueries(
             .ToListAsync(cancellationToken);
 
         var caseIds = artifacts.Select(x => x.CaseId).Distinct().ToArray();
-        var fees = caseIds.Length == 0
-            ? new Dictionary<Guid, decimal>()
-            : (await db.CaseAssessmentFields.AsNoTracking()
-                .Where(field => caseIds.Contains(field.CaseId) && field.FieldPath == AssessmentVocabulary.AgreedFee)
-                .Select(field => new { field.CaseId, field.Value })
-                .ToListAsync(cancellationToken))
-                .Where(field => decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
-                .ToDictionary(field => field.CaseId, field => decimal.Parse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture));
+        var firstReports = caseIds.Length == 0
+            ? []
+            : await (
+                from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
+                join artifact in db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
+                    on generation.Id equals artifact.GenerationId
+                join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
+                    on artifact.VersionId equals (Guid?)documentVersion.Id
+                where caseIds.Contains(generation.CaseId)
+                    && artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
+                    && artifact.Sha256 != null
+                    && artifact.Sha256 == documentVersion.Sha256
+                    && documentVersion.CustodyStatus == Pegasus.Core.Documents.DocumentCustodyStatus.Confirmed
+                select new FrozenReportRow(
+                    generation.CaseId,
+                    generation.Id,
+                    generation.GeneratedAtUtc,
+                    generation.SnapshotJson))
+                .ToListAsync(cancellationToken);
 
-        // A Case's fee belongs to the month of its first report in the period.
-        var feeMonthByCase = artifacts
-            .Where(x => x.Kind == nameof(CaseReportArtifactKind.AssessmentReport))
+        var firstReportByCase = firstReports
             .GroupBy(x => x.CaseId)
-            .ToDictionary(group => group.Key, group => MonthOf(group.Min(x => x.GeneratedAtUtc)));
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderBy(x => x.GeneratedAtUtc)
+                    .ThenBy(x => x.GenerationId)
+                    .First());
+        var fees = firstReportByCase.ToDictionary(
+            pair => pair.Key,
+            pair => FrozenFeeOf(pair.Value));
+        var feeMonthByCase = firstReportByCase.ToDictionary(
+            pair => pair.Key,
+            pair => MonthOf(pair.Value.GeneratedAtUtc));
 
         var keys = artifacts.Select(x => (x.PrincipalId, x.Code, Month: MonthOf(x.GeneratedAtUtc)))
             .Concat(sent.Select(x => (x.PrincipalId, x.Code, Month: MonthOf(x.ObservedSentAtUtc))))
@@ -98,7 +122,48 @@ internal sealed class EfMonthlyReportActivityQueries(
         return (local.Year, local.Month);
     }
 
-    private sealed record ArtifactRow(Guid PrincipalId, string Code, Guid CaseId, DateTimeOffset GeneratedAtUtc, string Kind);
+    private static decimal FrozenFeeOf(FrozenReportRow report)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(report.SnapshotJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("agreedFee", out var fee)
+                || fee.ValueKind != JsonValueKind.Number
+                || !fee.TryGetDecimal(out _))
+            {
+                throw new InvalidDataException(
+                    $"The frozen snapshot of report generation '{report.GenerationId}' has no valid agreed fee.");
+            }
+
+            return fee.GetDecimal();
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException(
+                $"The frozen snapshot of report generation '{report.GenerationId}' is unreadable.",
+                exception);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InvalidDataException(
+                $"The frozen snapshot of report generation '{report.GenerationId}' is unreadable.",
+                exception);
+        }
+    }
+
+    private sealed record ArtifactRow(
+        Guid PrincipalId,
+        string Code,
+        Guid CaseId,
+        DateTimeOffset GeneratedAtUtc,
+        string Kind);
+
+    private sealed record FrozenReportRow(
+        Guid CaseId,
+        Guid GenerationId,
+        DateTimeOffset GeneratedAtUtc,
+        string SnapshotJson);
 
     private sealed record SentRow(Guid PrincipalId, string Code, DateTimeOffset ObservedSentAtUtc);
 }

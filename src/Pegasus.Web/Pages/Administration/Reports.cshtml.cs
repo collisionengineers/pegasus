@@ -92,7 +92,12 @@ public sealed class ReportsModel(
     {
         if (!await LoadAsync(cancellationToken)) return Forbid();
         if (!TryGetActor(out var actor)) return Forbid();
-        var bytes = export.Execute(actor, EngineerResult, PrincipalActivity, Monthly ?? []);
+        if (PrincipalActivity is null || Monthly is null)
+        {
+            return StatusCode(StatusCodes.Status422UnprocessableEntity);
+        }
+
+        var bytes = export.Execute(actor, EngineerResult, PrincipalActivity, Monthly);
         var from = LondonCalendar.DateAt(EngineerResult.FromUtc).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         var to = LondonCalendar.DateAt(EngineerResult.ToUtc).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         return File(bytes, WorkbookMediaType, $"administration-reports-{from}-{to}.xlsx");
@@ -147,6 +152,10 @@ public sealed class ReportsModel(
         catch (ArgumentOutOfRangeException)
         {
             // As above: one period filter, reported once.
+        }
+        catch (InvalidDataException)
+        {
+            Monthly = null;
         }
 
         return true;

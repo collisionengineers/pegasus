@@ -75,20 +75,25 @@ public sealed class EngineerActivityReportPersistenceTests
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var engineer = Guid.NewGuid();
         var estate = await SeedEstateAsync(database);
-        var inspection = await estate.SeedCaseAsync(engineer, null, 1);
-        var audit = await estate.SeedCaseAsync(engineer, null, 2, "Audit");
+        var inspection = await estate.SeedCaseAsync(engineer, null, 1, "inspection");
+        var audit = await estate.SeedCaseAsync(engineer, null, 2, "audit");
+        var inspectionAndAudit = await estate.SeedCaseAsync(engineer, null, 3, "inspection_and_audit");
         var inspectionGeneration = Guid.NewGuid();
         var auditGeneration = Guid.NewGuid();
+        var inspectionAndAuditGeneration = Guid.NewGuid();
         await using (var context = await database.CreateContextAsync())
         {
             context.AddRange(
                 Generation(inspectionGeneration, inspection, From.AddDays(1)),
-                Generation(auditGeneration, audit, From.AddDays(2)));
+                Generation(auditGeneration, audit, From.AddDays(2)),
+                Generation(inspectionAndAuditGeneration, inspectionAndAudit, From.AddDays(3)));
             var inspectionSend = SentOperation(engineer, From.AddDays(2));
             inspectionSend.ContextId = inspectionGeneration;
             var auditSend = SentOperation(engineer, From.AddDays(4));
             auditSend.ContextId = auditGeneration;
-            context.Set<StaffMailSendOperationEntity>().AddRange(inspectionSend, auditSend);
+            var inspectionAndAuditSend = SentOperation(engineer, From.AddDays(3));
+            inspectionAndAuditSend.ContextId = inspectionAndAuditGeneration;
+            context.Set<StaffMailSendOperationEntity>().AddRange(inspectionSend, auditSend, inspectionAndAuditSend);
             context.IntakeReceipts.AddRange(
                 Query(From.AddDays(1), "post-report-emails", inspection, active: true, subtype: "query"),
                 Query(From.AddDays(2), "post-report-emails", inspection, active: true, subtype: "dispute"),
@@ -100,12 +105,12 @@ public sealed class EngineerActivityReportPersistenceTests
         var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
         var row = Assert.Single(await queries.GetAsync(From, To, engineer, CancellationToken.None));
 
-        Assert.Equal(2, row.ReportsSent);
+        Assert.Equal(3, row.ReportsSent);
         Assert.Equal(1, row.AuditReportsSent);
         Assert.Equal(3, row.QueriesReceived);
         Assert.Equal(1, row.Disputes);
         Assert.Equal(1, row.AmendmentRequests);
-        // Both Cases were received at From; sent two and four days later.
+        // All Cases were received at From; sent two, three and four days later.
         Assert.Equal(TimeSpan.FromDays(3), row.AverageReceivedToSent);
     }
 
@@ -250,7 +255,7 @@ public sealed class EngineerActivityReportPersistenceTests
 
     private sealed record Estate(LocalDbTestDatabase Database, Guid PrincipalId, Guid LineageId)
     {
-        public async Task<Guid> SeedCaseAsync(Guid? engineerId, Guid? signatoryId, int sequence, string type = "Inspection")
+        public async Task<Guid> SeedCaseAsync(Guid? engineerId, Guid? signatoryId, int sequence, string type = "inspection")
         {
             await using var context = await Database.CreateContextAsync();
             var receiptId = Guid.NewGuid();

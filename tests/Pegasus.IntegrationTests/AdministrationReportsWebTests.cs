@@ -2,6 +2,9 @@ using System.Net;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.IntegrationTests;
 
@@ -47,6 +50,55 @@ public sealed class AdministrationReportsWebTests
     }
 
     [Fact]
+    public async Task InvalidMonthlyDataRendersUnavailableWithoutFailingThePage()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IMonthlyReportActivityQueries>();
+                services.AddSingleton<IMonthlyReportActivityQueries, InvalidMonthlyReportQueries>();
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        using var response = await client.GetAsync(Page);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("data-reports-by-month", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+
+        using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, workbookResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task WorkbookRefusesUnavailablePrincipalData()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IV1ActivityReportQueries>();
+                services.AddSingleton<IV1ActivityReportQueries, InvalidPrincipalReportQueries>();
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        using var response = await client.GetAsync($"{Page}?handler=Workbook");
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    [Fact]
     public async Task NonAdministratorsCannotDownloadTheWorkbook()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -64,4 +116,24 @@ public sealed class AdministrationReportsWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost:7139")
         });
+
+    private sealed class InvalidMonthlyReportQueries : IMonthlyReportActivityQueries
+    {
+        public Task<IReadOnlyList<MonthlyReportActivity>> GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            CancellationToken cancellationToken) =>
+            Task.FromException<IReadOnlyList<MonthlyReportActivity>>(
+                new InvalidDataException("Malformed monthly report snapshot."));
+    }
+
+    private sealed class InvalidPrincipalReportQueries : IV1ActivityReportQueries
+    {
+        public Task<IReadOnlyList<PrincipalReportActivity>> GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            CancellationToken cancellationToken) =>
+            Task.FromException<IReadOnlyList<PrincipalReportActivity>>(
+                new InvalidDataException("Malformed principal report snapshot."));
+    }
 }

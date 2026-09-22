@@ -44,11 +44,10 @@ public sealed class AdministrationReportTablesTests
     }
 
     [Fact]
-    public void AnUnavailablePrincipalReportLeavesOnlyTheSheetsThatHaveData()
+    public void AnUnavailablePrincipalReportCannotBuildAWorkbook()
     {
-        var sheets = AdministrationReportTables.Build(new EngineerActivityReport(From, To, []), null, []);
-
-        Assert.Equal(["Engineer activity", "By month"], sheets.Select(sheet => sheet.Name));
+        Assert.Throws<ArgumentNullException>(() =>
+            AdministrationReportTables.Build(new EngineerActivityReport(From, To, []), null!, []));
     }
 
     [Fact]
@@ -81,10 +80,33 @@ public sealed class AdministrationReportTablesTests
         Assert.Equal(["Sep 2026 QDOS", "Aug 2026 EVA", "Aug 2026 QDOS"], rows.Select(row => $"{row.MonthLabel} {row.PrincipalCode}"));
     }
 
-    private sealed class FakeMonthly : IMonthlyReportActivityQueries
+    [Fact]
+    public async Task TheMonthlyReportRejectsInvalidAdapterRows()
+    {
+        var id = Guid.NewGuid();
+        IReadOnlyList<IReadOnlyList<MonthlyReportActivity>> invalidRows =
+        [
+            [new(id, "QDOS", 2026, 13, 0, 0, 0, 0)],
+            [new(id, " ", 2026, 8, 0, 0, 0, 0)],
+            [new(Guid.Empty, "QDOS", 2026, 8, 0, 0, 0, 0)],
+            [new(id, "QDOS", 2026, 8, -1, 0, 0, 0)],
+            [new(id, "QDOS", 2026, 8, 0, 0, 0, -1)],
+            [new(id, "QDOS", 2026, 8, 0, 0, 0, 0), new(id, "QDOS", 2026, 8, 1, 0, 0, 0)]
+        ];
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        foreach (var rows in invalidRows)
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new GetMonthlyReportActivity(new FakeMonthly(rows))
+                    .ExecuteAsync(administrator, From, To, default));
+        }
+    }
+
+    private sealed class FakeMonthly(IReadOnlyList<MonthlyReportActivity>? rows = null) : IMonthlyReportActivityQueries
     {
         public Task<IReadOnlyList<MonthlyReportActivity>> GetAsync(DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<MonthlyReportActivity>>(
+            Task.FromResult(rows ??
             [
                 new(Guid.NewGuid(), "QDOS", 2026, 8, 1, 0, 1, 0),
                 new(Guid.NewGuid(), "EVA", 2026, 8, 1, 0, 0, 0),

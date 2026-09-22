@@ -2,6 +2,7 @@ using System.Globalization;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using Pegasus.Core;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Reports;
@@ -157,7 +158,7 @@ public sealed class OpenXmlWorkbookWriter : IWorkbookWriter
                 // A spreadsheet duration is a fraction of a day.
                 return new Cell { CellReference = reference, StyleIndex = DurationStyle, DataType = CellValues.Number, CellValue = new CellValue(duration.TotalDays.ToString("R", CultureInfo.InvariantCulture)) };
             case WorkbookColumnKind.DateTime when value is DateTimeOffset instant:
-                return new Cell { CellReference = reference, StyleIndex = DateTimeStyle, DataType = CellValues.Number, CellValue = new CellValue(instant.UtcDateTime.ToOADate().ToString("R", CultureInfo.InvariantCulture)) };
+                return new Cell { CellReference = reference, StyleIndex = DateTimeStyle, DataType = CellValues.Number, CellValue = new CellValue(LondonCalendar.LocalAt(instant).DateTime.ToOADate().ToString("R", CultureInfo.InvariantCulture)) };
             default:
                 return TextCell(reference, Text(value), 0);
         }
