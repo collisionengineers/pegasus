@@ -1255,7 +1255,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 new EfImageIntakeCaseCandidates(workerFactory),
                 new EfIntakeMutationStore(workerFactory),
                 TimeProvider.System,
-                new CommittedWorkPublisherDouble(),
+                new DiscardingCommittedWorkPublisher(),
                 new EfIntakeReceiptStore(workerFactory));
 
             Assert.Equal(new ImageIntakePairingResult(1, 1, 0),
