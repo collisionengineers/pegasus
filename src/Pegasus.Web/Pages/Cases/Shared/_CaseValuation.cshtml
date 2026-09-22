@@ -164,7 +164,7 @@
                             <label>@ValuationLabels.Mileage<input class="fi mono" type="number" min="0" name="mileage" required value="@mileage?.ToString(CultureInfo.InvariantCulture)" data-valuation-mileage /></label>
                         </div>
                         <div class="entry-actions">
-                            <button type="submit" formaction="@GetValuationAction(source)" class="btn btn--small" data-valuation-source="@slug"><span>@ValuationLabels.GetValuation</span></button>
+                            <button type="submit" formaction="@GetValuationAction(source)" formnovalidate class="btn btn--small" data-valuation-source="@slug"><span>@ValuationLabels.GetValuation</span></button>
                             <button type="submit" class="btn btn--small btn--primary" data-valuation-save="@slug"><span>@Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.Save</span></button>
                         </div>
                     </form>

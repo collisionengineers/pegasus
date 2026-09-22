@@ -1826,6 +1826,22 @@
         var deleteAll = form.querySelector('[data-estimate-delete-all]');
         var confirmDialog = document.querySelector('[data-dialog="delete-lines-dialog"]');
         if (deleteAll && confirmDialog) {
+            var pendingDeleteRows = null;
+            var yes = confirmDialog.querySelector('[data-delete-lines-confirm]');
+            if (yes) {
+                yes.addEventListener('click', function () {
+                    var rows = pendingDeleteRows;
+                    pendingDeleteRows = null;
+                    if (!rows) { return; }
+                    confirmDialog.hidden = true;
+                    rows.forEach(function (row) { row.remove(); });
+                    renumber();
+                    undoToast(rows.length + ' ' + (form.getAttribute('data-lines-removed-label') || 'lines removed'), function () {
+                        rows.forEach(function (row) { body.insertBefore(row, body.querySelector('tr[data-estimate-phantom]')); });
+                        renumber();
+                    });
+                });
+            }
             deleteAll.addEventListener('click', function (event) {
                 event.preventDefault();
                 var rows = Array.prototype.slice.call(body.querySelectorAll('tr[data-estimate-line]'));
@@ -1834,19 +1850,8 @@
                 }
                 var count = confirmDialog.querySelector('[data-delete-lines-count]');
                 if (count) { count.textContent = String(rows.length); }
+                pendingDeleteRows = rows;
                 confirmDialog.hidden = false;
-                var yes = confirmDialog.querySelector('[data-delete-lines-confirm]');
-                var once = function () {
-                    yes.removeEventListener('click', once);
-                    confirmDialog.hidden = true;
-                    rows.forEach(function (row) { row.remove(); });
-                    renumber();
-                    undoToast(rows.length + ' ' + (form.getAttribute('data-lines-removed-label') || 'lines removed'), function () {
-                        rows.forEach(function (row) { body.insertBefore(row, body.querySelector('tr[data-estimate-phantom]')); });
-                        renumber();
-                    });
-                };
-                if (yes) { yes.addEventListener('click', once); }
             });
         }
 
