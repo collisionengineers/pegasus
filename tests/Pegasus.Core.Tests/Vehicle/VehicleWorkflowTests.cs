@@ -148,7 +148,8 @@ public sealed class VehicleWorkflowTests
     public async Task VehicleProcessorPersistsEveryTypedOutcome(
         VehicleLookupResult result,
         int attemptNumber,
-        VehicleLookupWorkState expectedState)
+        VehicleLookupWorkState expectedState,
+        TimeSpan? expectedRetryDelay)
     {
         var workId = Guid.NewGuid();
         var store = new RecordingWorkStore(new(
@@ -171,9 +172,15 @@ public sealed class VehicleWorkflowTests
         var recorded = Assert.Single(store.Recorded);
         Assert.Equal(expectedState, recorded.State);
         Assert.Equal(result.Outcome, recorded.Outcome.Result.Outcome);
-        if (expectedState == VehicleLookupWorkState.RetryScheduled)
+        if (expectedRetryDelay is { } delay)
         {
-            Assert.True(recorded.DueAtUtc > FixedUtcNow);
+            Assert.Equal(VehicleLookupWorkState.RetryScheduled, expectedState);
+
+            // The exact instant, named by the row. "Later than now" also passed
+            // when the provider's RetryAfter was ignored in favour of the
+            // thirty-second first-attempt default, which is the whole of what
+            // this row exists to prove.
+            Assert.Equal(FixedUtcNow + delay, recorded.DueAtUtc);
         }
         else
         {
@@ -201,7 +208,7 @@ public sealed class VehicleWorkflowTests
         Assert.Equal([workId], vehicle.ProcessedIds);
     }
 
-    public static TheoryData<VehicleLookupResult, int, VehicleLookupWorkState> QueueOutcomes()
+    public static TheoryData<VehicleLookupResult, int, VehicleLookupWorkState, TimeSpan?> QueueOutcomes()
     {
         return new()
         {
@@ -219,44 +226,52 @@ public sealed class VehicleWorkflowTests
                             VehicleMileageUnit.Miles)
                     ]),
                 1,
-                VehicleLookupWorkState.Completed
+                VehicleLookupWorkState.Completed,
+                null
             },
             {
                 Result(
                     VehicleLookupOutcome.Stale,
                     vehicle: new("Example", "Model", 2020, 1600, "Petrol")),
                 1,
-                VehicleLookupWorkState.Completed
+                VehicleLookupWorkState.Completed,
+                null
             },
             {
                 Result(
                     VehicleLookupOutcome.Partial,
                     vehicle: new("Example", null, null, null, null)),
                 1,
-                VehicleLookupWorkState.Completed
+                VehicleLookupWorkState.Completed,
+                null
             },
-            { Result(VehicleLookupOutcome.NotFound), 1, VehicleLookupWorkState.Completed },
+            { Result(VehicleLookupOutcome.NotFound), 1, VehicleLookupWorkState.Completed, null },
             {
                 Result(
                     VehicleLookupOutcome.Throttled,
                     failure: new("throttled", true, TimeSpan.FromMinutes(3))),
                 1,
-                VehicleLookupWorkState.RetryScheduled
+                VehicleLookupWorkState.RetryScheduled,
+                // RetryAfter, which exceeds the thirty-second first-attempt default.
+                TimeSpan.FromMinutes(3)
             },
             {
                 Result(VehicleLookupOutcome.Failed, failure: new("provider_error", false)),
                 1,
-                VehicleLookupWorkState.Failed
+                VehicleLookupWorkState.Failed,
+                null
             },
             {
                 Result(VehicleLookupOutcome.Failed, failure: new("provider_error", true)),
                 5,
-                VehicleLookupWorkState.Failed
+                VehicleLookupWorkState.Failed,
+                null
             },
             {
                 Result(VehicleLookupOutcome.Unavailable, failure: new("fixture_unavailable", false)),
                 1,
-                VehicleLookupWorkState.Completed
+                VehicleLookupWorkState.Completed,
+                null
             }
         };
     }

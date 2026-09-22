@@ -36,11 +36,18 @@ public sealed class RecentCasesTests
         var sut = new ListRecentCases(queries, visits, new FixedTime(Now));
 
         var first = await sut.ExecuteAsync(Staff, 1, markSeen: true, default);
-        var second = await sut.ExecuteAsync(Staff, 2, markSeen: false, default);
+
+        // The second read runs five minutes later on its own clock. With one
+        // fixed clock for both, a markSeen:false read that stamped anyway wrote
+        // the same instant and no assertion could tell.
+        var later = Now.AddMinutes(5);
+        var second = await new ListRecentCases(queries, visits, new FixedTime(later))
+            .ExecuteAsync(Staff, 2, markSeen: false, default);
 
         Assert.Equal(Now.AddDays(-2), first.LastSeenUtc);
         Assert.Equal(RecentCasesPolicy.WindowStart(Now), first.WindowStartUtc);
         Assert.Equal(Now, visits.LastSeen);
+        Assert.NotEqual(later, visits.LastSeen);
         Assert.Equal(Now, second.LastSeenUtc);
         Assert.Equal([(RecentCasesPolicy.WindowStart(Now), 1), (RecentCasesPolicy.WindowStart(Now), 2)], queries.Reads);
         await Assert.ThrowsAsync<StaffAuthorizationException>(

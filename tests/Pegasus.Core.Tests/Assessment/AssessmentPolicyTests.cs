@@ -544,7 +544,11 @@ public sealed class AssessmentPolicyTests
     [Fact]
     public void SystemWorkerActorsAreRefused()
     {
-        Assert.ThrowsAny<Exception>(() =>
+        // The typed refusal Core actually gives a non Staff/Automation actor.
+        // ThrowsAny would also have accepted a null reference or any unrelated
+        // fault. (The audit expected InvalidOperationException here; the real
+        // type is the domain authorization one, which is a stronger contract.)
+        Assert.Throws<StaffAuthorizationException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
                 Request(
                     new() { ["vehicle.condition"] = "good" },
