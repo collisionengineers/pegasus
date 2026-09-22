@@ -6302,6 +6302,84 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("ProviderSubmissions", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ReleaseNoteAcknowledgementEntity", b =>
+                {
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ReleaseNoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AcknowledgedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("StaffId", "ReleaseNoteId");
+
+                    b.HasIndex("ReleaseNoteId");
+
+                    b.ToTable("ReleaseNoteAcknowledgements", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ReleaseNoteEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByStaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("PublishedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("PublishedByStaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SourceSha")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Version")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedAtUtc");
+
+                    b.HasIndex("Status", "PublishedAtUtc")
+                        .IsDescending(false, true);
+
+                    b.ToTable("ReleaseNotes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ReleaseNotes_Status", "[Status] IN ('Draft', 'Published')");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedInstructionAnalysisEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9097,6 +9175,15 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Principal");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ReleaseNoteAcknowledgementEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ReleaseNoteEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ReleaseNoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedInstructionAnalysisEntity", b =>

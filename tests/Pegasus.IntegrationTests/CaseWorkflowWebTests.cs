@@ -47,17 +47,17 @@ public sealed class CaseWorkflowWebTests
     }
 
     [Fact]
-    public async Task NativeHandoffDialogPostsWithoutEvaOrASeparateReviewAction()
+    public async Task NativeHandoffDialogCanAssignAnEnabledUserWithoutEvaOrASeparateReviewAction()
     {
         var engineerId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
-        using var workspace = await EnterEditModeAsync(store, services =>
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<IAssignCaseEngineer>(services, store);
             Substitute<IStaffAccountQueries>(services,
-                new StubStaffAccounts(engineerId, "Engineer", StaffRole.Engineer));
+                new StubStaffAccounts(engineerId, "User", StaffRole.User));
             services.RemoveAll<ISubmitCaseToEva>();
-        });
+        }, StaffRole.User);
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains("Hand to Engineer", RecordBar(html), StringComparison.Ordinal);
         var dialog = Section(html, "case-handoff-dialog-title");
