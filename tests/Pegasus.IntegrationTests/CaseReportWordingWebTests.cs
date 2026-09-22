@@ -52,6 +52,30 @@ public sealed class CaseReportWordingWebTests
             Assert.Contains("form=\"case-edit-form\"", control.Value, StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task AnExcludedEmptyComposedBlockStillHasCaseSaveControls()
+    {
+        var store = ReadyStore();
+        using var workspace = await EnterEditModeAsync(
+            store,
+            services => Register(
+                services,
+                store,
+                [new CaseReportWording(
+                    ReportWordingComposition.ValuationCommentary,
+                    null,
+                    null,
+                    null,
+                    Included: false)]));
+
+        var report = SectionHtml(await workspace.GetWorkspaceAsync(), "report");
+
+        Assert.Contains("data-wording-block=\"commentary\"", report, StringComparison.Ordinal);
+        Assert.Matches(
+            "name=\"wordingEdits\\[[0-9]+\\]\\.Key\" value=\"commentary\"[^>]*form=\"case-edit-form\"",
+            report);
+    }
+
     /// <summary>
     /// Wording the Engineer writes travels with the Case save; wording that
     /// reads the same as the composed sentence is no change, so the block
@@ -128,11 +152,16 @@ public sealed class CaseReportWordingWebTests
         CaseState = CaseLifecycleState.ReportPreparation
     };
 
-    private static void Register(IServiceCollection services, RecordingCaseDetailsStore store)
+    private static void Register(
+        IServiceCollection services,
+        RecordingCaseDetailsStore store,
+        IReadOnlyList<CaseReportWording>? wording = null)
     {
         Substitute<ISaveCaseWorkspace>(services, store);
         Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
-        Substitute<ICaseReportSnapshotSource>(services, new ReadyReportSnapshots(store, currentEstimate: true));
+        Substitute<ICaseReportSnapshotSource>(
+            services,
+            new ReadyReportSnapshots(store, currentEstimate: true, wording));
     }
 
     private static async Task<string> ReadCaseAsync(
@@ -187,7 +216,10 @@ public sealed class CaseReportWordingWebTests
     /// A Case whose report projects: the ready report fixture's own facts,
     /// with the Current estimate withheld when the report is not to project.
     /// </summary>
-    private sealed class ReadyReportSnapshots(RecordingCaseDetailsStore store, bool currentEstimate)
+    private sealed class ReadyReportSnapshots(
+        RecordingCaseDetailsStore store,
+        bool currentEstimate,
+        IReadOnlyList<CaseReportWording>? wording = null)
         : ICaseReportSnapshotSource
     {
         public Task<CaseReportFreezeInputs?> GetAsync(
@@ -198,6 +230,7 @@ public sealed class CaseReportWordingWebTests
             {
                 projection = projection with { CurrentEstimate = null };
             }
+            projection = projection with { Wording = wording };
             return Task.FromResult<CaseReportFreezeInputs?>(new(
                 projection,
                 new(

@@ -185,17 +185,10 @@ public sealed partial class DetailsModel(
         new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
 
     /// <summary>
-    /// Every image occurrence's report preparation (B06), loaded once for the
-    /// Files and Report sections so the two can never disagree about the
-    /// role, order, rotation or crop of the same image.
+    /// Every image occurrence's report preparation (B06), loaded with the
+    /// Files section so its tile, viewer and Case Save share one state.
     /// </summary>
     public IReadOnlyList<CaseAssetPreparation> AssetPreparations { get; private set; } = [];
-
-    /// <summary>
-    /// The same set in the report's own order, from Core's one projection
-    /// rule: Close-up, Overview, then Supporting by order; Not used omitted.
-    /// </summary>
-    public IReadOnlyList<PreparedReportImage> PreparedReportImages { get; private set; } = [];
 
     /// <summary>
     /// Which section of the Case record the request addresses.
@@ -210,7 +203,18 @@ public sealed partial class DetailsModel(
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? SectionFilter { get; set; }
 
-    public string Section => NormalizeSection(SectionFilter);
+    public string Section
+    {
+        get
+        {
+            var section = NormalizeSection(SectionFilter);
+            return section == "original-report"
+                && Case is not null
+                && !IsAuditCase
+                ? Labels.CaseWorkspace.DefaultSectionKey
+                : section;
+        }
+    }
 
     private static string NormalizeSection(string? value)
     {
@@ -893,13 +897,7 @@ public sealed partial class DetailsModel(
                 if (!SectionIsDeferred("files"))
                 {
                     await LoadFilesAsync(id, cancellationToken);
-                }
-                // The Report section is never deferred, so its prepared cards are
-                // rendered on every full response; the Files section reads the
-                // same loaded set rather than asking a second time.
-                await LoadAssetPreparationsAsync(id, cancellationToken);
-                if (!SectionIsDeferred("files"))
-                {
+                    await LoadAssetPreparationsAsync(id, cancellationToken);
                     await LoadIntakeGalleriesAsync(cancellationToken);
                 }
                 if (!SectionIsDeferred("valuation"))
@@ -1232,7 +1230,6 @@ public sealed partial class DetailsModel(
     private async Task LoadAssetPreparationsAsync(Guid caseId, CancellationToken cancellationToken)
     {
         AssetPreparations = await caseAssetPreparationQueries.ListForCaseAsync(caseId, cancellationToken);
-        PreparedReportImages = CaseAssetPreparationPolicy.ForReport(AssetPreparations);
     }
 
     /// <summary>
@@ -2245,9 +2242,18 @@ public sealed partial class DetailsModel(
         }
         var operationKey = preparationId.ToString("N");
 
+        Guid reportSpecificationId;
         StaffMailOperation operation;
         try
         {
+            var preparation = await deliveryPreparations.GetAsync(
+                actor, id, preparationId, cancellationToken)
+                ?? throw new InvalidOperationException("The report delivery preparation is unavailable.");
+            var generation = await reportGenerations.GetAsync(
+                actor, id, preparation.Preparation.GenerationId, cancellationToken)
+                ?? throw new InvalidOperationException("The report generation is unavailable.");
+            reportSpecificationId = generation.Snapshot.CurrentEstimateId;
+
             operation = await sendPreparedReport.ExecuteAsync(
                 new(actor, id, preparationId, expectedPreparationVersion, operationKey),
                 cancellationToken);
@@ -2268,14 +2274,10 @@ public sealed partial class DetailsModel(
 
         if (operation.State is StaffMailState.Sent or StaffMailState.Submitted)
         {
-            // The version the report went out with is frozen and marked (v28 P43).
-            var current = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
-            if (current is not null)
-            {
-                await specificationSnapshots.FreezeAsync(
-                    new(id, current.SpecificationId, actor, RepairSpecificationSnapshotKind.Sent, "As sent on the report"),
-                    cancellationToken);
-            }
+            // The immutable generation snapshot the report went out with is frozen and marked (v28 P43).
+            await specificationSnapshots.FreezeAsync(
+                new(id, reportSpecificationId, actor, RepairSpecificationSnapshotKind.Sent, "As sent on the report"),
+                cancellationToken);
         }
 
         switch (operation.State)

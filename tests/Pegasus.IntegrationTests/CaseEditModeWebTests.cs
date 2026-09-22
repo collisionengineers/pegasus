@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -122,7 +122,7 @@ public sealed class CaseEditModeWebTests
     }
 
     [Fact]
-    public async Task AnonymousInvalidBankWordingIsForbiddenBeforeValidation()
+    public async Task AnonymousInvalidBankWordingIsChallengedBeforeValidation()
     {
         var store = new RecordingCaseDetailsStore
         {
@@ -147,7 +147,13 @@ public sealed class CaseEditModeWebTests
                 (reasonName, ""),
                 ("saveUnroadworthyReason", "true")));
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        // Anonymous is challenged to sign in; it is an authenticated account
+        // without the standing to act that is refused outright.
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains(
+            "/Account/SignIn",
+            response.Headers.Location!.OriginalString,
+            StringComparison.Ordinal);
         Assert.Empty(store.Saves);
         Assert.Empty(bank.Requests);
     }

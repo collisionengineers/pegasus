@@ -146,6 +146,38 @@ public sealed class ReportWordingTests
     }
 
     [Fact]
+    public void ABlankComposedBlockWithAPersistedChangeRemainsOfferedButDoesNotPrint()
+    {
+        var snapshot = Repairable() with
+        {
+            Content = Repairable().Content with { IncludeValuationCommentary = false },
+            ValuationCommentary = null,
+        };
+        var changes = new[]
+        {
+            new CaseReportWording(ReportWordingComposition.ValuationCommentary, "Valuation note", null, null),
+            new CaseReportWording(ReportWordingComposition.ValuationCommentary, null, null, 0),
+            new CaseReportWording(ReportWordingComposition.ValuationCommentary, null, null, null, Included: false),
+        };
+
+        foreach (var change in changes)
+        {
+            var offered = ReportWordingComposition.Offered(snapshot, [change]);
+
+            Assert.Contains(offered, block => block.Key == ReportWordingComposition.ValuationCommentary);
+            Assert.DoesNotContain(
+                ReportWordingComposition.Compose(snapshot, [change]),
+                block => block.Key == ReportWordingComposition.ValuationCommentary);
+        }
+
+        Assert.DoesNotContain(
+            ReportWordingComposition.Offered(
+                snapshot,
+                [new CaseReportWording(ReportWordingComposition.ValuationCommentary, null, null, null)]),
+            block => block.Key == ReportWordingComposition.ValuationCommentary);
+    }
+
+    [Fact]
     public void TheOrderTheEngineerGaveIsThePrintOrder()
     {
         var snapshot = Repairable();
