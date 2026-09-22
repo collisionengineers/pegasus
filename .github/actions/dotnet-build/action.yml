@@ -10,15 +10,24 @@ runs:
     - uses: actions/setup-dotnet@v6
       with:
         dotnet-version: 10.0.x
-        # Keyed on every lock file in the solution, so a package graph change
-        # cannot be served from a stale cache. On a miss the restore below
-        # behaves exactly as an uncached one and the cache is written at the
-        # end of the job; nothing is gated on a hit.
-        cache: true
-        cache-dependency-path: |
-          global.json
-          src/**/packages.lock.json
-          tests/**/packages.lock.json
+    # setup-dotnet's own cache accepts no restore-keys, so a single lock-file
+    # change missed outright and every lane cold-restored the whole graph. An
+    # explicit cache adds a prefix fallback: on a miss it restores the newest
+    # previous package folder and the locked restore fetches only what moved.
+    #
+    # A prefix hit cannot be stale. The global packages folder is addressed by
+    # package id and version, those contents are immutable, and --locked-mode
+    # validates the graph against the committed lock files rather than against
+    # whatever the folder happens to hold.
+    #
+    # One glob covers src, tests and the standalone harnesses under scripts, so
+    # a new lock file participates in the key without editing this file.
+    - uses: actions/cache@v6
+      with:
+        path: ~/.nuget/packages
+        key: dotnet-nuget-${{ runner.os }}-${{ hashFiles('global.json', '**/packages.lock.json') }}
+        restore-keys: |
+          dotnet-nuget-${{ runner.os }}-
     - name: Restore
       shell: pwsh
       run: dotnet restore ./Pegasus.slnx --locked-mode
