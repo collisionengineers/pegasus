@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -12,6 +13,8 @@ public sealed class CaseWorkflowMigrationTests
     private const string WorkflowMigration = "20260729160000_CaseWorkflowRuntime";
     private const string EditScopeRemovalPredecessor = "20260917161519_RemovePublicUploadLinks";
     private const string EditScopeRemovalMigration = "20260918090000_RemoveAdministrationEditScopes";
+    private const string CapValuationMigration = "20260921060711_CapValuationSource";
+    private const string DamageMigration = "20260921070000_DamageImpactsAsAreas";
     private const string PrePublicUploadRemovalMigration = "20260917153000_CaseClaimSourceContactOverride";
     private const string ReviewCaseId = "60000000-0000-0000-0000-000000000001";
     private const string NotReadyCaseId = "60000000-0000-0000-0000-000000000002";
@@ -191,6 +194,45 @@ public sealed class CaseWorkflowMigrationTests
             script,
             StringComparison.Ordinal);
         Assert.Equal(2, CountOccurrences(script, "NEWID()"));
+    }
+
+    [Fact]
+    public void CapValuationMigrationCannotGenerateAReversalScript()
+    {
+        var options = new DbContextOptionsBuilder<PegasusDbContext>()
+            .UseSqlServer(
+                "Server=(localdb)\\MSSQLLocalDB;Database=PegasusMigrationGuard;Integrated Security=True;TrustServerCertificate=True")
+            .Options;
+        using var context = new PegasusDbContext(options);
+
+        Assert.Throws<NotSupportedException>(() => context.GetService<IMigrator>().GenerateScript(
+            CapValuationMigration,
+            EditScopeRemovalMigration));
+    }
+
+    [Fact]
+    public async Task DamageAreaMigrationWritesARoofImpactThatCoreAccepts()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync(CapValuationMigration);
+        await database.ExecuteAsync(ExistingCasesSql(withStaffConfirmationColumns: false));
+        await database.ExecuteAsync(
+            $$"""
+            INSERT INTO CaseAssessmentFields
+                (CaseId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc)
+            VALUES
+                ('{{ReviewCaseId}}', 'damage.impacts',
+                 N'[{"zone":"roof","severity":"heavy","note":"Roof"}]',
+                 'Staff', 'migration-test', '2031-05-06T10:30:00+00:00');
+            """);
+
+        await context.Database.MigrateAsync(DamageMigration);
+
+        var value = await database.ScalarAsync<string>(
+            $"SELECT [Value] FROM CaseAssessmentFields WHERE CaseId = '{ReviewCaseId}' AND FieldPath = 'damage.impacts'");
+        var impact = Assert.Single(AssessmentPolicy.ParseImpacts(value));
+        Assert.Equal(AssessmentVocabulary.DamagePlanAreas, impact.Areas);
     }
 
     [Fact]

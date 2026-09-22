@@ -7,6 +7,8 @@ namespace Pegasus.Core.Tests.Assessment;
 
 public sealed class AssessmentPolicyTests
 {
+    private static readonly string[] BoundaryClosure = ["front", "left_front", "right_front", "left_side", "right_side"];
+
     private static readonly ActionActor Automation = ActionActor.Automation("pegasus-automation");
     private static readonly ActionActor Engineer =
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
@@ -268,6 +270,40 @@ public sealed class AssessmentPolicyTests
         Assert.Equal(("rear", "moderate"), AssessmentPolicy.DeriveImpactValues("[{\"areas\":[\"rear\"],\"severity\":\"light\",\"note\":\"\"},{\"areas\":[\"rear\"],\"severity\":\"moderate\",\"note\":\"\"}]"));
     }
 
+    [Fact]
+    public void DamageImpactsMustRecordEveryPlanAreaCoveredByTheirRegeneratedDisc()
+    {
+        var sparse = "[{\"areas\":[\"front\",\"rear\"],\"severity\":\"light\",\"note\":\"\"}]";
+        Assert.Throws<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageImpacts] = sparse })));
+
+        var boundaryAreas = new[] { "front", "left_front", "left_side" };
+        Assert.Equal(BoundaryClosure, DamageAreaGeometry.CompletePlanAreas(boundaryAreas));
+        var boundarySparse = "[{\"areas\":[\"front\",\"left_front\",\"left_side\"],\"severity\":\"light\",\"note\":\"\"}]";
+        Assert.Throws<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageImpacts] = boundarySparse })));
+
+        var closedAdjacent = "[{\"areas\":[\"front\",\"left_front\"],\"severity\":\"light\",\"note\":\"\"}]";
+        var normalized = AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { [AssessmentVocabulary.DamageImpacts] = closedAdjacent }));
+
+        Assert.Equal(closedAdjacent, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
+
+    }
+
+    [Fact]
+    public void PlanAreaTangencyIsNotPositiveCoverage()
+    {
+        var disc = new DamageDisc(
+            DamageAreaGeometry.LeftBand + DamageAreaGeometry.BaseRadius,
+            DamageAreaGeometry.FrontBand / 2,
+            DamageAreaGeometry.BaseRadius);
+
+        Assert.DoesNotContain(
+            "left_front",
+            DamageAreaGeometry.IntersectedPlanAreas(disc, 1, 1));
+    }
+
     [Theory]
     [InlineData("not-json")]
     [InlineData("{}")]
@@ -356,12 +392,34 @@ public sealed class AssessmentPolicyTests
 
         // A one-area disc sits on the area's centre; a wider disc grows to
         // reach every area it names; the other areas draw nothing.
-        var one = DamageAreaGeometry.Disc(["front"], 100, 200)!;
+        var one = DamageAreaGeometry.RenderDisc(["front"], 100, 200)!;
         Assert.Equal((50d, 20d, 12d), (one.CentreX, one.CentreY, one.Radius));
-        var two = DamageAreaGeometry.Disc(["rear", "left_rear"], 100, 200)!;
+        var two = DamageAreaGeometry.RenderDisc(["rear", "left_rear"], 100, 200)!;
         Assert.True(two.Radius > one.Radius);
         Assert.True(two.CentreX < 50);
-        Assert.Null(DamageAreaGeometry.Disc(["underside"], 100, 200));
+        Assert.Null(DamageAreaGeometry.RenderDisc(["underside"], 100, 200));
+    }
+
+    [Fact]
+    public void RenderedDiscsReachEveryNamedPlanCentreAtWorkspaceAndReportScales()
+    {
+        foreach (var (width, height) in new[] { (156d, 394d), (124d, 364d) })
+        {
+            var disc = DamageAreaGeometry.RenderDisc(
+                AssessmentVocabulary.DamagePlanAreas,
+                width,
+                height)!;
+
+            foreach (var area in AssessmentVocabulary.DamagePlanAreas)
+            {
+                var centre = DamageAreaGeometry.Centres[area];
+                var x = centre.X * width;
+                var y = centre.Y * height;
+                Assert.True(
+                    Math.Sqrt(Math.Pow(x - disc.CentreX, 2) + Math.Pow(y - disc.CentreY, 2)) <= disc.Radius,
+                    $"The rendered disc does not reach {area} at {width}x{height}.");
+            }
+        }
     }
 
     [Fact]
