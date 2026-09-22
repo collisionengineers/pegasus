@@ -48,8 +48,28 @@ public sealed class ProblemReportTests
         Assert.Contains("source     " + new string('c', 40), body, StringComparison.Ordinal);
         Assert.Contains("Cases / Save  QDOS26001  Succeeded", body, StringComparison.Ordinal);
         Assert.Contains("TypeError: x is undefined", body, StringComparison.Ordinal);
-        Assert.Equal(UserId.ToString("D"), logs.LastFilter!.Actor);
+        Assert.Null(logs.LastFilter!.Actor);
+        Assert.Equal(UserId.ToString("D"), logs.LastFilter.ActingActor);
         Assert.Equal(ProblemReportPolicy.RecentActionCount, logs.LastFilter.PageSize);
+    }
+
+    [Fact]
+    public async Task AFailureRecordingSentDeliveryDoesNotCallTheSendFailureHandler()
+    {
+        var store = new FakeStore
+        {
+            MarkSentFailure = new InvalidOperationException("database unavailable")
+        };
+        var sink = new FakeSink();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ReportProblem(store, sink, new FakeLogs([]), new FixedClock(Now))
+                .ExecuteAsync(Request(User()), default));
+
+        Assert.Equal("database unavailable", exception.Message);
+        Assert.Single(sink.Sent);
+        Assert.Equal(0, store.MarkNotSentCalls);
+        Assert.Equal(ProblemReportStatus.NotSent, Assert.Single(store.Reports).Status);
     }
 
     [Fact]
@@ -250,6 +270,8 @@ public sealed class ProblemReportTests
     private sealed class FakeStore : IProblemReportStore
     {
         public List<ProblemReport> Reports { get; } = [];
+        public Exception? MarkSentFailure { get; init; }
+        public int MarkNotSentCalls { get; private set; }
 
         public Task<ProblemReport> AddAsync(NewProblemReport report, CancellationToken cancellationToken)
         {
@@ -295,7 +317,9 @@ public sealed class ProblemReportTests
         }
 
         public Task<ProblemReport> MarkSentAsync(Guid id, string claimToken, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken) =>
-            Task.FromResult(Replace(id, report => report.DispatchClaimToken == claimToken
+            MarkSentFailure is { } failure
+                ? Task.FromException<ProblemReport>(failure)
+                : Task.FromResult(Replace(id, report => report.DispatchClaimToken == claimToken
                 ? report with
                 {
                     Status = ProblemReportStatus.Sent,
@@ -308,8 +332,10 @@ public sealed class ProblemReportTests
                 }
                 : report));
 
-        public Task<ProblemReport> MarkNotSentAsync(Guid id, string claimToken, string failure, CancellationToken cancellationToken) =>
-            Task.FromResult(Replace(id, report => report.DispatchClaimToken == claimToken
+        public Task<ProblemReport> MarkNotSentAsync(Guid id, string claimToken, string failure, CancellationToken cancellationToken)
+        {
+            MarkNotSentCalls++;
+            return Task.FromResult(Replace(id, report => report.DispatchClaimToken == claimToken
                 ? report with
                 {
                     Status = ProblemReportStatus.NotSent,
@@ -318,6 +344,7 @@ public sealed class ProblemReportTests
                     DispatchClaimToken = null
                 }
                 : report));
+        }
 
         private ProblemReport Replace(Guid id, Func<ProblemReport, ProblemReport> change)
         {

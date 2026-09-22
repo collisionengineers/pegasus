@@ -267,12 +267,13 @@ public sealed class ReportProblem(
                     now,
                     SearchText: null,
                     Area: null,
-                    Actor: actor.SubjectId,
+                    Actor: null,
                     Result: null,
                     Operation: null,
                     Record: null,
                     CorrelationId: null,
-                    PageSize: ProblemReportPolicy.RecentActionCount),
+                    PageSize: ProblemReportPolicy.RecentActionCount,
+                    ActingActor: actor.SubjectId),
                 cancellationToken);
             return page.Rows
                 .Select(row => new ProblemReportAction(row.OccurredAtUtc, row.Area, row.Operation, row.Reference, row.Result))
@@ -336,15 +337,17 @@ internal static class ProblemReportDispatch
             return await store.GetAsync(id, cancellationToken);
         }
 
+        ProblemReportDelivery delivery;
         try
         {
-            var delivery = await sink.SendAsync(report, cancellationToken);
-            return await store.MarkSentAsync(report.Id, claimToken, delivery, timeProvider.GetUtcNow(), cancellationToken);
+            delivery = await sink.SendAsync(report, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             var failure = exception.Message.Length > 400 ? exception.Message[..400] : exception.Message;
             return await store.MarkNotSentAsync(report.Id, claimToken, failure, cancellationToken);
         }
+
+        return await store.MarkSentAsync(report.Id, claimToken, delivery, timeProvider.GetUtcNow(), cancellationToken);
     }
 }
