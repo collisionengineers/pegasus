@@ -1,4 +1,4 @@
-// Case record behaviour (v26). Everything here is a convenience on top of
+﻿// Case record behaviour (v26). Everything here is a convenience on top of
 // markup that already works as plain forms and links; nothing creates a
 // separate mutation path and no business rule lives in the browser.
 //
@@ -1964,13 +1964,22 @@
         if (!card || !rate) {
             return;
         }
+        // Filling the figure from a card still raises input, so the rest of the
+        // form sees the change, but that is the card speaking rather than the
+        // operator typing: only typing drops the card.
+        var filling = false;
         card.addEventListener('change', function () {
             var option = card.options[card.selectedIndex];
             var figure = option && option.getAttribute('data-rate');
-            if (figure) { rate.value = figure; rate.dispatchEvent(new Event('input', { bubbles: true })); }
+            if (figure) {
+                filling = true;
+                rate.value = figure;
+                rate.dispatchEvent(new Event('input', { bubbles: true }));
+                filling = false;
+            }
         });
         rate.addEventListener('input', function () {
-            if (card.value) { card.value = ''; }
+            if (!filling && card.value) { card.value = ''; }
         });
     }
 
