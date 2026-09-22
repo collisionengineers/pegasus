@@ -2234,7 +2234,13 @@
                 });
             }
             function choose(button, focus) {
-                select.value = button.getAttribute('data-radio-value');
+                var choice = button.getAttribute('data-radio-value');
+                select.value = choice;
+                if (choice === '') {
+                    select.dataset.decisionExplicitUnset = 'true';
+                } else {
+                    delete select.dataset.decisionExplicitUnset;
+                }
                 select.dispatchEvent(new Event('input', { bubbles: true }));
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 paint();
@@ -2384,7 +2390,7 @@
             // An awaiting AI proposal leaves its control empty until accepted,
             // so the rows it implies follow the proposal until a person decides.
             function decided(path, control) {
-                if (control && control.value) {
+                if (control && (control.value || control.dataset.decisionExplicitUnset === 'true')) {
                     return control.value;
                 }
                 var awaiting = section.querySelector('[data-proposal="' + path + '"][data-proposal-status="Awaiting"] [data-proposal-value]');
