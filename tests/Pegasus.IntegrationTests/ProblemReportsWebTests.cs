@@ -1,7 +1,10 @@
-using System.Net;
+﻿using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Caching.Memory;
@@ -95,9 +98,14 @@ public sealed class ProblemReportsWebTests
         http.Features.Set<IExceptionHandlerFeature>(feature);
         http.Features.Set<IExceptionHandlerPathFeature>(feature);
 
+        // The Error page asks Url whether the originating path is local, so the
+        // model needs the url helper the framework gives it in a real request.
+        var actionContext = new ActionContext(
+            http, new Microsoft.AspNetCore.Routing.RouteData(), new ActionDescriptor());
         var model = new ErrorModel(cache)
         {
-            PageContext = new PageContext { HttpContext = http }
+            PageContext = new PageContext(actionContext),
+            Url = new UrlHelper(actionContext)
         };
         model.OnPost();
 
