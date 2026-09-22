@@ -286,6 +286,22 @@ action. Never manually repurpose these commands to remove another run,
 
 ## Locked restore, build, and test
 
+Start with `scripts/Invoke-Verification.ps1`. It selects the checks the change
+set needs and refuses the ones it does not, using the same classifier CI uses:
+prose runs the link check and no build, a commit that already has a green
+exact-head CI run reports that run instead of repeating it, and anything else
+gets a focused run over the test classes the changed files own. `-WhatIf`
+prints the selection without running it, and `-Full` takes the whole-solution
+lane below while holding the host slot.
+
+```powershell
+pwsh ./scripts/Invoke-Verification.ps1
+```
+
+Read a hosted failure with `scripts/Get-CiStatus.ps1`, which prints the failing
+test names from the job log; a shard's log is served while its siblings are
+still running, so reproducing the failure here is rarely the cheapest route.
+
 Run focused owning projects while iterating. When full solution verification is required, run the canonical solution commands exactly (`--locked-mode` enforces the committed package locks):
 
 ```powershell
