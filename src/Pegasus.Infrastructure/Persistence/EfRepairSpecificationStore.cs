@@ -22,12 +22,19 @@ public sealed class EfRepairSpecificationStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider) : IRepairSpecificationStore
 {
+    internal const string SourceHashReplayEventType = "estimate_source_replay_bound";
+    private const string CaseAggregateType = "case";
+
     /// <summary>
     /// The one serializer settings object this aggregate uses, for the
     /// request hash, the history payloads and the estimate's own JSON
     /// columns alike.
     /// </summary>
     internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private sealed record SourceHashReplaySnapshot(
+        string SourceSha256,
+        Guid EstimateId = default);
 
     public async Task<RepairSpecificationVersion> StartDraftAsync(
         StartRepairSpecificationDraftRequest request,
@@ -202,6 +209,106 @@ public sealed class EfRepairSpecificationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         CaseMutationGuard.Require(workflow, request.Actor, request.ExpectedVersion, request.EditLeaseToken, Now());
         RequireAssessmentEditable(workflow);
+    }
+
+    public async Task<EstimateImportResult?> ProbeSourceHashReplayAsync(
+        Guid caseId,
+        string operationKey,
+        string sourceSha256,
+        CancellationToken cancellationToken)
+    {
+        var normalizedSha256 = ImportRawEstimate.NormalizeSha256(sourceSha256);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var binding = await context.ActionHistory
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.AggregateType == CaseAggregateType
+                    && item.AggregateId == caseId.ToString("D")
+                    && item.CorrelationId == operationKey
+                    && item.EventKind == SourceHashReplayEventType,
+                cancellationToken);
+        return binding is null
+            ? null
+            : await ReadSourceHashReplayAsync(context, binding, normalizedSha256, cancellationToken);
+    }
+
+    public async Task<EstimateImportResult> BindSourceHashReplayAsync(
+        Guid caseId,
+        string operationKey,
+        string sourceSha256,
+        Guid estimateId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        var normalizedSha256 = ImportRawEstimate.NormalizeSha256(sourceSha256);
+        if (estimateId == Guid.Empty)
+        {
+            throw new ArgumentException("An estimate result is required.", nameof(estimateId));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        _ = await RequiredWorkflowForUpdateAsync(context, caseId, cancellationToken);
+        var existing = await context.ActionHistory
+            .SingleOrDefaultAsync(
+                item => item.AggregateType == CaseAggregateType
+                    && item.AggregateId == caseId.ToString("D")
+                    && item.CorrelationId == operationKey,
+                cancellationToken);
+        if (existing is not null)
+        {
+            if (existing.EventKind == SourceHashReplayEventType)
+            {
+                return await ReadSourceHashReplayAsync(context, existing, normalizedSha256, cancellationToken);
+            }
+
+            if (existing.EventKind != "estimate_created"
+                || ReadHistoryEstimateId(existing) != estimateId)
+            {
+                throw new CaseOperationConflictException(caseId, operationKey);
+            }
+
+            var linkedEstimate = await RequiredEstimateAsync(
+                context, caseId, estimateId, cancellationToken);
+            if (!string.Equals(linkedEstimate.CreationOperationKey, operationKey, StringComparison.Ordinal)
+                || !string.Equals(linkedEstimate.SourceSha256, normalizedSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new CaseOperationConflictException(caseId, operationKey);
+            }
+
+            return new(estimateId);
+        }
+
+        var estimate = await RequiredEstimateAsync(context, caseId, estimateId, cancellationToken);
+        if (!string.Equals(estimate.SourceSha256, normalizedSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new CaseOperationConflictException(caseId, operationKey);
+        }
+
+        var now = Now();
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = CaseAggregateType,
+            AggregateId = caseId.ToString("D"),
+            EventKind = SourceHashReplayEventType,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role), JsonOptions),
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = operationKey,
+            Reason = ImportRawEstimate.ImportReason,
+            BeforeJson = JsonSerializer.Serialize(new SourceHashReplaySnapshot(normalizedSha256), JsonOptions),
+            AfterJson = JsonSerializer.Serialize(new SourceHashReplaySnapshot(normalizedSha256, estimateId), JsonOptions),
+            PolicyVersion = $"{RepairSpecificationPolicy.PolicyKey}/source-replay"
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(estimateId);
     }
 
     public Task<RepairSpecificationVersion> SaveEstimateAsync(
@@ -803,6 +910,66 @@ public sealed class EfRepairSpecificationStore(
             .SingleAsync(item => item.CaseId == caseId && item.Id == estimateId, cancellationToken));
     }
 
+    private static async Task<EstimateImportResult> ReadSourceHashReplayAsync(
+        PegasusDbContext context,
+        ActionHistoryEntity binding,
+        string sourceSha256,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(binding.AggregateId, out var caseId)
+            || binding.EventKind != SourceHashReplayEventType
+            || binding.Outcome != "Succeeded"
+            || binding.AfterJson is null)
+        {
+            throw new InvalidDataException("The source-hash replay binding is invalid.");
+        }
+
+        SourceHashReplaySnapshot? snapshot;
+        try
+        {
+            snapshot = JsonSerializer.Deserialize<SourceHashReplaySnapshot>(
+                binding.AfterJson, JsonOptions);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("The source-hash replay binding is invalid.", exception);
+        }
+
+        if (snapshot is null
+            || snapshot.EstimateId == Guid.Empty
+            || snapshot.SourceSha256 is null
+            || !CaseOperationReplay.FixedTimeEquals(snapshot.SourceSha256, sourceSha256))
+        {
+            throw new CaseOperationConflictException(caseId, binding.CorrelationId);
+        }
+
+        var estimate = await context.CaseRepairSpecifications.AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.CaseId == caseId && item.Id == snapshot.EstimateId,
+                cancellationToken);
+        if (estimate is null)
+        {
+            throw new InvalidDataException("The source-hash replay binding does not point to an estimate on its case.");
+        }
+
+        return new(snapshot.EstimateId);
+    }
+
+    private static Guid? ReadHistoryEstimateId(ActionHistoryEntity history)
+    {
+        if (string.IsNullOrWhiteSpace(history.AfterJson))
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(history.AfterJson);
+        return document.RootElement.TryGetProperty("id", out var id)
+            && id.ValueKind == JsonValueKind.String
+            && id.TryGetGuid(out var estimateId)
+            ? estimateId
+            : null;
+    }
+
     private static async Task<CaseRepairSpecificationEntity> RequiredEstimateAsync(
         PegasusDbContext context, Guid caseId, Guid estimateId, CancellationToken cancellationToken) =>
         await context.CaseRepairSpecifications.Include(item => item.Lines)
@@ -848,6 +1015,29 @@ public sealed class EfRepairSpecificationStore(
         await context.CaseWorkflows.Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
         ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
+
+    private static async Task<CaseWorkflowEntity> RequiredWorkflowForUpdateAsync(
+        PegasusDbContext context, Guid caseId, CancellationToken cancellationToken)
+    {
+        if (context.Database.IsSqlServer())
+        {
+            var lockedCaseId = await context.CaseWorkflows
+                .FromSqlInterpolated($"""
+                    SELECT *
+                    FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [CaseId] = {caseId}
+                    """)
+                .AsNoTracking()
+                .Select(item => (Guid?)item.CaseId)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (lockedCaseId is null)
+            {
+                throw new KeyNotFoundException($"Case '{caseId}' was not found.");
+            }
+        }
+
+        return await RequiredWorkflowAsync(context, caseId, cancellationToken);
+    }
 
     private static void Guard(
         CaseWorkflowEntity workflow, long expectedVersion, ActionActor actor, string lease, DateTimeOffset now)

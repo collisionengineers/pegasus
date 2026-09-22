@@ -772,7 +772,8 @@ public sealed class MailWorkspaceWebTests
         // Reading changes nothing. Beyond the layout's sign-out, the only POST
         // forms are the rows' Dismiss actions (Inbox, 13 September), one per row.
         Assert.Equal(3, CountOccurrences(html, "data-mail-row-action=\"dismiss\""));
-        Assert.Equal(1 + 3, CountOccurrences(html, "method=\"post\""));
+        // Sign-out, the shell's Report a problem, and the three dismissals.
+        Assert.Equal(2 + 3, CountOccurrences(html, "method=\"post\""));
         Assert.Contains("/Account/SignOut", html, StringComparison.Ordinal);
     }
 
@@ -1373,8 +1374,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains(">No case</strong>", message, StringComparison.Ordinal);
         // Back reconstructs the exact list position.
         Assert.Contains($"/Inbox?mailbox={FirstMailboxFilter}", message, StringComparison.Ordinal);
-        // Beyond the layout's sign-out, the record's only POST is Dismiss (Inbox, 13 September).
-        Assert.Equal(2, CountOccurrences(message, "method=\"post\""));
+        // Beyond the layout's sign-out and Report a problem, the record's only POST is Dismiss (Inbox, 13 September).
+        Assert.Equal(3, CountOccurrences(message, "method=\"post\""));
         Assert.Contains("data-message-dismissal=\"dismiss\"", message, StringComparison.Ordinal);
 
         var attachments = await GetHtmlAsync(
@@ -1408,8 +1409,8 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain("Recommended Outlook folder", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Folder</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("no current classification decision", html, StringComparison.Ordinal);
-        // Sign-out and the record's Dismiss.
-        Assert.Equal(2, CountOccurrences(html, "method=\"post\""));
+        // Sign-out, Report a problem and the record's Dismiss.
+        Assert.Equal(3, CountOccurrences(html, "method=\"post\""));
     }
 
     [Fact]
