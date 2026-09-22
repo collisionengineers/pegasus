@@ -516,6 +516,13 @@ function Get-MigrationPermissionMatrix {
         }
         $expected.Add("$role|D|DELETE|CaseFieldProposals")
     }
+    # 20260921090000_UnroadworthyReasonBank: the firm's own unroadworthy reason
+    # wordings (v28 P15). Web reads and appends; the Worker never sees them.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|UnroadworthyReasons")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|UnroadworthyReasons')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|UnroadworthyReasons')
     # 20260921080000_RepairSpecificationSnapshots: frozen repair specification
     # versions (v28 P43). Web freezes and reads them; the Worker reads only;
     # neither deletes one.

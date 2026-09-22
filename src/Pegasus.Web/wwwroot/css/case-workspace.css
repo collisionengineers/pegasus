@@ -235,6 +235,24 @@
 @media(max-width:760px){#section-valuation .guides{grid-template-columns:1fr}#section-valuation .val-tools .val-month{flex-basis:100%}}
 
 
+#section-settlement select.fi.is-driven{display:none}
+#section-settlement .radiorow{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+#section-settlement .pick-radio{display:inline-flex;align-items:center;gap:6px;min-height:var(--control);padding:0 10px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--ink);font:inherit;font-size:12.5px;cursor:pointer}
+#section-settlement .pick-radio:hover{border-color:var(--navy);color:var(--navy)}
+#section-settlement .pick-radio .dot{width:11px;height:11px;border-radius:50%;border:1px solid var(--line-strong);flex:none}
+#section-settlement .pick-radio[aria-checked="true"]{border-color:var(--navy);background:#f4f7fa;font-weight:600}
+#section-settlement .pick-radio[aria-checked="true"] .dot{border-color:var(--navy);background:var(--navy);box-shadow:inset 0 0 0 2px #fff}
+#section-settlement .pick-radio:focus-visible{outline:2px solid var(--navy);outline-offset:1px}
+#section-settlement .salvage-share{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px}
+#section-settlement .salvage-share input[type="range"]{flex:1;min-width:120px;accent-color:var(--navy)}
+#section-settlement .salvage-share .snaps{display:inline-flex;gap:4px}
+#section-settlement .salvage-share .snaps button{min-height:24px;padding:0 7px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;font:600 11px var(--mono);color:var(--muted);cursor:pointer}
+#section-settlement .salvage-share .snaps button.on{border-color:var(--navy);color:var(--navy);background:#f4f7fa}
+#section-settlement .salvage-share .read{font-size:11.5px;color:var(--muted)}
+#section-settlement .reason-bank{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+#section-settlement .reason-bank .btn{font-size:11.5px;text-align:left}
+#section-settlement [data-settlement-computed-reserve] .fv{font-size:12px}
+
 /* ==== estimate ==== */
 /* ---- Estimate (v26 § Estimate) ---------------------------------------------- */
 #section-estimate .estimate-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
