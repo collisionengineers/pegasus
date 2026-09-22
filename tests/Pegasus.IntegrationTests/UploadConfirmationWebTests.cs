@@ -673,7 +673,8 @@ public sealed class UploadConfirmationWebTests
         var html = await IntakeWebDriver.GetHtmlAsync(pageClient, $"/Upload/Group/{groupId:D}");
 
         Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
-        Assert.Contains("upload-received--files-only", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("upload-received--files-only", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"group-discard-title\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"group-decision-title\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Add the submission to this case", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Create a vehicle-image case", html, StringComparison.Ordinal);
