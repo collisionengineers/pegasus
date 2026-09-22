@@ -51,7 +51,7 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     [Fact]
-    public async Task CompleteCaseRendersAndReturnsThePdf()
+    public async Task UserGeneratesACompleteCaseReportDraftAndReceivesThePdf()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var caseId = Guid.NewGuid();
@@ -67,6 +67,7 @@ public sealed partial class AssessmentReportDraftWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
         Assert.DoesNotContain(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
@@ -81,7 +82,7 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     [Fact]
-    public async Task PreviewRemainsAGetOnTheCaseHandlerAndReturnsThePdf()
+    public async Task UserCanPreviewTheReportDraftThroughTheCaseHandler()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var caseId = Guid.NewGuid();
@@ -97,6 +98,7 @@ public sealed partial class AssessmentReportDraftWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         using var response = await client.GetAsync(
             $"/Cases/{caseId:D}?handler=PreviewReportDraft&section=report");

@@ -15,7 +15,7 @@ Read from the live source on 18 September 2026.
 | File | Owns |
 | --- | --- |
 | `Pages/Administration/Mailboxes.cshtml` | Default sender panel, Approved mailboxes table, Mail categories table, all four dialogs |
-| `Pages/Administration/Mailboxes.cshtml.cs` | `Mailboxes`, `Categories`, `PollStatusFor()`, `Update`/`SetDefault`/`SaveCategory`/`EditMailbox`/`EditCategory` handlers |
+| `Pages/Administration/Mailboxes.cshtml.cs` | `Mailboxes`, `Categories`, `PollStatusFor()`, `OnPostUpdateAsync`/`OnPostResolveFoldersAsync`/`OnPostSetDefaultAsync`/`OnPostSaveCategoryAsync` handlers |
 | `Presentation/OperatorLabels.cs` (`MailSettings` class) | Every label, `PollStatus()`, `SubscriptionStatus()`, `MailboxState()`, `CategoryState()` |
 | `Presentation/OperatorLabels.cs` `RouteScope()` | The three route-scope sentences |
 | `Core/Intake/Classification/MailLogicalFolderPolicy.cs` | The fourteen logical folder names |
@@ -43,10 +43,10 @@ folders — a definition list of all fourteen logical folder names, each
 
 ### Mail categories
 
-Category, State chip, and a Review `<details>` disclosure whose summary is
-always visible and whose body is an editable Display name and State plus a
-Save button (disabled until this row is the one currently being edited) —
-Edit category / Cancel sit below the form itself, not inside its foot.
+Every row is already editable, no disclosure or toggle: a Display name
+input and a State (Active/Disabled) select, each posting through that row's
+own Save/Reset form. "Add category" opens a separate dialog (Display name,
+State, Add) rather than an inline blank row.
 
 ## Things the FRD does not settle
 

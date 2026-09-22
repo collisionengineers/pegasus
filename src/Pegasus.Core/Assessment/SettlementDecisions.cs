@@ -120,7 +120,7 @@ public interface IUnroadworthyReasonBankStore
 {
     Task<IReadOnlyList<UnroadworthyReason>> ListAsync(string principalCode, CancellationToken cancellationToken);
 
-    Task<UnroadworthyReason> AddAsync(SaveUnroadworthyReasonRequest request, string normalized, CancellationToken cancellationToken);
+    Task<UnroadworthyReason?> AddAsync(SaveUnroadworthyReasonRequest request, string normalized, CancellationToken cancellationToken);
 }
 
 public interface ISaveUnroadworthyReason

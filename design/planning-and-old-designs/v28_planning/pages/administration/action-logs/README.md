@@ -1,17 +1,15 @@
 # Action logs (legacy route)
 
-- **Mockup route:** none — folded into `pegasus_administration_v28.html` (`ad-area=logs`, `adLogsTab=action`) in [`../../../current/`](../../../current/README.md)
-- **Live source:** `src/Pegasus.Web/Pages/Administration/ActionLogs.cshtml`, `ActionLogs.cshtml.cs`
-
+- **Parent:** [Logs](../logs/README.md)
+- **Live source:** `src/Pegasus.Web/Pages/Administration/ActionLogs.cshtml`
 - [**How it works**](how-it-works.md)
 
-## Screenshots
+`/Administration/ActionLogs` answers with a permanent redirect to `/Administration/Logs`; there is nothing of its own to capture.
 
-None taken separately — see [`../logs/README.md`](../logs/README.md)'s screenshots (`ad-area=logs`), which is where this legacy route's content is captured, tabbed alongside the Intake log.
+## Captured states
 
-## Notes
+Each state is the running application's own HTML for the route shown, saved with the live CSS and JS. Nothing in it is transcribed.
 
-This route has no capture of its own. `ActionLogsModel.OnGet()` is
-`RedirectPermanent("/Administration/Logs" + Request.QueryString.Value)` — the
-page carries no markup and no state. The content it once served now lives
-entirely at [Logs' "Action logs" tab](../logs/), which this mockup captures.
+| State | Live route | Open | Screenshots |
+| --- | --- | --- | --- |
+| Logs, action log | `/Administration/Logs` | [frame](../../../current/pegasus_administration_v28.html#admin-logs) · [page](../../../current/states/admin-logs.html) | [1580](../../../current/v28-shots/s58-admin-logs-1580.png) · [1440](../../../current/v28-shots/s58-admin-logs-1440.png) · [760](../../../current/v28-shots/s58-admin-logs-760.png) |

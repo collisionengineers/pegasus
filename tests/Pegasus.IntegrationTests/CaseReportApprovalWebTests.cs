@@ -45,6 +45,7 @@ public sealed class CaseReportApprovalWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
         var generationId = Guid.NewGuid();
         var artifactId = Guid.NewGuid();
 
@@ -90,6 +91,7 @@ public sealed class CaseReportApprovalWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         using var response = await client.GetAsync(
             $"/Cases/{store.CaseId:D}?handler=GeneratedArtifact&generationId={Guid.NewGuid():D}&artifactId={Guid.NewGuid():D}");
@@ -173,6 +175,7 @@ public sealed class CaseReportApprovalWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         // The workspace no longer renders the typed-SHA approval
         // form (inherited scope bans typed SHA inputs; the approval act moves

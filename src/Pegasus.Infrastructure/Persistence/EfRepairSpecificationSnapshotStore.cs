@@ -40,7 +40,8 @@ public sealed class EfRepairSpecificationSnapshotStore(
     /// <summary>
     /// Adds the version row inside the caller's context. The latest version
     /// is reused when the content is unchanged and the act leaves no mark of
-    /// its own (Scaled and Sent always do).
+    /// its own (BeforeScaling, Scaled, ScalingRemoved, both restore marks and
+    /// Sent always do).
     /// </summary>
     internal static CaseRepairSpecificationSnapshotEntity Freeze(
         PegasusDbContext context,
@@ -59,7 +60,12 @@ public sealed class EfRepairSpecificationSnapshotStore(
         var linesJson = JsonSerializer.Serialize(
             specification.Lines.OrderBy(line => line.Position).ToArray(), Json);
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(detailsJson + linesJson)));
-        var marks = kind is RepairSpecificationSnapshotKind.Scaled or RepairSpecificationSnapshotKind.Sent;
+        var marks = kind is RepairSpecificationSnapshotKind.BeforeScaling
+            or RepairSpecificationSnapshotKind.Scaled
+            or RepairSpecificationSnapshotKind.ScalingRemoved
+            or RepairSpecificationSnapshotKind.BeforeRestore
+            or RepairSpecificationSnapshotKind.Restored
+            or RepairSpecificationSnapshotKind.Sent;
         if (latest is not null && latest.ContentHash == hash && !marks)
         {
             return latest;
@@ -104,7 +110,7 @@ public sealed class EfRepairSpecificationSnapshotStore(
         return row is null ? null : Map(row);
     }
 
-    private static RepairSpecificationSnapshot Map(CaseRepairSpecificationSnapshotEntity entity) => new(
+    internal static RepairSpecificationSnapshot Map(CaseRepairSpecificationSnapshotEntity entity) => new(
         entity.Id, entity.CaseId, entity.SpecificationId, entity.Number,
         Enum.Parse<RepairSpecificationSnapshotKind>(entity.Kind), entity.Origin,
         entity.CreatedBy, entity.CreatedAtUtc,

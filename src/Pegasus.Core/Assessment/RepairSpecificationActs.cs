@@ -9,7 +9,9 @@ public enum RepairSpecificationSnapshotKind
     Imported,
     BeforeScaling,
     Scaled,
+    ScalingRemoved,
     BeforeRestore,
+    Restored,
     Sent,
 }
 
@@ -44,7 +46,11 @@ public interface IRepairSpecificationSnapshotStore
     /// <summary>
     /// Freezes the specification as it stands now. An unchanged draft reuses
     /// the last version rather than repeating it, except for the acts that
-    /// must leave their own mark (<see cref="RepairSpecificationSnapshotKind.Scaled"/>,
+    /// must leave their own mark (<see cref="RepairSpecificationSnapshotKind.BeforeScaling"/>,
+    /// <see cref="RepairSpecificationSnapshotKind.Scaled"/>,
+    /// <see cref="RepairSpecificationSnapshotKind.ScalingRemoved"/>,
+    /// <see cref="RepairSpecificationSnapshotKind.BeforeRestore"/>,
+    /// <see cref="RepairSpecificationSnapshotKind.Restored"/>,
     /// <see cref="RepairSpecificationSnapshotKind.Sent"/>).
     /// </summary>
     Task<RepairSpecificationSnapshot> FreezeAsync(FreezeRepairSpecificationRequest request, CancellationToken cancellationToken);
@@ -141,7 +147,10 @@ public static class RepairSpecificationScaling
         var details = specification.Details with
         {
             LabourRate = Pence(rate),
-            Rate = specification.Details.Rate is { } snapshot ? snapshot with { HourlyRate = Pence(rate) } : null,
+            // Scaling changes the estimate's typed rate. The pre-scale frozen
+            // snapshot retains the card evidence; the scaled draft does not
+            // claim that its derived rate came from the card.
+            Rate = null,
         };
         var lines = specification.Lines
             .Select(line => line with
@@ -168,16 +177,18 @@ public static class RepairSpecificationScaling
     }
 }
 
-public sealed record ScaleRepairSpecificationRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string EditLeaseToken,
-    Guid SpecificationId,
-    decimal TargetGross,
+/// <summary>
+/// One Engineer Apply: persist the posted Draft and scale that same edited
+/// content in one guarded operation. The Web caller supplies intent only;
+/// <see cref="EngineerValue"/> is filled by the Core act from the assessment
+/// projection before the store opens its transaction.
+/// </summary>
+public sealed record SaveAndScaleRepairSpecificationRequest(
+    SaveEstimateRequest Save,
+    decimal TargetPercentOfValue,
     ScalingFloors Floors,
-    decimal? TargetPercentOfValue = null);
+    decimal? EngineerValue = null,
+    bool ContractTarget = false);
 
 public sealed record RemoveRepairSpecificationScalingRequest(
     Guid CaseId,
@@ -196,9 +207,11 @@ public sealed record RestoreRepairSpecificationSnapshotRequest(
     Guid SpecificationId,
     Guid SnapshotId);
 
-public interface IScaleRepairSpecification
+public interface ISaveAndScaleRepairSpecification
 {
-    Task<RepairSpecificationVersion> ExecuteAsync(ScaleRepairSpecificationRequest request, CancellationToken cancellationToken);
+    Task<RepairSpecificationVersion> ExecuteAsync(
+        SaveAndScaleRepairSpecificationRequest request,
+        CancellationToken cancellationToken);
 }
 
 public interface IRemoveRepairSpecificationScaling
@@ -212,112 +225,85 @@ public interface IRestoreRepairSpecificationSnapshot
 }
 
 /// <summary>
-/// Apply (v28 P34): freezes the outgoing draft, saves the scaled header and
-/// lines, and freezes the scaled version with how it came about. An
-/// Engineer's act on a Draft only.
+/// Apply (v28 P34): the target is derived from the confirmed Engineer's Value
+/// in the existing assessment projection. Persistence owns the single
+/// transaction that saves the posted draft and both frozen versions.
 /// </summary>
-public sealed class ScaleRepairSpecification(
-    IRepairSpecificationStore store,
-    IRepairSpecificationSnapshotStore snapshots) : IScaleRepairSpecification
+public sealed class SaveAndScaleRepairSpecification(
+    ICaseAssessmentStore assessment,
+    IRepairSpecificationStore store) : ISaveAndScaleRepairSpecification
 {
     public async Task<RepairSpecificationVersion> ExecuteAsync(
-        ScaleRepairSpecificationRequest request, CancellationToken cancellationToken)
+        SaveAndScaleRepairSpecificationRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
-        var specification = await store.GetVersionAsync(request.CaseId, request.SpecificationId, cancellationToken)
-            ?? throw new KeyNotFoundException("The repair specification was not found.");
-        EstimatePolicy.ValidateEditable(specification, request.Actor);
-        var result = RepairSpecificationScaling.Scale(specification, request.TargetGross, request.Floors);
-        await snapshots.FreezeAsync(
-            new(request.CaseId, request.SpecificationId, request.Actor,
-                RepairSpecificationSnapshotKind.BeforeScaling, "Before scaling"),
-            cancellationToken);
-        var reason = RepairSpecificationWording.Scaled(result, request.TargetPercentOfValue);
-        var saved = await store.SaveEstimateAsync(
-            new(request.CaseId, request.ExpectedVersion, request.Actor, request.OperationKey, reason,
-                request.EditLeaseToken, request.SpecificationId, result.Details, result.Lines,
-                specification.Source, specification.AiJobId,
-                ExistingLineIds: [.. specification.Lines.OrderBy(line => line.Position).Select(line => (Guid?)line.Id)])
+        var save = EstimatePolicy.ValidateSave(request.Save);
+        RepairSpecificationPolicy.RequireEngineer(save.Actor);
+        var projection = await assessment.GetAsync(save.CaseId, cancellationToken);
+        var field = projection?.Field(AssessmentVocabulary.ValueEngineer);
+        if (field is not { IsConfirmed: true }
+            || !decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var engineerValue)
+            || engineerValue <= 0m)
+        {
+            throw new InvalidOperationException("A confirmed Engineer's Value is required before scaling.");
+        }
+
+        var targetPercent = request.TargetPercentOfValue;
+        if (request.ContractTarget)
+        {
+            var contractSum = projection?.Field(AssessmentVocabulary.SettlementContractSum);
+            if (!string.Equals(
+                    projection?.Field(AssessmentVocabulary.Outcome)?.Value,
+                    "contract_repair",
+                    StringComparison.Ordinal)
+                || contractSum is null
+                || !decimal.TryParse(contractSum.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var agreedSum)
+                || agreedSum <= 0m)
             {
-                EventType = "estimate_scaled",
-                Supplementary = specification.Supplementary,
-            },
-            cancellationToken);
-        await snapshots.FreezeAsync(
-            new(request.CaseId, request.SpecificationId, request.Actor,
-                RepairSpecificationSnapshotKind.Scaled, reason),
-            cancellationToken);
-        return saved;
+                throw new ArgumentException("The persisted contract target is invalid.", nameof(request));
+            }
+
+            targetPercent = agreedSum / engineerValue * 100m;
+        }
+
+        if (targetPercent is < 1m or > 100m)
+        {
+            throw new ArgumentException("The target must be between 1 and 100 percent of the Engineer's Value.", nameof(request));
+        }
+
+        return await store.SaveAndScaleAsync(
+            request with
+            {
+                Save = save,
+                TargetPercentOfValue = targetPercent,
+                EngineerValue = engineerValue,
+            }, cancellationToken);
     }
 }
 
 /// <summary>Remove scaling (v28 P34): the specification returns exactly to the version frozen before the last scaling.</summary>
 public sealed class RemoveRepairSpecificationScaling(
-    IRepairSpecificationStore store,
-    IRepairSpecificationSnapshotStore snapshots) : IRemoveRepairSpecificationScaling
+    IRepairSpecificationStore store) : IRemoveRepairSpecificationScaling
 {
     public async Task<RepairSpecificationVersion> ExecuteAsync(
         RemoveRepairSpecificationScalingRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         RepairSpecificationPolicy.RequireEngineer(request.Actor);
-        var specification = await store.GetVersionAsync(request.CaseId, request.SpecificationId, cancellationToken)
-            ?? throw new KeyNotFoundException("The repair specification was not found.");
-        EstimatePolicy.ValidateEditable(specification, request.Actor);
-        var before = (await snapshots.ListAsync(request.CaseId, request.SpecificationId, cancellationToken))
-            .Where(snapshot => snapshot.Kind == RepairSpecificationSnapshotKind.BeforeScaling)
-            .MaxBy(snapshot => snapshot.Number)
-            ?? throw new InvalidOperationException("The repair specification has not been scaled.");
-        return await store.SaveEstimateAsync(
-            new(request.CaseId, request.ExpectedVersion, request.Actor, request.OperationKey, "Scaling removed",
-                request.EditLeaseToken, request.SpecificationId, before.Details,
-                before.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
-                specification.Source, specification.AiJobId,
-                ExistingLineIds: RepairSpecificationWording.MatchingIds(specification, before))
-            {
-                EventType = "estimate_scaling_removed",
-                Supplementary = specification.Supplementary,
-            },
-            cancellationToken);
+        return await store.RemoveScalingAsync(request, cancellationToken);
     }
 }
 
-/// <summary>Restore (v28 P43): the outgoing draft is frozen first, then the chosen version's header and lines become the draft.</summary>
+/// <summary>Restore (v28 P43): the store freezes and replaces the draft atomically.</summary>
 public sealed class RestoreRepairSpecificationSnapshot(
-    IRepairSpecificationStore store,
-    IRepairSpecificationSnapshotStore snapshots) : IRestoreRepairSpecificationSnapshot
+    IRepairSpecificationStore store) : IRestoreRepairSpecificationSnapshot
 {
     public async Task<RepairSpecificationVersion> ExecuteAsync(
         RestoreRepairSpecificationSnapshotRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         RepairSpecificationPolicy.RequireEngineer(request.Actor);
-        var specification = await store.GetVersionAsync(request.CaseId, request.SpecificationId, cancellationToken)
-            ?? throw new KeyNotFoundException("The repair specification was not found.");
-        EstimatePolicy.ValidateEditable(specification, request.Actor);
-        var version = await snapshots.GetAsync(request.CaseId, request.SnapshotId, cancellationToken)
-            ?? throw new KeyNotFoundException("The version was not found.");
-        if (version.SpecificationId != request.SpecificationId)
-        {
-            throw new InvalidOperationException("The version belongs to another repair specification.");
-        }
-        await snapshots.FreezeAsync(
-            new(request.CaseId, request.SpecificationId, request.Actor,
-                RepairSpecificationSnapshotKind.BeforeRestore, $"Before v{version.Number} was restored"),
-            cancellationToken);
-        return await store.SaveEstimateAsync(
-            new(request.CaseId, request.ExpectedVersion, request.Actor, request.OperationKey,
-                $"Restored from v{version.Number} ({version.Origin})",
-                request.EditLeaseToken, request.SpecificationId, version.Details,
-                version.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
-                specification.Source, specification.AiJobId,
-                ExistingLineIds: RepairSpecificationWording.MatchingIds(specification, version))
-            {
-                EventType = "estimate_restored",
-                Supplementary = specification.Supplementary,
-            },
-            cancellationToken);
+        return await store.RestoreSnapshotAsync(request, cancellationToken);
     }
 }
 

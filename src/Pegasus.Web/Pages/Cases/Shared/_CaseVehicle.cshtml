@@ -88,7 +88,7 @@
 <section class="record-section panel @Model.CollapsedClass("case.vehicle") @Model.ActiveTabClass("vehicle") @(Model.IsEditing && !Model.SectionIsEditable("vehicle") ? "is-locked" : null)" id="section-vehicle" data-section="vehicle" data-collapse="case.vehicle" aria-labelledby="section-vehicle-title">
     <div class="panel-head">
         <h2 id="section-vehicle-title">@OperatorLabels.CaseWorkspace.VehicleFactsPanel</h2>
-        <span class="meta @(observation is null ? "empty" : null)" data-vehicle-lookup-line>@lookupLine</span>
+        <span class="meta @(observation is null ? "quiet" : null)" data-vehicle-lookup-line>@lookupLine</span>
         <div class="panel-actions">
             @if (offersLookup)
             {

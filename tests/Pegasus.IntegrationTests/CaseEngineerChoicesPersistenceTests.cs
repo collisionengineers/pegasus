@@ -10,22 +10,29 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseEngineerChoicesPersistenceTests
 {
     [Fact]
-    public async Task EngineerChoicesReturnOnlyEnabledEngineersInStableOrder()
+    public async Task EngineerChoicesReturnAllEnabledStaffInStableOrder()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await using var scope = database.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
-        var role = await context.Roles.SingleAsync(item =>
+        var administratorRole = await context.Roles.SingleAsync(item =>
+            item.Name == StaffRoleNames.Administrator);
+        var engineerRole = await context.Roles.SingleAsync(item =>
             item.Name == StaffRoleNames.Engineer);
+        var userRole = await context.Roles.SingleAsync(item =>
+            item.Name == StaffRoleNames.User);
         var first = User("a.engineer", enabled: true);
         var second = User("b.engineer", enabled: true);
         var disabled = User("disabled.engineer", enabled: false);
         var ordinary = User("ordinary.user", enabled: true);
-        context.Users.AddRange(second, disabled, ordinary, first);
+        var administrator = User("administrator", enabled: true);
+        context.Users.AddRange(second, disabled, ordinary, administrator, first);
         context.UserRoles.AddRange(
-            Link(first, role),
-            Link(second, role),
-            Link(disabled, role));
+            Link(first, engineerRole),
+            Link(second, engineerRole),
+            Link(disabled, engineerRole),
+            Link(ordinary, userRole),
+            Link(administrator, administratorRole));
         await context.SaveChangesAsync();
 
         var choices = scope.ServiceProvider.GetRequiredService<ICaseEngineerChoices>();
@@ -40,7 +47,9 @@ public sealed class CaseEngineerChoicesPersistenceTests
         Assert.Collection(
             result,
             item => Assert.Equal(new(first.Id, "a.engineer"), item),
-            item => Assert.Equal(new(second.Id, "b.engineer"), item));
+            item => Assert.Equal(new(administrator.Id, "administrator"), item),
+            item => Assert.Equal(new(second.Id, "b.engineer"), item),
+            item => Assert.Equal(new(ordinary.Id, "ordinary.user"), item));
     }
 
     [Fact]
