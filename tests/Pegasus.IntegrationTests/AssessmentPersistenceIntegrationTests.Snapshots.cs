@@ -1,4 +1,4 @@
-using Pegasus.Core.AiWork;
+﻿using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -114,7 +114,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         var restore = new RestoreRepairSpecificationSnapshot(harness.RepairSpecifications);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
             restore.ExecuteAsync(
                 new(caseId, lease.Version, engineer, "spec-restore-stale", lease.Token, specification.SpecificationId, version.Id),
                 CancellationToken.None));
@@ -173,19 +173,23 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         var before = EstimateTotals.Compute(specification).Printed.Gross;
 
+        var saveValuation = new SaveValuation(harness.Valuations);
         var valueLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "spec-scale-value-lease");
-        await harness.SaveAssessment.ExecuteAsync(
-            new(
+        await saveValuation.ExecuteAsync(
+            new SaveValuationRequest(
                 caseId,
                 valueLease.Version,
                 engineer,
                 "spec-scale-value",
                 "Recorded the confirmed Engineer's Value.",
                 valueLease.Token,
-                new Dictionary<string, string?>
-                {
-                    [AssessmentVocabulary.ValueEngineer] = "5000.00",
-                }),
+                new(
+                    ValuationSource.EngineersValue,
+                    new DateOnly(2031, 5, 8),
+                    new TimeOnly(9, 0),
+                    42000,
+                    5000m,
+                    3000m)),
             CancellationToken.None);
 
         var scaleLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "spec-scale-lease-2");
@@ -208,7 +212,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     SelectedRateCardId = rateCard.Id,
                     SelectedRateCardVersion = rateCard.Version,
                 },
-                45m,
+                // The spec is about £984 against a £5,000 Engineer's Value, so a
+                // 45% target sits above it and scaling would have nothing to do.
+                // 15% asks for a real reduction, which is what this test proves.
+                15m,
                 ScalingFloors.Default),
             CancellationToken.None);
 

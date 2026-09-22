@@ -1,6 +1,5 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Web.Presentation;
@@ -204,24 +203,4 @@ public sealed partial class DetailsModel
         }
     }
 
-    /// <summary>Every Case image with its preparation, for the "Images in report" strip: readable files only.</summary>
-    public IReadOnlyList<(CaseFile File, CaseAssetPreparation Preparation)> ReportImageTiles
-    {
-        get
-        {
-            if (Case is not { } details)
-            {
-                return [];
-            }
-            var preparations = AssetPreparations.ToDictionary(item => item.OccurrenceId);
-            return
-            [
-                .. CaseFiles.Current(details.Documents)
-                    .Where(file => file.Occurrence.SemanticRole == DocumentSemanticRole.Image
-                        && file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed
-                        && preparations.ContainsKey(file.Occurrence.Id))
-                    .Select(file => (file, preparations[file.Occurrence.Id]))
-            ];
-        }
-    }
 }

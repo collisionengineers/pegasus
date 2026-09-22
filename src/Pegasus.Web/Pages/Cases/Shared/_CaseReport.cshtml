@@ -1,16 +1,14 @@
-@*
+﻿@*
     Report (v26 § Report). Head: one primary (Generate report, gated by the
     readiness the projection states) and one More menu (Preview draft,
     Generate fee note, Include fee note). Body: the readiness notice, the
     preview card, the generation facts and artifacts, the stale notice, the
-    reviewed recipients and delivery, the report fields, the images in the
-    report and — while editing — their preparation. Mark report sent is the
+    reviewed recipients and delivery, and the report fields. Mark report sent is the
     ribbon's Actions item and Unlink report evidence is Overview's Lifecycle
     actions; neither is repeated here.
 *@
 @using System.Globalization
 @using Pegasus.Core.Assessment
-@using Pegasus.Core.Documents
 @using Pegasus.Core.Reports
 @using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
@@ -59,8 +57,6 @@
         : Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm", CultureInfo.InvariantCulture);
     var draftFileName = Model.ReportTitle + Words.DraftSuffix;
     var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId, includeFeeNote = false })!;
-    var tiles = Model.ReportImageTiles;
-    var inReport = tiles.Count(tile => tile.Preparation.Role != CaseAssetReportRole.NotUsed);
     var canPrepareDelivery = editing
         && generation is not null
         && preparation is null

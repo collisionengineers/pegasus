@@ -43,6 +43,27 @@ public sealed partial class DetailsModel
             ? []
             : [.. CaseFiles.Current(FilesSection?.Documents ?? Case!.Documents).Where(IsCaseImage)];
 
+    /// <summary>
+    /// The Images tab's tile order: the report's persisted order first, then
+    /// images without a report role in their existing document order.
+    /// </summary>
+    public IReadOnlyList<CaseFile> ReportOrderedCaseImageFiles
+    {
+        get
+        {
+            var images = CaseImageFiles;
+            var reportOrder = CaseAssetPreparationPolicy.ForReport(AssetPreparations)
+                .Select((image, index) => (image.OccurrenceId, Index: index))
+                .ToDictionary(item => item.OccurrenceId, item => item.Index);
+            return
+            [
+                .. images.OrderBy(file => reportOrder.TryGetValue(file.Occurrence.Id, out var index)
+                    ? index
+                    : int.MaxValue)
+            ];
+        }
+    }
+
     /// <summary>The images whose bytes can be read: the viewer's set and the Report strip.</summary>
     public IReadOnlyList<CaseFile> ViewableCaseImages =>
         [.. CaseImageFiles.Where(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)];

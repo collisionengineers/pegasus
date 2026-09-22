@@ -16,7 +16,7 @@
     // Documents tab reads. Custody does not filter it: an image still being
     // stored, or whose storage failed, is on the Case and draws as the
     // placeholder tile.
-    var images = Model.CaseImageFiles;
+    var images = Model.ReportOrderedCaseImageFiles;
     var vocabulary = Model.TagVocabulary;
     // v28 P50: an image's report role and order live on its tile, with the
     // count of what the report uses under the grid. The Report section no
@@ -128,8 +128,8 @@ else
                         <div class="image-tile-tools" data-image-tools>
                             <span class="grip" draggable="true" title="@ReportImageLabels.DragToReorder" aria-hidden="true"><svg class="icon"><use href="#icon-grip-vertical" /></svg></span>
                             <button type="button" class="icon-button" data-preparation-rotate="90" title="@ReportImageLabels.Rotate" aria-label="@ReportImageLabels.Rotate"><svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg></button>
-                            <button type="button" class="icon-button" data-image-full-page aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.FullPage"><svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg></button>
-                            <button type="button" class="icon-button" data-image-remove data-undo-title="@ReportImageLabels.ImageRemoved" title="@ReportImageLabels.Remove" aria-label="@ReportImageLabels.Remove"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+                            <button type="button" class="icon-button" data-image-full-page hidden="@(preparation.Role == CaseAssetReportRole.NotUsed ? "hidden" : null)" aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.FullPage"><svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg></button>
+                            <button type="button" class="icon-button" data-image-remove data-undo-title="@ReportImageLabels.ImageRemoved" hidden="@(preparation.Role == CaseAssetReportRole.NotUsed ? "hidden" : null)" title="@ReportImageLabels.Remove" aria-label="@ReportImageLabels.Remove"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
                         </div>
                         <span class="status status--plain status--navy" data-image-full-chip hidden="@(preparation.FullPage ? null : "hidden")">@ReportImageLabels.FullPage</span>
                     }
@@ -164,7 +164,7 @@ else
             </li>
         }
     </ul>
-    <p class="muted image-grid-count"><b data-image-report-count>@ReportImageLabels.InReportCount(includedCount, preparations.Count)</b></p>
+    <p class="muted image-grid-count"><b data-image-report-count>@ReportImageLabels.InReportCount(includedCount, images.Count)</b></p>
 
     @* The associated Image-initiated Cases' photographs, each naming the
        intake it arrived on. They are receipts, not case documents, so they

@@ -211,7 +211,7 @@ public sealed class CaseWorkflowMigrationTests
     }
 
     [Fact]
-    public async Task DamageAreaMigrationWritesARoofImpactThatCoreAccepts()
+    public async Task DamageAreaMigrationRewritesImpactsAndTheirDerivedHeadlineRows()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         await using var context = await database.CreateContextAsync();
@@ -224,6 +224,17 @@ public sealed class CaseWorkflowMigrationTests
             VALUES
                 ('{{ReviewCaseId}}', 'damage.impacts',
                  N'[{"zone":"roof","severity":"heavy","note":"Roof"}]',
+                 'Staff', 'migration-test', '2031-05-06T10:30:00+00:00'),
+                ('{{ReviewCaseId}}', 'assessment.impact_location', N'roof',
+                 'Staff', 'migration-test', '2031-05-06T10:30:00+00:00'),
+                ('{{ReviewCaseId}}', 'assessment.impact_severity', N'light',
+                 'Staff', 'migration-test', '2031-05-06T10:30:00+00:00'),
+                ('{{NotReadyCaseId}}', 'damage.impacts',
+                 N'[{"zone":"wheel_right_rear","severity":"moderate","note":"Wheel"}]',
+                 'Staff', 'migration-test', '2031-05-06T10:30:00+00:00'),
+                ('{{NotReadyCaseId}}', 'assessment.impact_location', N'wheel_right_rear',
+                 'Staff', 'migration-test', '2031-05-06T10:30:00+00:00'),
+                ('{{NotReadyCaseId}}', 'assessment.impact_severity', N'light',
                  'Staff', 'migration-test', '2031-05-06T10:30:00+00:00');
             """);
 
@@ -233,6 +244,19 @@ public sealed class CaseWorkflowMigrationTests
             $"SELECT [Value] FROM CaseAssessmentFields WHERE CaseId = '{ReviewCaseId}' AND FieldPath = 'damage.impacts'");
         var impact = Assert.Single(AssessmentPolicy.ParseImpacts(value));
         Assert.Equal(AssessmentVocabulary.DamagePlanAreas, impact.Areas);
+        Assert.Equal("multiple", await database.ScalarAsync<string>(
+            $"SELECT [Value] FROM CaseAssessmentFields WHERE CaseId = '{ReviewCaseId}' AND FieldPath = 'assessment.impact_location'"));
+        Assert.Equal("heavy", await database.ScalarAsync<string>(
+            $"SELECT [Value] FROM CaseAssessmentFields WHERE CaseId = '{ReviewCaseId}' AND FieldPath = 'assessment.impact_severity'"));
+
+        var wheelValue = await database.ScalarAsync<string>(
+            $"SELECT [Value] FROM CaseAssessmentFields WHERE CaseId = '{NotReadyCaseId}' AND FieldPath = 'damage.impacts'");
+        var wheelImpact = Assert.Single(AssessmentPolicy.ParseImpacts(wheelValue));
+        Assert.Equal(["right_rear"], wheelImpact.Areas);
+        Assert.Equal("right_rear", await database.ScalarAsync<string>(
+            $"SELECT [Value] FROM CaseAssessmentFields WHERE CaseId = '{NotReadyCaseId}' AND FieldPath = 'assessment.impact_location'"));
+        Assert.Equal("moderate", await database.ScalarAsync<string>(
+            $"SELECT [Value] FROM CaseAssessmentFields WHERE CaseId = '{NotReadyCaseId}' AND FieldPath = 'assessment.impact_severity'"));
     }
 
     [Fact]

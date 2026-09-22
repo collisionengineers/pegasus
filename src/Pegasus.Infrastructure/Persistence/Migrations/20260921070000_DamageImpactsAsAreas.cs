@@ -20,8 +20,9 @@ public partial class DamageImpactsAsAreas : Migration
     protected override void Up(MigrationBuilder migrationBuilder) =>
         migrationBuilder.Sql(
             """
-            UPDATE f
-            SET [Value] = ISNULL(rewritten.Impacts, '[]')
+            SELECT f.CaseId,
+                   ISNULL(rewritten.Impacts, '[]') AS Impacts
+            INTO #DamageImpactsAsAreas
             FROM CaseAssessmentFields f
             CROSS APPLY (
                 SELECT '[' + STRING_AGG(CONVERT(nvarchar(max),
@@ -42,6 +43,41 @@ public partial class DamageImpactsAsAreas : Migration
                 CROSS APPLY OPENJSON(o.[value]) WITH (zone nvarchar(100) '$.zone', severity nvarchar(100) '$.severity', note nvarchar(400) '$.note') z
             ) rewritten
             WHERE f.FieldPath = 'damage.impacts' AND ISJSON(f.[Value]) = 1 AND f.[Value] LIKE '%"zone"%';
+
+            UPDATE f
+            SET [Value] = converted.Impacts
+            FROM CaseAssessmentFields f
+            INNER JOIN #DamageImpactsAsAreas converted ON converted.CaseId = f.CaseId
+            WHERE f.FieldPath = 'damage.impacts';
+
+            ;WITH Derived AS
+            (
+                SELECT converted.CaseId,
+                       CASE WHEN COUNT(DISTINCT area.[value]) > 1 THEN 'multiple' ELSE MAX(area.[value]) END AS ImpactLocation,
+                       CASE MAX(CASE impact.severity
+                           WHEN 'light' THEN 0 WHEN 'light_to_moderate' THEN 1
+                           WHEN 'moderate' THEN 2 WHEN 'moderate_to_heavy' THEN 3
+                           WHEN 'heavy' THEN 4 ELSE -1 END)
+                           WHEN 0 THEN 'light' WHEN 1 THEN 'light_to_moderate'
+                           WHEN 2 THEN 'moderate' WHEN 3 THEN 'moderate_to_heavy'
+                           WHEN 4 THEN 'heavy' END AS ImpactSeverity
+                FROM #DamageImpactsAsAreas converted
+                CROSS APPLY OPENJSON(converted.Impacts) impactJson
+                CROSS APPLY OPENJSON(impactJson.[value])
+                    WITH (areas nvarchar(max) '$.areas', severity nvarchar(100) '$.severity') impact
+                CROSS APPLY OPENJSON(impact.areas) area
+                GROUP BY converted.CaseId
+            )
+            UPDATE f
+            SET [Value] = CASE f.FieldPath
+                WHEN 'assessment.impact_location' THEN derived.ImpactLocation
+                WHEN 'assessment.impact_severity' THEN derived.ImpactSeverity
+            END
+            FROM CaseAssessmentFields f
+            INNER JOIN Derived derived ON derived.CaseId = f.CaseId
+            WHERE f.FieldPath IN ('assessment.impact_location', 'assessment.impact_severity');
+
+            DROP TABLE #DamageImpactsAsAreas;
             """);
 
     protected override void Down(MigrationBuilder migrationBuilder) =>
