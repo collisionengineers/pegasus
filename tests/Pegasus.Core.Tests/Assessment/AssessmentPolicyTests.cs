@@ -407,13 +407,24 @@ public sealed class AssessmentPolicyTests
         Assert.Equal("roadworthy", normalized.Fields["assessment.legal_status"]);
     }
 
-    [Fact]
-    public void NonEngineerStaffCannotRecordFindingFields()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStaffRoleMayRecordEveryWritableFindingField(StaffRole role)
     {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { ["assessment.outcome"] = "repairable" }, PlainStaff)));
-        Assert.Contains("Engineer", exception.Message, StringComparison.Ordinal);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+        foreach (var definition in AssessmentVocabulary.Definitions.Values.Where(
+            definition => definition.IsFinding
+                && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
+                && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)))
+        {
+            var value = FindingValue(definition);
+            var normalized = AssessmentPolicy.ValidateAndNormalize(
+                Request(new() { [definition.Path] = value }, actor));
+
+            Assert.Equal(value, normalized.Fields[definition.Path]);
+        }
     }
 
     [Fact]
@@ -584,6 +595,18 @@ public sealed class AssessmentPolicyTests
 
     private static EstimateLineInput Line(string type) =>
         new(type, null, "Test line", null, null, false, null, null, null, null, null);
+
+    private static string FindingValue(AssessmentFieldDefinition definition) => definition.Type switch
+    {
+        AssessmentFieldType.Text => "value",
+        AssessmentFieldType.Enumerated => definition.Codes![0],
+        AssessmentFieldType.WholeNumber => "1",
+        AssessmentFieldType.Money => "1.00",
+        AssessmentFieldType.Flag => "true",
+        AssessmentFieldType.Date => "2026-09-03",
+        AssessmentFieldType.Json => "[]",
+        _ => throw new ArgumentOutOfRangeException(nameof(definition))
+    };
 
     private static AssessmentFieldValue Field(string path, string value) => new(
         path,

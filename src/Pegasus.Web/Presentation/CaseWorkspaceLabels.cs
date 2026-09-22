@@ -484,6 +484,9 @@ public static class CaseWorkspaceLabels
     {
         public const string SectionTitle = "Valuation";
         public static string NotConnected(ValuationSource source) => SourceLabel(source) + " is not connected";
+
+        /// <summary>Get valuation on a source that answered with nothing (operator's words, 18 September 2026).</summary>
+        public const string Error = "Error. Contact an administrator.";
         public static string CazanaSeam => NotConnected(ValuationSource.Cazana);
         public const string AbsentGuideMonth = "Not recorded";
 
@@ -764,7 +767,7 @@ public static class CaseWorkspaceLabels
 
     /// <summary>
     /// The Estimate section's Glass's surface: the control that opens the
-    /// provider's estimator, the Engineer's own session for this Case, and the
+    /// provider's estimator, the staff member's own session for this Case, and the
     /// outcomes the provider's return can land on. The state words are the one
     /// operator-facing vocabulary for
     /// <see cref="GlassRepairEstimateSessionState"/>, so the Case section and

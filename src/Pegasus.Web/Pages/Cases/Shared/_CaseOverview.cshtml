@@ -1,4 +1,4 @@
-@*
+﻿@*
     Overview (v26, trimmed by v28 P4 and P7): outstanding requirements, the
     Lifecycle actions sub-panel, the three fact columns (Case / Principal /
     Claimant), the Notes band (record notes beside this Case's notes) and the
@@ -161,9 +161,9 @@
                     <div class="fc ro idn"><span class="lbl">@Frame.CaseType<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.CaseTypeName(summary.CaseType)</div></div>
                     <div class="fc ro idn"><span class="lbl">@Frame.OurRef<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv mono">@workflow.Identity.Reference</div></div>
                     <div class="fc">@{ Lbl("f-claim-reference", Frame.ClaimReference); }<div class="@ValueClass(claimNumber) mono">@Value(claimNumber)</div>@if (mayEdit){<input id="f-claim-reference" class="fi mono" name="claimNumber" form="case-edit-form" maxlength="200" value="@claimNumber" />}</div>
-                    <div class="fc">@{ Lbl("f-incident-date", Frame.IncidentDate); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy"))">@Value(incidentDate?.ToString("d MMM yyyy"))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
+                    <div class="fc">@{ Lbl("f-incident-date", Frame.IncidentDate); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     <div class="fc ro idn"><span class="lbl">@Frame.Received<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
-                    <div class="fc">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy"))">@Value(dueBy?.ToString("d MMM yyyy"))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
+                    <div class="fc">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     <div class="fc ro"><span class="lbl">@Frame.MatterLine</span><div class="fv derived @(matterLine.Length == 0 ? "empty" : null)" data-matter-line>@(matterLine.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : matterLine)</div></div>
                     @* The Sign-off Engineer (v28 P38): decided with the Case, not the report. *@
                     <div class="fc" data-field="signOffEngineerId">

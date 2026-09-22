@@ -2,20 +2,20 @@
 @model Pegasus.Web.Pages.Account.AccessDeniedModel
 @{
     ViewData["Title"] = OperatorLabels.Shell.AccessDenied;
+    Layout = "Shared/_LayoutAuth";
 }
 
-@* No alarm chip. A permission boundary is routine, and the heading already
-   states the fact; a red "Denied" pill beside an "Access denied" heading says
-   the same thing twice and treats a policy outcome as an incident. *@
-<div class="page-header">
-    <div class="page-title">
-        @if (Model.Area is { } area)
-        {
-            <p class="eyebrow">@area</p>
-        }
-        <h1>@OperatorLabels.Shell.AccessDenied</h1>
+@* The refusal reads in the navless frame with the rest of the error family
+   (v28 P6-D): the area as the eyebrow, "Access denied", one sentence, and the
+   way back. No alarm chip: the heading already states the fact. *@
+<div role="alert">
+    @if (Model.Area is { } area)
+    {
+        <p class="eyebrow">@area</p>
+    }
+    <h1>@OperatorLabels.Shell.AccessDenied</h1>
+    <p>@Model.Sentence</p>
+    <div class="button-row">
+        <a class="btn btn--primary" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
     </div>
 </div>
-<section class="panel">
-    <div class="panel-body"><p class="empty-state">@Model.Sentence</p></div>
-</section>
