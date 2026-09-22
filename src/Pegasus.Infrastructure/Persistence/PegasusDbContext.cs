@@ -1110,6 +1110,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         CaseDueChaserModelConfiguration.Configure(builder);
         StaffNotificationModelConfiguration.Configure(builder);
         ReleaseNoteModelConfiguration.Configure(builder);
+        ProblemReportModelConfiguration.Configure(builder);
     }
 }
 

@@ -2856,3 +2856,63 @@ window.pegasusPreferences = (function () {
         });
     });
 })();
+
+// --- Report a problem ----------------------------------------------------------
+// The last ten script errors are kept for the session so a report can carry
+// them; on Send the form's hidden facts are filled from the page: the window,
+// whether a record is being edited, and the Case reference on screen.
+(function () {
+    'use strict';
+    var key = 'pegasus.problem.errors';
+    var sections = {
+        overview: true,
+        inspection: true,
+        vehicle: true,
+        damage: true,
+        valuation: true,
+        estimate: true,
+        settlement: true,
+        report: true,
+        files: true,
+        notes: true
+    };
+    function read() {
+        try { return JSON.parse(window.sessionStorage.getItem(key) || '[]'); } catch (error) { return []; }
+    }
+    function remember(text) {
+        try {
+            var list = read();
+            list.unshift(new Date().toISOString() + ' ' + String(text).slice(0, 300));
+            window.sessionStorage.setItem(key, JSON.stringify(list.slice(0, 10)));
+        } catch (error) { /* storage unavailable: the report goes without them */ }
+    }
+    function reportRoute() {
+        var location = new URL(window.location.href);
+        var section = (location.searchParams.get('section') || '').trim().toLowerCase();
+        return sections[section]
+            ? location.pathname + '?section=' + encodeURIComponent(section)
+            : location.pathname;
+    }
+    window.addEventListener('error', function (event) {
+        remember((event.message || 'error') + (event.filename ? ' @ ' + event.filename + ':' + event.lineno : ''));
+    });
+    window.addEventListener('unhandledrejection', function (event) {
+        var reason = event.reason && event.reason.message ? event.reason.message : String(event.reason);
+        remember('unhandled rejection: ' + reason);
+    });
+    document.querySelectorAll('[data-problem-form]').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            var set = function (selector, value) {
+                var input = form.querySelector(selector);
+                if (input) { input.value = value; }
+            };
+            set('[data-problem-route]', reportRoute());
+            set('[data-problem-return]', window.location.pathname + window.location.search);
+            set('[data-problem-viewport]', window.innerWidth + 'x' + window.innerHeight);
+            set('[data-problem-editing]', document.querySelector('.case-record.is-editing') ? 'true' : 'false');
+            set('[data-problem-errors]', JSON.stringify(read()));
+            var reference = document.querySelector('.case-record .ribbon-value');
+            set('[data-problem-case]', reference ? reference.textContent.trim() : '');
+        });
+    });
+})();
