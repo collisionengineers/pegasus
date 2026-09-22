@@ -810,18 +810,14 @@
         }
     }
 
+    var estimateDragResetters = new WeakMap();
     function bindEstimateImport(root) {
         if (!window.pegasusEstimateImportGlobalBound) {
             window.pegasusEstimateImportGlobalBound = true;
             var clearEstimateDragStates = function () {
                 document.querySelectorAll('[data-estimate-drop-target][data-estimate-dragging="true"]').forEach(function (section) {
-                    section.classList.remove('is-dragover', 'is-import-unavailable');
-                    section.removeAttribute('data-estimate-dragging');
-                    var overlay = section.querySelector('[data-estimate-import-overlay]');
-                    if (overlay) {
-                        overlay.hidden = true;
-                        overlay.setAttribute('aria-hidden', 'true');
-                    }
+                    var clearDrag = estimateDragResetters.get(section);
+                    if (clearDrag) { clearDrag(); }
                 });
             };
             var preventOutsideFileNavigation = function (event) {
@@ -873,6 +869,7 @@
                 overlay.hidden = true;
                 overlay.setAttribute('aria-hidden', 'true');
             }
+            estimateDragResetters.set(section, clearDrag);
             function showDrag(unavailable) {
                 section.classList.add('is-dragover');
                 section.classList.toggle('is-import-unavailable', unavailable);

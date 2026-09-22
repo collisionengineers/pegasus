@@ -3086,6 +3086,8 @@ public sealed partial class DetailsModel(
             return RedirectToEstimate(id);
         }
 
+        var fileBytes = buffer.ToArray();
+        var uploadedSha256 = Convert.ToHexStringLower(SHA256.HashData(fileBytes));
         var activeLeaseToken = editLeaseToken;
         if (string.IsNullOrWhiteSpace(activeLeaseToken))
         {
@@ -3105,8 +3107,39 @@ public sealed partial class DetailsModel(
             }
         }
 
-        var fileBytes = buffer.ToArray();
-        var uploadedSha256 = Convert.ToHexStringLower(SHA256.HashData(fileBytes));
+        try
+        {
+            await repairSpecifications.RequireImportAuthorityAsync(
+                new(actor, id, expectedVersion, activeLeaseToken!, Guid.Empty, Guid.Empty,
+                    uploadedSha256, operationKey, string.Empty), cancellationToken);
+        }
+        catch (StaffAuthorizationException) { return Forbid(); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleLeaseFailure(id, activeLeaseToken, exception);
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
+            return RedirectToEstimate(id);
+        }
+
+        try
+        {
+            if (await repairSpecifications.ProbeSourceHashReplayAsync(
+                    id, operationKey, uploadedSha256, cancellationToken)
+                is { } replay)
+            {
+                RecordEditorCommit("case-estimate-import-form", operationKey, expectedVersion, expectedVersion);
+                TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
+                return RedirectToEstimate(id, replay.EstimateId.ToString("D"));
+            }
+        }
+        catch (StaffAuthorizationException) { return Forbid(); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
+            return RedirectToEstimate(id);
+        }
+
         var sourceIdentity = $"estimate-import:{operationKey}";
         var reusable = CaseFiles.Live(details.Documents)
             .Where(file => file.Occurrence.SourceOccurrenceIdentity.StartsWith("estimate-import:", StringComparison.Ordinal)
