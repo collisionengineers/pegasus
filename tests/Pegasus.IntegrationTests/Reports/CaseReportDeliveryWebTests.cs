@@ -224,6 +224,49 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.NotEqual(Guid.Empty, Guid.Parse(InputValue(feeNoteForm, "targetGenerationId")));
     }
 
+    [Theory]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, CaseReportArtifactStatus.Pending)]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, CaseReportArtifactStatus.Failed)]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, CaseReportArtifactStatus.Unknown)]
+    [InlineData(CaseReportArtifactKind.ImagePack, CaseReportArtifactStatus.Pending)]
+    [InlineData(CaseReportArtifactKind.ImagePack, CaseReportArtifactStatus.Failed)]
+    [InlineData(CaseReportArtifactKind.ImagePack, CaseReportArtifactStatus.Unknown)]
+    public async Task UnconfirmedCompanionKeepsRetryActionWithItsRetainedOperationKey(
+        CaseReportArtifactKind kind,
+        CaseReportArtifactStatus status)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        const string retainedOperationKey = "retained-companion-operation";
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
+                    caseId,
+                    includeFeeNote: false,
+                    repairSpecStatus: kind == CaseReportArtifactKind.RepairSpecification ? status : null,
+                    repairSpecOperationKey: retainedOperationKey,
+                    imagePackStatus: kind == CaseReportArtifactKind.ImagePack ? status : null,
+                    imagePackOperationKey: retainedOperationKey));
+            }));
+        using var client = Client(factory);
+
+        var html = await EnterEditModeAsync(client, caseId);
+        var handler = kind == CaseReportArtifactKind.RepairSpecification
+            ? "GenerateRepairSpec"
+            : "GenerateImagePack";
+        var form = FormHtml(html, handler);
+
+        Assert.Equal(retainedOperationKey, InputValue(form, "operationKey"));
+        Assert.NotEqual(Guid.Empty, Guid.Parse(InputValue(form, "targetGenerationId")));
+    }
+
     [Fact]
     public async Task FailedReportRedirectKeepsItsFrozenCommandForASuccessfulRetry()
     {
@@ -446,6 +489,48 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Empty(send.Requests);
     }
 
+    /// <summary>
+    /// v28 P22: the delivery attaches the documents the operator ticked, and
+    /// the Attach choice reaches the preparation as the operator made it.
+    /// </summary>
+    [Fact]
+    public async Task PrepareDeliveryCarriesTheDocumentsTheOperatorChose()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var prepare = new RecordingPrepareDelivery(caseId, generationId);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            prepareDelivery: prepare);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=PrepareReportDelivery&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", generationId.ToString("D")),
+                ("expectedGenerationVersion", "13"),
+                ("toRecipients", "reviewed@recipient.example"),
+                ("attach", nameof(CaseReportArtifactKind.AssessmentReport)),
+                ("attach", nameof(CaseReportArtifactKind.ImagePack))));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var request = Assert.Single(prepare.Requests);
+        Assert.Equal(
+            [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.ImagePack],
+            request.Attach);
+    }
+
     [Theory]
     [InlineData(StaffMailState.Submitted)]
     [InlineData(StaffMailState.Unknown)]
@@ -584,7 +669,11 @@ public sealed partial class AssessmentReportDraftWebTests
         CaseReportArtifactStatus? feeNoteStatus = null,
         string? feeNoteOperationKey = null,
         CaseReportArtifactStatus reportStatus = CaseReportArtifactStatus.Confirmed,
-        string? reportOperationKey = null)
+        string? reportOperationKey = null,
+        CaseReportArtifactStatus? repairSpecStatus = null,
+        string? repairSpecOperationKey = null,
+        CaseReportArtifactStatus? imagePackStatus = null,
+        string? imagePackOperationKey = null)
         : ICaseReportGenerationStore
     {
         private readonly CaseReportGenerationRecord record = GenerationRecord(
@@ -593,7 +682,11 @@ public sealed partial class AssessmentReportDraftWebTests
             feeNoteStatus,
             feeNoteOperationKey,
             reportStatus,
-            reportOperationKey);
+            reportOperationKey,
+            repairSpecStatus,
+            repairSpecOperationKey,
+            imagePackStatus,
+            imagePackOperationKey);
 
         public CaseReportGenerationRecord Record => record;
 
@@ -708,7 +801,11 @@ public sealed partial class AssessmentReportDraftWebTests
         CaseReportArtifactStatus? feeNoteStatus,
         string? feeNoteOperationKey,
         CaseReportArtifactStatus reportStatus = CaseReportArtifactStatus.Confirmed,
-        string? reportOperationKey = null)
+        string? reportOperationKey = null,
+        CaseReportArtifactStatus? repairSpecStatus = null,
+        string? repairSpecOperationKey = null,
+        CaseReportArtifactStatus? imagePackStatus = null,
+        string? imagePackOperationKey = null)
     {
         reportOperationKey ??= "operation-1";
         var projected = AssessmentReportProjection.Project(ReadyInput(caseId)).Snapshot!;
@@ -744,6 +841,20 @@ public sealed partial class AssessmentReportDraftWebTests
                 null, null, null, null, null, null, null, null,
                 status == CaseReportArtifactStatus.Failed ? "transient_failure" : null));
         }
+        AddCompanionArtifact(
+            artifacts,
+            generationId,
+            CaseReportArtifactKind.RepairSpecification,
+            repairSpecStatus,
+            repairSpecOperationKey,
+            "CE_100_repair_specification.pdf");
+        AddCompanionArtifact(
+            artifacts,
+            generationId,
+            CaseReportArtifactKind.ImagePack,
+            imagePackStatus,
+            imagePackOperationKey,
+            "CE_100_images.pdf");
         return new(
             generationId, caseId, 0, 1, new string('b', 64), snapshot,
             AssessmentReportContract.TemplateVersion, "fake",
@@ -752,6 +863,33 @@ public sealed partial class AssessmentReportDraftWebTests
                 : CaseReportGenerationState.Pending,
             ReportFixtureAtUtc, null,
             artifacts);
+    }
+
+    private static void AddCompanionArtifact(
+        List<CaseReportArtifactRecord> artifacts,
+        Guid generationId,
+        CaseReportArtifactKind kind,
+        CaseReportArtifactStatus? status,
+        string? operationKey,
+        string fileName)
+    {
+        if (status is not { } value)
+        {
+            return;
+        }
+
+        var confirmed = value == CaseReportArtifactStatus.Confirmed;
+        artifacts.Add(new(
+            Guid.NewGuid(), generationId, kind, value,
+            operationKey ?? $"{kind}-operation",
+            confirmed ? Guid.NewGuid() : null,
+            confirmed ? Guid.NewGuid() : null,
+            confirmed ? new string('c', 64) : null,
+            confirmed ? 3 : null,
+            confirmed ? fileName : null,
+            confirmed ? "application/pdf" : null,
+            null, null, null,
+            value == CaseReportArtifactStatus.Failed ? "transient_failure" : null));
     }
 
     private sealed class RecordingGenerateReport : IGenerateCaseReport

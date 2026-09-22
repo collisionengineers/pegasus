@@ -108,6 +108,92 @@ public sealed partial class AssessmentReportRendererTests
         Assert.All(reviewedText, expected => Assert.Contains(expected, actualText, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// v28 P22: the image pack is the included images alone, under the
+    /// report's letterhead, with none of the report's narrative or its
+    /// statement of truth.
+    /// </summary>
+    [Fact]
+    public async Task TheImagePackRendersTheIncludedImagesAlone()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var snapshot = ReadySnapshot();
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot, CaseReportArtifactKind.ImagePack);
+
+        Assert.Equal("CE_100_images.pdf", artifact.SuggestedFileName);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(artifact.Pdf)), artifact.Sha256);
+        var text = string.Join(" ", PageTexts(artifact.Pdf));
+        Assert.Contains("Vehicle Images", text, StringComparison.Ordinal);
+        Assert.Contains($"{snapshot.Vehicle.Registration} · {snapshot.OurReference}", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(AssessmentReportContract.StatementOfTruth1, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("TOTAL DUE", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Repair Cost Calculation", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheImagePackPaginatesOrdinaryImagesInPairs()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var snapshot = ReadySnapshot();
+        var photo = snapshot.Photos.Single();
+        var photos = Enumerable.Range(0, 5)
+            .Select(index => photo with { CustodyReference = $"site-{index}.jpg", Order = index })
+            .ToArray();
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot with { Photos = photos }, CaseReportArtifactKind.ImagePack);
+
+        Assert.Equal(3, artifact.PageCount);
+    }
+
+    [Fact]
+    public async Task TheImagePackDoesNotLeaveAHeaderOnlyPageBeforeAFullPageImage()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var snapshot = ReadySnapshot();
+        var photo = snapshot.Photos.Single();
+        var fullPage = photo with { CustodyReference = "full.jpg", Order = 0, FullPage = true };
+        var ordinary = photo with { CustodyReference = "ordinary.jpg", Order = 1, FullPage = false };
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot with { Photos = [fullPage, ordinary] }, CaseReportArtifactKind.ImagePack);
+
+        Assert.Equal(2, artifact.PageCount);
+    }
+
+    [Fact]
+    public async Task AnImagePackNeverAppendsTheFeeNoteEvenWhenTheSnapshotIncludesIt()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(ReadySnapshot() with { IncludeFeeNote = true }, CaseReportArtifactKind.ImagePack);
+
+        var text = string.Join(" ", PageTexts(artifact.Pdf));
+        Assert.Contains("Vehicle Images", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("FEE NOTE", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("TOTAL DUE", text, StringComparison.Ordinal);
+        Assert.DoesNotContain($"VAT No: {AssessmentReportContract.VatNumber}", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnImagePackOfACaseWhoseReportUsesNoImageIsRefused()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var snapshot = ReadySnapshot() with { Photos = [] };
+
+        await Assert.ThrowsAsync<ReportRenderRejectedException>(
+            () => new GenerateAssessmentReportDraft(renderer)
+                .ExecuteAsync(snapshot, CaseReportArtifactKind.ImagePack));
+    }
+
     [Fact]
     public async Task TheFeeNoteRendersItsOwnDocument()
     {

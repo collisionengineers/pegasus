@@ -1,3 +1,4 @@
+using System.Globalization;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
@@ -19,11 +20,13 @@ public interface IReportSendReadiness
 public sealed record CaseReportDeliveryPreparation(
     Guid Id, Guid CaseId, Guid GenerationId, long GenerationVersion, long Version,
     IReadOnlyList<StaffMailAttachment> Artifacts, ActionActor PreparedBy,
-    DateTimeOffset PreparedAtUtc, string RecipientSuggestionFingerprint);
+    DateTimeOffset PreparedAtUtc, string RecipientSuggestionFingerprint,
+    string ReportFileName = "", string CoveringMessage = "");
 public sealed record PrepareCaseReportDeliveryRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     Guid GenerationId, long ExpectedGenerationVersion, string OperationKey,
-    ReportRecipientReview? ReviewedRecipients = null);
+    ReportRecipientReview? ReviewedRecipients = null,
+    IReadOnlyList<CaseReportArtifactKind>? Attach = null);
 public interface IPrepareCaseReportDelivery
 {
     Task<CaseReportDeliveryPreparation> ExecuteAsync(
@@ -57,6 +60,82 @@ public interface IReportRecipientSuggestionQueries
     Task<ReportRecipientSuggestions?> GetAsync(Guid caseId, CancellationToken cancellationToken);
 }
 
+/// <summary>One address the delivery form offers, and where it came from (v28 P21).</summary>
+public sealed record ReportRecipientCandidate(string Address, string Source);
+
+/// <summary>
+/// What the Case's report has already been sent, for the naming a re-send
+/// carries (v28 P23): how many times a report of this Case has been sent, and
+/// the report date of the one sent last.
+/// </summary>
+public sealed record CaseReportSendHistory(int SentCount, DateOnly? LastSentReportDate)
+{
+    public static CaseReportSendHistory None { get; } = new(0, null);
+}
+
+public interface ICaseReportSendHistoryQueries
+{
+    Task<CaseReportSendHistory> GetAsync(Guid caseId, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// How one delivery names what it sends (v28 P23). The attached report is
+/// named for the people who read it — the Case's reference, the registration
+/// and the outcome — and a re-issue adds one dot for each report of this Case
+/// already sent, the way the firm's own files are named. The covering line
+/// says plainly that a later report supersedes the earlier one.
+/// </summary>
+public static class CaseReportDeliveryNaming
+{
+    public const string FirstMessage = "Please find attached our report.";
+
+    /// <summary>The attached report's own name, without its extension.</summary>
+    public static string ReportName(
+        string caseReference, string? registration, string? outcome, int sentCount)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
+        ArgumentOutOfRangeException.ThrowIfNegative(sentCount);
+        var parts = new[]
+        {
+            caseReference.Trim(),
+            registration?.Trim(),
+            string.IsNullOrWhiteSpace(outcome) ? "report" : $"{outcome.Trim()} report",
+        };
+        return string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part)))
+            + new string('.', sentCount);
+    }
+
+    /// <summary>The covering line the delivery carries.</summary>
+    public static string Message(CaseReportSendHistory history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+        if (history.SentCount == 0 || history.LastSentReportDate is not { } superseded)
+        {
+            return FirstMessage;
+        }
+        return "Please find attached our updated report, which supersedes our report dated "
+            + superseded.ToString("d MMMM yyyy", CultureInfo.GetCultureInfo("en-GB"))
+            + ".";
+    }
+
+    /// <summary>
+    /// The attachments as the recipient sees them: the report under the name
+    /// above, every companion document keeping the name custody gave it.
+    /// </summary>
+    public static IReadOnlyList<StaffMailAttachment> Named(
+        IReadOnlyList<StaffMailAttachment> attachments, string reportName)
+    {
+        ArgumentNullException.ThrowIfNull(attachments);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reportName);
+        return
+        [
+            .. attachments.Select((attachment, index) => index == 0
+                ? attachment with { FileName = reportName + ".pdf" }
+                : attachment)
+        ];
+    }
+}
+
 /// <summary>
 /// One persisted preparation read back with the current facts the send
 /// boundary re-checks it against: the Case version the preparation froze,
@@ -81,7 +160,8 @@ public sealed record CaseReportDeliveryPreparationRecord(
 public sealed record PrepareCaseReportDeliveryCommand(
     PrepareCaseReportDeliveryRequest Request,
     CaseReportDeliveryAddressing Addressing,
-    string RecipientSuggestionFingerprint);
+    string RecipientSuggestionFingerprint,
+    CaseReportSendHistory SendHistory);
 
 public interface ICaseReportDeliveryPreparationStore
 {
@@ -182,6 +262,36 @@ public static class CaseReportDeliveryPolicy
         return new(to, cc, suggestions.CaseReference);
     }
 
+    /// <summary>
+    /// The addresses the delivery form offers beside its recipient fields
+    /// (v28 P21): the Principal's own report recipients and, when the
+    /// Principal asks for it, the sender of the instruction that opened the
+    /// Case. Nothing else is suggested, and the operator's typed address is
+    /// never overwritten.
+    /// </summary>
+    public static IReadOnlyList<ReportRecipientCandidate> AddressBook(
+        ReportRecipientSuggestions suggestions)
+    {
+        ArgumentNullException.ThrowIfNull(suggestions);
+        ArgumentNullException.ThrowIfNull(suggestions.Settings);
+        var candidates = new List<ReportRecipientCandidate>();
+        if (suggestions.Settings.IncludeOriginalInstructionSender
+            && Recipient(suggestions.OriginalInstructionSender, null) is { } original)
+        {
+            candidates.Add(new(original.Address, "This case"));
+        }
+        candidates.AddRange(suggestions.Settings.AdditionalAddresses
+            .Select(address => Recipient(address, null))
+            .OfType<StaffMailRecipient>()
+            .Select(recipient => new ReportRecipientCandidate(recipient.Address, "Principal")));
+        return
+        [
+            .. candidates
+                .GroupBy(candidate => candidate.Address, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+        ];
+    }
+
     public static ReportRecipientReview SuggestedReview(ReportRecipientSuggestions suggestions)
     {
         ArgumentNullException.ThrowIfNull(suggestions);
@@ -252,22 +362,47 @@ public static class CaseReportDeliveryPolicy
     }
 
     /// <summary>
-    /// The attachments one generation delivers: every artifact it was asked
-    /// for, each Confirmed, taken exactly from the confirmed rows. A partly
-    /// confirmed generation yields nothing.
+    /// The attachments one generation delivers: the assessment report and the
+    /// companion documents the operator chose to attach (v28 P22), each
+    /// Confirmed, taken exactly from the confirmed rows. Without a choice every
+    /// artifact the generation holds attaches. With a choice, the one
+    /// assessment report is always included and exactly the chosen companion
+    /// kinds must be present and Confirmed.
     /// </summary>
     public static IReadOnlyList<StaffMailAttachment> Attachments(
-        Guid generationId, IReadOnlyList<CaseReportArtifactRecord> artifacts)
+        Guid generationId,
+        IReadOnlyList<CaseReportArtifactRecord> artifacts,
+        IReadOnlyList<CaseReportArtifactKind>? attach = null)
     {
         ArgumentNullException.ThrowIfNull(artifacts);
-        if (artifacts.Count == 0
-            || artifacts.Any(artifact => artifact.Status != CaseReportArtifactStatus.Confirmed))
+        var reports = artifacts
+            .Where(artifact => artifact.Kind == CaseReportArtifactKind.AssessmentReport)
+            .ToArray();
+        if (reports.Length != 1
+            || reports[0].Status != CaseReportArtifactStatus.Confirmed)
+        {
+            throw new InvalidOperationException(
+                $"Case report generation '{generationId}' must have exactly one confirmed assessment report to deliver.");
+        }
+
+        var chosen = attach is { Count: > 0 }
+            ? artifacts.Where(artifact => artifact.Kind == CaseReportArtifactKind.AssessmentReport
+                || attach.Contains(artifact.Kind)).ToArray()
+            : artifacts;
+        if (chosen.Count == 0
+            || chosen.Any(artifact => artifact.Status != CaseReportArtifactStatus.Confirmed))
         {
             throw new InvalidOperationException(
                 $"Case report generation '{generationId}' has no fully confirmed artifacts to deliver.");
         }
+        if (attach is { Count: > 0 }
+            && attach.Distinct().Any(kind => !chosen.Any(artifact => artifact.Kind == kind)))
+        {
+            throw new InvalidOperationException(
+                $"Case report generation '{generationId}' does not hold every document the delivery attaches.");
+        }
 
-        return artifacts.OrderBy(artifact => artifact.Kind).Select(AttachmentOf).ToArray();
+        return chosen.OrderBy(artifact => artifact.Kind).Select(AttachmentOf).ToArray();
     }
 
     /// <summary>
@@ -329,7 +464,12 @@ public static class CaseReportDeliveryPolicy
                 $"The attachments to send are not the ones report delivery preparation '{preparation.Id}' pinned.");
         }
 
-        if (!request.Artifacts.SequenceEqual(record.ConfirmedArtifacts))
+        // The preparation may pin a subset of the generation's documents
+        // (v28 P22), so the check is that every pinned attachment is still a
+        // confirmed artifact, byte-identical — not that the two lists match.
+        // The pin itself was just compared item for item, so a duplicate in
+        // it cannot hide a missing one.
+        if (request.Artifacts.Any(attachment => !record.ConfirmedArtifacts.Contains(attachment)))
         {
             throw new InvalidOperationException(
                 $"An attachment of report delivery preparation '{preparation.Id}' no longer matches its confirmed artifact's hash, length or identity.");
@@ -398,6 +538,7 @@ public static class CaseReportDeliveryPolicy
 /// </summary>
 public sealed class PrepareCaseReportDelivery(
     ICaseReportDeliveryPreparationStore store,
+    ICaseReportSendHistoryQueries sendHistory,
     IReportRecipientSuggestionQueries recipientSuggestions) : IPrepareCaseReportDelivery
 {
     public async Task<CaseReportDeliveryPreparation> ExecuteAsync(
@@ -421,8 +562,13 @@ public sealed class PrepareCaseReportDelivery(
             ?? CaseReportDeliveryPolicy.SuggestedReview(suggestions);
         var addressing = CaseReportDeliveryPolicy.ReviewedAddress(suggestions, review);
 
+        // v28 P23: what the Case has already sent decides the report's name
+        // and the covering line, and the preparation freezes both.
+        var history = await sendHistory.GetAsync(request.CaseId, cancellationToken).ConfigureAwait(false);
+
         var record = await store
-            .PrepareAsync(new(request, addressing, suggestions.Fingerprint), cancellationToken)
+            .PrepareAsync(
+                new(request, addressing, suggestions.Fingerprint, history), cancellationToken)
             .ConfigureAwait(false);
         return record.Preparation;
     }
@@ -510,8 +656,13 @@ public sealed class SendPreparedCaseReport(
             record.Addressing.To,
             record.Addressing.Cc,
             record.Addressing.Subject,
-            Body: string.Empty,
-            preparation.Artifacts,
+            // v28 P23: the covering line and the report's own name are the
+            // ones the preparation froze, so what was reviewed is what is
+            // sent. Custody keeps its own name for the same bytes.
+            Body: preparation.CoveringMessage,
+            string.IsNullOrWhiteSpace(preparation.ReportFileName)
+                ? preparation.Artifacts
+                : CaseReportDeliveryNaming.Named(preparation.Artifacts, preparation.ReportFileName),
             request.OperationKey);
         return await send.SendAsync(new(mail, report), cancellationToken).ConfigureAwait(false);
     }

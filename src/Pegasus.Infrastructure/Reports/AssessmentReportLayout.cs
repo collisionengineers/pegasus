@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Reports;
@@ -52,9 +52,15 @@ internal static class AssessmentReportLayout
         var feeNote = kind switch
         {
             CaseReportArtifactKind.FeeNote => true,
-            CaseReportArtifactKind.AssessmentReport => false,
+            CaseReportArtifactKind.AssessmentReport or CaseReportArtifactKind.ImagePack => false,
             _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
         };
+        var imagePack = kind == CaseReportArtifactKind.ImagePack;
+        if (imagePack && images.Photos.Count == 0)
+        {
+            throw new ReportRenderRejectedException(
+                "An image pack needs at least one image the report uses.");
+        }
         return Document.Create(container =>
         {
             void AddPages(bool pageIsFeeNote)
@@ -79,6 +85,10 @@ internal static class AssessmentReportLayout
                         {
                             FeeNote(column, snapshot, images.Logo);
                         }
+                        else if (imagePack)
+                        {
+                            ImagePack(column, snapshot, images);
+                        }
                         else
                         {
                             Report(column, snapshot, images);
@@ -92,11 +102,34 @@ internal static class AssessmentReportLayout
             }
 
             AddPages(feeNote);
-            if (!feeNote && snapshot.IncludeFeeNote)
+            if (kind == CaseReportArtifactKind.AssessmentReport && snapshot.IncludeFeeNote)
             {
                 AddPages(pageIsFeeNote: true);
             }
         });
+    }
+
+    // ---- Image pack (v28 P22) ----------------------------------------------
+
+    /// <summary>
+    /// The included images alone, in the Engineer's order, two ordinary images
+    /// per page with a Full page image on a page of its own, under the report's
+    /// own letterhead so the document says which Case it belongs to. It carries
+    /// no narrative, no figures and no statement of truth: it is the report's
+    /// images, sent beside it.
+    /// </summary>
+    private static void ImagePack(
+        ColumnDescriptor column, AssessmentReportSnapshot snapshot, PreparedReportImages images)
+    {
+        Letterhead(column, images.Logo, references => references.Column(lines =>
+        {
+            Reference(lines, "Date:", Date(snapshot.ReportDate));
+            Reference(lines, "Our Ref:", snapshot.OurReference);
+            Reference(lines, "Your Ref:", snapshot.YourReference);
+        }));
+
+        Title(column, "Vehicle Images", italic: true);
+        Section(column, "Vehicle Images", section => ImagePackPhotos(section.Item(), images.Photos));
     }
 
     // ---- Assessment report -------------------------------------------------
@@ -569,6 +602,70 @@ internal static class AssessmentReportLayout
             }
         }
         Flush();
+    });
+
+    /// <summary>
+    /// The standalone image-pack paginator: each group starts on a fresh page
+    /// after the first, ordinary photos are paired, and Full page photos are
+    /// never grouped with another image.
+    /// </summary>
+    private static void ImagePackPhotos(IContainer container, IReadOnlyList<PreparedReportPhoto> photos) => container.Column(pack =>
+    {
+        pack.Spacing(4, Unit.Millimetre);
+        var ordinary = new List<PreparedReportPhoto>(2);
+        var hasGroup = false;
+
+        void StartGroup()
+        {
+            if (hasGroup)
+            {
+                pack.Item().PageBreak();
+            }
+
+            hasGroup = true;
+        }
+
+        void FlushOrdinary()
+        {
+            if (ordinary.Count == 0)
+            {
+                return;
+            }
+
+            StartGroup();
+            var first = ordinary[0];
+            var second = ordinary.Count > 1 ? ordinary[1] : null;
+            pack.Item().ShowEntire().Row(row =>
+            {
+                row.Spacing(4, Unit.Millimetre);
+                PhotoFrame(row.RelativeItem(), first.Content);
+                var right = row.RelativeItem();
+                if (second is not null)
+                {
+                    PhotoFrame(right, second.Content);
+                }
+            });
+            ordinary.Clear();
+        }
+
+        foreach (var photo in photos)
+        {
+            if (photo.FullPage)
+            {
+                FlushOrdinary();
+                StartGroup();
+                pack.Item().ShowEntire().Column(page => PhotoFrame(page.Item(), photo.Content));
+                continue;
+            }
+
+            ordinary.Add(photo);
+            if (ordinary.Count == 2)
+            {
+                FlushOrdinary();
+            }
+        }
+
+        FlushOrdinary();
     });
 
     private static void PhotoFrame(IContainer container, byte[] square) => container

@@ -559,8 +559,9 @@ public sealed partial class AssessmentReportDraftWebTests
     private static FormUrlEncodedContent Form(
         string antiforgeryToken, params (string Name, string Value)[] values)
     {
-        var fields = values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
-        fields["__RequestVerificationToken"] = antiforgeryToken;
+        var fields = values
+            .Select(item => new KeyValuePair<string, string>(item.Name, item.Value))
+            .Append(new("__RequestVerificationToken", antiforgeryToken));
         return new(fields);
     }
 
