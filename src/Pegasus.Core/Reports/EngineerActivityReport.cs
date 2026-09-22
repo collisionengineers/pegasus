@@ -16,7 +16,11 @@ namespace Pegasus.Core.Reports;
 public sealed record EngineerActivityCounts(
     Guid EngineerId,
     int ReportsSent,
-    int QueriesReceived);
+    int QueriesReceived,
+    int Disputes = 0,
+    int AmendmentRequests = 0,
+    int AuditReportsSent = 0,
+    TimeSpan? AverageReceivedToSent = null);
 
 public interface IEngineerActivityQueries
 {
@@ -31,11 +35,19 @@ public interface IEngineerActivityQueries
         CancellationToken cancellationToken);
 }
 
+/// <param name="Disputes">Post-report mail classified as a dispute; part of <paramref name="QueriesReceived"/>.</param>
+/// <param name="AmendmentRequests">Post-report mail classified as an amendment request; part of <paramref name="QueriesReceived"/>.</param>
+/// <param name="AuditReportsSent">Reports sent on Audit Cases; part of <paramref name="ReportsSent"/> (MI-01's Audit uplift).</param>
+/// <param name="AverageReceivedToSent">Instruction received to report sent, averaged over the sends with a known origin.</param>
 public sealed record EngineerActivityRow(
     Guid EngineerId,
     string DisplayName,
     int ReportsSent,
-    int QueriesReceived);
+    int QueriesReceived,
+    int Disputes = 0,
+    int AmendmentRequests = 0,
+    int AuditReportsSent = 0,
+    TimeSpan? AverageReceivedToSent = null);
 
 public sealed record EngineerActivityReport(
     DateTimeOffset FromUtc,
@@ -48,7 +60,7 @@ public sealed record EngineerActivityReport(
 /// </summary>
 public static class EngineerActivityReportCsv
 {
-    public const string Header = "Recorded send actor,Queries received for assigned Engineer,Reports sent by recorded actor";
+    public const string Header = "Recorded send actor,Queries received for assigned Engineer,Disputes,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent";
 
     public static string ToCsv(IReadOnlyList<EngineerActivityRow> rows)
     {
@@ -60,7 +72,11 @@ public static class EngineerActivityReportCsv
             builder
                 .Append(EscapeField(row.DisplayName)).Append(',')
                 .Append(row.QueriesReceived).Append(',')
-                .Append(row.ReportsSent)
+                .Append(row.Disputes).Append(',')
+                .Append(row.AmendmentRequests).Append(',')
+                .Append(row.ReportsSent).Append(',')
+                .Append(row.AuditReportsSent).Append(',')
+                .Append(row.AverageReceivedToSent?.ToString("c") ?? string.Empty)
                 .Append("\r\n");
         }
 
@@ -124,7 +140,14 @@ public sealed class GetEngineerActivityReport(
         ArgumentNullException.ThrowIfNull(counts);
         if (counts.Any(item => item.EngineerId == Guid.Empty
             || item.ReportsSent < 0
-            || item.QueriesReceived < 0))
+            || item.QueriesReceived < 0
+            || item.Disputes < 0
+            || item.Disputes > item.QueriesReceived
+            || item.AmendmentRequests < 0
+            || item.AmendmentRequests > item.QueriesReceived
+            || item.AuditReportsSent < 0
+            || item.AuditReportsSent > item.ReportsSent
+            || item.AverageReceivedToSent < TimeSpan.Zero))
         {
             throw new InvalidDataException("The Engineer activity query returned an invalid row.");
         }
@@ -142,7 +165,11 @@ public sealed class GetEngineerActivityReport(
                 item.EngineerId,
                 ActorDisplayNames.Resolve(ActorKind.Staff, item.EngineerId.ToString("D"), names),
                 item.ReportsSent,
-                item.QueriesReceived))
+                item.QueriesReceived,
+                item.Disputes,
+                item.AmendmentRequests,
+                item.AuditReportsSent,
+                item.AverageReceivedToSent))
             .OrderBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(row => row.EngineerId)
             .ToList();
