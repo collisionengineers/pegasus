@@ -30,7 +30,7 @@ estimates by
 
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
 configuration**, **Mail settings**, **Valuation presets**, **Service
-health**, **Logs**, **Reports** and **AI jobs**. Automation appears only when
+health**, **Logs**, **Reports**, **Release notes** and **AI jobs**. Automation appears only when
 its capability is composed. Its Automation & AI page carries the Send to AI
 connector settings
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-connector-settings)).
@@ -145,6 +145,21 @@ turnaround). Each has its own totals and a downloadable CSV. A section whose
 query fails or returns invalid data renders an unavailable state, never a
 false zero.
 
+### Release notes
+
+**Release notes** lists every note, newest change first, with its status
+(Draft or Published), version and who published it. **New release note**
+opens a form with Title and Body; **Save draft** keeps it editable and
+**Publish** freezes it, stamping the running build's version and source
+SHA. A published note opens read-only. Only a signed-in Administrator can
+save or publish: Core grants `PublishReleaseNotes` to no other actor, so the
+Automation Actor cannot write a note and nothing reaches staff without an
+Administrator's press ([ADR-0054](../adr/0054-release-notes-authored-in-the-application.md)).
+The body is shown as typed: blank lines separate paragraphs and lines
+beginning with `- ` form a list. Publishing makes the note the shell's
+What's new dialog for everyone ([FRD-12](frd-12-operator-experience.md#shell-and-routes)).
+A stale save is refused without overwriting the newer draft.
+
 ## States and transitions
 
 Every area renders one of: loading, empty, current, stale (with the
@@ -164,7 +179,7 @@ checks the expected version inside its mutation transaction.
 
 ## Acceptance evidence
 
-Acceptance covers the nine areas and their routes, the on-click actions
+Acceptance covers the ten areas and their routes, the on-click actions
 without confirmation, the Action logs actor resolution and filter, the Intake
 log columns and actions, the six workflow settings and their ranges, and the
 three MI reports with their CSVs. Authenticated Web tests cover server-owned
