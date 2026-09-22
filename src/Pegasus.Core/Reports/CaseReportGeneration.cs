@@ -128,8 +128,8 @@ public sealed record CaseReportActor(
 
 /// <summary>
 /// One prepared image as the frozen snapshot pins it: the confirmed source
-/// identity and hash plus the report role, order, rotation and crop. Bytes
-/// are never frozen — they are reopened by exact hash at render time.
+/// identity and hash plus the report role, order, rotation, crop and full-page
+/// choice. Bytes are never frozen — they are reopened by exact hash at render time.
 /// </summary>
 public sealed record CaseReportSnapshotImage(
     Guid OccurrenceId,
@@ -143,7 +143,8 @@ public sealed record CaseReportSnapshotImage(
     CaseAssetRotation Rotation,
     CaseAssetCrop Crop,
     string? BoxFileId,
-    string? BoxVersionId);
+    string? BoxVersionId,
+    bool FullPage = false);
 
 /// <summary>
 /// One accepted source document as the frozen snapshot pins it.

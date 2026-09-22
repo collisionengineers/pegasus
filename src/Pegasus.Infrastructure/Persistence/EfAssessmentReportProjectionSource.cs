@@ -120,7 +120,8 @@ internal sealed class EfAssessmentReportProjectionSource(
                 pair.Row.OccurrenceId,
                 pair.Row.VersionId,
                 pair.Row.BoxFileId,
-                pair.Row.BoxVersionId))
+                pair.Row.BoxVersionId,
+                pair.Image.FullPage))
             .ToArray();
 
         var applied = await listAppliedValuations.ExecuteAsync(caseId, cancellationToken);

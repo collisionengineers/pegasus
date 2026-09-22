@@ -771,7 +771,7 @@ public sealed class CaseWorkspacePersistenceTests
         CaseLifecycleState state)
     {
         await using var harness = await Harness.CreateAsync();
-        var engineer = Engineer(harness);
+        var engineer = Engineer(harness, StaffRole.User);
         var signOffEngineerId = Guid.Parse(engineer.SubjectId);
         var generationId = Guid.NewGuid();
         await using (var context = await harness.Factory.CreateDbContextAsync())
@@ -1230,7 +1230,7 @@ public sealed class CaseWorkspacePersistenceTests
     public async Task AnAutomationProposalIsAcceptedOrCorrectedByTheStaffSaveThatRecordsTheField()
     {
         await using var harness = await Harness.CreateAsync();
-        var engineer = Engineer(harness);
+        var engineer = Engineer(harness, StaffRole.User);
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -1598,9 +1598,9 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal("audit-contact@example.test", inherited.ClaimSourceOverrideContactEmailAddress);
     }
 
-    private static ActionActor Engineer(Harness harness) => ActionActor.Staff(
+    private static ActionActor Engineer(Harness harness, StaffRole role = StaffRole.Engineer) => ActionActor.Staff(
         Guid.Parse(harness.StaffActor.SubjectId),
-        [StaffRole.Engineer]);
+        [role]);
 
     private static async Task AcceptAnEstimateAsync(Harness harness)
     {

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -185,7 +185,7 @@ public static class CaseWorkspaceLabels
         {
             if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
             if (field == FormName(AssessmentVocabulary.VehicleCondition)) return "Pre-incident condition";
-            foreach (var entry in Settlement.Concat(Report).Concat(Damage).Concat(Vehicle))
+            foreach (var entry in Settlement.Concat(OriginalReport).Concat(Report).Concat(Damage).Concat(Vehicle))
             {
                 if (field == FormName(entry.Key)) return entry.Value;
             }
@@ -200,7 +200,7 @@ public static class CaseWorkspaceLabels
         }
 
         public static bool IsAssessmentField(string path) =>
-            Settlement.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
+            Settlement.ContainsKey(path) || OriginalReport.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
             || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck
             || path == AssessmentVocabulary.VehicleCondition;
     }
@@ -562,6 +562,9 @@ public static class CaseWorkspaceLabels
     {
         public const string SectionTitle = "Valuation";
         public static string NotConnected(ValuationSource source) => SourceLabel(source) + " is not connected";
+
+        /// <summary>Get valuation on a source that answered with nothing (operator's words, 18 September 2026).</summary>
+        public const string Error = "Error. Contact an administrator.";
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.
@@ -881,7 +884,7 @@ public static class CaseWorkspaceLabels
 
     /// <summary>
     /// The Estimate section's Glass's surface: the control that opens the
-    /// provider's estimator, the Engineer's own session for this Case, and the
+    /// provider's estimator, the staff member's own session for this Case, and the
     /// outcomes the provider's return can land on. The state words are the one
     /// operator-facing vocabulary for
     /// <see cref="GlassRepairEstimateSessionState"/>, so the Case section and

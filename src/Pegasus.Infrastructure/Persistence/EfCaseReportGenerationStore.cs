@@ -1114,7 +1114,8 @@ public sealed class EfCaseReportGenerationStore(
             photo.Rotation,
             photo.AppliedCrop,
             photo.BoxFileId,
-            photo.BoxVersionId);
+            photo.BoxVersionId,
+            photo.FullPage);
     }
 
     /// <summary>
@@ -1343,7 +1344,8 @@ public sealed class EfCaseReportContentSource(
                 image.OccurrenceId,
                 image.VersionId,
                 image.BoxFileId,
-                image.BoxVersionId));
+                image.BoxVersionId,
+                image.FullPage));
         }
 
         return snapshot.Report with
