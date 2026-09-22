@@ -963,7 +963,7 @@ public sealed class AdministrationSearchAccountWebTests
                     CaseId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
-                    SnapshotJson = "{}",
+                    SnapshotJson = "{\"agreedFee\":0.00}",
                     TemplateVersion = "test",
                     RendererVersion = "test",
                     State = "ready",
@@ -1045,8 +1045,8 @@ public sealed class AdministrationSearchAccountWebTests
         csvResponse.EnsureSuccessStatusCode();
         Assert.StartsWith("text/csv", csvResponse.Content.Headers.ContentType?.MediaType, StringComparison.Ordinal);
         var csv = await csvResponse.Content.ReadAsStringAsync();
-        Assert.Contains("Principal,Reports produced,Reports sent,Report types", csv, StringComparison.Ordinal);
-        Assert.Contains("QDOS,1,1,Report 1", csv, StringComparison.Ordinal);
+        Assert.Contains("Principal,Reports produced,Reports sent,Agreed fees,Report types", csv, StringComparison.Ordinal);
+        Assert.Contains("QDOS,1,1,0.00,Report 1", csv, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1136,7 +1136,7 @@ public sealed class AdministrationSearchAccountWebTests
                     CaseId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
-                    SnapshotJson = "{}",
+                    SnapshotJson = "{\"agreedFee\":0.00}",
                     TemplateVersion = "test",
                     RendererVersion = "test",
                     State = "ready",

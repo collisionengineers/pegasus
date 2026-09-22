@@ -142,9 +142,18 @@ technical actions that apply
 **Reports** shares one London period filter across MI-01 Engineer activity,
 MI-02 Reports by Principal (per-Principal report counts by type) and MI-03
 Turnaround (current holding age, and instruction-to-produced, ready and sent
-turnaround). Each has its own totals and a downloadable CSV. A section whose
-query fails or returns invalid data renders an unavailable state, never a
-false zero.
+turnaround). Each has its own totals and a downloadable CSV, and **Download
+workbook** gives every report for the period as one `.xlsx` with a sheet
+each and a **By month** sheet, typed cells, a frozen filtered header and
+totals. MI-01 counts the queries by type (disputes and amendment requests
+within the total), the reports sent on Audit Cases (the Audit uplift) and
+each person's instruction-received-to-sent turnaround; its columns sort by
+person, queries or reports, and a meter beside each count shows it against
+the period's largest. MI-02 adds the agreed fees on the Cases whose reports
+were produced, and a **By month** table (reports and fee notes produced,
+reports sent, agreed fees, per Principal and London month) for invoice
+generation. A section whose query fails or returns invalid data renders an
+unavailable state, never a false zero.
 
 ### Release notes
 
