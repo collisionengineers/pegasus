@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Pegasus.Core.Documents;
@@ -22,6 +23,7 @@ namespace Pegasus.IntegrationTests.Reports;
 public sealed class CaseReportDeliveryPreparationPersistenceTests
 {
     private static readonly DateTimeOffset StartUtc = new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero);
+    private static readonly JsonSerializerOptions SnapshotJsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
     public async Task PreparePinsConfirmedArtifactsAndWritesThePreparedEventOnce()
@@ -301,7 +303,8 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                 expectedGenerationVersion,
                 OperationKey),
             addressing ?? new([new("handler@principal.example", "Principal Handler")], [], "DVR-31001"),
-            new string('a', 64));
+            new string('a', 64),
+            CaseReportSendHistory.None);
 
         public ReportSendReadinessRequest ReadyRequest(CaseReportDeliveryPreparationRecord record) => new(
             Staff,
@@ -452,6 +455,14 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
             var occurrenceId = Guid.NewGuid();
             var content = "delivery-preparation"u8.ToArray();
             var sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content));
+            var report = AssessmentReportProjection.Project(
+                AssessmentReportDraftWebTests.ReadyInput(caseId)).Snapshot!;
+            var snapshot = new CaseReportGenerationSnapshot(
+                caseId, 1, "DVR-31001", "prepare-delivery-1", CaseReportActor.None, StartUtc,
+                Guid.Empty, new string('0', 64), "image/png", Guid.Empty, 1,
+                report.Costs, report.EngineerValue, Guid.Empty, report.Content, report.Guides,
+                report.ReportDate, report.ReportDateOverridden, report.AgreedFee,
+                report.FeeDescriptionLines, [], [], report.PayloadVersion, "renderer/v1", report);
             context.AddRange(
                 new CaseDocumentEntity
                 {
@@ -492,7 +503,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     CaseId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('1', 64),
-                    SnapshotJson = "{}",
+                    SnapshotJson = JsonSerializer.Serialize(snapshot, SnapshotJsonOptions),
                     TemplateVersion = "assessment-report/v1",
                     RendererVersion = "renderer/v1",
                     State = nameof(CaseReportGenerationState.Confirmed),

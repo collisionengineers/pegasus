@@ -7,6 +7,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
 
@@ -38,6 +39,104 @@ public sealed class StaffMailSendPersistenceTests
         Assert.Null(await mailboxes.GetAsync(missingScopeId, CancellationToken.None));
         Assert.Null(await mailboxes.GetAsync(missingFolderId, CancellationToken.None));
         Assert.NotNull(await mailboxes.GetAsync(configuredId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ReportExecutionKeepsTheCaseForASelectedSubsetOfGenerationArtifacts()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var fixture = await SeedPostReportQueryAsync(
+            database, Guid.NewGuid(), Guid.NewGuid(), isQueryReceipt: false, isAssociated: false);
+        var generationId = Guid.NewGuid();
+        var reportDocumentId = Guid.NewGuid();
+        var reportVersionId = Guid.NewGuid();
+        var reportSha256 = new string('A', 64);
+        var companionDocumentId = Guid.NewGuid();
+        var companionVersionId = Guid.NewGuid();
+        var companionSha256 = new string('B', 64);
+        var nowUtc = new DateTimeOffset(2026, 9, 10, 8, 0, 0, TimeSpan.Zero);
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var db = await factory.CreateDbContextAsync();
+            db.Set<CaseDocumentEntity>().AddRange(
+                new()
+                {
+                    Id = reportDocumentId, CaseId = fixture.CaseId, Ordinal = 1,
+                    SourceOccurrenceIdentity = "report-document"
+                },
+                new()
+                {
+                    Id = companionDocumentId, CaseId = fixture.CaseId, Ordinal = 2,
+                    SourceOccurrenceIdentity = "companion-document"
+                });
+            db.Set<DocumentVersionEntity>().AddRange(
+                new()
+                {
+                    Id = reportVersionId, DocumentId = reportDocumentId, Version = 1,
+                    FileName = "AssessmentReport.pdf", MediaType = "application/pdf",
+                    ContentLength = 10, Sha256 = reportSha256,
+                    CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    CreatedAtUtc = nowUtc, CreatedBy = "test", IsCurrent = true
+                },
+                new()
+                {
+                    Id = companionVersionId, DocumentId = companionDocumentId, Version = 1,
+                    FileName = "images.pdf", MediaType = "application/pdf",
+                    ContentLength = 11, Sha256 = companionSha256,
+                    CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    CreatedAtUtc = nowUtc, CreatedBy = "test", IsCurrent = true
+                });
+            db.Set<CaseReportGenerationEntity>().Add(new()
+            {
+                Id = generationId, CaseId = fixture.CaseId, CaseVersion = 0,
+                SnapshotHash = new string('C', 64), SnapshotJson = "{}",
+                TemplateVersion = "test", RendererVersion = "test",
+                State = nameof(CaseReportGenerationState.Confirmed),
+                GeneratedAtUtc = nowUtc, Version = 1
+            });
+            db.Set<GeneratedCaseArtifactEntity>().AddRange(
+                new()
+                {
+                    Id = Guid.NewGuid(), GenerationId = generationId,
+                    VersionId = reportVersionId,
+                    Kind = nameof(CaseReportArtifactKind.AssessmentReport),
+                    Sha256 = reportSha256,
+                    State = nameof(CaseReportArtifactStatus.Confirmed),
+                    OperationKey = "report-artifact"
+                },
+                new()
+                {
+                    Id = Guid.NewGuid(), GenerationId = generationId,
+                    VersionId = companionVersionId,
+                    Kind = nameof(CaseReportArtifactKind.ImagePack),
+                    Sha256 = companionSha256,
+                    State = nameof(CaseReportArtifactStatus.Confirmed),
+                    OperationKey = "companion-artifact"
+                });
+            await db.SaveChangesAsync();
+        }
+
+        await using var sendScope = database.CreateAsyncScope();
+        var store = sendScope.ServiceProvider.GetRequiredService<IStaffMailSendStore>();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var command = new StaffMailSendCommand(
+            actor, Guid.NewGuid(), 1, StaffMailPurpose.CaseReport, generationId, 1,
+            StaffMailComposeMode.New, null, [new("recipient@example.invalid", null)], [],
+            "Subject", "Body",
+            [new(reportDocumentId, reportVersionId, reportSha256, 10,
+                "AssessmentReport.pdf", "application/pdf")],
+            "report-subset");
+
+        var operation = await store.PrepareAsync(
+            command, new string('D', 64), nowUtc, CancellationToken.None);
+        var execution = await store.GetExecutionAsync(
+            actor.SubjectId, operation.Id, CancellationToken.None);
+
+        Assert.NotNull(execution);
+        Assert.Equal(fixture.CaseId, execution!.CaseId);
+        Assert.Single(execution.Attachments);
     }
 
     [Fact]

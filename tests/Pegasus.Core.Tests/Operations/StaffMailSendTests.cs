@@ -1,6 +1,7 @@
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Tests.Operations;
 
@@ -236,6 +237,70 @@ public sealed class StaffMailSendTests
     }
 
     [Fact]
+    public async Task StaffReportSendAcceptsThePreparedAssessmentReportRenamedForDelivery()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var bytes = new byte[] { 1, 2, 3, 4 };
+        var custodyAttachment = new StaffMailAttachment(
+            Guid.NewGuid(), Guid.NewGuid(),
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+            bytes.Length, "AssessmentReport.pdf", "application/pdf");
+        var deliveryAttachment = custodyAttachment with
+        {
+            FileName = "QDOS26001 PK12TMZ Repairable report.pdf"
+        };
+        var mail = Command(actor) with
+        {
+            Purpose = StaffMailPurpose.CaseReport,
+            Attachments = [deliveryAttachment]
+        };
+        var report = new ReportSendReadinessRequest(
+            actor, Guid.NewGuid(), 1, mail.ContextId, mail.ExpectedContextVersion,
+            Guid.NewGuid(), 1, [custodyAttachment]);
+        var readiness = new Readiness();
+        var transport = new Transport();
+        var send = new StaffMailSend(
+            new Store(),
+            new Mailboxes(mail.ApprovedMailboxId, mail.ExpectedMailboxGeneration),
+            new Reader(bytes, custodyAttachment),
+            transport,
+            TimeProvider.System,
+            new ExecutionLock());
+
+        var result = await new StaffReportSend(readiness, send).SendAsync(
+            new(mail, report), CancellationToken.None);
+
+        Assert.Equal(StaffMailState.Submitted, result.State);
+        Assert.Equal(1, readiness.Calls);
+        Assert.Equal(bytes, Assert.Single(transport.Attached));
+        Assert.Equal([deliveryAttachment.FileName], transport.AttachedNames);
+
+        var changedCustody = deliveryAttachment with { VersionId = Guid.NewGuid() };
+        await Assert.ThrowsAsync<ArgumentException>(() => new StaffReportSend(
+            readiness, send).SendAsync(new(mail with { Attachments = [changedCustody] }, report),
+            CancellationToken.None));
+
+        var changedContent = deliveryAttachment with { Sha256 = new string('b', 64) };
+        await Assert.ThrowsAsync<ArgumentException>(() => new StaffReportSend(
+            readiness, send).SendAsync(new(mail with { Attachments = [changedContent] }, report),
+            CancellationToken.None));
+
+        var companion = custodyAttachment with
+        {
+            DocumentId = Guid.NewGuid(),
+            VersionId = Guid.NewGuid(),
+            Sha256 = new string('c', 64),
+            FileName = "CE_100_fee_note.pdf"
+        };
+        var renamedCompanion = companion with { FileName = "renamed-fee-note.pdf" };
+        await Assert.ThrowsAsync<ArgumentException>(() => new StaffReportSend(
+            readiness, send).SendAsync(
+                new(mail with { Attachments = [deliveryAttachment, renamedCompanion] },
+                    report with { Artifacts = [custodyAttachment, companion] }),
+                CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ConcurrentLoserCannotMutateWinnerWhileExecutionLockIsHeld()
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
@@ -285,6 +350,18 @@ public sealed class StaffMailSendTests
                 : null);
     }
 
+    private sealed class Readiness : IReportSendReadiness
+    {
+        public int Calls { get; private set; }
+
+        public Task RequireReadyAsync(
+            ReportSendReadinessRequest request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class Reader(byte[] bytes, StaffMailAttachment attachment) : IReadLogicalDocumentVersion
     {
         public Task<LogicalDocumentContent> OpenAsync(
@@ -303,6 +380,7 @@ public sealed class StaffMailSendTests
         public TaskCompletionSource SendEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseSend { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<byte[]> Attached { get; } = [];
+        public List<string> AttachedNames { get; } = [];
         public Task ValidateEncodedSizeAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, StaffMailSendCommand command, IReadOnlyList<StaffMailAttachmentContent> attachments, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<StaffMailDraftLookupResult> FindDraftAsync(ApprovedStaffSendMailbox mailbox, StaffMailOperation operation, CancellationToken cancellationToken) =>
             Task.FromResult(new StaffMailDraftLookupResult(null, null, true));
@@ -315,6 +393,7 @@ public sealed class StaffMailSendTests
         {
             using var buffer = new MemoryStream();
             await content.CopyToAsync(buffer, cancellationToken);
+            AttachedNames.Add(attachment.FileName);
             Attached.Add(buffer.ToArray());
         }
         public async Task<StaffMailSubmitResult> SendDraftAsync(ApprovedStaffSendMailbox mailbox, string immutableDraftId, CancellationToken cancellationToken)
