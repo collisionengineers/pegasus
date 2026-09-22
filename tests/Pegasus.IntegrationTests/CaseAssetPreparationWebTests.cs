@@ -17,9 +17,8 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// B06 phase 2: report-image preparation on the one Case workspace. The Files
 /// section states each image's role, order, rotation and crop and — in edit
-/// mode — offers the script-off controls that change them; the Report section
-/// states the same prepared set in the report's own order. Both read one
-/// loaded set, so the tests assert the same values in both places.
+/// mode — offers the controls that change them; the Report section carries no
+/// image surface, so the tests assert that Files is the single presentation home.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseAssetPreparationWebTests
@@ -365,6 +364,14 @@ public sealed class CaseAssetPreparationWebTests
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
+        store.CaseDocuments =
+        [
+            store.CaseDocuments[0],
+            store.CaseDocuments[1],
+            store.CaseDocuments[3],
+            store.CaseDocuments[2],
+            store.CaseDocuments[4]
+        ];
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<ICaseAssetPreparationQueries>(services, store);
@@ -378,8 +385,8 @@ public sealed class CaseAssetPreparationWebTests
 
         var files = await GetFilesFragmentAsync(workspace, html);
         var tiles = ImageGrid(files);
-        // Every readable image is a tile, the unused one among them, each
-        // carrying the role select, the order cell and the P41 tools.
+        // Every readable image is a tile, including the unused one, with the
+        // role select and the appropriate report controls.
         foreach (var fileName in new[]
         {
             CloseUpFileName, OverviewFileName, FirstSupportingFileName, SecondSupportingFileName, UnusedFileName
@@ -387,11 +394,74 @@ public sealed class CaseAssetPreparationWebTests
         {
             Assert.Contains(fileName, tiles, StringComparison.Ordinal);
         }
+        var tileOrder = Tiles(tiles)
+            .Select(tile => new[]
+            {
+                CloseUpFileName, OverviewFileName, FirstSupportingFileName,
+                SecondSupportingFileName, UnusedFileName
+            }.Single(fileName => tile.Contains(fileName, StringComparison.Ordinal)))
+            .ToArray();
+        Assert.Equal(
+            new[] { CloseUpFileName, OverviewFileName, FirstSupportingFileName, SecondSupportingFileName, UnusedFileName },
+            tileOrder);
         Assert.Equal(5, Regex.Count(tiles, "data-preparation-role-select"));
         Assert.Equal(5, Regex.Count(tiles, "data-image-full-page"));
         Assert.Equal(5, Regex.Count(tiles, "data-image-remove"));
         Assert.Equal(5, Regex.Count(tiles, "data-preparation-full-page="));
+        foreach (var occurrenceId in new[]
+        {
+            fixture.CloseUpOccurrenceId,
+            fixture.OverviewOccurrenceId,
+            fixture.FirstSupportingOccurrenceId,
+            fixture.SecondSupportingOccurrenceId
+        })
+        {
+            AssertImageActionVisibility(Card(tiles, occurrenceId), visible: true);
+        }
+        AssertImageActionVisibility(Card(tiles, fixture.UnusedOccurrenceId), visible: false);
         Assert.Contains("data-image-report-count>4 of 5 in report<", files, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheImageCountIncludesCaseImagesWithoutPreparationCards()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store();
+        store.CaseDocuments =
+        [
+            .. store.CaseDocuments,
+            Document(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "pending.jpg",
+                "image/jpeg",
+                DocumentSemanticRole.Image,
+                custody: DocumentCustodyStatus.Pending)
+        ];
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+        });
+
+        var html = await workspace.GetWorkspaceAsync();
+        var files = await GetFilesFragmentAsync(workspace, html);
+
+        Assert.Contains("data-image-tile", files, StringComparison.Ordinal);
+        Assert.Contains("data-image-report-count>4 of 6 in report<", files, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheInitialCaseResponseDoesNotLoadAssetPreparationsWhileFilesIsDeferred()
+    {
+        var store = new PreparedImages().Store();
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, new ThrowingAssetPreparationQueries());
+        });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Contains("data-lazy=\"files\"", html, StringComparison.Ordinal);
     }
     /// <summary>
     /// Without the Case's edit lease a tile states the report role it holds
@@ -585,6 +655,24 @@ public sealed class CaseAssetPreparationWebTests
         return panel[start..(end + "</li>".Length)];
     }
 
+    private static void AssertImageActionVisibility(string card, bool visible)
+    {
+        var fullPage = Regex.Match(card, "<button[^>]*data-image-full-page[^>]*>", RegexOptions.CultureInvariant);
+        var remove = Regex.Match(card, "<button[^>]*data-image-remove[^>]*>", RegexOptions.CultureInvariant);
+        Assert.True(fullPage.Success, "The Full page action is not rendered.");
+        Assert.True(remove.Success, "The Remove action is not rendered.");
+        if (visible)
+        {
+            Assert.DoesNotContain("hidden", fullPage.Value, StringComparison.Ordinal);
+            Assert.DoesNotContain("hidden", remove.Value, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Contains("hidden", fullPage.Value, StringComparison.Ordinal);
+            Assert.Contains("hidden", remove.Value, StringComparison.Ordinal);
+        }
+    }
+
     /// <summary>
     /// The report-preparation queries the workspace reads. The query answers
     /// in the order the persisted store answers — role, then supporting order
@@ -614,6 +702,22 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Contains("image-tile", fragment, StringComparison.Ordinal);
         Assert.Contains("data-preparation-crop", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("report-images", fragment, StringComparison.Ordinal);
+    }
+
+    private sealed class ThrowingAssetPreparationQueries : ICaseAssetPreparationQueries
+    {
+        public Task<CaseAssetPreparation?> GetForOccurrenceAsync(
+            Guid caseId,
+            Guid occurrenceId,
+            CancellationToken cancellationToken) =>
+            Task.FromException<CaseAssetPreparation?>(
+                new InvalidOperationException("Asset preparations must remain deferred."));
+
+        public Task<IReadOnlyList<CaseAssetPreparation>> ListForCaseAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            Task.FromException<IReadOnlyList<CaseAssetPreparation>>(
+                new InvalidOperationException("Asset preparations must remain deferred."));
     }
 
     /// <summary>
