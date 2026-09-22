@@ -143,7 +143,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
                         acceptanceStore,
                         new FixedConfiguration(),
                         new EfProviderInspectionModeStore(factory),
-                        new CommittedWorkPublisherDouble(),
+                        new DiscardingCommittedWorkPublisher(),
                         new TriageCasePairing(new EfTriageStore(factory,
                             [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], TimeProvider.System))),
                     new EfCaseDataStore(factory, TimeProvider.System));

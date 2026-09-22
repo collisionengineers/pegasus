@@ -320,6 +320,16 @@ dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj -
 dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus"
 ```
 
+Three categories exist. `SqlServer` marks the integration tests that need a
+reachable server; `Corpus` marks the tests that read local corpus or the private
+reference pack, which ordinary CI excludes; `QdosAlphaAcceptance` marks the QDOS
+triage acceptance cohort, which no lane selects automatically. Run that cohort
+when a QDOS triage change needs its acceptance evidence:
+
+```powershell
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=QdosAlphaAcceptance"
+```
+
 Test classes run in parallel. The integration project caps concurrency at four
 in `tests/Pegasus.IntegrationTests/xunit.runner.json`: one named heavy verifier runs whole-solution suites on this host. The per-process
 cap bounds that run’s concurrent restores; it is not permission for competing
