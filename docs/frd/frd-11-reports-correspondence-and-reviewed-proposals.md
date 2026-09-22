@@ -102,7 +102,7 @@ signature image.
 
 **Sign-off on the report.** The snapshot carries the Case's sign-off tuple:
 printed name, qualifications and signature image, read from the Sign-off
-Engineer account. The name and signature image are required. Qualifications
+Engineer account. That profile may belong to any enabled staff role. The name and signature image are required. Qualifications
 are optional; without them the name prints alone. Who is offered as Sign-off
 Engineer and the default are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#sign-off-engineer). The
@@ -167,14 +167,14 @@ recipient settings can include the original instruction sender and any
 number of extra addresses. The original sender comes from the originating
 instruction, never the latest reply; an unresolved sender adds no invented
 address. Claim Source is never copied implicitly. Recipients are frozen in
-the preparation, but the Engineer may edit To and Cc before that freeze.
+the preparation, but the preparing human staff member may edit To and Cc before that freeze.
 Every delivery still needs a staff-controlled send. Default report dates and
 displayed times use Europe/London.
 
 ### Report generation entry point
 
-The Report section of the Case record offers **Generate report** to
-authorised staff roles under the existing state, version and lease gates. It
+The Report section of the Case record offers **Generate report** to every
+enabled human staff role under the existing state, version and lease gates. It
 uses the accepted saved facts and the snapshot above, and retains versioned
 report and fee-note files, their custody outcome and history. A generated
 file is not approval, sending or receipt.

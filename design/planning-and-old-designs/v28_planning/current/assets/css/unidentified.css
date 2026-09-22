@@ -1,0 +1,28 @@
+/* Unidentified record (v26, shots s11, s12, s46). Linked from
+   Pages/Unidentified/Details.cshtml only. */
+
+.unidentified-record { background: var(--surface); border: 1px solid var(--line); }
+.unidentified-record .ribbon { padding: 0 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; height: auto; min-height: 56px; }
+.unidentified-record .ribbon-facts { flex-wrap: wrap; min-width: 0; }
+.unidentified-record .ribbon-item { min-width: 0; }
+.unidentified-record .ribbon-value { overflow-wrap: anywhere; }
+
+.unidentified-body { display: grid; gap: 12px; padding: 12px 16px 16px; }
+.unidentified-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.unidentified-facts { grid-template-columns: minmax(0, 1fr); }
+.unidentified-facts .fact { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+.unidentified-facts .fact:last-child { border-bottom: 0; }
+.unidentified-facts dd { margin: 0; overflow-wrap: anywhere; }
+.unidentified-files { margin: 0; padding-left: 18px; font-size: 12px; }
+.unidentified-dismiss summary { list-style: none; }
+.unidentified-dismiss summary::-webkit-details-marker { display: none; }
+.unidentified-dismiss[open] form { margin-top: 6px; min-width: 220px; }
+
+@media (max-width: 980px) {
+    .unidentified-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+    .unidentified-body { padding: 10px; }
+    .unidentified-facts .fact { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}

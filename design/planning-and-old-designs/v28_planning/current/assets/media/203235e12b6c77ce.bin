@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Case QDOS31001 · Pegasus</title>
+    <link rel="stylesheet" href="/css/site.l9jyg41x70.css" />
+    
+    <link rel="stylesheet" href="/css/case-workspace.udgrqds7ml.css" />
+
+</head>
+<body>
+    <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="icon-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="icon-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></symbol>
+  <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="icon-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></symbol>
+  <symbol id="icon-check-circle" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+  <symbol id="icon-alert-triangle" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></symbol>
+  <symbol id="icon-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+  <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="icon-file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></symbol>
+  <symbol id="icon-filter" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></symbol>
+  <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="icon-trash-2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
+  <symbol id="icon-layout-dashboard" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+  <symbol id="icon-inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="icon-list" viewBox="0 0 24 24"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></symbol>
+  <symbol id="icon-folder-open" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="icon-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+  <symbol id="icon-loader" viewBox="0 0 24 24"><line x1="12" x2="12" y1="2" y2="6"/><line x1="12" x2="12" y1="18" y2="22"/><line x1="4.93" x2="7.76" y1="4.93" y2="7.76"/><line x1="16.24" x2="19.07" y1="16.24" y2="19.07"/><line x1="2" x2="6" y1="12" y2="12"/><line x1="18" x2="22" y1="12" y2="12"/><line x1="4.93" x2="7.76" y1="19.07" y2="16.24"/><line x1="16.24" x2="19.07" y1="7.76" y2="4.93"/></symbol>
+  <symbol id="icon-layout-grid" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="icon-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="icon-more-horizontal" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="icon-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
+  <symbol id="icon-mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+  <symbol id="icon-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+  <symbol id="icon-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol>
+  <symbol id="icon-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
+  <symbol id="icon-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="icon-pause" viewBox="0 0 24 24"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></symbol>
+  <symbol id="icon-play" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="icon-external-link" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="icon-log-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></symbol>
+  <symbol id="icon-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="icon-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></symbol>
+  <symbol id="icon-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="icon-car" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></symbol>
+  <symbol id="icon-check-square" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></symbol>
+  <symbol id="icon-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></symbol>
+  <symbol id="icon-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="icon-paperclip" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+  <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+  <symbol id="icon-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="icon-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></symbol>
+  <symbol id="icon-rotate-cw" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="icon-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="icon-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></symbol>
+  <symbol id="icon-reply" viewBox="0 0 24 24"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></symbol>
+  <symbol id="icon-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></symbol>
+  <symbol id="icon-arrow-up-down" viewBox="0 0 24 24"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></symbol>
+  <symbol id="icon-list-checks" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8"/></symbol>
+  <symbol id="icon-chevron-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+  <symbol id="icon-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></symbol>
+  <symbol id="icon-arrow-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5"/></symbol>
+  <symbol id="icon-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14m7-7-7 7-7-7"/></symbol>
+  <symbol id="icon-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="icon-images" viewBox="0 0 24 24"><path d="M18 22H4a2 2 0 0 1-2-2V6M22 13.5V7a2 2 0 0 0-2-2H10a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.5zM22 17l-3.09-3.09a2 2 0 0 0-2.83 0L10 20M13 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></symbol>
+  <symbol id="icon-forward" viewBox="0 0 24 24"><path d="m15 17 6-6-6-6M21 11H9a6 6 0 0 0-6 6v3"/></symbol>
+  <symbol id="icon-unlink" viewBox="0 0 24 24"><path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.71 1.71M5.17 11.75l-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71M8 2v3M2 8h3M16 22v-3M22 16h-3"/></symbol>
+  <symbol id="icon-file-output" viewBox="0 0 24 24"><path d="M14 2v4a2 2 0 0 0 2 2h4M4 7V4a2 2 0 0 1 2-2 2 2 0 0 0-2 2M4.06 20.1A2 2 0 0 0 6 22h12a2 2 0 0 0 2-2V7l-5-5H6M2 15h10M9 18l3-3-3-3"/></symbol>
+  <symbol id="icon-eye-off" viewBox="0 0 24 24"><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20M9.88 9.88a3 3 0 1 0 4.24 4.24"/></symbol>
+  <symbol id="icon-key-round" viewBox="0 0 24 24"><path d="M2.59 15.6a2 2 0 0 0 0 2.83l2.98 2.98a2 2 0 0 0 2.83 0L21 8.8a7 7 0 1 0-6.4-5.65zM16.5 7.5h.01"/></symbol>
+  <symbol id="icon-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/></symbol>
+  <symbol id="icon-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2"/></symbol>
+  <symbol id="icon-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+  <symbol id="icon-grip-vertical" viewBox="0 0 24 24"><path d="M9 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM9 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM15 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></symbol>
+  <symbol id="icon-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1zM9 12l2 2 4-4"/></symbol>
+  <symbol id="icon-building" viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18ZM6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4"/></symbol>
+  <symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="icon-clipboard-list" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zM12 11h4M12 16h4M8 11h.01M8 16h.01"/></symbol>
+  <symbol id="icon-zoom-in" viewBox="0 0 24 24"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35M11 8v6M8 11h6"/></symbol>
+  <symbol id="icon-corner-up-left" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 5 5v6"/></symbol>
+  <symbol id="icon-bar-chart" viewBox="0 0 24 24"><path d="M12 20V10M18 20V4M6 20v-4"/></symbol>
+  <symbol id="icon-bot" viewBox="0 0 24 24"><path d="M12 8V4H8M4 8h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM2 14h2M20 14h2M15 13v2M9 13v2"/></symbol>
+  <symbol id="icon-circle" viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"/></symbol>
+  <symbol id="icon-circle-dot" viewBox="0 0 24 24"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></symbol>
+  <symbol id="icon-circle-slash" viewBox="0 0 24 24"><path d="M9 15l6-6M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"/></symbol>
+  <symbol id="icon-file-spreadsheet" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7ZM14 2v4a2 2 0 0 0 2 2h4M8 13h2M14 13h2M8 17h2M14 17h2"/></symbol>
+  <symbol id="icon-heart-pulse" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7ZM3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/></symbol>
+  <symbol id="icon-move" viewBox="0 0 24 24"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></symbol>
+  <symbol id="icon-phone" viewBox="0 0 24 24"><path d="M13.83 16.5a2 2 0 0 0 2.24-.42l1.05-1.05a2 2 0 0 0 0-2.83l-1.5-1.5a2 2 0 0 0-2.83 0l-.5.5a13.5 13.5 0 0 1-4.98-4.98l.5-.5a2 2 0 0 0 0-2.83l-1.5-1.5a2 2 0 0 0-2.83 0L2.42 2.44a2 2 0 0 0-.42 2.24A19 19 0 0 0 13.83 16.5z"/></symbol>
+  <symbol id="icon-pound-sterling" viewBox="0 0 24 24"><path d="M18 7c0-5.33-8-5.33-8 0v10M6 12h8M6 17h12"/></symbol>
+  <symbol id="icon-scroll-text" viewBox="0 0 24 24"><path d="M15 12h-5M15 8h-5M19 17V5a2 2 0 0 0-2-2H4M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="icon-square" viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></symbol>
+  <symbol id="icon-square-check" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></symbol>
+  <symbol id="icon-undo" viewBox="0 0 24 24"><path d="M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+</svg>
+
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-shell" data-app-shell>
+        <header class="app-rail">
+            <a class="brand" aria-label="Pegasus home" href="/">
+                <img src="/images/marks/pegasus-lockup.1b23lo3ykf.png" alt="" aria-hidden="true" />
+                <span class="brand-copy"><strong>PEGASUS</strong><span>Case management</span></span>
+            </a>
+            <nav class="primary-nav" aria-label="Primary">
+                <div class="nav-label">Work</div>
+                <a class="nav-link" href="/">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <span>Work Centre</span>
+                </a>
+                    <a class="nav-link" href="/Inbox">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <span>Inbox</span>
+                    </a>
+                    <a class="nav-link" href="/Upload">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <span>Upload</span>
+                    </a>
+                <a class="nav-link" aria-current="page" href="/Cases">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-list-checks" /></svg>
+                    <span>Cases</span>
+                        <span class="nav-count" aria-label="5 outstanding">5</span>
+                </a>
+                <a class="nav-link" href="/Search">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                    <span>Search</span>
+                </a>
+                    <a class="nav-link" href="/Operations">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-activity" /></svg>
+                        <span>Operations</span>
+                    </a>
+                    <div class="nav-label">Manage</div>
+                    <a class="nav-link" href="/Administration">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="rail-spacer"></div>
+            <button type="button" class="rail-collapse" data-rail-toggle aria-expanded="true" aria-label="Collapse navigation"
+                    data-label-collapse="Collapse navigation" data-label-expand="Expand navigation">
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                <span>Collapse</span>
+            </button>
+            <div class="rail-health">
+                <div class="rail-health-line"><span class="health-dot"></span><span>Current · 11:30</span></div>
+            </div>
+                <div class="rail-user" role="group" aria-label="User">
+                    <span class="avatar" aria-hidden="true">IU</span>
+                    <div><strong>integration-user</strong><small>Administrator</small></div>
+                    <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                    </button>
+                </div>
+        </header>
+        <div class="app-column">
+            <section class="utility-bar" aria-label="Utility bar">
+                <div class="utility-freshness"><span class="health-dot"></span><span>Current · 11:30</span></div>
+                <form class="utility-search" role="search" method="get" action="/Search">
+                    <label class="sr-only" for="global-search">Search Pegasus</label>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                    <input id="global-search" type="search" name="query" data-command-input aria-label="Search Pegasus" placeholder="Search cases, references or people" autocomplete="off" />
+                    <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
+                </form>
+                <div class="utility-actions">
+                        <a class="btn btn--primary" href="/Cases/Create">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                            <span>New case</span>
+                        </a>
+                    <span class="bell-wrap">
+                        <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="Notifications">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
+                        </button>
+                    </span>
+                        <button type="button" class="icon-button utility-account" data-dialog-open="account-dialog" aria-label="Account menu">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                        </button>
+                </div>
+            </section>
+            <nav class="workspace-tabs" aria-label="Open records" data-working-set hidden></nav>
+            <main id="main-content" class="app-main" tabindex="-1" data-record-href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" data-record-kind="case" data-record-ref="QDOS31001" data-record-reg="AB12CDE">
+                <div class="content">
+                    
+
+
+<div data-case-notices>
+</div>
+
+<article class="record case-record" id="case-record" data-case-record
+         data-case-id="f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" data-case-version="20"
+         data-editor-commit=""
+         data-layout="scroll" data-section-current="overview"
+         data-case-editing="false">
+    <div class="sticky-block" data-sticky-block>
+        <div class="ribbon" aria-label="Case identity">
+            <div class="ribbon-facts" data-case-ribbon-facts>
+                <div class="ribbon-item ribbon-ref">
+                    <div class="ribbon-label">Case workspace · AB12CDE</div>
+                    <h1 class="ribbon-value">QDOS31001</h1>
+                </div>
+                <div class="ribbon-item">
+                    <div class="ribbon-label">Claimant</div>
+                    <div class="ribbon-value"><span>Jane Example</span></div>
+                </div>
+                <div class="ribbon-item">
+                    <div class="ribbon-label">Principal</div>
+                    <div class="ribbon-value"><span>QDOS</span></div>
+                </div>
+                <div class="ribbon-item">
+                    <div class="ribbon-label">Engineer</div>
+                    <div class="ribbon-value"><span>development-offline-administrator</span></div>
+                </div>
+                <div class="ribbon-chips" aria-label="State" data-case-ribbon-chips>
+                    <span class="status status--navy">With Engineer</span>
+
+                </div>
+            </div>
+            <div class="ribbon-actions" data-case-ribbon-actions>
+                    <form method="post" data-case-edit-form action="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?handler=ClaimLease">
+                        <input type="hidden" name="id" value="f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" />
+                        <input type="hidden" name="expectedVersion" value="20" />
+                        <input type="hidden" name="operationKey" value="b04e4dfc6f5747f8b66457d549fd2b44" />
+                        <input type="hidden" name="section" value="overview" data-case-section-field />
+                        <button type="submit" class="btn btn--dark" data-case-edit>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+                            <span>Take over</span>
+                        </button>
+                    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAC09Xjde9vgPm2UnXgiaCacVmT08KdYlH_Sb7o-16jIEDXiFhjGad_WKMcfkwic42Y7_o6QzLYXjGt9sEoveZsAAKIJ0-Mh1bXTKEoRAEQQN3Ktnxo9wdTPY0ONJHCEV3o" /></form>
+            </div>
+        </div>
+        <div class="section-row">
+            <nav class="section-nav" aria-label="Case sections" data-section-nav>
+                    <a class="section-link" data-section-link="overview" aria-current="true" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=overview#section-overview">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                        <span>Overview</span>
+                    </a>
+                    <a class="section-link" data-section-link="inspection" aria-current="false" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=inspection#section-inspection">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-map-pin" /></svg>
+                        <span>Inspection details</span>
+                    </a>
+                    <a class="section-link" data-section-link="vehicle" aria-current="false" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=vehicle#section-vehicle">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-car" /></svg>
+                        <span>Vehicle</span>
+                    </a>
+                    <a class="section-link" data-section-link="damage" aria-current="false" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=damage#section-damage">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>Damage</span>
+                    </a>
+                    <a class="section-link" data-section-link="valuation" aria-current="false" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=valuation#section-valuation">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                        <span>Valuation</span>
+                    </a>
+                    <a class="section-link" data-section-link="estimate" aria-current="false" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=estimate#section-estimate">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                        <span>Estimate</span>
+                    </a>
+                    <a class="section-link" data-section-link="settlement" aria-current="false" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=settlement#section-settlement">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                        <span>Settlement</span>
+                    </a>
+                    <a class="section-link" data-section-link="report" aria-current="false" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=report#section-report">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg>
+                        <span>Report</span>
+                    </a>
+                    <a class="section-link" data-section-link="files" aria-current="false" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=files#section-files">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
+                        <span>Files</span>
+                    </a>
+                    <a class="section-link" data-section-link="notes" aria-current="false" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=notes#section-notes">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
+                        <span>Notes</span>
+                    </a>
+            </nav>
+            <div class="section-tools">
+                <form method="get" data-refresh-form data-case-refresh>
+                    <input type="hidden" name="section" value="overview" data-case-section-field />
+                    <button type="submit" class="btn btn--icon btn--small" title="Refresh" aria-label="Refresh">
+                        <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                    </button>
+                </form>
+                <div class="layout-switch" role="group" aria-label="Case layout" data-case-layout-switch hidden>
+                    <button type="button" data-case-layout="scroll" aria-pressed="true">Scroll</button>
+                    <button type="button" data-case-layout="tabs" aria-pressed="false">Tabs</button>
+                </div>
+            </div>
+        </div>
+        <div data-case-stale>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="workspace-main" id="case-main">
+                        
+<section class="record-section panel" id="section-overview" data-section="overview" data-collapse="case.overview" aria-labelledby="section-overview-title">
+    <div class="panel-head">
+        <h2 id="section-overview-title">Overview</h2>
+        <div class="panel-actions">
+                <form method="post" data-case-edit-form action="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?handler=ClaimLease">
+        <input type="hidden" name="id" value="f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" />
+        <input type="hidden" name="expectedVersion" value="20" />
+        <input type="hidden" name="operationKey" value="b04e4dfc6f5747f8b66457d549fd2b44" />
+        <input type="hidden" name="section" value="overview" />
+        <button type="submit" class="btn btn--small" data-section-edit="overview">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAC09Xjde9vgPm2UnXgiaCacVmT08KdYlH_Sb7o-16jIEDXiFhjGad_WKMcfkwic42Y7_o6QzLYXjGt9sEoveZsAAKIJ0-Mh1bXTKEoRAEQQN3Ktnxo9wdTPY0ONJHCEV3o" /></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="true"
+        aria-label="Collapse section"
+        data-label-collapse="Collapse section"
+        data-label-expand="Expand section"
+        title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+
+        <ol class="stepper" aria-label="Case workflow">
+                <li class="done">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>Not ready</span>
+                </li>
+                <li class="done">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>Review</span>
+                </li>
+                <li class="now">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                    <span>With Engineer</span>
+                </li>
+                <li>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>Complete</span>
+                </li>
+        </ol>
+
+
+
+        <div class="overview-grid">
+            <div class="sub-panel"><h3>Case</h3>
+                <div class="fg g2">
+                    <div class="fc ro idn"><span class="lbl">Case type<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">Inspection</div></div>
+                    <div class="fc ro idn"><span class="lbl">Our ref<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv mono">QDOS31001</div></div>
+                    <div class="fc">            <span class="lbl">Claim reference</span>
+<div class="fv mono">QDOS-123</div></div>
+                    <div class="fc">            <span class="lbl">Incident date</span>
+<div class="fv">1 Apr 2031</div></div>
+                    <div class="fc ro idn"><span class="lbl">Received<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">11 Aug 2031 10:15</div></div>
+                    <div class="fc">            <span class="lbl">Due</span>
+<div class="fv">20 May 2031</div></div>
+                </div>
+            </div>
+            <div class="sub-panel"><h3>Principal</h3>
+                <div class="fg">
+                    <div class="fc ro idn"><span class="lbl">Principal<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">QDOS</div></div>
+                    <div class="fc" data-claim-source-cell>            <span class="lbl">Claim source</span>
+<div class="fv empty">Not recorded</div></div>
+                    <div class="fc ro"><span class="lbl">Claim source contact</span><div class="fv empty" data-claim-source-contact>Not recorded</div></div>
+                </div>
+            </div>
+            <div class="sub-panel"><h3>Claimant</h3>
+                <div class="fg">
+                    <div class="fc">            <span class="lbl">Claimant</span>
+<div class="fv">Jane Example</div></div>
+                    <div class="fc">            <span class="lbl">Contact</span>
+<div class="fv">07700 900123</div></div>
+                    <div class="fc">            <span class="lbl">Address</span>
+<div class="fv">12 Example Street, Leeds, LS1 1AA</div></div>
+                    <div class="fc">            <span class="lbl">VAT status</span>
+<div class="fv">VAT registered</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="sub-panel"><h3>Case contact</h3>
+            <div class="fg g3">
+                <div class="fc">            <span class="lbl">Contact name</span>
+<div class="fv">Case handler</div></div>
+                <div class="fc">            <span class="lbl">Contact e-mail</span>
+<div class="fv">handler@example.test</div></div>
+                <div class="fc">            <span class="lbl">Contact phone</span>
+<div class="fv">020 7946 0123</div></div>
+            </div>
+        </div>
+
+        <div class="sub-panel notes-band" data-notes-band><h3>Notes</h3>
+            <div class="fg g2">
+                <div class="fc">            <span class="lbl">Principal notes &#xB7; this Case</span>
+<div class="fv multi">Synthetic note: contact the repairer before the inspection.</div></div>
+                <div class="fc">            <span class="lbl">Claim source notes &#xB7; this Case</span>
+<div class="fv empty multi">Not recorded</div></div>
+            </div>
+        </div>
+
+        <div class="accident" data-accident-band>
+            <div class="fg g2">
+                <div class="fc">            <span class="lbl">Accident circumstances</span>
+<div class="fv multi">Rear-end impact at a roundabout.</div></div>
+                <div class="fc" data-client-notes>            <span class="lbl">Notes from client</span>
+<div class="fv multi">Synthetic note from the client.</div></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+                        
+<section class="record-section panel" id="section-inspection" data-section="inspection" data-collapse="case.inspection" aria-labelledby="section-inspection-title">
+    <div class="panel-head">
+        <h2 id="section-inspection-title">Inspection details</h2>
+        <div class="panel-actions">
+                <form method="post" data-case-edit-form action="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?handler=ClaimLease">
+        <input type="hidden" name="id" value="f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" />
+        <input type="hidden" name="expectedVersion" value="20" />
+        <input type="hidden" name="operationKey" value="b04e4dfc6f5747f8b66457d549fd2b44" />
+        <input type="hidden" name="section" value="inspection" />
+        <button type="submit" class="btn btn--small" data-section-edit="inspection">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAC09Xjde9vgPm2UnXgiaCacVmT08KdYlH_Sb7o-16jIEDXiFhjGad_WKMcfkwic42Y7_o6QzLYXjGt9sEoveZsAAKIJ0-Mh1bXTKEoRAEQQN3Ktnxo9wdTPY0ONJHCEV3o" /></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="true"
+        aria-label="Collapse section"
+        data-label-collapse="Collapse section"
+        data-label-expand="Expand section"
+        title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="fg g4">
+            <div class="fc ro" data-inspection-type>
+                <span class="lbl">Inspection type</span>
+                <div class="fv">Image Based Assessment</div>
+            </div>
+            <div class="fc">
+            <span class="lbl">Inspection date</span>
+                <div class="fv">20 May 2031</div>
+            </div>
+            <div class="fc" data-inspection-choice-cell>
+            <span class="lbl">Inspect at</span>
+                <div class="fv">Image Based Assessment</div>
+            </div>
+            <div class="fc" data-inspection-address-field data-inspection-address>
+            <span class="lbl">Inspection address</span>
+                <div class="fv" data-inspection-address-read>
+                        <span>Image Based Assessment</span>
+                        <span class="src-tag" data-provenance-word="Principal">Principal default</span>
+                </div>
+            </div>
+            <div class="fc ro" data-inspection-provider-default hidden="hidden">
+                <span class="lbl">Principal default</span>
+                <div class="fv">Image Based Assessment</div>
+            </div>
+        </div>
+
+        <div class="sub-panel" data-inspection-repairer><h3>Repairer</h3>
+            <div class="fg g4">
+                <div class="fc">
+            <span class="lbl">Repairer contact</span>
+                    <div class="fv">Not linked</div>
+                </div>
+                <div class="fc">
+            <span class="lbl">Repairer</span>
+                    <div class="fv">Example Bodyshop</div>
+                </div>
+                <div class="fc span2">
+            <span class="lbl">Address</span>
+                    <div class="fv">4 Example Trading Estate, Leeds, LS9 0AA</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sub-panel" data-inspection-storage><h3>Storage</h3>
+            <div class="fg g4">
+                <div class="fc span2">
+            <span class="lbl">Storage location</span>
+                    <div class="fv">Example Bodyshop yard</div>
+                </div>
+                <div class="fc">
+            <span class="lbl">Storage per day</span>
+                    <div class="fv mono">&#xA3;18.00</div>
+                </div>
+                <div class="fc">
+            <span class="lbl">Recovery charge</span>
+                    <div class="fv mono">&#xA3;120.00</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+                    <section class="record-section panel section-placeholder" id="section-vehicle"
+                             data-section="vehicle" data-lazy="vehicle"
+                             aria-label="Vehicle"></section>
+                        
+<section class="record-section panel case-damage" id="section-damage" data-section="damage" data-collapse="case.damage" aria-labelledby="section-damage-title"
+         data-damage-editor data-damage-editable="false" data-damage-impacts="[{&quot;zone&quot;:&quot;tailgate&quot;,&quot;severity&quot;:&quot;moderate&quot;,&quot;note&quot;:&quot;&quot;},{&quot;zone&quot;:&quot;rear_left_corner&quot;,&quot;severity&quot;:&quot;moderate&quot;,&quot;note&quot;:&quot;&quot;}]"
+         data-damage-zones="{&quot;front&quot;:{&quot;n&quot;:&quot;Front&quot;,&quot;l&quot;:&quot;Front&quot;},&quot;left_front&quot;:{&quot;n&quot;:&quot;Left front&quot;,&quot;l&quot;:&quot;Left front&quot;},&quot;right_front&quot;:{&quot;n&quot;:&quot;Right front&quot;,&quot;l&quot;:&quot;Right front&quot;},&quot;left_side&quot;:{&quot;n&quot;:&quot;Left side&quot;,&quot;l&quot;:&quot;Left side&quot;},&quot;right_side&quot;:{&quot;n&quot;:&quot;Right side&quot;,&quot;l&quot;:&quot;Right side&quot;},&quot;rear&quot;:{&quot;n&quot;:&quot;Rear&quot;,&quot;l&quot;:&quot;Rear&quot;},&quot;left_rear&quot;:{&quot;n&quot;:&quot;Left rear&quot;,&quot;l&quot;:&quot;Left rear&quot;},&quot;right_rear&quot;:{&quot;n&quot;:&quot;Right rear&quot;,&quot;l&quot;:&quot;Right rear&quot;},&quot;roof&quot;:{&quot;n&quot;:&quot;Roof&quot;,&quot;l&quot;:&quot;Roof&quot;},&quot;wheel_right_front&quot;:{&quot;n&quot;:&quot;Right front wheel&quot;,&quot;l&quot;:&quot;Wheel&quot;},&quot;wheel_left_front&quot;:{&quot;n&quot;:&quot;Left front wheel&quot;,&quot;l&quot;:&quot;Wheel&quot;},&quot;wheel_right_rear&quot;:{&quot;n&quot;:&quot;Right rear wheel&quot;,&quot;l&quot;:&quot;Wheel&quot;},&quot;wheel_left_rear&quot;:{&quot;n&quot;:&quot;Left rear wheel&quot;,&quot;l&quot;:&quot;Wheel&quot;},&quot;underside&quot;:{&quot;n&quot;:&quot;Underside&quot;,&quot;l&quot;:&quot;Underside&quot;},&quot;interior&quot;:{&quot;n&quot;:&quot;Interior&quot;,&quot;l&quot;:&quot;Interior&quot;},&quot;mechanical&quot;:{&quot;n&quot;:&quot;Mechanical&quot;,&quot;l&quot;:&quot;Mechanical&quot;},&quot;front_left_corner&quot;:{&quot;n&quot;:&quot;Front N/S corner&quot;,&quot;l&quot;:&quot;Left front&quot;},&quot;front_centre&quot;:{&quot;n&quot;:&quot;Front centre&quot;,&quot;l&quot;:&quot;Front&quot;},&quot;front_right_corner&quot;:{&quot;n&quot;:&quot;Front O/S corner&quot;,&quot;l&quot;:&quot;Right front&quot;},&quot;left_front_wing&quot;:{&quot;n&quot;:&quot;N/S front wing&quot;,&quot;l&quot;:&quot;Left front&quot;},&quot;left_front_door&quot;:{&quot;n&quot;:&quot;N/S front door&quot;,&quot;l&quot;:&quot;Left side&quot;},&quot;left_rear_door&quot;:{&quot;n&quot;:&quot;N/S rear door&quot;,&quot;l&quot;:&quot;Left side&quot;},&quot;left_quarter&quot;:{&quot;n&quot;:&quot;N/S rear quarter&quot;,&quot;l&quot;:&quot;Left rear&quot;},&quot;right_front_wing&quot;:{&quot;n&quot;:&quot;O/S front wing&quot;,&quot;l&quot;:&quot;Right front&quot;},&quot;right_front_door&quot;:{&quot;n&quot;:&quot;O/S front door&quot;,&quot;l&quot;:&quot;Right side&quot;},&quot;right_rear_door&quot;:{&quot;n&quot;:&quot;O/S rear door&quot;,&quot;l&quot;:&quot;Right side&quot;},&quot;right_quarter&quot;:{&quot;n&quot;:&quot;O/S rear quarter&quot;,&quot;l&quot;:&quot;Right rear&quot;},&quot;rear_left_corner&quot;:{&quot;n&quot;:&quot;Rear N/S corner&quot;,&quot;l&quot;:&quot;Left rear&quot;},&quot;rear_centre&quot;:{&quot;n&quot;:&quot;Rear centre&quot;,&quot;l&quot;:&quot;Rear&quot;},&quot;rear_right_corner&quot;:{&quot;n&quot;:&quot;Rear O/S corner&quot;,&quot;l&quot;:&quot;Right rear&quot;},&quot;bonnet&quot;:{&quot;n&quot;:&quot;Bonnet&quot;,&quot;l&quot;:&quot;Front&quot;},&quot;windscreen&quot;:{&quot;n&quot;:&quot;Windscreen&quot;,&quot;l&quot;:&quot;Front&quot;},&quot;rear_screen&quot;:{&quot;n&quot;:&quot;Rear screen&quot;,&quot;l&quot;:&quot;Rear&quot;},&quot;tailgate&quot;:{&quot;n&quot;:&quot;Boot / tailgate&quot;,&quot;l&quot;:&quot;Rear&quot;}}" data-damage-severities="[{&quot;k&quot;:&quot;light&quot;,&quot;n&quot;:&quot;Light&quot;},{&quot;k&quot;:&quot;light_to_moderate&quot;,&quot;n&quot;:&quot;Light to moderate&quot;},{&quot;k&quot;:&quot;moderate&quot;,&quot;n&quot;:&quot;Moderate&quot;},{&quot;k&quot;:&quot;moderate_to_heavy&quot;,&quot;n&quot;:&quot;Moderate to heavy&quot;},{&quot;k&quot;:&quot;heavy&quot;,&quot;n&quot;:&quot;Heavy&quot;}]" data-damage-multiple="Multiple"
+         data-damage-absent="Not recorded" data-damage-none="No damage recorded."
+         data-damage-no-note="No note" data-damage-note-label="Note" data-damage-remove-label="Remove">
+    <div class="panel-head">
+        <h2 id="section-damage-title">Damage</h2>
+        <div class="panel-actions">    <form method="post" data-case-edit-form action="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?handler=ClaimLease">
+        <input type="hidden" name="id" value="f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" />
+        <input type="hidden" name="expectedVersion" value="20" />
+        <input type="hidden" name="operationKey" value="b04e4dfc6f5747f8b66457d549fd2b44" />
+        <input type="hidden" name="section" value="damage" />
+        <button type="submit" class="btn btn--small" data-section-edit="damage">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAC09Xjde9vgPm2UnXgiaCacVmT08KdYlH_Sb7o-16jIEDXiFhjGad_WKMcfkwic42Y7_o6QzLYXjGt9sEoveZsAAKIJ0-Mh1bXTKEoRAEQQN3Ktnxo9wdTPY0ONJHCEV3o" /></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="true"
+        aria-label="Collapse section"
+        data-label-collapse="Collapse section"
+        data-label-expand="Expand section"
+        title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>
+</div>
+    </div>
+    <div class="panel-body stack">
+        <div class="damage-workbench">
+            <div class="damage-view" data-damage-view>
+                <svg class="damage-diagram" viewBox="0 0 240 434" role="group" aria-label="Vehicle damage diagram, plan view">
+                    <defs>
+                        <clipPath id="damage-plan-clip"><path d="M72 30 C90 16 150 16 168 30 L190 60 C196 70 198 80 198 100 L198 330 C198 352 194 366 186 380 C170 410 70 410 54 380 C46 366 42 352 42 330 L42 100 C42 80 44 70 50 60 Z" /></clipPath>
+                        <linearGradient id="damage-plan-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" /><stop offset="1" stop-color="#eaeef0" /></linearGradient>
+                        <linearGradient id="damage-plan-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7dfe4" /><stop offset="1" stop-color="#b9c5cc" /></linearGradient>
+                        <filter id="damage-plan-shadow" x="-20%" y="-10%" width="140%" height="130%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#1a2a33" flood-opacity=".16" /></filter>
+                    </defs>
+                    <text class="damage-diagram-label" x="120" y="8" text-anchor="middle">FRONT</text>
+                        <rect class="dv-wheel" x="28" y="88" width="16" height="48" rx="5" />
+                        <rect class="dv-wheel" x="196" y="88" width="16" height="48" rx="5" />
+                        <rect class="dv-wheel" x="28" y="300" width="16" height="48" rx="5" />
+                        <rect class="dv-wheel" x="196" y="300" width="16" height="48" rx="5" />
+                        <rect class="dv-mirror" x="22" y="160" width="22" height="11" rx="4" />
+                        <rect class="dv-mirror" x="196" y="160" width="22" height="11" rx="4" />
+                    <path class="dv-body" d="M72 30 C90 16 150 16 168 30 L190 60 C196 70 198 80 198 100 L198 330 C198 352 194 366 186 380 C170 410 70 410 54 380 C46 366 42 352 42 330 L42 100 C42 80 44 70 50 60 Z" fill="url(#damage-plan-body)" filter="url(#damage-plan-shadow)" />
+                    <path class="dv-glass" fill="url(#damage-plan-glass)" d="M58 118 H182 L172 160 C150 154 90 154 68 160 Z" />
+                    <path class="dv-glass" fill="url(#damage-plan-glass)" d="M68 300 C90 306 150 306 172 300 L168 334 H72 Z" />
+                    <path class="dv-seam" d="M64 46 C90 34 150 34 176 46 M64 46 L58 118 M176 46 L182 118 M176 46 L182 100 M64 46 L58 100 M58 100 H42 M182 100 H198 M68 160 V300 M172 160 V300 M42 160 H68 M172 160 H198 M42 238 H68 M172 238 H198 M42 300 H68 M172 300 H198 M42 366 H68 M172 366 H198 M72 334 H168 M68 366 Q120 392 172 366 M92 382 V402 M148 382 V402" />
+                    <path class="dv-seam dv-seam--soft" d="M102 54 L98 112 M138 54 L142 112" />
+                        <path class="dv-lamp" d="M74 34 Q86 27 100 28 L98 40 Q84 40 72 44 Z" />
+                        <path class="dv-lamp" d="M166 34 Q154 27 140 28 L142 40 Q156 40 168 44 Z" />
+                        <path class="dv-lamp dv-lamp--rear" d="M62 372 Q72 384 92 386 L92 396 Q70 392 58 380 Z" />
+                        <path class="dv-lamp dv-lamp--rear" d="M178 372 Q168 384 148 386 L148 396 Q170 392 182 380 Z" />
+                    <g class="damage-zones" clip-path="url(#damage-plan-clip)">
+                            <path data-damage-zone="front_centre" d="M64 0 H176 V46 C150 34 90 34 64 46 Z"><title>Front centre</title></path>
+                            <path data-damage-zone="front_right_corner" d="M176 0 H240 V100 H182 L176 46 Z"><title>Front O/S corner</title></path>
+                            <path data-damage-zone="front_left_corner" d="M64 0 H0 V100 H58 L64 46 Z"><title>Front N/S corner</title></path>
+                            <path data-damage-zone="bonnet" d="M64 46 C90 34 150 34 176 46 L182 118 H58 Z"><title>Bonnet</title></path>
+                            <path data-damage-zone="windscreen" d="M58 118 H182 L172 160 C150 154 90 154 68 160 Z"><title>Windscreen</title></path>
+                            <path data-damage-zone="right_front_wing" d="M182 100 H240 V160 H172 L182 118 Z"><title>O/S front wing</title></path>
+                            <path data-damage-zone="left_front_wing" d="M58 100 H0 V160 H68 L58 118 Z"><title>N/S front wing</title></path>
+                            <path data-damage-zone="right_front_door" d="M172 160 H240 V238 H172 Z"><title>O/S front door</title></path>
+                            <path data-damage-zone="left_front_door" d="M68 160 H0 V238 H68 Z"><title>N/S front door</title></path>
+                            <path data-damage-zone="right_rear_door" d="M172 238 H240 V300 H172 Z"><title>O/S rear door</title></path>
+                            <path data-damage-zone="left_rear_door" d="M68 238 H0 V300 H68 Z"><title>N/S rear door</title></path>
+                            <path data-damage-zone="roof" d="M68 160 C90 154 150 154 172 160 V300 C150 306 90 306 68 300 Z"><title>Roof</title></path>
+                            <path data-damage-zone="right_quarter" d="M172 300 H240 V366 H172 Z"><title>O/S rear quarter</title></path>
+                            <path data-damage-zone="left_quarter" d="M68 300 H0 V366 H68 Z"><title>N/S rear quarter</title></path>
+                            <path data-damage-zone="rear_screen" d="M68 300 C90 306 150 306 172 300 L168 334 H72 Z"><title>Rear screen</title></path>
+                            <path data-damage-zone="tailgate" d="M72 334 H168 L172 366 Q120 392 68 366 Z"><title>Boot / tailgate</title></path>
+                            <path data-damage-zone="rear_right_corner" d="M172 366 H240 V430 H148 V382 Q166 378 172 366 Z"><title>Rear O/S corner</title></path>
+                            <path data-damage-zone="rear_left_corner" d="M68 366 H0 V430 H92 V382 Q74 378 68 366 Z"><title>Rear N/S corner</title></path>
+                            <path data-damage-zone="rear_centre" d="M92 380 Q120 390 148 380 V430 H92 Z"><title>Rear centre</title></path>
+                    </g>
+                    <g class="damage-zones">
+                            <rect data-damage-zone="wheel_left_front" x="28" y="88" width="16" height="48" rx="5"><title>Left front wheel</title></rect>
+                            <rect data-damage-zone="wheel_right_front" x="196" y="88" width="16" height="48" rx="5"><title>Right front wheel</title></rect>
+                            <rect data-damage-zone="wheel_left_rear" x="28" y="300" width="16" height="48" rx="5"><title>Left rear wheel</title></rect>
+                            <rect data-damage-zone="wheel_right_rear" x="196" y="300" width="16" height="48" rx="5"><title>Right rear wheel</title></rect>
+                    </g>
+                    <g class="damage-markers" aria-hidden="true">
+                            <g class="damage-marker is-hidden" data-damage-marker="front_centre" transform="translate(120 30)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="front_right_corner" transform="translate(184 68)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="front_left_corner" transform="translate(56 68)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="bonnet" transform="translate(120 84)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="windscreen" transform="translate(120 140)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="right_front_wing" transform="translate(188 132)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="left_front_wing" transform="translate(52 132)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="right_front_door" transform="translate(186 199)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="left_front_door" transform="translate(54 199)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="right_rear_door" transform="translate(186 269)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="left_rear_door" transform="translate(54 269)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="roof" transform="translate(120 232)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="right_quarter" transform="translate(186 334)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="left_quarter" transform="translate(54 334)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="rear_screen" transform="translate(120 318)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="tailgate" transform="translate(120 356)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="rear_right_corner" transform="translate(180 390)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="rear_left_corner" transform="translate(60 390)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="rear_centre" transform="translate(120 400)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="wheel_left_front" transform="translate(36 112)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="wheel_right_front" transform="translate(204 112)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="wheel_left_rear" transform="translate(36 324)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="wheel_right_rear" transform="translate(204 324)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                    </g>
+                    <text class="damage-diagram-label" x="120" y="431" text-anchor="middle">REAR</text>
+                </svg>
+                <div class="dv-readout" data-damage-readout aria-live="polite"></div>
+                <div class="dv-legend" aria-label="Severity">
+                        <span><i data-sev="light"></i>Light</span>
+                        <span><i data-sev="light_to_moderate"></i>Light to moderate</span>
+                        <span><i data-sev="moderate"></i>Moderate</span>
+                        <span><i data-sev="moderate_to_heavy"></i>Moderate to heavy</span>
+                        <span><i data-sev="heavy"></i>Heavy</span>
+                </div>
+                <div class="damage-extra" aria-label="Other vehicle areas">
+                        <button type="button" class="btn btn--small" data-damage-zone="underside">Underside</button>
+                        <button type="button" class="btn btn--small" data-damage-zone="interior">Interior</button>
+                        <button type="button" class="btn btn--small" data-damage-zone="mechanical">Mechanical</button>
+                </div>
+            </div>
+            <div class="damage-facts">
+                <div class="fg g3">
+                    <div class="fc ro"><span class="lbl">Impact location</span><div class="fv derived" data-damage-location>Multiple &#xB7; Rear, Left rear</div></div>
+                    <div class="fc ro"><span class="lbl">Impact severity</span><div class="fv derived" data-damage-severity>Moderate</div></div>
+                    <div class="fc ro"><span class="lbl">Recorded zones</span><div class="fv" data-damage-count>2</div></div>
+                </div>
+                <ul class="impact-list" data-damage-impact-list aria-label="Recorded zones">
+                        <li class="impact-row" data-damage-row="tailgate">
+                            <span class="zc"><i class="zn">1</i>Boot / tailgate</span>
+                            <span class="fc">
+                                <div class="fv">Moderate</div>
+                            </span>
+                            <span class="fc">
+                                <div class="fv empty">No note</div>
+                            </span>
+                        </li>
+                        <li class="impact-row" data-damage-row="rear_left_corner">
+                            <span class="zc"><i class="zn">2</i>Rear N/S corner</span>
+                            <span class="fc">
+                                <div class="fv">Moderate</div>
+                            </span>
+                            <span class="fc">
+                                <div class="fv empty">No note</div>
+                            </span>
+                        </li>
+                </ul>
+                <div class="sub-panel mt-2"><h3>Tyres &amp; seat belts</h3>
+                    <div class="fg g4">
+                            <div class="fc">
+                                    <span class="lbl">Right-front tyre</span>
+                                <div class="fv">Ok</div>
+                            </div>
+                            <div class="fc">
+                                    <span class="lbl">Left-front tyre</span>
+                                <div class="fv">Ok</div>
+                            </div>
+                            <div class="fc">
+                                    <span class="lbl">Right-rear tyre</span>
+                                <div class="fv">Ok</div>
+                            </div>
+                            <div class="fc">
+                                    <span class="lbl">Left-rear tyre</span>
+                                <div class="fv">Illegal</div>
+                            </div>
+                            <div class="fc">
+                                    <span class="lbl">Right-front belt</span>
+                                <div class="fv">Ok</div>
+                            </div>
+                            <div class="fc">
+                                    <span class="lbl">Left-front belt</span>
+                                <div class="fv">Ok</div>
+                            </div>
+                            <div class="fc">
+                                    <span class="lbl">Right-rear belt</span>
+                                <div class="fv">Ok</div>
+                            </div>
+                            <div class="fc">
+                                    <span class="lbl">Left-rear belt</span>
+                                <div class="fv">Ok</div>
+                            </div>
+                            <div class="fc">
+                                    <span class="lbl">Spare tyre</span>
+                                <div class="fv">Ok</div>
+                            </div>
+                            <div class="fc">
+                                    <span class="lbl">Centre belt</span>
+                                <div class="fv">Ok</div>
+                            </div>
+                            <div class="fc span2">
+                                    <span class="lbl">Material transfer</span>
+                                <div class="fv empty">Not recorded</div>
+                            </div>
+                    </div>
+                </div>
+                <div class="fg g4 mt-2">
+                    <div class="fc span3">
+                            <span class="lbl">Unrelated damage</span>
+                            <div class="fv">Light scuff to the front bumper, not related to this incident.</div>
+                    </div>
+                    <div class="fc">
+                            <span class="lbl">Unrelated-damage deduction</span>
+                            <div class="fv mono empty">Not recorded</div>
+                    </div>
+                    <div class="fc ro span4"><span class="lbl">Incident narrative</span><div class="fv derived empty" data-damage-narrative>Not recorded</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+                    <section class="record-section panel section-placeholder" id="section-valuation"
+                             data-section="valuation" data-lazy="valuation"
+                             aria-label="Valuation"></section>
+                        
+<section class="record-section panel" id="section-estimate" data-section="estimate" data-collapse="case.estimate" aria-labelledby="section-estimate-title" data-estimate-section>
+    <div class="panel-head">
+        <h2 id="section-estimate-title">Estimate</h2>
+            <span class="meta" data-estimate-meta>entered by hand &#xB7; 06 May 2031 11:30 &#xB7; 1 line</span>
+        <div class="panel-actions">
+                <form method="post" data-case-edit-form action="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?handler=ClaimLease">
+                    <input type="hidden" name="id" value="f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" />
+                    <input type="hidden" name="expectedVersion" value="20" />
+                    <input type="hidden" name="operationKey" value="b04e4dfc6f5747f8b66457d549fd2b44" />
+                    <input type="hidden" name="section" value="estimate" />
+                    <button type="submit" class="btn btn--small" data-section-edit="estimate" data-estimate-import>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <span>Import</span>
+                    </button>
+                <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAC09Xjde9vgPm2UnXgiaCacVmT08KdYlH_Sb7o-16jIEDXiFhjGad_WKMcfkwic42Y7_o6QzLYXjGt9sEoveZsAAKIJ0-Mh1bXTKEoRAEQQN3Ktnxo9wdTPY0ONJHCEV3o" /></form>
+            <button type="button" class="btn btn--small btn--icon" data-estimate-expand
+                    title="Expand" aria-label="Expand estimate"
+                    data-label-expand="Expand" data-label-close="Close full screen">
+                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+            </button>
+                <form method="post" data-case-edit-form action="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?handler=ClaimLease">
+        <input type="hidden" name="id" value="f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" />
+        <input type="hidden" name="expectedVersion" value="20" />
+        <input type="hidden" name="operationKey" value="b04e4dfc6f5747f8b66457d549fd2b44" />
+        <input type="hidden" name="section" value="estimate" />
+        <button type="submit" class="btn btn--small" data-section-edit="estimate">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAC09Xjde9vgPm2UnXgiaCacVmT08KdYlH_Sb7o-16jIEDXiFhjGad_WKMcfkwic42Y7_o6QzLYXjGt9sEoveZsAAKIJ0-Mh1bXTKEoRAEQQN3Ktnxo9wdTPY0ONJHCEV3o" /></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="true"
+        aria-label="Collapse section"
+        data-label-collapse="Collapse section"
+        data-label-expand="Expand section"
+        title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+
+            <div class="estimate-tabs" role="tablist" aria-label="Estimates" data-estimate-tabs>
+                    <a class="estimate-tab" role="tab" aria-selected="true" data-estimate-tab="7caab1e9-60b1-4bcd-889d-192ba2e14f41" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=estimate&amp;estimate=7caab1e9-60b1-4bcd-889d-192ba2e14f41">
+                        <span>Example Bodyshop estimate</span>
+                        <span class="src-tag">Manual</span>
+                        <span class="status status--plain status--amber">Draft</span>
+                    </a>
+            </div>
+
+
+            <div class="est-actions" data-estimate-actions>
+                <a class="btn btn--small" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?estimateId=7caab1e9-60b1-4bcd-889d-192ba2e14f41&amp;handler=EstimateDocument" target="_blank" rel="noopener"
+                   data-document-preview data-file-name="Estimate PDF" data-no-inplace>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                    <span>Estimate PDF</span>
+                </a>
+            </div>
+
+
+                <div class="est-head">
+                    <div class="est-head-read" data-estimate-summary>
+                        <span>Repair days <b>4</b></span>
+                        <span>Labour <b>&#xA3;48.00/h</b></span>
+                        <span>Paint materials <b>&#xA3;185.00</b></span>
+                        <span>Other costs <b>Not recorded</b></span>
+                        <span>VAT <b>20 %</b></span>
+                        <span>Repairer VAT status <b>Unknown</b></span>
+                    </div>
+                </div>
+                <div class="grid" data-estimate-grid>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th scope="col" class="col-type">Type</th>
+                                <th scope="col">Description</th>
+                                <th scope="col" class="col-part">Part no.</th>
+                                <th scope="col" class="num col-qty">Qty</th>
+                                <th scope="col" class="num col-money">Unit &#xA3;</th>
+                                <th scope="col" class="num col-hours">Hours</th>
+                                <th scope="col" class="num col-hours">Paint h</th>
+                                <th scope="col" class="col-source">Source</th>
+                            </tr>
+                        </thead>
+                        <tbody data-estimate-grid-body>
+                                <tr data-estimate-line>
+                                    <td>New part</td>
+                                    <td>Rear bumper cover</td>
+                                    <td class="mono">EX-1001</td>
+                                    <td class="num">1</td>
+                                    <td class="num mono">&#xA3;412.50</td>
+                                    <td class="num mono">2.5</td>
+                                    <td class="num mono">3.0</td>
+                                    <td><span class="src-tag">manual</span></td>
+                                </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="bar" data-estimate-vat>
+                    <span class="bl">VAT charged on</span>
+                    <span>Nothing</span>
+                </div>
+                <div class="fc"><span class="lbl">Estimate notes</span><div class="fv multi empty">None recorded</div></div>
+        <div class="est-bottom">
+            <div class="wl" data-estimate-worklists>
+                <div class="wcol"><div class="wt">Main new parts required</div><ul> <li>Rear bumper cover</li></ul></div>
+                <div class="wcol"><div class="wt">Repairs required</div><ul><li class="muted">none</li> </ul></div>
+                <div class="wcol"><div class="wt">Additional operations</div><ul><li class="muted">none</li> </ul></div>
+            </div>
+            <dl class="rollup" data-estimate-rollup>
+                <div class="rr"><dt>Parts</dt><dd>&#xA3;412.50</dd></div>
+                <div class="rr"><dt>Panel labour</dt><dd>&#xA3;120.00</dd></div>
+                <div class="rr"><dt>Paint labour</dt><dd>&#xA3;0.00</dd></div>
+                <div class="rr"><dt>Materials</dt><dd>&#xA3;185.00</dd></div>
+                <div class="rr"><dt>Specialist</dt><dd>&#xA3;0.00</dd></div>
+                <div class="rr"><dt>Net</dt><dd>&#xA3;717.50</dd></div>
+                <div class="rr"><dt>VAT 20 % on nothing</dt><dd>&#xA3;0.00</dd></div>
+                <div class="rr tot"><dt>Repair cost inc VAT &#xB7; draft</dt><dd data-estimate-gross>&#xA3;717.50</dd></div>
+            </dl>
+        </div>
+    </div>
+</section>
+
+
+
+
+
+
+                        
+<section class="record-section panel" id="section-settlement" data-section="settlement" data-collapse="case.settlement" aria-labelledby="section-settlement-title"
+         data-settlement data-settlement-outcome="repairable" data-settlement-editable="false">
+    <div class="panel-head">
+        <h2 id="section-settlement-title">Settlement</h2>
+        <div class="panel-actions">
+                <form method="post" data-case-edit-form action="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?handler=ClaimLease">
+        <input type="hidden" name="id" value="f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" />
+        <input type="hidden" name="expectedVersion" value="20" />
+        <input type="hidden" name="operationKey" value="b04e4dfc6f5747f8b66457d549fd2b44" />
+        <input type="hidden" name="section" value="settlement" />
+        <button type="submit" class="btn btn--small" data-section-edit="settlement">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAC09Xjde9vgPm2UnXgiaCacVmT08KdYlH_Sb7o-16jIEDXiFhjGad_WKMcfkwic42Y7_o6QzLYXjGt9sEoveZsAAKIJ0-Mh1bXTKEoRAEQQN3Ktnxo9wdTPY0ONJHCEV3o" /></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="true"
+        aria-label="Collapse section"
+        data-label-collapse="Collapse section"
+        data-label-expand="Expand section"
+        title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="metric-strip" data-settlement-figures>
+                <div class="metric"><span class="metric-label">Engineer&#x27;s Value</span><span class="metric-value">&#x2014;</span><span class="metric-meta">Apply in Valuation</span></div>
+                <div class="metric"><span class="metric-label">Labour hours</span><span class="metric-value">&#x2014;</span></div>
+                <div class="metric"><span class="metric-label">Repair cost inc VAT</span><span class="metric-value red">&#x2014;</span><span class="metric-meta">From current estimate</span></div>
+                <div class="metric"><span class="metric-label">Repair cost of value</span><span class="metric-value">&#x2014;</span></div>
+        </div>
+
+        <div class="decisions" data-decisions>
+            <div class="dec-head">
+                <h3>Decisions</h3>
+            </div>
+        <div class="dec" data-decision="assessment.outcome" data-shown-when="">
+            <span class="dl">Outcome</span>
+        <div class="fc" data-field="assessment.outcome">
+                <span class="lbl">Outcome</span>
+            <div class="fv">Repairable</div>
+        </div>
+        </div>
+            <div class="dec" data-decision="assessment.values.engineer">
+                <span class="dl">Engineer&#x27;s Value</span>
+                <div class="fc ro">
+                    <span class="lbl">Engineer&#x27;s Value</span>
+                    <div class="fv mono" data-decision-engineer-value>
+                        <span>&#x2014;</span>
+                        <a class="src-tag" data-section-jump="valuation" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=valuation#section-valuation">Valuation</a>
+                    </div>
+                </div>
+            </div>
+        <div class="dec" data-decision="assessment.category" data-shown-when="total-loss" hidden="hidden">
+            <span class="dl">Salvage category</span>
+        <div class="fc" data-field="assessment.category">
+                <span class="lbl">Salvage category</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        </div>
+        <div class="dec" data-decision="assessment.salvage_value" data-shown-when="total-loss" hidden="hidden">
+            <span class="dl">Salvage value</span>
+        <div class="fc" data-field="assessment.salvage_value">
+                <span class="lbl">Salvage value</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        </div>
+        <div class="dec" data-decision="assessment.legal_status" data-shown-when="">
+            <span class="dl">Roadworthiness</span>
+        <div class="fc" data-field="assessment.legal_status">
+                <span class="lbl">Roadworthiness</span>
+            <div class="fv">Roadworthy</div>
+        </div>
+        </div>
+            <div class="dec wide" data-decision="assessment.unroadworthy_reason" data-shown-when="unroadworthy" hidden="hidden">
+                <span class="dl">Unroadworthy reason</span>
+        <div class="fc" data-field="assessment.unroadworthy_reason">
+                <span class="lbl">Unroadworthy reason</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+            </div>
+        </div>
+
+        <div class="fg g4">
+        <div class="fc" data-field="settlement.excess">
+                <span class="lbl">Excess</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.betterment">
+                <span class="lbl">Betterment</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        </div>
+
+        <div class="sub-panel"><h3>Costs, hire &amp; delays</h3>
+            <div class="fg g4">
+        <div class="fc" data-field="settlement.reserve">
+                <span class="lbl">Reserve</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.diminution">
+                <span class="lbl">Diminution</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.hire_start">
+                <span class="lbl">Hire start</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.hire_daily_cost">
+                <span class="lbl">Hire daily cost</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.repair_delays">
+                <span class="lbl">Repair delays</span>
+            <div class="fv multi">2</div>
+        </div>
+        <div class="fc" data-field="settlement.report_delay">
+                <span class="lbl">Report delay</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.claimant_vat_registered">
+                <span class="lbl">Claimant VAT registered</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+                <div class="fc ro"><span class="lbl">Storage charge</span><div class="fv mono derived empty">Not recorded</div></div>
+                <div class="fc ro"><span class="lbl">Repair days</span><div class="fv derived empty">Not recorded</div></div>
+            </div>
+        </div>
+
+        <div class="sub-panel" data-shown-when="total-loss" hidden="hidden"><h3>Salvage</h3>
+            <div class="fg g4">
+        <div class="fc" data-field="settlement.salvage.at">
+                <span class="lbl">Salvage location</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.salvage.agent">
+                <span class="lbl">Salvage agent</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.salvage.agent_reference">
+                <span class="lbl">Salvage agent reference</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.salvage.moved">
+                <span class="lbl">Salvage moved</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.salvage.owner_retains">
+                <span class="lbl">Owner retains salvage</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.salvage.value_agreed">
+                <span class="lbl">Salvage value agreed</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="settlement.salvage.settled">
+                <span class="lbl">Salvage settled</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+                        
+<section class="record-section panel" id="section-report" data-section="report" data-collapse="case.report" aria-labelledby="section-report-title" data-report>
+    <div class="panel-head">
+        <h2 id="section-report-title">Report</h2>
+        <div class="panel-actions">
+                <form method="post" data-case-edit-form action="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?handler=ClaimLease">
+        <input type="hidden" name="id" value="f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f" />
+        <input type="hidden" name="expectedVersion" value="20" />
+        <input type="hidden" name="operationKey" value="b04e4dfc6f5747f8b66457d549fd2b44" />
+        <input type="hidden" name="section" value="report" />
+        <button type="submit" class="btn btn--small" data-section-edit="report">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span>Edit</span>
+        </button>
+    <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAC09Xjde9vgPm2UnXgiaCacVmT08KdYlH_Sb7o-16jIEDXiFhjGad_WKMcfkwic42Y7_o6QzLYXjGt9sEoveZsAAKIJ0-Mh1bXTKEoRAEQQN3Ktnxo9wdTPY0ONJHCEV3o" /></form>
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="true"
+        aria-label="Collapse section"
+        data-label-collapse="Collapse section"
+        data-label-expand="Expand section"
+        title="Collapse section">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>
+
+        </div>
+    </div>
+    <div class="panel-body stack">
+            <div class="notice notice--warning" role="status" data-dismissable data-report-not-ready>
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <span>Report not ready: Assessed date; Retail value; Trade value; Engineer&#x27;s value; Repairer VAT answer; Vehicle history check; Agreed fee; Sign-off Engineer; Current estimate required; Accepted Engineer&#x27;s Value; Close-up image; Overview image.</span>
+                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            </div>
+        <div class="pv" data-report-preview-card>
+            <div class="pv-thumb" aria-hidden="true"></div>
+            <div class="pv-meta">
+                <div class="pt" data-report-title>Repairable Report &#x2014; AB12CDE</div>
+                <div class="ps" data-report-status>
+                        <span>No generation yet.</span>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="fg g4">
+            <div class="fc" data-field="signOffEngineerId">
+                    <span class="lbl">Sign-off Engineer</span>
+                <div class="fv">Unassigned</div>
+            </div>
+            <div class="fc" data-field="reportDate">
+                    <span class="lbl">Report date</span>
+                <div class="fv derived empty">&#x2014;</div>
+            </div>
+        <div class="fc" data-field="fee.agreed_fee">
+                <span class="lbl">Agreed fee</span>
+            <div class="fv mono empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="fee.description_lines">
+                <span class="lbl">Fee description</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+        <div class="fc" data-field="report.date_override">
+                <span class="lbl">Override report date</span>
+            <div class="fv empty">Not recorded</div>
+        </div>
+        <div class="fc span3" data-field="narrative.engineers_comments">
+                <span class="lbl">Engineer&#x27;s comments</span>
+            <div class="fv multi">Synthetic comment: damage is consistent with the reported rear impact.</div>
+        </div>
+            <div class="fc span4" data-field="report-content">
+                <span class="lbl">Report content</span>
+                <div class="fv" data-report-content>Guide source not disclosed</div>
+            </div>
+        <div class="fc span4" data-field="report.valuation_commentary_text">
+                <span class="lbl">Valuation commentary</span>
+            <div class="fv multi empty">Not recorded</div>
+        </div>
+            <div class="fc ro span4"><span class="lbl">Statement of truth</span><div class="fv derived multi empty">Not recorded</div></div>
+        </div>
+
+            <div class="sub-panel" data-report-images>
+                <h3>Images in report <span class="rt" data-report-image-count>0 of 1 in report</span></h3>
+                <div class="thumbs" data-report-images-strip data-evidence-set>
+                        <a class="th off" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f/Documents/42f5f772-c326-4fba-9ab6-ded1cb8864af/Download?versionId=76c53c55-1574-4dd1-9dc0-30efe06a6e6a&amp;inline=true"
+                           data-evidence-item data-download-href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f/Documents/42f5f772-c326-4fba-9ab6-ded1cb8864af/Download?versionId=76c53c55-1574-4dd1-9dc0-30efe06a6e6a" data-media-type="image/png" data-file-name="local-retained-engineering-image.png"
+                           data-report-image="42f5f772-c326-4fba-9ab6-ded1cb8864af" data-report-image-role="NotUsed"
+                           >
+                            <img src="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f/Documents/42f5f772-c326-4fba-9ab6-ded1cb8864af/Download?versionId=76c53c55-1574-4dd1-9dc0-30efe06a6e6a&amp;inline=true&amp;size=thumb&amp;prep=0&amp;renderer=r2" alt="" loading="lazy" data-gallery-image />
+                            <span class="inc" aria-hidden="true">&#x2013;</span>
+                            <span class="th-name">local-retained-engineering-image.png</span>
+                        </a>
+                </div>
+            </div>
+    </div>
+</section>
+
+
+                    <section class="record-section panel section-placeholder" id="section-files"
+                             data-section="files" data-lazy="files"
+                             aria-label="Files"></section>
+                    <section class="record-section panel section-placeholder" id="section-notes"
+                             data-section="notes" data-lazy="notes"
+                             aria-label="Notes"></section>
+        </div>
+
+        <aside class="workspace-aside" aria-label="Case context" data-case-aside>
+            <section class="panel context-card" data-figures>
+                <div class="panel-head"><h2>Figures</h2></div>
+                <div class="panel-body">
+                        <div class="fig-chips">
+                                <span class="status status--blue" data-outcome-chip>Repairable</span>
+                                <span class="status status--neutral" data-legal-chip>Roadworthy</span>
+                        </div>
+                    <dl class="figures">
+                        <div class="figure figure--big"><dt>Repair cost inc VAT</dt><dd class="mono">&#x2014;</dd></div>
+                        <div class="figure"><dt>Engineer&#x27;s Value</dt><dd class="mono">&#x2014;</dd></div>
+                        <div class="figure"><dt>Repair cost of value</dt><dd class="mono">&#x2014;</dd></div>
+                    </dl>
+                </div>
+            </section>
+            <section class="panel context-card" data-next-action>
+                <div class="panel-head"><h2>Next action</h2></div>
+                <div class="panel-body">
+                    <div class="next-row">
+                        <span data-next-label>Assessed date &#xB7; 11 more</span>
+                        <a class="btn btn--small" data-section-jump="valuation" href="/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=valuation#section-valuation">Valuation</a>
+                    </div>
+                </div>
+            </section>
+        </aside>
+    </div>
+</article>
+
+<div data-case-viewer-host><div class="case-viewer" data-case-viewer hidden role="dialog" aria-modal="true" aria-label="Image viewer" tabindex="-1">
+    <div class="case-viewer-top">
+        <div class="case-viewer-title">
+            <b data-viewer-name></b>
+            <span class="tag" data-viewer-tag hidden></span>
+            <span class="case-viewer-n" data-viewer-position></span>
+        </div>
+        <div class="case-viewer-tools" data-viewer-tools>
+            <span class="case-viewer-set" data-viewer-view-tools>
+                <button type="button" class="btn btn--small" data-viewer-rotate>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+                    <span>Rotate</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-zoom>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-zoom-in" /></svg>
+                    <span data-viewer-zoom-label>Zoom</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop hidden>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-crop" /></svg>
+                    <span>Crop</span>
+                </button>
+                <a class="btn btn--small" data-viewer-download download>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                    <span data-viewer-download-label>Download</span>
+                </a>
+                <label class="case-viewer-inc" data-viewer-in-report-wrap hidden>
+                    <input type="checkbox" data-viewer-in-report />
+                    <span>In report</span>
+                </label>
+            </span>
+            <span class="case-viewer-set" data-viewer-crop-tools hidden>
+                <span class="case-viewer-n" data-viewer-crop-status></span>
+                <label class="sr-only" for="case-viewer-aspect">Aspect</label>
+                <select id="case-viewer-aspect" class="case-viewer-select" data-viewer-aspect>
+                    <option value="free">Free</option>
+                    <option value="1">Square</option>
+                    <option value="1.3333333">4:3</option>
+                    <option value="1.7777778">16:9</option>
+                </select>
+                <button type="button" class="btn btn--small" data-viewer-crop-rotate="-90">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                    <span>Rotate left</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-rotate="90">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+                    <span>Rotate right</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-full>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg>
+                    <span>Full frame</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-reset>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
+                    <span>Reset</span>
+                </button>
+                <button type="button" class="btn btn--small btn--primary" data-viewer-crop-save>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>Save crop</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-cancel>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <span>Cancel</span>
+                </button>
+            </span>
+        </div>
+        <button type="button" class="icon-button" data-viewer-close aria-label="Close">
+            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+        </button>
+    </div>
+    <button type="button" class="case-viewer-nav prev" data-viewer-prev aria-label="Previous">
+        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+    </button>
+    <div class="case-viewer-stage" data-viewer-stage>
+        <img alt="" data-viewer-image hidden />
+        <iframe title="" data-viewer-document hidden></iframe>
+        <video controls preload="metadata" data-viewer-video hidden></video>
+    </div>
+    <button type="button" class="case-viewer-nav next" data-viewer-next aria-label="Next">
+        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+    </button>
+    <div class="case-viewer-strip" data-viewer-strip></div>
+</div>
+</div>
+<div id="edit-finish-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-finish-title" hidden>
+    <div class="reason-dialog">
+        <h2 id="edit-finish-title">Save your changes before finishing?</h2>
+        <p>Values not saved are not kept.</p>
+        <div class="button-row">
+            <button type="button" class="btn" data-edit-finish-keep>Keep editing</button>
+            <button type="button" class="btn" data-edit-finish-discard>Discard</button>
+            <button type="button" class="btn btn--primary" data-edit-finish-save>Save changes</button>
+        </div>
+    </div>
+</div>
+
+<div data-case-dialogs>
+
+
+
+
+
+
+
+</div>
+
+
+
+                </div>
+            </main>
+        </div>
+    </div>
+    
+<div class="dialog-backdrop" data-dialog="account-dialog" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="account-dialog-title">
+        <div class="dialog-head">
+            <h2 id="account-dialog-title" tabindex="-1">Account</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="definition-list">
+                <dl class="definition"><dt>Name</dt><dd>integration-user</dd></dl>
+                <dl class="definition"><dt>Role</dt><dd>Administrator</dd></dl>
+                <dl class="definition"><dt>Idle lock</dt><dd>2 hours</dd></dl>
+            </div>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn" data-dialog-close>Close</button>
+            <a class="btn" href="/Account/PasswordChange">
+                <svg class="icon" aria-hidden="true"><use href="#icon-key" /></svg>
+                <span>Change password</span>
+            </a>
+            <form method="post" action="/Account/SignOut">
+                <button type="submit" class="btn btn--danger">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-log-out" /></svg>
+                    <span>Sign out</span>
+                </button>
+            <input name="__RequestVerificationToken" type="hidden" value="CfDJ8AAAAAAAAAAAAAAAAAAAAAC09Xjde9vgPm2UnXgiaCacVmT08KdYlH_Sb7o-16jIEDXiFhjGad_WKMcfkwic42Y7_o6QzLYXjGt9sEoveZsAAKIJ0-Mh1bXTKEoRAEQQN3Ktnxo9wdTPY0ONJHCEV3o" /></form>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="notifications-dialog" data-dialog-open-on-load="" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="notifications-dialog-title">
+        <div class="dialog-head">
+            <h2 id="notifications-dialog-title" tabindex="-1">Notifications</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body dialog-body--list">
+                <p class="empty-state" role="status">No notifications</p>
+        </div>
+        <div class="dialog-foot">
+            <button type="button" class="btn btn--dark" data-dialog-close>Close</button>
+        </div>
+    </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="command-dialog" hidden>
+    <section class="dialog command-dialog" role="dialog" aria-modal="true" aria-labelledby="command-dialog-title">
+        <div class="dialog-head">
+            <h2 id="command-dialog-title" tabindex="-1">Search Pegasus</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="command-search">
+            <label class="sr-only" for="command-input">Search</label>
+            <input id="command-input" type="search" autocomplete="off" data-command-palette-input aria-controls="command-results" />
+        </div>
+        <div id="command-results" class="command-results" role="listbox" aria-label="Search results" data-command-results>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/">
+                <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                <span><strong>Work Centre</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Inbox">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                    <span><strong>Inbox</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Upload">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <span><strong>Upload</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Cases">
+                <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                <span><strong>Cases</strong></span>
+            </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search">
+                <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                <span><strong>Search</strong></span>
+            </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Operations">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                    <span><strong>Operations</strong></span>
+                </button>
+                <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Administration">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                    <span><strong>Administration</strong></span>
+                </button>
+            <button type="button" class="command-result" role="option" aria-selected="false" data-route="/Search?query=" data-command-fallback>
+                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                <span><strong>Search Cases for <span data-command-fallback-term></span></strong></span>
+                <span class="kbd" aria-hidden="true">Enter</span>
+            </button>
+        </div>
+    </section>
+</div>
+
+    <div class="toast-region" aria-live="polite" data-toast-region></div>
+
+    <script src="/js/site.0vx6h6nybr.js"></script>
+    <script src="/js/edit-scope-release.35sdkoqoov.js"></script>
+    
+    <script src="/js/case-workspace.kivzlonqz0.js"></script>
+
+</body>
+</html>

@@ -637,7 +637,7 @@ The approved release operator supplies these deployment inputs:
 | `AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned secret URIs for the separate encryption certificates. |
 | `BOX_HOLDING_FOLDER_ID` | Operator-created holding folder below the approved Pegasus Box root for non-Case sources. |
 | `GLASS_MARKET_VALUE_ASSESSOR_BASE_URI` | Glass's Market Value Assessor origin. Defaults to `https://www.marketvalueassessor.jdpower.com/`. |
-| `GLASS_ESTIMATOR_BASE_URI` | Glass's repair estimator origin a launch may send the Engineer to. Defaults to `https://repairestimate.autovistagroup.com/`. |
+| `GLASS_ESTIMATOR_BASE_URI` | Glass's repair estimator origin a launch may send the staff member to. Defaults to `https://repairestimate.autovistagroup.com/`. |
 | `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |
 
 Bicep supplies the configured vault origin and indexed certificate URI settings
@@ -647,9 +647,9 @@ The Web host lists the four `Glass:*` keys among its Production required
 settings, so a Web App deployed without them stops at startup naming the key;
 the migration host is built the same way and must be handed the same values.
 Initial certificate creation is a separately authorized operator action; no
-secret is seeded. Each Engineer's own Glass's account name and password are
-entered by an Administrator on that staff account's Glass's page and are held
-protected per Engineer, never in deployment configuration.
+secret is seeded. Each staff member's own Glass's account name and password
+are entered by an Administrator on that staff account's Glass's page and are
+held protected per staff account, never in deployment configuration.
 
 For rotation, publish new certificate secret versions, then deploy all replicas
 with both the new and still-required old versions. Verify token issue,

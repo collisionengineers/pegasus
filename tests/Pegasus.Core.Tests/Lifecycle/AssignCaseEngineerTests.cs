@@ -10,21 +10,19 @@ public sealed class AssignCaseEngineerTests
     private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly Guid EngineerId = Guid.NewGuid();
     private static readonly ActionActor Actor =
-        ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
     [Theory]
-    [InlineData(false, false, false, "does not exist")]
-    [InlineData(true, false, true, "is disabled")]
-    [InlineData(true, true, false, "does not hold the Engineer role")]
+    [InlineData(false, false, "does not exist")]
+    [InlineData(true, false, "is disabled")]
     public async Task IneligibleStaffCannotBeAssignedOrUnlockWork(
         bool accountExists,
         bool isEnabled,
-        bool hasEngineerRole,
         string expectedMessage)
     {
         var store = new RecordingWorkflowStore();
         var eligibility = new StubEligibility(
-            new(accountExists, isEnabled, hasEngineerRole));
+            new(accountExists, isEnabled));
         var sut = new AssignCaseEngineer(
             store,
             new DefaultCaseWorkflowConfiguration(),
@@ -55,7 +53,7 @@ public sealed class AssignCaseEngineerTests
     public async Task NativeHandoffEntersReportPreparationAndExactReplayDoesNotRecheckEligibility()
     {
         var store = new RecordingWorkflowStore();
-        var eligibility = new StubEligibility(new(true, true, true));
+        var eligibility = new StubEligibility(new(true, true));
         var sut = new AssignCaseEngineer(
             store,
             new DefaultCaseWorkflowConfiguration(),
@@ -64,7 +62,7 @@ public sealed class AssignCaseEngineerTests
         var request = CreateAssignmentRequest();
 
         var assigned = await sut.ExecuteAsync(request, default);
-        eligibility.Current = new(true, false, true);
+        eligibility.Current = new(true, false);
         var replay = await sut.ExecuteAsync(request, default);
 
         Assert.Equal(EngineerId, assigned.AssignedEngineerId);
@@ -84,7 +82,7 @@ public sealed class AssignCaseEngineerTests
         var sut = new AssignCaseEngineer(
             store,
             new DefaultCaseWorkflowConfiguration(),
-            new StubEligibility(new(true, true, true)),
+            new StubEligibility(new(true, true)),
             new StubStaffAccounts([Profile(defaultSignOffEngineerId, isDefault: true)]));
 
         var assigned = await sut.ExecuteAsync(CreateAssignmentRequest(), default);
@@ -105,7 +103,7 @@ public sealed class AssignCaseEngineerTests
         var sut = new AssignCaseEngineer(
             store,
             new DefaultCaseWorkflowConfiguration(),
-            new StubEligibility(new(true, true, true)),
+            new StubEligibility(new(true, true)),
             new StubStaffAccounts([Profile(EngineerId, isDefault: false)]),
             notifier);
         var request = CreateAssignmentRequest();

@@ -177,8 +177,9 @@ public sealed class CaseEditModeWebTests
 
     [Theory]
     [InlineData("Engineer", false, true)]
-    [InlineData("User", false, false)]
+    [InlineData("User", false, true)]
     [InlineData("Engineer", true, false)]
+    [InlineData("User", true, false)]
     public async Task WorkspaceSaveUsesCoreFindingAndEligibleSignOffAuthority(
         string role, bool forgeSignOffAccount, bool reachesStore)
     {
@@ -212,7 +213,7 @@ public sealed class CaseEditModeWebTests
         AssertPrg(claim, store.CaseId);
         var editing = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         var outcomeName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.Outcome);
-        Assert.Equal(role == "Engineer", editing.Contains($"name=\"{outcomeName}\"", StringComparison.Ordinal));
+        Assert.True(editing.Contains($"name=\"{outcomeName}\"", StringComparison.Ordinal));
         var field = forgeSignOffAccount ? "signOffEngineerId" : outcomeName;
         var value = forgeSignOffAccount
             ? Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId.ToString("D") : "repairable";
@@ -287,6 +288,13 @@ public sealed class CaseEditModeWebTests
             Assert.Matches($"<(input|textarea|select)[^>]*name=\"{Regex.Escape(name)}\"[^>]*form=\"case-edit-form\"", html);
         }
         Assert.Single(Regex.Matches(html, "id=\"case-edit-form\""));
+        var vatName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementClaimantVatRegistered);
+        Assert.Equal(1, Occurrences(html, $"name=\"{vatName}\""));
+        var claimStart = html.IndexOf("id=\"section-claim\"", StringComparison.Ordinal);
+        var settlementStart = html.IndexOf("id=\"section-settlement\"", StringComparison.Ordinal);
+        var vatControl = html.IndexOf($"name=\"{vatName}\"", StringComparison.Ordinal);
+        Assert.True(claimStart >= 0 && settlementStart > claimStart && vatControl >= 0);
+        Assert.InRange(vatControl, claimStart, settlementStart);
         // The history check is the Vehicle section's own sub-panel rather
         // than a row among the vehicle's facts, in edit mode as in read mode.
         Assert.Contains("data-vehicle-history", html, StringComparison.Ordinal);

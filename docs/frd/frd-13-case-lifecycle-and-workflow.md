@@ -87,12 +87,12 @@ action and never resets readiness, lifecycle or advisory state.
 
 ### Hand to Engineer
 
-In Review, staff choose **Hand to Engineer** and pick an eligible Pegasus
-Engineer. In one operation, under the current Case edit lease and version,
+In Review, staff choose **Hand to Engineer** and pick an eligible enabled
+staff account. In one operation, under the current Case edit lease and version,
 Pegasus assigns the Engineer, sets the Sign-off Engineer, and moves the Case
-to With Engineer. An Engineer may use **Assign to me** wherever the same
+to With Engineer. Any enabled staff member may use **Assign to me** wherever the same
 assignment would be accepted. A headless start command can hand a Review Case
-to its already-assigned eligible Engineer; it is not a second screen step.
+to its already-assigned eligible staff member; it is not a second screen step.
 
 Replaying the same request does not hand off twice. A request that is
 incomplete, stale or unauthorised changes nothing.
@@ -113,7 +113,7 @@ received or assigned anything.
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
   viewed. Staff with `PerformCasework` may edit them in Not ready, Review and
   With Engineer under the normal edit authority. They are read-only in Held
-  and Completed. Adopting the Engineer's Value is an Engineer act.
+  and Completed. Adopting the Engineer's Value is an explicit human staff act.
 - **Report approval** names one immutable report file and the staff member
   who approved it.
 - **Mark report sent** needs exact retained Sent evidence
@@ -169,7 +169,7 @@ Return to Engineer.
 
 ### Sign-off Engineer
 
-Sign-off Engineer is a Case field beside Engineer. Only staff accounts
+Sign-off Engineer is a Case field beside Engineer. Only enabled staff accounts
 flagged as Sign-off Engineer are offered
 ([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)). The
 default is the assigned Engineer when that account is flagged; otherwise it

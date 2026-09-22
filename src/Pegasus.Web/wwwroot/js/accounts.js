@@ -7,9 +7,6 @@
         if (form.dataset.accountSettingsBound === 'true') { return; }
         form.dataset.accountSettingsBound = 'true';
 
-        var role = form.querySelector('[data-account-role]');
-        var signOff = form.querySelector('[data-account-signoff]');
-        var defaultSignOff = form.querySelector('[data-account-default]');
         var dialog = form.closest('[data-dialog]');
         var glassLogin = form.querySelector('[data-account-glass-login]');
 
@@ -29,24 +26,10 @@
                 }).join('|');
         }
 
-        function syncSignOffEligibility() {
-            if (!role || !signOff || !defaultSignOff) { return; }
-            var allowed = role.value === 'Administrator' || role.value === 'Engineer';
-            signOff.disabled = !allowed;
-            defaultSignOff.disabled = !allowed;
-            form.querySelectorAll('[data-account-signoff-field]').forEach(function (field) {
-                field.classList.toggle('is-disabled', !allowed);
-                field.querySelectorAll('input').forEach(function (input) { input.disabled = !allowed; });
-            });
-            if (!allowed) { signOff.value = 'false'; defaultSignOff.checked = false; }
-        }
-
         function resetSettings() {
             form.reset();
-            syncSignOffEligibility();
         }
 
-        if (role) { role.addEventListener('change', syncSignOffEligibility); }
         if (dialog) {
             dialog.querySelectorAll('[data-account-settings-cancel]').forEach(function (button) {
                 button.addEventListener('click', resetSettings);
@@ -61,8 +44,6 @@
                 }
             });
         }
-
-        syncSignOffEligibility();
     }
 
     document.querySelectorAll('[data-account-settings]').forEach(bindAccountSettings);
