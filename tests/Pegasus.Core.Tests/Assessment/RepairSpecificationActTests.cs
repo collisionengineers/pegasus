@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -249,18 +249,23 @@ public sealed class RepairSpecificationActTests
         Assert.Empty(store.Saves);
     }
 
+    /// <summary>
+    /// PR 792 took the Engineer account type out of the authority rules: scaling
+    /// and removing scaling are staff acts. What is still refused is an actor who
+    /// is not staff at all, which is what RequireStaffAuthor stands for.
+    /// </summary>
     [Fact]
-    public async Task OnlyAnEngineerActsOnARepairSpecification()
+    public async Task OnlyStaffActOnARepairSpecification()
     {
         var specification = Estimate(Header(rate: 40m), Line("new_part", price: 100m));
         var store = new RecordingStore(specification);
-        var user = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var automation = ActionActor.Automation("pegasus-automation");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             new SaveAndScaleRepairSpecification(new RecordingAssessment(10_000m), store).ExecuteAsync(
                 new(
                     new SaveEstimateRequest(
-                        CaseId, 3, user, "op", "Scale", new string('l', 32), specification.SpecificationId,
+                        CaseId, 3, automation, "op", "Scale", new string('l', 32), specification.SpecificationId,
                         specification.Details,
                         specification.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
                         specification.Source),
@@ -269,7 +274,7 @@ public sealed class RepairSpecificationActTests
                 CancellationToken.None));
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             new RemoveRepairSpecificationScaling(store).ExecuteAsync(
-                new(CaseId, 3, user, "op", new string('l', 32), specification.SpecificationId),
+                new(CaseId, 3, automation, "op", new string('l', 32), specification.SpecificationId),
                 CancellationToken.None));
         Assert.Empty(store.Saves);
     }
