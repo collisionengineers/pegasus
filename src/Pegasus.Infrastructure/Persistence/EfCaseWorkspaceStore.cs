@@ -330,6 +330,7 @@ public sealed class EfCaseWorkspaceStore(
         var freshness = CaseReportFreshness.ClassifyWorkspace(
             beforeReportData,
             afterReportData,
+            wordingChanged,
             beforeAssessment,
             afterAssessment,
             beforeSignOffEngineerId,
