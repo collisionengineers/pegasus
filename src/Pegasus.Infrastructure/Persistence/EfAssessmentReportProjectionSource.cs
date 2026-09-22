@@ -129,6 +129,12 @@ internal sealed class EfAssessmentReportProjectionSource(
             .OrderByDescending(valuation => valuation.AcceptedAtUtc)
             .FirstOrDefault();
         var guides = await GuidesOfAsync(context, caseId, cancellationToken);
+        var wording = await context.CaseReportWordings.AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .OrderBy(item => item.BlockKey)
+            .Select(item => new CaseReportWording(
+                item.BlockKey, item.Title, item.Text, item.Order, item.Included, item.Manual))
+            .ToArrayAsync(cancellationToken);
 
         // Repair costs are never typed here: the projection derives them from
         // the Current estimate (the workspace's accepted specification) through
@@ -152,7 +158,8 @@ internal sealed class EfAssessmentReportProjectionSource(
                     signOffEngineer.SignatureContentType),
             Guides: guides,
             ValuationCommentary: AssessmentReportProjection.ValuationCommentaryOf(
-                workspace.Assessment, latestApplied?.Reason));
+                workspace.Assessment, latestApplied?.Reason),
+            Wording: wording);
 
         var readiness = new CaseReportReadinessInput(
             workspace.Assessment,

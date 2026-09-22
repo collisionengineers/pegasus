@@ -2886,6 +2886,52 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("CaseReportSentEvidence", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseReportWordingEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BlockKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Included")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("Manual")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("Order")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId", "BlockKey")
+                        .IsUnique();
+
+                    b.ToTable("CaseReportWordings", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseSequenceEntity", b =>
                 {
                     b.Property<Guid>("SequenceLineageId")
@@ -8723,6 +8769,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("CaseId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseReportWordingEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Case");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseSequenceEntity", b =>

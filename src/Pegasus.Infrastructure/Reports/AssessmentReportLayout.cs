@@ -162,62 +162,56 @@ internal static class AssessmentReportLayout
                 "This report has been compiled from a desktop review of the information available relating to this claim."));
         }
 
-        Section(column, "Nature of Incident", section => Paragraph(
-            section,
-            $"The vehicle has suffered {Display(snapshot.ImpactSeverity)} collision/impact damage to the {Display(snapshot.ImpactLocation)}."));
-
-        Section(column, "Damage", section =>
+        // v28 P30: the report's narrative is the Engineer's wording blocks in
+        // their order. The settlement block keeps the figure box and the
+        // settlement rows that belong to it; every other block is its heading
+        // and its paragraphs. The damage tables are not wording: they follow
+        // the Nature of Incident block wherever the Engineer put it, and print
+        // after the narrative when that block is not on the report.
+        var damageTablesPrinted = false;
+        void DamageTables()
         {
-            ImpactDiagram(section, snapshot.Damage.Impacts);
-            ImpactTable(section.Item(), snapshot.Damage.Impacts);
-            DataTable(section.Item(), 46, DamageRows(snapshot));
-        });
-
-        Section(column, "Tyres and Seat Belts", section =>
-            DataTable(section.Item(), 40, RestraintRows(snapshot.Damage)));
-
-        Section(column, "Engineer's Comments", section =>
-        {
-            Paragraph(section, MileageSentence(snapshot.Vehicle.MileageSource));
-            if (snapshot.LegalStatus.Equals("unroadworthy", StringComparison.OrdinalIgnoreCase))
+            damageTablesPrinted = true;
+            Section(column, "Damage", section =>
             {
-                Paragraph(section, $"Please note the vehicle is unroadworthy due to {snapshot.UnroadworthyReason}.");
-            }
-            if (!string.IsNullOrWhiteSpace(snapshot.EngineerComments))
+                ImpactDiagram(section, snapshot.Damage.Impacts);
+                ImpactTable(section.Item(), snapshot.Damage.Impacts);
+                DataTable(section.Item(), 46, DamageRows(snapshot));
+            });
+
+            Section(column, "Tyres and Seat Belts", section =>
+                DataTable(section.Item(), 40, RestraintRows(snapshot.Damage)));
+        }
+
+        foreach (var block in snapshot.PrintedWording)
+        {
+            var printed = block;
+            Section(column, printed.Title, section =>
             {
-                Paragraph(section, snapshot.EngineerComments);
+                foreach (var paragraph in printed.Text.Split("\n\n", StringSplitOptions.RemoveEmptyEntries))
+                {
+                    Paragraph(section, paragraph.Trim());
+                }
+                if (printed.Key != ReportWordingComposition.Settlement)
+                {
+                    return;
+                }
+                ValueBox(section.Item(), presentation.SettlementLabel, Money(presentation.RecommendedSettlement!.Value));
+                DataTable(section.Item(), 46, SettlementRows(snapshot.Settlement));
+            });
+            if (printed.Key == ReportWordingComposition.NatureOfIncident)
+            {
+                DamageTables();
             }
-        });
-
-        Section(column, "Vehicle History Check", section => Paragraph(section, snapshot.HistoryCheck));
-        Section(column, "Pre-Incident Condition", section => Paragraph(
-            section,
-            $"The vehicle is considered to be in {Display(snapshot.Vehicle.Condition)} condition for its age and type."));
-
-        Section(column, presentation.SettlementHeading, section =>
+        }
+        if (!damageTablesPrinted)
         {
-            Paragraph(section, presentation.SettlementText);
-            ValueBox(section.Item(), presentation.SettlementLabel, Money(presentation.RecommendedSettlement!.Value));
-            DataTable(section.Item(), 46, SettlementRows(snapshot.Settlement));
-        });
-
-        if (snapshot.Outcome == AssessmentReportOutcome.TotalLoss)
-        {
-            Section(column, "Salvage", section => Paragraph(
-                section,
-                "Under the current salvage categorisation matrix, within the scope of our inspection, we consider that this is Category S (structural damage) and can be sold as repairable salvage. Further information is available at www.abi.org.uk. "
-                + $"We suggest that the sale of the salvage will realise in the order of {Money(snapshot.SalvageValue!.Value)}. We have not taken any action towards removal of the salvage at this time."));
+            DamageTables();
         }
 
         column.Item().PageBreak();
         Section(column, "Vehicle Data", section =>
-        {
-            DataTable(section.Item(), 32, VehicleDataRows(snapshot));
-            if (snapshot.Content.IncludeValuationCommentary && !string.IsNullOrWhiteSpace(snapshot.ValuationCommentary))
-            {
-                Paragraph(section, snapshot.ValuationCommentary);
-            }
-        });
+            DataTable(section.Item(), 32, VehicleDataRows(snapshot)));
         Section(column, "Repair Cost Calculation", section => CostTable(section.Item(), snapshot.Costs));
 
         var worklists = new (string Title, IReadOnlyList<string> Items)[]
@@ -233,10 +227,6 @@ internal static class AssessmentReportLayout
             {
                 Section(column, title, section => WorkList(section.Item(), items), bottomGap: 4);
             }
-        }
-        if (!string.IsNullOrWhiteSpace(snapshot.SupplementaryStatement))
-        {
-            Section(column, "Supplementary Damage", section => Paragraph(section, snapshot.SupplementaryStatement));
         }
 
         column.Item().PageBreak();
@@ -695,8 +685,9 @@ internal static class AssessmentReportLayout
 
     /// <summary>
     /// Unrelated damage is an output choice: with "Include unrelated damage"
-    /// off the two unrelated rows are omitted, not blanked. The evidence
-    /// itself is untouched.
+    /// off the deduction row is omitted, not blanked. What was noted is the
+    /// Unrelated Damage wording block's to say (v28 P30), so the table carries
+    /// the money alone. The evidence itself is untouched.
     /// </summary>
     private static (string Label, string Value)[] DamageRows(AssessmentReportSnapshot snapshot)
     {
@@ -704,7 +695,6 @@ internal static class AssessmentReportLayout
         var rows = new List<(string, string)>();
         if (snapshot.Content.IncludeUnrelatedDamage)
         {
-            rows.Add(("Unrelated Damage", damage.Unrelated ?? "—"));
             rows.Add(("Unrelated Damage Deduction", OptionalMoney(damage.UnrelatedDeduction)));
         }
         rows.Add(("Paint / Material Transfer", damage.MaterialTransfer ?? "—"));
@@ -758,17 +748,6 @@ internal static class AssessmentReportLayout
             : snapshot.LocationAddress!;
         return $"In accordance with your instructions received on {Date(snapshot.InstructionsReceived)} requesting us to provide an independent accident damage report, we assessed the damage on {Date(snapshot.Assessed)}. Vehicle located at: {location}. Our findings are as detailed below.";
     }
-
-    private static string MileageSentence(string source) => source switch
-    {
-        "online_data" => "The mileage has been calculated from online data.",
-        "owner" => "The mileage has been provided by the owner.",
-        "repairer" => "The mileage has been provided by the repairer.",
-        "principal" => "The mileage has been provided by the instructing principal.",
-        "average" => "The mileage has been calculated from average mileage data.",
-        "tbc" => "The mileage is to be confirmed.",
-        _ => throw new ReportRenderRejectedException("Unsupported mileage source."),
-    };
 
     /// <summary>
     /// The accepted statement of truth, source-aware. The Glass's sentence is

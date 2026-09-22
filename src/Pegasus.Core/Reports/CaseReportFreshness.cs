@@ -144,6 +144,7 @@ public static class CaseReportFreshness
     public static CaseReportFreshnessDecision ClassifyWorkspace(
         CaseEditableData beforeData,
         CaseEditableData afterData,
+        bool wordingChanged,
         IReadOnlyDictionary<string, string?> beforeAssessment,
         IReadOnlyDictionary<string, string?> afterAssessment,
         Guid? beforeSignOffEngineerId,
@@ -153,6 +154,11 @@ public static class CaseReportFreshness
         string? beforeMileageSource = null,
         string? afterMileageSource = null)
     {
+        if (wordingChanged)
+        {
+            return CaseReportFreshnessDecision.Stale(CaseReportStaleReasons.ReportContentChanged);
+        }
+
         var signatory = ClassifySignatory(beforeSignOffEngineerId, afterSignOffEngineerId);
         if (signatory.IsStale)
         {

@@ -273,6 +273,17 @@
 .image-tile.is-drop{outline:2px solid var(--navy);outline-offset:2px}
 .image-grid-count{margin:6px 0 0;font-size:12px}
 
+.wording .stack{gap:8px}
+.wb{border:1px solid var(--line);border-radius:4px;padding:6px 8px;background:var(--surface)}
+.wb.is-off{opacity:.55}
+.wbh{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.wb .fi.wbt{flex:1 1 180px;min-width:0;font-weight:600}
+.wb .icon-button{display:inline-grid;place-items:center;width:22px;height:22px;border:1px solid transparent;border-radius:3px;background:none;color:var(--muted);cursor:pointer}
+.wb .icon-button:hover{border-color:var(--line);color:var(--navy)}
+.wb-tools{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
+.wb-tools .choice{display:inline-flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
+.wb textarea.fi{width:100%}
+
 /* ==== estimate ==== */
 /* ---- Estimate (v26 § Estimate) ---------------------------------------------- */
 #section-estimate .estimate-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}

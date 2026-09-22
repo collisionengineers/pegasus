@@ -22,7 +22,7 @@ public sealed class CaseReportFreshnessTests
         };
 
         var decision = CaseReportFreshness.ClassifyWorkspace(
-            beforeData, afterData, beforeAssessment, afterAssessment, null, null);
+            beforeData, afterData, wordingChanged: false, beforeAssessment, afterAssessment, null, null);
 
         Assert.False(decision.IsStale);
         Assert.Null(decision.ReasonCode);
@@ -149,6 +149,7 @@ public sealed class CaseReportFreshnessTests
         var decision = CaseReportFreshness.ClassifyWorkspace(
             new CaseEditableData(),
             new CaseEditableData(),
+            wordingChanged: false,
             new Dictionary<string, string?>(),
             new Dictionary<string, string?>(),
             Guid.NewGuid(),
@@ -166,6 +167,7 @@ public sealed class CaseReportFreshnessTests
         var decision = CaseReportFreshness.ClassifyWorkspace(
             new CaseEditableData(),
             new CaseEditableData(),
+            wordingChanged: false,
             new Dictionary<string, string?>(),
             new Dictionary<string, string?>(),
             engineerId,
@@ -173,6 +175,22 @@ public sealed class CaseReportFreshnessTests
 
         Assert.False(decision.IsStale);
         Assert.Null(decision.ReasonCode);
+    }
+
+    [Fact]
+    public void ChangedReportWordingStalesWithTheReportContentReason()
+    {
+        var decision = CaseReportFreshness.ClassifyWorkspace(
+            new CaseEditableData(),
+            new CaseEditableData(),
+            wordingChanged: true,
+            new Dictionary<string, string?>(),
+            new Dictionary<string, string?>(),
+            null,
+            null);
+
+        Assert.True(decision.IsStale);
+        Assert.Equal(CaseReportStaleReasons.ReportContentChanged, decision.ReasonCode);
     }
 
     [Fact]

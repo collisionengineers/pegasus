@@ -182,6 +182,7 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260921073633_RepairSpecificationSnapshots",
                 "20260921081236_UnroadworthyReasonBank",
                 "20260921084154_ReportImageFullPage",
+                "20260921090527_ReportWordingBlocks",
                 "20260921142708_ProblemReportDispatchClaims"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
