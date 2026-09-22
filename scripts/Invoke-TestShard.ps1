@@ -9,6 +9,14 @@ VSTest cannot shard a run, so shards are assigned here from the project's own
 enumerated test list. Whole test classes are assigned together because the
 disposable-LocalDB collection pins a class's tests to one another.
 
+Classes are balanced by recorded duration, not by test count. Counting treats a
+class that restores a database per test as equal to one that parses a string, so
+a count-balanced run left shard 4 at 21m20s against shard 5's 9m05s and the
+slowest shard set the whole run's critical path. Update-TestShardDurations.ps1
+records the table from a run's own .trx evidence; a class the table does not
+name costs the median, and with no table at all every class costs its test count,
+which reproduces the earlier count-balanced behaviour.
+
 Every step that could silently shrink a run fails instead: enumeration that
 yields no test throws, a shard whose executed count differs from its assigned
 count throws, and -VerifyPartition rejects a run whose shards do not reassemble
@@ -45,7 +53,12 @@ param(
     [switch] $ListOnly,
 
     [Parameter(ParameterSetName = 'Run')]
-    [string] $TestListPath
+    [string] $TestListPath,
+
+    # Defaults to the committed table beside this script. Pass an absent path to
+    # balance on test count alone.
+    [Parameter(ParameterSetName = 'Run')]
+    [string] $DurationPath
 )
 
 Set-StrictMode -Version Latest
@@ -142,6 +155,18 @@ if ($tests.Count -eq 0) {
     throw "Filter '$Filter' enumerated no test. Refusing to report an empty shard as green."
 }
 
+if (-not $PSBoundParameters.ContainsKey('DurationPath')) {
+    $DurationPath = Join-Path $PSScriptRoot 'test-shard-durations.json'
+}
+
+$durations = @{}
+if ($DurationPath -and (Test-Path -LiteralPath $DurationPath)) {
+    $table = Get-Content -Raw -LiteralPath $DurationPath | ConvertFrom-Json
+    foreach ($entry in $table.PSObject.Properties) {
+        $durations[$entry.Name] = [double] $entry.Value
+    }
+}
+
 $classGroups = @($tests |
     Group-Object { Get-TestClass $_ } |
     ForEach-Object {
@@ -149,26 +174,55 @@ $classGroups = @($tests |
             Class = $_.Name
             Tests = @($_.Group)
         }
+    })
+
+# A class the table does not name costs the median recorded class, not zero: an
+# unmeasured class is typical until measured, and treating it as free would pile
+# every new class onto one runner.
+$recorded = @($classGroups |
+    Where-Object { $durations.ContainsKey($_.Class) } |
+    ForEach-Object { $durations[$_.Class] } |
+    Sort-Object)
+$fallback = if ($recorded.Count -gt 0) { $recorded[[math]::Floor($recorded.Count / 2)] } else { $null }
+
+$weighted = @($classGroups |
+    ForEach-Object {
+        $cost = if ($durations.ContainsKey($_.Class)) { $durations[$_.Class] }
+            elseif ($null -ne $fallback) { $fallback }
+            else { [double] $_.Tests.Count }
+
+        [pscustomobject]@{
+            Class = $_.Class
+            Tests = $_.Tests
+            Cost = [double] $cost
+        }
     } |
-    # Largest test classes are placed first. The class-name tie-break and
-    # lowest-shard tie-break make every runner derive the same partition.
-    Sort-Object @{ Expression = { $_.Tests.Count }; Descending = $true },
+    # Costliest first. The class-name tie-break and the lowest-shard tie-break
+    # below make every runner derive the same partition without coordinating.
+    Sort-Object @{ Expression = { $_.Cost }; Descending = $true },
                 @{ Expression = { $_.Class }; Ascending = $true })
 
 $assignments = @(for ($index = 1; $index -le $ShardCount; $index++) {
     [pscustomobject]@{
         Classes = [System.Collections.Generic.List[string]]::new()
+        Cost = [double] 0
     }
 })
 
-# Deal each descending-size group across the runners, reversing direction on
-# every row. This keeps adjacent large classes apart without clustering the
-# medium database-heavy classes on whichever shard happens to be lightest.
-for ($index = 0; $index -lt $classGroups.Count; $index++) {
-    $row = [math]::Floor($index / $ShardCount)
-    $slot = $index % $ShardCount
-    $target = if (($row % 2) -eq 0) { $slot } else { $ShardCount - 1 - $slot }
-    $assignments[$target].Classes.Add($classGroups[$index].Class)
+# Longest-processing-time-first: give each class to the lightest runner so far.
+# Dealing in fixed rows instead would put two classes of very different cost in
+# the same slot whenever the row boundary fell between them, which is how one
+# shard came to run 2.35 times another.
+foreach ($group in $weighted) {
+    $target = 0
+    for ($index = 1; $index -lt $ShardCount; $index++) {
+        if ($assignments[$index].Cost -lt $assignments[$target].Cost) {
+            $target = $index
+        }
+    }
+
+    $assignments[$target].Classes.Add($group.Class)
+    $assignments[$target].Cost += $group.Cost
 }
 
 $mine = @($assignments[$Shard - 1].Classes)
@@ -179,7 +233,15 @@ New-Item -ItemType Directory -Force -Path $ArtifactRoot | Out-Null
 Set-Content -Path (Join-Path $ArtifactRoot "listed-$Shard.txt") -Value $tests
 Set-Content -Path (Join-Path $ArtifactRoot "assigned-$Shard.txt") -Value $assigned
 
+$basis = if ($recorded.Count -gt 0) {
+    "$($recorded.Count) of $($classGroups.Count) classes have a recorded duration"
+} else {
+    'no duration table, so balanced on test count'
+}
+$modelled = [math]::Round($assignments[$Shard - 1].Cost, 1)
+$spread = @($assignments | ForEach-Object { [math]::Round($_.Cost, 1) }) -join ', '
 Write-Host "Shard $Shard of $ShardCount takes $($mine.Count) of $($classGroups.Count) classes and $($assigned.Count) of $($tests.Count) tests."
+Write-Host "Modelled cost $modelled ($basis). Every shard: $spread."
 
 if ($ListOnly) {
     $assigned | Write-Host
