@@ -265,11 +265,16 @@ internal sealed class IntegrationTestAuthenticationHandler(
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
+        // A test that needs a second person (e.g. a reader beside the
+        // Administrator) names their staff id; the default stays the
+        // development Administrator.
+        var subject = Request.Headers.TryGetValue("X-Test-Subject", out var requestedSubject)
+            && Guid.TryParse(requestedSubject.ToString(), out var parsedSubject)
+            ? parsedSubject
+            : DevelopmentOfflineIdentity.AdministratorId;
         var claims = new List<Claim>
         {
-            new Claim(
-                ClaimTypes.NameIdentifier,
-                DevelopmentOfflineIdentity.AdministratorId.ToString("D")),
+            new Claim(ClaimTypes.NameIdentifier, subject.ToString("D")),
             new Claim(ClaimTypes.Name, "integration-user"),
             new Claim("display_name", "Integration User")
         };

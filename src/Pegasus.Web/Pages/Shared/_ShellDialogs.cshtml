@@ -23,6 +23,10 @@
     // ?notifications=1 opens the dialog on load, so a link (or a screenshot)
     // can land on it.
     var openOnLoad = string.Equals(Context.Request.Query["notifications"], "1", StringComparison.Ordinal) ? "true" : null;
+    // What's new (FRD-12): the newest published release note this person has
+    // not acknowledged, read once by RailCountsPageFilter. It opens on load
+    // until Got it is pressed; the page behind it is the one they asked for.
+    var releaseNote = ViewData["ReleaseNote"] as Pegasus.Core.ReleaseNotes.ReleaseNote;
 }
 
 <div class="dialog-backdrop" data-dialog="account-dialog" hidden>
@@ -42,6 +46,10 @@
         </div>
         <div class="dialog-foot">
             <button type="button" class="btn" data-dialog-close>Close</button>
+            <a class="btn" asp-page="/ReleaseNotes">
+                <svg class="icon" aria-hidden="true"><use href="#icon-flag" /></svg>
+                <span>@OperatorLabels.Shell.ReleaseNotes</span>
+            </a>
             <a class="btn" asp-page="/Account/PasswordChange">
                 <svg class="icon" aria-hidden="true"><use href="#icon-key" /></svg>
                 <span>Change password</span>
@@ -169,3 +177,29 @@
         </div>
     </section>
 </div>
+
+@if (releaseNote is not null)
+{
+    <div class="dialog-backdrop" data-dialog="whats-new-dialog" data-dialog-open-on-load="true" hidden>
+        <section class="dialog release-note" role="dialog" aria-modal="true" aria-labelledby="whats-new-dialog-title" data-release-note="@releaseNote.Id">
+            <div class="dialog-head">
+                <h2 id="whats-new-dialog-title" tabindex="-1">@OperatorLabels.Shell.WhatsNew</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <div class="dialog-body stack release-note__body">
+                <h3>@releaseNote.Title</h3>
+                <p class="muted"><time datetime="@releaseNote.PublishedAtUtc?.ToString("O")">@OperatorLabels.OfficeTime(releaseNote.PublishedAtUtc, string.Empty)</time>@if (!string.IsNullOrWhiteSpace(releaseNote.Version)){<text> · </text><span class="mono">@releaseNote.Version</span>}</p>
+                <partial name="Shared/_ReleaseNoteBody" model="@releaseNote.Body" />
+            </div>
+            <div class="dialog-foot">
+                <a class="btn left" asp-page="/ReleaseNotes">@OperatorLabels.Shell.ReleaseNotes</a>
+                <form method="post" asp-page="/ReleaseNotes" asp-page-handler="Acknowledge" asp-route-id="@releaseNote.Id">
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <button type="submit" class="btn btn--dark" data-release-note-acknowledge>@OperatorLabels.Shell.GotIt</button>
+                </form>
+            </div>
+        </section>
+    </div>
+}

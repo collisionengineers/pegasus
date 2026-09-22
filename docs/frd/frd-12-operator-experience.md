@@ -133,6 +133,17 @@ cancellation or a failed authorisation. The dialog then shows
 `Notifications unavailable.` with no placeholder or stale rows, and the
 failure is logged.
 
+**What's new** is the newest published release note
+([FRD-17](frd-17-administration-workspace.md#release-notes)), opened once
+for each person as a dialog on the next page they load after it is
+published, with the note's title, when it was published, its version and
+its body. **Got it** records the person's acknowledgement and the dialog
+does not open again for that note; closing it without Got it leaves it to
+open on the next page. The Account dialog's **Release notes** link and
+`/ReleaseNotes` list every published note, newest first. A release-note
+query failure must not block the page: nothing opens, and the failure is
+logged.
+
 | Route | Purpose | Replaces |
 | --- | --- | --- |
 | `/` | Work Centre ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)) | Dashboard |
@@ -141,6 +152,7 @@ failure is logged.
 | `/Cases` | Queues: workflow, pre-Case work and exceptions ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues (`/Triage`) |
 | `/Cases/{id}` | Case record, one page of ten sections; `?section=` jumps ([FRD-16](frd-16-case-record-workspace.md#case-workspace)) | Case workspace side-nav sections; the Assessment page |
 | `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` | Engineer assessment page |
+| `/ReleaseNotes` | Published release notes, newest first; **Got it** posts here | — |
 | `/Search` | Advanced search ([FRD-15](frd-15-work-centre-queues-and-search.md#search)) | Cases list |
 | `/Triage/{id}`, `/Unidentified/{id}`, `/VehicleImages/{id}` | Triage, Unidentified and vehicle-images records | The received-file page |
 | `/Received/{id}/Source`, `/Received/{id}/Image`, `/Received/{id}/Asset/{assetId}` | Open file: the retained original, served to authorised staff only | — |
