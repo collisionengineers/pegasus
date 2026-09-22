@@ -7,12 +7,14 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ReleaseNotes;
 using Pegasus.Core.Support;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Pages;
 using Pegasus.Web.Presentation;
 
@@ -40,6 +42,12 @@ public sealed class ProblemReportsWebTests
         Assert.Contains("data-dialog=\"problem-dialog\"", home, StringComparison.Ordinal);
         Assert.Contains("data-problem-form", home, StringComparison.Ordinal);
         Assert.Contains("name=\"method\" value=\"GET\"", home, StringComparison.Ordinal);
+        var reportOpener = Regex.Match(
+            home,
+            "<button[^>]*data-dialog-open=\"problem-dialog\"[^>]*>.*?</button>",
+            RegexOptions.Singleline).Value;
+        Assert.NotEmpty(reportOpener);
+        Assert.DoesNotContain("data-dialog-close", reportOpener, StringComparison.Ordinal);
 
         using var response = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
         {
@@ -79,6 +87,60 @@ public sealed class ProblemReportsWebTests
         Assert.Contains("href=\"https://github.com/example/pegasus/issues/7\"", list, StringComparison.Ordinal);
         Assert.Contains(">Sent<", list, StringComparison.Ordinal);
         Assert.DoesNotContain("Retry", list, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AProblemReportIncludesOnlyActionsPerformedByTheReporter()
+    {
+        var reporterId = Guid.NewGuid();
+        var administratorId = Guid.NewGuid();
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.SecurityEvents.AddRange(
+                new SecurityEventEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Type = "PasswordChanged",
+                    SubjectId = reporterId.ToString("D"),
+                    OccurredAtUtc = now.AddMinutes(-1),
+                    Outcome = "Succeeded",
+                    CorrelationId = "reporter-action",
+                    ActorKind = nameof(ActorKind.Staff),
+                    ActorSubjectId = reporterId.ToString("D")
+                },
+                new SecurityEventEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Type = "SecurityStampChanged",
+                    SubjectId = reporterId.ToString("D"),
+                    OccurredAtUtc = now.AddMinutes(-2),
+                    Outcome = "Succeeded",
+                    CorrelationId = "administrator-action-on-reporter",
+                    ActorKind = nameof(ActorKind.Staff),
+                    ActorSubjectId = administratorId.ToString("D")
+                });
+            await context.SaveChangesAsync();
+        }
+
+        var sink = new RecordingSink();
+        using var client = CreateClient(factory, sink, "User");
+        client.DefaultRequestHeaders.Add("X-Test-Subject", reporterId.ToString("D"));
+        var home = await GetHtmlAsync(client, "/");
+
+        using var response = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
+        {
+            ["returnUrl"] = "/",
+            ["description"] = "The report action list is wrong."
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var sent = Assert.Single(sink.Sent);
+        Assert.Contains(sent.Snapshot.RecentActions, action => action.Operation == "PasswordChanged");
+        Assert.DoesNotContain(sent.Snapshot.RecentActions, action => action.Operation == "SecurityStampChanged");
     }
 
     [Fact]
