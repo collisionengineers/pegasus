@@ -38,6 +38,7 @@ internal sealed class EfV1ActivityReportQueries(
                 generation.Id,
                 generation.GeneratedAtUtc,
                 artifact.Kind,
+                generation.SnapshotJson,
                 artifact.VersionId,
                 artifact.Sha256,
                 documentVersion == null ? null : documentVersion.Sha256,
@@ -110,23 +111,19 @@ internal sealed class EfV1ActivityReportQueries(
                     x.operation.ActorSubjectId))
             .ToListAsync(cancellationToken);
 
-        // MI-02: the agreed fee on each Case whose report was produced in the
-        // period, counted once per Case however many artifacts it produced.
-        var feeCaseIds = artifacts.Select(x => x.CaseId).Distinct().ToArray();
-        var agreedFees = feeCaseIds.Length == 0
-            ? new Dictionary<Guid, decimal>()
-            : (await db.CaseAssessmentFields.AsNoTracking()
-                .Where(field => feeCaseIds.Contains(field.CaseId)
-                    && field.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.AgreedFee)
-                .Select(field => new { field.CaseId, field.Value })
-                .ToListAsync(cancellationToken))
-                .Select(field => (field.CaseId, Parsed: decimal.TryParse(
-                    field.Value,
-                    System.Globalization.NumberStyles.Number,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    out var fee) ? fee : (decimal?)null))
-                .Where(field => field.Parsed is not null)
-                .ToDictionary(field => field.CaseId, field => field.Parsed!.Value);
+        // MI-02: the agreed fee frozen in each confirmed report generation,
+        // counted once per Case however many artifacts it produced. The live
+        // assessment fields are deliberately not a source for this report.
+        var agreedFees = artifacts
+            .Where(IsConfirmed)
+            .Where(x => x.Kind == nameof(CaseReportArtifactKind.AssessmentReport))
+            .GroupBy(x => x.CaseId)
+            .ToDictionary(
+                group => group.Key,
+                group => FrozenFeeOf(group
+                    .OrderBy(x => x.GeneratedAtUtc)
+                    .ThenBy(x => x.GenerationId)
+                    .First()));
 
         var receiptIds = artifacts.Select(x => x.OriginIntakeReceiptId)
             .Concat(readyTransitions.Select(x => x.OriginIntakeReceiptId))
@@ -259,6 +256,36 @@ internal sealed class EfV1ActivityReportQueries(
             confirmed.Select(x => x.CaseId).Distinct().Sum(caseId => agreedFees.GetValueOrDefault(caseId)));
     }
 
+    private static decimal FrozenFeeOf(ArtifactRow report)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(report.SnapshotJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("agreedFee", out var fee)
+                || fee.ValueKind != JsonValueKind.Number
+                || !fee.TryGetDecimal(out _))
+            {
+                throw new InvalidDataException(
+                    $"The frozen snapshot of report generation '{report.GenerationId}' has no valid agreed fee.");
+            }
+
+            return fee.GetDecimal();
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException(
+                $"The frozen snapshot of report generation '{report.GenerationId}' is unreadable.",
+                exception);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InvalidDataException(
+                $"The frozen snapshot of report generation '{report.GenerationId}' is unreadable.",
+                exception);
+        }
+    }
+
     private static bool IsConfirmed(ArtifactRow artifact) =>
         artifact.VersionId is not null
         && artifact.ArtifactSha256 is not null
@@ -303,6 +330,7 @@ internal sealed class EfV1ActivityReportQueries(
         Guid GenerationId,
         DateTimeOffset GeneratedAtUtc,
         string Kind,
+        string SnapshotJson,
         Guid? VersionId,
         string? ArtifactSha256,
         string? VersionSha256,

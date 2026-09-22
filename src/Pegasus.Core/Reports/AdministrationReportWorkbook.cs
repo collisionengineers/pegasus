@@ -41,10 +41,11 @@ public static class AdministrationReportTables
 {
     public static IReadOnlyList<WorkbookSheet> Build(
         EngineerActivityReport engineerReport,
-        PrincipalReportActivityReport? principalReport,
+        PrincipalReportActivityReport principalReport,
         IReadOnlyList<MonthlyReportActivity> monthly)
     {
         ArgumentNullException.ThrowIfNull(engineerReport);
+        ArgumentNullException.ThrowIfNull(principalReport);
         ArgumentNullException.ThrowIfNull(monthly);
         var sheets = new List<WorkbookSheet>
         {
@@ -67,47 +68,44 @@ public static class AdministrationReportTables
                 Totals: true)
         };
 
-        if (principalReport is not null)
-        {
-            sheets.Add(new(
-                "Reports by Principal",
+        sheets.Add(new(
+            "Reports by Principal",
+            [
+                new("Principal", WorkbookColumnKind.Text),
+                new("Reports produced", WorkbookColumnKind.Count),
+                new("Reports sent", WorkbookColumnKind.Count),
+                new("Agreed fees", WorkbookColumnKind.Money),
+                new("Report types", WorkbookColumnKind.Text)
+            ],
+            principalReport.Rows
+                .Where(row => row.GeneratedArtifacts > 0 || row.Sent > 0)
+                .Select(row => (IReadOnlyList<object?>)
                 [
-                    new("Principal", WorkbookColumnKind.Text),
-                    new("Reports produced", WorkbookColumnKind.Count),
-                    new("Reports sent", WorkbookColumnKind.Count),
-                    new("Agreed fees", WorkbookColumnKind.Money),
-                    new("Report types", WorkbookColumnKind.Text)
-                ],
-                principalReport.Rows
-                    .Where(row => row.GeneratedArtifacts > 0 || row.Sent > 0)
-                    .Select(row => (IReadOnlyList<object?>)
-                    [
-                        row.PrincipalCode, row.GeneratedArtifacts, row.Sent, row.AgreedFeeTotal,
-                        string.Join("; ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{type.Kind} {type.Generated}"))
-                    ]).ToArray(),
-                Totals: true));
-            sheets.Add(new(
-                "Turnaround",
+                    row.PrincipalCode, row.GeneratedArtifacts, row.Sent, row.AgreedFeeTotal,
+                    string.Join("; ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{type.Kind} {type.Generated}"))
+                ]).ToArray(),
+            Totals: true));
+        sheets.Add(new(
+            "Turnaround",
+            [
+                new("Principal", WorkbookColumnKind.Text),
+                new("Currently held", WorkbookColumnKind.Count),
+                new("Oldest held since", WorkbookColumnKind.DateTime),
+                new("Time to produce", WorkbookColumnKind.Duration),
+                new("Time to ready", WorkbookColumnKind.Duration),
+                new("Time to send", WorkbookColumnKind.Duration)
+            ],
+            principalReport.Rows
+                .Where(row => row.CurrentHeldCases > 0
+                    || row.AverageReceivedToGeneration.HasValue
+                    || row.AverageReceivedToReady.HasValue
+                    || row.AverageReceivedToSent.HasValue)
+                .Select(row => (IReadOnlyList<object?>)
                 [
-                    new("Principal", WorkbookColumnKind.Text),
-                    new("Currently held", WorkbookColumnKind.Count),
-                    new("Oldest held since", WorkbookColumnKind.DateTime),
-                    new("Time to produce", WorkbookColumnKind.Duration),
-                    new("Time to ready", WorkbookColumnKind.Duration),
-                    new("Time to send", WorkbookColumnKind.Duration)
-                ],
-                principalReport.Rows
-                    .Where(row => row.CurrentHeldCases > 0
-                        || row.AverageReceivedToGeneration.HasValue
-                        || row.AverageReceivedToReady.HasValue
-                        || row.AverageReceivedToSent.HasValue)
-                    .Select(row => (IReadOnlyList<object?>)
-                    [
-                        row.PrincipalCode, row.CurrentHeldCases, row.OldestHeldAtUtc,
-                        row.AverageReceivedToGeneration, row.AverageReceivedToReady, row.AverageReceivedToSent
-                    ]).ToArray(),
-                Totals: false));
-        }
+                    row.PrincipalCode, row.CurrentHeldCases, row.OldestHeldAtUtc,
+                    row.AverageReceivedToGeneration, row.AverageReceivedToReady, row.AverageReceivedToSent
+                ]).ToArray(),
+            Totals: false));
 
         sheets.Add(new(
             "By month",
@@ -171,11 +169,27 @@ public sealed class GetMonthlyReportActivity(IMonthlyReportActivityQueries queri
 
         var rows = await queries.GetAsync(fromUtc, toUtc, cancellationToken);
         ArgumentNullException.ThrowIfNull(rows);
+        if (rows.Any(IsInvalid)
+            || rows.GroupBy(row => (row.PrincipalId, row.Year, row.Month)).Any(group => group.Count() != 1))
+        {
+            throw new InvalidDataException("The monthly report query returned an invalid row.");
+        }
+
         return rows
             .OrderByDescending(row => row.Year).ThenByDescending(row => row.Month)
             .ThenBy(row => row.PrincipalCode, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
+
+    private static bool IsInvalid(MonthlyReportActivity row) =>
+        row.PrincipalId == Guid.Empty
+        || string.IsNullOrWhiteSpace(row.PrincipalCode)
+        || row.Year is < 1 or > 9999
+        || row.Month is < 1 or > 12
+        || row.ReportsGenerated < 0
+        || row.FeeNotesGenerated < 0
+        || row.Sent < 0
+        || row.AgreedFeeTotal < 0;
 }
 
 /// <summary>The one export: every Administration report for the period as one workbook.</summary>
@@ -184,7 +198,7 @@ public sealed class ExportAdministrationReports(IWorkbookWriter writer)
     public byte[] Execute(
         ActionActor actor,
         EngineerActivityReport engineerReport,
-        PrincipalReportActivityReport? principalReport,
+        PrincipalReportActivityReport principalReport,
         IReadOnlyList<MonthlyReportActivity> monthly)
     {
         ArgumentNullException.ThrowIfNull(actor);

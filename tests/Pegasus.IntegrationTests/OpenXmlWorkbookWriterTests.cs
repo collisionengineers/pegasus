@@ -1,3 +1,4 @@
+using System.Globalization;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Pegasus.Core.Reports;
@@ -52,7 +53,11 @@ public sealed class OpenXmlWorkbookWriterTests
         var monthRows = second.Worksheet!.GetFirstChild<SheetData>()!.Elements<Row>().ToArray();
         Assert.Equal(2, monthRows.Length); // no totals row
         Assert.Equal("250.5", monthRows[1].Elements<Cell>().ElementAt(1).CellValue!.Text);
-        Assert.Equal(CellValues.Number, monthRows[1].Elements<Cell>().ElementAt(2).DataType!.Value);
+        var when = monthRows[1].Elements<Cell>().ElementAt(2);
+        Assert.Equal(CellValues.Number, when.DataType!.Value);
+        Assert.Equal(
+            new DateTime(2026, 8, 3, 10, 0, 0),
+            DateTime.FromOADate(double.Parse(when.CellValue!.Text!, CultureInfo.InvariantCulture)));
     }
 
     [Fact]
