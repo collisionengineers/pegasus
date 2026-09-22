@@ -126,6 +126,7 @@ public static class CaseReportFreshness
         AssessmentVocabulary.SettlementBetterment,
         AssessmentVocabulary.SettlementClaimantVatRegistered,
         AssessmentVocabulary.SettlementReserve,
+        AssessmentVocabulary.SettlementContractSum,
         AssessmentVocabulary.SettlementRepairDelays,
         AssessmentVocabulary.SettlementReportDelay,
         AssessmentVocabulary.SettlementStoragePerDay,

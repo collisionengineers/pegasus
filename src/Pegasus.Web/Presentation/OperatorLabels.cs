@@ -26,7 +26,7 @@ namespace Pegasus.Web.Presentation;
 ///
 /// Two of these maps are settled business vocabulary and must not drift:
 /// <see cref="CaseStage"/> carries the case lifecycle stage names, and the
-/// distinct meanings of Audit, Triage, Unidentified and Blocked are reserved.
+/// distinct meanings of Audit, Triage and Unidentified are reserved.
 /// Everything else falls through to <see cref="Humanise"/>, which turns an
 /// unknown code into a readable sentence rather than printing it verbatim —
 /// event codes in particular are composed at several call sites, so a fixed map
@@ -333,6 +333,7 @@ public static class OperatorLabels
         public const string Kept = "The report was kept but could not be sent.";
         public const string Sent = "Sent";
         public const string NotSent = "Not sent";
+        public const string Unknown = "Delivery unknown. An Administrator must check GitHub for the report ID before retrying.";
 
         public static string Reported(int issueNumber) =>
             string.Create(CultureInfo.InvariantCulture, $"Reported as #{issueNumber}.");
@@ -341,6 +342,7 @@ public static class OperatorLabels
     public static string ProblemReportStatus(Pegasus.Core.Support.ProblemReportStatus status) => status switch
     {
         Pegasus.Core.Support.ProblemReportStatus.Sent => ProblemReports.Sent,
+        Pegasus.Core.Support.ProblemReportStatus.Unknown => "Unknown",
         _ => ProblemReports.NotSent
     };
 
@@ -1065,8 +1067,6 @@ public static class OperatorLabels
     /// </summary>
     public static string IntakeCannotBecomeCaseReason(IntakeDecision decision) => decision switch
     {
-        IntakeDecision.BlockedIntake =>
-            "This item was blocked, with the reason recorded. It cannot become a case until it is corrected on the received item.",
         IntakeDecision.ImageIntakeRegistered =>
             "This item was registered as vehicle images. Image material never becomes a case on its own.",
         IntakeDecision.Unsupported =>
@@ -1442,10 +1442,8 @@ public static class OperatorLabels
     }
 
     /// <summary>
-    /// The resolve dialog's destination words. The four contract wordings
-    /// cover the kinds a staff resolution completes directly;
-    /// Triage and Blocked intake remain real Core destinations and keep their
-    /// settled names. The prototype's "Create Case from accepted instruction"
+    /// The resolve dialog's destination words. The contract wordings
+    /// cover the kinds a staff resolution completes directly. The prototype's "Create Case from accepted instruction"
     /// has no destination kind behind it — creating the case is the origin
     /// receipt's action — so it is not a select option.
     /// </summary>
@@ -1458,9 +1456,9 @@ public static class OperatorLabels
             "Register Image-initiated Case",
         Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.Triage =>
             "Link to Triage",
-        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.BlockedIntake =>
-            "Blocked intake",
         Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.ExternalReference =>
+            "External reference",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedResolutionTargetKind.Closed =>
             "Close with reason",
         _ => Humanise(kind.ToString())
     };

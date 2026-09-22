@@ -321,12 +321,13 @@ public sealed partial class SendToAiIntegrationTests
 
         // v26: Send to AI (never a vendor name) sits in the Estimate head
         // inside the edit session; its dialog carries the Direction, the
-        // 1–100 target slider and the Case valuation the amount is read from.
+        // optional 0–80 target and the Case valuation the amount is read from.
         var html = await EnterEditModeAsync(client, caseId);
         Assert.Contains("data-dialog=\"send-to-ai-dialog\"", html, StringComparison.Ordinal);
         Assert.Contains("data-estimate-send-to-ai", html, StringComparison.Ordinal);
         Assert.Contains("data-estimate-range-base=\"9000\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"targetPercent\" min=\"1\" max=\"100\" step=\"1\" value=\"75\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"targetPercent\" min=\"0\" max=\"80\" step=\"1\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"targetPercent\" min=\"0\" max=\"80\" step=\"1\" value=", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Send to Claude", html, StringComparison.Ordinal);
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=SendToClaude&section=estimate",
@@ -347,6 +348,27 @@ public sealed partial class SendToAiIntegrationTests
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.Contains("Sent to AI", afterHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Sent to Claude", afterHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendingWithoutATargetLeavesItUnspecified()
+    {
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(caseId);
+        using var client = CreateClient(factory);
+
+        var html = await EnterEditModeAsync(client, caseId);
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=SendToClaude&section=estimate",
+            Form(
+                AntiforgeryValue(html),
+                ("operationKey", InputValue(html, "operationKey")),
+                ("direction", "Draft the estimate"),
+                ("targetPercent", "")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(((RecordingCreateAiJob)GetJobFactory(factory)).Commands);
+        Assert.Null(command.TargetPercentOfEngineerValue);
     }
 
     [Fact]

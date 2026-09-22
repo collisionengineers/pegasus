@@ -95,6 +95,8 @@ public sealed class AutomationAiJobIngressTests
         var created = await store.CreateAsync(job, CancellationToken.None);
         Assert.Equal(AiJobState.Queued, created.State);
         Assert.Equal(0, created.Version);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            work.ReportProgressAsync(new(created.JobId, 0, Client, "progress-without-take", "x"), CancellationToken.None));
         var replayed = await store.CreateAsync(job, CancellationToken.None);
         Assert.Equal(created.JobId, replayed.JobId);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -129,8 +131,13 @@ public sealed class AutomationAiJobIngressTests
         Assert.Equal(AiJobState.Queued, lapsed!.State);
         var open = await queries.ListOpenAsync(CancellationToken.None);
         Assert.Equal(AiJobState.Queued, Assert.Single(open, item => item.JobId == created.JobId).State);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            work.ReportProgressAsync(new(created.JobId, lapsed.Version, Client, "progress-after-expiry", "x"), CancellationToken.None));
+        var expired = await store.GetAsync(created.JobId, CancellationToken.None);
+        Assert.Equal(AiJobState.Queued, expired!.State);
+        Assert.Equal(lapsed.Version + 1, expired.Version);
         var retaken = await work.TakeAsync(
-            new(created.JobId, lapsed.Version, ActionActor.Automation("other-client"), "take-2"),
+            new(created.JobId, expired.Version, ActionActor.Automation("other-client"), "take-2"),
             CancellationToken.None);
         Assert.Equal(AiJobState.Taken, retaken.State);
         Assert.Equal("other-client", retaken.TakenBy);

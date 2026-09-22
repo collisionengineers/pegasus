@@ -58,7 +58,7 @@ public sealed class ProviderSubmissionTests
     {
         history ??= new FakeHistory();
         history.Store = store;
-        return new(store, intake, history, new FixedTime());
+        return new(store, intake, new AcceptingAdmission(), history, new FixedTime());
     }
 
     private static ReconcileProviderSubmissions Reconcile(
@@ -84,6 +84,7 @@ public sealed class ProviderSubmissionTests
             $"key-{id:N}",
             "12345/1",
             receivedAtUtc ?? Now - ReconcileProviderSubmissions.AcceptHistoryGracePeriod - TimeSpan.FromSeconds(1),
+            ProviderSubmissionPolicy.Sha256(Request(Active).RawBody),
             Instruction(),
             stagedReceiptId);
 
@@ -213,6 +214,54 @@ public sealed class ProviderSubmissionTests
         var error = await Assert.ThrowsAsync<ProviderSubmissionException>(
             () => submit.ExecuteAsync(Request(Active, body: 42), CancellationToken.None));
         Assert.Equal(ProviderSubmissionError.IdempotencyKeyConflict, error.Error);
+    }
+
+    private sealed class AcceptingAdmission : IProviderAttachmentAdmission
+    {
+        public Task RequireSupportedAsync(
+            IReadOnlyList<ProviderSubmissionFile> files,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task AFailedRetentionCannotBeReplacedByAnotherBodyUnderTheReservation()
+    {
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission { FailBeforeRetainOnce = true };
+        var submit = Submit(store, intake);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            submit.ExecuteAsync(Request(Active), CancellationToken.None));
+        var reserved = Assert.Single(store.Records.Values);
+        Assert.Equal(ProviderSubmissionPolicy.Sha256(Request(Active).RawBody), reserved.BodySha256);
+        Assert.Empty(intake.Sources);
+
+        var conflict = await Assert.ThrowsAsync<ProviderSubmissionException>(() =>
+            submit.ExecuteAsync(Request(Active, body: 42), CancellationToken.None));
+        Assert.Equal(ProviderSubmissionError.IdempotencyKeyConflict, conflict.Error);
+        Assert.Empty(intake.Sources);
+
+        var completed = await submit.ExecuteAsync(Request(Active), CancellationToken.None);
+        Assert.Equal(reserved.Id, completed.SubmissionId);
+        Assert.Single(intake.Sources);
+    }
+
+    [Fact]
+    public async Task InsertRaceLoserCannotRetainItsDifferentBodyUnderTheWinnersIdentity()
+    {
+        var store = new FakeStore
+        {
+            ConflictOnce = true,
+            WinnerBodySha256 = ProviderSubmissionPolicy.Sha256(Request(Active, body: 42).RawBody)
+        };
+        var intake = new FakeIntakeSubmission();
+
+        var conflict = await Assert.ThrowsAsync<ProviderSubmissionException>(() =>
+            Submit(store, intake).ExecuteAsync(Request(Active), CancellationToken.None));
+
+        Assert.Equal(ProviderSubmissionError.IdempotencyKeyConflict, conflict.Error);
+        Assert.Single(store.Records);
+        Assert.Empty(intake.Sources);
     }
 
     [Fact]
@@ -644,6 +693,7 @@ public sealed class ProviderSubmissionTests
         public Dictionary<Guid, Exception> RecordFailures { get; } = [];
         public Dictionary<Guid, int> RecordStagedReceiptCalls { get; } = [];
         public bool ConflictOnce { get; set; }
+        public string? WinnerBodySha256 { get; set; }
 
         public Task CreateAsync(ProviderSubmissionRecord record, CancellationToken cancellationToken)
         {
@@ -652,7 +702,11 @@ public sealed class ProviderSubmissionTests
                 // The winner of the race is another row under the same key,
                 // keyed by its own id as every other row in this fake is.
                 ConflictOnce = false;
-                var winner = record with { Id = Guid.NewGuid() };
+                var winner = record with
+                {
+                    Id = Guid.NewGuid(),
+                    BodySha256 = WinnerBodySha256 ?? record.BodySha256
+                };
                 Records[winner.Id] = winner;
                 throw new ProviderSubmissionException(ProviderSubmissionError.OperationConflict);
             }
@@ -738,6 +792,7 @@ public sealed class ProviderSubmissionTests
         private readonly Dictionary<string, (IntakeStagedReceipt Receipt, string Hash)> retained = new(StringComparer.Ordinal);
 
         public List<IntakeSource> Sources { get; } = [];
+        public bool FailBeforeRetainOnce { get; set; }
 
         public IReadOnlyCollection<Guid> StagedIds => retained.Values.Select(item => item.Receipt.Id).ToArray();
 
@@ -747,6 +802,11 @@ public sealed class ProviderSubmissionTests
         public Task<ReceivedIntake> ExecuteAsync(
             IntakeSource source, string operationKey, CancellationToken cancellationToken = default)
         {
+            if (FailBeforeRetainOnce)
+            {
+                FailBeforeRetainOnce = false;
+                throw new InvalidOperationException("Simulated failure after reservation.");
+            }
             var token = source.SourceIdentity.ExternalReceiptToken;
             var hash = ProviderSubmissionPolicy.Sha256(source.Content);
             if (retained.TryGetValue(token, out var existing))

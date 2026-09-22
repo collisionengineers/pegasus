@@ -252,7 +252,7 @@ authorisation. External customers have no staff account.
 
 | Record | States | How they change |
 | --- | --- | --- |
-| Contact | Active, inactive | Administrator edits under a record edit scope |
+| Contact | Active, inactive | Administrator edits with an expected record version; a stale write is refused |
 | Staff account | Enabled, disabled, deleted access; forced password change | Create, Enable, Disable, Delete access, Reset password |
 | Provider API credential | Active, paused, revoked | Issue, reset, revoke, pause, resume |
 | Sign-off Engineer flag | Set or not; one account marked default | Administrator account setting |

@@ -18,7 +18,6 @@ public sealed class IntakeAssociationDestinationTests
     }
 
     [Theory]
-    [InlineData(IntakeDecision.BlockedIntake)]
     [InlineData(IntakeDecision.Unsupported)]
     [InlineData(IntakeDecision.TechnicalFailure)]
     public void UnsafeManualSourceOutcomesCannotOfferAStaffDestination(IntakeDecision decision)
@@ -43,7 +42,7 @@ public sealed class IntakeAssociationDestinationTests
         {
             Assert.True(IntakeAssociationDestinationPolicy.CanOffer(Receipt(decision, channel: channel)));
         }
-        foreach (var decision in new[] { IntakeDecision.BlockedIntake, IntakeDecision.Unsupported, IntakeDecision.TechnicalFailure })
+        foreach (var decision in new[] { IntakeDecision.Unsupported, IntakeDecision.TechnicalFailure })
         {
             Assert.False(IntakeAssociationDestinationPolicy.CanOffer(Receipt(decision, channel: channel)));
         }

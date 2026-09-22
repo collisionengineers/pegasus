@@ -136,6 +136,7 @@ internal sealed class CaseRepairSpecificationSnapshotEntity
     public DateTimeOffset CreatedAtUtc { get; set; }
     public required string DetailsJson { get; set; }
     public required string LinesJson { get; set; }
+    public required string SupplementaryJson { get; set; }
     public required string ContentHash { get; set; }
     public decimal Gross { get; set; }
     public bool SentOnReport { get; set; }

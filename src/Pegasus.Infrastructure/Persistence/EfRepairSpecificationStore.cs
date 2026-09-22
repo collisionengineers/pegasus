@@ -349,8 +349,6 @@ public sealed class EfRepairSpecificationStore(
 
         var workflow = await RequiredWorkflowAsync(context, request.Save.CaseId, cancellationToken);
         var now = Now();
-        var beforeEstimate = await ReadReportEstimateDependenciesAsync(
-            context, request.Save.CaseId, cancellationToken);
         Guard(workflow, request.Save.ExpectedVersion, request.Save.Actor, request.Save.EditLeaseToken, now);
         var entity = await RequiredEstimateAsync(context, request.Save.CaseId, specificationId, cancellationToken);
         var existing = Map(entity);
@@ -389,10 +387,7 @@ public sealed class EfRepairSpecificationStore(
         entity.AiJobId = save.AiJobId ?? entity.AiJobId;
         entity.LastOperationKey = save.OperationKey;
         ApplyDetails(entity, save.Details);
-        entity.SupplementaryOfSpecificationId = save.Supplementary?.OfSpecificationId;
-        entity.SupplementaryReason = save.Supplementary?.Reason;
-        entity.SupplementaryExplainOnReport = save.Supplementary?.ExplainOnReport ?? false;
-        entity.SupplementaryStatement = save.Supplementary?.Statement;
+        ApplySupplementary(entity, save.Supplementary);
         AddLines(context, entity, save.Lines, save.Actor, now);
         RecordBreakdown(entity);
 
@@ -420,13 +415,11 @@ public sealed class EfRepairSpecificationStore(
         EfRepairSpecificationSnapshotStore.Freeze(
             context, scaled, request.Save.Actor, RepairSpecificationSnapshotKind.Scaled,
             reason, now, beforeScaling);
-        await MarkEstimateStaleIfNeededAsync(
-            context,
-            request.Save.CaseId,
-            beforeEstimate,
-            new(entity.Id, entity.Version),
-            now,
-            cancellationToken);
+        if (entity.IsCurrent)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.Save.CaseId, "current_estimate_saved", now, cancellationToken);
+        }
         AddHistory(
             context,
             workflow,
@@ -460,8 +453,6 @@ public sealed class EfRepairSpecificationStore(
 
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
-        var beforeEstimate = await ReadReportEstimateDependenciesAsync(
-            context, request.CaseId, cancellationToken);
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
         var entity = await RequiredEstimateAsync(context, request.CaseId, request.SpecificationId, cancellationToken);
         var specification = Map(entity);
@@ -493,6 +484,7 @@ public sealed class EfRepairSpecificationStore(
         context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
         entity.Lines.Clear();
         ApplyDetails(entity, version.Details);
+        ApplySupplementary(entity, version.Supplementary);
         AddLines(
             context,
             entity,
@@ -510,13 +502,11 @@ public sealed class EfRepairSpecificationStore(
             $"Restored from v{version.Number} ({version.Origin})",
             now,
             beforeRestore);
-        await MarkEstimateStaleIfNeededAsync(
-            context,
-            request.CaseId,
-            beforeEstimate,
-            new(entity.Id, entity.Version),
-            now,
-            cancellationToken);
+        if (entity.IsCurrent)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, "current_estimate_saved", now, cancellationToken);
+        }
         AddHistory(
             context,
             workflow,
@@ -559,6 +549,10 @@ public sealed class EfRepairSpecificationStore(
         {
             throw new InvalidOperationException("The repair specification has no removable scaling.");
         }
+        var latestSnapshot = await context.CaseRepairSpecificationSnapshots
+            .Where(item => item.SpecificationId == request.SpecificationId)
+            .OrderByDescending(item => item.Number)
+            .FirstAsync(cancellationToken);
         var beforeRow = await context.CaseRepairSpecificationSnapshots
             .Where(item => item.SpecificationId == request.SpecificationId
                 && item.Kind == RepairSpecificationSnapshotKind.BeforeScaling.ToString()
@@ -568,8 +562,6 @@ public sealed class EfRepairSpecificationStore(
             ?? throw new InvalidOperationException("The repair specification has no version before scaling.");
 
         var now = Now();
-        var beforeEstimate = await ReadReportEstimateDependenciesAsync(
-            context, request.CaseId, cancellationToken);
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
         var entity = await RequiredEstimateAsync(context, request.CaseId, request.SpecificationId, cancellationToken);
         EstimatePolicy.ValidateEditable(Map(entity), request.Actor);
@@ -578,6 +570,7 @@ public sealed class EfRepairSpecificationStore(
         context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
         entity.Lines.Clear();
         ApplyDetails(entity, before.Details);
+        ApplySupplementary(entity, before.Supplementary);
         AddLines(
             context,
             entity,
@@ -594,14 +587,12 @@ public sealed class EfRepairSpecificationStore(
             RepairSpecificationSnapshotKind.ScalingRemoved,
             "Scaling removed",
             now,
-            latestScale);
-        await MarkEstimateStaleIfNeededAsync(
-            context,
-            request.CaseId,
-            beforeEstimate,
-            new(entity.Id, entity.Version),
-            now,
-            cancellationToken);
+            latestSnapshot);
+        if (entity.IsCurrent)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, "current_estimate_saved", now, cancellationToken);
+        }
         AddHistory(
             context,
             workflow,
@@ -712,10 +703,7 @@ public sealed class EfRepairSpecificationStore(
         else if (request.SelectedRateCardVersion is not null)
             throw new ArgumentException("Select a labour-rate card for the specified version.");
         ApplyDetails(entity, request.Details);
-        entity.SupplementaryOfSpecificationId = request.Supplementary?.OfSpecificationId;
-        entity.SupplementaryReason = request.Supplementary?.Reason;
-        entity.SupplementaryExplainOnReport = request.Supplementary?.ExplainOnReport ?? false;
-        entity.SupplementaryStatement = request.Supplementary?.Statement;
+        ApplySupplementary(entity, request.Supplementary);
         AddLines(context, entity, request.Lines, request.Actor, now);
         if (importedDocument)
         {
@@ -1094,6 +1082,16 @@ public sealed class EfRepairSpecificationStore(
     }
 
     private static decimal? Percent(decimal? fraction) => fraction * 100m;
+
+    private static void ApplySupplementary(
+        CaseRepairSpecificationEntity entity,
+        RepairSpecificationSupplementary? supplementary)
+    {
+        entity.SupplementaryOfSpecificationId = supplementary?.OfSpecificationId;
+        entity.SupplementaryReason = supplementary?.Reason;
+        entity.SupplementaryExplainOnReport = supplementary?.ExplainOnReport ?? false;
+        entity.SupplementaryStatement = supplementary?.Statement;
+    }
 
     private static bool? Applicable(EstimateVatPolicy policy, EstimateVatCategories category) =>
         policy.CategoriesOverridden ? policy.Charges(category) : null;

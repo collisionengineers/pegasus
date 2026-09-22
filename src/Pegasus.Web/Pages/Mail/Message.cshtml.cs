@@ -1958,7 +1958,6 @@ public sealed class MessageModel(
     {
         IntakeDecision.CaseCreated => "Ready for case allocation",
         IntakeDecision.NeedsSorting => "Unidentified",
-        IntakeDecision.BlockedIntake => "Blocked",
         IntakeDecision.OcrRequired => "Document text required",
         IntakeDecision.TechnicalFailure => "Technical failure",
         IntakeDecision.Unsupported => "Unsupported",

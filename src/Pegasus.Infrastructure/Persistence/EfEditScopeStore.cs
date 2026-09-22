@@ -1,6 +1,7 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -66,18 +67,18 @@ public sealed class EfEditScopeStore(
                 request.ScopeKind, request.RecordId, request.ExpectedVersion, currentVersion.Value);
         }
         var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
-        if (scope is not null && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now))
+        var previousHolder = scope is not null && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now)
+            ? scope.Holder
+            : null;
+        if (previousHolder is not null)
         {
-            // A holder is never blocked by their own scope. Leaving a page
-            // releases it, but that release is best effort, so a re-entry that
-            // finds an unbeaten scope of its own replaces it; only a scope that
-            // is still being renewed elsewhere makes the holder choose.
-            if (!Enum.TryParse<ActorKind>(scope.HolderKind, out var holderKind)
-                || !EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor))
+            var isHolder = Enum.TryParse<ActorKind>(scope!.HolderKind, out var holderKind)
+                && EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor);
+            if (!isHolder && !request.TakeOver)
             {
                 throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
             }
-            if (!request.TakeOver && !EditScopeAuthority.IsStale(scope.ExpiresAtUtc, now))
+            if (isHolder && !request.TakeOver && !EditScopeAuthority.IsStale(scope.ExpiresAtUtc, now))
             {
                 throw new EditScopeHeldElsewhereException(request.ScopeKind, request.RecordId);
             }
@@ -104,6 +105,11 @@ public sealed class EfEditScopeStore(
         scope.ExpectedVersion = request.ExpectedVersion;
         scope.Generation = generation;
         scope.ExpiresAtUtc = now.Add(EditScopeAuthority.Duration);
+        if (previousHolder is not null && request.TakeOver)
+        {
+            await AddTakeoverHistoryAsync(
+                context, request, previousHolder, now, cancellationToken);
+        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
@@ -129,10 +135,7 @@ public sealed class EfEditScopeStore(
             cancellationToken);
         var now = timeProvider.GetUtcNow();
         var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
-        // CaseEditAuthority.RequireHeartbeat's rule: a beat that still presents the retained
-        // token under the same holder revives its own lapsed scope; nobody else could have
-        // taken it without rewriting the hash.
-        RequireHolder(scope, request.ScopeKind, request.RecordId, request.Actor, request.LeaseToken);
+        Require(scope, request.ScopeKind, request.RecordId, request.Actor, request.LeaseToken, now);
         scope!.ExpiresAtUtc = now.Add(EditScopeAuthority.Duration);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -355,6 +358,68 @@ public sealed class EfEditScopeStore(
     }
 
     private static string ToCode(EditScopeKind scopeKind) => scopeKind.ToString();
+
+    private static async Task AddTakeoverHistoryAsync(
+        PegasusDbContext context,
+        ClaimEditScopeRequest request,
+        string previousHolder,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var name = previousHolder;
+        if (Guid.TryParse(previousHolder, out var staffId))
+        {
+            name = await context.Users.AsNoTracking()
+                .Where(item => item.Id == staffId)
+                .Select(item => item.UserName)
+                .SingleOrDefaultAsync(cancellationToken) ?? previousHolder;
+        }
+        var reason = $"Edit lease taken over from {name}.";
+        var fingerprint = Hash(
+            $"{request.ScopeKind}|{request.RecordId:D}|{request.ExpectedVersion}|{request.Actor.SubjectId}|{request.OperationKey}");
+        if (request.ScopeKind == EditScopeKind.Triage)
+        {
+            var triage = await context.Triage.SingleAsync(
+                item => item.Id == request.RecordId, cancellationToken);
+            context.TriageHistory.Add(new TriageHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                TriageId = triage.Id,
+                EventType = "edit_lease_taken_over",
+                Actor = request.Actor.SubjectId,
+                ActorKind = request.Actor.Kind.ToString(),
+                Reason = reason,
+                OperationKey = request.OperationKey,
+                RequestHash = fingerprint,
+                OccurredAtUtc = now,
+                BeforeVersion = triage.Version,
+                AfterVersion = triage.Version,
+                AfterState = triage.State,
+                AfterAssigneeId = triage.AssigneeId,
+                AfterLinkedCaseId = triage.LinkedCaseId
+            });
+        }
+        else
+        {
+            var image = await context.ImageIntakes.SingleAsync(
+                item => item.Id == request.RecordId, cancellationToken);
+            context.ImageIntakeLifecycleEvents.Add(new ImageIntakeLifecycleEventEntity
+            {
+                Id = Guid.NewGuid(),
+                ImageIntakeId = image.Id,
+                EventType = "edit_lease_taken_over",
+                ActorKind = request.Actor.Kind.ToString(),
+                ActorSubjectId = request.Actor.SubjectId,
+                ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role)),
+                Reason = reason,
+                OperationKey = request.OperationKey,
+                RequestFingerprint = fingerprint,
+                OccurredAtUtc = now,
+                BeforeVersion = image.LifecycleVersion,
+                AfterVersion = image.LifecycleVersion
+            });
+        }
+    }
 
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();

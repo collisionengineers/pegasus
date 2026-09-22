@@ -244,7 +244,6 @@ public sealed partial class DetailsModel
         string operationKey,
         string? editLeaseToken,
         DateTimeOffset guideValuationStampUtc,
-        decimal? correctedEngineerValue,
         string? reason,
         ValuationSelectionForm selection,
         CancellationToken cancellationToken)
@@ -270,8 +269,7 @@ public sealed partial class DetailsModel
                     string.IsNullOrWhiteSpace(reason) ? "Engineer's Value applied." : reason,
                     editLeaseToken!,
                     selection.ToSelection(),
-                    guideValuationStampUtc,
-                    correctedEngineerValue),
+                    guideValuationStampUtc),
                 cancellationToken);
             RecordEditorCommit("case-valuation-form", operationKey, expectedVersion);
         }

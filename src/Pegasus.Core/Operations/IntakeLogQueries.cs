@@ -175,7 +175,6 @@ public static class IntakeLogPolicy
                 IntakeDecision.ImageIntakeRegistered => IntakeLogOutcome.VehicleImages,
                 IntakeDecision.Unsupported or IntakeDecision.OcrRequired or IntakeDecision.TechnicalFailure =>
                     unidentifiedClosed ? IntakeLogOutcome.Closed : IntakeLogOutcome.CouldNotBeRead,
-                IntakeDecision.BlockedIntake => IntakeLogOutcome.Closed,
                 _ when triageOpened => IntakeLogOutcome.Triage,
                 _ when unidentifiedClosed => IntakeLogOutcome.Closed,
                 _ => IntakeLogOutcome.Unidentified

@@ -180,7 +180,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         CaseWorkflowEvents:SELECT,INSERT
         CaseWorkflows:SELECT,INSERT,UPDATE
         Cases:SELECT,INSERT,UPDATE
-        DocumentOccurrences:SELECT,INSERT
+        DocumentOccurrences:SELECT,INSERT,UPDATE
         DocumentVersions:SELECT,INSERT,UPDATE
         EmailResponseEvidence:SELECT
         EvaFirstHandoffProxies:SELECT,INSERT

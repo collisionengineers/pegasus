@@ -163,9 +163,10 @@ Inspection + Audit) and a colleague editing; links between an Audit Case and
 its original; then Edit Case, or while editing the Editing badge, Cancel and
 Save, and one **Actions** menu — and the 40px **section row** of section links,
 Refresh and the Scroll/Tabs switch. Scroll is the default in every state; a
-Tabs choice lasts for the browser session. The sections are Overview,
-Inspection, Vehicle, Damage, Valuation, Estimate, Settlement, Report, Files and
-Notes, each a foldable panel whose head carries its own Edit (entering the one
+Tabs choice lasts for the browser session. The section row links Case details,
+Claim, Original report on Audit Cases, Inspection details, Vehicle (with
+Damage and Valuation inside), Repair Spec, Decisions, Report, Files and Notes.
+Each is a foldable panel whose head carries its own Edit (entering the one
 page-wide edit session), one availability label when the state does not allow
 editing, and the fold chevron. The aside holds Figures and Next action and
 folds into a two-up strip above the sections below 1441px.
@@ -463,7 +464,7 @@ prototype's effective media queries:
 | 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
 | 980px | The rail lies down into a horizontal bar; `admin-nav` becomes a horizontal scroller; `--content-max` is released |
-| 900px | Workflow stepper stacks; estimate form two columns; `checks-grid` one column |
+| 900px | Repair-spec form two columns; `checks-grid` one column |
 | 760px | Single column everywhere: panes stack with a top border, ribbons and fact grids one column, page actions full width, `--page-pad` 12px, dialogs pad 10px |
 
 Mobile staff UI is **Not planned**. The reflow keeps a constrained desktop or
@@ -869,14 +870,13 @@ deleted in wave 5.
 | `valuation-card` | One valuation entry: source, date, time, mileage, guide month, retail, trade |
 | `outcome-option` | Settlement outcome choice |
 | `derived` | A value derived, never entered: impact location and severity, equity, and a permitted ratio line where one is shown |
-| `report-image`, `cropper` | Report-image preparation on the Report section: designated Close-up and Overview, supporting images in order, non-destructive crop |
-| `workflow-stepper`, `workflow-step` | Not ready → Review → With Engineer → Completed ⇄ Query; Held badge |
+| `report-image`, `cropper` | Image preparation on the Files tiles: designated Close-up and Overview, supporting images in order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker` | Outstanding requirements |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `mail-preview`, `decision-card` | Inbox preview and message decision |
-| `assessment-v3`, `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Estimate section of the Case record (formerly the Assessment page, D30) |
+| `assessment-v3`, `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `ai-jobs-panel` | Operations AI Job List |
 | `admin-layout`, `admin-nav` | Administration |
 | `dropzone`, `file-list`, `file-row`, `upload-outcome` | Upload |
@@ -1023,7 +1023,7 @@ this section holds the cross-cutting rules every page is held to.
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
 | Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
-| Estimates | Each estimate has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT blocks Use as Current until an explicit status or categories are recorded; totals compute once in Core. A saved version's actions row carries **Estimate PDF** in read and edit modes. |
+| Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
 | Mail preview | Keyboard and pointer intent exposes an accessible preview that changes no message or Case state; when intent moves away the pane restores the selected message and stays visible with its navigation links. |

@@ -129,6 +129,16 @@ public static class AssessmentPolicy
         return NormalizeValue(definition, rawValue);
     }
 
+    public static void RequireOriginalReportScope(IEnumerable<string> paths, CaseType caseType)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        if (caseType != CaseType.Audit
+            && paths.Any(path => path.StartsWith("original_report.", StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("Original report fields can be saved only on an Audit Case.");
+        }
+    }
+
     /// <summary>
     /// Canonicalizes one value against its own vocabulary definition. The
     /// assessment save normalizes through the same rules; a caller that
@@ -209,7 +219,78 @@ public static class AssessmentPolicy
                     "A total-loss outcome requires the salvage value.");
             }
         }
+        if (string.Equals(
+                mergedState.GetValueOrDefault(AssessmentVocabulary.Outcome),
+                "contract_repair",
+                StringComparison.Ordinal)
+            && (!mergedState.TryGetValue(AssessmentVocabulary.SettlementContractSum, out var agreedSum)
+                || !decimal.TryParse(agreedSum, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
+                || amount <= 0))
+        {
+            throw new InvalidOperationException(
+                "Contract repair requires a positive agreed contract sum.");
+        }
     }
+
+    /// <summary>
+    /// Complete the coupled decision writes before the merged-state guard and
+    /// attributed field history run. An explicit outcome change takes priority
+    /// over a stale sum still present in the form.
+    /// </summary>
+    public static void CompleteCoupledWrites(
+        Dictionary<string, string?> writes,
+        IReadOnlyDictionary<string, string> current,
+        ActorKind actorKind)
+    {
+        ArgumentNullException.ThrowIfNull(writes);
+        ArgumentNullException.ThrowIfNull(current);
+        var leavingContract = string.Equals(
+                current.GetValueOrDefault(AssessmentVocabulary.Outcome),
+                "contract_repair", StringComparison.Ordinal)
+            && writes.TryGetValue(AssessmentVocabulary.Outcome, out var requestedOutcome)
+            && !string.Equals(requestedOutcome, "contract_repair", StringComparison.Ordinal);
+        if (!leavingContract
+            && actorKind == ActorKind.Staff
+            && writes.TryGetValue(AssessmentVocabulary.SettlementContractSum, out var sum)
+            && decimal.TryParse(sum, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
+            && amount > 0)
+        {
+            writes[AssessmentVocabulary.Outcome] = "contract_repair";
+        }
+
+        if (writes.TryGetValue(AssessmentVocabulary.Outcome, out var outcome))
+        {
+            if (!string.Equals(outcome, "contract_repair", StringComparison.Ordinal)
+                && (current.ContainsKey(AssessmentVocabulary.SettlementContractSum)
+                    || writes.ContainsKey(AssessmentVocabulary.SettlementContractSum)))
+            {
+                writes[AssessmentVocabulary.SettlementContractSum] = null;
+            }
+            if (!string.Equals(outcome, "total_loss", StringComparison.Ordinal))
+            {
+                foreach (var path in SalvageOnlyPaths)
+                {
+                    if (current.ContainsKey(path) || writes.ContainsKey(path))
+                    {
+                        writes[path] = null;
+                    }
+                }
+            }
+        }
+    }
+
+    private static readonly string[] SalvageOnlyPaths =
+    [
+        AssessmentVocabulary.SalvageCategory,
+        AssessmentVocabulary.SalvageValue,
+        AssessmentVocabulary.SettlementSalvageAt,
+        AssessmentVocabulary.SettlementSalvageAgent,
+        AssessmentVocabulary.SettlementSalvageAgentReference,
+        AssessmentVocabulary.SettlementSalvageMoved,
+        AssessmentVocabulary.SettlementSalvageOwnerRetains,
+        AssessmentVocabulary.SettlementSalvageValueAgreed,
+        AssessmentVocabulary.SettlementSalvageSettled,
+    ];
 
     public static bool IsWritableState(CaseLifecycleState state) =>
         state is CaseLifecycleState.NotReady

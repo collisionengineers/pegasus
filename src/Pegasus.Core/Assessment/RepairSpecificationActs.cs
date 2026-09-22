@@ -32,7 +32,8 @@ public sealed record RepairSpecificationSnapshot(
     EstimateDetails Details,
     IReadOnlyList<CaseEstimateLineRecord> Lines,
     decimal Gross,
-    bool SentOnReport);
+    bool SentOnReport,
+    RepairSpecificationSupplementary? Supplementary = null);
 
 public sealed record FreezeRepairSpecificationRequest(
     Guid CaseId,
@@ -50,8 +51,8 @@ public interface IRepairSpecificationSnapshotStore
     /// <see cref="RepairSpecificationSnapshotKind.Scaled"/>,
     /// <see cref="RepairSpecificationSnapshotKind.ScalingRemoved"/>,
     /// <see cref="RepairSpecificationSnapshotKind.BeforeRestore"/>,
-    /// <see cref="RepairSpecificationSnapshotKind.Restored"/>,
-    /// <see cref="RepairSpecificationSnapshotKind.Sent"/>).
+    /// <see cref="RepairSpecificationSnapshotKind.Restored"/>).
+    /// A Sent mark is recorded only by the observed mail transaction.
     /// </summary>
     Task<RepairSpecificationSnapshot> FreezeAsync(FreezeRepairSpecificationRequest request, CancellationToken cancellationToken);
 
@@ -187,8 +188,7 @@ public sealed record SaveAndScaleRepairSpecificationRequest(
     SaveEstimateRequest Save,
     decimal TargetPercentOfValue,
     ScalingFloors Floors,
-    decimal? EngineerValue = null,
-    bool ContractTarget = false);
+    decimal? EngineerValue = null);
 
 public sealed record RemoveRepairSpecificationScalingRequest(
     Guid CaseId,
@@ -249,22 +249,6 @@ public sealed class SaveAndScaleRepairSpecification(
         }
 
         var targetPercent = request.TargetPercentOfValue;
-        if (request.ContractTarget)
-        {
-            var contractSum = projection?.Field(AssessmentVocabulary.SettlementContractSum);
-            if (!string.Equals(
-                    projection?.Field(AssessmentVocabulary.Outcome)?.Value,
-                    "contract_repair",
-                    StringComparison.Ordinal)
-                || contractSum is null
-                || !decimal.TryParse(contractSum.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var agreedSum)
-                || agreedSum <= 0m)
-            {
-                throw new ArgumentException("The persisted contract target is invalid.", nameof(request));
-            }
-
-            targetPercent = agreedSum / engineerValue * 100m;
-        }
 
         if (targetPercent is < 1m or > 100m)
         {

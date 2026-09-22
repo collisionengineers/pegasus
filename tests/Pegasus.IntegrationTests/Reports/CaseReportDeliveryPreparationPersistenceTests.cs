@@ -455,14 +455,17 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
             var occurrenceId = Guid.NewGuid();
             var content = "delivery-preparation"u8.ToArray();
             var sha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content));
-            var report = AssessmentReportProjection.Project(
-                AssessmentReportDraftWebTests.ReadyInput(caseId)).Snapshot!;
+            var input = AssessmentReportDraftWebTests.ReadyInput(caseId);
+            var report = AssessmentReportProjection.Project(input).Snapshot!;
             var snapshot = new CaseReportGenerationSnapshot(
                 caseId, 1, "DVR-31001", "prepare-delivery-1", CaseReportActor.None, StartUtc,
-                Guid.Empty, new string('0', 64), "image/png", Guid.Empty, 1,
+                Guid.Empty, new string('0', 64), "image/png", input.CurrentEstimate!.SpecificationId, input.CurrentEstimate.Version,
                 report.Costs, report.EngineerValue, Guid.Empty, report.Content, report.Guides,
                 report.ReportDate, report.ReportDateOverridden, report.AgreedFee,
-                report.FeeDescriptionLines, [], [], report.PayloadVersion, "renderer/v1", report);
+                report.FeeDescriptionLines, [], [], report.PayloadVersion, "renderer/v1", report)
+            {
+                CurrentEstimate = input.CurrentEstimate
+            };
             context.AddRange(
                 new CaseDocumentEntity
                 {

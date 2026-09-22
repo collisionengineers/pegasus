@@ -23,43 +23,15 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseTasksWebTests
 {
     [Fact]
-    public async Task TasksPageBindsTaskLifecycleAndReportEvidenceLinks()
+    public async Task TasksPageBindsReportEvidenceLinksAndRefusesRetiredTaskHandlers()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
-            Substitute<ICreateCaseTask>(services, store);
-            Substitute<IAssignCaseTask>(services, store);
-            Substitute<ICompleteCaseTask>(services, store);
-            Substitute<ICancelCaseTask>(services, store);
             Substitute<ILinkReportEvidence>(services, store);
             Substitute<IUnlinkReportEvidence>(services, store);
         });
-        var taskId = Guid.NewGuid();
-        var assigneeId = Guid.NewGuid();
         var evidenceId = Guid.NewGuid();
-        (string Name, string Value)[] existingTask =
-        [
-            ("taskId", taskId.ToString("D")),
-            ("expectedTaskVersion", "3")
-        ];
-
-        using var created = await workspace.PostAsync(
-            "Tasks?handler=CreateTask",
-            workspace.MutationForm(
-                "create-task",
-                "Chase the provider",
-                ("taskId", taskId.ToString("D")),
-                ("description", "Request the missing images")));
-        using var assigned = await workspace.PostAsync(
-            "Tasks?handler=AssignTask",
-            workspace.MutationForm("assign-task", "Hand over", [("assigneeId", assigneeId.ToString("D")), .. existingTask]));
-        using var completed = await workspace.PostAsync(
-            "Tasks?handler=CompleteTask",
-            workspace.MutationForm("complete-task", "Images received", existingTask));
-        using var cancelled = await workspace.PostAsync(
-            "Tasks?handler=CancelTask",
-            workspace.MutationForm("cancel-task", "No longer needed", existingTask));
         using var linked = await workspace.PostAsync(
             "Tasks?handler=LinkReportEvidence",
             workspace.MutationForm("link-evidence", "Report sent", ("evidenceId", evidenceId.ToString("D"))));
@@ -67,58 +39,23 @@ public sealed class CaseTasksWebTests
             "Tasks?handler=UnlinkReportEvidence",
             workspace.MutationForm("unlink-evidence", "Wrong message", ("evidenceId", evidenceId.ToString("D"))));
 
-        foreach (var response in new[] { created, assigned, completed, cancelled, linked, unlinked })
-        {
-            AssertPrg(response, store.CaseId);
-        }
-
-        var creation = Assert.Single(store.TaskCreations);
-        AssertClaimant(workspace, creation.Actor);
-        Assert.Equal(taskId, creation.TaskId);
-        Assert.Equal(store.CaseVersion, creation.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, creation.EditLeaseToken);
-        Assert.Equal("create-task", creation.OperationKey);
-        Assert.Equal("Chase the provider", creation.Reason);
-        Assert.Equal("Request the missing images", creation.Description);
-        Assert.Null(creation.AssigneeId);
-
-        var assignment = Assert.Single(store.TaskAssignments);
-        AssertClaimant(workspace, assignment.Actor);
-        Assert.Equal(taskId, assignment.TaskId);
-        Assert.Equal(3, assignment.ExpectedTaskVersion);
-        Assert.Equal(store.CaseVersion, assignment.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, assignment.EditLeaseToken);
-        Assert.Equal("assign-task", assignment.OperationKey);
-        Assert.Equal(assigneeId, assignment.AssigneeId);
-
-        var completion = Assert.Single(store.TaskCompletions);
-        AssertClaimant(workspace, completion.Actor);
-        Assert.Equal(taskId, completion.TaskId);
-        Assert.Equal(3, completion.ExpectedTaskVersion);
-        Assert.Equal("complete-task", completion.OperationKey);
-        Assert.Equal("Images received", completion.Reason);
-
-        var cancellation = Assert.Single(store.TaskCancellations);
-        AssertClaimant(workspace, cancellation.Actor);
-        Assert.Equal(taskId, cancellation.TaskId);
-        Assert.Equal(3, cancellation.ExpectedTaskVersion);
-        Assert.Equal("cancel-task", cancellation.OperationKey);
-        Assert.Equal("No longer needed", cancellation.Reason);
-
+        AssertPrg(linked, store.CaseId);
+        AssertPrg(unlinked, store.CaseId);
         var link = Assert.Single(store.EvidenceLinks);
-        AssertLeasedMutation(workspace, link, "link-evidence", "Report sent");
-        Assert.Equal(evidenceId, link.EvidenceId);
-
         var unlink = Assert.Single(store.EvidenceUnlinks);
+        AssertLeasedMutation(workspace, link, "link-evidence", "Report sent");
         AssertLeasedMutation(workspace, unlink, "unlink-evidence", "Wrong message");
+        Assert.Equal(evidenceId, link.EvidenceId);
         Assert.Equal(evidenceId, unlink.EvidenceId);
 
-        await AssertRefusalKeepsEditModeAsync(
-            workspace,
-            "Tasks?handler=CompleteTask",
-            workspace.MutationForm("complete-task-2", "Already closed", existingTask));
+        foreach (var handler in new[] { "CreateTask", "AssignTask", "CompleteTask", "CancelTask" })
+        {
+            using var retired = await workspace.PostAsync(
+                $"Tasks?handler={handler}",
+                workspace.MutationForm("retired-task", "No task route"));
+            Assert.Equal(HttpStatusCode.NotFound, retired.StatusCode);
+        }
     }
-
     /// <summary>
     /// Inspection address: the recorded value and, in edit
     /// context, an editor for it. The record renders every section
@@ -290,23 +227,13 @@ public sealed class CaseTasksWebTests
                }))
         {
             var recoveryHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
-            // The holder returning to their own case in a second window gets
-            // the one control, reading Take over (v26 § R): the claim replays
-            // their retained lease, so nothing is "recovered".
+            // A second window can explicitly rotate the first window's lease.
             Assert.Contains("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
             Assert.Contains("data-case-edit", RecordBar(recoveryHtml), StringComparison.Ordinal);
-            Assert.Equal(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
-            using var recoveryResponse = await recoveryClient.PostAsync(
-                $"/Cases/{store.CaseId:D}?handler=ClaimLease",
-                Form(
-                    AntiforgeryValue(recoveryHtml),
-                    ("id", store.CaseId.ToString("D")),
-                    ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                    ("operationKey", claimOperationKey)));
-            AssertPrg(recoveryResponse, store.CaseId);
+            Assert.NotEqual(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
+            Assert.Contains("name=\"takeOver\" value=\"true\"", recoveryHtml, StringComparison.Ordinal);
         }
-        Assert.Equal(2, store.Claims.Count);
-        Assert.Equal(store.Claims[0].OperationKey, store.Claims[1].OperationKey);
+        Assert.Single(store.Claims);
 
         var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes");
         var refreshedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes");

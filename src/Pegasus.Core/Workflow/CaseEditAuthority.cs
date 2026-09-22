@@ -6,7 +6,7 @@ namespace Pegasus.Core.Workflow;
 /// The single owner of the decision every staff case mutation is guarded by: the case must stand at
 /// the version the editor loaded, and the caller must present the live edit lease it holds. A
 /// missing, expired, wrong-holder, or stale-version mutation is refused without overwriting newer
-/// work, and there is no takeover, force, or bypass. Infrastructure supplies the persisted material
+/// work. Explicit authorised takeover rotates the lease before another edit. Infrastructure supplies the persisted material
 /// and the fixed-time token comparison; the refusal order is business policy and lives here.
 /// </summary>
 public static class CaseEditAuthority
@@ -91,13 +91,8 @@ public static class CaseEditAuthority
     }
 
     /// <summary>
-    /// The heartbeat's guard. It asks everything <see cref="RequireLease"/> asks except whether
-    /// the expiry is still in the future: an editor whose beats were lost for longer than the
-    /// lease lasts — a throttled tab, a resumed machine, a run of faulted requests — still holds
-    /// the token whose hash the case retains, and a matching hash under the same holder proves
-    /// nobody took the case over in the meantime, because a takeover or a release rewrites both.
-    /// Reviving that lease changes nothing another editor could have relied on. A mutation never
-    /// gets this leniency: it goes through <see cref="RequireLease"/>.
+    /// A heartbeat extends only a live lease. Once it expires, another editor may claim it;
+    /// the former holder must make a new claim and receive a rotated token too.
     /// </summary>
     public static void RequireHeartbeat(
         Guid caseId,
@@ -107,10 +102,13 @@ public static class CaseEditAuthority
         ActorKind? retainedLeaseHolderKind,
         string? retainedLeaseHolder,
         bool hasRetainedLeaseTokenHash,
-        bool presentedTokenMatchesRetainedHash)
+        DateTimeOffset? leaseExpiresAtUtc,
+        bool presentedTokenMatchesRetainedHash,
+        DateTimeOffset nowUtc)
     {
         ArgumentNullException.ThrowIfNull(actor);
         if (string.IsNullOrWhiteSpace(presentedLeaseToken)
+            || !IsHeld(leaseExpiresAtUtc, nowUtc)
             || !hasRetainedLeaseTokenHash
             || string.IsNullOrWhiteSpace(retainedLeaseHolder))
         {

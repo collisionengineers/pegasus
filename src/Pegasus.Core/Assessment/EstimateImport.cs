@@ -82,6 +82,9 @@ public sealed class EstimateParseRejectedException(string reason) : Exception(re
 /// </summary>
 public interface IEstimateDocumentParser
 {
+    /// <summary>File-picker extensions this parser recognizes.</summary>
+    IReadOnlyList<string> FileExtensions { get; }
+
     /// <summary>Whether this parser recognizes the file by name and media type.</summary>
     bool CanParse(string fileName, string mediaType);
 

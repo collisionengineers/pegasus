@@ -12,10 +12,8 @@ public sealed class QdosBoundaryContractTests
     private static readonly DateTimeOffset Now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     /// <summary>
-    /// The Provider API's decoded envelope is 30 MB, and the per-file bound it
-    /// actually enforces can never exceed it: a single file that fits the
-    /// per-file cap but not the envelope is refused, so the envelope is the
-    /// effective ceiling for one file as well as for the batch.
+    /// The Provider API's decoded envelope is 30 MiB across files, with a
+    /// separate 10 MiB ceiling on each file.
     /// </summary>
     [Fact]
     public void TheProviderApiEnvelopeBoundsEveryFileItCarries()
@@ -26,9 +24,8 @@ public sealed class QdosBoundaryContractTests
                 <= IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength,
             "A single Provider API file may never be allowed past the envelope.");
 
-        // One file inside the per-file cap is accepted; the same envelope
-        // filled past 30 MB is refused as an envelope failure, not as a
-        // per-file one.
+        // One file inside the per-file cap is accepted; a batch past 30 MiB
+        // is refused as an envelope failure.
         var withinBounds = ProviderSubmissionPolicy.RequireEnvelope(
             [ProviderFile(0, 1024)]);
         Assert.Single(withinBounds);

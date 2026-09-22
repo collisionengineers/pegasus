@@ -238,21 +238,22 @@
                         </button>
                     }
                 }
-                else if (Model.OwnLeaseHeldElsewhere || details.ActiveEditLease is null)
+                else
                 {
-                    @* One control, whether or not this operator's own earlier lease is
-                       still live: the claim replays it (EfCaseWorkflowStore.ClaimAsync
-                       returns the retained token for the same operation key). A
-                       person's own second window reads Take over; a colleague's live
-                       lease renders no control at all. *@
+                    @* A live lease can be taken over by an authorised editor;
+                       the operation rotates its token and records the prior holder. *@
                     <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
+                        @if (details.ActiveEditLease is not null)
+                        {
+                            <input type="hidden" name="takeOver" value="true" />
+                        }
                         <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
                         <button type="submit" class="btn btn--dark" data-case-edit>
                             <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-                            <span>@(Model.OwnLeaseHeldElsewhere ? Frame.TakeOver : Model.IsPostReportReadOnly ? Frame.EnableReturn : Frame.EditCase)</span>
+                            <span>@(details.ActiveEditLease is not null ? Frame.TakeOver : Model.IsPostReportReadOnly ? Frame.EnableReturn : Frame.EditCase)</span>
                         </button>
                     </form>
                 }

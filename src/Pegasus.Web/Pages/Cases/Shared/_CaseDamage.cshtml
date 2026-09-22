@@ -202,8 +202,18 @@
                     @for (var index = 0; index < impacts.Count; index++)
                     {
                         var impact = impacts[index];
-                        <li class="impact-row" data-damage-row="@index">
+                        <li class="impact-row @(editable && impact.Areas.Any(AssessmentVocabulary.DamagePlanAreas.Contains) ? "impact-row--areas" : null)" data-damage-row="@index">
                             <span class="zc"><i class="zn">@(index + 1)</i>@AreaNames(impact.Areas)</span>
+                            @if (editable && impact.Areas.Any(AssessmentVocabulary.DamagePlanAreas.Contains))
+                            {
+                                <fieldset class="damage-area-set" data-damage-area-set>
+                                    <legend>Areas for impact @(index + 1)</legend>
+                                    @foreach (var area in AssessmentVocabulary.DamagePlanAreas)
+                                    {
+                                        <label><input type="checkbox" value="@area" checked="@(impact.Areas.Contains(area))" data-damage-area-choice />@DamageLabels.Location(area)</label>
+                                    }
+                                </fieldset>
+                            }
                             <span class="fc">
                                 @if (editable)
                                 {

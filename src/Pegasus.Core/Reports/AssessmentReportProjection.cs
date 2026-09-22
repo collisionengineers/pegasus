@@ -166,6 +166,7 @@ public static class AssessmentReportProjection
         var assessmentMethod = MapAssessmentMethod(assessment.CaseOwned.InspectionMode)
             ?? throw new InvalidDataException(
                 "A Review case is missing its accepted inspection method.");
+        var reportOutcome = MapOutcome(Field(fields, AssessmentVocabulary.Outcome)!);
         var signatory = input.Signatory!;
 
         var snapshot = new AssessmentReportSnapshot(
@@ -178,7 +179,7 @@ public static class AssessmentReportProjection
             Assessed: ParseDate(Field(fields, AssessmentVocabulary.IncidentAssessed)) ?? default,
             ReportFor: input.ReportFor,
             Vehicle: BuildVehicle(assessment, fields),
-            Outcome: MapOutcome(Field(fields, AssessmentVocabulary.Outcome)!),
+            Outcome: reportOutcome,
             LegalStatus: Field(fields, AssessmentVocabulary.LegalStatus)!,
             UnroadworthyReason: Field(fields, AssessmentVocabulary.UnroadworthyReason),
             ImpactSeverity: Field(fields, AssessmentVocabulary.ImpactSeverity)!,
@@ -188,8 +189,10 @@ public static class AssessmentReportProjection
             EngineerValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueEngineer)) ?? 0m,
             RetailValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueRetail)) ?? 0m,
             TradeValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueTrade)) ?? 0m,
-            SalvageCategory: Field(fields, AssessmentVocabulary.SalvageCategory),
-            SalvageValue: ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue)),
+            SalvageCategory: reportOutcome == AssessmentReportOutcome.TotalLoss
+                ? Field(fields, AssessmentVocabulary.SalvageCategory) : null,
+            SalvageValue: reportOutcome == AssessmentReportOutcome.TotalLoss
+                ? ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue)) : null,
             Costs: costs,
             NewParts: LinesOfType(lines, "new_part"),
             Repairs: LinesOfType(lines, "repair"),
@@ -335,7 +338,8 @@ public static class AssessmentReportProjection
             || assessment.Field(AssessmentVocabulary.ValueEngineer) is not { IsConfirmed: true } value
             || ParseMoney(value.Value) is not { } engineerValue
             || assessment.Field(AssessmentVocabulary.SettlementBetterment) is { IsConfirmed: false }
-            || assessment.Field(AssessmentVocabulary.SalvageValue) is { IsConfirmed: false })
+            || (assessment.Field(AssessmentVocabulary.Outcome)?.Value == "total_loss"
+                && assessment.Field(AssessmentVocabulary.SalvageValue) is { IsConfirmed: false }))
         {
             return null;
         }
@@ -354,13 +358,11 @@ public static class AssessmentReportProjection
             .ToDictionary(field => field.Path, field => (string?)field.Value, StringComparer.Ordinal);
         var costs = ReportRepairCosts.For(currentEstimate);
         var betterment = ParseMoney(Field(fields, AssessmentVocabulary.SettlementBetterment));
-        var salvage = ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue));
-        var contractSum = ParseMoney(Field(fields, AssessmentVocabulary.SettlementContractSum));
-        if (string.Equals(
-                Field(fields, AssessmentVocabulary.Outcome),
-                "contract_repair",
-                StringComparison.Ordinal)
-            && contractSum is null)
+        var totalLoss = string.Equals(Field(fields, AssessmentVocabulary.Outcome), "total_loss", StringComparison.Ordinal);
+        var contractRepair = string.Equals(Field(fields, AssessmentVocabulary.Outcome), "contract_repair", StringComparison.Ordinal);
+        var salvage = totalLoss ? ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue)) : null;
+        var contractSum = contractRepair ? ParseMoney(Field(fields, AssessmentVocabulary.SettlementContractSum)) : null;
+        if (contractRepair && contractSum is not > 0)
         {
             return null;
         }
@@ -378,13 +380,13 @@ public static class AssessmentReportProjection
             ParseDate(Field(fields, AssessmentVocabulary.SettlementHireStart)),
             ParseMoney(Field(fields, AssessmentVocabulary.SettlementHireDailyCost)),
             ParseMoney(Field(fields, AssessmentVocabulary.SettlementDiminution)),
-            Field(fields, AssessmentVocabulary.SettlementSalvageAt),
-            Field(fields, AssessmentVocabulary.SettlementSalvageAgent),
-            Field(fields, AssessmentVocabulary.SettlementSalvageAgentReference),
-            ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageMoved)),
-            ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageOwnerRetains)),
-            ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageValueAgreed)),
-            ParseDate(Field(fields, AssessmentVocabulary.SettlementSalvageSettled)),
+            totalLoss ? Field(fields, AssessmentVocabulary.SettlementSalvageAt) : null,
+            totalLoss ? Field(fields, AssessmentVocabulary.SettlementSalvageAgent) : null,
+            totalLoss ? Field(fields, AssessmentVocabulary.SettlementSalvageAgentReference) : null,
+            totalLoss ? ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageMoved)) : null,
+            totalLoss ? ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageOwnerRetains)) : null,
+            totalLoss ? ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageValueAgreed)) : null,
+            totalLoss ? ParseDate(Field(fields, AssessmentVocabulary.SettlementSalvageSettled)) : null,
             contractSum);
     }
 

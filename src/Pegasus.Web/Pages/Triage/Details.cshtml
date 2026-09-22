@@ -96,9 +96,8 @@
         {
             <form method="post" asp-page-handler="Edit" asp-route-id="@record.Id" class="record-bar-end">
                 <input type="hidden" name="expectedVersion" value="@record.Version" />
-                @* Offered only to the operator whose own other window still holds
-                   this record; taking over rotates the token so that window can
-                   no longer save. *@
+                @* An authorised editor can replace a live scope; the old token
+                   can no longer save. *@
                 @if (Model.CanTakeOverEdit)
                 {
                     <input type="hidden" name="takeOver" value="true" />

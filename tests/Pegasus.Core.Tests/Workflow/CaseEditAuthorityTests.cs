@@ -391,12 +391,13 @@ public sealed class CaseEditAuthorityTests
     }
 
     [Fact]
-    public void HeartbeatRevivesItsOwnLapsedLeaseWhenTheRetainedTokenStillMatches()
+    public void HeartbeatExtendsOnlyBeforeExpiry()
     {
-        // The expiry is not asked at all: a lapsed lease under the same holder and token is
-        // renewed rather than refused, because a takeover or release would have rewritten
-        // the retained hash.
-        RequireHeartbeat();
+        RequireHeartbeat(nowUtc: Now.AddMinutes(5).AddTicks(-1));
+        Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            RequireHeartbeat(nowUtc: Now.AddMinutes(5)));
+        Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            RequireHeartbeat(nowUtc: Now.AddDays(1)));
     }
 
     [Fact]
@@ -426,7 +427,9 @@ public sealed class CaseEditAuthorityTests
         ActorKind? retainedLeaseHolderKind = ActorKind.Staff,
         string? retainedLeaseHolder = Holder,
         bool hasRetainedLeaseTokenHash = true,
-        bool presentedTokenMatchesRetainedHash = true) =>
+        bool presentedTokenMatchesRetainedHash = true,
+        DateTimeOffset? leaseExpiresAtUtc = null,
+        DateTimeOffset? nowUtc = null) =>
         CaseEditAuthority.RequireHeartbeat(
             CaseId,
             caseVersion: 4,
@@ -435,7 +438,9 @@ public sealed class CaseEditAuthorityTests
             retainedLeaseHolderKind,
             retainedLeaseHolder,
             hasRetainedLeaseTokenHash,
-            presentedTokenMatchesRetainedHash);
+            leaseExpiresAtUtc ?? Now.AddMinutes(5),
+            presentedTokenMatchesRetainedHash,
+            nowUtc ?? Now);
 
     private static void Require(
         string? presentedLeaseToken = "a-live-token",

@@ -6,6 +6,8 @@ namespace Pegasus.Infrastructure.Assessment;
 /// <summary>The single PDF container; providers are identified only from readable content.</summary>
 public sealed class PdfEstimateDocumentParser : IEstimateDocumentParser
 {
+    public IReadOnlyList<string> FileExtensions { get; } = [".pdf"];
+
     public bool CanParse(string fileName, string mediaType) =>
         string.Equals(Path.GetExtension(fileName), ".pdf", StringComparison.OrdinalIgnoreCase)
         || string.Equals(mediaType, "application/pdf", StringComparison.OrdinalIgnoreCase);

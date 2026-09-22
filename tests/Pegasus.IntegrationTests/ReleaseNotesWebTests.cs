@@ -114,6 +114,63 @@ public sealed partial class ReleaseNotesWebTests
     }
 
     [Fact]
+    public async Task LostResponsesToSaveAndPublishDoNotCreateAnotherNote()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var administrator = CreateClient(factory);
+        var newForm = await GetHtmlAsync(administrator, EditPage);
+        var key = Guid.NewGuid().ToString("N");
+        var fields = new Dictionary<string, string>
+        {
+            ["Id"] = string.Empty,
+            ["ExpectedRowVersion"] = "0",
+            ["OperationKey"] = key,
+            ["Title"] = "Release update",
+            ["Body"] = "First body"
+        };
+        using var saved = await administrator.PostAsync($"{EditPage}?handler=Save", Form(newForm, new(fields)));
+        using var replay = await administrator.PostAsync($"{EditPage}?handler=Save", Form(newForm, new(fields)));
+        Assert.Equal(saved.Headers.Location, replay.Headers.Location);
+
+        using var changed = await administrator.PostAsync($"{EditPage}?handler=Save", Form(newForm, new()
+        {
+            ["Id"] = string.Empty,
+            ["ExpectedRowVersion"] = "0",
+            ["OperationKey"] = key,
+            ["Title"] = "Changed",
+            ["Body"] = "First body"
+        }));
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.Contains("changed before this edit was saved",
+            await changed.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        var draft = await GetHtmlAsync(administrator, saved.Headers.Location!.OriginalString);
+        var id = InputValue(draft, "Id");
+        var publishFields = new Dictionary<string, string>
+        {
+            ["Id"] = id,
+            ["ExpectedRowVersion"] = InputValue(draft, "ExpectedRowVersion"),
+            ["OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["Title"] = "Release update",
+            ["Body"] = "Final body"
+        };
+        using var published = await administrator.PostAsync(
+            $"{EditPage}/{id}?handler=Publish", Form(draft, new(publishFields)));
+        using var publishedReplay = await administrator.PostAsync(
+            $"{EditPage}/{id}?handler=Publish", Form(draft, new(publishFields)));
+        Assert.Equal(HttpStatusCode.Redirect, published.StatusCode);
+        Assert.Equal(published.Headers.Location, publishedReplay.Headers.Location);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var note = Assert.Single(await context.Set<ReleaseNoteEntity>().ToArrayAsync());
+        Assert.Equal(id, note.Id.ToString("D"));
+        Assert.Equal("Final body", note.Body);
+        Assert.Equal("Published", note.Status);
+    }
+
+    [Fact]
     public async Task AStaleDraftSaveIsRefusedWithoutOverwritingTheNewerText()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);

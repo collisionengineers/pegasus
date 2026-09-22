@@ -833,6 +833,14 @@ internal sealed record UploadFormTokens(string AntiforgeryToken, string External
 
 internal static class IntakeTestEvidence
 {
+    public static byte[] CreatePdf(string text)
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        builder.AddPage(PageSize.A4).AddText(text, 10, new PdfPoint(36, 780), font);
+        return builder.Build();
+    }
+
     /// <summary>
     /// A documented QDOS definitive instruction represented as an actual PDF
     /// document. Callers place it in their existing intake transport instead

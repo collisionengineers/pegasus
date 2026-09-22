@@ -379,6 +379,53 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(rows.Length, snapshot.Metrics.Unidentified);
     }
 
+    [Fact]
+    public async Task NeedsAttentionReadsPastFiveHundredForEveryPagedSource()
+    {
+        var count = 501;
+        var due = Enumerable.Range(1, count)
+            .Select(index => NewDueWork(Guid.NewGuid(), $"D{index:000}", NowUtc.AddHours(-1)))
+            .ToArray();
+        var held = Enumerable.Range(1, count)
+            .Select(index => NewHeldCase(Guid.NewGuid(), $"H{index:000}"))
+            .ToArray();
+        var review = Enumerable.Range(1, count)
+            .Select(index => NewHeldCase(Guid.NewGuid(), $"R{index:000}") with
+            {
+                State = CaseLifecycleState.Review,
+                EngineerId = Guid.NewGuid()
+            })
+            .ToArray();
+        var triage = Enumerable.Range(1, count)
+            .Select(index => NewTriage(Guid.NewGuid(), $"T{index:000}", TriageState.Open))
+            .ToArray();
+        var snapshot = BuildSnapshot(
+            new RecordingDashboardQueries(), NowUtc,
+            new StubSearchCases { Items = [.. held, .. review] },
+            null,
+            new StubListTriage { Items = triage },
+            new StubDueWorkQueries { Due = due },
+            null,
+            null);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        foreach (var kind in new[]
+        {
+            NeedsAttentionKind.CaseChase,
+            NeedsAttentionKind.HeldDecision,
+            NeedsAttentionKind.ReviewCase,
+            NeedsAttentionKind.Triage
+        })
+        {
+            var page = await snapshot.ExecuteAsync(new NeedsAttentionQuery(
+                actor, Page: 11, Kinds: [kind]));
+            Assert.Equal(count, page.Attention.TotalCount);
+            Assert.Equal(count, page.Attention.KindCounts[kind]);
+            Assert.Single(page.Attention.Items);
+            Assert.Equal(kind, page.Attention.Items[0].Kind);
+        }
+    }
+
     [Theory]
     [InlineData(GetOperationsSnapshot.MaximumAttentionRows)]
     [InlineData(GetOperationsSnapshot.MaximumAttentionRows + 1)]
@@ -544,7 +591,7 @@ public sealed class DashboardBoundaryTests
     private sealed class StubIntakeReceiptQueries : IIntakeReceiptQueries
     {
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeQueueCounts(0, 0));
+            Task.FromResult(new IntakeQueueCounts(0));
 
         public Task<IntakeListPage> ListAsync(
             IntakeDecision? decision,
@@ -604,9 +651,10 @@ public sealed class DashboardBoundaryTests
 
         public Task<IReadOnlyList<CaseDueWork>> GetDueAsync(
             DateTimeOffset asOfUtc,
-            int maximumResults,
+            int page,
+            int pageSize,
             CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<CaseDueWork>>(Due.Take(maximumResults).ToArray());
+            Task.FromResult<IReadOnlyList<CaseDueWork>>(Due.Skip((page - 1) * pageSize).Take(pageSize).ToArray());
     }
 
     private sealed class StubSearchCases : ISearchCases
@@ -619,14 +667,16 @@ public sealed class DashboardBoundaryTests
             CancellationToken cancellationToken)
         {
             RequestedStates.Add(query.Filters.State);
+            var matching = Items.Where(item => query.Filters.State is null || item.State == query.Filters.State)
+                .ToArray();
             return Task.FromResult(new SearchCasesResult(
-                Items.Where(item => query.Filters.State is null || item.State == query.Filters.State)
+                matching.Skip((query.Page - 1) * query.PageSize)
                     .Take(query.PageSize)
                     .ToArray(),
                 query.Page,
                 query.PageSize,
-                false,
-                false));
+                query.Page > 1,
+                query.Page * query.PageSize < matching.Length));
         }
     }
 

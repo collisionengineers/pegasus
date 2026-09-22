@@ -39,7 +39,7 @@
       "value": "${GITHUB_PROBLEM_REPORT_TOKEN_SECRET_URI}"
     },
     "gitHubProblemReportRepository": {
-      "value": "${GITHUB_PROBLEM_REPORT_REPOSITORY=collisionengineers/pegasus}"
+      "value": "${GITHUB_PROBLEM_REPORT_REPOSITORY}"
     },
     "boxClientSecretSecretUri": {
       "value": "${BOX_CLIENT_SECRET_SECRET_URI}"

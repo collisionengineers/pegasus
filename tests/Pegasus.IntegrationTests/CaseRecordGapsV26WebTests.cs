@@ -217,6 +217,25 @@ public sealed class CaseRecordGapsV26WebTests
     }
 
     [Fact]
+    public async Task ForgedOriginalReportFieldIsRefusedOnANonAuditCase()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            SummaryCaseType = CaseType.Inspection,
+            State = CaseLifecycleState.NotReady,
+            CaseState = CaseLifecycleState.NotReady
+        };
+        using var workspace = await EnterEditModeAsync(store, new RecordGapPorts(store).Register);
+
+        using var response = await SaveAsync(
+            workspace,
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.OriginalReportAssessor), "Forged"));
+
+        AssertPrg(response, store.CaseId);
+        Assert.Empty(store.Saves);
+    }
+
+    [Fact]
     public async Task TheValuationSectionOwnsTheReportContentSummaryAndAllThreeSwitches()
     {
         var store = new RecordingCaseDetailsStore

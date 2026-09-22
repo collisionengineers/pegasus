@@ -49,13 +49,18 @@
                             <td class="row-actions">
                                 @if (!AiJobStates.IsTerminal(job.State))
                                 {
-                                    <form method="post" asp-page-handler="Stop">
-                                        <input type="hidden" name="jobId" value="@job.JobId" />
-                                        <input type="hidden" name="expectedVersion" value="@job.Version" />
-                                        <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                                        <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
-                                        <button class="btn btn--small btn--danger" type="submit">Stop</button>
-                                    </form>
+                                    <details>
+                                        <summary class="btn btn--small btn--danger">Stop</summary>
+                                        <form method="post" asp-page-handler="Stop" class="row-confirm">
+                                            <input type="hidden" name="jobId" value="@job.JobId" />
+                                            <input type="hidden" name="expectedVersion" value="@job.Version" />
+                                            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                                            <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
+                                            <label for="stop-reason-@job.JobId">Reason</label>
+                                            <input id="stop-reason-@job.JobId" name="reason" required maxlength="500" />
+                                            <button class="btn btn--small btn--danger" type="submit">Confirm stop</button>
+                                        </form>
+                                    </details>
                                 }
                                 else
                                 {

@@ -21,6 +21,8 @@ internal sealed class ReleaseNoteEntity
     public Guid? PublishedByStaffId { get; set; }
     public DateTimeOffset? PublishedAtUtc { get; set; }
     public long RowVersion { get; set; }
+    public required string OperationKey { get; set; }
+    public required string RequestHash { get; set; }
 }
 
 /// <summary>One person's acknowledgement of one published note: the What's new dialog is shown until this row exists.</summary>
@@ -47,6 +49,9 @@ internal static class ReleaseNoteModelConfiguration
             entity.Property(item => item.Version).HasMaxLength(64);
             entity.Property(item => item.SourceSha).HasMaxLength(40);
             entity.Property(item => item.RowVersion).IsConcurrencyToken();
+            entity.Property(item => item.OperationKey).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.HasIndex(item => item.OperationKey).IsUnique();
             // The shell reads the newest published note; the Administrator lists by last change.
             entity.HasIndex(item => new { item.Status, item.PublishedAtUtc }).IsDescending(false, true);
             entity.HasIndex(item => item.UpdatedAtUtc);

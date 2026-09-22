@@ -64,15 +64,16 @@ public sealed class AiJobTests
     }
 
     [Fact]
-    public void AnEstimateJobNeedsAnEngineerValueAndATargetBetweenOneAndOneHundred()
+    public void AnEstimateJobNeedsAnEngineerValueAndAllowsAnOptionalTargetUpToEighty()
     {
         var caseId = Guid.NewGuid();
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Staff, caseId, target: 0, engineerValue: 5000m)));
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Staff, caseId, target: 101, engineerValue: 5000m)));
+            AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Staff, caseId, target: 81, engineerValue: 5000m)));
         Assert.Throws<InvalidOperationException>(() =>
             AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Staff, caseId, target: 60, engineerValue: null)));
+        AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Staff, caseId, target: null, engineerValue: 5000m));
+        AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Staff, caseId, target: 0, engineerValue: 5000m));
+        AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Staff, caseId, target: 80, engineerValue: 5000m));
         AiJobPolicy.ValidateNew(NewJob(AiJobKind.Estimate, Staff, caseId, target: 60, engineerValue: 5000m));
     }
 
@@ -85,9 +86,11 @@ public sealed class AiJobTests
         Assert.Throws<InvalidOperationException>(() =>
             AiJobPolicy.ValidateTransition(new(
                 Guid.NewGuid(), 0, AiJobState.Cancelled, Client, "op", "reason")));
-        // Staff cancel a job on the click; a reason is optional.
+        Assert.Throws<ArgumentException>(() =>
+            AiJobPolicy.ValidateTransition(new(
+                Guid.NewGuid(), 0, AiJobState.Cancelled, Staff, "op")));
         AiJobPolicy.ValidateTransition(new(
-            Guid.NewGuid(), 0, AiJobState.Cancelled, Staff, "op"));
+            Guid.NewGuid(), 0, AiJobState.Cancelled, Staff, "op", "No longer required"));
         Assert.Throws<ArgumentException>(() =>
             AiJobPolicy.ValidateTransition(new(
                 Guid.NewGuid(), 0, AiJobState.Failed, Client, "op")));

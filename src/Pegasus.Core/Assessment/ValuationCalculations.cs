@@ -241,8 +241,6 @@ public sealed record AppliedValuation(
 /// <see cref="GuideValuationStampUtc"/> is the basis card's own last-written
 /// stamp: the card carries no separate version number, so its edit stamp is
 /// what proves the Engineer applied the card they were shown.
-/// <see cref="CorrectedEngineerValue"/> carries a later manual correction,
-/// which keeps this same basis and adds its own reason and history row.
 /// </summary>
 public sealed record ApplyValuationRequest(
     Guid CaseId,
@@ -252,8 +250,7 @@ public sealed record ApplyValuationRequest(
     string Reason,
     string EditLeaseToken,
     ValuationCalculationSelection Selection,
-    DateTimeOffset GuideValuationStampUtc,
-    decimal? CorrectedEngineerValue = null)
+    DateTimeOffset GuideValuationStampUtc)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public interface IAppliedValuationStore
@@ -468,11 +465,6 @@ public static class ValuationCalculationPolicy
         ArgumentNullException.ThrowIfNull(request);
         CaseLifecycleRules.ValidateMutation(request);
         AssessmentPolicy.RequireFindingConfirmationAuthority(request.Actor);
-        if (request.CorrectedEngineerValue is { } corrected)
-        {
-            RequireAmount(corrected, "corrected Engineer's value", nameof(request));
-        }
-
         return request with
         {
             Selection = ValidateSelection(request.Selection, nameof(request))
@@ -480,8 +472,7 @@ public static class ValuationCalculationPolicy
     }
 
     /// <summary>
-    /// The figure adopted as the professional finding: the calculated
-    /// proposal, or the Engineer's own corrected figure over the same basis.
+    /// The calculated proposal adopted as the professional finding.
     /// It must be a value the confirmed field can hold, so a zero adoption is
     /// refused here rather than at the field write.
     /// </summary>
@@ -491,7 +482,7 @@ public static class ValuationCalculationPolicy
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(calculation);
-        var accepted = request.CorrectedEngineerValue ?? calculation.Proposal;
+        var accepted = calculation.Proposal;
         if (accepted <= 0m)
         {
             throw new InvalidOperationException(

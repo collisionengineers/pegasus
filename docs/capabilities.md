@@ -218,8 +218,8 @@ exclusion.
 | MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | [Reports](frd/frd-17-administration-workspace.md#reports) |
 | MI-02 | Per-principal report counts, types, and periods feeding invoice generation | [Reports](frd/frd-17-administration-workspace.md#reports) |
 | MI-03 | Holding age and instruction-to-produced, ready and sent turnaround | [Reports](frd/frd-17-administration-workspace.md#reports) |
-| OPS-20 | Release notes written and published by an Administrator, shown once to each person | [Release notes](frd/frd-17-administration-workspace.md#release-notes) |
-| OPS-21 | Report a problem: kept with its captured state and raised as a repository issue | [Problem reports](frd/frd-17-administration-workspace.md#problem-reports) |
+| OPS-26 | Release notes written and published by an Administrator, shown once to each person | [Release notes](frd/frd-17-administration-workspace.md#release-notes) |
+| OPS-27 | Report a problem: kept with its captured state and raised as a repository issue | [Problem reports](frd/frd-17-administration-workspace.md#problem-reports) |
 | ACC-12 | External/customer application accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | ACC-13 | Public registration (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | ACC-14 | Multi-factor authentication for staff (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |

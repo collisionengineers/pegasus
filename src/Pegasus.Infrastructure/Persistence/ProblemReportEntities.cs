@@ -17,6 +17,8 @@ internal sealed class ProblemReportEntity
     public string? Route { get; set; }
     public string? CaseReference { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
+    public required string OperationKey { get; set; }
+    public required string RequestHash { get; set; }
     public required string Status { get; set; }
     public int? IssueNumber { get; set; }
     public string? IssueUrl { get; set; }
@@ -34,18 +36,21 @@ internal static class ProblemReportModelConfiguration
         {
             entity.ToTable("ProblemReports", table => table.HasCheckConstraint(
                 "CK_ProblemReports_Status",
-                "[Status] IN ('Sent', 'NotSent')"));
+                "[Status] IN ('Sent', 'NotSent', 'Unknown')"));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Description).HasMaxLength(4000).IsRequired();
             entity.Property(item => item.SnapshotJson).IsRequired();
             entity.Property(item => item.Route).HasMaxLength(400);
             entity.Property(item => item.CaseReference).HasMaxLength(40);
             entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.OperationKey).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.IssueUrl).HasMaxLength(400);
             entity.Property(item => item.Failure).HasMaxLength(400);
             entity.Property(item => item.DispatchClaimToken).HasMaxLength(64);
             // The Administrator's list reads newest first.
             entity.HasIndex(item => item.CreatedAtUtc).IsDescending();
+            entity.HasIndex(item => item.OperationKey).IsUnique();
         });
     }
 }

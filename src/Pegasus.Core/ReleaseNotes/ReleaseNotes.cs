@@ -1,4 +1,6 @@
 using Pegasus.Core.Identity;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Pegasus.Core.ReleaseNotes;
 
@@ -38,7 +40,9 @@ public sealed record ReleaseNote(
     public bool IsPublished => Status == ReleaseNoteStatus.Published;
 }
 
-public sealed record NewReleaseNote(string Title, string Body, Guid CreatedByStaffId, DateTimeOffset AtUtc);
+public sealed record NewReleaseNote(
+    string Title, string Body, Guid CreatedByStaffId, DateTimeOffset AtUtc,
+    string OperationKey, string RequestHash);
 
 /// <summary>Thrown when a note changed under the Administrator's edit, or is not a draft any more.</summary>
 public sealed class ReleaseNoteConflictException(Guid noteId)
@@ -72,6 +76,8 @@ public interface IReleaseNoteStore
     Task<ReleaseNote> PublishAsync(
         Guid id,
         long expectedRowVersion,
+        string title,
+        string body,
         ApplicationBuild build,
         Guid publishedByStaffId,
         DateTimeOffset atUtc,
@@ -92,6 +98,15 @@ public static class ReleaseNotePolicy
 {
     public const int MaximumTitleLength = 120;
     public const int MaximumBodyLength = 8000;
+
+    public static string NormalizeOperationKey(string? key) =>
+        Guid.TryParse(key, out var value) && value != Guid.Empty
+            ? value.ToString("N")
+            : throw new ArgumentException("The release note form has expired. Open it again.", nameof(key));
+
+    public static string RequestHash(Guid staffId, string title, string body) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{staffId:D}\n{title.Length}:{title}\n{body.Length}:{body}")));
 
     public static string ValidateTitle(string? title)
     {
@@ -162,6 +177,7 @@ public sealed class ReleaseNoteAdministration(
         long? expectedRowVersion,
         string? title,
         string? body,
+        string operationKey,
         CancellationToken cancellationToken)
     {
         var staffId = ReleaseNotePolicy.RequireStaff(actor, StaffAccessRight.PublishReleaseNotes);
@@ -170,7 +186,10 @@ public sealed class ReleaseNoteAdministration(
         var now = _timeProvider.GetUtcNow();
         if (id is not { } noteId || noteId == Guid.Empty)
         {
-            return await _store.AddAsync(new NewReleaseNote(validTitle, validBody, staffId, now), cancellationToken);
+            var key = ReleaseNotePolicy.NormalizeOperationKey(operationKey);
+            var hash = ReleaseNotePolicy.RequestHash(staffId, validTitle, validBody);
+            return await _store.AddAsync(
+                new NewReleaseNote(validTitle, validBody, staffId, now, key, hash), cancellationToken);
         }
 
         if (expectedRowVersion is not { } rowVersion)
@@ -186,6 +205,8 @@ public sealed class ReleaseNoteAdministration(
         ActionActor actor,
         Guid id,
         long expectedRowVersion,
+        string? title,
+        string? body,
         CancellationToken cancellationToken)
     {
         var staffId = ReleaseNotePolicy.RequireStaff(actor, StaffAccessRight.PublishReleaseNotes);
@@ -194,7 +215,11 @@ public sealed class ReleaseNoteAdministration(
             throw new ArgumentException("A release note identifier is required.", nameof(id));
         }
 
-        return await _store.PublishAsync(id, expectedRowVersion, _build, staffId, _timeProvider.GetUtcNow(), cancellationToken);
+        var validTitle = ReleaseNotePolicy.ValidateTitle(title);
+        var validBody = ReleaseNotePolicy.ValidateBody(body);
+        return await _store.PublishAsync(
+            id, expectedRowVersion, validTitle, validBody, _build, staffId,
+            _timeProvider.GetUtcNow(), cancellationToken);
     }
 }
 

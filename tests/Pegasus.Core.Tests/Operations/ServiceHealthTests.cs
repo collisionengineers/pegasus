@@ -423,6 +423,9 @@ public sealed class ServiceHealthTests
             return Task.FromResult(RecentJobs);
         }
 
+        public Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by the snapshot.");
+
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(AiCounts);
 

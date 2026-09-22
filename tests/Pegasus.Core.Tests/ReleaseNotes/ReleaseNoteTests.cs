@@ -11,6 +11,7 @@ public sealed class ReleaseNoteTests
     private static readonly TestClock Clock = new(new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.Zero));
 
     private static ActionActor Administrator() => ActionActor.Staff(AdministratorId, [StaffRole.Administrator]);
+    private static string Key() => Guid.NewGuid().ToString("N");
     private static ActionActor User() => ActionActor.Staff(UserId, [StaffRole.User]);
     private static ActionActor Engineer() => ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
 
@@ -20,21 +21,49 @@ public sealed class ReleaseNoteTests
         var store = new FakeStore();
         var administration = new ReleaseNoteAdministration(store, Build, Clock);
 
-        var draft = await administration.SaveDraftAsync(Administrator(), null, null, "  Repair Spec  ", "Line one\r\n\r\n- a\r\n- b\r\n", default);
+        var draft = await administration.SaveDraftAsync(Administrator(), null, null, "  Repair Spec  ", "Line one\r\n\r\n- a\r\n- b\r\n", Key(), default);
         Assert.Equal(ReleaseNoteStatus.Draft, draft.Status);
         Assert.Equal("Repair Spec", draft.Title);
         Assert.Equal("Line one\n\n- a\n- b", draft.Body);
         Assert.Null(draft.Version);
 
-        var rewritten = await administration.SaveDraftAsync(Administrator(), draft.Id, draft.RowVersion, "Repair Spec and images", draft.Body, default);
+        var rewritten = await administration.SaveDraftAsync(Administrator(), draft.Id, draft.RowVersion, "Repair Spec and images", draft.Body, Key(), default);
         Assert.Equal(draft.RowVersion + 1, rewritten.RowVersion);
 
-        var published = await administration.PublishAsync(Administrator(), rewritten.Id, rewritten.RowVersion, default);
+        var published = await administration.PublishAsync(Administrator(), rewritten.Id, rewritten.RowVersion, rewritten.Title, rewritten.Body, default);
         Assert.Equal(ReleaseNoteStatus.Published, published.Status);
         Assert.Equal(Build.Version, published.Version);
         Assert.Equal(Build.SourceSha, published.SourceSha);
         Assert.Equal(AdministratorId, published.PublishedByStaffId);
         Assert.Equal(Clock.GetUtcNow(), published.PublishedAtUtc);
+    }
+
+    [Fact]
+    public async Task CreateAndPublishReplaysReturnTheSameNoteAndChangedCreateInputConflicts()
+    {
+        var store = new FakeStore();
+        var administration = new ReleaseNoteAdministration(store, Build, Clock);
+        var key = Key();
+
+        var draft = await administration.SaveDraftAsync(
+            Administrator(), null, null, "First", "Body", key, default);
+        var replay = await administration.SaveDraftAsync(
+            Administrator(), null, null, "First", "Body", key, default);
+        Assert.Equal(draft.Id, replay.Id);
+        Assert.Single(store.Notes);
+        await Assert.ThrowsAsync<ReleaseNoteConflictException>(() =>
+            administration.SaveDraftAsync(
+                Administrator(), null, null, "Changed", "Body", key, default));
+
+        var published = await administration.PublishAsync(
+            Administrator(), draft.Id, draft.RowVersion, "Edited on publish", "Final body", default);
+        var publishedReplay = await administration.PublishAsync(
+            Administrator(), draft.Id, draft.RowVersion, "Edited on publish", "Final body", default);
+        Assert.Equal(published.Id, publishedReplay.Id);
+        Assert.Equal(published.RowVersion, publishedReplay.RowVersion);
+        Assert.Equal("Edited on publish", published.Title);
+        Assert.Equal("Final body", published.Body);
+        Assert.Single(store.Notes);
     }
 
     [Fact]
@@ -47,9 +76,9 @@ public sealed class ReleaseNoteTests
         foreach (var actor in new[] { User(), Engineer(), automation })
         {
             await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-                administration.SaveDraftAsync(actor, null, null, "Title", "Body", default));
+                administration.SaveDraftAsync(actor, null, null, "Title", "Body", Key(), default));
             await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-                administration.PublishAsync(actor, Guid.NewGuid(), 1, default));
+                administration.PublishAsync(actor, Guid.NewGuid(), 1, "Title", "Body", default));
             await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
                 administration.ListAsync(actor, default));
         }
@@ -66,15 +95,15 @@ public sealed class ReleaseNoteTests
         var administration = new ReleaseNoteAdministration(store, Build, Clock);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            administration.SaveDraftAsync(Administrator(), null, null, "   ", "Body", default));
+            administration.SaveDraftAsync(Administrator(), null, null, "   ", "Body", Key(), default));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            administration.SaveDraftAsync(Administrator(), null, null, "Title", "", default));
+            administration.SaveDraftAsync(Administrator(), null, null, "Title", "", Key(), default));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            administration.SaveDraftAsync(Administrator(), null, null, new string('t', ReleaseNotePolicy.MaximumTitleLength + 1), "Body", default));
+            administration.SaveDraftAsync(Administrator(), null, null, new string('t', ReleaseNotePolicy.MaximumTitleLength + 1), "Body", Key(), default));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            administration.SaveDraftAsync(Administrator(), null, null, "Title", new string('b', ReleaseNotePolicy.MaximumBodyLength + 1), default));
+            administration.SaveDraftAsync(Administrator(), null, null, "Title", new string('b', ReleaseNotePolicy.MaximumBodyLength + 1), Key(), default));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            administration.SaveDraftAsync(Administrator(), null, null, "Two\nlines", "Body", default));
+            administration.SaveDraftAsync(Administrator(), null, null, "Two\nlines", "Body", Key(), default));
         Assert.Empty(store.Notes);
     }
 
@@ -83,16 +112,16 @@ public sealed class ReleaseNoteTests
     {
         var store = new FakeStore();
         var administration = new ReleaseNoteAdministration(store, Build, Clock);
-        var draft = await administration.SaveDraftAsync(Administrator(), null, null, "Title", "Body", default);
+        var draft = await administration.SaveDraftAsync(Administrator(), null, null, "Title", "Body", Key(), default);
 
         await Assert.ThrowsAsync<ReleaseNoteConflictException>(() =>
-            administration.SaveDraftAsync(Administrator(), draft.Id, draft.RowVersion + 5, "Other", "Body", default));
+            administration.SaveDraftAsync(Administrator(), draft.Id, draft.RowVersion + 5, "Other", "Body", Key(), default));
 
-        var published = await administration.PublishAsync(Administrator(), draft.Id, draft.RowVersion, default);
+        var published = await administration.PublishAsync(Administrator(), draft.Id, draft.RowVersion, draft.Title, draft.Body, default);
         await Assert.ThrowsAsync<ReleaseNoteConflictException>(() =>
-            administration.SaveDraftAsync(Administrator(), published.Id, published.RowVersion, "Other", "Body", default));
+            administration.SaveDraftAsync(Administrator(), published.Id, published.RowVersion, "Other", "Body", Key(), default));
         await Assert.ThrowsAsync<ReleaseNoteConflictException>(() =>
-            administration.PublishAsync(Administrator(), published.Id, published.RowVersion, default));
+            administration.PublishAsync(Administrator(), published.Id, published.RowVersion, published.Title, published.Body, default));
     }
 
     [Fact]
@@ -103,10 +132,10 @@ public sealed class ReleaseNoteTests
         var mine = new MyReleaseNotes(store, Clock);
 
         Assert.Null(await mine.GetUnacknowledgedAsync(User(), default));
-        var draft = await administration.SaveDraftAsync(Administrator(), null, null, "Unpublished", "Body", default);
+        var draft = await administration.SaveDraftAsync(Administrator(), null, null, "Unpublished", "Body", Key(), default);
         Assert.Null(await mine.GetUnacknowledgedAsync(User(), default)); // A draft is nobody's news.
 
-        var first = await administration.PublishAsync(Administrator(), draft.Id, draft.RowVersion, default);
+        var first = await administration.PublishAsync(Administrator(), draft.Id, draft.RowVersion, draft.Title, draft.Body, default);
         Assert.Equal(first.Id, (await mine.GetUnacknowledgedAsync(User(), default))?.Id);
         Assert.Equal(first.Id, (await mine.GetUnacknowledgedAsync(Administrator(), default))?.Id);
 
@@ -116,8 +145,8 @@ public sealed class ReleaseNoteTests
         Assert.Equal(first.Id, (await mine.GetUnacknowledgedAsync(Administrator(), default))?.Id);
 
         Clock.Advance(TimeSpan.FromMinutes(1));
-        var next = await administration.SaveDraftAsync(Administrator(), null, null, "Second", "Body", default);
-        var second = await administration.PublishAsync(Administrator(), next.Id, next.RowVersion, default);
+        var next = await administration.SaveDraftAsync(Administrator(), null, null, "Second", "Body", Key(), default);
+        var second = await administration.PublishAsync(Administrator(), next.Id, next.RowVersion, next.Title, next.Body, default);
         Assert.Equal(second.Id, (await mine.GetUnacknowledgedAsync(User(), default))?.Id);
         Assert.Equal([second.Id, first.Id], (await mine.ListPublishedAsync(User(), default)).Select(note => note.Id));
     }
@@ -143,6 +172,7 @@ public sealed class ReleaseNoteTests
     private sealed class FakeStore : IReleaseNoteStore
     {
         public List<ReleaseNote> Notes { get; } = [];
+        private readonly Dictionary<string, (string Hash, Guid Id)> _creations = [];
         private readonly HashSet<(Guid Staff, Guid Note)> _acknowledged = [];
 
         public Task<ReleaseNote?> GetAsync(Guid id, CancellationToken cancellationToken) =>
@@ -156,9 +186,16 @@ public sealed class ReleaseNoteTests
 
         public Task<ReleaseNote> AddAsync(NewReleaseNote note, CancellationToken cancellationToken)
         {
+            if (_creations.TryGetValue(note.OperationKey, out var existing))
+            {
+                if (existing.Hash != note.RequestHash)
+                    throw new ReleaseNoteConflictException(existing.Id);
+                return Task.FromResult(Notes.Single(item => item.Id == existing.Id));
+            }
             var added = new ReleaseNote(Guid.NewGuid(), note.Title, note.Body, ReleaseNoteStatus.Draft, null, null,
                 note.CreatedByStaffId, note.AtUtc, note.AtUtc, null, null, 1);
             Notes.Add(added);
+            _creations.Add(note.OperationKey, (note.RequestHash, added.Id));
             return Task.FromResult(added);
         }
 
@@ -170,11 +207,20 @@ public sealed class ReleaseNoteTests
             return Task.FromResult(updated);
         }
 
-        public Task<ReleaseNote> PublishAsync(Guid id, long expectedRowVersion, ApplicationBuild build, Guid publishedByStaffId, DateTimeOffset atUtc, CancellationToken cancellationToken)
+        public Task<ReleaseNote> PublishAsync(Guid id, long expectedRowVersion, string title, string body, ApplicationBuild build, Guid publishedByStaffId, DateTimeOffset atUtc, CancellationToken cancellationToken)
         {
+            var previous = Notes.SingleOrDefault(note => note.Id == id);
+            if (previous is { Status: ReleaseNoteStatus.Published }
+                && previous.RowVersion == expectedRowVersion + 1
+                && previous.PublishedByStaffId == publishedByStaffId
+                && previous.Title == title && previous.Body == body
+                && previous.Version == build.Version && previous.SourceSha == build.SourceSha)
+                return Task.FromResult(previous);
             var current = Draft(id, expectedRowVersion);
             var published = current with
             {
+                Title = title,
+                Body = body,
                 Status = ReleaseNoteStatus.Published,
                 Version = build.Version,
                 SourceSha = build.SourceSha,

@@ -54,7 +54,9 @@ jobs:
             # The API lists files against the merge base, the same set a
             # three-dot diff would give from a full clone.
             $files = @(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --paginate --jq '.[].filename')
-            if ($LASTEXITCODE -eq 0) {
+            # GitHub caps this API at 3,000 paths. A successful but truncated
+            # response must run every conditional lane.
+            if ($LASTEXITCODE -eq 0 -and $files.Count -eq [int]'${{ github.event.pull_request.changed_files }}') {
               $forceAll = $false
             }
           } else {

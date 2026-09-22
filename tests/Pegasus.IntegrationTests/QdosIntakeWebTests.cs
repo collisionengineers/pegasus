@@ -481,7 +481,7 @@ public sealed class QdosIntakeWebTests
         var dashboard = await client.GetStringAsync("/");
         var sortingQueue = await queries.ListAsync(IntakeDecision.NeedsSorting, 1, 25, CancellationToken.None);
 
-        Assert.Equal(new IntakeQueueCounts(1, 0), counts);
+        Assert.Equal(new IntakeQueueCounts(1), counts);
         Assert.Matches(
             "(?s)data-value=\"unidentified\"(?:(?!</a>).)*?<span class=\"metric-value\">1</span>",
             dashboard);

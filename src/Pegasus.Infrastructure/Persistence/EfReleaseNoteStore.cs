@@ -38,6 +38,9 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
     {
         ArgumentNullException.ThrowIfNull(note);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var existing = await context.Set<ReleaseNoteEntity>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey == note.OperationKey, cancellationToken);
+        if (existing is not null) return Replay(existing, note);
         var entity = new ReleaseNoteEntity
         {
             Id = Guid.NewGuid(),
@@ -47,11 +50,23 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
             CreatedByStaffId = note.CreatedByStaffId,
             CreatedAtUtc = note.AtUtc,
             UpdatedAtUtc = note.AtUtc,
-            RowVersion = 1
+            RowVersion = 1,
+            OperationKey = note.OperationKey,
+            RequestHash = note.RequestHash
         };
         context.Set<ReleaseNoteEntity>().Add(entity);
-        await context.SaveChangesAsync(cancellationToken);
-        return Map(entity);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            return Map(entity);
+        }
+        catch (DbUpdateException exception) when (IsDuplicateKey(exception))
+        {
+            await using var replayContext = await contextFactory.CreateDbContextAsync(cancellationToken);
+            var winner = await replayContext.Set<ReleaseNoteEntity>().AsNoTracking()
+                .SingleAsync(item => item.OperationKey == note.OperationKey, cancellationToken);
+            return Replay(winner, note);
+        }
     }
 
     public async Task<ReleaseNote> UpdateDraftAsync(
@@ -75,6 +90,8 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
     public async Task<ReleaseNote> PublishAsync(
         Guid id,
         long expectedRowVersion,
+        string title,
+        string body,
         ApplicationBuild build,
         Guid publishedByStaffId,
         DateTimeOffset atUtc,
@@ -82,7 +99,20 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
     {
         ArgumentNullException.ThrowIfNull(build);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await LoadDraftAsync(context, id, expectedRowVersion, cancellationToken);
+        var entity = await context.Set<ReleaseNoteEntity>()
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new ReleaseNoteConflictException(id);
+        if (entity.Status == nameof(ReleaseNoteStatus.Published)
+            && entity.RowVersion == expectedRowVersion + 1
+            && entity.PublishedByStaffId == publishedByStaffId
+            && entity.Title == title && entity.Body == body
+            && entity.Version == build.Version && entity.SourceSha == build.SourceSha)
+            return Map(entity);
+        if (entity.Status != nameof(ReleaseNoteStatus.Draft)
+            || entity.RowVersion != expectedRowVersion)
+            throw new ReleaseNoteConflictException(id);
+        entity.Title = title;
+        entity.Body = body;
         entity.Status = nameof(ReleaseNoteStatus.Published);
         entity.Version = build.Version;
         entity.SourceSha = build.SourceSha;
@@ -154,6 +184,14 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
         }
 
         return false;
+    }
+
+    private static ReleaseNote Replay(ReleaseNoteEntity existing, NewReleaseNote note)
+    {
+        if (existing.CreatedByStaffId != note.CreatedByStaffId
+            || !string.Equals(existing.RequestHash, note.RequestHash, StringComparison.Ordinal))
+            throw new ReleaseNoteConflictException(existing.Id);
+        return Map(existing);
     }
 
     private static IQueryable<ReleaseNoteEntity> Published(PegasusDbContext context) =>

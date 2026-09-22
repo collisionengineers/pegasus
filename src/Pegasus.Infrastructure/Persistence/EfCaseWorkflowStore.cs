@@ -88,12 +88,13 @@ public sealed class EfCaseWorkflowStore(
 
     public async Task<IReadOnlyList<CaseDueWork>> GetDueAsync(
         DateTimeOffset asOfUtc,
-        int maximumResults,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
     {
-        if (maximumResults is < 1 or > 500)
+        if (page < 1 || pageSize is < 1 or > 500)
         {
-            throw new ArgumentOutOfRangeException(nameof(maximumResults));
+            throw new ArgumentOutOfRangeException(nameof(page));
         }
 
         var asOfUtcTicks = asOfUtc.ToUniversalTime().UtcDateTime.Ticks;
@@ -108,7 +109,8 @@ public sealed class EfCaseWorkflowStore(
                 && item.NextChaseAtUtcTicks <= asOfUtcTicks)
             .OrderBy(item => item.NextChaseAtUtcTicks)
             .ThenBy(item => item.CaseId)
-            .Take(maximumResults)
+            .Skip(checked((page - 1) * pageSize))
+            .Take(pageSize)
             .ToArrayAsync(cancellationToken);
         return entities.Select(Map).ToArray();
     }
@@ -139,7 +141,8 @@ public sealed class EfCaseWorkflowStore(
             request.ExpectedVersion,
             request.Actor,
             operationKey,
-            leaseToken: null);
+            leaseToken: null,
+            takeOver: request.TakeOver);
         var now = timeProvider.GetUtcNow();
         var replay = await FindLeaseOperationAsync(
             context,
@@ -164,11 +167,17 @@ public sealed class EfCaseWorkflowStore(
 
         ArchivedCaseGuard.RequireNotArchived(workflow);
         RequireVersion(workflow, request.ExpectedVersion);
-        if (CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now))
+        var previousHolder = CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
+            ? workflow.EditLeaseHolder
+            : null;
+        if (previousHolder is not null && !request.TakeOver)
         {
             throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
         }
 
+        var previousName = previousHolder is not null
+            ? await LeaseHolderNameAsync(context, previousHolder, cancellationToken)
+            : null;
         ClearLease(workflow);
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         var tokenHash = Hash(token);
@@ -192,6 +201,14 @@ public sealed class EfCaseWorkflowStore(
             workflow.Version,
             expiresAtUtc,
             tokenHash);
+        if (previousHolder is not null)
+        {
+            AddEvent(
+                context, workflow, request.Actor, operationKey,
+                $"Edit lease taken over from {previousName}.", requestHash,
+                "edit_lease_taken_over", workflow.Version, workflow.Version,
+                now, null, null);
+        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
@@ -319,7 +336,7 @@ public sealed class EfCaseWorkflowStore(
         ArchivedCaseGuard.RequireNotArchived(workflow);
 
         var now = timeProvider.GetUtcNow();
-        CaseMutationGuard.RequireHeartbeat(workflow, request.Actor, request.LeaseToken);
+        CaseMutationGuard.RequireHeartbeat(workflow, request.Actor, request.LeaseToken, now);
         var expiresAtUtc = now + EditLeaseDuration;
         workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
         await context.SaveChangesAsync(cancellationToken);
@@ -1532,7 +1549,8 @@ public sealed class EfCaseWorkflowStore(
         long? expectedVersion,
         ActionActor actor,
         string operationKey,
-        string? leaseToken) =>
+        string? leaseToken,
+        bool takeOver = false) =>
         Hash(JsonSerializer.Serialize(new
         {
             SchemaVersion = 1,
@@ -1543,8 +1561,20 @@ public sealed class EfCaseWorkflowStore(
             ActorSubjectId = actor.SubjectId,
             ActorRolesJson = RolesJson(actor),
             OperationKey = operationKey,
-            LeaseTokenHash = leaseToken is null ? null : Hash(leaseToken)
+            LeaseTokenHash = leaseToken is null ? null : Hash(leaseToken),
+            TakeOver = takeOver
         }));
+
+    private static async Task<string> LeaseHolderNameAsync(
+        PegasusDbContext context, string holder, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(holder, out var staffId)) return holder;
+        var name = await context.Users.AsNoTracking()
+            .Where(item => item.Id == staffId)
+            .Select(item => item.UserName)
+            .SingleOrDefaultAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(name) ? holder : name;
+    }
 
     private static void AddLeaseOperation(
         PegasusDbContext context,

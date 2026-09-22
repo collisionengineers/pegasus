@@ -324,6 +324,8 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfProviderSubmissionStore>());
         services.AddScoped<IProviderSubmissionBindings>(
             provider => provider.GetRequiredService<EfProviderSubmissionStore>());
+        services.AddScoped<MimeKitPdfPigOpenXmlIntakeSourceReader>();
+        services.AddScoped<IProviderAttachmentAdmission, ProviderAttachmentAdmission>();
         services.AddScoped<ISubmitProviderInstruction, SubmitProviderInstruction>();
         services.AddScoped<IGetProviderSubmissionResult, GetProviderSubmissionResult>();
         services.AddScoped<ICreatePrincipal, CreatePrincipal>();
@@ -432,11 +434,8 @@ public static class DependencyInjection
         services.AddScoped<IMyStaffNotifications, MyStaffNotifications>();
         services.AddScoped<PurgeStaffNotifications>();
         services.AddScoped<Pegasus.Core.ReleaseNotes.IReleaseNoteStore, EfReleaseNoteStore>();
-        services.AddScoped<Pegasus.Core.ReleaseNotes.ReleaseNoteAdministration>();
         services.AddScoped<Pegasus.Core.ReleaseNotes.IMyReleaseNotes, Pegasus.Core.ReleaseNotes.MyReleaseNotes>();
         services.AddScoped<Pegasus.Core.Support.IProblemReportStore, EfProblemReportStore>();
-        services.AddScoped<Pegasus.Core.Support.ReportProblem>();
-        services.AddScoped<Pegasus.Core.Support.RetryProblemReport>();
         services.AddScoped<Pegasus.Core.Support.ListProblemReports>();
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
@@ -673,7 +672,6 @@ public static class DependencyInjection
             services.AddScoped<RetainIncomingArtifact>();
             // The Provider API reader decorates the ordinary one: it answers for
             // its own channel and defers for every other (API-01).
-            services.AddScoped<MimeKitPdfPigOpenXmlIntakeSourceReader>();
             services.AddScoped<IIntakeSourceReader>(provider =>
                 new ProviderApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));

@@ -2,9 +2,11 @@ using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -13,6 +15,8 @@ internal sealed class EfStaffMailSendStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
     : IStaffMailSendStore, IApprovedStaffSendMailboxQueries
 {
+    private static readonly JsonSerializerOptions ReportSnapshotJson = new(JsonSerializerDefaults.Web);
+
     public async Task<ApprovedStaffSendMailbox?> GetAsync(
         Guid mailboxId, CancellationToken cancellationToken)
     {
@@ -352,6 +356,16 @@ internal sealed class EfStaffMailSendStore(
         var entity = await db.Set<StaffMailSendOperationEntity>().SingleOrDefaultAsync(
             value => value.Id == operationId, cancellationToken)
             ?? throw new KeyNotFoundException("The staff mail operation was not found.");
+        if (entity.State == StaffMailState.Sent)
+        {
+            if (entity.ObservedSentImmutableMessageId == immutableMessageId
+                && entity.ProviderSentAtUtc == providerSentAtUtc)
+            {
+                return;
+            }
+
+            throw new InvalidOperationException("The staff mail operation has different Sent evidence.");
+        }
         if (entity.Version != expectedVersion)
         {
             throw new InvalidOperationException("The staff mail operation changed concurrently.");
@@ -369,9 +383,57 @@ internal sealed class EfStaffMailSendStore(
         db.ActionHistory.Add(History(entity, systemActor.Kind, systemActor.SubjectId,
             systemActor.Roles.Select(value => value.ToString()), "staff-mail-sent-observed",
             observedAtUtc, entity.OperationKey, null, null, Map(entity)));
+        await FreezeSentReportSpecificationAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
         await CompletePostReportQueryAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task FreezeSentReportSpecificationAsync(
+        PegasusDbContext db,
+        StaffMailSendOperationEntity mail,
+        ActionActor actor,
+        DateTimeOffset observedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (mail.Purpose != StaffMailPurpose.CaseReport)
+        {
+            return;
+        }
+
+        var generation = await db.Set<CaseReportGenerationEntity>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == mail.ContextId, cancellationToken)
+            ?? throw new InvalidOperationException("The sent report generation is unavailable.");
+        var snapshot = JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(
+            generation.SnapshotJson,
+            ReportSnapshotJson)
+            ?? throw new InvalidOperationException("The sent report generation has no snapshot.");
+        var estimate = snapshot.CurrentEstimate;
+        if (estimate is null
+            || estimate.CaseId != generation.CaseId
+            || estimate.SpecificationId != snapshot.CurrentEstimateId
+            || estimate.Version != snapshot.CurrentEstimateVersion)
+        {
+            throw new InvalidOperationException("The sent report has no matching frozen repair specification.");
+        }
+
+        var origin = $"staff-mail-sent:{mail.Id:N}";
+        if (await db.CaseRepairSpecificationSnapshots.AsNoTracking().AnyAsync(item =>
+                item.SpecificationId == estimate.SpecificationId
+                && item.Kind == nameof(RepairSpecificationSnapshotKind.Sent)
+                && item.Origin == origin,
+                cancellationToken))
+        {
+            throw new InvalidOperationException("The report's Sent repair specification was already marked.");
+        }
+
+        var latest = await db.CaseRepairSpecificationSnapshots.AsNoTracking()
+            .Where(item => item.SpecificationId == estimate.SpecificationId)
+            .OrderByDescending(item => item.Number)
+            .FirstOrDefaultAsync(cancellationToken);
+        EfRepairSpecificationSnapshotStore.Freeze(
+            db, estimate, actor, RepairSpecificationSnapshotKind.Sent,
+            origin, observedAtUtc, latest);
     }
 
     /// <summary>

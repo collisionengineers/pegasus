@@ -146,6 +146,18 @@ public sealed class EfAiJobStore(
         {
             return Map(entity, now);
         }
+        if (transition.ProgressNote is not null && current != AiJobState.Taken)
+        {
+            if (persisted == AiJobState.Taken
+                && current == AiJobState.Queued
+                && entity.Version == transition.ExpectedVersion)
+            {
+                RecordExpiredClaim(context, entity, transition, now);
+                await context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            throw new InvalidOperationException("Progress requires a live claim; take the AI job again.");
+        }
         if (current == AiJobState.Taken
             && transition.TargetState == AiJobState.Taken
             && transition.ProgressNote is null)
@@ -175,19 +187,7 @@ public sealed class EfAiJobStore(
         {
             // The lapsed claim is recorded as its own event before the new
             // transition, so nothing is erased.
-            AddHistory(
-                context,
-                entity,
-                "ai_job_expired",
-                transition.Actor,
-                transition.OperationKey,
-                $"The lease held by {entity.TakenBy} expired.",
-                now);
-            entity.State = current.ToString();
-            entity.Version++;
-            entity.TakenBy = null;
-            entity.TakenAtUtc = null;
-            entity.LeaseExpiresAtUtc = null;
+            RecordExpiredClaim(context, entity, transition, now);
         }
 
         entity.State = transition.TargetState.ToString();
@@ -256,6 +256,27 @@ public sealed class EfAiJobStore(
         }
 
         return Map(entity, now);
+    }
+
+    private static void RecordExpiredClaim(
+        PegasusDbContext context,
+        AiJobEntity entity,
+        AiJobTransition transition,
+        DateTimeOffset now)
+    {
+        AddHistory(
+            context,
+            entity,
+            "ai_job_expired",
+            transition.Actor,
+            transition.OperationKey,
+            $"The lease held by {entity.TakenBy} expired.",
+            now);
+        entity.State = nameof(AiJobState.Queued);
+        entity.Version++;
+        entity.TakenBy = null;
+        entity.TakenAtUtc = null;
+        entity.LeaseExpiresAtUtc = null;
     }
 
     public async Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken)
@@ -347,6 +368,36 @@ public sealed class EfAiJobStore(
             .OrderByDescending(item => item.CreatedAtUtc)
             .ThenByDescending(item => item.JobId)
             .Take(max)
+            .ToListAsync(cancellationToken);
+        return rows.Select(row => Map(row, now)).ToArray();
+    }
+
+    public async Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(
+        DateTimeOffset startUtc,
+        DateTimeOffset endUtc,
+        CancellationToken cancellationToken)
+    {
+        if (endUtc <= startUtc)
+        {
+            throw new ArgumentException("The terminal-job window must have a positive duration.");
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var now = UtcNow();
+        var rows = await context.AiJobs.AsNoTracking()
+            .Where(item =>
+                ((item.State == nameof(AiJobState.Completed)
+                    || item.State == nameof(AiJobState.Failed)
+                    || item.State == nameof(AiJobState.Cancelled)
+                    || item.State == nameof(AiJobState.Expired))
+                    && item.ClosedAtUtc >= startUtc
+                    && item.ClosedAtUtc < endUtc)
+                || (item.State == nameof(AiJobState.Queued)
+                    && item.ExpiresAtUtc >= startUtc
+                    && item.ExpiresAtUtc < endUtc
+                    && item.ExpiresAtUtc <= now))
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenByDescending(item => item.JobId)
             .ToListAsync(cancellationToken);
         return rows.Select(row => Map(row, now)).ToArray();
     }

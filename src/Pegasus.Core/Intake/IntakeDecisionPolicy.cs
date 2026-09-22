@@ -41,8 +41,7 @@ public static class IntakeDecisionPolicy
     public static bool CanBecomeCase(IntakeDecision decision) => decision switch
     {
         IntakeDecision.CaseCreated or IntakeDecision.NeedsSorting => true,
-        IntakeDecision.BlockedIntake
-            or IntakeDecision.Unsupported
+        IntakeDecision.Unsupported
             or IntakeDecision.OcrRequired
             or IntakeDecision.TechnicalFailure
             or IntakeDecision.ImageIntakeRegistered => false,

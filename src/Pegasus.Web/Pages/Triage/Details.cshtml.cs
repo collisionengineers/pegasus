@@ -53,9 +53,7 @@ public sealed class DetailsModel(
     public bool IsEditing => EditLease is not null;
 
     /// <summary>
-    /// Set when this operator is already editing this Triage record in another
-    /// window, so the page offers the take-over that ends the other window's
-    /// claim instead of an Edit that would be refused again.
+    /// An authorised editor may replace a live scope held in another window.
     /// </summary>
     public bool CanTakeOverEdit { get; private set; }
 
@@ -201,6 +199,11 @@ public sealed class DetailsModel(
         }
 
         EngineerChoices = await engineerChoices.GetAsync(actor, cancellationToken);
+        if (!IsEditing && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
+        {
+            CanTakeOverEdit = await editScopes.GetActiveAsync(
+                EditScopeKind.Triage, id, actor, cancellationToken) is not null;
+        }
 
         Message = TempData["TriageStatus"] as string;
         if (TempData["TriageUnavailableCase"] is string unavailableCase)
@@ -462,6 +465,7 @@ public sealed class DetailsModel(
         }
         catch (EditScopeConflictException)
         {
+            CanTakeOverEdit = true;
             ModelState.AddModelError(string.Empty,
                 await DescribeTriageHeldAsync(id, actor, cancellationToken));
         }

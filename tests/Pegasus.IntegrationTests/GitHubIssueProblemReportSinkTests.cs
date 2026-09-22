@@ -20,23 +20,31 @@ public sealed class GitHubIssueProblemReportSinkTests
         ProblemReportStatus.NotSent, null, null, null, null, null, null);
 
     [Fact]
-    public async Task PostsOneIssueWithTheTokenTheLabelsAndThePersonsWordsFirst()
+    public async Task PostsOnePublicSafeIssueWithTheTokenAndLabels()
     {
-        var handler = new FakeHandler(HttpStatusCode.Created, "{\"number\":12,\"html_url\":\"https://github.com/example/pegasus/issues/12\"}");
+        var handler = new FakeHandler(HttpStatusCode.Created, "{\"number\":12,\"html_url\":\"https://github.com/collisionengineers/pegasus/issues/12\"}");
         var sink = new GitHubIssueProblemReportSink(
-            GitHubProblemReportOptions.FromConfiguration("token-value", "example/pegasus", "problem-report, triage")!,
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", "problem-report, triage")!,
             new HttpClient(handler));
 
         var delivery = await sink.SendAsync(Report, default);
 
         Assert.Equal(12, delivery.IssueNumber);
-        Assert.Equal("https://github.com/example/pegasus/issues/12", delivery.IssueUrl);
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal("https://api.github.com/repos/example/pegasus/issues", request.Uri);
+        Assert.Equal("https://github.com/collisionengineers/pegasus/issues/12", delivery.IssueUrl);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal("GET", handler.Requests[0].Method);
+        Assert.Equal("https://api.github.com/repos/collisionengineers/pegasus", handler.Requests[0].Uri);
+        var request = handler.Requests[1];
+        Assert.Equal("POST", request.Method);
+        Assert.Equal("https://api.github.com/repos/collisionengineers/pegasus/issues", request.Uri);
         Assert.Equal("Bearer token-value", request.Authorization);
         using var body = JsonDocument.Parse(request.Body);
-        Assert.Equal("Problem report: /Cases/x?section=estimate (QDOS26001)", body.RootElement.GetProperty("title").GetString());
-        Assert.StartsWith("The Save button did nothing.", body.RootElement.GetProperty("body").GetString(), StringComparison.Ordinal);
+        Assert.Equal($"Pegasus problem report {Report.Id:D}", body.RootElement.GetProperty("title").GetString());
+        var issueBody = body.RootElement.GetProperty("body").GetString()!;
+        Assert.Contains(Report.Id.ToString("D"), issueBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("QDOS26001", issueBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(Report.Description, issueBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Cases/", issueBody, StringComparison.Ordinal);
         Assert.Equal(["problem-report", "triage"], body.RootElement.GetProperty("labels").EnumerateArray().Select(label => label.GetString()));
     }
 
@@ -45,7 +53,7 @@ public sealed class GitHubIssueProblemReportSinkTests
     {
         var handler = new FakeHandler(HttpStatusCode.Unauthorized, "{\"message\":\"Bad credentials\"}");
         var sink = new GitHubIssueProblemReportSink(
-            GitHubProblemReportOptions.FromConfiguration("token-value", "example/pegasus", null)!,
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", null)!,
             new HttpClient(handler));
 
         var refused = await Assert.ThrowsAsync<HttpRequestException>(() => sink.SendAsync(Report, default));
@@ -54,13 +62,81 @@ public sealed class GitHubIssueProblemReportSinkTests
         Assert.DoesNotContain("token-value", refused.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError, "{}")]
+    [InlineData(HttpStatusCode.Created, "{}")]
+    public async Task UncertainPostOutcomeIsHeldForReconciliation(HttpStatusCode status, string body)
+    {
+        var handler = new FakeHandler(status, body);
+        var sink = new GitHubIssueProblemReportSink(
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", null)!,
+            new HttpClient(handler));
+
+        await Assert.ThrowsAsync<ProblemReportDeliveryUnknownException>(() => sink.SendAsync(Report, default));
+        Assert.Equal("POST", handler.Requests[1].Method);
+    }
+
+    [Fact]
+    public async Task LostPostResponseIsHeldForReconciliation()
+    {
+        var handler = new FakeHandler(HttpStatusCode.Created, "{}") { ThrowPost = true };
+        var sink = new GitHubIssueProblemReportSink(
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", null)!,
+            new HttpClient(handler));
+
+        await Assert.ThrowsAsync<ProblemReportDeliveryUnknownException>(() => sink.SendAsync(Report, default));
+        Assert.Equal("POST", handler.Requests[1].Method);
+    }
+
+    [Theory]
+    [InlineData("{\"private\":true,\"full_name\":\"example/other\"}")]
+    [InlineData("{}")]
+    public async Task AmbiguousOrDifferentRepositoryIsNeverPosted(string repositoryBody)
+    {
+        var handler = new FakeHandler(HttpStatusCode.Created, "{}", repositoryBody: repositoryBody);
+        var sink = new GitHubIssueProblemReportSink(
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", null)!,
+            new HttpClient(handler));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => sink.SendAsync(Report, default));
+        Assert.Equal("GET", Assert.Single(handler.Requests).Method);
+    }
+
+    [Fact]
+    public async Task PublicRepositoryCanReceiveOnlyTheOpaqueReportReference()
+    {
+        var handler = new FakeHandler(HttpStatusCode.Created,
+            "{\"number\":12,\"html_url\":\"https://github.com/collisionengineers/pegasus/issues/12\"}",
+            repositoryBody: "{\"private\":false,\"full_name\":\"collisionengineers/pegasus\"}");
+        var sink = new GitHubIssueProblemReportSink(
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", null)!,
+            new HttpClient(handler));
+
+        await sink.SendAsync(Report, default);
+
+        Assert.Equal("POST", handler.Requests[1].Method);
+        Assert.DoesNotContain("QDOS26001", handler.Requests[1].Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UnreadableRepositoryVisibilityIsNeverPosted()
+    {
+        var handler = new FakeHandler(HttpStatusCode.Created, "{}", repositoryStatus: HttpStatusCode.Forbidden);
+        var sink = new GitHubIssueProblemReportSink(
+            GitHubProblemReportOptions.FromConfiguration("token-value", "collisionengineers/pegasus", null)!,
+            new HttpClient(handler));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => sink.SendAsync(Report, default));
+        Assert.Equal("GET", Assert.Single(handler.Requests).Method);
+    }
+
     [Fact]
     public void ConfigurationIsBothSettingsOrNeither()
     {
         Assert.Null(GitHubProblemReportOptions.FromConfiguration(null, null, null));
         Assert.Throws<InvalidOperationException>(() => GitHubProblemReportOptions.FromConfiguration("token", null, null));
         Assert.Throws<InvalidOperationException>(() => GitHubProblemReportOptions.FromConfiguration("token", "not-a-repository", null));
-        var options = GitHubProblemReportOptions.FromConfiguration(" token ", "example/pegasus", "")!;
+        var options = GitHubProblemReportOptions.FromConfiguration(" token ", "collisionengineers/pegasus", "")!;
         Assert.Equal("token", options.Token);
         Assert.Empty(options.Labels);
     }
@@ -73,17 +149,29 @@ public sealed class GitHubIssueProblemReportSinkTests
         Assert.Equal(UnconfiguredProblemReportSink.Reason, refused.Message);
     }
 
-    private sealed class FakeHandler(HttpStatusCode status, string body) : HttpMessageHandler
+    private sealed class FakeHandler(
+        HttpStatusCode status,
+        string body,
+        HttpStatusCode repositoryStatus = HttpStatusCode.OK,
+        string repositoryBody = "{\"private\":true,\"full_name\":\"collisionengineers/pegasus\"}") : HttpMessageHandler
     {
-        public List<(string Uri, string? Authorization, string Body)> Requests { get; } = [];
+        public List<(string Method, string Uri, string? Authorization, string Body)> Requests { get; } = [];
+        public bool ThrowPost { get; init; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add((
+                request.Method.Method,
                 request.RequestUri!.ToString(),
                 request.Headers.Authorization?.ToString(),
                 request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken)));
-            return new HttpResponseMessage(status) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
+            var isRepositoryRead = request.Method == HttpMethod.Get;
+            if (!isRepositoryRead && ThrowPost)
+                throw new HttpRequestException("Response lost after POST.");
+            return new HttpResponseMessage(isRepositoryRead ? repositoryStatus : status)
+            {
+                Content = new StringContent(isRepositoryRead ? repositoryBody : body, System.Text.Encoding.UTF8, "application/json")
+            };
         }
     }
 }

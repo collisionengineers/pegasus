@@ -319,8 +319,9 @@ Requirements:
 ### Estimate VAT on the rendered report
 
 Each estimate has its own VAT percentage, default 20, and selected VAT
-categories. `Unknown` repairer VAT blocks Use as Current until staff record
-an explicit status or explicit categories. On a rendered report, VAT is
+categories. An `Unknown` repairer VAT status does not block Use repair spec;
+the selected VAT categories still govern the calculation. On a rendered
+report, VAT is
 `Taxable × VatPercent / 100`, where Taxable is the selected discounted
 Labour, Parts, Materials and Specialist categories. Core computes each
 printed component on its own. Printed Net is their sum; printed Gross is
@@ -335,8 +336,9 @@ printed Net plus printed VAT. No residual penny moves between components.
 | VAT | Taxable × VAT % |
 | Net / Gross | Sum of independently rounded printed components / Net + printed VAT |
 
-No comparison between an imported provider version and an assessed version,
-and no savings figure, is computed or shown. Normalised provider and manual
+The repair-specification editor may compare two saved specifications line by
+line. It does not compute or present a provider-versus-assessed savings claim
+as a report outcome. Normalised provider and manual
 estimates are editable records; their raw source evidence and hashes are
 immutable. Every change follows the same lease, version, attribution, reason
 and history rules.

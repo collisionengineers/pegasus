@@ -1,5 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -7,6 +8,17 @@ namespace Pegasus.Core.Tests.Assessment;
 
 public sealed class AssessmentPolicyTests
 {
+    [Fact]
+    public void OriginalReportFieldsRequireAnAuditCase()
+    {
+        var paths = new[] { AssessmentVocabulary.OriginalReportAssessor };
+        Assert.Throws<InvalidOperationException>(() =>
+            AssessmentPolicy.RequireOriginalReportScope(paths, CaseType.Inspection));
+        AssessmentPolicy.RequireOriginalReportScope(paths, CaseType.Audit);
+        AssessmentPolicy.RequireOriginalReportScope(
+            new[] { AssessmentVocabulary.Outcome }, CaseType.Inspection);
+    }
+
     private static readonly string[] BoundaryClosure = ["front", "left_front", "right_front", "left_side", "right_side"];
 
     private static readonly ActionActor Automation = ActionActor.Automation("pegasus-automation");
@@ -558,6 +570,70 @@ public sealed class AssessmentPolicyTests
                 ["assessment.category"] = "S",
                 ["assessment.salvage_value"] = "1500.00"
             });
+    }
+
+    [Fact]
+    public void ConfirmedPositiveSumEstablishesContractRepair()
+    {
+        var writes = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.Outcome] = "repairable",
+            [AssessmentVocabulary.SettlementContractSum] = "4500.00"
+        };
+        AssessmentPolicy.CompleteCoupledWrites(writes,
+            new Dictionary<string, string>(StringComparer.Ordinal), ActorKind.Staff);
+
+        Assert.Equal("contract_repair", writes[AssessmentVocabulary.Outcome]);
+        AssessmentPolicy.ValidateMergedState(writes,
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Outcome] = "contract_repair",
+                [AssessmentVocabulary.SettlementContractSum] = "4500.00"
+            });
+    }
+
+    [Fact]
+    public void LeavingContractRepairClearsTheSumAndInapplicableSalvage()
+    {
+        var current = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.Outcome] = "contract_repair",
+            [AssessmentVocabulary.SettlementContractSum] = "4500.00",
+            [AssessmentVocabulary.SalvageValue] = "500.00",
+            [AssessmentVocabulary.SettlementSalvageAgent] = "Old agent"
+        };
+        var writes = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.Outcome] = "repairable",
+            [AssessmentVocabulary.SettlementContractSum] = "4500.00"
+        };
+        AssessmentPolicy.CompleteCoupledWrites(writes, current, ActorKind.Staff);
+
+        Assert.Null(writes[AssessmentVocabulary.SettlementContractSum]);
+        Assert.Null(writes[AssessmentVocabulary.SalvageValue]);
+        Assert.Null(writes[AssessmentVocabulary.SettlementSalvageAgent]);
+    }
+
+    [Fact]
+    public void EmptyContractRepairSumIsRefusedAndAutomationDoesNotEstablishTheOutcome()
+    {
+        var writes = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.SettlementContractSum] = "4500.00"
+        };
+        AssessmentPolicy.CompleteCoupledWrites(writes,
+            new Dictionary<string, string>(StringComparer.Ordinal), ActorKind.Automation);
+        Assert.False(writes.ContainsKey(AssessmentVocabulary.Outcome));
+
+        Assert.Throws<InvalidOperationException>(() => AssessmentPolicy.ValidateMergedState(
+            new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Outcome] = "contract_repair"
+            },
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Outcome] = "contract_repair"
+            }));
     }
 
     [Fact]

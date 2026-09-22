@@ -35,7 +35,8 @@ public static class ProblemReportRequests
         string? CaseReference,
         string? Viewport,
         bool Editing,
-        string? ErrorsJson);
+        string? ErrorsJson,
+        string? OperationKey);
 
     /// <summary>The Error page calls this so a report raised from it can name the fault.</summary>
     public static void RememberException(IMemoryCache cache, string traceId, Exception exception)
@@ -89,7 +90,8 @@ public static class ProblemReportRequests
                 Clean(posted.Viewport, 40),
                 Clean(http.Request.Headers.UserAgent.ToString(), 300),
                 posted.Editing,
-                ParseErrors(posted.ErrorsJson)));
+                ParseErrors(posted.ErrorsJson)),
+            posted.OperationKey ?? string.Empty);
     }
 
     private static string[] ParseErrors(string? json)

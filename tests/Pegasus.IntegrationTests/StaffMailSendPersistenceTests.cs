@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -8,14 +9,18 @@ using Pegasus.Core.Workflow;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Assessment;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Email;
+using Pegasus.IntegrationTests.Reports;
 
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
 public sealed class StaffMailSendPersistenceTests
 {
+    private static readonly JsonSerializerOptions ReportSnapshotJson = new(JsonSerializerDefaults.Web);
+
     [Fact]
     public async Task FinalStaffSendMailboxRequiresSentEvidenceScopeAndResolvedFolder()
     {
@@ -55,6 +60,19 @@ public sealed class StaffMailSendPersistenceTests
         var companionVersionId = Guid.NewGuid();
         var companionSha256 = new string('B', 64);
         var nowUtc = new DateTimeOffset(2026, 9, 10, 8, 0, 0, TimeSpan.Zero);
+        var input = AssessmentReportDraftWebTests.ReadyInput(fixture.CaseId);
+        var estimate = input.CurrentEstimate!;
+        var report = AssessmentReportProjection.Project(input).Snapshot!;
+        var frozenGeneration = new CaseReportGenerationSnapshot(
+            fixture.CaseId, 0, "report-case", "report-subset", CaseReportActor.None, nowUtc,
+            Guid.Empty, new string('0', 64), "image/png",
+            estimate.SpecificationId, estimate.Version, report.Costs, report.EngineerValue,
+            Guid.Empty, report.Content, report.Guides, report.ReportDate,
+            report.ReportDateOverridden, report.AgreedFee, report.FeeDescriptionLines,
+            [], [], report.PayloadVersion, "renderer/test", report)
+        {
+            CurrentEstimate = estimate
+        };
 
         await using (var scope = database.CreateAsyncScope())
         {
@@ -91,10 +109,24 @@ public sealed class StaffMailSendPersistenceTests
             db.Set<CaseReportGenerationEntity>().Add(new()
             {
                 Id = generationId, CaseId = fixture.CaseId, CaseVersion = 0,
-                SnapshotHash = new string('C', 64), SnapshotJson = "{}",
+                SnapshotHash = new string('C', 64), SnapshotJson = JsonSerializer.Serialize(
+                    frozenGeneration, ReportSnapshotJson),
                 TemplateVersion = "test", RendererVersion = "test",
                 State = nameof(CaseReportGenerationState.Confirmed),
                 GeneratedAtUtc = nowUtc, Version = 1
+            });
+            db.CaseRepairSpecifications.Add(new()
+            {
+                Id = estimate.SpecificationId,
+                CaseId = fixture.CaseId,
+                Version = estimate.Version,
+                State = nameof(RepairSpecificationState.Draft),
+                SourceRoute = nameof(RepairSpecificationSourceRoute.Manual),
+                CreatedBy = "Staff:test",
+                CreationOperationKey = "mail-snapshot-estimate",
+                CreatedAtUtc = nowUtc,
+                Name = estimate.Details.Name,
+                VatPercent = estimate.Details.VatPercent
             });
             db.Set<GeneratedCaseArtifactEntity>().AddRange(
                 new()
@@ -130,13 +162,82 @@ public sealed class StaffMailSendPersistenceTests
             "report-subset");
 
         var operation = await store.PrepareAsync(
-            command, new string('D', 64), nowUtc, CancellationToken.None);
+            command, new string('A', 64), nowUtc, CancellationToken.None);
         var execution = await store.GetExecutionAsync(
             actor.SubjectId, operation.Id, CancellationToken.None);
 
         Assert.NotNull(execution);
         Assert.Equal(fixture.CaseId, execution!.CaseId);
         Assert.Single(execution.Attachments);
+
+        // A submitted send leaves no Sent mark. The later live Draft is not
+        // the estimate the immutable report generation delivered.
+        var submitted = await MoveToSubmittedAsync(store, command, nowUtc);
+        await using (var changed = await sendScope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync())
+        {
+            Assert.Empty(await changed.CaseRepairSpecificationSnapshots.ToListAsync());
+            var live = await changed.CaseRepairSpecifications.SingleAsync(item => item.Id == estimate.SpecificationId);
+            live.Name = "Later draft";
+            var generation = await changed.Set<CaseReportGenerationEntity>()
+                .SingleAsync(item => item.Id == generationId);
+            generation.SnapshotJson = "null";
+            await changed.SaveChangesAsync();
+        }
+
+        var observedAtUtc = nowUtc.AddMinutes(5);
+        var observer = ActionActor.SystemWorker("sent-evidence-poll");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.TransitionObservedSentAsync(
+            observer, submitted.Id, submitted.Version, "confirmed-report-message",
+            observedAtUtc.AddMinutes(-1), observedAtUtc, CancellationToken.None));
+        await using (var rolledBack = await sendScope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync())
+        {
+            Assert.Empty(await rolledBack.CaseRepairSpecificationSnapshots.ToListAsync());
+            Assert.Equal(StaffMailState.Submitted,
+                (await rolledBack.Set<StaffMailSendOperationEntity>().SingleAsync(item => item.Id == submitted.Id)).State);
+            var generation = await rolledBack.Set<CaseReportGenerationEntity>()
+                .SingleAsync(item => item.Id == generationId);
+            generation.SnapshotJson = JsonSerializer.Serialize(frozenGeneration, ReportSnapshotJson);
+            await rolledBack.SaveChangesAsync();
+        }
+
+        await Task.WhenAll(
+            store.TransitionObservedSentAsync(observer, submitted.Id, submitted.Version,
+                "confirmed-report-message", observedAtUtc.AddMinutes(-1), observedAtUtc,
+                CancellationToken.None),
+            store.TransitionObservedSentAsync(observer, submitted.Id, submitted.Version,
+                "confirmed-report-message", observedAtUtc.AddMinutes(-1), observedAtUtc,
+                CancellationToken.None));
+        await store.TransitionObservedSentAsync(observer, submitted.Id, submitted.Version,
+            "confirmed-report-message", observedAtUtc.AddMinutes(-1), observedAtUtc,
+            CancellationToken.None);
+
+        await using var verified = await sendScope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        var sentSnapshot = Assert.Single(await verified.CaseRepairSpecificationSnapshots.ToListAsync());
+        Assert.Equal(nameof(RepairSpecificationSnapshotKind.Sent), sentSnapshot.Kind);
+        Assert.Contains(submitted.Id.ToString("N"), sentSnapshot.Origin, StringComparison.Ordinal);
+        Assert.Equal(estimate.Details.Name,
+            EfRepairSpecificationSnapshotStore.Map(sentSnapshot).Details.Name);
+
+        var failedCommand = command with { OperationKey = "report-subset-failed" };
+        var failed = await store.PrepareAsync(failedCommand, new string('D', 64), nowUtc, CancellationToken.None);
+        failed = await store.TransitionAsync(actor.SubjectId, failed.Id, failed.Version,
+            StaffMailState.DraftCreating, StaffMailAttemptStage.CreateDraft,
+            null, null, null, null, CancellationToken.None);
+        failed = await store.TransitionAsync(actor.SubjectId, failed.Id, failed.Version,
+            StaffMailState.DraftReady, StaffMailAttemptStage.Attach,
+            "failed-draft", null, null, null, CancellationToken.None);
+        failed = await store.TransitionAsync(actor.SubjectId, failed.Id, failed.Version,
+            StaffMailState.Sending, StaffMailAttemptStage.Send,
+            "failed-draft", null, null, null, CancellationToken.None);
+        _ = await store.TransitionAsync(actor.SubjectId, failed.Id, failed.Version,
+            StaffMailState.Failed, StaffMailAttemptStage.Send,
+            "failed-draft", null, null, "known failure", CancellationToken.None);
+        await using var afterFailed = await sendScope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        Assert.Single(await afterFailed.CaseRepairSpecificationSnapshots.ToListAsync());
     }
 
     [Fact]

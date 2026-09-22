@@ -42,13 +42,13 @@ Scroll remains the default unless the operator explicitly changes it.
 
 Preserve this order:
 
-1. Overview
-2. Inspection
-3. Vehicle
-4. Damage
-5. Valuation
-6. Estimate
-7. Settlement
+1. Case details
+2. Claim
+3. Original report on Audit Cases
+4. Inspection details
+5. Vehicle, with Damage and Valuation nested inside
+6. Repair Spec
+7. Decisions
 8. Report
 9. Files
 10. Notes
@@ -57,13 +57,14 @@ Each section is the owner of its domain. Do not duplicate its full content elsew
 
 Important ownership decisions:
 
-- Overview contains the Notes band/current overview facts, not a second Notes timeline.
+- Case details contains the Notes band/current overview facts, not a second Notes timeline.
+- Claim contains claimant and claim facts; Original report belongs only to Audit Cases.
 - Inspection owns inspection/storage-location details and storage money inputs.
 - Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
 - Damage owns the Plan damage clicker and engineering damage facts.
 - Valuation owns guide-source cards and valuation calculation.
-- Estimate owns estimate tabs, estimate header/lines, Import, Send to AI and Compare.
-- Settlement owns settlement decisions and settlement-only figures.
+- Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
+- Decisions owns settlement decisions and settlement-only figures.
 - Report owns report content switches, generation/preview/finality controls and report commentary.
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces.
 - Notes owns the single Case timeline, notes and chase recording.
@@ -81,7 +82,8 @@ Read and edit share one geometry.
 - Edit from a section head enters the one Case-wide edit session.
 - Save and Cancel act in place.
 - Immediate-post actions should not end the edit session unless their contract requires it.
-- A colleague's lease is read-only; do not add a Take over shortcut unless explicitly instructed.
+- A colleague's lease is read-only until an eligible staff member uses the
+  audited Take over action required by FRD-14.
 
 Normal Cancel discards the edit without a redundant confirmation. Dirty-navigation protection may
 still guard leaving/switching when appropriate.
@@ -138,7 +140,7 @@ Do not reintroduce:
 
 AI market research remains its own distinct action/card.
 
-## Estimate
+## Repair Spec
 
 Preserve the Estimate workbench and its existing Expand/full-screen presentation toggle.
 

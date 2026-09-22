@@ -809,11 +809,11 @@ public sealed class CaseEditModeWebTests
 
         store.LeaseHolder = claimant;
         var recoveryHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        // The one control, reading Take over for the holder's own other
-        // window (v26 § R): the claim replays this holder's retained lease.
+        // Taking over rotates the previous window's token with a new claim.
         Assert.Contains("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", recoveryHtml, StringComparison.Ordinal);
-        Assert.Equal(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
+        Assert.NotEqual(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
+        Assert.Contains("name=\"takeOver\" value=\"true\"", recoveryHtml, StringComparison.Ordinal);
     }
 
 

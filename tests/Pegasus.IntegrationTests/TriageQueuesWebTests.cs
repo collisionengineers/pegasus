@@ -22,8 +22,8 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The Cases page's workflow rail, Principal/Missing filters,
-/// per-kind rows and the D14 rule that Blocked intake rows are listed in the
-/// Unidentified scope but never counted. Unidentified-as-a-scope
+/// per-kind rows and the rule that closed Unidentified items are not counted
+/// among open work. Unidentified-as-a-scope
 /// and the Not ready merge across both origins stay covered here.
 /// </summary>
 [Trait("Category", "SqlServer")]
@@ -548,13 +548,11 @@ public sealed class TriageQueuesWebTests
     }
 
     /// <summary>
-    /// v26 (received file D1, D2): a Blocked receipt is not an operator
-    /// concept. The Unidentified tab lists open Unidentified items only — no
-    /// Blocked row, no link to a received item — and its count stays the open
-    /// items' own.
+    /// A reasoned refusal is a closed Unidentified item, not an intake
+    /// decision. The Cases tab lists open Unidentified items only.
     /// </summary>
     [Fact]
-    public async Task UnidentifiedTabListsNoBlockedRowAndNoReceivedItemLink()
+    public async Task UnidentifiedTabExcludesAClosedItemAndKeepsItsCountAtZero()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -564,9 +562,9 @@ public sealed class TriageQueuesWebTests
         // Use the host clock to keep the test data deterministic.
         var receivedAt = services.GetRequiredService<TimeProvider>().GetUtcNow();
 
-        var blocked = await receiptStore.StoreAsync(
+        var receipt = await receiptStore.StoreAsync(
             new IntakeReceiptDraft(
-                "blocked-file.msg",
+                "refused-file.msg",
                 "message/rfc822",
                 2048,
                 Guid.NewGuid().ToString("N"),
@@ -574,26 +572,44 @@ public sealed class TriageQueuesWebTests
                 receivedAt,
                 receivedAt,
                 "test-actor",
-                IntakeDecision.BlockedIntake,
-                "blocked for the test",
+                IntakeDecision.NeedsSorting,
+                "requires staff decision",
                 [],
                 [],
                 null,
                 [],
-                "unsupported_file_type",
-                "unsupported for the test",
+                null,
+                null,
                 "test-reader",
                 "1",
                 null,
                 null),
             CancellationToken.None);
+        var registered = await services.GetRequiredService<IRegisterUnidentified>().ExecuteAsync(
+            new RegisterUnidentifiedRequest(
+                UnidentifiedOrigin.Receipt(receipt.Id),
+                UnidentifiedReasonCode.AmbiguousOwnershipOrDestination,
+                "The source needs a decision.",
+                ActionActor.SystemWorker("test-intake"),
+                Guid.NewGuid().ToString("N"),
+                receivedAt));
+        var closed = await services.GetRequiredService<ICloseUnidentified>().ExecuteAsync(
+            new CloseUnidentifiedRequest(
+                registered.Item.Id,
+                registered.Item.Version,
+                StaffActor(),
+                Guid.NewGuid().ToString("N"),
+                "The material is not an instruction for this office.",
+                receivedAt));
+        Assert.True(closed.Item.IsClosed);
+        Assert.Equal(registered.Item.Reference, closed.Item.Reference);
 
         using var response = await client.GetAsync("/Cases?tab=unidentified");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.DoesNotContain("blocked-file.msg", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Blocked intake", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("refused-file.msg", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(registered.Item.Reference, html, StringComparison.Ordinal);
         Assert.DoesNotContain("Open received item", html, StringComparison.Ordinal);
 
         // Zero open Unidentified items: the scope count reads zero.

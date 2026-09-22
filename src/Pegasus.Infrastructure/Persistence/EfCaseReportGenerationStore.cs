@@ -1089,7 +1089,10 @@ public sealed class EfCaseReportGenerationStore(
             {
                 Photos = [],
                 Signatory = report.Signatory with { SignatureContent = [] },
-            });
+            })
+        {
+            CurrentEstimate = estimate
+        };
     }
 
     /// <summary>

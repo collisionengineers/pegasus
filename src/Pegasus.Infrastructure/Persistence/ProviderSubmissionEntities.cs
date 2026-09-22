@@ -16,6 +16,7 @@ internal sealed class ProviderSubmissionEntity
     public required string IdempotencyKey { get; set; }
     public string? ProviderReference { get; set; }
     public DateTimeOffset ReceivedAtUtc { get; set; }
+    public required string BodySha256 { get; set; }
 
     /// <summary>
     /// What the Principal declared, as submitted. Kept whole rather than spread

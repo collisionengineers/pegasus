@@ -183,7 +183,11 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260921081236_UnroadworthyReasonBank",
                 "20260921084154_ReportImageFullPage",
                 "20260921090527_ReportWordingBlocks",
-                "20260921142708_ProblemReportDispatchClaims"
+                "20260921142708_ProblemReportDispatchClaims",
+                "20260922213214_ProviderSubmissionBodyDigest",
+                "20260922223104_RepairSpecificationSnapshotSupplementary",
+                "20260922224715_ProblemReportDispatchIdentity",
+                "20260922225349_ReleaseNoteCreateIdentity"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -426,7 +430,7 @@ public sealed class IntakePersistenceIntegrationTests
     /// <remarks>
     /// Intake queue counts use the persisted decision code. Needs-sorting
     /// receipts contribute to <see cref="IntakeQueueCounts.NeedsSorting"/>;
-    /// blocked-intake receipts remain a separate decision and do not.
+    /// a terminal unsupported receipt does not.
     /// </remarks>
     [Fact]
     public async Task IntakeQueueCountsUsePersistedDecisionCodes()
@@ -434,7 +438,7 @@ public sealed class IntakePersistenceIntegrationTests
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await database.StoreAsync(CreateDraft(1, IntakeDecision.NeedsSorting));
         await database.StoreAsync(CreateDraft(2, IntakeDecision.NeedsSorting));
-        await database.StoreAsync(CreateDraft(3, IntakeDecision.BlockedIntake));
+        await database.StoreAsync(CreateDraft(3, IntakeDecision.Unsupported));
 
         var counts = await database.GetCountsAsync();
 
@@ -554,7 +558,7 @@ public sealed class IntakePersistenceIntegrationTests
         var receipt = Assert.Single(result);
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Equal("source-1.bin", receipt.SourceFileName);
-        Assert.Equal(new IntakeQueueCounts(1, 0), await database.GetCountsAsync());
+        Assert.Equal(new IntakeQueueCounts(1), await database.GetCountsAsync());
     }
 
     [Fact]

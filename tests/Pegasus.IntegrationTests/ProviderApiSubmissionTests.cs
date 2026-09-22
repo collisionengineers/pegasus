@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -201,7 +201,7 @@ public sealed class ProviderApiSubmissionTests
             client,
             secret,
             "recovery-1",
-            [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+            [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
@@ -258,7 +258,7 @@ public sealed class ProviderApiSubmissionTests
             client,
             secret,
             "starved-1",
-            [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+            [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
@@ -285,6 +285,7 @@ public sealed class ProviderApiSubmissionTests
                     PrincipalId = template.PrincipalId,
                     KeyId = template.KeyId,
                     IdempotencyKey = $"bare-reservation-{index}",
+                    BodySha256 = template.BodySha256,
                     ProviderReference = template.ProviderReference,
                     ReceivedAtUtc = interruptedAtUtc.AddDays(-1),
                     DeclaredInstructionJson = template.DeclaredInstructionJson
@@ -330,7 +331,7 @@ public sealed class ProviderApiSubmissionTests
             client,
             secret,
             "duplicate-accept-1",
-            [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+            [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
@@ -370,13 +371,13 @@ public sealed class ProviderApiSubmissionTests
         using var api = WithProviderApi(factory);
         using var client = CreateClient(api);
         var secret = await IssueQdosCredentialAsync(api);
-        using var created = await SubmitAsync(client, secret, "order-2", [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+        using var created = await SubmitAsync(client, secret, "order-2", [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
         await PauseQdosCredentialAsync(api);
 
-        using (var refused = await SubmitAsync(client, secret, "order-3", [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]))
+        using (var refused = await SubmitAsync(client, secret, "order-3", [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]))
         {
             Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
         }
@@ -435,19 +436,41 @@ public sealed class ProviderApiSubmissionTests
         }
         using (var missingKey = await SubmitAsync(
                    client, secret, idempotencyKey: null,
-                   [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]))
+                   [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]))
         {
             Assert.Equal(HttpStatusCode.BadRequest, missingKey.StatusCode);
         }
         Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderSubmissions"));
 
-        using var created = await SubmitAsync(client, secret, "order-5", [("note.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+        using var created = await SubmitAsync(client, secret, "order-5", [("note.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
 
         var otherSecret = await IssueOtherPrincipalCredentialAsync(api);
         using var foreign = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{submissionId:D}", otherSecret);
         Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
+    }
+
+    [Fact]
+    public async Task UnsupportedAndSpoofedAttachmentsAreRefusedBeforeReservation()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var api = WithProviderApi(factory);
+        using var client = CreateClient(api);
+        var secret = await IssueQdosCredentialAsync(api);
+
+        using var unsupported = await SubmitAsync(client, secret, "unsupported-file",
+            [("run.exe", "application/octet-stream", new byte[] { 0x4D, 0x5A })]);
+        Assert.Equal(HttpStatusCode.BadRequest, unsupported.StatusCode);
+
+        using var spoofed = await SubmitAsync(client, secret, "spoofed-file",
+            [("photo.jpg", "image/jpeg", "not a JPEG"u8.ToArray())]);
+        Assert.Equal(HttpStatusCode.BadRequest, spoofed.StatusCode);
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM ProviderSubmissions"));
+
+        using var supported = await SubmitAsync(client, secret, "supported-file",
+            [("photo.jpg", "image/jpeg", new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 })]);
+        Assert.Equal(HttpStatusCode.Created, supported.StatusCode);
     }
 
     [Fact]
@@ -463,8 +486,8 @@ public sealed class ProviderApiSubmissionTests
             secret,
             "audit-1",
             [
-                ("instruction.pdf", "application/pdf", "instruction"u8.ToArray()),
-                ("original-report.pdf", "application/pdf", "report"u8.ToArray())
+                ("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Instruction")),
+                ("original-report.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Original report"))
             ],
             caseType: "audit",
             originalReportVerdict: "total-loss",
@@ -492,7 +515,7 @@ public sealed class ProviderApiSubmissionTests
 
         using var created = await SubmitAsync(
             client, secret, "triage-1",
-            [("request.pdf", "application/pdf", "triage"u8.ToArray())],
+            [("request.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Triage"))],
             caseType: "triage");
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var submissionId = (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid();
@@ -650,7 +673,7 @@ public sealed class ProviderApiSubmissionTests
             client,
             secret,
             "existing-case-1",
-            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         var firstId = (await ReadJsonAsync(first)).GetProperty("submissionId").GetGuid();
         await DrainAsync(api, firstId);
@@ -670,7 +693,7 @@ public sealed class ProviderApiSubmissionTests
             client,
             secret,
             "existing-case-2",
-            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())]);
+            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))]);
         Assert.Equal(HttpStatusCode.Created, repeated.StatusCode);
         var repeatedId = (await ReadJsonAsync(repeated)).GetProperty("submissionId").GetGuid();
         Assert.NotEqual(firstId, repeatedId);
@@ -743,7 +766,7 @@ public sealed class ProviderApiSubmissionTests
             client,
             secret,
             "ambiguous-1",
-            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
             claimNumber: "12345/1");
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         await DrainAsync(api, (await ReadJsonAsync(created)).GetProperty("submissionId").GetGuid());
@@ -793,7 +816,7 @@ public sealed class ProviderApiSubmissionTests
             client,
             secret,
             "ambiguous-2",
-            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
             claimNumber: "12345/1");
         Assert.Equal(HttpStatusCode.Created, ambiguous.StatusCode);
         var ambiguousId = (await ReadJsonAsync(ambiguous)).GetProperty("submissionId").GetGuid();
@@ -839,7 +862,7 @@ public sealed class ProviderApiSubmissionTests
             client,
             secret,
             "contradicting-1",
-            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
             claimNumber: "12345/1");
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         await DrainAsync(api, (await ReadJsonAsync(first)).GetProperty("submissionId").GetGuid());
@@ -848,7 +871,7 @@ public sealed class ProviderApiSubmissionTests
             client,
             secret,
             "contradicting-2",
-            [("instruction.pdf", "application/pdf", "not a PDF"u8.ToArray())],
+            [("instruction.pdf", "application/pdf", IntakeTestEvidence.CreatePdf("Provider test"))],
             claimNumber: "12345/2");
         Assert.Equal(HttpStatusCode.Created, second.StatusCode);
         await DrainAsync(api, (await ReadJsonAsync(second)).GetProperty("submissionId").GetGuid());

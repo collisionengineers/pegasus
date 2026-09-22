@@ -860,8 +860,9 @@
             fallback.hidden = true;
             picker.hidden = false;
             var depth = 0;
-            var maxBytes = 10 * 1024 * 1024;
-            var validExtensions = ['.pdf', '.xml', '.json'];
+            var maxBytes = Number(form.dataset.estimateImportMaxBytes);
+            var validExtensions = String(form.dataset.estimateImportExtensions || '')
+                .toLowerCase().split(',').filter(Boolean);
             var importMessage = function (name, fallback) {
                 return form.dataset['estimateImport' + name] || fallback;
             };
@@ -894,7 +895,7 @@
                 }
                 var file = files[0];
                 if (!file || file.size <= 0) { return importMessage('NonEmpty', 'Choose a non-empty estimate file.'); }
-                if (file.size > maxBytes) { return importMessage('TooLarge', 'Choose an estimate file of 10 MB or less.'); }
+                if (file.size > maxBytes) { return importMessage('TooLarge', 'Choose an estimate file within the size limit.'); }
                 var name = String(file.name || '').toLowerCase();
                 if (!validExtensions.some(function (extension) { return name.endsWith(extension); })) {
                     return importMessage('Unsupported', 'Choose a PDF, XML or JSON estimate file.');
@@ -1469,6 +1470,9 @@
                 marks.forEach(function (mark, index) {
                     var row = document.createElement('li');
                     row.className = 'impact-row';
+                    if (editable && mark.areas.some(function (area) { return planAreas.indexOf(area) >= 0; })) {
+                        row.classList.add('impact-row--areas');
+                    }
                     row.setAttribute('data-damage-row', String(index));
 
                     var name = document.createElement('span');
@@ -1479,6 +1483,27 @@
                     name.appendChild(badge);
                     name.appendChild(document.createTextNode(areaNames(mark.areas)));
                     row.appendChild(name);
+
+                    if (row.classList.contains('impact-row--areas')) {
+                        var areaSet = document.createElement('fieldset');
+                        areaSet.className = 'damage-area-set';
+                        areaSet.setAttribute('data-damage-area-set', '');
+                        var legend = document.createElement('legend');
+                        legend.textContent = 'Areas for impact ' + String(index + 1);
+                        areaSet.appendChild(legend);
+                        planAreas.forEach(function (area) {
+                            var label = document.createElement('label');
+                            var choice = document.createElement('input');
+                            choice.type = 'checkbox';
+                            choice.value = area;
+                            choice.checked = mark.areas.indexOf(area) >= 0;
+                            choice.setAttribute('data-damage-area-choice', '');
+                            label.appendChild(choice);
+                            label.appendChild(document.createTextNode(areaName(area)));
+                            areaSet.appendChild(label);
+                        });
+                        row.appendChild(areaSet);
+                    }
 
                     var severityCellRow = cell('fv', severityName(mark.severity));
                     if (editable) {
@@ -1672,6 +1697,27 @@
             // away; hover lights its disc.
             if (list) {
                 list.addEventListener('change', function (event) {
+                    var areaChoice = event.target.closest('[data-damage-area-choice]');
+                    if (areaChoice && editable) {
+                        var areaRow = areaChoice.closest('[data-damage-row]');
+                        var areaMark = areaRow && marks[+areaRow.getAttribute('data-damage-row')];
+                        if (!areaMark) { return; }
+                        var selected = Array.prototype.slice.call(areaRow.querySelectorAll('[data-damage-area-choice]:checked'))
+                            .map(function (choice) { return choice.value; });
+                        if (!selected.length) {
+                            areaChoice.checked = true;
+                            return;
+                        }
+                        areaMark.areas = completePlanAreas(selected);
+                        areaMark.disc = renderedDisc(areaMark.areas);
+                        var focusedArea = areaChoice.value;
+                        render();
+                        persist();
+                        var next = list.querySelector('[data-damage-row="' + areaRow.getAttribute('data-damage-row')
+                            + '"] [data-damage-area-choice][value="' + focusedArea + '"]');
+                        if (next) { next.focus(); }
+                        return;
+                    }
                     var select = event.target.closest('[data-damage-row-severity]');
                     if (!select) {
                         return;
@@ -2014,7 +2060,6 @@
                     var rows = pendingDeleteRows;
                     pendingDeleteRows = null;
                     if (!rows) { return; }
-                    confirmDialog.hidden = true;
                     rows.forEach(function (row) { row.remove(); });
                     renumber();
                     undoToast(rows.length + ' ' + (form.getAttribute('data-lines-removed-label') || 'lines removed'), function () {
@@ -2032,7 +2077,7 @@
                 var count = confirmDialog.querySelector('[data-delete-lines-count]');
                 if (count) { count.textContent = String(rows.length); }
                 pendingDeleteRows = rows;
-                confirmDialog.hidden = false;
+                confirmDialog.pegasusOpen(deleteAll);
             });
         }
 
@@ -2082,7 +2127,7 @@
         var read = bar.querySelector('[data-contract-sum-read]');
         var outcome = document.getElementById(bar.getAttribute('data-estimate-outcome-control') || '');
         var grossCell = form.querySelector('[data-estimate-gross]');
-        var previous = outcome ? outcome.value : '';
+        var previous = outcome && outcome.value !== 'contract_repair' ? outcome.value : 'repairable';
         function gross() { return grossCell ? (parseFloat((grossCell.textContent || '').replace(/[^0-9.]/g, '')) || 0) : 0; }
         function setOutcome(contract) {
             if (!outcome) { return; }
@@ -2097,7 +2142,7 @@
             tick.addEventListener('change', function () {
                 if (tick.checked) {
                     if (outcome && outcome.value !== 'contract_repair') { previous = outcome.value; }
-                    if (sum && !sum.value) { sum.value = gross().toFixed(2); sum.dispatchEvent(new Event('input', { bubbles: true })); }
+                    if (sum && !sum.value && gross() > 0) { sum.value = gross().toFixed(2); sum.dispatchEvent(new Event('input', { bubbles: true })); }
                     setOutcome(true);
                 } else {
                     if (sum) { sum.value = ''; sum.dispatchEvent(new Event('input', { bubbles: true })); }
@@ -2112,12 +2157,25 @@
             read.textContent = isNaN(agreed) || !sum.value ? '\u2014' : '\u00a3' + agreed.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         if (sum) {
-            sum.addEventListener('input', paintSum);
+            sum.addEventListener('input', function () {
+                if (outcome && Number(sum.value) > 0 && outcome.value !== 'contract_repair') {
+                    previous = outcome.value;
+                    setOutcome(true);
+                }
+                paintSum();
+            });
         }
         if (outcome) {
             outcome.addEventListener('change', function () {
                 var is = outcome.value === 'contract_repair';
-                if (tick && tick.checked !== is) { tick.checked = is; if (sum) { sum.disabled = !is; if (is && !sum.value) { sum.value = gross().toFixed(2); } } }
+                if (tick) { tick.checked = is; }
+                if (is) {
+                    if (sum && !sum.value && gross() > 0) { sum.value = gross().toFixed(2); }
+                } else {
+                    previous = outcome.value;
+                    if (sum) { sum.value = ''; }
+                }
+                paintSum();
             });
         }
     }
@@ -2166,49 +2224,6 @@
         });
         rate.addEventListener('input', function () {
             if (!filling && card.value) { card.value = ''; }
-        });
-    }
-
-    // The name is edited on its tab (v28 P32): double-click the selected tab,
-    // Enter or clicking away keeps it, Escape puts it back. The header cell
-    // is hidden while this works; without script it is the form field.
-    function bindRename(section, form) {
-        var cell = form.querySelector('[data-estimate-name-cell]');
-        var input = form.querySelector('#estimate-name');
-        var tab = section.querySelector('.estimate-tab[aria-selected="true"]');
-        var label = tab && tab.querySelector('[data-estimate-tab-label]');
-        if (!cell || !input || !tab || !label) {
-            return;
-        }
-        cell.hidden = true;
-        var finish = function (keep) {
-            label.removeAttribute('contenteditable');
-            var typed = (label.textContent || '').trim();
-            if (keep && typed) {
-                input.value = typed;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-            } else {
-                label.textContent = input.value;
-            }
-        };
-        tab.addEventListener('dblclick', function (event) {
-            event.preventDefault();
-            label.setAttribute('contenteditable', 'true');
-            label.setAttribute('spellcheck', 'false');
-            label.focus();
-            var range = document.createRange();
-            range.selectNodeContents(label);
-            var selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-        });
-        tab.addEventListener('click', function (event) {
-            if (label.isContentEditable) { event.preventDefault(); }
-        });
-        label.addEventListener('blur', function () { if (label.isContentEditable) { finish(true); } });
-        label.addEventListener('keydown', function (event) {
-            if (event.key === 'Enter') { event.preventDefault(); finish(true); label.blur(); }
-            if (event.key === 'Escape') { event.preventDefault(); finish(false); label.blur(); }
         });
     }
 
@@ -2291,7 +2306,7 @@
     }
 
     function bindRange(root) {
-        root.querySelectorAll('input[type="range"][data-estimate-range]').forEach(function (range) {
+        root.querySelectorAll('input[data-estimate-range]').forEach(function (range) {
             if (range.dataset.estimateRangeBound === 'true') {
                 return;
             }
@@ -2300,6 +2315,11 @@
             var amount = document.getElementById(range.getAttribute('data-estimate-range-amount'));
             var base = Number(range.getAttribute('data-estimate-range-base'));
             function render() {
+                if (range.value === '') {
+                    if (output) output.textContent = '—';
+                    if (amount) amount.textContent = '—';
+                    return;
+                }
                 var percent = Number(range.value);
                 if (output) {
                     output.textContent = percent + '%';
@@ -2327,7 +2347,6 @@
                 bindGrid(form);
                 bindVat(form);
                 bindRate(form);
-                bindRename(section, form);
                 bindScale(form);
                 bindContract(form);
             }
@@ -2456,15 +2475,9 @@
                 if (!link || !role) { return; }
                 event.preventDefault();
                 event.stopPropagation();
-                if (role.value === 'NotUsed') {
-                    // P41: putting an image back restores the role it had,
-                    // not a default. Close-up must not return as Supporting.
-                    role.value = role.getAttribute('data-role-before-removal') || 'Supporting';
-                } else {
-                    role.setAttribute('data-role-before-removal', role.value);
-                    role.value = 'NotUsed';
-                }
-                role.dispatchEvent(new Event('change', { bubbles: true }));
+                window.pegasusCasePreparation.toggleInReport(
+                    tile.getAttribute('data-preparation-occurrence'),
+                    role.value === 'NotUsed');
             }, true);
         });
     }
@@ -3284,6 +3297,7 @@
         var value = get(id);
         if (!value) { return; }
         set(id, { role: on ? (value.previousRole || 'Supporting') : 'NotUsed' });
+        countImagesInReport();
     }
     window.pegasusCasePreparation = {
         get: get,
@@ -3313,6 +3327,8 @@
             card.dataset.preparationBound = 'true';
             var value = seed(card);
             if (!value) { return; }
+            var enhanced = card.querySelector('[data-image-report]');
+            if (enhanced) { enhanced.hidden = false; }
             sync(value.id);
             var role = card.querySelector('[data-preparation-role-select]');
             var order = card.querySelector('[data-preparation-order]');
@@ -3356,7 +3372,8 @@
                             function () {
                                 set(value.id, { role: was, order: wasOrder, fullPage: wasFullPage });
                                 countImagesInReport();
-                            });
+                            },
+                            removeImage.getAttribute('data-undo-label'));
                     }
                 });
             }

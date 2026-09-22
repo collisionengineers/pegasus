@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.ReferenceData;
 
@@ -18,6 +19,15 @@ public sealed class PrincipalIdentificationCorpusTests
 
     private static readonly string[] ExpectedDormantCodes =
         ["BAKER", "CW", "FRAZ", "LEX", "LPS", "MBH", "R1AM", "ROZZII", "ZENITH"];
+
+    private static readonly (string Id, string RelativePath)[] ExpectedCurrentPolicySnapshots =
+    [
+        (SnapshotId(PrincipalMailRoutePolicy.Key, PrincipalMailRoutePolicy.Version), "src/Pegasus.Core/Intake/PrincipalMailRoutePolicy.cs"),
+        (SnapshotId(PrincipalMailClassificationPolicy.Key, PrincipalMailClassificationPolicy.Version), "src/Pegasus.Core/Intake/Classification/PrincipalMailClassificationPolicy.cs"),
+        (SnapshotId(PrincipalCaseMatchPolicy.Key, PrincipalCaseMatchPolicy.Version), "src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs"),
+        (SnapshotId("qdos-extraction-policy", QdosInstructionExtractionPolicy.Version), "src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs"),
+        ("shared-mail-taxonomy", "src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs"),
+    ];
 
     private static readonly HashSet<string> AllowedDispositions =
         ["principal", "alias", "supporting-identity", "archived-noise", "unresolved"];
@@ -240,14 +250,13 @@ public sealed class PrincipalIdentificationCorpusTests
                 "principal-mail-route-v1",
                 identity.GetProperty("evidenceRefs").EnumerateArray()
                     .Select(reference => reference.GetString())));
-        // The label evidence names a QDOS extraction policy snapshot. Which
-        // version is provenance recorded at generation time, not a pin on the
-        // live policy: the package is review evidence and never loaded by the
-        // runtime, and regenerating it needs the private corpus.
+        // A version change requires renewed evidence review, even though this
+        // package is never loaded by the runtime.
         Assert.All(qdos.GetProperty("extractionLabels").EnumerateArray(), label =>
             Assert.Contains(
-                label.GetProperty("evidenceRefs").EnumerateArray().Select(reference => reference.GetString()),
-                reference => reference!.StartsWith("qdos-extraction-policy-v", StringComparison.Ordinal)));
+                SnapshotId("qdos-extraction-policy", QdosInstructionExtractionPolicy.Version),
+                label.GetProperty("evidenceRefs").EnumerateArray()
+                    .Select(reference => reference.GetString())));
 
         var evaluation = document.RootElement.GetProperty("evaluationSummaries")
             .EnumerateArray()
@@ -294,10 +303,8 @@ public sealed class PrincipalIdentificationCorpusTests
     /// <summary>
     /// The package is derived from the tracked workbooks and exports under
     /// <c>reference/</c>; if one of those inputs changes, the package is stale.
-    /// Snapshots of <c>src/</c> policy files are provenance only (which policy
-    /// version the evidence was reviewed against) and are not checked: pinning
-    /// live source would fail every policy edit until the package is
-    /// regenerated, and regeneration needs the private corpus.
+    /// Source-code snapshot identity is checked separately from byte hashes:
+    /// incidental source comments do not require regenerating private evidence.
     /// </summary>
     [Fact]
     public void TrackedReferenceInputHashesHaveNotDrifted()
@@ -333,6 +340,28 @@ public sealed class PrincipalIdentificationCorpusTests
                 Convert.ToHexStringLower(SHA256.HashData(bytes)));
         }
     }
+
+    [Fact]
+    public void PolicyEvidenceIdentityMatchesCurrentPolicyVersions()
+    {
+        using var document = LoadCorpus();
+        var policySnapshots = document.RootElement.GetProperty("sourceSnapshots").EnumerateArray()
+            .Where(item => item.GetProperty("repository").GetString() == "pegasus")
+            .Where(item => item.GetProperty("relativePath").GetString()!.StartsWith(
+                "src/Pegasus.Core/Intake/", StringComparison.Ordinal))
+            .Select(item => (
+                Id: item.GetProperty("id").GetString()!,
+                RelativePath: item.GetProperty("relativePath").GetString()!))
+            .OrderBy(item => item.Id, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            ExpectedCurrentPolicySnapshots.OrderBy(item => item.Id, StringComparer.Ordinal),
+            policySnapshots);
+    }
+
+    private static string SnapshotId(string policyKey, int version) =>
+        $"{policyKey.Replace('_', '-')}-v{version}";
 
     private static void AssertCrosswalk(JsonElement rows, int expectedCount)
     {

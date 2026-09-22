@@ -1928,7 +1928,7 @@
 
     // An act that can be put back for eight seconds: the toast carries the
     // one Undo (v28 P16, P41).
-    window.pegasusUndoToast = function (title, restore) {
+    window.pegasusUndoToast = function (title, restore, label) {
         var element = document.createElement('div');
         element.className = 'toast toast--undo';
         element.setAttribute('role', 'status');
@@ -1937,7 +1937,7 @@
         var undo = document.createElement('button');
         undo.type = 'button';
         undo.className = 'btn btn--small';
-        undo.textContent = element.getAttribute('data-undo-label') || 'Undo';
+        undo.textContent = label || 'Undo';
         undo.addEventListener('click', function () { restore(); element.remove(); });
         element.appendChild(strong);
         element.appendChild(undo);
@@ -2864,18 +2864,6 @@ window.pegasusPreferences = (function () {
 (function () {
     'use strict';
     var key = 'pegasus.problem.errors';
-    var sections = {
-        overview: true,
-        inspection: true,
-        vehicle: true,
-        damage: true,
-        valuation: true,
-        estimate: true,
-        settlement: true,
-        report: true,
-        files: true,
-        notes: true
-    };
     function read() {
         try { return JSON.parse(window.sessionStorage.getItem(key) || '[]'); } catch (error) { return []; }
     }
@@ -2886,10 +2874,11 @@ window.pegasusPreferences = (function () {
             window.sessionStorage.setItem(key, JSON.stringify(list.slice(0, 10)));
         } catch (error) { /* storage unavailable: the report goes without them */ }
     }
-    function reportRoute() {
+    function reportRoute(form) {
         var location = new URL(window.location.href);
         var section = (location.searchParams.get('section') || '').trim().toLowerCase();
-        return sections[section]
+        var sections = (form.getAttribute('data-problem-case-sections') || '').split(',');
+        return sections.indexOf(section) >= 0
             ? location.pathname + '?section=' + encodeURIComponent(section)
             : location.pathname;
     }
@@ -2906,7 +2895,7 @@ window.pegasusPreferences = (function () {
                 var input = form.querySelector(selector);
                 if (input) { input.value = value; }
             };
-            set('[data-problem-route]', reportRoute());
+            set('[data-problem-route]', reportRoute(form));
             set('[data-problem-return]', window.location.pathname + window.location.search);
             set('[data-problem-viewport]', window.innerWidth + 'x' + window.innerHeight);
             set('[data-problem-editing]', document.querySelector('.case-record.is-editing') ? 'true' : 'false');

@@ -268,6 +268,12 @@ public interface IAiJobQueries
     /// <summary>The most recently created jobs, newest first.</summary>
     Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken);
 
+    /// <summary>All jobs that reached a terminal state within a London-day UTC window.</summary>
+    Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(
+        DateTimeOffset startUtc,
+        DateTimeOffset endUtc,
+        CancellationToken cancellationToken);
+
     Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken);
 }
 

@@ -1081,10 +1081,26 @@ public sealed class ImageIntakePersistenceTests
                 "image-intake-scope-other"),
             CancellationToken.None));
 
-        var saved = await store.SetPrincipalAsync(
+        var takeover = await leases.ClaimAsync(
+            new ClaimEditScopeRequest(EditScopeKind.ImageIntake, detail.Record.Id,
+                detail.LifecycleVersion, other, "image-intake-scope-takeover")
+            {
+                TakeOver = true
+            },
+            CancellationToken.None);
+        Assert.NotEqual(lease.Token, takeover.Token);
+        Assert.Contains(await store.ListHistoryAsync(detail.Record.Id, CancellationToken.None),
+            entry => entry.EventType == "edit_lease_taken_over");
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => store.SetPrincipalAsync(
             new(detail.Record.Id, principalId, owner, detail.LifecycleVersion)
             {
                 EditLeaseToken = lease.Token
+            },
+            CancellationToken.None));
+        var saved = await store.SetPrincipalAsync(
+            new(detail.Record.Id, principalId, other, detail.LifecycleVersion)
+            {
+                EditLeaseToken = takeover.Token
             },
             CancellationToken.None);
         Assert.Equal(principalId, saved.PrincipalId);

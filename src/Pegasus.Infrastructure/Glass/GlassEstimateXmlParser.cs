@@ -109,6 +109,8 @@ public sealed record GlassEstimateExport(
 /// </summary>
 public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
 {
+    public IReadOnlyList<string> FileExtensions { get; } = [".xml"];
+
     /// <summary>Titles the Draft an import of this document lands as.</summary>
     public const string ProviderName = "Glass's";
 

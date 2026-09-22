@@ -76,6 +76,7 @@ public sealed class AdministrationReportsWebTests
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, workbookResponse.StatusCode);
+        await AssertCsvExportsRefusedAsync(client);
     }
 
     [Fact]
@@ -103,6 +104,7 @@ public sealed class AdministrationReportsWebTests
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, workbookResponse.StatusCode);
+        await AssertCsvExportsRefusedAsync(client);
     }
 
     [Fact]
@@ -131,6 +133,7 @@ public sealed class AdministrationReportsWebTests
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, workbookResponse.StatusCode);
+        await AssertCsvExportsRefusedAsync(client);
     }
 
     [Fact]
@@ -152,6 +155,7 @@ public sealed class AdministrationReportsWebTests
         using var response = await client.GetAsync($"{Page}?handler=Workbook");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        await AssertCsvExportsRefusedAsync(client);
     }
 
     [Fact]
@@ -172,6 +176,15 @@ public sealed class AdministrationReportsWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost:7139")
         });
+
+    private static async Task AssertCsvExportsRefusedAsync(HttpClient client)
+    {
+        foreach (var handler in new[] { "Csv", "PrincipalCsv", "TurnaroundCsv" })
+        {
+            using var response = await client.GetAsync($"{Page}?handler={handler}");
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        }
+    }
 
     private sealed class InvalidMonthlyReportQueries : IMonthlyReportActivityQueries
     {

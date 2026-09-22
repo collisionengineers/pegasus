@@ -164,7 +164,7 @@ raise failed; an Administrator retries it from
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) | — |
 | `/Upload` | Staff upload ([FRD-18](frd-18-manual-upload.md#staff-upload-page)) | — |
 | `/Cases` | Queues: workflow, pre-Case work and exceptions ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues (`/Triage`) |
-| `/Cases/{id}` | Case record, one page of ten sections; `?section=` jumps ([FRD-16](frd-16-case-record-workspace.md#case-workspace)) | Case workspace side-nav sections; the Assessment page |
+| `/Cases/{id}` | Case record with section navigation; `?section=` jumps ([FRD-16](frd-16-case-record-workspace.md#case-workspace)) | Case workspace side-nav sections; the Assessment page |
 | `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` | Engineer assessment page |
 | `/ReleaseNotes` | Published release notes, newest first; **Got it** posts here | — |
 | `/ProblemReports` | **Send** on Report a problem posts here; it has no page of its own | — |
@@ -218,7 +218,7 @@ Cases, references and routes by typing and opens the selection.
 
 A shortcut never bypasses a reason, confirmation or gate.
 
-Estimate import follows keyboard parity: the Estimate section provides a
+Estimate import follows keyboard parity: Repair Spec provides a
 keyboard-accessible **Import** action that opens the native file picker. File
 drag and drop is also scoped to that section and uses the same import path
 ([FRD-16](frd-16-case-record-workspace.md#assessment)).

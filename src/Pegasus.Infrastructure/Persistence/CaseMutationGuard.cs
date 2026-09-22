@@ -73,7 +73,8 @@ internal static class CaseMutationGuard
     public static void RequireHeartbeat(
         CaseWorkflowEntity workflow,
         ActionActor actor,
-        string editLeaseToken)
+        string editLeaseToken,
+        DateTimeOffset nowUtc)
     {
         ArgumentNullException.ThrowIfNull(workflow);
         ArgumentNullException.ThrowIfNull(actor);
@@ -85,7 +86,9 @@ internal static class CaseMutationGuard
             RetainedHolderKind(workflow.EditLeaseHolderKind),
             workflow.EditLeaseHolder,
             !string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash),
-            MatchesRetainedHash(workflow.EditLeaseTokenHash, editLeaseToken));
+            workflow.EditLeaseExpiresAtUtc,
+            MatchesRetainedHash(workflow.EditLeaseTokenHash, editLeaseToken),
+            nowUtc);
     }
 
     public static void ClearLease(CaseWorkflowEntity workflow)

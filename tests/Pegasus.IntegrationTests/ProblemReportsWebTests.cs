@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -41,6 +41,11 @@ public sealed class ProblemReportsWebTests
         var home = await GetHtmlAsync(client, "/");
         Assert.Contains("data-dialog=\"problem-dialog\"", home, StringComparison.Ordinal);
         Assert.Contains("data-problem-form", home, StringComparison.Ordinal);
+        var sectionKeys = Regex.Match(home, "data-problem-case-sections=\"(?<keys>[^\"]+)\"")
+            .Groups["keys"].Value.Split(',');
+        Assert.Contains("claim", sectionKeys);
+        Assert.Contains("original-report", sectionKeys);
+        Assert.DoesNotContain("unknown-section", sectionKeys);
         Assert.Contains("name=\"method\" value=\"GET\"", home, StringComparison.Ordinal);
         var reportOpener = Regex.Match(
             home,
@@ -68,7 +73,8 @@ public sealed class ProblemReportsWebTests
         Assert.Equal("The Save button did nothing.", sent.Description);
         Assert.Equal("/Cases?section=estimate", sent.Snapshot.Route);
         var body = ProblemReportPolicy.Body(sent);
-        Assert.Contains("route      GET /Cases?section=estimate", body, StringComparison.Ordinal);
+        Assert.Contains(sent.Id.ToString("D"), body, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Cases?section=estimate", body, StringComparison.Ordinal);
         Assert.DoesNotContain("claimant-secret", body, StringComparison.Ordinal);
         Assert.DoesNotContain("mail-secret", body, StringComparison.Ordinal);
         Assert.Equal("QDOS26001", sent.Snapshot.CaseReference);
@@ -84,7 +90,7 @@ public sealed class ProblemReportsWebTests
         using var administrator = CreateClient(factory, sink);
         var list = await GetHtmlAsync(administrator, ListPage);
         Assert.Contains("The Save button did nothing.", list, StringComparison.Ordinal);
-        Assert.Contains("href=\"https://github.com/example/pegasus/issues/7\"", list, StringComparison.Ordinal);
+        Assert.Contains("href=\"https://github.com/collisionengineers/pegasus/issues/7\"", list, StringComparison.Ordinal);
         Assert.Contains(">Sent<", list, StringComparison.Ordinal);
         Assert.DoesNotContain("Retry", list, StringComparison.Ordinal);
     }
@@ -144,6 +150,40 @@ public sealed class ProblemReportsWebTests
     }
 
     [Fact]
+    public async Task RepeatedFormSubmissionKeepsOneLocalReportAndOneIssue()
+    {
+        var sink = new RecordingSink();
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = CreateClient(factory, sink, "User");
+        var home = await GetHtmlAsync(client, "/");
+        var key = Guid.NewGuid().ToString("N");
+        var fields = new Dictionary<string, string>
+        {
+            ["returnUrl"] = "/",
+            ["description"] = "The page failed.",
+            ["operationKey"] = key
+        };
+
+        using var first = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new(fields)));
+        using var replay = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new(fields)));
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        Assert.Single(sink.Sent);
+
+        using var changed = await client.PostAsync("/ProblemReports?handler=Report", Form(home, new()
+        {
+            ["returnUrl"] = "/",
+            ["description"] = "Different details.",
+            ["operationKey"] = key
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, changed.StatusCode);
+        Assert.Single(sink.Sent);
+        using var administrator = CreateClient(factory, sink);
+        var list = await GetHtmlAsync(administrator, ListPage);
+        Assert.Single(Regex.Matches(list, "data-problem-report="));
+    }
+
+    [Fact]
     public void ErrorPostInitializationRetainsOriginatingFaultContext()
     {
         using var cache = new MemoryCache(new MemoryCacheOptions());
@@ -184,7 +224,8 @@ public sealed class ProblemReportsWebTests
                 null,
                 null,
                 false,
-                null));
+                null,
+                Guid.NewGuid().ToString("N")));
 
         Assert.Equal("POST", request.Method);
         Assert.Equal("00-error-trace", request.TraceId);
@@ -293,7 +334,7 @@ public sealed class ProblemReportsWebTests
     }
 
     [Fact]
-    public async Task ExpiredDispatchClaimCanBeReclaimedThroughTheAdministrationRetry()
+    public async Task ExpiredDispatchClaimRequiresReconciliationBeforeRetry()
     {
         var sink = new RecordingSink { Failure = new HttpRequestException("temporary failure") };
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -329,6 +370,17 @@ public sealed class ProblemReportsWebTests
         }));
 
         Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
+        Assert.Empty(sink.Sent);
+        list = await GetHtmlAsync(administrator, ListPage);
+        Assert.Contains(">Unknown<", list, StringComparison.Ordinal);
+        Assert.Contains("Confirm no issue", list, StringComparison.Ordinal);
+        using var reconciled = await administrator.PostAsync(
+            $"{ListPage}?handler=ConfirmNoIssue&id={id}", Form(list, new()));
+        Assert.Equal(HttpStatusCode.Redirect, reconciled.StatusCode);
+        list = await GetHtmlAsync(administrator, ListPage);
+        Assert.Contains(">Not sent<", list, StringComparison.Ordinal);
+        using var sent = await RetryAsync(administrator, list, id.ToString("D"), Guid.NewGuid().ToString("N"));
+        Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
         Assert.Single(sink.Sent);
     }
 
@@ -425,6 +477,7 @@ public sealed class ProblemReportsWebTests
         Assert.True(token.Success, "The page carries no antiforgery token.");
         fields["__RequestVerificationToken"] = WebUtility.HtmlDecode(
             Regex.Match(token.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase).Groups["value"].Value);
+        fields.TryAdd("operationKey", Guid.NewGuid().ToString("N"));
         return new FormUrlEncodedContent(fields);
     }
 
@@ -465,7 +518,7 @@ public sealed class ProblemReportsWebTests
             }
 
             Sent.Add(report);
-            return new ProblemReportDelivery(7, "https://github.com/example/pegasus/issues/7");
+            return new ProblemReportDelivery(7, "https://github.com/collisionengineers/pegasus/issues/7");
         }
 
         private static TaskCompletionSource<bool> NewSignal() =>

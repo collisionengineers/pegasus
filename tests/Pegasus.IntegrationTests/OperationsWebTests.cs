@@ -193,6 +193,34 @@ public sealed partial class OperationsWebTests
     }
 
     [Fact]
+    public async Task AiJobListIncludesOldJobClosedTodayBehindTwoHundredNewCreations()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var aiWork = new RecordingAiWorkStore { AdditionalRecentQueued = 201 };
+        using var factory = Configure(baseFactory, new RecordingOperationsStore(), aiWork: aiWork);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        Assert.Contains(RecordingAiWorkStore.CompletedInstruction, html, StringComparison.Ordinal);
+        Assert.Contains("207 jobs", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AiJobListIncludesEveryJobClosedTodayBeyondTwoHundred()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var aiWork = new RecordingAiWorkStore { AdditionalTerminalToday = 201 };
+        using var factory = Configure(baseFactory, new RecordingOperationsStore(), aiWork: aiWork);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        Assert.Contains("207 jobs", html, StringComparison.Ordinal);
+        Assert.Contains("Terminal result 201", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AiJobListOmitsTheEmptyStateAndTableWhenThereAreNoJobs()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -801,6 +829,8 @@ public sealed partial class OperationsWebTests
         }
 
         public bool HasJobs { get; init; } = true;
+        public int AdditionalRecentQueued { get; init; }
+        public int AdditionalTerminalToday { get; init; }
         public bool RefuseCreate { get; init; }
 
         public CreateAiJobCommand? Created { get; private set; }
@@ -886,7 +916,16 @@ public sealed partial class OperationsWebTests
                 AiJobState.Cancelled,
                 FixedUtcNow.AddDays(-7).AddHours(-1),
                 version: 2,
-                closedAtUtc: FixedUtcNow.AddDays(-7))
+                closedAtUtc: FixedUtcNow.AddDays(-7)),
+            .. Enumerable.Range(1, AdditionalRecentQueued).Select(index => Job(
+                Guid.NewGuid(), AiJobKind.Estimate, AiJobSubjectKind.Case,
+                SubjectCaseId, CaseReference, $"Recent queued job {index}",
+                AiJobState.Queued, FixedUtcNow.AddMinutes(-index), 1)),
+            .. Enumerable.Range(1, AdditionalTerminalToday).Select(index => Job(
+                Guid.NewGuid(), AiJobKind.Estimate, AiJobSubjectKind.Case,
+                SubjectCaseId, CaseReference, $"Terminal result {index}",
+                AiJobState.Completed, FixedUtcNow.AddDays(-2), 2,
+                closedAtUtc: FixedUtcNow.AddMinutes(-1)))
             ]
             : [];
 
@@ -910,6 +949,15 @@ public sealed partial class OperationsWebTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(
                 All.OrderByDescending(job => job.CreatedAtUtc).Take(max).ToArray());
+
+        public Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(
+            DateTimeOffset startUtc,
+            DateTimeOffset endUtc,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AiJobRecord>>(
+                All.Where(job => AiJobStates.IsTerminal(job.State)
+                    && (job.State == AiJobState.Expired ? job.ExpiresAtUtc : job.ClosedAtUtc) is { } terminal
+                    && terminal >= startUtc && terminal < endUtc).ToArray());
 
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new AiJobCounts(

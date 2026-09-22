@@ -430,7 +430,7 @@ public sealed class WorkCentreWebTests
             var counts = UnfilteredKindCounts
                 ?? Enum.GetValues<NeedsAttentionKind>().ToDictionary(kind => kind, kind => Items.Count(item => item.Kind == kind));
             var page = new NeedsAttentionPage(Items, query.Page, GetOperationsSnapshot.PageSize, total, counts, OverdueCount, TodayCount, LaterCount);
-            return Task.FromResult(new OperationsSnapshot(Now, new IntakeQueueCounts(0, 0), 0, 0, [], new CaseStageCounts(1, 2, 3, 0), Items)
+            return Task.FromResult(new OperationsSnapshot(Now, new IntakeQueueCounts(0), 0, 0, [], new CaseStageCounts(1, 2, 3, 0), Items)
             {
                 Attention = page,
                 Scope = query.Scope,
@@ -479,6 +479,11 @@ public sealed class WorkCentreWebTests
 
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(Recent);
+
+        public Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<AiJobRecord>>(Recent.Where(job =>
+                (job.State == AiJobState.Expired ? job.ExpiresAtUtc : job.ClosedAtUtc) is { } terminal
+                && terminal >= startUtc && terminal < endUtc).ToArray());
 
         public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
