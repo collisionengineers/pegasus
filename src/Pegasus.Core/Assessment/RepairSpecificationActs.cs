@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
@@ -238,7 +238,7 @@ public sealed class SaveAndScaleRepairSpecification(
     {
         ArgumentNullException.ThrowIfNull(request);
         var save = EstimatePolicy.ValidateSave(request.Save);
-        RepairSpecificationPolicy.RequireEngineer(save.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(save.Actor);
         var projection = await assessment.GetAsync(save.CaseId, cancellationToken);
         var field = projection?.Field(AssessmentVocabulary.ValueEngineer);
         if (field is not { IsConfirmed: true }
@@ -289,7 +289,7 @@ public sealed class RemoveRepairSpecificationScaling(
         RemoveRepairSpecificationScalingRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         return await store.RemoveScalingAsync(request, cancellationToken);
     }
 }
@@ -302,7 +302,7 @@ public sealed class RestoreRepairSpecificationSnapshot(
         RestoreRepairSpecificationSnapshotRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         return await store.RestoreSnapshotAsync(request, cancellationToken);
     }
 }
