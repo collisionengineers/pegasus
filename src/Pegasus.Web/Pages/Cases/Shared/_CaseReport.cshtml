@@ -1,4 +1,4 @@
-@*
+﻿@*
     Report (v26 § Report). Head: one primary (Generate report, gated by the
     readiness the projection states) and one More menu (Preview draft,
     Generate fee note, Include fee note). Body: the readiness notice, the
@@ -290,7 +290,8 @@
             @if (generation is not null)
             {
                 <div class="cluster">
-                    @foreach (var artifact in generation.Artifacts)
+                    @foreach (var artifact in generation.Artifacts.Where(artifact =>
+                        artifact is { Kind: CaseReportArtifactKind.AssessmentReport, Status: CaseReportArtifactStatus.Confirmed }))
                     {
                         if (artifact.Status == CaseReportArtifactStatus.Confirmed)
                         {

@@ -270,7 +270,10 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     .UseSqlServer(database.ConnectionString)
                     .Options;
                 var factory = new PooledDbContextFactory<PegasusDbContext>(options);
-                var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+                // Delivery preparation is a staff casework action. Keep this
+                // persistence suite on a User actor so every positive and
+                // stale/readiness refusal below exercises the broadened path.
+                var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
                 var caseId = await SeedCaseAsync(factory);
                 var artifact = await SeedConfirmedGenerationAsync(factory, caseId);
                 var lease = await new AcquireCaseEditLease(

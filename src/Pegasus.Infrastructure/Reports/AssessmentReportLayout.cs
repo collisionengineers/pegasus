@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Reports;
@@ -547,20 +547,31 @@ internal static class AssessmentReportLayout
         });
 
     /// <summary>
-    /// The report's photo grid: two square frames per row, each printing the
-    /// prepared square. Order is the snapshot's: Close-up first, Overview
-    /// second, Supporting by its persisted order.
+    /// The report's images: two to a page in the order the Engineer set, and
+    /// an image flagged Full page on a page of its own (v28 P41).
     /// </summary>
     private static void PhotoGrid(IContainer container, IReadOnlyList<PreparedReportPhoto> photos) => container.Column(grid =>
     {
         grid.Spacing(4, Unit.Millimetre);
         var pair = new List<PreparedReportPhoto>(2);
+        var hasGroup = false;
+
+        void BeginGroup()
+        {
+            if (hasGroup)
+            {
+                grid.Item().PageBreak();
+            }
+            hasGroup = true;
+        }
+
         void Flush()
         {
             if (pair.Count == 0)
             {
                 return;
             }
+            BeginGroup();
             var first = pair[0];
             var second = pair.Count > 1 ? pair[1] : null;
             grid.Item().ShowEntire().Row(row =>
@@ -580,7 +591,7 @@ internal static class AssessmentReportLayout
             if (photo.FullPage)
             {
                 Flush();
-                grid.Item().PageBreak();
+                BeginGroup();
                 grid.Item().ShowEntire().Column(page => PhotoFrame(page.Item(), photo.Content));
                 continue;
             }
@@ -674,7 +685,7 @@ internal static class AssessmentReportLayout
     private static void ImpactDiagram(ColumnDescriptor column, IReadOnlyList<ReportImpact> impacts)
     {
         var discs = impacts
-            .Select(impact => DamageAreaGeometry.Disc(impact.Codes, PlanWidth, PlanHeight))
+            .Select(impact => DamageAreaGeometry.RenderDisc(impact.Codes, PlanWidth, PlanHeight))
             .Where(disc => disc is not null)
             .Select(disc => disc!)
             .ToArray();

@@ -426,6 +426,7 @@
                 {
                     <section class="record-section panel section-placeholder @Model.ActiveTabClass(entry.Key)" id="section-@entry.Key"
                              data-section="@entry.Key" data-lazy="@entry.Key"
+                             data-section-parent="@(DetailsModel.IsNestedSection(entry.Key) ? "vehicle" : null)"
                              aria-label="@entry.Label"></section>
                     continue;
                 }

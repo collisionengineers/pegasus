@@ -1199,7 +1199,7 @@ public sealed class GlassRepairEstimateGatewayTests
     }
 
     [Fact]
-    public async Task AnotherEngineerCannotReadOrResumeThisEngineersSession()
+    public async Task AnotherStaffAccountCannotReadOrResumeThisStaffMembersSession()
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();
@@ -2048,8 +2048,8 @@ public sealed class GlassRepairEstimateGatewayTests
             CaseId = caseId;
             EngineerId = engineerId;
             OtherEngineerId = otherEngineerId;
-            Engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
-            OtherEngineer = ActionActor.Staff(otherEngineerId, [StaffRole.Engineer]);
+            Engineer = ActionActor.Staff(engineerId, [StaffRole.User]);
+            OtherEngineer = ActionActor.Staff(otherEngineerId, [StaffRole.User]);
             Credentials.Give(Engineer, engineerId);
             Credentials.Give(OtherEngineer, otherEngineerId, account: "b.engineer");
         }

@@ -21,7 +21,8 @@ public sealed class CaseAssetPreparationTests
         string sha256 = "recorded-sha",
         string contentType = "image/jpeg",
         int sourceVersion = 1,
-        long preparationVersion = 0) =>
+        long preparationVersion = 0,
+        bool fullPage = false) =>
         new(
             caseId ?? CaseId,
             occurrenceId ?? Guid.NewGuid(),
@@ -36,7 +37,8 @@ public sealed class CaseAssetPreparationTests
             crop ?? CaseAssetCrop.Full,
             preparationVersion,
             null,
-            null);
+            null,
+            fullPage);
 
     private static DocumentVersion Confirmed(
         CaseAssetPreparation item,
@@ -293,7 +295,7 @@ public sealed class CaseAssetPreparationTests
     [Fact]
     public void ForReportOrdersCloseUpThenOverviewThenSupportingByOrderAndExcludesNotUsed()
     {
-        var closeUp = Item(role: CaseAssetReportRole.CloseUp);
+        var closeUp = Item(role: CaseAssetReportRole.CloseUp, fullPage: true);
         var overview = Item(role: CaseAssetReportRole.Overview);
         var supportingTwo = Item(role: CaseAssetReportRole.Supporting, order: 2);
         var supportingOne = Item(role: CaseAssetReportRole.Supporting, order: 1);
@@ -305,6 +307,7 @@ public sealed class CaseAssetPreparationTests
         Assert.Equal(
             [closeUp.OccurrenceId, overview.OccurrenceId, supportingOne.OccurrenceId, supportingTwo.OccurrenceId],
             report.Select(item => item.OccurrenceId).ToArray());
+        Assert.True(report[0].FullPage);
         Assert.DoesNotContain(report, item => item.OccurrenceId == notUsed.OccurrenceId);
     }
 }

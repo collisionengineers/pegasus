@@ -1,557 +1,539 @@
-# Pegasus performance improvement plan
+<proposed_plan>
+# Remove Engineer-role casework restrictions
 
-**Estimated diff:** 10–18 production/diagnostic files, 8–14 test or browser
-verification files, and affected documentation; approximately six reviewable
-implementation slices. This is a planning estimate, not a file-count target.
-Profiling can remove conditional work. No new service, queue, database schema,
-runtime dependency, hosting tier or instance is part of the default scope.
+## Summary
 
-**Updated:** 16 September 2026. **Status:** implementation in progress;
-confirmed source changes prepared, candidate verification and release pending.
-This replaces the completed first performance plan. Its implementation and
-evidence remain in [the deployed plan history](https://github.com/collisionengineers/pegasus/blob/e8efb19779baadc5ea46bd9c62e6c9c54740cac7/.codex/PLAN.md)
-and [PR 761](https://github.com/collisionengineers/pegasus/pull/761).
+Retain `Administrator`, `Engineer`, and `User` as account labels, but make them behaviorally identical for human casework. Any enabled staff account may perform engineering actions, hold an Engineer assignment, confirm findings, manage valuations and estimates, use its own Glass’s credential, generate/deliver reports, and qualify as a Sign-off Engineer when separately configured.
 
-## 1. Baseline, outcome and authority
+Administrator-only administration remains unchanged. Automation, Provider, and System Worker authority remains unchanged. No database migration is expected.
 
-Current `dev`: `5765a527a7729e606fe5683b3af3d47a17c708ff`.
-The live read-only `/diagnostics/version` check on 16 September returned
-`e8efb19779baadc5ea46bd9c62e6c9c54740cac7`.
-At the initial branch check, `8b9d358f` differed from that deployed revision
-only in `docs/operations.md`. During planning, `5765a527a` added documentation,
-skills and design updates; its only application-source change is a Razor
-comment in `_StatusChip.cshtml`. The earlier performance changes are already
-deployed, and these subsequent commits introduce no different runtime behavior
-in the examined paths. Preserve the updated branch contents and recheck source
-and deployed identities at implementation and release.
+## Implementation changes
 
-Make initial Case/Work Centre navigation, visible sections and image viewing
-consistently responsive, including first use. Preserve current access,
-document integrity, edit leases and workflows. Complete the actual production
-authentication/browser path, rather than relying on offline-authentication
-measurements.
+- Remove role inheritance as a casework mechanism. Make `ActionActor.IsInRole` test the stored role exactly, remove `StaffRoleCapabilities`, and retain explicit Administrator checks only for administration permissions.
+- Replace Engineer checks in assessment, Engineer findings, Engineer’s Value adoption, repair specifications, estimate editing/import/acceptance, and Glass’s sessions with a human-staff requirement. Automation retains its existing draft/unconfirmed routes and cannot confirm professional outcomes.
+- Remove Engineer checks from all Case Web guards. Valuation, market research, estimate/import, immutable report generation, fee-note generation, delivery preparation, and prepared-report sending must expose and accept the same actions for Administrator, Engineer, and User accounts, subject only to existing lifecycle, lease, version, evidence, credential, and readiness rules.
+- Permit every enabled staff account to use `Assign to me` for Cases and Triage and to appear in Engineer assignment choices. Reduce assignment eligibility to account existence and enabled state; remove `HasEngineerRole` and role-filtered roster queries.
+- Preserve “Engineer” as the workflow field and assignment label. Role no longer changes Work Centre behavior: all roles use the ordinary Office default unless the operator has selected another scope, and Mine continues to mean work assigned to the signed-in staff member.
+- Make Sign-off Engineer eligibility independent of account role. Preserve the Administrator-managed flag, printed name, signature, enabled-state requirement, and single default. Changing an account to `User` must no longer clear valid sign-off settings.
+- Treat Glass’s credentials and sessions as per-staff rather than per-Engineer. Allow an Administrator to configure them for any staff role; require the acting session owner to be enabled human staff; preserve per-user ownership, generation isolation, callback protection, and cross-account denial.
+- Remove obsolete Engineer-only refusal labels, availability text, hidden-control conditions, role-filtered rendering, and comments. Preserve the existing Case layout and action placement; this is a permission change, not a redesign.
+- Keep Administrator-only account, Principal, workflow, mailbox, automation-client, operational-report, and credential-management permissions intact.
 
-Governing owners: [access](../docs/frd/frd-04-parties-accounts-and-access.md),
-[documents and custody](../docs/frd/frd-05-documents-extraction-and-custody.md),
-[Case lifecycle](../docs/frd/frd-01-case-identity-and-lifecycle.md),
-[operator experience](../docs/frd/frd-12-operator-experience.md),
-[engineering](../docs/engineering.md) and
-[release procedure](../.agents/skills/pegasus-release/SKILL.md).
+## Contracts and documentation
 
-The independent investigation and sanitized samples are retained locally at
-`artifacts/performance/lcp-20260916/`, especially `report.md`,
-`azure-evidence.json`, `azure-phase-evidence.json`,
-`browser-summary.json` and `thumbnail-auth-cookie-evidence.json`.
-These ignored files are private working evidence, not portable PR links.
-Attach a sanitized result summary and reproducible queries to the eventual PR;
-never upload raw cookies, case content, document URLs or immutable `corpus/`.
+- Update FRD-04 to state that the three role labels do not differentiate casework authority; only Administrator adds administration authority.
+- Update FRD-13, FRD-16, FRD-24, FRD-25, and FRD-27 so assignment, self-assignment, professional confirmation, Engineer’s Value, estimates, reports, and AI-draft acceptance are staff actions rather than Engineer-role actions.
+- Update FRD-11 and the runbook to describe Glass’s credentials as per-staff and report preparation/delivery as available to all staff.
+- Update current architecture, design wording, capability links, and `CONTEXT.md` where they describe a named Engineer as the exclusive accepting actor. Preserve domain terms such as Engineer, Sign-off Engineer, Engineer’s Value, With Engineer, and Hand to Engineer.
+- Add ADR-0054 to partially supersede ADR-0043’s per-Engineer eligibility decision while retaining its per-user encryption, ownership, generation, invalidation, and recovery design. Update the ADR index and ADR-0043 `superseded_by` metadata without rewriting its historical body.
 
-### Findings carried forward
+## Test plan
 
-| Finding | Evidence | Consequence for this plan |
-| --- | --- | --- |
-| Case server response can be slow | 7.333 s; 47 recorded SQL calls total 178 ms. Main handler span 4.175 s; time outside it remains unattributed. | Attribute activation, authentication, handler, shell and rendering. Do not call SQL capacity or QuestPDF the proven cause. |
-| Work Centre has a different slow path | 3.373 s response, including one 1.801 s SQL dependency; later full request 524 ms. | Measure its queries/connection and initialization costs separately; overlapping dependency times are not additive. |
-| Browser thumbnail caching is ineffective | Current thumbnail responses contain the intended ETag, a renewed sign-in cookie, and `no-cache,no-store`. | Repair the interaction between per-request Identity validation and cookie renewal. |
-| First measured nine-image pass is slow | Nine downloads took 12.26–16.41 s; one confirmed cache miss spent 6.164 s at the provider gate and 4.385 s rendering, including 3.440 s at the decode gate. | Improve cold retrieval/rendering as well as repeat navigation; do not assume all nine prior cache states were known. |
-| Direct sections reread the frame | Introduced focused readers reload workflow/summary already loaded by the full page. | Reuse the authorized same-request frame; standalone fragments still read current state. |
-| Warm navigation is already relatively fast | Five visits per scenario: Cases 0.35–0.60 s LCP; Work Centre Office/Mine 0.24–1.11 s. | Preserve warm performance while fixing first-use behavior. |
-| LCP alone can give a misleading completion signal | Case LCP was the shell search placeholder in the examined viewport; lazy images arrived later. | Measure meaningful content readiness and visible-image completion alongside LCP. Do not alter content merely to improve the score. |
+- Rewrite Core authorization tests to prove all three staff roles can:
+  - confirm every professional-finding field;
+  - record and apply Engineer’s Value;
+  - create, edit, duplicate, discard, import, and accept estimates;
+  - record an Engineer finding;
+  - self-assign a Case or Triage.
+- Preserve negative tests proving Automation, Provider, and System Worker actors cannot gain human confirmation or Glass’s authority, while Automation can still write its existing unconfirmed fields and AI drafts.
+- Update assignment persistence tests so every enabled staff role is selectable and missing/disabled accounts are refused. Cover role changes without losing an existing assignment or Sign-off Engineer configuration.
+- Update Sign-off Engineer tests so any enabled flagged staff account with a signature is eligible, while unflagged, unsigned, disabled, or missing accounts remain ineligible.
+- Add Web integration coverage using a `User` account for the previously restricted routes:
+  - guide valuation save/fetch, market research, and Engineer’s Value;
+  - finding-field save;
+  - estimate save/import/acceptance and Glass’s control visibility;
+  - report and fee-note generation, delivery preparation, and sending;
+  - Case and Triage `Assign to me`.
+- Update Glass’s gateway/callback tests to prove a `User` with its own configured credential can launch, resume, import, and close its session, while another staff account cannot consume it.
+- Update Work Centre and Case-rendering tests to ensure controls are visible for all staff roles, Mine remains assignment-based, and no Engineer-only availability message remains.
+- Keep existing lifecycle, edit-lease, concurrency, callback, source-evidence, readiness, and Administrator-route denial tests unchanged except where fixtures assumed Engineer role.
+- Run focused Core and Integration suites during implementation, then the canonical locked verification:
+  - `dotnet restore ./Pegasus.slnx --locked-mode`
+  - `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+  - `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"`
+- Perform Case UI verification in read/edit and Scroll/Tabs modes at 1580×1000 and smaller desktop width, confirming that removing gates causes no reflow, duplicate controls, or stale refusal text.
 
-The cache/authentication interaction and cold retrieval path predate the first
-performance branch. The direct-frame reread is a small introduced regression.
-The earlier W6 recorded investigation limits; it did not implement a
-production startup optimization.
+## Assumptions
 
-## 2. Acceptance targets and measurement contract
+- “Any account type” means enabled human staff accounts only.
+- The account role column and role selector remain because the labels may still describe staff, but `Engineer` has no casework privilege.
+- Administrator remains the only role with administration permissions.
+- Existing assignments, sign-off flags, credentials, and sessions remain valid; no persisted data conversion or compatibility path is required.
+</proposed_plan>
 
-The following are proposed engineering acceptance targets for this work,
-not an existing contractual SLA. Freeze them with the implementation baseline.
-A missed target remains visible and needs an explicit disposition; do not
-rename an unresolved target a pass.
+# Step-by-step implementation guide
 
-Use production-style Identity cookies, the release publish configuration and
-a representative dataset containing Case A without confirmed images and
-Case B with nine confirmed images. Keep the same source data, role,
-viewport, host/SKU, process/cache state and throttling between comparisons.
-Record image formats, encoded sizes and decoded dimensions.
+Status: planning only. Application changes and tests below have not been run.
+The original session plan above is preserved verbatim. This guide expands it
+and takes precedence where it explicitly corrects an instruction. It is a
+temporary implementation handoff, not a new permanent requirements owner.
 
-| Scenario | Acceptance |
+## 1. Start here
+
+Pegasus has three human account roles: Administrator, Engineer and User.
+An `ActionActor` identifies whoever is performing an operation. Its `Kind`
+distinguishes human Staff from Automation, Provider and SystemWorker actors.
+The business field called Engineer identifies the person assigned to a Case;
+it is different from the account role called Engineer.
+
+The requested result is that a User can do every casework action an Engineer
+can do. The features stay; the account-role restrictions are removed.
+Administrator still grants administration access. Sign-off remains a separate
+Administrator-configured flag and signature, available on any staff role.
+
+Use PowerShell 7. Every relative path below starts at this worktree root:
+
+```powershell
+Set-Location 'C:\Users\Alex\Documents\GitHub\pegasus-worktrees\remove-engineer-account-gates'
+git branch --show-current
+git status --short
+git rev-parse HEAD
+```
+
+Expected branch: `task/remove-engineer-account-gates`. The starting commit is
+`904903fd12f0b98be7d525aa26c60ea324b4cbd1`. The plan is initially the only
+modified file. Preserve any additional work discovered later. Do not recreate
+the worktree, reset it, switch to the original checkout, or discard changes.
+
+Read these local instructions before implementing:
+
+1. `AGENTS.md`, `docs/index.md` and `CONTEXT.md`.
+2. `docs/engineering.md`, particularly Verification policy, and the setup and
+   locked restore/build/test sections of `docs/runbook.md`.
+3. `.agents/skills/pegasus-ui-guardrails/SKILL.md` and its
+   `references/case-workspace.md` for the Web changes.
+4. Applicable Razor implementation/review skills in `.agents/skills/` before
+   modifying or reviewing routed Razor pages.
+5. Available .NET test-writing and test-running skills before those activities.
+   Use the repository's existing xUnit conventions and fixtures.
+
+Repository orientation:
+
+| Directory | What to change here |
 | --- | --- |
-| Warm Work Centre Office/Mine and default Case | At least 30 runs per primary scenario; p95 LCP ≤1.5 s and p95 document TTFB ≤1.0 s on the unthrottled desktop test. Apply the regression rule below. |
-| Fresh Web-process first Case and Work Centre use | Five controlled observations per selected route/first-use order; report every sample and median/max, not a p95 from five. Each observation must have TTFB ≤1.5 s and meaningful above-fold readiness ≤2.5 s. |
-| Case direct/lazy sections | At least 30 observations per selected primary section journey; section usable within 1 s at p95. Measure from the actual UI event, excluding automation-driver waiting. Correct content and edit permissions are mandatory. |
-| Unchanged current thumbnail, fresh browser cache hit | Zero new thumbnail GETs and zero transferred image bytes when revisiting Report/Files before expiry, except an explicitly forced revalidation. Treat browser cache-disable mode as a separate scenario. |
-| Thumbnail revalidation | Authorized current representation can return 304; authorization/preparation checks occur before 304. Genuine cookie renewal may make that response non-cacheable. |
-| Nine-image burst, derived-cache hits and browser misses | At least 30 bursts; p95 actual gallery-open event → last visible thumbnail complete ≤2 s. Record first completion and concurrent workload too. |
-| Nine-image burst, controlled derived/original misses | Five matched bursts per revision; report each burst, median/max. Target all nine visible thumbnails within 5 s in every burst and ≥50% reduction in median event → last-thumbnail duration. If provider latency prevents this, retain the miss and an evidence-backed design/cost decision. |
-| Reliability and cost | No introduced errors, authorization gap, stale preparation, duplicate fetches, OOM/recycles, provider throttling or unbounded memory growth. Compare requests, bytes, provider/Blob/SQL operations and memory per journey. |
+| `src/Pegasus.Core` | Business authorization rules and request contracts |
+| `src/Pegasus.Infrastructure` | Database queries, transaction checks and Glass's adapter |
+| `src/Pegasus.Web` | HTTP handlers, rendered controls and account-settings script |
+| `tests/Pegasus.Core.Tests` | Policy and command tests using small test doubles |
+| `tests/Pegasus.IntegrationTests` | Database persistence and HTTP behavior tests |
+| `docs/frd` | Current functional requirements |
 
-Measure LCP, FCP, TTFB, main content ready, section mount, first/last visible
-thumbnail, long tasks and CLS. Retain console/network failures.
-Use the previous 1920×855/DPR 1 desktop measurement for comparability, plus
-supported narrow/reflow coverage for affected UI. CPU 4× / Fast 4G is a
-separate sensitivity run, not pooled with the primary results.
+An edit lease is the current staff member's permission to edit one record.
+It carries a token and expiry; expected versions reject stale changes.
+An operation key prevents the same submitted action being applied twice.
+Removing a role check does not remove any of these conditions.
 
-For matched warm LCP, TTFB and section-duration comparisons, a candidate p95
-increase exceeding `max(100 ms, 10% of baseline p95)` triggers one additional
-matched baseline/candidate batch. A repeated breach is a regression even if the
-absolute target passes; conflicting batches are inconclusive. Retain both.
-Fix route order within each comparison and report it; use separate first-use
-orders to expose initialization moved between routes.
+## 2. Lock the target behavior before editing
 
-Distinguish these conditions explicitly:
+Use this matrix as the acceptance specification for the implementation and
+tests. "Allowed" always means the existing prerequisites are satisfied.
 
-- fresh Web process and first route use, with browser assets already held
-  (server first-use, not browser-cold);
-- warm Web process with a fresh browser profile/cold assets;
-- warm Web process with browser-cache bypass;
-- warm Web process and normal browser caching;
-- derived cache hit versus derived miss with original cached;
-- derived and original cache misses; expiry; concurrent same-image misses.
+| Action | Administrator | Engineer | User | Non-human actors |
+| --- | --- | --- | --- | --- |
+| Guide valuation fetch/save, research and calculator | Allowed | Allowed | Allowed | Existing scoped behavior only |
+| Confirm findings and explicitly apply Engineer's Value | Allowed | Allowed | Allowed | Denied |
+| Staff estimate save/edit/import/duplicate/discard/accept | Allowed | Allowed | Allowed | Existing draft/import routes only; never acceptance |
+| Generate report/fee note, prepare and send report | Allowed | Allowed | Allowed | Existing restrictions retained |
+| Be assigned as Engineer or use Assign to me | Allowed | Allowed | Allowed | Cannot impersonate staff for self-assignment |
+| Be configured as Sign-off Engineer | Eligible | Eligible | Eligible | Ineligible |
+| Use own configured Glass's credential/session | Allowed | Allowed | Allowed | Denied |
+| Administer staff, credentials, Principals and settings | Allowed | Denied | Denied | Existing restrictions retained |
 
-Record Web process/instance identity, browser profile/cache state, asset
-preloading, source/derived cache state, session age, route order and exact reset
-action for every cell. A cache-bypass reload proves none of the other cold
-conditions. Keep nine-image samples grouped as bursts, not 270 independent
-images when calculating a burst percentile.
+Keep readiness, source provenance, draft acceptance, signatures, enabled
+accounts, ownership, archive/lifecycle restrictions, antiforgery and audit
+history. A report signatory need not be the person clicking Generate. The
+selected signatory must still have an eligible profile.
 
-Before reset-dependent execution, name the disposable fixture host, database,
-cache namespace, Case/image source manifest and owner in the operator context.
-No matching isolated Linux fixture is established by this plan. Those cells
-remain pending until an existing permitted fixture is identified or a concrete
-new target is authorized. Existing synthetic fixtures may supply data; live
-Cases are read-only evidence. Production restarts, cache purges, account changes
-and provider mutations are not authorized by this plan-writing task.
+Do not rename business fields, lifecycle states, report text such as Engineer's
+Value, historical event kinds or persisted role values. Do not turn User
+accounts into Engineer accounts. This must work with an actual User account.
 
-## 3. Implementation packages
+## 3. Establish the complete edit inventory
 
-### P0 — Establish a reproducible production-style baseline and attribution
+Run these searches before editing and again at completion. Search by symbols
+rather than line numbers, because line numbers change as edits accumulate.
 
-**Output:** a fixed baseline, narrow missing phase measurements, and a bounded
-choice of work for P2/P3. Begin P1/P2's confirmed fixes independently of
-long-running profile analysis.
+```powershell
+rg -n 'StaffRoleCapabilities|HasEngineerRole|RequireEngineer|RequireSelfAssigningEngineer|ActorIsEngineer|EngineerOnly|EngineerRoleRequired' src tests
+rg -n 'StaffRole\.Engineer|StaffRoleNames\.Engineer|IsInRole|RequireRole' src --glob '*.cs' --glob '!**/Migrations/**'
+rg -n 'Engineer|signatoryAllowed|signOff|account-role' src/Pegasus.Web/wwwroot/js/accounts.js src/Pegasus.Web/Pages/Administration/Accounts
+rg -n -i 'only.*engineer|engineer.*only|per-engineer|engineer capabilities|engineer act' docs CONTEXT.md
+```
 
-Owners: existing
-[phase allowlist](../src/Pegasus.Core/Documents/DocumentReadTelemetry.cs),
-[telemetry bridge](../src/Pegasus.Web/DocumentReadTelemetryBridge.cs),
-[Program](../src/Pegasus.Web/Program.cs),
-[Case model](../src/Pegasus.Web/Pages/Cases/Details.cshtml.cs),
-[rail filter](../src/Pegasus.Web/Presentation/RailCountsPageFilter.cs)
-and the existing performance harness.
+Keep all-three-role `[Authorize]` attributes: they already allow User.
+Keep role parsing, stored role labels, account administration and historical
+migration definitions. Classify matches by behavior; never globally replace
+the word Engineer. Include direct HTTP posts, fragment requests, callbacks,
+Core commands and persistence writers in the review.
 
-1. Record source/package identity, framework/publish mode, instance, hosting
-   settings, session type, dataset identity and cache preparation for every run.
-   Capture the existing authenticated baseline before optimization.
-2. Extend the existing sampled/allowlisted telemetry only where needed:
-   authentication validation, expensive renderer initialization, main handler
-   subphases, post-handler shell and Razor/result rendering. Use a Case-scoped
-   resource/result filter, or the existing equivalent, to include PageModel
-   activation before handler execution and isolate result rendering. Name frame,
-   access, workspace, direct/engineer section and extras phases, plus shell
-   counts/Operations/notifications. Use a profiler for JIT, EF compilation,
-   allocations, GC and activation gaps.
-   Do not build a new tracing framework or browser telemetry SDK.
-3. Correlate browser navigation to request and dependency/phase events.
-   Durations are in `AppEvents.Measurements["durationMs"]`, with phase names in
-   `Properties["phase"]`. Keep full page, automatic Refresh fragment and Case
-   Section routes distinct. Do not double-count nested or parallel spans.
-4. Profile first-use on Linux with the actual release publish shape and real
-   cookie authentication. Windows offline profiles remain useful functional
-   evidence, not proof of Linux production first-use latency.
-5. Stop broad exploration once each dominant delay has a named operation and
-   a bounded experiment. Produce a short before/after hypothesis table,
-   retained failed observations, and the selected implementation choice.
+## 4. Change Core authorization and update every caller
 
-Limit profiler capture to three baseline and three candidate traces per
-selected slow condition, at most 60 seconds each. Permit one replacement only
-for a technically invalid capture and retain its failure reason. Use separate
-unprofiled timings for acceptance. Seek unattributed request time no greater
-than `max(100 ms, 10% of request duration)`; after the capture budget, record
-any remaining gap and its consequence rather than continuing indefinitely.
+### 4.1 Exact role identity
 
-Keep existing sampling, Entra ingestion, CSP and daily cap. No SQL text,
-identity values, tokens or document contents in new telemetry. Measure
-telemetry overhead and ingested bytes; remove temporary probes after retaining
-the diagnosis, keeping only useful bounded operational spans.
-Stop temporary capture if projected ingestion would exhaust remaining daily
-cap headroom; do not raise the cap or sampling rate implicitly.
+File: `src/Pegasus.Core/Identity/IdentityContracts.cs`.
 
-**Linux execution boundary:** use an available authorized Linux test host.
-Do not assume B1 deployment slots or provision an extra environment by default.
-If no matching host exists, prepare capture for the approved release restart
-before warm business-page smoke; keep cold acceptance pending until captured.
-Any additional cloud target or restart needs its exact operation/cost scope
-approved first.
+1. Keep `StaffRole`, `StaffRoleNames`, and the exactly-one-recognized-role
+   invariant in `ActionActor.Staff`.
+2. Change `ActionActor.IsInRole` to `Roles.Contains(role)`.
+3. Delete `StaffRoleCapabilities` after replacing its callers below.
+4. Remove the obsolete comment claiming Administrator stores one role but
+   implicitly belongs to every role. All staff can perform casework because
+   they are Staff; management still checks Administrator explicitly.
 
-### P1 — Make image caching work with production Identity cookies
+File: `src/Pegasus.Core/Identity/StaffAuthorization.cs`.
 
-**Output:** effective private caching for unchanged current images, with every
-new authenticated request retaining current access checks.
+Keep the existing access-right matrix. In particular, `PerformCasework`
+also allows Automation, so it alone is insufficient for human acceptance.
+Reuse `AccessStaffApplication` when a common explicit human-staff guard is
+needed; it already requires `ActorKind.Staff`. Do not add a permission registry,
+new service or role alias to make Users look like Engineers.
 
-Owners: [cookie configuration](../src/Pegasus.Web/Program.cs),
-[download endpoint](../src/Pegasus.Web/Pages/Cases/Documents/Download.cshtml.cs),
-[sign-in tests](../tests/Pegasus.IntegrationTests/StaffSignInSecurityTests.cs)
-and [download tests](../tests/Pegasus.IntegrationTests/CaseDocumentDownloadWebTests.cs).
+### 4.2 Findings and valuation
 
-- Keep zero-interval security-stamp validation and current account/session
-  checks. After successful validation has supplied the request principal,
-  clear `context.ShouldRenew` at the end of the successful existing
-  `OnValidatePrincipal` callback, after all rejection checks. This suppresses
-  validation-driven cookie reissue across that callback; do not add a
-  thumbnail-specific authentication exception. Preserve genuine sliding
-  renewal, absolute session age, original-issue claims and rejection paths.
-  The disabled/missing-user rejection must return before the successful tail.
-  Current role/security changes update the security stamp and revoke the
-  session; no principal-comparison framework is needed to preserve them.
-- Verify the distinction between validation-driven `ShouldRenew` and the
-  cookie handler's independent sliding-renewal state in controlled-clock tests.
-  Keep the current two-hour sliding and eight-hour absolute lifetimes.
-  Do not restore caching by weakening validation or by overwriting all response
-  headers after authentication runs.
-- Keep version/preparation identity, ETag semantics, current authorization
-  before 304, canonical Report/Files URLs and private-only caching.
-  Errors, stale/missing preparation addresses and full-image fallback must
-  remain non-cacheable as required by the existing endpoint.
-- Exercise the actual Identity cookie middleware in integration and browser
-  verification. DevelopmentOffline/custom fake-auth tests cannot prove this
-  change.
-- Check response policies beyond images: protected HTML/fragments and
-  sensitive/error/download responses must retain their required `no-store`
-  behavior independently of redundant cookie renewal. Work Centre and Case
-  already declare it explicitly; correct any affected path that relied only
-  on the cookie handler's incidental headers. Keep static asset caching intact.
-
-**Required proof:** unchanged current thumbnail 200 → browser reuse; forced
-authorized revalidation → 304; genuine session renewal; idle/absolute expiry;
-disabled/deleted account, role change, password reset, changed stamp and Force
-logout; missing/wrong Case/version access; invalid/stale preparation; crop and
-rotation invalidation; same URL in Report and Files; no cross-account response
-serving by a server/proxy cache that bypasses current network authorization.
-
-Already downloaded bytes cannot be remotely revoked. FRD-04 requires the next
-request to see current authority; verify that on network requests and do not
-claim browser-local cached copies are erased by logout. Preserve the existing
-private-browser cache contract: it is not partitioned by Pegasus account, so
-switching users in the same browser profile does not erase previously fetched
-bytes. Do not assert otherwise in verification. Changing that contract would
-be a separate explicit policy decision.
-
-### P2 — Remove unnecessary work from the Case request path
-
-**Output:** confirmed redundant reads removed and measured first-use cost
-reduced at its actual owner.
-
-Owners: [Case model](../src/Pegasus.Web/Pages/Cases/Details.cshtml.cs),
-[focused contracts](../src/Pegasus.Core/Cases/CaseQueries.cs),
-[EF readers](../src/Pegasus.Infrastructure/Persistence/EfCaseQueryStore.cs),
-[rail filter](../src/Pegasus.Web/Presentation/RailCountsPageFilter.cs)
-and affected report/query/web fixtures.
-
-**A. Remove GET's dependency on POST-only report initialization.**
-
-The Case constructor currently receives both report-generation services, which
-resolve the QuestPDF renderer and register fonts. Move their resolution to
-their owning report POST path, after the normal authorization/readiness/lease
-guards, using a narrowly scoped existing composition pattern. Keep one
-renderer and its existing font-registration/concurrency rules. Do not split
-the entire Case page, add a generic factory framework or remove report
-content from the GET. Verify draft generation, promotion and final report
-generation, including failure/refusal paths. Measure the gain; this change
-alone is not assumed to explain the 7.333 s response.
-
-**B. Reuse the full page's authorized frame for direct sections.**
-
-Pass the already-read frame through the focused direct-render request.
-Vehicle, Valuation, Files and Notes use it with the existing workspace/data/
-document projections. Add an optional `CaseSectionFrame` to
-`GetCaseSectionQuery`; full-page callers supply `Case.Frame`, while independent
-Section requests omit it and obtain a fresh frame. Include the already-loaded
-custody root/state scalars so Files can skip its workflow/summary reads too.
-Validate that the supplied frame's Case identity matches the requested Case.
-Keep reuse request-local and Case-bound; update all known callers and doubles
-together, without retaining an obsolete query contract.
-
-Prove the two redundant workflow/summary queries disappear on each direct
-path, while missing/forbidden Cases, stale workflow versions and wrong/expired
-edit leases still fail correctly. Cover direct/lazy and Scroll/Tabs, read/edit
-modes, and Report controls while Files is deferred.
-
-**C. Reduce only the remaining measured critical path.**
-
-Use P0 spans to decide whether shared shell serialization, repeated identity/
-document reads, JIT, EF compilation or Razor initialization dominates.
-Runtime Razor compilation is already disabled; disabling it is not new work.
-Reuse existing request-local results. Run independent shell reads concurrently
-only if the shell exceeds 100 ms or 10% of request duration, and only when they
-use separate contexts and retain existing cancellation,
-authorization and partial-failure behavior. Never parallelize EF work on the
-same scoped DbContext.
-
-If JIT remains dominant, compare one release-publish optimization against its
-larger artifact/startup cost. If route warming is considered, measure the work
-it moves to startup and exclude business/provider effects. Neither ReadyToRun
-nor prewarming is the default fix. Stop once targets are met; otherwise record
-the measured remaining blocker and the smallest next candidate.
-
-### P3 — Reduce thumbnail miss latency and control its resource cost
-
-**Output:** measured improvement in the first visible image burst, not merely a
-fast repeat page.
-
-Owners: [content and thumbnail caches](../src/Pegasus.Infrastructure/Custody/CachedDocumentContentStore.cs),
-[provider read gate](../src/Pegasus.Infrastructure/Custody/BoxDocumentContentStore.cs),
-[thumbnail policy](../src/Pegasus.Core/Documents/CaseDocumentPreview.cs),
-[cache tests](../tests/Pegasus.IntegrationTests/DocumentContentCacheTests.cs)
-and the existing gallery callers.
-
-1. Run the same nine-image corpus through each cache state after P1.
-   Keep provider wait/read, original-cache lookup, verification, derived-cache
-   lookup, decode wait, render and cache write separately attributable.
-   Record peak managed/native memory, CPU, errors and first/last image ready.
-2. Remove proven duplicate work for the same requested representation and
-   unnecessary serialization at the existing cache/reader owner. If concurrent
-   same-key misses duplicate retrieval/rendering, reuse the existing locking
-   mechanism or add the smallest bounded coordination there; do not add a
-   distributed cache/service without a measured multi-instance requirement.
-3. Implement reduced-resolution decoding for the plain thumbnail path:
-   `ImageThumbnailRendering.Render` currently fully decodes before resizing;
-   the prepared path already uses `SKCodec.GetScaledDimensions`. Preserve
-   original pixel/byte limits before allocation, source-hash verification,
-   orientation, white alpha composition, rotation, crop geometry and colour.
-   Retain the 480-pixel longest-edge contract. Do not use a thumbnail as
-   full-resolution viewing/cropping input or alter evidential originals.
-   Since decoded output may change, version the generated canonical thumbnail
-   URL, derived-cache variant and ETag renderer identity together. Missing/old
-   representation identities follow existing validated, non-cacheable address
-   behavior; keep one current renderer, not old/new implementations.
-4. Inspect memory retained while requests await decode, including source
-   buffering before gate admission. Optimize demonstrated excessive buffering
-   before considering larger concurrency.
-5. Retain the current four provider-read and two decode slots for the first
-   comparison. If targets still miss, test at most two bounded alternatives:
-   four provider/three decode slots, then six provider/three decode slots.
-   Reject either for more than 10% peak-RSS increase, any introduced image
-   failure, recycle/OOM or 429/5xx, increased provider calls/bytes for the same
-   corpus, or more than 10% concurrent non-image p95 regression. Retain the
-   smaller bounds unless a candidate meets both latency and resource gates.
-
-If cold provider latency still prevents the target, compare early generation
-within an existing confirmed-custody/preparation flow with leaving work on
-first view. Record exact trigger, identities, invalidation, retry/cancellation,
-provider requests and storage cost before selecting it. Do not create an
-unbounded warmer, extend the FRD's 24-hour idle retention, or add a worker by
-default. A decision to move work earlier must remain in this package's explicit
-scope and receive its own review.
-
-**Required proof:** original/derived miss and hit; idle expiry; concurrent same
-and different images; cancellation while queued/reading/decoding; malformed and
-oversized sources; temporary provider/Blob failures; integrity mismatch; cache
-write failure; preparation changing during retrieval; placeholders for pending/
-failed custody; no durable-custody or logical-association changes.
-
-### P4 — Reduce measured browser payload and layout costs
-
-**Output:** smaller first-visit cost without a redesign or a cosmetic LCP fix.
-
-Owners: [site script](../src/Pegasus.Web/wwwroot/js/site.js),
-[Case script](../src/Pegasus.Web/wwwroot/js/case-workspace.js),
-[shared layout](../src/Pegasus.Web/Pages/Shared/_Layout.cshtml),
-[styles](../src/Pegasus.Web/wwwroot/css/site.css) and the existing font assets.
-
-- Avoid palette initialization forcing `scrollIntoView` while its UI is closed.
-  Preserve keyboard selection/visibility when opened. Batch read/write layout
-  work only where the captured forced layouts justify it.
-- Evaluate subsetting the 352 KB regular and 388 KB italic Inter fonts against
-  actual supported glyphs, symbols, names and fallback rendering. Keep license
-  notices, variable weights and visual consistency. Do not add preload to every
-  font or replace `font-display:swap` merely to change the metric.
-- Measure selective dynamic HTML compression for the observed 48–123 KB
-  documents. Review HTTPS response secrets, antiforgery tokens and reflected
-  input before enabling it. Compress only eligible responses with correct
-  `Vary`; keep images/already-compressed assets and sensitive responses out
-  where required. If safe savings are insignificant, record a justified skip.
-- Recheck delayed section mounting, keyboard navigation, focus, scroll,
-  supported widths, 200% reflow, forced colours, reduced motion and CLS.
-  Use the existing Razor implementation/review skills for any UI diff.
-
-This package follows the server/cache changes and is measurement-gated.
-Do not hide/remove the search placeholder, defer required Case content, or
-claim its LCP represents all images being ready.
-
-### P5 — Integrate, review, release and verify the live result
-
-**Output:** reviewed code, exact-candidate evidence, an approved deployment and
-authenticated live acceptance with remaining limitations stated.
-
-1. Create the implementation worktree from refreshed `dev`; record the actual
-   base SHA. Leave unrelated skill and v27 design work untouched. Commit
-   cohesive slices: attribution; auth/cache; Case reads/activation; thumbnail
-   work; any justified browser changes; final evidence/documentation.
-2. Run appropriate focused verification after each relevant slice. Shared
-   authentication/composition changes require full required solution/CI
-   evidence on the final candidate. Use the repository's current test platform,
-   run-tests skill and [runbook](../docs/runbook.md); do not invent command flags
-   or weaken fixtures to make them pass.
-3. Run a pegasus-reviewer before pushing, then open a draft PR. Perform the
-   independent direct review on its complete diff; apply the Razor review
-   skill to affected routed UI. Post findings with exact-SHA source, sanitized
-   browser/Azure evidence and CI links. Remediate blockers and rerun only the
-   affected checks unless the changed scope requires more.
-4. Update architecture only for actual structural changes; update affected FRDs
-   only for an accepted behavior change. Put dated deployed results in
-   [Operations](../docs/operations.md). Keep the PR's performance table tied to
-   exact artifact, environment, dataset and authentication identities.
-5. With no blocking findings, integrate the reviewed candidate into `dev`.
-   Prepare promotion and deployment through the existing release procedure,
-   honoring the current operator's authorization and its exact target/artifact
-   bounds. New deployment approval is requested only after the release packet
-   is concrete and reviewable; approval of the previous release is not an
-   approval of these future bytes.
-6. The packet identifies source SHA, manifest and package hashes, changed
-   services, schema classification, target resources, expected restart effects,
-   capture order, smoke and recovery. Default schema classification is unchanged,
-   but verify it against actual candidate/deployed migrations.
-7. After approved deployment, verify exact source/package identity and readiness.
-   Capture first authenticated business-route use before warm checks when
-   feasible, then run full prescribed smoke and the authenticated Work Centre,
-   Case section, Report/Files and cache checks. No carry-forward waiver of the
-   previous release's skipped authenticated check.
-8. Observe subsequent ordinary traffic and the next available natural first-use
-   window. Query slow-route tails, request/dependency failures, provider/decode
-   waits, memory/recycles and ingestion usage. Close only with the acceptance
-   table completed; record missed/inconclusive targets honestly.
-
-If matching Linux cold measurements are first obtainable during the approved
-release, deployment health and warm smoke are provisional performance evidence;
-the first-use acceptance item remains open until measured. Do not deploy
-additional infrastructure or cause extra restarts to manufacture a pass.
-
-## 4. Agent ownership and verification coordination
-
-The primary owns integration, overlaps, operator communication, GitHub writes
-and release operations. Use the repository's configured roles:
-
-| Role | Bounded assignment |
+| File | Exact edit |
 | --- | --- |
-| pegasus-scout | Inventory the exact touched callers, fixtures and evidence paths if the base changed. |
-| pegasus-investigator | P0 causal attribution and the bounded P3 choice, returning evidence and a stop condition. |
-| pegasus-implementer A | P1 authentication/download scope and its tests. |
-| pegasus-implementer B | P2 Case contracts/readers and affected fixtures. |
-| pegasus-implementer C | P3 cache/provider/render scope; P4 only as a separate later assignment. |
-| pegasus-reviewer | Independent final source/requirements/evidence review; no self-review of authored implementation. |
-| pegasus-verifier | Sole assigned host build/test/browser/profile owner against frozen inputs. |
+| `src/Pegasus.Core/Assessment/AssessmentPolicy.cs` | In `RequireFindingConfirmationAuthority`, remove the Engineer-role predicate, retain the Staff-kind check and change the refusal to say authenticated staff. Update the XML comment and readiness instructions that exclusively name an Engineer reviewer. |
+| `src/Pegasus.Core/Cases/CaseContracts.cs` | In Engineer-finding request validation, retain Staff kind, nonempty parsed staff ID and assessment validation; remove only the Engineer-role condition and revise its refusal wording. |
+| `src/Pegasus.Core/Cases/CaseWorkspace.cs` | Keep the finding-authority call for submitted finding fields. It now permits all staff. Replace its estimate authority call as described in 4.3. |
+| `src/Pegasus.Core/Assessment/Valuations.cs` | Keep `RequireActor` and its finding check for `EngineersValue`; update comments to describe staff confirmation. |
+| `src/Pegasus.Core/Assessment/ValuationCalculations.cs` | Keep `ValidateApply` calling the revised finding-authority rule. Preserve calculation, basis, reason and explicit Apply requirements. |
+| `src/Pegasus.Infrastructure/Persistence/EfValuationStore.cs` | Keep its finding-authority call, including when an edit changes a former Engineer's Value to another source. It must still reject non-human confirmation/clearing. |
 
-Normally keep 2–4 useful children active. Program/telemetry/Case overlaps are
-integrated by the primary in sequence, not edited by overlapping workers.
-Every assignment names direct-work or ticket/worktree, source root, exact
-revision, allowed files, output and stop condition. Children do not recursively
-delegate or start host workloads.
+Do not delete `IsFinding` from `AssessmentContracts.cs`: it describes
+professional data and its confirmation semantics. All staff may now confirm
+these fields, while Automation values remain unconfirmed. Do not expose a
+generic write to the adopted Engineer's Value field as part of this change.
 
-Create the current implementation operator context and point participating
-sessions to the one canonical shared host-slot record. Reuse its coordination
-history, never its stale grant; do not create a competing slot file. Reread
-explicit idle and record a new owner, current host, frozen revision/input hashes
-and permitted workload before execution. Check other execution contexts and
-processes, and record explicit idle before each handoff.
-Local verification and release packaging never overlap; remote CI evidence
-must identify its host/run/candidate separately.
+### 4.3 Estimates and Glass's
 
-## 5. Regression and cost ledger
+File: `src/Pegasus.Core/Assessment/RepairSpecifications.cs`.
 
-| Risk | Required guard/evidence |
+Rename `RequireEngineer(ActionActor actor)` to
+`RequireStaffAuthor(ActionActor actor)`. Retain its null check, Staff-kind
+check and `InvalidOperationException` shape; remove the role predicate.
+Use a refusal that names authenticated staff. Keep acceptance/provenance checks.
+
+Update all calls to the renamed method in these files:
+
+- `src/Pegasus.Core/Assessment/RepairSpecifications.cs`
+- `src/Pegasus.Core/Assessment/Estimates.cs`
+- `src/Pegasus.Core/Assessment/GlassRepairEstimates.cs`
+- `src/Pegasus.Core/Cases/CaseWorkspace.cs`
+- `src/Pegasus.Infrastructure/Persistence/EfRepairSpecificationStore.cs`
+- `src/Pegasus.Infrastructure/Glass/GlassRepairEstimateGateway.cs`
+
+In `Estimates.cs`, keep the existing Automation branches: a draft save must
+still cite its allowed AI job/source, and import must still produce a Draft.
+`ValidateSetCurrent`, Duplicate, Discard and human line-amendment paths must
+require Staff, now without a role test. Do not accidentally replace these with
+`PerformCasework`, which would admit Automation acceptance.
+
+For Glass's, preserve Launch, Resume, estimator-URL and callback ownership,
+correlation, credential-generation and account-slot checks. Keep close-session
+validation and explicit external-session-closed confirmation. Review
+`EfGlassRepairEstimateSessionStore.cs`, `GlassRepairEstimateCaseAuthority.cs`
+and `EfPerUserExternalCredentialStore.cs` to ensure the revised policy reaches
+their writers and disabled accounts still fail through existing checks.
+
+## 5. Permit all staff assignments and sign-off profiles
+
+### 5.1 Case/Triage assignment
+
+1. In `src/Pegasus.Core/Identity/CaseEngineerEligibility.cs`, change the record
+   to `CaseEngineerEligibility(bool AccountExists, bool IsEnabled)`.
+   Keep the existing interface and business name.
+2. In `src/Pegasus.Infrastructure/Persistence/EfCaseEngineerEligibility.cs`,
+   delete `EngineerEligibleRoleNames` and the role-membership subquery.
+   Project only account existence and enabled state. Missing account returns
+   `new CaseEngineerEligibility(false, false)`.
+3. In `src/Pegasus.Core/Lifecycle/CaseLifecycle.cs`, remove only the
+   `HasEngineerRole` rejection in `CaseEngineerEligibilityPolicy`.
+   Keep checks used by assignment, StartCaseWork and ReturnCaseToEngineer.
+4. Rename `RequireSelfAssigningEngineer` to `RequireSelfAssigningStaff`.
+   Retain Staff kind and parsed nonempty staff ID; remove the role predicate.
+   Update callers in `Lifecycle/AssignCaseToMe.cs` and
+   `Triage/TriageLifecycle.cs` and revise the refusal wording.
+5. In `src/Pegasus.Core/Operations/OperationsSnapshot.cs`, remove the role
+   predicate from `NeedsAttentionPolicy.CanTake`; keep Staff kind and allowed
+   item kinds. Preserve owner, state and unassigned checks at callers.
+6. In `src/Pegasus.Infrastructure/Persistence/EfStaffAccountQueries.cs`, update
+   `ICaseEngineerChoices.GetAsync` to return enabled staff with a displayable
+   username in the existing stable order. Remove its Engineer/Admin filter.
+7. Replace the role filters in `src/Pegasus.Web/Pages/Index.cshtml.cs` and
+   `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` with enabled-account filters.
+   Preserve pagination and naming behavior; avoid unrelated query redesign.
+8. Remove role tests from `CanAssignToMe` in the Work Centre and
+   `src/Pegasus.Web/Pages/Cases/Details.Frame.cs`. Keep Case-state conditions.
+   Triage visibility follows the updated `CanTake` policy.
+9. Change Work Centre `DefaultScope` to Office for all roles. Preserve explicit
+   Office/Mine selections and owner-based Mine filtering.
+
+Update all constructor usages and test doubles after removing the third
+eligibility field. Search `CaseEngineerEligibility` and `HasEngineerRole` to
+find them. EVA handoff/export callers also consume this eligibility policy;
+test them with a User assignee instead of leaving an implicit role restriction.
+
+### 5.2 Sign-off eligibility
+
+| File | Exact edit |
 | --- | --- |
-| Caching improves speed by weakening access | Real Identity-cookie tests; network revalidation observes revocation and rejects unauthorized 304. Private caching never becomes shared/public. |
-| Cookie renewal fix changes idle/absolute expiry | Controlled-clock tests across renewal boundaries and original-issue preservation, including concurrent requests. |
-| Same-request frame reuse leaks stale/different Case state | Case-bound request-local data, fresh standalone fragment reads, workflow/lease and forbidden/missing cases. |
-| Removing eager report services breaks report actions | All affected report handlers, rejection paths and exact production composition; preserve font registration and render limits. |
-| More parallel reads use one EF context | Separate-context ownership proof, cancellation and error behavior; no concurrent shared-context queries. |
-| Thumbnail optimization changes evidence | Retained original identity/hash, exact preparation, output geometry/orientation and fallback/refusal behavior. |
-| Faster thumbnails consume more memory/provider capacity | Compare peak RSS/GC, queued source buffers, provider rate/429s and error rate; preserve or justify admission limits. |
-| Warming moves cost into startup or intake | Measure readiness, intake latency, provider operations, cache bytes and expiry work; no hidden side effects. |
-| New telemetry increases bill/loses privacy | Sampled allowlisted fields, existing cap, emitted-record inspection and bytes/headroom before/after. |
-| Payload optimization changes security or UI | Compression threat review; glyph/license coverage; keyboard/focus/reflow checks; measured benefit. |
-| Small sample hides remaining latency | Retain failures and cache/process identity, separate median/p95/max, compare matching runs and inspect live tails. |
+| `src/Pegasus.Core/Identity/StaffAccountAdministration.cs` | Remove the role parameter from `SignOffEngineerEligibility.IsEligible`; require enabled, flagged and nonempty signature. In settings normalization, set `isSignOffEngineer = request.IsSignOffEngineer`, retaining the default-requires-flag relationship. Do not clear sign-off data when role becomes User. Delete the unused `SignOffEngineerRequiresEngineerRole` error member. |
+| `src/Pegasus.Infrastructure/Persistence/EfStaffAccountQueries.cs` | Remove the Engineer/Admin role filter from `ListSignOffEngineersAsync`. Update both list and single-profile calls to the new signature. Preserve account validity checks and printed-name/signature mapping. |
+| `src/Pegasus.Infrastructure/Persistence/EfStaffAccountAdministration.cs` | Update `ApplySignOffSettings` to the new eligibility signature. Preserve signature validation, expected versions, default uniqueness, transaction history and security-stamp behavior on role changes. |
+| `src/Pegasus.Web/Pages/Administration/Accounts/Index.cshtml` | Remove `signatoryAllowed`, the role-based disabled attributes and the hidden false input inserted for a User. All account roles expose the existing sign-off controls. Keep self-role-change protections. |
+| `src/Pegasus.Web/wwwroot/js/accounts.js` | Remove `syncSignOffEligibility`, its calls and its role-change listener. Remove now-unused role/sign-off/default variables. Preserve form reset, mount binding and unsaved-settings protection on Manage login navigation. |
+| `src/Pegasus.Web/Pages/Administration/Accounts/Index.cshtml.cs` | Remove the deleted error member's message mapping. |
+| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Remove the User-role early return from `SignOffState`; remove the now-unused Engineer-role-required message. |
 
-No SKU increase, longer cache retention, new telemetry SDK or distributed
-coordination is justified by current evidence. If a measured blocker requires
-one, present the concrete alternative, expected recurring cost, operations
-impact and acceptance benefit before adding it.
+Search `SignOffEngineerEligibility.IsEligible` to update every remaining
+caller and test. Existing User accounts start with their current settings;
+do not manufacture signatures or retroactively restore cleared settings.
 
-## 6. Completion record
+## 6. Remove Web gates on every entry point
 
-For each package record: exact commit, changed behavior, verification/run links,
-before/after measurements, cost evidence, review disposition and any remaining
-limitation. Distinguish implemented, tested, deployed and live-accepted.
+Primary file: `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs`.
 
-This plan is complete as a planning deliverable when independently reviewed and
-its links/placement are checked. Performance implementation is complete only
-when the agreed targets and security/functionality checks above are satisfied,
-or a specific remaining limitation is explicitly accepted. Then stop.
+1. Delete `ActorIsEngineer` and its assignments. Remove it from estimate
+   editable/duplicate/current predicates and Glass's launch/close predicates.
+   Keep assessment access, lifecycle, estimate state, credentials and ownership.
+2. Make `CanEditAssessmentField` depend on existing engineering edit authority,
+   with no role or `IsFinding` permission branch. Keep field validation in Core.
+3. Remove the Engineer-only branch from `ImportCondition`.
+4. In the Glass's model loader, replace the Engineer check with the existing
+   authenticated Staff identity requirement and staff-ID parsing. User accounts
+   must load their own credential status and own session.
+5. In `GuardSectionCommandAsync`, remove the `engineerOnlyRefusal` parameter
+   and role rejection. Update `GuardReportCommandAsync` and
+   `GuardValuationCommandAsync` calls. Keep actor, assessment access,
+   read-only-state, operation-key and lease-token checks.
+6. In `GuardEstimateEditAsync`, remove the role rejection; retain its other
+   checks and current Case-version read.
+7. In `OnPostCloseGlassAsync`, retain authenticated actor/ID, session-owner and
+   access checks; remove the Engineer-role clause.
+8. In `Pages/Cases/Shared/_CaseEstimate.cshtml`, remove `Model.ActorIsEngineer`
+   from `offersNewEstimate`. Review action conditions throughout that partial.
+9. Delete `EngineerOnlyImport` in `Presentation/OperatorLabels.cs` after all
+   references have been removed. Update nearby descriptions that claim only
+   Engineers can operate controls.
+10. In `Pages/Integrations/Glass/Callback.cshtml.cs`, simplify the helper that
+    identifies staff to `actor.Kind == ActorKind.Staff`. Preserve its anonymous
+    bounce, authentication, correlation and owner checks.
 
-### Implementation observations — 16 September 2026
+Entry-point checklist (handler names are exact, URLs come from each page's
+`@page` declaration and generated forms):
 
-Implementation base is unchanged at `5765a527a7729e606fe5683b3af3d47a17c708ff`,
-on `perf/first-use-and-image-cache` in the separate `performance-next` worktree.
-The original checkout's uncommitted plan and v27 material remain untouched.
-The live version was rechecked as `e8efb19779baadc5ea46bd9c62e6c9c54740cac7`.
+| Page model | Handlers to trace and verify |
+| --- | --- |
+| `Pages/Cases/Details.Valuation.cs` | `PreviewValuation`, `ApplyValuation`, `StartMarketResearch`, `SaveValuation`, `GetValuation` |
+| `Pages/Cases/Details.cshtml.cs` | `Save`, `SaveEstimate`, `EditLine`, `DuplicateEstimate`, `DiscardEstimate`, `SetCurrentEstimate`, `ImportEstimate`, `CompleteEstimateImport` |
+| Same Case model | `LaunchGlass`, `ResumeGlass`, `CloseGlass` |
+| Same Case model | `GenerateReportDraft`, GET/POST `PreviewReportDraft`, `EstimateDocument`, `GenerateReport`, `GenerateFeeNote`, `PrepareReportDelivery`, `SendPreparedReport`, `GeneratedArtifact` |
+| `Pages/Cases/Workflow.cshtml.cs` | `AssignEngineer`, `AssignToMe`, `SetSignOffEngineer`, `RecordEngineerFinding` |
+| `Pages/Index.cshtml.cs` | `AssignEngineer`, `AssignToMe`, `AssignTriageToMe`; assignment dialog and default scope |
+| `Pages/Triage/Details.cshtml.cs` | `AssignToMe`, ordinary assignment through `Action`, roster/visibility loading |
+| `Pages/Administration/Accounts/Index.cshtml.cs` | Account `Settings`, including role changes and sign-off settings |
+| `Pages/Administration/Glass/Index.cshtml.cs` | Administrator configures any target staff role; target user cannot administer credentials |
+| `Pages/Integrations/Glass/Callback.cshtml.cs` | Return/bounce and completion using the session owner's User account |
 
-The real production Identity session supplied by the operator was used for
-the read-only baseline below: desktop 1920×855, DPR 1, no throttling, normal
-browser caching, fixed Office → Mine → Case A → Case B order. No process,
-source cache or derived cache was reset. Case B has nine distinct thumbnail
-addresses. These observations establish warm baseline only.
+Do not add an edit-lease requirement to SendPreparedReport or previews merely
+to match generation: preserve each operation's existing contract. The old
+Assessment route is a redirect; ensure it still lands on usable controls for
+a User. Full-page, direct-section and lazy-section rendering must agree.
 
-| Scenario | Valid LCP samples | Baseline p95 LCP | Paired p95 TTFB |
-| --- | --- | --- | --- |
-| Work Centre Office | 30 | 464 ms | 310 ms |
-| Work Centre Mine | 30 | 1,096 ms | 958 ms |
-| Case A | 30 | 672 ms | 544 ms |
-| Case B | 30 | 464 ms | 291 ms |
+## 7. Update tests alongside each implementation step
 
-The first 120 navigations retained 34 missing paint entries despite reporting
-visible state. Explicitly bringing the tab forward restored paint reporting;
-36 additional navigations supplied the missing observations. The table uses
-the first 30 valid paints per route and their paired TTFB, never zero-filled
-missing paints. Original samples and the supplement are retained separately.
-No script errors or failed resource status codes were recorded. The
-DOMContentLoaded double-frame marker is only a paint opportunity proxy, not
-proof that sections or images are ready.
+Use `[Theory]` and `[InlineData(StaffRole.Administrator)]`, Engineer and User
+where the same behavior must work for all roles. Build each actor with a
+nonempty GUID and exactly one role. Test successful state changes/history,
+not merely the absence of an exception or an HTTP redirect.
 
-Private working evidence and the canonical shared host-slot pointer are in
-`artifacts/performance/implementation-20260916/` in the original checkout.
-The PR carries sanitized results; these ignored files are not portable links.
+Replace obsolete User-denial tests with role-parity tests. Keep or add separate
+Automation, Provider and SystemWorker denial tests for human-only actions.
+Do not remove negative tests for stale versions, missing leases or other
+conditions just because those tests use a User fixture.
 
-| Package | Implemented choice | Remaining evidence or decision |
-| --- | --- | --- |
-| P0 | Bounded authentication, workspace activation/result, Case subphase, Work Centre full/Refresh, shell and renderer-initialization spans in the existing sampled pipeline. | Controlled Linux first-use attribution, profiler captures, ingestion overhead/headroom and candidate comparison remain pending. |
-| P1 | Successful validation no longer reissues cookies; current checks and sliding renewal remain. Protected Razor responses default to no-store independently of cookie renewal. | Candidate actual-cookie integration execution and browser cache reuse evidence pending. |
-| P2 | Direct sections reuse the same-request Case-bound frame with custody scalars. Main Case GET does not resolve report generators. Dedicated preview GET preserves its established action and resolves only on that path. | Candidate regression execution and measured first-use gain pending; no claim that renderer initialization explains all prior delay. |
-| P3 | Scaled plain decode, coordinated current renderer URL/cache/ETag identity and bounded same-representation miss coordination. Source copying occurs after decode admission. Provider/decode limits remain four/two. | Candidate regression execution; matched nine-image provider/cache bursts, RSS/GC and concurrent workload acceptance remain pending. |
-| P4 | Closed palette no longer invokes scrollIntoView. An actual-script static shell fixture proves open/arrow/Escape/focus return. | Routed candidate browser coverage pending. Font subsetting is deferred without supported glyph and benefit evidence. Dynamic HTML compression is deferred: antiforgery/reflected content needs specific review and retained traces showed no LCP gain. |
-| P5 | Independent source review and serialized verification are in progress. | No deployment or live acceptance has occurred. Concrete artifact/target approval remains required for release. |
+### Core test edits
 
-No authorized matching Linux fixture was established. Do not substitute local
-Windows/TestServer tests for Linux cold acceptance or infer provider costs
-from a synthetic source. No additional environment, concurrency increase,
-prewarming, ReadyToRun, cache-retention change or hosting change is selected.
+All paths below are relative to `tests/Pegasus.Core.Tests/`.
 
-The first frozen candidate, `a13e97373`, passed locked restore and Release
-build (zero warnings/errors), Core (2,199 passed, 14 skipped), Architecture
-(120 passed), documentation links and Markdown placement. Its focused
-Integration run completed with 337 passed, four failed and none skipped.
-Two failures were assertions that prohibited every response cookie on
-an HTML form instead of specifically prohibiting Identity-ticket renewal.
-Two shared a malformed PNG fixture: its RGBA scanline lacked a byte and its
-IDAT checksum was invalid. These failures and the bounded diagnostic are
-retained, not counted as passes. The corrected candidate requires reruns.
-The orientation fixture is also strengthened to assert asymmetric pixel
-positions, and cancellation is checked before and after native rendering.
+| Test file | Required changes and assertions |
+| --- | --- |
+| `Identity/IdentityUseCaseTests.cs` | Replace Administrator role-inheritance assertions with exact stored-role assertions. All three roles have ordinary casework; only Administrator has management rights. Parameterize sign-off eligibility across roles at callers, with disabled/unflagged/unsigned rejection. |
+| `Identity/StaffActorFactoryTests.cs` | Rename the scalar-Administrator inheritance test; assert one actual role and no inferred Engineer role. Keep missing, unknown and multiple-role rejection. |
+| `Assessment/AssessmentPolicyTests.cs` | Replace `NonEngineerStaffCannotRecordFindingFields` with successful Staff-role theories. Exercise every finding definition, with the adopted Engineer's Value still refused on generic save. Keep ordinary-field and Automation-unconfirmed tests. |
+| `Cases/EngineerFindingPolicyTests.cs` (new) | Directly test the currently untested `EngineerFindingPolicy`: all three staff roles may record a finding when the Case is assigned to them and in an eligible state; non-staff, unassigned/wrong assignee and wrong-state cases remain refused. |
+| `Assessment/ValuationTests.cs` | Replace Engineer-exclusive actor expectations with all-staff success, preserving typed source validation and human-only save rules. |
+| `Assessment/ValuationCalculationTests.cs` | Replace `AdministratorMayAdoptAnEngineersValueWhileUserAndNonStaffCannot` with all-staff Apply success plus separate non-staff rejection. Assert calculated/adopted value and actor attribution. |
+| `Assessment/RepairSpecificationPolicyTests.cs`, `Assessment/EstimateTests.cs`, `Assessment/EstimateLineAmendmentTests.cs` | Replace `AStaffUserWhoIsNotAnEngineerCannotSaveAnEstimate`; cover save, amendments, import, duplicate, discard and acceptance for all roles. Preserve AI job/source restrictions. |
+| `Assessment/GlassRepairEstimateSessionPolicyTests.cs` | User owner may close; another staff ID and all non-human kinds remain refused. |
+| `Cases/CaseWorkspaceTests.cs`, `Cases/CaseRecordGapsTests.cs` | User saves finding/estimate sections and records findings through the named command; preserved values and attribution agree with Engineer behavior. |
+| `Lifecycle/AssignToMeTests.cs` | Replace `AUserCannotTakeACase` and Triage User refusal. For each staff role assert assigned ID equals actor ID; already assigned and wrong-state records still refuse. |
+| `Lifecycle/AssignCaseEngineerTests.cs` | Update eligibility doubles to two booleans; remove the non-Engineer failure case and retain missing/disabled failures and sign-off default selection. |
+| `Operations/OperationsUseCaseTests.cs`, `Operations/DashboardBoundaryTests.cs` | Check Take/Mine eligibility for all staff roles and retain non-staff boundaries. |
 
-The corrected `0a63f80b3` build passed with zero warnings/errors; the affected
-four-class Integration rerun had 29 passed, one failed and none skipped.
-All four originally failing assertions passed. The remaining lifetime assertion
-expected two SQL user reads, but observed one; tracked-entity reuse makes that count an
-invalid proof of security-stamp validation. Its replacement observes the
-successful principal-refresh callback while preserving the application's
-original callback. Renewal and idle/absolute boundary assertions remain.
+### Integration and Web test edits
+
+All paths below are relative to `tests/Pegasus.IntegrationTests/`.
+
+| Test files | Evidence required |
+| --- | --- |
+| `CaseValuationWebTests.cs`, `CaseValuationV26WebTests.cs`, `AssessmentPersistenceIntegrationTests.cs` | A real User request fetches/saves a guide, starts research, previews calculation and applies Engineer's Value. Verify persisted result and attribution; disconnected providers still give the existing notice. |
+| `CaseEditModeWebTests.cs`, `CaseWorkspacePersistenceTests.cs`, `CaseEngineerSectionsWebTests.cs` | User gets live controls under its own lease, saves finding fields, and sees committed results in full and fragment responses. Colleague lease and Held/Completed restrictions remain. |
+| `AssessmentEstimateImportWebTests.cs`, `CaseEstimateHeaderWebTests.cs`, `AssessmentPersistenceIntegrationTests.cs` | User imports a Draft, completes retained import and accepts it; save/amend/duplicate/discard work. Verify import alone never changes Current. |
+| `CaseCapabilityPagesTestSupport.cs` | Add a role parameter to the shared test identity/edit-mode helper so real User HTTP requests can reuse the current anti-forgery and lease setup instead of hard-coding Engineer. |
+| `Reports/AssessmentReportDraftWebTests.cs` | Exercise report-draft generation and both preview entry points with a User account; preserve readiness and immutable-artifact rules. |
+| `CaseEngineerChoicesPersistenceTests.cs` | Rename `EngineerChoicesReturnOnlyEnabledEngineersInStableOrder`; include enabled accounts of all roles and exclude disabled accounts in stable order. |
+| `CaseWorkflowPersistenceTests.cs`, `CaseWorkflowWebTests.cs`, `WorkCentreWebTests.cs`, `TriageQueuesWebTests.cs` | User assignment and all self-assignment entry points work. Update two-boolean eligibility fixtures. Replace `MissingDisabledOrNonEngineerStaffCannotBeAssigned` with missing/disabled cases and separate User success. Default scope is Office for every role. |
+| `StaffAccountAdministrationPersistenceTests.cs`, `StaffAccountsAndRolesWebTests.cs` | Administrator flags User with valid printed name/signature and selects it as default. Engineer-to-User settings save preserves supplied sign-off data; selecting No explicitly clears it. Non-admin management remains forbidden. |
+| `GlassCredentialAdministrationWebTests.cs`, `ExternalCredentialIsolationTests.cs` | Administrator configures a User's credential; the User can use its own material through allowed operations, cannot reveal stored passwords or access another account's material. |
+| `GlassRepairEstimateGatewayTests.cs`, `GlassRepairEstimateCallbackWebTests.cs`, `GlassRepairEstimatePersistenceTests.cs` | User-owner launch, resume, callback import and close succeed with test provider adapters. Rewrite the non-Engineer visibility denial; retain no-credential, other-owner, stale-generation and disabled-account refusals. |
+| `Reports/CaseReportGenerationPersistenceTests.cs`, `Reports/CaseReportDeliveryWebTests.cs`, `Reports/CaseReportDeliveryPreparationPersistenceTests.cs`, `CaseReportApprovalWebTests.cs` | User generates report and fee note, prepares delivery and explicitly sends it using existing test transports; correct signatory and immutable generation are retained. Stale preparation and missing Sent evidence still fail as before. |
+| `CustodyOutboxIntegrationTests.cs`, `EvaCaseEvidenceReaderTests.cs` | An eligible User assignee/signatory passes the relevant native/EVA projection checks; missing signature/disabled selection still fails. |
+| `AutomationAssessmentIngressTests.cs`, `AutomationMcpIngressTests.cs`, `ProviderApiSubmissionTests.cs` | Existing transports cannot obtain newly broadened human authority; AI output stays draft/unconfirmed and provider access remains scoped. |
+
+Use existing local test hosts, fake provider gateways and disposable database
+fixtures. For HTTP tests obtain the antiforgery token and lease exactly as
+existing positive tests do; changing a role claim alone is insufficient if a
+test exercises a real persisted Identity account. Use a fresh real User fixture
+where current-account checks apply. Exercise direct POSTs, not only visibility.
+
+Review `StaffSignInSecurityTests.cs` and existing cookie tests for disabled,
+deleted and revoked-session behavior. Do not loosen these to make parity pass.
+No automated test harness for `accounts.js` currently exists. Do not add a
+JavaScript framework for this permission change. Verify changing the role to
+User leaves signature/default fields enabled and intact in the browser
+walkthrough in step 9; server-side persistence is proved in the account
+administration integration tests. Also confirm Cancel still resets the form.
+
+## 8. Make current documentation tell the same story
+
+Edit these owners in the same implementation change. Preserve settled domain
+names and historical evidence; change exclusive account-role claims.
+
+| Document | Required edit |
+| --- | --- |
+| `docs/frd/frd-04-parties-accounts-and-access.md` | Explain exact roles, equal human casework rights and Administrator-only management. State every enabled staff role is assignable and can be configured for sign-off. Describe vendor credentials as per-staff. |
+| `docs/frd/frd-03-triage.md` | Explain all enabled staff may be assigned and self-assign when the existing state/lease rules allow. |
+| `docs/frd/frd-13-case-lifecycle-and-workflow.md` | Replace role-exclusive self-assignment and Engineer's Value wording. Preserve workflow labels and signatory defaults. |
+| `docs/frd/frd-15-work-centre-queues-and-search.md` | Document Office default for all roles and role-independent Take/Mine behavior. |
+| `docs/frd/frd-16-case-record-workspace.md` | All staff may use valuation, findings, estimates, reports and assignment controls under normal edit authority. |
+| `docs/frd/frd-24-engineer-findings-damage-valuation-and-settlement.md` | Explicit Apply/confirmation is a human staff act; numerical, provenance and readiness contracts are unchanged. |
+| `docs/frd/frd-25-repair-estimates-imports-and-glasss-sessions.md` | Any human staff author may change/accept estimates and use its own Glass's session. Imports remain Draft until explicitly accepted. |
+| `docs/frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md` | Human staff, regardless of role, confirm findings and accept AI estimates. Automation still cannot accept or send autonomously. |
+| `docs/frd/frd-10-mcp-automation-and-actor-boundary.md` | Clarify any Engineer-only reviewer language while retaining the exact non-human action inventory. |
+| `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` | Report generation/preparation/send are human staff actions; the separate selected signatory profile remains required. |
+| `docs/frd/frd-17-administration-workspace.md` | Sign-off controls apply to any staff role; administration remains Administrator-only. |
+| `CONTEXT.md` | AI Proposal acceptance names an authorized human staff member instead of requiring Engineer role. Keep Engineer's Value and lifecycle vocabulary. |
+| `docs/design/README.md`, `docs/runbook.md` | Replace functional role-exclusive control/credential claims; retain geometry, provider setup and protection guidance. |
+| `docs/engineering/configuration.md`, `docs/prd/pegasus-product.md` | Describe the existing per-user vendor credential/session protection and any casework availability in staff-role-neutral terms. |
+| `docs/current-architecture.md`, `docs/capabilities.md` | Correct affected descriptions to the revised policy and existing owners; keep capability IDs and valid links. |
+
+Correction to the original plan: do not create ADR-0054 for this work.
+`docs/adr/0043-per-engineer-vendor-credential-protection.md` already decides
+per-user protection bound to user/provider/generation. That technical design
+does not change. Account eligibility is functional behavior owned by FRD-04
+and FRD-25. Leave issued ADR bodies and IDs intact; do not claim they were
+rewritten or superseded by a new architecture decision. Historical mentions
+of Engineer in ADRs, old mockups and deployment records are not current gates.
+
+Do not update `docs/operations.md` to claim a deployment. Do not rewrite
+historical migrations, source evidence or `corpus/`. Review remaining current
+documentation search hits and explain intentional retained domain terms in
+the implementation handoff.
+
+## 9. Verify in a controlled order
+
+The implementing primary agent is the sole heavy verifier for this task.
+Use one platform, Windows with PowerShell 7, and no competing build/test jobs
+on this host. Follow the runbook for the local SDK and disposable database
+prerequisites; do not point tests at production services.
+
+After the first coherent source/test edits, run:
+
+```powershell
+dotnet restore ./Pegasus.slnx --locked-mode
+dotnet build ./Pegasus.slnx --configuration Release --no-restore
+```
+
+Run the focused owning classes first. Example valuation tranche:
+
+```powershell
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~ValuationTests|FullyQualifiedName~ValuationCalculationTests|FullyQualifiedName~AssessmentPolicyTests'
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter 'Category!=Corpus&(FullyQualifiedName~CaseValuationWebTests|FullyQualifiedName~CaseValuationV26WebTests)'
+```
+
+Expand the class filter for each completed tranche using the tables in step 7.
+After any source/test edit, rebuild before using `--no-build`. Inspect failures
+and fix their cause; keep failure evidence. Do not replace an assertion with a
+weaker one merely because an old test fails.
+
+After all changes and focused tests pass, run the full regression once:
+
+```powershell
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter 'Category!=Corpus'
+pwsh ./scripts/Test-DocumentationLinks.ps1
+git diff --check
+git status --short
+```
+
+Record the checked source revision and dirty diff, exact commands, pass/fail/
+skip totals, failures and outstanding checks. A skipped test is not a passed
+scenario. .NET verification is for implementation; editing only this plan
+does not require restore, build or tests.
+
+### Browser acceptance walkthrough
+
+Use an isolated local test instance with existing approved test adapters.
+Prepare enabled Administrator, Engineer and User accounts, a disabled account,
+a writable Case, a Held/Completed Case and a second staff-owned edit lease.
+Use supplied valid estimate/report fixtures and test provider/mail transports.
+
+1. Sign in as User. Confirm Work Centre opens Office; switch to Mine and use
+   Assign to me on a suitable Case and Triage. Confirm ownership and history.
+2. Enter Case edit mode. Save guide figures, request research and explicitly
+   apply a calculated Engineer's Value. Refresh and confirm saved values.
+3. Save settlement/finding fields, including accepting an awaiting proposal.
+   Confirm the value and resolving staff identity in persisted history.
+4. Import a supported estimate, confirm it is Draft, then Use estimate.
+   Exercise editing, duplicate and discard on suitable draft versions.
+5. With a test Glass's credential, launch/resume/return/close through the
+   mocked provider journey. Another staff account must not own that session.
+6. Generate a report and fee note, prepare recipients and send through the
+   test transport. Verify the selected signatory and recorded send actor.
+7. As Administrator, configure User sign-off with a valid signature/default.
+   Change another flagged account from Engineer to User and verify its profile
+   remains valid. Confirm User still cannot open Administration.
+8. Recheck Held/Completed, colleague lease, missing signature, no credential
+   and revoked/disabled-account states. Each retains its supported refusal.
+9. Compare affected read/edit views at 1580x1000 and 1280x900, including Case
+   Scroll and Tabs modes. Controls stay in their existing positions without
+   clipped content or obsolete Engineer-only explanations.
+
+A live Glass's, Outlook or Box operation is not part of this local walkthrough.
+Report external integration proof separately if it requires a later authorized
+test; a fake-provider result proves application behavior, not live service use.
+
+## 10. Completion checklist and handoff
+
+- [ ] Every staff role passes each formerly Engineer-only operation with the
+  same prerequisites, including actual persisted User-account HTTP tests.
+- [ ] Role predicates no longer determine findings, valuation, estimates,
+  Glass's use, assignment, self-assignment or signatory eligibility.
+- [ ] No `StaffRoleCapabilities`, `HasEngineerRole`, `RequireEngineer`,
+  `RequireSelfAssigningEngineer`, `ActorIsEngineer` or Engineer-only error
+  references remain in current implementation/tests after their replacements.
+- [ ] Human-only checks remain for confirmation/acceptance and external
+  session ownership. Administrator and non-human boundaries pass regression.
+- [ ] Every changed signature has all production and test callers updated;
+  there are no compatibility wrappers or unused old branches.
+- [ ] Account role values and existing data remain intact; no schema change,
+  data backfill, secret reset or feature flag was added.
+- [ ] Relevant FRDs, glossary and current implementation descriptions agree.
+- [ ] Focused tests, full regression, documentation links and browser checks
+  are recorded with limitations rather than assumed successful.
+- [ ] Final diff contains only this task and its required tests/documentation.
+
+The final implementation handoff should state changed behavior, affected
+surfaces, verification results and any remaining evidence gaps. Keep the
+implementation local until a separate instruction requests publication,
+merging or release. Saving or extending this plan does not execute its steps.
