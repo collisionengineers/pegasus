@@ -141,16 +141,27 @@ public sealed class AiJobTests
     {
         var harness = new Harness();
         await harness.Work.TakeAsync(new(Guid.NewGuid(), 0, Client, "op-1"), CancellationToken.None);
+
+        // Ten minutes on, so a renewal that reused the take's expiry produces a
+        // different instant from one that recomputed it.
+        harness.Time.UtcNow = Now.AddMinutes(10);
         await harness.Work.ReportProgressAsync(
             new(Guid.NewGuid(), 1, Client, "op-2", "Half way."),
             CancellationToken.None);
+
         Assert.All(
             harness.Store.Transitions,
-            transition =>
-            {
-                Assert.Equal(AiJobState.Taken, transition.TargetState);
-                Assert.Equal(Now + AiJobPolicy.LeaseDuration, transition.LeaseExpiresAtUtc);
-            });
+            transition => Assert.Equal(AiJobState.Taken, transition.TargetState));
+
+        // Literal instants rather than Now + AiJobPolicy.LeaseDuration: reading
+        // the production constant kept these green whatever it held, so a lease
+        // shortened to one minute would have passed.
+        Assert.Equal(
+            new DateTimeOffset(2031, 5, 6, 11, 0, 0, TimeSpan.Zero),
+            harness.Store.Transitions[0].LeaseExpiresAtUtc);
+        Assert.Equal(
+            new DateTimeOffset(2031, 5, 6, 11, 10, 0, TimeSpan.Zero),
+            harness.Store.Transitions[1].LeaseExpiresAtUtc);
         Assert.Equal("Half way.", harness.Store.Transitions[1].ProgressNote);
     }
 
@@ -326,12 +337,16 @@ public sealed class AiJobTests
             new FakeAssessment(CaseId, CaseState, EngineerValue),
             new FakeUnidentified(UnidentifiedId, UnidentifiedState));
 
-        public WorkAiJob Work => new(Store, new FakeControl(ControlEnabled), new FakeTime());
+        public FakeTime Time { get; } = new();
+
+        public WorkAiJob Work => new(Store, new FakeControl(ControlEnabled), Time);
     }
 
     private sealed class FakeTime : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow() => Now;
+        public DateTimeOffset UtcNow { get; set; } = Now;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     private sealed class FakeControl(bool enabled) : ISendToAiControl
