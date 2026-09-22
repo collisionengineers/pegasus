@@ -549,7 +549,9 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var refused = await client.PostAsync($"/Cases/{caseId:D}?handler=ImportEstimate", invalidToken);
 
         Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
-        Assert.Single(store.DocumentCalls);
+        // The import now takes its authority before it retains anything, so an
+        // expired token writes nothing to the Case at all, as a stale version does.
+        Assert.Empty(store.DocumentCalls);
         Assert.Empty(store.AddedDocuments);
         Assert.Empty(store.SavedEstimates);
         Assert.Empty(store.LeaseClaims);
