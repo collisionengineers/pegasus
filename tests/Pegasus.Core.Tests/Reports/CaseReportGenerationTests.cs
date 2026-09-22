@@ -334,6 +334,27 @@ public sealed class CaseReportGenerationTests
         Assert.Empty(store.Outcomes);
     }
 
+    [Theory]
+    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE_100_assessment.pdf")]
+    [InlineData(CaseReportArtifactKind.FeeNote, "CE_100_fee_note.pdf")]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, "CE_100_repair_specification.pdf")]
+    [InlineData(CaseReportArtifactKind.ImagePack, "CE_100_images.pdf")]
+    public async Task EveryArtifactKindGetsItsOwnCustodyFileName(
+        CaseReportArtifactKind kind, string expectedFileName)
+    {
+        var store = new FakeStore();
+        var documents = kind == CaseReportArtifactKind.RepairSpecification
+            ? new RenderedRepairSpecificationDocuments()
+            : null;
+
+        var result = await Use(
+                store, new RecordingRenderer(), new RecordingCustody(), repairSpecificationDocuments: documents)
+            .ExecuteAsync(Request(kind), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.Equal(expectedFileName, Assert.Single(store.Confirmations).FileName);
+    }
+
     /// <summary>
     /// R34B: the operator's packaging choice reaches the freeze, so it is
     /// frozen with the snapshot rather than decided again at render time.
@@ -548,7 +569,8 @@ public sealed class CaseReportGenerationTests
         FakeStore store,
         RecordingRenderer renderer,
         RecordingCustody custody,
-        RecordingCustodyStatus? status = null)
+        RecordingCustodyStatus? status = null,
+        IRenderCaseEstimateDocument? repairSpecificationDocuments = null)
     {
         custody.Sequence = store.Sequence;
         renderer.Sequence = store.Sequence;
@@ -556,7 +578,7 @@ public sealed class CaseReportGenerationTests
             store,
             new FakeContentSource(),
             renderer,
-            new RefusingRepairSpecificationDocuments(),
+            repairSpecificationDocuments ?? new RefusingRepairSpecificationDocuments(),
             custody,
             status ?? new RecordingCustodyStatus(),
             TimeProvider.System);
@@ -571,6 +593,18 @@ public sealed class CaseReportGenerationTests
         public Task<RenderCaseEstimateDocumentResult> ExecuteAsync(
             Guid caseId, Guid estimateId, ActionActor actor, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("No repair specification document was expected.");
+    }
+
+    private sealed class RenderedRepairSpecificationDocuments : IRenderCaseEstimateDocument
+    {
+        public Task<RenderCaseEstimateDocumentResult> ExecuteAsync(
+            Guid caseId, Guid estimateId, ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new RenderCaseEstimateDocumentResult(
+                RenderCaseEstimateDocumentOutcome.Rendered,
+                new RenderedReportArtifact(
+                    "CE_100_estimate.pdf", [1, 2, 3], 1, Sha256Of([1, 2, 3]),
+                    AssessmentReportContract.TemplateVersion, "fake"),
+                [], 2));
     }
 
     private static GenerateCaseReportRequest Request(

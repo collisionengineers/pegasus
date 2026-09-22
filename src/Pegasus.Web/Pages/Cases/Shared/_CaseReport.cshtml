@@ -72,7 +72,15 @@
         artifact.Kind == CaseReportArtifactKind.RepairSpecification);
     var imagePackArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
         artifact.Kind == CaseReportArtifactKind.ImagePack);
+    var frozenImageCount = generation?.Snapshot.Images.Count ?? 0;
     var canGenerateCompanion = editing && generation is { State: CaseReportGenerationState.Confirmed };
+    var canGenerateRepairSpec = canGenerateCompanion
+        && repairSpecArtifact?.Status != CaseReportArtifactStatus.Confirmed;
+    var canGenerateImagePack = canGenerateCompanion
+        && imagePackArtifact?.Status != CaseReportArtifactStatus.Confirmed
+        && (imagePackArtifact is not null || frozenImageCount > 0);
+    var repairSpecOperationKey = repairSpecArtifact?.OperationKey ?? Model.GenerateRepairSpecOperationKey;
+    var imagePackOperationKey = imagePackArtifact?.OperationKey ?? Model.GenerateImagePackOperationKey;
     var attachable = generation is null
         ? Array.Empty<(CaseReportArtifactKind Kind, string Label)>()
         : new[]
@@ -159,11 +167,11 @@
                                 <span>@ReportLabels.PreviewImages</span>
                             </a>
                         }
-                        @if (canGenerateCompanion && repairSpecArtifact is null)
+                        @if (canGenerateRepairSpec)
                         {
                             <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateRepairSpec"
                                   asp-route-id="@caseId" asp-route-section="report">
-                                <input type="hidden" name="operationKey" value="@Model.GenerateRepairSpecOperationKey" />
+                                <input type="hidden" name="operationKey" value="@repairSpecOperationKey" />
                                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
@@ -173,11 +181,11 @@
                                 </button>
                             </form>
                         }
-                        @if (canGenerateCompanion && imagePackArtifact is null && inReport > 0)
+                        @if (canGenerateImagePack)
                         {
                             <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateImagePack"
                                   asp-route-id="@caseId" asp-route-section="report">
-                                <input type="hidden" name="operationKey" value="@Model.GenerateImagePackOperationKey" />
+                                <input type="hidden" name="operationKey" value="@imagePackOperationKey" />
                                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                                 <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                                 <input type="hidden" name="targetGenerationId" value="@generation!.Id" />

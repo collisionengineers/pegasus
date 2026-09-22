@@ -363,13 +363,12 @@ public static class CaseReportDeliveryPolicy
     }
 
     /// <summary>
-    /// The attachments one generation delivers: the documents the operator
-    /// chose to attach (v28 P22), each Confirmed, taken exactly from the
-    /// confirmed rows. Without a choice every artifact the generation holds
-    /// attaches, and a partly confirmed generation yields nothing. With a
-    /// choice, exactly the chosen kinds must be present and Confirmed: a
-    /// companion document still being retained never silently drops out, and
-    /// one that was not asked for never blocks the send.
+    /// The attachments one generation delivers: the assessment report and the
+    /// companion documents the operator chose to attach (v28 P22), each
+    /// Confirmed, taken exactly from the confirmed rows. Without a choice every
+    /// artifact the generation holds attaches. With a choice, the one
+    /// assessment report is always included and exactly the chosen companion
+    /// kinds must be present and Confirmed.
     /// </summary>
     public static IReadOnlyList<StaffMailAttachment> Attachments(
         Guid generationId,
@@ -377,8 +376,19 @@ public static class CaseReportDeliveryPolicy
         IReadOnlyList<CaseReportArtifactKind>? attach = null)
     {
         ArgumentNullException.ThrowIfNull(artifacts);
+        var reports = artifacts
+            .Where(artifact => artifact.Kind == CaseReportArtifactKind.AssessmentReport)
+            .ToArray();
+        if (reports.Length != 1
+            || reports[0].Status != CaseReportArtifactStatus.Confirmed)
+        {
+            throw new InvalidOperationException(
+                $"Case report generation '{generationId}' must have exactly one confirmed assessment report to deliver.");
+        }
+
         var chosen = attach is { Count: > 0 }
-            ? artifacts.Where(artifact => attach.Contains(artifact.Kind)).ToArray()
+            ? artifacts.Where(artifact => artifact.Kind == CaseReportArtifactKind.AssessmentReport
+                || attach.Contains(artifact.Kind)).ToArray()
             : artifacts;
         if (chosen.Count == 0
             || chosen.Any(artifact => artifact.Status != CaseReportArtifactStatus.Confirmed))

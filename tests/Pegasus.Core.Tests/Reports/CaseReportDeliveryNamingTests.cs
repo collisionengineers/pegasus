@@ -125,6 +125,37 @@ public sealed class CaseReportDeliveryNamingTests
         Assert.Equal([ReportAttachment, ImageAttachment], attachments);
     }
 
+    [Fact]
+    public void CompanionSelectionAlwaysIncludesTheAssessmentReport()
+    {
+        var artifacts = new[]
+        {
+            Artifact(CaseReportArtifactKind.AssessmentReport, ReportAttachment),
+            Artifact(CaseReportArtifactKind.ImagePack, ImageAttachment),
+        };
+
+        Assert.Equal(
+            [ReportAttachment, ImageAttachment],
+            CaseReportDeliveryPolicy.Attachments(
+                GenerationId, artifacts, [CaseReportArtifactKind.ImagePack]));
+
+        Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryPolicy.Attachments(
+            GenerationId,
+            [Artifact(CaseReportArtifactKind.ImagePack, ImageAttachment)],
+            [CaseReportArtifactKind.ImagePack]));
+        Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryPolicy.Attachments(
+            GenerationId,
+            [Artifact(CaseReportArtifactKind.AssessmentReport, ReportAttachment),
+             Artifact(CaseReportArtifactKind.AssessmentReport, ReportAttachment)],
+            [CaseReportArtifactKind.ImagePack]));
+        Assert.Throws<InvalidOperationException>(() => CaseReportDeliveryPolicy.Attachments(
+            GenerationId,
+            [Artifact(CaseReportArtifactKind.AssessmentReport, ReportAttachment,
+                CaseReportArtifactStatus.Pending),
+             Artifact(CaseReportArtifactKind.ImagePack, ImageAttachment)],
+            [CaseReportArtifactKind.ImagePack]));
+    }
+
     /// <summary>
     /// A companion still being filed to Box never blocks a delivery that did
     /// not ask for it, and never silently drops out of one that did.
