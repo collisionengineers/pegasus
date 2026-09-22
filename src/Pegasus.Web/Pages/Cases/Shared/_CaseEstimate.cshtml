@@ -1,4 +1,4 @@
-@*
+﻿@*
     Repair Spec (v26 § Estimate; renamed by v28 P31). One section: the head
     carries Import (visible in read mode, where it opens the edit session
     first), the one Glass's / Resume slot, Send to AI, one More menu (New
@@ -11,7 +11,7 @@
     (P16), the discount and VAT bars, the three work-lists and the rollup
     with its off-pattern line (P37). Every action is a plain posted form;
     case-workspace.js adds the phantom row, the full-screen toggle, the VAT
-    reset, the range output, the tab rename, the one labour-rate control
+    reset, the range interaction, the tab rename, the one labour-rate control
     (P33) and the Undo toast.
 *@
 @using System.Globalization
@@ -29,7 +29,7 @@
     var caseId = Model.Case!.Workflow.CaseId;
     var caseVersion = Model.Case.Workflow.Version;
     // The section edits only inside the page-wide session (v26 J); an
-    // estimate edits only while it is a Draft this Engineer may change.
+    // estimate edits only while it is a Draft this staff member may change.
     var editing = Model.SectionIsEditable("estimate");
     var estimate = Model.SelectedEstimate;
     var editable = editing && Model.SelectedEstimateIsEditable;
@@ -59,7 +59,7 @@
     string MoneyOrAbsent(decimal? value) => value is { } present ? Money(present) : OperatorLabels.CaseWorkspace.AbsentValue;
 
     // What the line's Source column says: a line an import brought in (named
-    // by its route, v28 P18), one the Engineer changed since, or one keyed by
+    // by its route, v28 P18), one a staff member changed since, or one keyed by
     // hand.
     string LineSource(CaseEstimateLineRecord line) =>
         line.AmendedBy is not null ? EstimateLabels.SourceAmended
@@ -215,7 +215,7 @@
                 </form>
             }
             @* The one Glass's slot (v26 G) — Glass's while the
-               account is free, Resume while this Engineer's session holds it;
+               account is free, Resume while this staff member's session holds it;
                absent without an enabled account, and absent while the account
                is held from another Case. The estimator opens in its own
                window (case-workspace.js names it; target is the no-script
@@ -258,7 +258,7 @@
                 </a>
             }
             @{
-                var offersNewEstimate = editing && Model.ActorIsEngineer && Model.AssessmentCanOpen;
+                var offersNewEstimate = editing && Model.AssessmentCanOpen;
                 var offersPrint = estimate is { Lines.Count: > 0 } && !Model.EditingNewEstimate;
                 var offersCompare = Model.Estimates.Count >= 2;
             }
@@ -368,7 +368,7 @@
             <div class="empty estimate-empty" data-estimate-empty>@EngineerLabels.NoEstimatesRecorded</div>
         }
 
-        @* The Glass's session line: only while this Engineer's session holds
+        @* The Glass's session line: only while this staff member's session holds
            the account or has failed, or while the account is held from
            another Case (v26 § Glass's). *@
         @if (Model.GlassSessionElsewhere is { } elsewhere)
@@ -674,8 +674,8 @@
                         @* Target % of value (v28 P34): one factor lowers prices,
                            materials and the rate to their floors; hours never
                            move. Apply saves the editor and scales the saved
-                           spec; the readout previews. *@
-                        <div class="bar est-scale" data-estimate-scale data-estimate-engineer-value="@targetBase" data-estimate-vat="@details.VatPercent.ToString("0.##", CultureInfo.InvariantCulture)">
+                           spec; Core writes the authoritative result. *@
+                        <div class="bar est-scale" data-estimate-scale>
                             <span class="bl">@EstimateLabels.TargetPercentOfValue</span>
                             @if (scaled)
                             {
@@ -687,19 +687,20 @@
                             }
                             else
                             {
-                                <input type="range" min="1" max="100" step="1" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
-                                <span class="dsc"><input type="number" name="targetPercent" min="1" max="100" step="0.1" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
-                                <input type="hidden" name="targetGross" data-scale-gross />
-                                <span class="mono" data-scale-read>@Money(printed.Gross) · @EstimateLabels.AsEstimated</span>
-                                <span class="status status--navy status--plain" data-scale-preview hidden>@EstimateLabels.Preview</span>
+                                <input type="range" min="1" max="100" step="1" value="100" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
+                                <span class="dsc"><input type="number" name="targetPercent" min="1" max="100" step="0.1" value="100" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
                             }
                             <span class="est-floors">@EstimateLabels.Floors
                                 <span class="dsc"><label for="estimate-floor-rate">@EstimateLabels.FloorLabour</label><input id="estimate-floor-rate" name="floorRate" type="number" min="0" step="1" inputmode="decimal" value="@ScalingFloors.Default.LabourRatePerHour.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-rate /></span>
                                 <span class="dsc"><label for="estimate-floor-price">@EstimateLabels.FloorPrices</label><input id="estimate-floor-price" name="floorPrice" type="number" min="0" max="100" step="5" inputmode="decimal" value="@ScalingFloors.Default.PricePercent.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-price /></span>
                             </span>
+                            @if (outcomeIsContract && contractSum is { } targetSum && Math.Abs(printed.Gross - targetSum) > 0.5m)
+                            {
+                                <input type="hidden" name="contractTarget" value="true" />
+                            }
                             @if (engineerValue is not null)
                             {
-                                <button type="submit" class="btn btn--small btn--primary" formaction="@Url.Page("/Cases/Details", "ScaleEstimate", new { id = caseId, section = "estimate" })" data-scale-apply hidden><span>@EstimateLabels.Apply</span></button>
+                                <button type="submit" class="btn btn--small btn--primary" formaction="@Url.Page("/Cases/Details", "ScaleEstimate", new { id = caseId, section = "estimate" })" data-scale-apply><span>@EstimateLabels.Apply</span></button>
                             }
                             <button type="submit" class="btn btn--small" formaction="@Url.Page("/Cases/Details", "RemoveEstimateScaling", new { id = caseId, section = "estimate" })" formnovalidate data-scale-remove disabled="@(scaled ? null : "disabled")"><span>@EstimateLabels.RemoveScaling</span></button>
                         </div>

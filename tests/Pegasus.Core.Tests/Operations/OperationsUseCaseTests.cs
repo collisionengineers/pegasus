@@ -9,6 +9,32 @@ public sealed class OperationsUseCaseTests
     private static readonly DateTimeOffset FixedUtcNow =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStaffRoleCanTakeUnassignedCaseAndTriageWork(StaffRole role)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+
+        Assert.True(NeedsAttentionPolicy.CanTake(NeedsAttentionKind.UnassignedEngineer, actor));
+        Assert.True(NeedsAttentionPolicy.CanTake(NeedsAttentionKind.Triage, actor));
+    }
+
+    [Fact]
+    public void NonHumanActorsCannotTakeUnassignedCaseAndTriageWork()
+    {
+        Assert.False(NeedsAttentionPolicy.CanTake(
+            NeedsAttentionKind.UnassignedEngineer,
+            ActionActor.Automation("automation")));
+        Assert.False(NeedsAttentionPolicy.CanTake(
+            NeedsAttentionKind.Triage,
+            ActionActor.Provider(Guid.NewGuid())));
+        Assert.False(NeedsAttentionPolicy.CanTake(
+            NeedsAttentionKind.Triage,
+            ActionActor.SystemWorker("worker")));
+    }
+
     [Fact]
     public async Task EmailProjectionUsesTheCoreBoundAndCurrentStaffActor()
     {

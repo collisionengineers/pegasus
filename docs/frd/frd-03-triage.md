@@ -108,8 +108,10 @@ have many Triages. Every staff role in the
 may unlink or relink with a reason. The prior and current Case, actor, time,
 reason and evidence stay in history permanently.
 
-Choosing or changing the assigned Engineer is an ordinary edit and needs no
-reason; history records the assignment, actor and time. Findings,
+Choosing or changing the assigned Engineer is an ordinary edit available to
+every enabled staff role, including self-assignment where the existing state
+and edit-scope rules allow it. It needs no reason; history records the
+assignment, actor and time. Findings,
 cancellation, reopening and Case-association decisions keep their required
 reasons.
 

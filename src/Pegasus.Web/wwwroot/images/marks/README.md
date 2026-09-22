@@ -17,7 +17,7 @@ sources in the Claude Design project. The largest display size is 56px
 
 | File | SHA-256 | Used by |
 | --- | --- | --- |
-| `pegasus-lockup.png` | `938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | the rail brand, the forced password-change card |
+| `pegasus-lockup.png` | `938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | retired by v28 P1 (20 September 2026): the rail and the sign-in card use `../pegasus-mark-refined-128.png` and `-256.png`, the refined mark without a wordmark |
 | `accounts.png` | `A8D467B827E0F19A6066640FA98A75D3673DA8A8C7642C4190D59BD5EDB718D5` | Administration → Staff accounts |
 | `roles.png` | `D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | Administration → Staff roles |
 | `access.png` | `70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | Administration → Access review |

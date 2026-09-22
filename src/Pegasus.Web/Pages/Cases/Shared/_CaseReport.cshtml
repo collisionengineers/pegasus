@@ -215,21 +215,17 @@
             @if (generation is not null)
             {
                 <div class="cluster">
-                    @foreach (var artifact in generation.Artifacts)
+                    @foreach (var artifact in generation.Artifacts.Where(artifact =>
+                        artifact is { Kind: CaseReportArtifactKind.AssessmentReport, Status: CaseReportArtifactStatus.Confirmed }))
                     {
-                        if (artifact.Status == CaseReportArtifactStatus.Confirmed)
-                        {
-                            <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
-                               asp-route-id="@caseId" asp-route-generationId="@generation.Id"
-                               asp-route-artifactId="@artifact.Id" target="_blank" rel="noopener" data-report-artifact="@artifact.Kind">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                                <span>@(artifact.Kind == CaseReportArtifactKind.FeeNote
-                                        ? ReportLabels.DownloadFeeNote
-                                        : generation.Snapshot.Report.IncludeFeeNote
-                                            ? ReportLabels.DownloadReportWithFeeNote
-                                            : ReportLabels.DownloadReport)</span>
-                            </a>
-                        }
+                        <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
+                           asp-route-id="@caseId" asp-route-generationId="@generation.Id"
+                           asp-route-artifactId="@artifact.Id" target="_blank" rel="noopener" data-report-artifact="@artifact.Kind">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                            <span>@(generation.Snapshot.Report.IncludeFeeNote
+                                    ? ReportLabels.DownloadReportWithFeeNote
+                                    : ReportLabels.DownloadReport)</span>
+                        </a>
                     }
                 </div>
             }

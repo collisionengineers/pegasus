@@ -308,7 +308,8 @@ public static class CaseReportFreshness
         image.Role,
         image.Order,
         image.Rotation,
-        image.Crop);
+        image.Crop,
+        image.FullPage);
 
     private sealed record MaterialReportImage(
         Guid OccurrenceId,
@@ -316,5 +317,6 @@ public static class CaseReportFreshness
         CaseAssetReportRole Role,
         int? Order,
         CaseAssetRotation Rotation,
-        CaseAssetCrop Crop);
+        CaseAssetCrop Crop,
+        bool FullPage);
 }

@@ -1,4 +1,4 @@
-using Pegasus.Core.Assessment;
+﻿using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -154,28 +154,26 @@ public sealed class ValuationTests
             edit.ExecuteAsync(editRequest with { ValuationId = Guid.Empty }, CancellationToken.None));
     }
 
-    /// <summary>
-    /// Recording a market valuation is ordinary casework, as the ticket
-    /// specifies. An Engineer's Value row is not: it carries the confirmed
-    /// assessment.values.engineer professional finding, so it takes that
-    /// field's own authority rule from AssessmentPolicy.
-    /// </summary>
-    [Fact]
-    public async Task CaseworkRecordsAMarketValuationAndOnlyAnEngineerRecordsAnEngineersValue()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task EveryStaffRoleRecordsMarketAndEngineersValueValuations(StaffRole role)
     {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
         var store = new RecordingStore();
         var save = new SaveValuation(store);
         var edit = new EditValuation(store);
 
         var glasses = await save.ExecuteAsync(
-            SaveRequest(User, "valuation-user-glasses"),
+            SaveRequest(actor, "valuation-staff-glasses"),
             CancellationToken.None);
 
         var brego = await save.ExecuteAsync(
-            SaveRequest(User, "valuation-user-brego", ValuationSource.Brego),
+            SaveRequest(actor, "valuation-staff-brego", ValuationSource.Brego),
             CancellationToken.None);
         var superCap = await save.ExecuteAsync(
-            SaveRequest(User, "valuation-user-super-cap", ValuationSource.SuperCap),
+            SaveRequest(actor, "valuation-staff-super-cap", ValuationSource.SuperCap),
             CancellationToken.None);
 
         Assert.Equal(ValuationSource.Glasses, glasses.Details.Source);
@@ -185,27 +183,11 @@ public sealed class ValuationTests
 
         // Cazana is typed in like the other guides (v28 P8).
         var cazana = await save.ExecuteAsync(
-            SaveRequest(User, "valuation-user-cazana", ValuationSource.Cazana),
+            SaveRequest(actor, "valuation-staff-cazana", ValuationSource.Cazana),
             CancellationToken.None);
         Assert.Equal(ValuationSource.Cazana, cazana.Details.Source);
         Assert.Equal(4, store.Saves.Count);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            save.ExecuteAsync(
-                SaveRequest(User, "valuation-user-engineers", ValuationSource.EngineersValue),
-                CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            edit.ExecuteAsync(
-                new EditValuationRequest(
-                    CaseId,
-                    3,
-                    User,
-                    "valuation-user-engineers-edit",
-                    "Corrected the recorded valuation.",
-                    Lease,
-                    Guid.NewGuid(),
-                    Details(source: ValuationSource.EngineersValue)),
-                CancellationToken.None));
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             save.ExecuteAsync(
                 SaveRequest(
@@ -219,9 +201,22 @@ public sealed class ValuationTests
                 CancellationToken.None));
 
         var engineers = await save.ExecuteAsync(
-            SaveRequest(Engineer, "valuation-engineer", ValuationSource.EngineersValue),
+            SaveRequest(actor, "valuation-staff-engineers", ValuationSource.EngineersValue),
             CancellationToken.None);
         Assert.Equal(ValuationSource.EngineersValue, engineers.Details.Source);
+
+        var edited = await edit.ExecuteAsync(
+            new EditValuationRequest(
+                CaseId,
+                3,
+                actor,
+                "valuation-staff-engineers-edit",
+                "Corrected the recorded valuation.",
+                Lease,
+                engineers.ValuationId,
+                Details(source: ValuationSource.EngineersValue)),
+            CancellationToken.None);
+        Assert.Equal(actor.SubjectId, edited.RecordedBy);
     }
 
     [Fact]

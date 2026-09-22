@@ -1,0 +1,37 @@
+/* Cases list (v26): scope tables and a fixed-width Quick detail so a long
+   e-mail handle or reason cannot widen the pane (shot 51). Linked from
+   Pages/Cases/Index.cshtml only. */
+
+.cases-queue { grid-template-columns: 185px minmax(0, 1fr) minmax(0, 340px); min-height: 0; }
+.cases-queue > .pane { min-width: 0; }
+
+.cases-filters { margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.cases-list .pane-head .meta { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+.cases-table { overflow-x: auto; }
+.cases-table .table td { overflow-wrap: anywhere; }
+.cases-table .table td.nowrap { white-space: nowrap; overflow-wrap: normal; }
+.cases-table tr[data-select-url] { cursor: pointer; }
+.cases-table .table-row-link { font-weight: 600; }
+.cases-table [data-cases-type] { margin-left: 6px; }
+.cases-late { color: var(--danger); font-weight: 600; }
+.cases-empty { padding: 18px 12px; font-size: 12px; color: var(--quiet); }
+
+.cases-detail .detail-canvas { padding: 12px; overflow-wrap: anywhere; word-break: break-word; }
+.cases-detail .detail-canvas h2 { font-size: 15px; margin: 0; }
+.cases-detail .eyebrow { margin: 0 0 2px; }
+.cases-facts { grid-template-columns: minmax(0, 1fr); }
+.cases-facts .fact { border-right: 0; border-bottom: 1px solid var(--line); }
+.cases-facts .fact:last-child { border-bottom: 0; }
+.cases-work .decision-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; padding: 4px 0; }
+.cases-work .decision-row span { color: var(--muted); }
+
+@media (max-width: 1280px) {
+    .cases-queue { grid-template-columns: 185px minmax(0, 1fr); }
+    .cases-queue > .cases-detail { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+}
+
+@media (max-width: 760px) {
+    .cases-queue { grid-template-columns: minmax(0, 1fr); }
+    .cases-queue > .pane:first-child { border-bottom: 1px solid var(--line); }
+}

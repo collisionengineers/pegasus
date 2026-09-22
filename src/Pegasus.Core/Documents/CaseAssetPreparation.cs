@@ -165,8 +165,8 @@ public sealed record ResetCaseAssetPreparationRequest(
 
 /// <summary>
 /// One image as the report will use it: its confirmed source identity/hash
-/// and the prepared role/order/rotation/crop. Files and Report read the same
-/// preparation through this and <see cref="ICaseAssetPreparationQueries"/>.
+/// and the prepared role/order/rotation/crop/full-page choice. Files and Report
+/// read the same preparation through this and <see cref="ICaseAssetPreparationQueries"/>.
 /// </summary>
 public sealed record PreparedReportImage(
     Guid OccurrenceId,
@@ -176,7 +176,8 @@ public sealed record PreparedReportImage(
     CaseAssetReportRole Role,
     int? Order,
     CaseAssetRotation Rotation,
-    CaseAssetCrop Crop);
+    CaseAssetCrop Crop,
+    bool FullPage = false);
 
 public interface ICaseAssetPreparationQueries
 {
@@ -368,7 +369,8 @@ public static class CaseAssetPreparationPolicy
                 item.Role,
                 item.Order,
                 item.Rotation,
-                item.Crop))
+                item.Crop,
+                item.FullPage))
             .ToArray();
     }
 

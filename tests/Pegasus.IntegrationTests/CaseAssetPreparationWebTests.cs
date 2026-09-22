@@ -258,7 +258,8 @@ public sealed class CaseAssetPreparationWebTests
                 ("preparationEdits[0].cropLeft", "0.05"),
                 ("preparationEdits[0].cropTop", "0.1"),
                 ("preparationEdits[0].cropWidth", "0.5"),
-                ("preparationEdits[0].cropHeight", "0.6")));
+                ("preparationEdits[0].cropHeight", "0.6"),
+                ("preparationEdits[0].fullPage", "true")));
 
         AssertPrg(response, store.CaseId);
         var preparation = Assert.Single(store.Saves).ImagePreparation;
@@ -272,7 +273,8 @@ public sealed class CaseAssetPreparationWebTests
                 CaseAssetReportRole.Supporting,
                 3,
                 CaseAssetRotation.Half,
-                new(0.05m, 0.1m, 0.5m, 0.6m)),
+                new(0.05m, 0.1m, 0.5m, 0.6m),
+                true),
             edit);
     }
 

@@ -1,0 +1,19 @@
+@* One release note's body, drawn from the Administrator's text: paragraphs and
+   "- " lists, nothing else. Model: the body text. *@
+@model string
+@foreach (var block in Pegasus.Web.Presentation.ReleaseNoteBody.Parse(Model))
+{
+    if (block.IsList)
+    {
+        <ul class="release-note__list">
+            @foreach (var line in block.Lines)
+            {
+                <li>@line</li>
+            }
+        </ul>
+    }
+    else
+    {
+        <p>@string.Join(" ", block.Lines)</p>
+    }
+}

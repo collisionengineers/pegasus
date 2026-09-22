@@ -331,6 +331,10 @@ tbody tr:hover{background:#f3f6f7}
 .notice--warning{border-color:var(--amber);background:var(--amber-bg);color:#5f3a02}
 .notice--danger{border-color:var(--danger);background:var(--danger-bg)}
 .notice--success{border-color:var(--green);background:var(--green-bg)}
+.release-note__body p{margin:0 0 8px}
+.release-note__body p:last-child{margin-bottom:0}
+.release-note__body .release-note__list{margin:0 0 8px;padding-left:18px}
+.release-note__body h3{margin:0;font-size:15px}
 .notice .icon{width:16px;height:16px;flex:none;margin-top:2px}
 .notice>span,.notice>p,.notice>div{min-width:0}
 /* A notice that can be put away carries [data-dismiss] (site.js removes it;
@@ -604,12 +608,14 @@ tbody tr:hover{background:#f3f6f7}
 .dropzone p{font-size:11px;color:var(--muted);max-width:470px;margin:6px auto 14px}
 .dropzone input[type="file"]{max-width:470px}
 .file-list{margin-top:10px;border:1px solid var(--line);background:#fff}
-/* v28 P11: the submission page's three places. Files spans the first column,
-   everything the operator decides stacks in the second, discarding last. */
+/* v28 P11: the submission page's three places. Files occupies the first
+   column; the decision/discard wrapper stacks the right-column panels. */
 .upload-received{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,1fr);gap:12px;align-items:start}
 .upload-received>*{grid-column:2;min-width:0}
-.upload-received>[aria-labelledby="group-status-title"]{grid-column:1;grid-row:1/-1}
-.upload-received>.upload-received__discard{order:9}
+.upload-received__right{display:grid;gap:12px;min-width:0}
+.upload-received>[aria-labelledby="group-status-title"]{grid-column:1}
+.upload-received--files-only>[aria-labelledby="group-status-title"]{grid-column:1/-1}
+.upload-received--files-only>.upload-received__right{display:none}
 .upload-received [aria-labelledby="group-status-title"] .file-row{grid-template-columns:132px minmax(0,1fr) auto auto;gap:12px;padding:10px;font-size:11px}
 .upload-received [aria-labelledby="group-status-title"] .file-row strong{font-size:12px}
 .upload-received .upload-thumb{display:block;width:132px;aspect-ratio:4/3;border:1px solid var(--line);border-radius:3px;overflow:hidden;background:#f6f8f9}
@@ -617,7 +623,7 @@ tbody tr:hover{background:#f3f6f7}
 .upload-received__discard>summary{cursor:pointer;list-style:none}
 .upload-received__discard>summary::-webkit-details-marker{display:none}
 .upload-received__discard .choice{display:inline-flex;align-items:flex-start;gap:8px}
-@media(max-width:1100px){.upload-received{grid-template-columns:1fr}.upload-received>*{grid-column:1}.upload-received>[aria-labelledby="group-status-title"]{grid-row:auto;order:-1}}
+@media(max-width:1100px){.upload-received{grid-template-columns:1fr}.upload-received>*{grid-column:1}}
 
 .file-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto auto;align-items:center;gap:9px;padding:8px 10px;border-bottom:1px solid var(--line);border-radius:4px;font-size:10px}
 .file-row:last-child{border-bottom:0}
@@ -809,7 +815,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .auth-card{width:min(100%,440px);background:#fff;border-top:4px solid var(--red);padding:26px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
 .auth-card--wide{width:min(100%,720px)}
 .auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:19px}
-.auth-brand img{width:142px;height:auto;max-height:80px;object-fit:contain}
+.auth-brand img{width:96px;height:96px;object-fit:contain}
 .auth-brand strong{font-size:20px;letter-spacing:.07em}
 .auth-card h1{font-size:23px}
 .auth-card p{font-size:11px;color:var(--muted)}

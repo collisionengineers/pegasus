@@ -200,7 +200,8 @@ public sealed class IndexModel(
         Mono,
         Link,
         Chip,
-        Late
+        Late,
+        Date
     }
 
     /// <summary>One table cell: its text, how it renders and, for a chip, its tone.</summary>
@@ -235,7 +236,7 @@ public sealed class IndexModel(
     /// <summary>The open scope's column headings.</summary>
     public IReadOnlyList<string> Columns => Queue switch
     {
-        "triage" => ["Reference", "Registration", "Provider", "Received", "Assignee", "State"],
+        "triage" => ["Reference", "Registration", "Principal", "Received", "Assignee", "State"],
         "awaiting" => ["Image reference", "Registration", "Received", "Images", "Source"],
         "unidentified" when ShowingClosed => ["Reference", "Received", "Material", "Outcome", "Source"],
         "unidentified" => ["Reference", "Received", "Material", "Reason", "Source"],
@@ -730,9 +731,9 @@ public sealed class IndexModel(
                 item.Registration is { } registration ? new Cell(registration, CellKind.Mono) : Cell.Empty,
                 Cell.Of(item.Claimant),
                 Cell.Of(item.Principal),
-                new Cell(OperatorLabels.OfficeDate(item.ReceivedAtUtc)),
+                new Cell(OperatorLabels.OfficeDate(item.ReceivedAtUtc), CellKind.Date),
                 item.NextChaseAtUtc is { } chase
-                    ? new Cell(OperatorLabels.OfficeDate(chase), chase < now ? CellKind.Late : CellKind.Text)
+                    ? new Cell(OperatorLabels.OfficeDate(chase), chase < now ? CellKind.Late : CellKind.Date)
                     : Cell.Empty,
                 last,
                 // Who holds the Case's edit lease right now, so nobody opens a
@@ -779,7 +780,7 @@ public sealed class IndexModel(
             [
                 new Cell(item.ImageIntakeReference, CellKind.Link),
                 new Cell(item.NormalizedVehicleRegistration, CellKind.Mono),
-                new Cell(OperatorLabels.OfficeDate(item.RegisteredAtUtc)),
+                new Cell(OperatorLabels.OfficeDate(item.RegisteredAtUtc), CellKind.Date),
                 new Cell(item.ImageCount.ToString(CultureInfo.InvariantCulture)),
                 new Cell(OperatorLabels.SourceChannel(item.Source))
             ],
@@ -799,7 +800,7 @@ public sealed class IndexModel(
             facts.Add(("Reference", reference));
         }
         facts.Add(("Registration", item.NormalizedVehicleRegistration));
-        facts.Add(("Provider", item.Provider ?? "Not known"));
+        facts.Add(("Principal", item.Provider ?? "Not known"));
         facts.Add(("Assigned to", assignee ?? "Unassigned"));
         facts.Add(("Opened", OperatorLabels.OfficeDate(item.CreatedAtUtc)));
         return new QueueRow(
@@ -810,7 +811,7 @@ public sealed class IndexModel(
                 new Cell(item.Reference ?? item.NormalizedVehicleRegistration, CellKind.Link),
                 new Cell(item.NormalizedVehicleRegistration, CellKind.Mono),
                 Cell.Of(item.Provider),
-                new Cell(OperatorLabels.OfficeDate(item.CreatedAtUtc)),
+                new Cell(OperatorLabels.OfficeDate(item.CreatedAtUtc), CellKind.Date),
                 Cell.Of(assignee),
                 new Cell(OperatorLabels.TriageState(item.State), CellKind.Chip)
             ],
@@ -826,7 +827,7 @@ public sealed class IndexModel(
         Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
         [
             new Cell(row.Reference, CellKind.Link),
-            new Cell(OperatorLabels.OfficeTime(row.ReceivedAtUtc)),
+            new Cell(OperatorLabels.OfficeTime(row.ReceivedAtUtc), CellKind.Date),
             new Cell(OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
             new Cell(OperatorLabels.UnidentifiedReason(row.ReasonCode)),
             new Cell(Handle(row))
@@ -851,7 +852,7 @@ public sealed class IndexModel(
             Join(row.Reference, OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
             [
                 new Cell(row.Reference, CellKind.Link),
-                new Cell(OperatorLabels.OfficeTime(row.ReceivedAtUtc)),
+                new Cell(OperatorLabels.OfficeTime(row.ReceivedAtUtc), CellKind.Date),
                 new Cell(OperatorLabels.UnidentifiedMediaKind(row.MediaKind)),
                 new Cell(outcome),
                 new Cell(Handle(row))

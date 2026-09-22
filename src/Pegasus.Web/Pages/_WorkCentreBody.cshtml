@@ -18,10 +18,6 @@
         <h1>@Labels.Title</h1>
     </div>
     <div class="page-actions">
-        @if (Model.LoadedAtUtc is { } loaded)
-        {
-            <span class="wc-updated" data-wc-updated><time datetime="@loaded.ToString("O")">@Labels.Updated(loaded)</time></span>
-        }
         <span class="meta wc-refresh-outcome" data-wc-refresh-outcome-label>@Model.RefreshOutcomeLabel</span>
         <a class="btn btn--primary" asp-page="/Cases/Create">
             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>

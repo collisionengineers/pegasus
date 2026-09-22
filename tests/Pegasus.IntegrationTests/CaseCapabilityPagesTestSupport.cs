@@ -122,11 +122,12 @@ internal static partial class CaseWebTestSupport
         LeasedWorkspace workspace,
         CaseMutationRequest request,
         string operationKey,
-        string reason)
+        string reason,
+        long? expectedVersion = null)
     {
         AssertClaimant(workspace, request.Actor);
         Assert.Equal(workspace.Store.CaseId, request.CaseId);
-        Assert.Equal(workspace.Store.CaseVersion, request.ExpectedVersion);
+        Assert.Equal(expectedVersion ?? workspace.Store.CaseVersion, request.ExpectedVersion);
         Assert.Equal(workspace.Store.LeaseToken, request.EditLeaseToken);
         Assert.Equal(operationKey, request.OperationKey);
         Assert.Equal(reason, request.Reason);
@@ -1178,7 +1179,8 @@ internal static partial class CaseWebTestSupport
 
     internal static async Task<LeasedWorkspace> EnterEngineerEditModeAsync(
         RecordingCaseDetailsStore store,
-        Action<IServiceCollection> substitutePorts)
+        Action<IServiceCollection> substitutePorts,
+        StaffRole role = StaffRole.Engineer)
     {
         var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -1201,7 +1203,7 @@ internal static partial class CaseWebTestSupport
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
-        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+        client.DefaultRequestHeaders.Add("X-Test-Roles", role.ToString());
         var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         using var claim = await client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=ClaimLease",

@@ -795,7 +795,7 @@ public sealed class AssignTriageToMe(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var engineerId = Lifecycle.CaseLifecycleRules.RequireSelfAssigningEngineer(request.Actor);
+        var engineerId = Lifecycle.CaseLifecycleRules.RequireSelfAssigningStaff(request.Actor);
         var current = await TriageLifecycleRules.GetRequiredAsync(_queries, request.TriageId, cancellationToken);
         TriageLifecycleRules.RequireCanAssignToSelf(current.Record);
         return await _assign.ExecuteAsync(

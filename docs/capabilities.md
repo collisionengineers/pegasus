@@ -191,11 +191,11 @@ exclusion.
 | EXT-04 | Principal-selected report route: Pegasus, EVA ZIP or EVA API | [EVA handoff routes](frd/frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes) |
 | EXT-05 | Replace EVA Engineer assignment | [Hand to Engineer](frd/frd-13-case-lifecycle-and-workflow.md#hand-to-engineer) |
 | EXT-06 | Replace EVA estimating without moving repair-specification authority out of Pegasus Core | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
-| EXT-07 | Dated valuation source evidence with explicit Engineer selection | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
+| EXT-07 | Dated valuation source evidence with explicit human staff selection | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
 | EXT-08 | Deterministic report generation from accepted Core data | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
 | EXT-09 | Versioned repair-estimate lines, source versions, and approvals | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
-| EXT-10 | Versioned vehicle-valuation evidence, explicit Engineer acceptance/adjustments/rationale, and revaluation history | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
-| EXT-11 | Versioned fee/invoice and Engineer cost/payment inputs, accounting status, and role-restricted visibility | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
+| EXT-10 | Versioned vehicle-valuation evidence, explicit human staff acceptance/adjustments/rationale, and revaluation history | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
+| EXT-11 | Versioned fee/invoice and Engineer cost/payment inputs, accounting status, and staff-role-neutral visibility | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | EXT-12 | Glass's and Audatex PDF estimate ingestion with retained source and variant proof | [Retained PDF estimates](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#retained-pdf-estimate-import) |
 | EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
 | AI-07 | AI Assessor as a staff-selected Engineer option | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
@@ -203,7 +203,7 @@ exclusion.
 | EXT-17 | Tractable capture outside Pegasus, received as an emailed PDF | [Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts) |
 | CASE-31 | One accepted record feeds every report and fee note | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | ENG-01 | One canonical repair specification with route provenance | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
-| ENG-02 | Engineer-owned value, outcome and salvage drive derived figures | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
+| ENG-02 | Human staff-owned value, outcome and salvage drive derived figures | [Professional engineering findings and correction](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#professional-engineering-findings-and-correction) |
 | UI-15 | Engineer workbench inside the Case record sections | [Assessment](frd/frd-16-case-record-workspace.md#assessment) |
 | RPT-01 | Renderer validates data, computes figures once, fixed design | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
 | RPT-02 | Four assessment outcomes with fee note and repair breakdown | [Assessment-report outcomes](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes) |
@@ -211,13 +211,14 @@ exclusion.
 | RPT-04 | Diminution rendering uses accepted original-case data plus the Engineer-entered percentage (deferred) | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
 | RPT-05 | Addenda from accepted data plus a versioned amendment (deferred) | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | RPT-07 | Estimate document rendered per estimate version from the one totals owner | [Report generation entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point) |
-| AI-08 | AI-drafted query response reviewed by an Engineer before sending | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
+| AI-08 | AI-drafted query response reviewed by human staff before sending | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | AI-09 | Send to AI: pointer-only hand-off, attributed unconfirmed writes | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | AI-10 | Named AI job kinds with durable lifecycle and job list | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
 | MCP-07 | Administration settings for the Send to AI connector | [Send to AI connector settings](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-connector-settings) |
 | MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | [Reports](frd/frd-17-administration-workspace.md#reports) |
 | MI-02 | Per-principal report counts, types, and periods feeding invoice generation | [Reports](frd/frd-17-administration-workspace.md#reports) |
 | MI-03 | Holding age and instruction-to-produced, ready and sent turnaround | [Reports](frd/frd-17-administration-workspace.md#reports) |
+| OPS-20 | Release notes written and published by an Administrator, shown once to each person | [Release notes](frd/frd-17-administration-workspace.md#release-notes) |
 | ACC-12 | External/customer application accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | ACC-13 | Public registration (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | ACC-14 | Multi-factor authentication for staff (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |

@@ -10,7 +10,7 @@ namespace Pegasus.Infrastructure.Glass;
 /// <para>
 /// The shared contract addresses a session by its id, which is everything the
 /// gateway needs: it either creates a session or is handed one. A screen has
-/// neither — the Estimate section knows a Case and the Engineer looking at it,
+/// neither — the Estimate section knows a Case and the staff member looking at it,
 /// and the provider's redirect knows only the one-use correlation it was
 /// launched under. Both are answered here, in Infrastructure, because the
 /// contract is frozen across streams and a second read model in Core would be
@@ -28,9 +28,9 @@ namespace Pegasus.Infrastructure.Glass;
 public interface IGlassRepairEstimateSessionReader
 {
     /// <summary>
-    /// The Engineer's own newest session for a Case, or null when they have
+    /// The staff member's own newest session for a Case, or null when they have
     /// none. Scoped to the one Pegasus user on purpose: a session runs inside
-    /// another Engineer's external account and is not theirs to see or resume.
+    /// another staff member's external account and is not theirs to see or resume.
     /// </summary>
     Task<GlassRepairEstimateSession?> GetForCaseAsync(
         Guid caseId, Guid pegasusUserId, CancellationToken cancellationToken);
@@ -44,7 +44,7 @@ public interface IGlassRepairEstimateSessionReader
         string correlation, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The Engineer's session that holds an external account now, on
+    /// The staff member's session that holds an external account now, on
     /// whichever Case it was launched from, or null when none does. The
     /// Estimate section reads it so a Case that cannot launch says where the
     /// account is rather than refusing after the fact.
