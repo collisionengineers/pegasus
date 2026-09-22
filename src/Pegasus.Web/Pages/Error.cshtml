@@ -18,6 +18,24 @@
         }
         <a class="btn" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
     </div>
+    @if (Model.IsSignedIn)
+    {
+        <form method="post" asp-page="/ProblemReports" asp-page-handler="Report" class="stack" data-problem-form>
+            <input type="hidden" name="returnUrl" value="@(Model.ReturnPath ?? "/")" />
+            <input type="hidden" name="route" value="@(Model.ReturnPath ?? string.Empty)" />
+            <input type="hidden" name="method" value="@HttpContext.Request.Method" />
+            <input type="hidden" name="traceId" value="@Model.RequestId" />
+            <input type="hidden" name="caseReference" value="" data-problem-case />
+            <input type="hidden" name="viewport" value="" data-problem-viewport />
+            <input type="hidden" name="editing" value="false" data-problem-editing />
+            <input type="hidden" name="errors" value="" data-problem-errors />
+            <div class="field">
+                <label for="problem-description">@OperatorLabels.ProblemReports.WhatHappened</label>
+                <textarea id="problem-description" name="description" rows="4" maxlength="@Pegasus.Core.Support.ProblemReportPolicy.MaximumDescriptionLength" required></textarea>
+            </div>
+            <div class="button-row"><button type="submit" class="btn">@OperatorLabels.Shell.ReportProblem</button></div>
+        </form>
+    }
     @if (Model.ShowRequestId)
     {
         <p class="auth-foot muted">

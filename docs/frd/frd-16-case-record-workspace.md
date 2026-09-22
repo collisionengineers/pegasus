@@ -15,8 +15,8 @@
   are editable by every enabled staff role in Not ready, Review and With
   Engineer, and read-only in Held,
   Completed and Query.
-- Raw estimate import is a whole-page drop. It is pointer-only, and that is a
-  recorded accessibility gap.
+- Engineers can import an estimate directly from the Estimate section using
+  its keyboard-accessible Import action or a section-scoped file drop.
 
 ## Purpose
 
@@ -388,20 +388,23 @@ Report-draft generation and preview sit
 on the Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 
-**Raw estimate import** (`EXT-12`) is a whole-page drop surface. One file is
-imported immediately, with no confirmation step and no visible file picker.
+**Raw estimate import** (`EXT-12`) is available to Engineers in editable Case
+states from the Estimate section. The keyboard-accessible **Import** action
+opens the native file picker; dropping a file over the Estimate section uses
+the same upload path and shows a temporary drop overlay. Exactly one supported
+PDF, XML or JSON file is accepted. From read mode, the server acquires the Case
+edit lease against the submitted Case version before storing the file through
+the normal Case document upload flow.
+
+After the source is confirmed in Case Files, its registered provider parser
+runs immediately. A successful import selects the new named Draft and displays
+its estimate lines in the editor. A parser refusal creates no partial Draft;
+the confirmed original remains in Case Files so the same source can be retried.
 Only registered parser types are accepted. An ambiguous file is refused, not
 guessed. Provenance and replay rules are owned by
 [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications).
-
-The drop is pointer-only. That is a narrow accepted accessibility exception,
-and a real gap: a keyboard-only operator cannot import a raw estimate file.
-The same Core command is reachable without a pointer only through the MCP
-`pegasus_estimate_import` tool
-([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)),
-which is an automation boundary, not a staff keyboard route. Manual line
-entry in the estimate editor stays keyboard-reachable but is a different
-capability: it keeps no source file, hash or parser provenance.
+Manual line entry remains a separate capability and keeps no source file,
+hash or parser provenance.
 
 ## States and transitions
 
@@ -433,9 +436,10 @@ Acceptance covers the ten sections and the `?section=` jump, the
 `/Cases/{id}/Assessment` redirect, the read-only rule in Completed, the
 Actions menu per state, and the separate Save commands. Authenticated Web
 tests cover server-owned behaviour; they do not prove client-side interaction
-or visual correctness. The whole-page drop stays the one accepted
-pointer-only exception. Deployment and live acceptance are separate evidence
-tiers ([engineering](../engineering.md#required-evidence-tiers)).
+or visual correctness. Browser acceptance exercises the keyboard Import
+action, picker and section-scoped drop overlay. Deployment and live acceptance
+are separate evidence tiers
+([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
