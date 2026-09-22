@@ -555,14 +555,21 @@ internal sealed class EfStaffMailSendStore(
                     .OrderBy(value => value.VersionId)
                     .ThenBy(value => value.Sha256, StringComparer.Ordinal)
                     .ToArray();
-                var actual = generated
+                var remaining = generated
                     .Select(value => (VersionId: (Guid?)value.VersionId, value.Sha256))
-                    .OrderBy(value => value.VersionId)
-                    .ThenBy(value => value.Sha256, StringComparer.Ordinal)
-                    .ToArray();
-                if (!frozen.SequenceEqual(actual))
+                    .ToList();
+                foreach (var wanted in frozen)
                 {
-                    caseId = null;
+                    var index = remaining.FindIndex(value =>
+                        value.VersionId == wanted.VersionId
+                        && string.Equals(value.Sha256, wanted.Sha256, StringComparison.Ordinal));
+                    if (index < 0)
+                    {
+                        caseId = null;
+                        break;
+                    }
+
+                    remaining.RemoveAt(index);
                 }
             }
         }
