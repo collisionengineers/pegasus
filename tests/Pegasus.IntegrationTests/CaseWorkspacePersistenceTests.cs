@@ -373,6 +373,79 @@ public sealed class CaseWorkspacePersistenceTests
             .ToArrayAsync());
     }
 
+    [Theory]
+    [InlineData("heading")]
+    [InlineData("text")]
+    [InlineData("order")]
+    [InlineData("inclusion")]
+    [InlineData("manual paragraph")]
+    public async Task ReportWordingOnlyChangesPersistAndStaleTheCurrentGeneration(string change)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
+        var wording = change switch
+        {
+            "heading" => new CaseReportWording(
+                ReportWordingComposition.NatureOfIncident,
+                "Revised heading",
+                null,
+                null),
+            "text" => new CaseReportWording(
+                ReportWordingComposition.NatureOfIncident,
+                null,
+                "Revised report text.",
+                null),
+            "order" => new CaseReportWording(
+                ReportWordingComposition.NatureOfIncident,
+                null,
+                null,
+                3),
+            "inclusion" => new CaseReportWording(
+                ReportWordingComposition.NatureOfIncident,
+                null,
+                null,
+                null,
+                Included: false),
+            "manual paragraph" => new CaseReportWording(
+                "manual:additional",
+                "Additional paragraph",
+                "Additional report text.",
+                9,
+                Manual: true),
+            _ => throw new ArgumentOutOfRangeException(nameof(change), change, null),
+        };
+        var lease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            harness.StaffActor,
+            $"wording-{change.Replace(' ', '-')}-lease");
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, $"wording-{change.Replace(' ', '-')}-save") with
+            {
+                ReportWording = new([wording]),
+            },
+            CancellationToken.None);
+
+        Assert.Equal(initial.Version + 1, saved.Version);
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Stale,
+            expectedStaleEvents: 1,
+            expectedReason: CaseReportStaleReasons.ReportContentChanged);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var persisted = Assert.Single(await context.Set<CaseReportWordingEntity>()
+            .Where(item => item.CaseId == harness.CaseId)
+            .ToArrayAsync());
+        Assert.Equal(wording.Key, persisted.BlockKey);
+        Assert.Equal(wording.Title, persisted.Title);
+        Assert.Equal(wording.Text, persisted.Text);
+        Assert.Equal(wording.Order, persisted.Order);
+        Assert.Equal(wording.Included, persisted.Included);
+        Assert.Equal(wording.Manual, persisted.Manual);
+    }
+
     [Fact]
     public async Task ChangingOnlyTheEffectiveMileageSourceStalesTheCurrentGeneration()
     {

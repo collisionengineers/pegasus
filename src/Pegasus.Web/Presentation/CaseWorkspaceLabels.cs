@@ -747,6 +747,31 @@ public static class CaseWorkspaceLabels
     /// vocabulary is composition — one Close-up, one Overview, ordered
     /// Supporting.
     /// </summary>
+    /// <summary>
+    /// The Report wording panel's words (v28 P30): the blocks the report
+    /// prints, in print order, each tracking its fields until the Engineer
+    /// writes their own.
+    /// </summary>
+    public static class ReportWording
+    {
+        public const string PanelTitle = "Report wording";
+        public const string InPrintOrder = "in print order";
+        public const string Heading = "Heading";
+        public const string Wording = "Wording";
+        public const string Order = "Order";
+        public const string OnReport = "On report";
+        public const string TracksFields = "tracks fields";
+        public const string Edited = "edited";
+        public const string ManualBlock = "manual";
+        public const string FromEstimate = "from Estimate";
+        public const string PassThrough = "pass-through";
+        public const string Recompose = "Recompose from fields";
+        public const string MoveUp = "Move up";
+        public const string MoveDown = "Move down";
+        public const string Remove = "Remove";
+        public const string NewParagraph = "New paragraph";
+    }
+
     public static class ReportImages
     {
         public const string FullPage = "Full page";

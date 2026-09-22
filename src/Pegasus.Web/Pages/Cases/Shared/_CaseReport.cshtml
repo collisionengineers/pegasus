@@ -1,4 +1,4 @@
-@*
+﻿@*
     Report (v26 § Report). Head: one primary (Generate report, gated by the
     readiness the projection states) and one More menu (Preview draft,
     Generate fee note, Include fee note). Body: the readiness notice, the
@@ -15,6 +15,7 @@
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @using ReportLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery
 @using Words = Pegasus.Web.Presentation.CaseWorkspaceLabels.Report
+@using WordingLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportWording
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     var details = Model.Case!;
@@ -318,11 +319,114 @@
             <div class="fc ro span4"><span class="lbl">@EngineerLabels.StatementOfTruth</span><div class="fv derived multi @(Model.AssessmentIsAbsent(AssessmentVocabulary.StatementOfTruth) ? "empty" : null)">@Model.AssessmentDisplay(AssessmentVocabulary.StatementOfTruth)</div></div>
         </div>
 
+        @* P30: the report's narrative, in print order. Each block tracks its
+           fields until the Engineer writes their own wording; the heading, the
+           order and whether the report carries it are theirs too. *@
+        @if (Model.ReportWording.Count > 0)
+        {
+            <div class="sub-panel wording" data-report-wording>
+                <h3>@WordingLabels.PanelTitle<span class="rt">@WordingLabels.InPrintOrder</span></h3>
+                @if (editing)
+                {
+                    <div class="stack" data-wording-list>
+                        @for (var index = 0; index < Model.ReportWording.Count; index++)
+                        {
+                            await WordingRow(Model.ReportWording[index], index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        }
+                    </div>
+                    @* A paragraph the Engineer adds is cloned from here with its
+                       own slot and key, and posts through the same names. *@
+                    <template data-wording-template>
+                        @{ await WordingRow(
+                               new ReportWordingBlock("__key__", WordingLabels.NewParagraph, string.Empty, 0, HandEdited: true, Manual: true),
+                               "__i__"); }
+                    </template>
+                    <div class="button-row">
+                        <button type="button" class="btn btn--small" data-wording-new>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                            <span>@WordingLabels.NewParagraph</span>
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="stack">
+                        @foreach (var block in Model.ReportWording.Where(item => item.Included))
+                        {
+                            <div class="fc ro" data-wording-block="@block.Key">
+                                <span class="lbl">@block.Title <span class="src-tag @(block.HandEdited ? "src-tag--warn" : null)">@WordingChip(block)</span></span>
+                                <div class="fv derived multi">@block.Text</div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @* P50: an image has one place. Its report role, its order and the
+           tools that change it are on its tile under Files; the Report
+           section no longer repeats the strip or the preparation cards. *@
         </div>
     </div>
 </section>
 
 @functions {
+    // Which source a block's wording came from, as the chip states it.
+    private static string WordingChip(ReportWordingBlock block) => block.Manual
+        ? WordingLabels.ManualBlock
+        : block.HandEdited
+            ? WordingLabels.Edited
+            : block.Key switch
+            {
+                ReportWordingComposition.SupplementaryDamage => WordingLabels.FromEstimate,
+                ReportWordingComposition.VehicleHistoryCheck => WordingLabels.PassThrough,
+                _ => WordingLabels.TracksFields
+            };
+
+    // One wording block while the section edits: its heading, its wording and
+    // the controls that move it, take it off the report or put it back. Every
+    // control joins the record's one Save form. The order is carried rather
+    // than typed: the move buttons rewrite it.
+    private async Task WordingRow(ReportWordingBlock block, string slot)
+    {
+        var name = $"wordingEdits[{slot}]";
+        var id = $"f-wording-{slot}";
+        var composed = Model.ReportWordingComposed.GetValueOrDefault(block.Key, string.Empty);
+        <div class="wb @(block.Included ? null : "is-off")" data-wording-row data-wording-block="@block.Key"
+             data-wording-composed="@composed">
+            <input type="hidden" name="@(name).Key" value="@block.Key" form="case-edit-form" data-wording-key />
+            <input type="hidden" name="@(name).Manual" value="@(block.Manual ? "true" : "false")" form="case-edit-form" />
+            <input type="hidden" name="@(name).Order" value="@block.Order" form="case-edit-form" data-wording-order />
+            <div class="wbh">
+                <input id="@(id)-title" class="fi wbt" name="@(name).Title" value="@block.Title" form="case-edit-form"
+                       maxlength="@ReportWordingComposition.MaximumTitleLength" aria-label="@WordingLabels.Heading" />
+                <span class="src-tag @(block.HandEdited ? "src-tag--warn" : null)" data-wording-chip>@WordingChip(block)</span>
+                @if (!block.Manual)
+                {
+                    <button type="button" class="icon-button" data-wording-recompose aria-label="@WordingLabels.Recompose" title="@WordingLabels.Recompose">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                    </button>
+                }
+                <span class="wb-tools">
+                    <button type="button" class="icon-button" data-wording-up aria-label="@WordingLabels.MoveUp" title="@WordingLabels.MoveUp">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-up" /></svg>
+                    </button>
+                    <button type="button" class="icon-button" data-wording-down aria-label="@WordingLabels.MoveDown" title="@WordingLabels.MoveDown">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-down" /></svg>
+                    </button>
+                    <label class="choice">
+                        <input type="checkbox" name="@(name).Included" value="true" checked="@block.Included" form="case-edit-form" data-wording-included />
+                        <span>@WordingLabels.OnReport</span>
+                    </label>
+                    <input type="hidden" name="@(name).Included" value="false" form="case-edit-form" />
+                </span>
+            </div>
+            <label class="sr-only" for="@(id)-text">@WordingLabels.Wording</label>
+            <textarea id="@(id)-text" class="fi" rows="3" name="@(name).Text" form="case-edit-form"
+                      maxlength="@ReportWordingComposition.MaximumTextLength" data-wording-text>@block.Text</textarea>
+        </div>
+    }
+
     // One assessment cell on the vocabulary's own type, the control joining
     // the record's one Save form while the section edits.
     private async Task Field(string path, string label, bool multi = false, string? extraClass = null)

@@ -65,7 +65,8 @@ public sealed record AssessmentReportProjectionInput(
     ReportSignatory? Signatory = null,
     ReportGuideSources? Guides = null,
     string? ValuationCommentary = null,
-    bool IncludeFeeNote = false);
+    bool IncludeFeeNote = false,
+    IReadOnlyList<CaseReportWording>? Wording = null);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -217,7 +218,13 @@ public static class AssessmentReportProjection
             Guides: input.Guides ?? ReportGuideSources.None,
             ValuationCommentary: input.ValuationCommentary,
             ReportDateOverridden: reportDateOverridden,
-            IncludeFeeNote: input.IncludeFeeNote);
+            IncludeFeeNote: input.IncludeFeeNote,
+            // v28 P30: the Engineer's changes to the report's wording are
+            // frozen with the rest of the snapshot, so a generation prints
+            // their words as they stood and a later edit changes nothing
+            // already issued. What a block they never touched says is
+            // composed from the frozen facts beside it.
+            Wording: input.Wording);
 
         return new(snapshot, []);
     }

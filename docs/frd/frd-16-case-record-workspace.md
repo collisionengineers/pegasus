@@ -372,6 +372,18 @@ fee, the VAT the report charges on it and their total, beside the agreed fee
 and its description lines, with the generated fee note to download. Without
 script both panes stand.
 
+The Report tab carries **Report wording** (v28 P30): every narrative block
+the report prints, in print order, each with its heading, its wording and
+whether the report carries it. A block tracks the Case's fields until the
+Engineer writes their own wording, and Recompose puts the composed sentence
+back. The move controls and the paragraph the Engineer adds are enhancements
+over controls the one Save form already carries; the heading, the wording
+and the On report choice stand without script. The panel is absent while the
+Case cannot yet be projected into a report, where the readiness rail already
+states what is outstanding. What the blocks are and what each composes from
+is owned by
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks).
+
 Report-draft generation and preview sit
 on the Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).

@@ -46,6 +46,7 @@ public sealed partial class DetailsModel(
     IGetAssessmentAccess getAssessmentAccess,
     IGetAssessmentWorkspace getAssessmentWorkspace,
     ICaseReportSnapshotSource reportSnapshotSource,
+    TimeProvider clock,
     ICreateAiJob createAiJob,
     ISendToAiControl sendToAiControl,
     IRenderCaseEstimateDocument renderEstimateDocument,
@@ -535,6 +536,21 @@ public sealed partial class DetailsModel(
 
     public AssessmentReportDraftPreparation? ReportDraftPreparation { get; private set; }
 
+    /// <summary>
+    /// The report's narrative blocks as the Report section offers them (v28
+    /// P30), the ones taken off the report among them. Empty while the Case
+    /// cannot yet be projected into a report: the readiness rail already
+    /// states what is outstanding.
+    /// </summary>
+    public IReadOnlyList<ReportWordingBlock> ReportWording { get; private set; } = [];
+
+    /// <summary>
+    /// What each offered block says when nobody has written their own, so
+    /// Recompose puts the composed sentence back without a round trip.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ReportWordingComposed { get; private set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
     public string? ReportDraftCondition { get; private set; }
 
     public bool ReportDraftNotReady =>
@@ -943,6 +959,15 @@ public sealed partial class DetailsModel(
                 ReportDraftPreparation = new(readiness.Reasons);
                 EligibleSignOffEngineers = inputs.Readiness.EligibleSignOffEngineers;
                 SelectedSignOffEngineerId = readiness.Signatory?.StaffId;
+                var wording = WordingOf(inputs.Projection);
+                ReportWording = wording.Offered;
+                ReportWordingComposed = wording.Snapshot is { } wordingSnapshot
+                    ? ReportWording.Where(block => !block.Manual).ToDictionary(
+                        block => block.Key,
+                        block => ReportWordingComposition.ComposedText(
+                            block.Key, wordingSnapshot, wordingSnapshot.Presentation()),
+                        StringComparer.Ordinal)
+                    : new Dictionary<string, string>(StringComparer.Ordinal);
             }
         }
         CurrentReportGeneration = await reportGenerations.GetCurrentAsync(actor, id, cancellationToken);
@@ -1388,6 +1413,7 @@ public sealed partial class DetailsModel(
         Guid? signOffEngineerId,
         DateOnly? reportDate,
         AssetPreparationEditForm[]? preparationEdits,
+        ReportWordingEditForm[]? wordingEdits,
         string? damageImpacts,
         string? repairerName,
         string? repairerAddress,
@@ -1441,6 +1467,7 @@ public sealed partial class DetailsModel(
                     throw new InvalidOperationException("This field is not part of the Case editor.");
                 }
                 var preparationSubmitted = preparationEdits is { Length: > 0 };
+                var wordingSubmitted = wordingEdits is { Length: > 0 };
                 var damageFields = assessmentFields.Where(field => EditorLabels.Damage.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 var damageSubmitted = Posted(nameof(damageImpacts)) || damageFields.Count > 0;
@@ -1457,7 +1484,7 @@ public sealed partial class DetailsModel(
                 var engineeringSubmitted = assessmentFields.Count > vehicleIdentityFields.Count
                     || Posted(nameof(storagePerDay)) || Posted(nameof(recoveryCharge))
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
-                    || damageSubmitted;
+                    || damageSubmitted || wordingSubmitted;
                 var current = await getCase.ExecuteAsync(new(id, actor), cancellationToken)
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
                 var data = current.Data
@@ -1661,7 +1688,13 @@ public sealed partial class DetailsModel(
                     Settlement = settlementFields.Count == 0 ? null : new(settlementFields),
                     Report = !reportSubmitted ? null : new(reportFields,
                         Submitted(nameof(signOffEngineerId), signOffEngineerId, current.Workflow.SignOffEngineerId),
-                        Submitted(nameof(reportDate), reportDate, recordedDate))
+                        Submitted(nameof(reportDate), reportDate, recordedDate)),
+                    // v28 P30: wording that reads the same as the composed
+                    // sentence is no change, so the block keeps tracking its
+                    // fields. The composed sentence is read here rather than
+                    // posted back, so the form cannot claim one it never saw.
+                    ReportWording = !wordingSubmitted ? null : await ReportWordingOf(
+                        id, actor, wordingEdits!, cancellationToken)
                 }, cancellationToken);
                 RecordEditorCommit("case-edit-form", operationKey, expectedVersion);
 
@@ -1700,6 +1733,23 @@ public sealed partial class DetailsModel(
         return result;
     }
 
+    /// <summary>
+    /// The report's wording blocks for a Case whose report can be projected:
+    /// the snapshot the blocks compose from, and every block the section
+    /// offers. A Case that cannot yet be projected has neither.
+    /// </summary>
+    private (AssessmentReportSnapshot? Snapshot, IReadOnlyList<ReportWordingBlock> Offered) WordingOf(
+        AssessmentReportProjectionInput projection)
+    {
+        var projected = AssessmentReportProjection.Project(projection with
+        {
+            ReportDate = Pegasus.Core.LondonCalendar.DateAt(clock.GetUtcNow()),
+        });
+        return projected.Snapshot is { } snapshot
+            ? (snapshot, ReportWordingComposition.Offered(snapshot, projection.Wording ?? []))
+            : (null, []);
+    }
+
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 
     private T Submitted<T>(string field, T submitted, T recorded) => Posted(field) ? submitted : recorded;
@@ -1709,6 +1759,18 @@ public sealed partial class DetailsModel(
 
     public static CaseDataValue<T>? Accepted<T>(CaseField<T>? field) where T : notnull =>
         field?.Confirmed ?? field?.Fact;
+
+    private async Task<CaseWorkspaceReportWording> ReportWordingOf(
+        Guid caseId,
+        ActionActor actor,
+        IReadOnlyList<ReportWordingEditForm> edits,
+        CancellationToken cancellationToken)
+    {
+        var inputs = await reportSnapshotSource.GetAsync(caseId, actor, cancellationToken);
+        var snapshot = inputs is null ? null : WordingOf(inputs.Projection).Snapshot;
+        var presentation = snapshot?.Presentation();
+        return new([.. edits.Select(edit => edit.ToRecord(snapshot, presentation))]);
+    }
 
     public async Task<IActionResult> OnPostGenerateReportDraftAsync(
         Guid id,
@@ -2273,6 +2335,51 @@ public sealed partial class DetailsModel(
     /// supporting image to another role in the same submit clears its order
     /// instead of being refused for carrying one.
     /// </summary>
+    /// <summary>
+    /// One report wording block as the Report section posts it back (v28 P30).
+    /// A heading or wording matching the composed one is stored as no change,
+    /// so a block the Engineer left alone keeps tracking its fields.
+    /// </summary>
+    public sealed class ReportWordingEditForm
+    {
+        public string Key { get; set; } = string.Empty;
+
+        public string? Title { get; set; }
+
+        public string? Text { get; set; }
+
+        public int? Order { get; set; }
+
+        public bool Included { get; set; }
+
+        public bool Manual { get; set; }
+
+        public CaseReportWording ToRecord(
+            AssessmentReportSnapshot? snapshot,
+            AssessmentReportPresentation? presentation)
+        {
+            var title = string.IsNullOrWhiteSpace(Title) ? null : Title.Trim();
+            var text = string.IsNullOrWhiteSpace(Text) ? null : Text.Trim();
+            if (!Manual && snapshot is not null && presentation is not null)
+            {
+                if (title is not null
+                    && string.Equals(title, ReportWordingComposition.StandardTitle(Key, presentation), StringComparison.Ordinal))
+                {
+                    title = null;
+                }
+                if (text is not null && string.Equals(
+                    text,
+                    ReportWordingComposition.ComposedText(Key, snapshot, presentation).Trim(),
+                    StringComparison.Ordinal))
+                {
+                    text = null;
+                }
+            }
+            var order = !Manual && Order == ReportWordingComposition.StandardIndex(Key) ? null : Order;
+            return new(Key, title, text, order, Included, Manual);
+        }
+    }
+
     public sealed class AssetPreparationEditForm
     {
         public Guid OccurrenceId { get; set; }

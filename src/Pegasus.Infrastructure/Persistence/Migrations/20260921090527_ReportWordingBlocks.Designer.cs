@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pegasus.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    partial class PegasusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260921090527_ReportWordingBlocks")]
+    partial class ReportWordingBlocks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2619,7 +2622,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CaseRepairSpecificationSnapshots", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", "[Kind] IN ('Imported', 'BeforeScaling', 'Scaled', 'ScalingRemoved', 'BeforeRestore', 'Restored', 'Sent')");
+                            t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", "[Kind] IN ('Imported', 'BeforeScaling', 'Scaled', 'BeforeRestore', 'Sent')");
 
                             t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Number", "[Number] > 0");
                         });
@@ -6300,72 +6303,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("PrincipalSequenceLineages", (string)null);
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProblemReportEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CaseReference")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<DateTimeOffset?>("DispatchClaimExpiresAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("DispatchClaimToken")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("Failure")
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
-
-                    b.Property<int?>("IssueNumber")
-                        .HasColumnType("int");
-
-                    b.Property<string>("IssueUrl")
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
-
-                    b.Property<string>("Route")
-                        .HasMaxLength(400)
-                        .HasColumnType("nvarchar(400)");
-
-                    b.Property<DateTimeOffset?>("SentAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("SnapshotJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("StaffId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAtUtc")
-                        .IsDescending();
-
-                    b.ToTable("ProblemReports", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ProblemReports_Status", "[Status] IN ('Sent', 'NotSent')");
-                        });
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderDomainEvidenceEntity", b =>
                 {
                     b.Property<string>("Version")
@@ -6489,84 +6426,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("ProviderSubmissions", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ReleaseNoteAcknowledgementEntity", b =>
-                {
-                    b.Property<Guid>("StaffId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ReleaseNoteId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("AcknowledgedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("StaffId", "ReleaseNoteId");
-
-                    b.HasIndex("ReleaseNoteId");
-
-                    b.ToTable("ReleaseNoteAcknowledgements", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ReleaseNoteEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("CreatedByStaffId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("PublishedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("PublishedByStaffId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<long>("RowVersion")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("SourceSha")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Version")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UpdatedAtUtc");
-
-                    b.HasIndex("Status", "PublishedAtUtc")
-                        .IsDescending(false, true);
-
-                    b.ToTable("ReleaseNotes", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_ReleaseNotes_Status", "[Status] IN ('Draft', 'Published')");
-                        });
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedInstructionAnalysisEntity", b =>
@@ -9420,15 +9279,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Principal");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ReleaseNoteAcknowledgementEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.ReleaseNoteEntity", null)
-                        .WithMany()
-                        .HasForeignKey("ReleaseNoteId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedInstructionAnalysisEntity", b =>
