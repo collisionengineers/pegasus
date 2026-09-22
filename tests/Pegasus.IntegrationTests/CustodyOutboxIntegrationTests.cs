@@ -1481,7 +1481,11 @@ public sealed class CustodyOutboxIntegrationTests
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                     demotionRaceKey),
                 CancellationToken.None));
-            await Task.Delay(250);
+            // Wait until the export is observably blocked on this transaction's
+            // row lock, not merely unfinished. A fixed 250ms proved neither: on a
+            // slow runner the export may not have opened its connection yet, and
+            // on a fast one it may have blocked long before the sleep ended.
+            await WaitUntilBlockedOnALockAsync(services, racedExport);
             Assert.False(racedExport.IsCompleted);
             lockedWorkflow.State = CaseLifecycleState.NotReady.ToString();
             await lockContext.SaveChangesAsync();
@@ -1996,6 +2000,46 @@ public sealed class CustodyOutboxIntegrationTests
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                     "33333333333333333333333333333333"),
                 CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Returns once another session in this test's database is waiting on a lock,
+    /// which is the boundary a racing write has to reach for the assertion after
+    /// it to mean anything. Throws rather than returning if it never gets there,
+    /// because a test that silently stopped proving its race is worse than a
+    /// failing one. The database is disposable and holds only this test's
+    /// sessions, so any lock wait in it is the one being waited for.
+    /// </summary>
+    private static async Task WaitUntilBlockedOnALockAsync(IServiceProvider services, Task racing)
+    {
+        var factory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (racing.IsCompleted)
+            {
+                // Let the caller's assertion report the unexpected completion.
+                return;
+            }
+
+            await using var probe = await factory.CreateDbContextAsync();
+            var waiting = await probe.Database
+                .SqlQuery<int>($"""
+                    SELECT COUNT(*) AS [Value]
+                    FROM sys.dm_exec_requests
+                    WHERE [database_id] = DB_ID() AND [wait_type] LIKE 'LCK%'
+                    """)
+                .SingleAsync();
+            if (waiting > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(25);
+        }
+
+        throw new InvalidOperationException(
+            "No session reached a lock wait within 30 seconds, so this test would not have proved that the export waits for the row lock.");
     }
 
     private static async Task<Guid> ConfigureDefaultSignOffEngineerAsync(IServiceProvider services)
