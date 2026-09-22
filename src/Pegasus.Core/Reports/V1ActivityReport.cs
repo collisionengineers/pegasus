@@ -23,7 +23,8 @@ public sealed record PrincipalReportActivity(
     int CurrentHeldCases,
     DateTimeOffset? OldestHeldAtUtc,
     int HeldWithoutRecordedHoldEvent,
-    IReadOnlyList<PrincipalReportArtifactTypeActivity> ArtifactTypes);
+    IReadOnlyList<PrincipalReportArtifactTypeActivity> ArtifactTypes,
+    decimal AgreedFeeTotal = 0);
 
 public sealed record PrincipalReportArtifactTypeActivity(
     string Kind,
@@ -46,7 +47,7 @@ public interface IV1ActivityReportQueries
 public static class PrincipalReportActivityCsv
 {
     public const string Header =
-        "Principal,Generation events,Generated artifacts,Pending or failed,Sent,Ready transitions,Missing origin for generated turnaround,Missing origin for Ready turnaround,Missing origin for Sent turnaround,Missing sender attribution,Received to generation,Received to generated artifact,Received to Ready,Received to Sent,Current Triage,Oldest current Triage created UTC,Current held cases,Oldest held UTC,Held without recorded hold event,Report types";
+        "Principal,Generation events,Generated artifacts,Pending or failed,Sent,Ready transitions,Missing origin for generated turnaround,Missing origin for Ready turnaround,Missing origin for Sent turnaround,Missing sender attribution,Received to generation,Received to generated artifact,Received to Ready,Received to Sent,Current Triage,Oldest current Triage created UTC,Current held cases,Oldest held UTC,Held without recorded hold event,Report types,Agreed fees";
 
     public static string ToCsv(IReadOnlyList<PrincipalReportActivity> rows)
     {
@@ -74,7 +75,8 @@ public static class PrincipalReportActivityCsv
                 .Append(row.OldestHeldAtUtc?.ToString("O") ?? string.Empty).Append(',')
                 .Append(row.HeldWithoutRecordedHoldEvent).Append(',')
                 .Append(EngineerActivityReportCsv.EscapeField(string.Join("; ", row.ArtifactTypes
-                    .Select(x => $"{x.Kind}: {x.Generated} generated, {x.PendingOrFailed} pending or failed"))))
+                    .Select(x => $"{x.Kind}: {x.Generated} generated, {x.PendingOrFailed} pending or failed")))).Append(',')
+                .Append(row.AgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))
                 .Append("\r\n");
         }
 
@@ -137,6 +139,7 @@ public sealed class GetV1ActivityReport(IV1ActivityReportQueries queries)
         || row.CurrentHeldCases < 0
         || row.HeldWithoutRecordedHoldEvent < 0
         || row.HeldWithoutRecordedHoldEvent > row.CurrentHeldCases
+        || row.AgreedFeeTotal < 0
         || row.ArtifactTypes is null
         || row.ArtifactTypes.Any(x => string.IsNullOrWhiteSpace(x.Kind)
             || x.Generated < 0 || x.PendingOrFailed < 0);

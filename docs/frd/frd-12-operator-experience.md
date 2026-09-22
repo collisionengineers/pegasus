@@ -146,6 +146,18 @@ open on the next page. The Account dialog's **Release notes** link and
 query failure must not block the page: nothing opens, and the failure is
 logged.
 
+**Report a problem** is in the Account dialog and on the error page: one
+text box, What happened, and **Send**. The report is kept with the state
+the application captures (the build, the page, the trace, the person, the
+Case reference on screen, the fault the error page saw, the person's own
+recent acts and the browser's last script errors; never document content,
+images, mail or a claimant's details) and raised as an issue on the
+configured repository ([ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md)).
+The person returns to the page they were on with `Reported as #<n>.` as
+the confirmation, or `The report was kept but could not be sent.` when the
+raise failed; an Administrator retries it from
+[Problem reports](frd-17-administration-workspace.md#problem-reports).
+
 | Route | Purpose | Replaces |
 | --- | --- | --- |
 | `/` | Work Centre ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)) | Dashboard |
@@ -155,6 +167,7 @@ logged.
 | `/Cases/{id}` | Case record, one page of ten sections; `?section=` jumps ([FRD-16](frd-16-case-record-workspace.md#case-workspace)) | Case workspace side-nav sections; the Assessment page |
 | `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` | Engineer assessment page |
 | `/ReleaseNotes` | Published release notes, newest first; **Got it** posts here | — |
+| `/ProblemReports` | **Send** on Report a problem posts here; it has no page of its own | — |
 | `/Search` | Advanced search ([FRD-15](frd-15-work-centre-queues-and-search.md#search)) | Cases list |
 | `/Triage/{id}`, `/Unidentified/{id}`, `/VehicleImages/{id}` | Triage, Unidentified and vehicle-images records | The received-file page |
 | `/Received/{id}/Source`, `/Received/{id}/Image`, `/Received/{id}/Asset/{assetId}` | Open file: the retained original, served to authorised staff only | — |
@@ -205,11 +218,10 @@ Cases, references and routes by typing and opens the selection.
 
 A shortcut never bypasses a reason, confirmation or gate.
 
-One accepted exception to keyboard parity exists: the Case record's
-whole-page raw-estimate drop is pointer-only
-([FRD-16](frd-16-case-record-workspace.md#assessment)). It is a real gap: a
-keyboard-only operator cannot import a raw estimate file. Every other staff
-action on the Case record is keyboard-reachable.
+Estimate import follows keyboard parity: the Estimate section provides a
+keyboard-accessible **Import** action that opens the native file picker. File
+drag and drop is also scoped to that section and uses the same import path
+([FRD-16](frd-16-case-record-workspace.md#assessment)).
 
 ### Breakpoints
 
