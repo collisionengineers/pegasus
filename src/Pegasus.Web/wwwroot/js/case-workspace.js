@@ -2199,32 +2199,45 @@
         if (!share || !field || !range) {
             return;
         }
-        var value = parseFloat(share.getAttribute('data-engineer-value')) || 0;
+        var valueControl = section.querySelector('[data-decision-engineer-value]');
         var read = share.querySelector('[data-salvage-read]');
         var snaps = Array.prototype.slice.call(share.querySelectorAll('[data-salvage-snap]'));
+        function value() {
+            return valueControl ? parseFloat(valueControl.getAttribute('data-engineer-value')) || 0 : 0;
+        }
         function money(amount) {
             return '£' + amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
         function paint(percent) {
-            if (read) { read.textContent = '= ' + (Math.round(percent * 10) / 10) + '% of ' + money(value); }
+            if (read) { read.textContent = '= ' + (Math.round(percent * 10) / 10) + '% of ' + money(value()); }
             snaps.forEach(function (snap) {
                 snap.classList.toggle('on', Math.abs(percent - parseFloat(snap.getAttribute('data-salvage-snap'))) < 0.5);
             });
         }
         function fromField() {
             var amount = parseFloat(field.value) || 0;
-            var percent = value > 0 ? amount / value * 100 : 0;
+            var current = value();
+            var percent = current > 0 ? amount / current * 100 : 0;
             range.value = String(Math.max(0, Math.min(100, Math.round(percent))));
             paint(percent);
         }
         function fromRange() {
             var percent = parseFloat(range.value) || 0;
-            field.value = (value * percent / 100).toFixed(2);
+            field.value = (value() * percent / 100).toFixed(2);
             field.dispatchEvent(new Event('input', { bubbles: true }));
             paint(percent);
         }
         range.addEventListener('input', fromRange);
         field.addEventListener('input', fromField);
+        if (valueControl) {
+            valueControl.addEventListener('input', fromField);
+            valueControl.addEventListener('change', fromField);
+            if (typeof MutationObserver === 'function') {
+                new MutationObserver(fromField).observe(valueControl, {
+                    attributes: true, childList: true, characterData: true, subtree: true
+                });
+            }
+        }
         share.addEventListener('click', function (event) {
             var snap = event.target.closest('[data-salvage-snap]');
             if (!snap) { return; }
@@ -2234,8 +2247,7 @@
         fromField();
     }
 
-    // P15: a bank wording joins the typed reason; Save this wording posts the
-    // reason as it stands to the firm's bank.
+    // P15: a bank wording joins the typed reason.
     function bindReasonBank(section) {
         var bank = section.querySelector('[data-reason-bank]');
         var row = section.querySelector('[data-decision="assessment.unroadworthy_reason"]');
@@ -2256,10 +2268,6 @@
                 }
                 return;
             }
-            if (event.target.closest('[data-bank-save]')) {
-                var field = document.querySelector('[data-bank-wording-field]');
-                if (field) { field.value = area.value || ''; }
-            }
         });
     }
 
@@ -2272,6 +2280,8 @@
 
             var outcome = control(section.querySelector('[data-decision="assessment.outcome"]'));
             var legal = control(section.querySelector('[data-decision="assessment.legal_status"]'));
+            var reserveRead = section.querySelector('[data-settlement-computed-reserve-value]');
+            var repairCost = parseFloat(section.getAttribute('data-settlement-repair-cost')) || 0;
             bindRadios(section);
             bindSalvageShare(section);
             bindReasonBank(section);
@@ -2286,6 +2296,18 @@
                     element.hidden = on;
                 });
             }
+            function syncReserve(outcomeValue) {
+                if (!reserveRead) {
+                    return;
+                }
+                var reserve = outcomeValue === 'repairable' && repairCost > 0
+                    ? Math.ceil(repairCost / 50) * 50 : null;
+                reserveRead.textContent = reserve === null
+                    ? reserveRead.getAttribute('data-not-applicable')
+                    : '£' + reserve.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        + ' (' + reserveRead.getAttribute('data-rounded-up') + ')';
+                reserveRead.classList.toggle('empty', reserve === null);
+            }
             // An awaiting AI proposal leaves its control empty until accepted,
             // so the rows it implies follow the proposal until a person decides.
             function decided(path, control) {
@@ -2297,7 +2319,9 @@
             }
             function sync() {
                 if (outcome) {
-                    show('total-loss', decided('assessment.outcome', outcome) === 'total_loss');
+                    var outcomeValue = decided('assessment.outcome', outcome);
+                    show('total-loss', outcomeValue === 'total_loss');
+                    syncReserve(outcomeValue);
                 }
                 if (legal) {
                     show('unroadworthy', decided('assessment.legal_status', legal) === 'unroadworthy');

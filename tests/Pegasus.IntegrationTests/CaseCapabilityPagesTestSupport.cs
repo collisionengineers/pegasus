@@ -122,11 +122,12 @@ internal static partial class CaseWebTestSupport
         LeasedWorkspace workspace,
         CaseMutationRequest request,
         string operationKey,
-        string reason)
+        string reason,
+        long? expectedVersion = null)
     {
         AssertClaimant(workspace, request.Actor);
         Assert.Equal(workspace.Store.CaseId, request.CaseId);
-        Assert.Equal(workspace.Store.CaseVersion, request.ExpectedVersion);
+        Assert.Equal(expectedVersion ?? workspace.Store.CaseVersion, request.ExpectedVersion);
         Assert.Equal(workspace.Store.LeaseToken, request.EditLeaseToken);
         Assert.Equal(operationKey, request.OperationKey);
         Assert.Equal(reason, request.Reason);

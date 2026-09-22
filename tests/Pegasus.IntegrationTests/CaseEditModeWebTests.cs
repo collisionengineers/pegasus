@@ -23,6 +23,136 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseEditModeWebTests
 {
     [Fact]
+    public async Task CaseSaveWithBankFlagSavesTheCaseBeforeRecordingTheWording()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            AcceptWorkspaceSaves = true,
+            State = CaseLifecycleState.ReportPreparation
+        };
+        var bank = new RecordingUnroadworthyReasonBank(() => store.Saves.Count);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IUnroadworthyReasonBankStore>(services, bank);
+            Substitute<ISaveUnroadworthyReason>(services, bank);
+        });
+        var reasonName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.UnroadworthyReason);
+        var before = store.CaseVersion;
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey,
+                "Save wording to the bank",
+                (reasonName, "The brake line is severed."),
+                ("saveUnroadworthyReason", "true")));
+
+        AssertPrg(response, store.CaseId);
+        var saved = Assert.Single(store.Saves);
+        AssertLeasedMutation(workspace, saved, DetailsModelOperationKey, "Save wording to the bank", before);
+        Assert.Equal("The brake line is severed.",
+            saved.Settlement!.AssessmentFields![AssessmentVocabulary.UnroadworthyReason]);
+        var bankRequest = Assert.Single(bank.Requests);
+        Assert.Equal("QDOS", bankRequest.PrincipalCode);
+        Assert.Equal("The brake line is severed.", bankRequest.Text);
+        Assert.Equal([1], bank.CaseSaveCountsAtRequest);
+        Assert.Contains("data-case-editing=\"true\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FailedCaseSaveDoesNotReachTheReasonBank()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            AcceptWorkspaceSaves = true,
+            State = CaseLifecycleState.ReportPreparation
+        };
+        var bank = new RecordingUnroadworthyReasonBank();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IUnroadworthyReasonBankStore>(services, bank);
+            Substitute<ISaveUnroadworthyReason>(services, bank);
+        });
+        store.NextFailure = new InvalidOperationException("The case refused the command.");
+        var reasonName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.UnroadworthyReason);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey,
+                "Save wording to the bank",
+                (reasonName, "The brake line is severed."),
+                ("saveUnroadworthyReason", "true")));
+
+        AssertPrg(response, store.CaseId);
+        Assert.Empty(bank.Requests);
+        Assert.Equal(store.LeaseToken, InputValue(await workspace.GetWorkspaceAsync(), "editLeaseToken"));
+    }
+
+    [Fact]
+    public async Task InvalidBankWordingDoesNotSaveTheCaseOrReachTheReasonBank()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            AcceptWorkspaceSaves = true,
+            State = CaseLifecycleState.ReportPreparation
+        };
+        var bank = new RecordingUnroadworthyReasonBank();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IUnroadworthyReasonBankStore>(services, bank);
+            Substitute<ISaveUnroadworthyReason>(services, bank);
+        });
+        var reasonName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.UnroadworthyReason);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey,
+                "Save wording to the bank",
+                (reasonName, ""),
+                ("saveUnroadworthyReason", "true")));
+
+        AssertPrg(response, store.CaseId);
+        Assert.Empty(store.Saves);
+        Assert.Empty(bank.Requests);
+    }
+
+    [Fact]
+    public async Task AnonymousInvalidBankWordingIsForbiddenBeforeValidation()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            AcceptWorkspaceSaves = true,
+            State = CaseLifecycleState.ReportPreparation
+        };
+        var bank = new RecordingUnroadworthyReasonBank();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IUnroadworthyReasonBankStore>(services, bank);
+            Substitute<ISaveUnroadworthyReason>(services, bank);
+        });
+        workspace.Client.DefaultRequestHeaders.Add("X-Test-Anonymous", "true");
+        var reasonName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.UnroadworthyReason);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey,
+                "Save wording to the bank",
+                (reasonName, ""),
+                ("saveUnroadworthyReason", "true")));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Empty(store.Saves);
+        Assert.Empty(bank.Requests);
+    }
+
+    [Fact]
     public async Task CaseSaveKeepsEditingAndIdentifiesOnlyTheCommittedCommand()
     {
         var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
@@ -1294,6 +1424,40 @@ public sealed class CaseEditModeWebTests
                 : query.CaseId == second.CaseId
                     ? ((IGetAssessmentWorkspace)second).ExecuteAsync(query, cancellationToken)
                     : Task.FromResult<AssessmentWorkspace?>(null);
+    }
+
+    private sealed class RecordingUnroadworthyReasonBank :
+        IUnroadworthyReasonBankStore,
+        ISaveUnroadworthyReason
+    {
+        private readonly Func<int>? caseSaveCount;
+
+        public RecordingUnroadworthyReasonBank(Func<int>? caseSaveCount = null) =>
+            this.caseSaveCount = caseSaveCount;
+
+        public List<SaveUnroadworthyReasonRequest> Requests { get; } = [];
+        public List<int> CaseSaveCountsAtRequest { get; } = [];
+
+        public Task<IReadOnlyList<UnroadworthyReason>> ListAsync(
+            string principalCode, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<UnroadworthyReason>>([]);
+
+        public Task<UnroadworthyReason?> AddAsync(
+            SaveUnroadworthyReasonRequest request, string normalized, CancellationToken cancellationToken) =>
+            Task.FromResult<UnroadworthyReason?>(null);
+
+        public Task<UnroadworthyReason?> ExecuteAsync(
+            SaveUnroadworthyReasonRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            if (caseSaveCount is { } count)
+            {
+                CaseSaveCountsAtRequest.Add(count());
+            }
+            return Task.FromResult<UnroadworthyReason?>(new(
+                Guid.NewGuid(), request.PrincipalCode, request.Text, request.Actor.SubjectId,
+                DateTimeOffset.UtcNow));
+        }
     }
 
 }
