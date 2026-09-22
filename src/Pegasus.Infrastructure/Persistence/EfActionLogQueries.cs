@@ -10,7 +10,9 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var offset = (filter.Page - 1) * filter.PageSize;
         var actionQuery = context.ActionHistory.AsNoTracking().Where(item =>
-            item.OccurredAtUtc >= filter.FromUtc && item.OccurredAtUtc < filter.ToUtc);
+            item.OccurredAtUtc >= filter.FromUtc
+            && item.OccurredAtUtc < filter.ToUtc
+            && item.EventKind != EfRepairSpecificationStore.SourceHashReplayEventType);
         var securityQuery = context.SecurityEvents.AsNoTracking().Where(item =>
             item.OccurredAtUtc >= filter.FromUtc && item.OccurredAtUtc < filter.ToUtc);
 
