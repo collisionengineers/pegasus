@@ -39,6 +39,20 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
+    public void ScalingUsesTheLastNonExceedingRoundedEndpoint()
+    {
+        var specification = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 1m),
+            Line("repair", workUnits: 1m));
+
+        var result = RepairSpecificationScaling.Scale(specification, 60.79m, ScalingFloors.Default);
+
+        Assert.Equal(60.79m, result.GrossAfter);
+        Assert.True(result.GrossAfter <= 60.79m);
+    }
+
+    [Fact]
     public void ScalingStopsAtTheFloorsAndNeverBelowThem()
     {
         var specification = Estimate(
