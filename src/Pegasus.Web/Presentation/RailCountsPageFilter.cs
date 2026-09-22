@@ -6,6 +6,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Notifications;
+using Pegasus.Core.ReleaseNotes;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 
@@ -50,6 +51,7 @@ public sealed partial class RailCountsPageFilter(
     IUnidentifiedStore unidentifiedStore,
     IGetOperationsBadge getOperationsBadge,
     IMyStaffNotifications myNotifications,
+    IMyReleaseNotes myReleaseNotes,
     TimeProvider timeProvider,
     ILogger<RailCountsPageFilter> logger) : IAsyncPageFilter
 {
@@ -65,6 +67,8 @@ public sealed partial class RailCountsPageFilter(
         getOperationsBadge ?? throw new ArgumentNullException(nameof(getOperationsBadge));
     private readonly IMyStaffNotifications myNotifications =
         myNotifications ?? throw new ArgumentNullException(nameof(myNotifications));
+    private readonly IMyReleaseNotes myReleaseNotes =
+        myReleaseNotes ?? throw new ArgumentNullException(nameof(myReleaseNotes));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -110,6 +114,22 @@ public sealed partial class RailCountsPageFilter(
             {
                 LogNotificationsUnavailable(logger, exception);
                 pageModel.ViewData["NotificationsUnavailable"] = true;
+            }
+
+            // What's new (FRD-12): the newest published release note this person
+            // has not acknowledged opens once as a dialog. A failed read shows
+            // nothing rather than blocking the page.
+            try
+            {
+                if (await myReleaseNotes.GetUnacknowledgedAsync(actor, cancellationToken) is { } releaseNote)
+                {
+                    pageModel.ViewData["ReleaseNote"] = releaseNote;
+                }
+            }
+            catch (Exception exception) when (exception is not
+                (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+            {
+                LogReleaseNoteUnavailable(logger, exception);
             }
         }
     }
@@ -197,6 +217,10 @@ public sealed partial class RailCountsPageFilter(
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The notification query is unavailable.")]
     private static partial void LogNotificationsUnavailable(
+        ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The release note query is unavailable.")]
+    private static partial void LogReleaseNoteUnavailable(
         ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The Operations badge query is unavailable.")]

@@ -333,12 +333,11 @@ public static class EngineerFindingPolicy
                 "The Engineer finding assessment is invalid.");
         }
         if (request.Actor.Kind != ActorKind.Staff
-            || !request.Actor.IsInRole(StaffRole.Engineer)
             || !Guid.TryParse(request.Actor.SubjectId, out var staffId)
             || staffId == Guid.Empty)
         {
             throw new InvalidOperationException(
-                "An Engineer finding must be recorded by an authenticated Engineer.");
+                "An Engineer finding must be recorded by authenticated staff.");
         }
 
         return staffId;
@@ -363,7 +362,7 @@ public static class EngineerFindingPolicy
         if (assignedEngineerId != actingEngineerId)
         {
             throw new InvalidOperationException(
-                "Only the Engineer assigned to this case can record the finding.");
+                "Only the staff member assigned to this case can record the finding.");
         }
     }
 }

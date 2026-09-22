@@ -23,6 +23,13 @@ public static class DamageAreaGeometry
     public const double BaseRadius = 0.12;
     public const double Margin = 0.08;
 
+    // Core validates the closed area representation against this canonical
+    // plan scale. The same 1:2 aspect ratio is used by the plan geometry's
+    // existing contract tests; renderers map the unit plan onto their own
+    // dimensions without changing the area vocabulary.
+    public const double CanonicalWidth = 1;
+    public const double CanonicalHeight = 2;
+
     /// <summary>The centre of each plan area on the unit plan.</summary>
     public static IReadOnlyDictionary<string, DamagePlanPoint> Centres { get; } =
         new Dictionary<string, DamagePlanPoint>(StringComparer.Ordinal)
@@ -49,12 +56,32 @@ public static class DamageAreaGeometry
     }
 
     /// <summary>
-    /// The disc drawn for a damage's plan areas on a plan of the given size:
-    /// centred between the areas, wide enough to reach each of them. Null
-    /// when the damage names no plan area.
+    /// The canonical disc drawn for a damage's plan areas: centred between the
+    /// areas and wide enough to reach each of them. Null when the damage names
+    /// no plan area.
     /// </summary>
-    public static DamageDisc? Disc(IReadOnlyList<string> areas, double width, double height)
+    public static DamageDisc? Disc(IReadOnlyList<string> areas)
     {
+        ArgumentNullException.ThrowIfNull(areas);
+        var points = areas
+            .Where(Centres.ContainsKey)
+            .Select(area => (X: Centres[area].X * CanonicalWidth, Y: Centres[area].Y * CanonicalHeight))
+            .ToArray();
+        if (points.Length == 0)
+        {
+            return null;
+        }
+        var centreX = points.Average(point => point.X);
+        var centreY = points.Average(point => point.Y);
+        var spread = points.Max(point => Math.Sqrt(Math.Pow(point.X - centreX, 2) + Math.Pow(point.Y - centreY, 2)));
+        return new(centreX, centreY, Math.Max(BaseRadius * CanonicalWidth, spread + Margin * CanonicalWidth));
+    }
+
+    /// <summary>Draws the disc in renderer coordinates, keeping its centre between the rendered area centres.</summary>
+    public static DamageDisc? RenderDisc(IReadOnlyList<string> areas, double width, double height)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         ArgumentNullException.ThrowIfNull(areas);
         var points = areas
             .Where(Centres.ContainsKey)
@@ -64,10 +91,89 @@ public static class DamageAreaGeometry
         {
             return null;
         }
+
         var centreX = points.Average(point => point.X);
         var centreY = points.Average(point => point.Y);
         var spread = points.Max(point => Math.Sqrt(Math.Pow(point.X - centreX, 2) + Math.Pow(point.Y - centreY, 2)));
         return new(centreX, centreY, Math.Max(BaseRadius * width, spread + Margin * width));
+    }
+
+    /// <summary>
+    /// Adds every plan area positively covered by the regenerated canonical
+    /// disc until the representation reaches a fixed point.
+    /// </summary>
+    public static IReadOnlyList<string> CompletePlanAreas(IReadOnlyList<string> areas)
+    {
+        ArgumentNullException.ThrowIfNull(areas);
+        var completed = new HashSet<string>(areas, StringComparer.Ordinal);
+        if (completed.Count == 0)
+        {
+            return [];
+        }
+        if (completed.Any(area => !Centres.ContainsKey(area)))
+        {
+            throw new ArgumentException("Every area must be a plan area.", nameof(areas));
+        }
+
+        while (true)
+        {
+            var disc = Disc(completed.ToArray())!;
+            var changed = false;
+            foreach (var area in IntersectedPlanAreas(disc, CanonicalWidth, CanonicalHeight))
+            {
+                changed |= completed.Add(area);
+            }
+            if (!changed)
+            {
+                return Centres.Keys.Where(completed.Contains).ToArray();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns the plan areas with a positive-area intersection with a disc.
+    /// Tangency at an area boundary is not coverage. The plan areas are the
+    /// canonical rectangles defined by the four band boundaries; the caller's
+    /// width and height map that unit plan onto its rendering surface.
+    /// </summary>
+    public static IReadOnlyList<string> IntersectedPlanAreas(
+        DamageDisc disc,
+        double width,
+        double height)
+    {
+        ArgumentNullException.ThrowIfNull(disc);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+
+        return Centres.Keys
+            .Where(area => HasPositiveAreaIntersection(disc, area, width, height))
+            .ToArray();
+    }
+
+    private static bool HasPositiveAreaIntersection(
+        DamageDisc disc,
+        string area,
+        double width,
+        double height)
+    {
+        var bounds = area switch
+        {
+            "front" => (LeftBand * width, 0d, RightBand * width, FrontBand * height),
+            "left_front" => (0d, 0d, LeftBand * width, FrontBand * height),
+            "right_front" => (RightBand * width, 0d, width, FrontBand * height),
+            "left_side" => (0d, FrontBand * height, width / 2d, RearBand * height),
+            "right_side" => (width / 2d, FrontBand * height, width, RearBand * height),
+            "rear" => (LeftBand * width, RearBand * height, RightBand * width, height),
+            "left_rear" => (0d, RearBand * height, LeftBand * width, height),
+            "right_rear" => (RightBand * width, RearBand * height, width, height),
+            _ => throw new ArgumentException($"'{area}' is not a plan area.", nameof(area))
+        };
+
+        var closestX = Math.Clamp(disc.CentreX, bounds.Item1, bounds.Item3);
+        var closestY = Math.Clamp(disc.CentreY, bounds.Item2, bounds.Item4);
+        var deltaX = disc.CentreX - closestX;
+        var deltaY = disc.CentreY - closestY;
+        return deltaX * deltaX + deltaY * deltaY < disc.Radius * disc.Radius;
     }
 }
 

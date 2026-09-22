@@ -767,7 +767,6 @@ public sealed class EfStaffAccountAdministration(
         if (request.IsDefaultSignOffEngineer
             && !SignOffEngineerEligibility.IsEligible(
                 user.IsEnabled,
-                request.Role,
                 request.IsSignOffEngineer,
                 request.Signature ?? user.SignOffSignature))
         {

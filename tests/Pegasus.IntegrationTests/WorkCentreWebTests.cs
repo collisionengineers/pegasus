@@ -70,11 +70,11 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
-    public async Task OfficeIsTheDefaultForAnAdministratorAndMineIsSentWhenChosen()
+    public async Task OfficeIsTheDefaultForAUserAndMineIsSentWhenChosen()
     {
         var snapshot = new FakeSnapshot();
         using var host = Host(snapshot);
-        using var client = Client(host);
+        using var client = Client(host, StaffRoleNames.User);
 
         var office = await GetOkAsync(client, "/");
         Assert.Equal(NeedsAttentionScope.Office, Assert.Single(snapshot.Queries).Scope);
@@ -150,9 +150,7 @@ public sealed class WorkCentreWebTests
 
         // Due today reads amber "Today" in the pane.
         Assert.Contains("class=\"status status--amber\">Today</span>", html, StringComparison.Ordinal);
-        // Core's take rule (NeedsAttentionPolicy.CanTake) admits any actor who
-        // meets the Engineer requirement, which the offline Administrator does,
-        // so an unowned Unassigned row offers Assign to me in place (P8).
+        // An enabled User may take an unowned row in place (P8).
         Assert.Contains("data-wc-take", html, StringComparison.Ordinal);
         Assert.Contains("handler=AssignToMe", html, StringComparison.Ordinal);
         Assert.Contains($"name=\"caseId\" value=\"{unassigned.Id}\"", html, StringComparison.Ordinal);
@@ -376,12 +374,20 @@ public sealed class WorkCentreWebTests
                 services.AddSingleton<IAiDraftQueries>(drafts ?? new FakeAiDrafts());
             }));
 
-    private static HttpClient Client(WebApplicationFactory<Program> host) =>
-        host.CreateClient(new WebApplicationFactoryClientOptions
+    private static HttpClient Client(WebApplicationFactory<Program> host, string? role = null)
+    {
+        var client = host.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost:7139")
         });
+        if (role is not null)
+        {
+            client.DefaultRequestHeaders.Add("X-Test-Roles", role);
+        }
+
+        return client;
+    }
 
     private static async Task<string> GetOkAsync(HttpClient client, string path)
     {

@@ -104,8 +104,8 @@ public sealed class EfGlassRepairEstimateSessionStore(
     }
 
     /// <summary>
-    /// The Engineer's own newest session for a Case. Ordered by the row's own
-    /// <c>CreatedAtUtc</c> and then its id, so a Case an Engineer has launched
+    /// The staff member's own newest session for a Case. Ordered by the row's own
+    /// <c>CreatedAtUtc</c> and then its id, so a Case they have launched
     /// more than once answers with the latest deterministically rather than
     /// with whichever row the server happened to return first.
     /// </summary>
@@ -376,7 +376,7 @@ public sealed class EfGlassRepairEstimateSessionStore(
     }
 
     /// <summary>
-    /// The Engineer's session that holds an account now, wherever it was
+    /// The staff member's session that holds an account now, wherever it was
     /// launched, so every Case they open can say where it is.
     /// </summary>
     public async Task<GlassRepairEstimateSession?> GetLiveForUserAsync(

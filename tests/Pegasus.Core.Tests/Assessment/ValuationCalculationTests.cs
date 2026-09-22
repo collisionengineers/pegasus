@@ -360,28 +360,35 @@ public sealed class ValuationCalculationTests
                 CancellationToken.None));
     }
 
-    /// <summary>
-    /// Adopting a value is confirming a professional finding. An Administrator
-    /// inherits that Engineer capability while ordinary and non-staff actors do not.
-    /// </summary>
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task EveryStaffRoleMayApplyAnEngineersValueWithActorAttribution(StaffRole role)
+    {
+        var store = new RecordingStore { Bases = { [GuideId] = Basis(3100m) } };
+        var apply = new ApplyValuationCalculation(store);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+
+        var applied = await apply.ExecuteAsync(ApplyRequest(actor), CancellationToken.None);
+
+        Assert.Equal(3100m, applied.Calculation.Proposal);
+        Assert.Equal(3100m, applied.AcceptedEngineerValue);
+        Assert.Equal(actor.SubjectId, applied.AcceptedBy);
+        Assert.Equal(GuideId, Assert.Single(store.Applied).Selection.GuideValuationId);
+    }
+
     [Fact]
-    public async Task AdministratorMayAdoptAnEngineersValueWhileUserAndNonStaffCannot()
+    public async Task NonStaffActorsCannotApplyAnEngineersValue()
     {
         var store = new RecordingStore { Bases = { [GuideId] = Basis(3100m) } };
         var apply = new ApplyValuationCalculation(store);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            apply.ExecuteAsync(ApplyRequest(User), CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             apply.ExecuteAsync(
                 ApplyRequest(ActionActor.Provider(Guid.NewGuid())),
                 CancellationToken.None));
         Assert.Empty(store.Applied);
-
-        var applied = await apply.ExecuteAsync(ApplyRequest(Administrator), CancellationToken.None);
-
-        Assert.Equal(3100m, applied.AcceptedEngineerValue);
-        Assert.Equal(GuideId, Assert.Single(store.Applied).Selection.GuideValuationId);
     }
 
     /// <summary>
