@@ -30,7 +30,11 @@ public class ErrorModel(IMemoryCache cache) : PageModel
 
     public bool IsSignedIn => User.Identity?.IsAuthenticated == true;
 
-    public void OnGet()
+    public void OnGet() => Initialize();
+
+    public void OnPost() => Initialize();
+
+    private void Initialize()
     {
         RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
         if (HttpContext.Features.Get<IExceptionHandlerFeature>()?.Error is { } error)

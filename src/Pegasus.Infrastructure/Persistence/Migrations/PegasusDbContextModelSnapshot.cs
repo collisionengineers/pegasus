@@ -6195,6 +6195,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<DateTimeOffset?>("DispatchClaimExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DispatchClaimToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("Failure")
                         .HasMaxLength(400)
                         .HasColumnType("nvarchar(400)");

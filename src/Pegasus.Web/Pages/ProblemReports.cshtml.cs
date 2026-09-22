@@ -25,6 +25,7 @@ public sealed class ProblemReportsModel(
     public async Task<IActionResult> OnPostReportAsync(
         string? description,
         string? route,
+        string? method,
         string? traceId,
         string? caseReference,
         string? viewport,
@@ -57,7 +58,7 @@ public sealed class ProblemReportsModel(
                     actor,
                     build,
                     cache,
-                    new ProblemReportRequests.PostedFacts(description, route, traceId, caseReference, viewport, editing, errors)),
+                    new ProblemReportRequests.PostedFacts(description, route, method, traceId, caseReference, viewport, editing, errors)),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
