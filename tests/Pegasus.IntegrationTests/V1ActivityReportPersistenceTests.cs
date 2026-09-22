@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
@@ -93,7 +94,7 @@ public sealed class V1ActivityReportPersistenceTests
                     CaseId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
-                    SnapshotJson = "{}",
+                    SnapshotJson = "{\"agreedFee\":111.25}",
                     TemplateVersion = "test",
                     RendererVersion = "test",
                     State = "ready",
@@ -106,7 +107,7 @@ public sealed class V1ActivityReportPersistenceTests
                     CaseId = caseId,
                     CaseVersion = 0,
                     SnapshotHash = new string('c', 64),
-                    SnapshotJson = "{}",
+                    SnapshotJson = "{\"agreedFee\":1.00}",
                     TemplateVersion = "test",
                     RendererVersion = "test",
                     State = "ready",
@@ -134,7 +135,7 @@ public sealed class V1ActivityReportPersistenceTests
                     CreatedBy = "test",
                     IsCurrent = true
                 },
-                Artifact(generationId, versionId, sha256, "PDF", "Confirmed"),
+                Artifact(generationId, versionId, sha256, nameof(CaseReportArtifactKind.AssessmentReport), "Confirmed"),
                 Artifact(generationId, null, null, "DOCX", "Pending"),
                 Artifact(priorGenerationId, versionId, sha256, "PDF", "Confirmed"),
                 new ActionHistoryEntity
@@ -180,6 +181,17 @@ public sealed class V1ActivityReportPersistenceTests
                     AfterJson = $"{{\"generationId\":\"{Guid.NewGuid():D}\"}}"
                 },
                 SentOperation(generationId, contextVersion: 1, sentAt));
+            context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
+            {
+                CaseId = caseId,
+                FieldPath = AssessmentVocabulary.AgreedFee,
+                Value = "999.99",
+                RecordedByKind = "Staff",
+                RecordedBy = Guid.NewGuid().ToString("D"),
+                RecordedAtUtc = sentAt,
+                ConfirmedBy = Guid.NewGuid().ToString("D"),
+                ConfirmedAtUtc = sentAt
+            });
             await context.SaveChangesAsync();
         }
 
@@ -203,10 +215,11 @@ public sealed class V1ActivityReportPersistenceTests
         Assert.Equal(1, row.CurrentHeldCases);
         Assert.Equal(From.AddDays(4), row.OldestHeldAtUtc);
         Assert.Equal(0, row.HeldWithoutRecordedHoldEvent);
+        Assert.Equal(111.25m, row.AgreedFeeTotal);
         Assert.Equal(
         [
-            new PrincipalReportArtifactTypeActivity("DOCX", 0, 1),
-            new PrincipalReportArtifactTypeActivity("PDF", 1, 0)
+            new PrincipalReportArtifactTypeActivity(nameof(CaseReportArtifactKind.AssessmentReport), 1, 0),
+            new PrincipalReportArtifactTypeActivity("DOCX", 0, 1)
         ], row.ArtifactTypes);
     }
 

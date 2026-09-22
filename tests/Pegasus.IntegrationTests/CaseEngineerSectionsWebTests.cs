@@ -70,20 +70,26 @@ public sealed class CaseEngineerSectionsWebTests
         if (!AssessmentPolicy.IsWritableState(state))
         {
             Assert.DoesNotContain("New estimate", html, StringComparison.Ordinal);
-            Assert.DoesNotContain("Import estimate", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("id=\"case-estimate-import-form\"", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Save estimate", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Send to Claude", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Generate report draft", html, StringComparison.Ordinal);
         }
+        else
+        {
+            Assert.Contains("id=\"case-estimate-import-form\"", html, StringComparison.Ordinal);
+            Assert.Contains("Import estimate", html, StringComparison.Ordinal);
+            Assert.Contains("handler=ImportEstimate", html, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
-    /// GET ?estimate=new must not depend on either the
-    /// actor being an Engineer or the assessment being open to render the
-    /// (read-only) editor panel.
+    /// GET ?estimate=new must not depend on the actor's role or the assessment
+    /// being open to render the (read-only) editor panel; a Held Case offers
+    /// no import to anyone.
     /// </summary>
     [Theory]
-    [InlineData("User", CaseLifecycleState.ReportPreparation)]
+    [InlineData("User", CaseLifecycleState.Held)]
     [InlineData("Engineer", CaseLifecycleState.Held)]
     public async Task NewEstimateGetRendersReadOnlyEditorWhenNotEditable(string role, CaseLifecycleState state)
     {
@@ -119,6 +125,7 @@ public sealed class CaseEngineerSectionsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("id=\"section-estimate\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-estimate-import-form\"", html, StringComparison.Ordinal);
     }
 
     private sealed class EngineerSectionSource :

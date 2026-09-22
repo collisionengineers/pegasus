@@ -24,7 +24,8 @@ public sealed class EfAutomationActivityStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var actionQuery = context.ActionHistory
             .AsNoTracking()
-            .Where(item => item.ActorKind == nameof(ActorKind.Automation));
+            .Where(item => item.ActorKind == nameof(ActorKind.Automation)
+                && item.EventKind != EfRepairSpecificationStore.SourceHashReplayEventType);
         var securityQuery = context.SecurityEvents
             .AsNoTracking()
             .Where(item => item.ReasonCode != null
