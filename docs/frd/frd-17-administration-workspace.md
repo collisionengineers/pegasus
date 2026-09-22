@@ -30,7 +30,8 @@ estimates by
 
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
 configuration**, **Mail settings**, **Valuation presets**, **Service
-health**, **Logs**, **Reports**, **Release notes** and **AI jobs**. Automation appears only when
+health**, **Logs**, **Reports**, **Release notes**, **Problem reports** and **AI
+jobs**. Automation appears only when
 its capability is composed. Its Automation & AI page carries the Send to AI
 connector settings
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-connector-settings)).
@@ -141,9 +142,18 @@ technical actions that apply
 **Reports** shares one London period filter across MI-01 Engineer activity,
 MI-02 Reports by Principal (per-Principal report counts by type) and MI-03
 Turnaround (current holding age, and instruction-to-produced, ready and sent
-turnaround). Each has its own totals and a downloadable CSV. A section whose
-query fails or returns invalid data renders an unavailable state, never a
-false zero.
+turnaround). Each has its own totals and a downloadable CSV, and **Download
+workbook** gives every report for the period as one `.xlsx` with a sheet
+each and a **By month** sheet, typed cells, a frozen filtered header and
+totals. MI-01 counts the queries by type (disputes and amendment requests
+within the total), the reports sent on Audit Cases (the Audit uplift) and
+each person's instruction-received-to-sent turnaround; its columns sort by
+person, queries or reports, and a meter beside each count shows it against
+the period's largest. MI-02 adds the agreed fees on the Cases whose reports
+were produced, and a **By month** table (reports and fee notes produced,
+reports sent, agreed fees, per Principal and London month) for invoice
+generation. A section whose query fails or returns invalid data renders an
+unavailable state, never a false zero.
 
 ### Release notes
 
@@ -159,6 +169,15 @@ The body is shown as typed: blank lines separate paragraphs and lines
 beginning with `- ` form a list. Publishing makes the note the shell's
 What's new dialog for everyone ([FRD-12](frd-12-operator-experience.md#shell-and-routes)).
 A stale save is refused without overwriting the newer draft.
+
+### Problem reports
+
+**Problem reports** lists every report kept, newest first: when, who, the
+page, the Case, what the person wrote, its status (Sent with a link to the
+issue, or Not sent with the reason) and **Retry** on a report that was not
+sent. Retry raises the same report again; a sent report is never raised
+twice. Nothing on the page edits a report
+([ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md)).
 
 ## States and transitions
 
@@ -179,7 +198,7 @@ checks the expected version inside its mutation transaction.
 
 ## Acceptance evidence
 
-Acceptance covers the ten areas and their routes, the on-click actions
+Acceptance covers the eleven areas and their routes, the on-click actions
 without confirmation, the Action logs actor resolution and filter, the Intake
 log columns and actions, the six workflow settings and their ranges, and the
 three MI reports with their CSVs. Authenticated Web tests cover server-owned

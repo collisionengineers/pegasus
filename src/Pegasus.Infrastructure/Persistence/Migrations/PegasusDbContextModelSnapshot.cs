@@ -6177,6 +6177,72 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("PrincipalSequenceLineages", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProblemReportEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CaseReference")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTimeOffset?>("DispatchClaimExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DispatchClaimToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Failure")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<int?>("IssueNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IssueUrl")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("Route")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<DateTimeOffset?>("SentAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .IsDescending();
+
+                    b.ToTable("ProblemReports", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProblemReports_Status", "[Status] IN ('Sent', 'NotSent')");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ProviderDomainEvidenceEntity", b =>
                 {
                     b.Property<string>("Version")

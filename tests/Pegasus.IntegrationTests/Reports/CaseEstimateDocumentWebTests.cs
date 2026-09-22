@@ -223,6 +223,22 @@ public sealed class CaseEstimateDocumentWebTests
             ImportRawEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<EstimateImportResult?> ProbeSourceHashReplayAsync(
+            Guid caseId,
+            string operationKey,
+            string sourceSha256,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<EstimateImportResult?>(null);
+
+        public Task<EstimateImportResult> BindSourceHashReplayAsync(
+            Guid caseId,
+            string operationKey,
+            string sourceSha256,
+            Guid estimateId,
+            ActionActor actor,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<RepairSpecificationVersion> SaveImportedEstimateAsync(
             SaveEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
