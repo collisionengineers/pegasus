@@ -206,7 +206,18 @@ public sealed partial class DetailsModel(
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? SectionFilter { get; set; }
 
-    public string Section => NormalizeSection(SectionFilter);
+    public string Section
+    {
+        get
+        {
+            var section = NormalizeSection(SectionFilter);
+            return section == "original-report"
+                && Case is not null
+                && !IsAuditCase
+                ? Labels.CaseWorkspace.DefaultSectionKey
+                : section;
+        }
+    }
 
     private static string NormalizeSection(string? value)
     {
