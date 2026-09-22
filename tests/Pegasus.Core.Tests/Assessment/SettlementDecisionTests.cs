@@ -1,4 +1,4 @@
-using Pegasus.Core.Assessment;
+﻿using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Tests.Assessment;
@@ -11,6 +11,7 @@ public sealed class SettlementDecisionTests
 {
     private static readonly ActionActor Engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
     private static readonly ActionActor User = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+    private static readonly ActionActor Automation = ActionActor.Automation("pegasus-automation");
 
     [Theory]
     [InlineData("repairable", 916.00, 950.00)]
@@ -63,16 +64,21 @@ public sealed class SettlementDecisionTests
         Assert.Equal(second, UnroadworthyReasonBank.Insert(second, "There is a loss of essential fluids."));
     }
 
+    /// <summary>
+    /// PR 792 took the Engineer account type out of the authority rules, so saving
+    /// to a firm's reason bank is a staff act. An actor who is not staff is still
+    /// refused, and a User saves the same as an Engineer.
+    /// </summary>
     [Fact]
-    public async Task OnlyAnEngineerSavesAWordingAndTheBankNeverHoldsItTwice()
+    public async Task OnlyStaffSaveAWordingAndTheBankNeverHoldsItTwice()
     {
         var store = new RecordingBank();
         var save = new SaveUnroadworthyReason(store);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => save.ExecuteAsync(
-            new("QDOS", "the wheels are missing", User), CancellationToken.None));
+            new("QDOS", "the wheels are missing", Automation), CancellationToken.None));
 
-        var saved = await save.ExecuteAsync(new("QDOS", "The wheels are missing.", Engineer), CancellationToken.None);
+        var saved = await save.ExecuteAsync(new("QDOS", "The wheels are missing.", User), CancellationToken.None);
         Assert.NotNull(saved);
         Assert.Equal("the wheels are missing", saved.Text);
         Assert.Equal("QDOS", saved.PrincipalCode);
