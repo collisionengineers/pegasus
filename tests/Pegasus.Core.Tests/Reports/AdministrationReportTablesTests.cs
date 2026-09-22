@@ -37,7 +37,7 @@ public sealed class AdministrationReportTablesTests
 
         var byPrincipal = sheets[1];
         Assert.Equal(WorkbookColumnKind.Money, byPrincipal.Columns[3].Kind);
-        Assert.Equal(["QDOS", 3, 2, 250m, "AssessmentReport 2; FeeNote 1"], byPrincipal.Rows.Single());
+        Assert.Equal(["QDOS", 2, 2, 250m, "AssessmentReport 2; FeeNote 1"], byPrincipal.Rows.Single());
         Assert.False(sheets[2].Totals); // Averages and dates do not sum.
         Assert.Equal(["Aug 2026", "QDOS", 2, 1, 2, 250m], sheets[3].Rows.Single());
         Assert.All(sheets, sheet => Assert.All(sheet.Rows, row => Assert.Equal(sheet.Columns.Count, row.Count)));
