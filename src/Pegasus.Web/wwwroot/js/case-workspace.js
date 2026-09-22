@@ -104,9 +104,12 @@
         links().forEach(function (link) {
             var key = link.getAttribute('data-section-link');
             var selected = key === activeKey;
+            var ownedPanelIds = sections()
+                .filter(function (host) { return ownerKey(host.getAttribute('data-section')) === key; })
+                .map(function (host) { return host.id; });
             link.id = 'case-section-tab-' + key;
             link.setAttribute('role', 'tab');
-            link.setAttribute('aria-controls', 'section-' + key);
+            link.setAttribute('aria-controls', ownedPanelIds.join(' '));
             link.setAttribute('aria-selected', selected ? 'true' : 'false');
             link.setAttribute('tabindex', selected ? '0' : '-1');
             link.setAttribute('aria-current', selected ? 'true' : 'false');
@@ -114,7 +117,7 @@
         sections().forEach(function (host) {
             var key = host.getAttribute('data-section');
             host.setAttribute('role', 'tabpanel');
-            host.setAttribute('aria-labelledby', 'case-section-tab-' + key);
+            host.setAttribute('aria-labelledby', 'case-section-tab-' + ownerKey(key));
             host.classList.toggle('is-active', ownerKey(key) === activeKey);
         });
     }
@@ -128,10 +131,11 @@
         activeKey = key;
         updateSectionFields();
         applyTabState();
-        var target = sectionFor(key);
-        if (target && target.hasAttribute('data-lazy')) {
-            mount(target, function () { applyTabState(); });
-        }
+        main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
+            if (ownerKey(placeholder.getAttribute('data-lazy')) === activeKey) {
+                mount(placeholder, function () { applyTabState(); });
+            }
+        });
         window.scrollTo({ top: 0, behavior: 'auto' });
     }
     function setLayout(value, persist) {
@@ -2041,18 +2045,16 @@
         'report.include_unrelated_damage': ['unrelated damage', '']
     };
 
-    function bind(root) {
-        root.querySelectorAll('[data-report]').forEach(function (section) {
-            if (section.dataset.reportBound === 'true') {
+    function bindContent(root) {
+        root.querySelectorAll('[data-report-content]').forEach(function (summary) {
+            var group = summary.closest('[data-field="report-content"]');
+            if (!group || group.dataset.reportContentBound === 'true') {
                 return;
             }
-            section.dataset.reportBound = 'true';
-
-            // The read value stays in step with the three switches.
-            var summary = section.querySelector('[data-report-content]');
-            var switches = Array.prototype.slice.call(section.querySelectorAll('[data-report-switch]'));
+            group.dataset.reportContentBound = 'true';
+            var switches = Array.prototype.slice.call(group.querySelectorAll('[data-report-switch]'));
             function read() {
-                if (!summary || !switches.length) {
+                if (!switches.length) {
                     return;
                 }
                 var parts = [];
@@ -2064,6 +2066,15 @@
                 summary.textContent = parts.join(' · ');
             }
             switches.forEach(function (box) { box.addEventListener('change', read); });
+        });
+    }
+
+    function bindReport(root) {
+        root.querySelectorAll('[data-report]').forEach(function (section) {
+            if (section.dataset.reportPreviewBound === 'true') {
+                return;
+            }
+            section.dataset.reportPreviewBound = 'true';
 
             // The preview follows the Include fee note choice, and opens in
             // the page's document viewer when one is present.
@@ -2081,6 +2092,11 @@
                 feeNote.addEventListener('change', function () { preview.setAttribute('href', previewHref()); });
             }
         });
+    }
+
+    function bind(root) {
+        bindContent(root);
+        bindReport(root);
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);

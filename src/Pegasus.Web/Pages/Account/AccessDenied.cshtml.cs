@@ -6,9 +6,9 @@ namespace Pegasus.Web.Pages.Account;
 /// <summary>
 /// The refusal a signed-in operator reads on a route their role does not hold
 /// (a User on a Manage route): the cookie scheme's AccessDeniedPath, so it is
-/// only ever reached signed in. It renders inside the shell as the v26 shell
-/// draws it — the area as the eyebrow, "Access denied", one sentence — because
-/// the rail an operator already sees offers nothing this page has declined.
+/// only ever reached signed in. It renders in the navless frame with the rest
+/// of the error family (v28 P6-D, 18 September 2026) — the area as the
+/// eyebrow, "Access denied", one sentence and Return to Work Centre.
 /// </summary>
 public sealed class AccessDeniedModel : PageModel
 {

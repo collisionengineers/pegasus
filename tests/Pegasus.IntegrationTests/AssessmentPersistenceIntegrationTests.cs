@@ -750,7 +750,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("estimate-accept-case");
         var caseId = outcome.Identity.CaseId;
-        var engineer = harness.EngineerActor;
+        var engineer = harness.UserActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
         var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
         var duplicate = new DuplicateEstimate(harness.RepairSpecifications);
@@ -1650,7 +1650,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     {        await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("valuation-accept-case");
         var caseId = outcome.Identity.CaseId;
-        var engineer = harness.EngineerActor;
+        var engineer = harness.UserActor;
         var save = new SaveValuation(harness.Valuations);
         var edit = new EditValuation(harness.Valuations);
         var list = new ListCaseValuations(harness.Valuations);
@@ -2530,6 +2530,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         public ActionActor AutomationActor { get; } = ActionActor.Automation("pegasus-automation");
         public ActionActor EngineerActor { get; } =
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+
+        public ActionActor UserActor { get; } =
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
         public static async Task<Harness> CreateAsync(DbCommandInterceptor? interceptor = null)
         {

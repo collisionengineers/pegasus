@@ -85,7 +85,7 @@ public sealed class CallbackModel(
         }
         if (!Guid.TryParse(actor.SubjectId, out var staffId) || staffId != session.PegasusUserId)
         {
-            // Another Engineer's session, refused before its one-use token is
+            // Another staff member's session, refused before its one-use token is
             // spent: the owner can still return on the same address.
             return Forbid();
         }
@@ -112,11 +112,7 @@ public sealed class CallbackModel(
         }
     }
 
-    /// <summary>The roles the page used to declare; every staff role may return.</summary>
-    private static bool IsStaff(ActionActor actor) =>
-        actor.IsInRole(StaffRole.Administrator)
-        || actor.IsInRole(StaffRole.Engineer)
-        || actor.IsInRole(StaffRole.User);
+    private static bool IsStaff(ActionActor actor) => actor.Kind == ActorKind.Staff;
 
     /// <summary>
     /// The provider's message travels verbatim: its identity is the correlation

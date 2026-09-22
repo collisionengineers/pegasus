@@ -126,30 +126,19 @@ public sealed class CaseRecordFrameV26WebTests
     }
 
     /// <summary>
-    /// P8: an Engineer on a Review Case with no Engineer gets Assign to me in
-    /// the assignment dialog, as its own form, and the post reaches the
-    /// self-assignment command with the session's envelope. A User, who holds
-    /// no Engineer authority, is not offered it.
+    /// P8: a User on a Review Case with no assignee gets Assign to me in the
+    /// assignment dialog, as its own form, and the post reaches the
+    /// self-assignment command with the session's envelope.
     /// </summary>
     [Fact]
-    public async Task AssignToMeIsOfferedToAnEngineerAndPostsTheSelfAssignment()
+    public async Task AssignToMeIsOfferedToAUserAndPostsTheSelfAssignment()
     {
-        var engineerId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
-        using (var user = await EnterEditModeAsRoleAsync(store, "User", services =>
-            Substitute<IStaffAccountQueries>(services, new StubStaffAccounts(engineerId, "Engineer", StaffRole.Engineer))))
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
-            var html = await user.GetWorkspaceAsync();
-            Assert.Contains("data-dialog-open=\"case-handoff-dialog\"", RecordBar(html), StringComparison.Ordinal);
-            Assert.DoesNotContain("handler=AssignToMe", html, StringComparison.Ordinal);
-        }
-
-        var engineerStore = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
-        using var workspace = await EnterEngineerEditModeAsync(engineerStore, services =>
-        {
-            Substitute<IStaffAccountQueries>(services, new StubStaffAccounts(engineerId, "Engineer", StaffRole.Engineer));
-            Substitute<IAssignCaseToMe>(services, engineerStore);
-        });
+            Substitute<IStaffAccountQueries>(services, new StubStaffAccounts(Guid.NewGuid(), "User", StaffRole.User));
+            Substitute<IAssignCaseToMe>(services, store);
+        }, StaffRole.User);
         var leased = await workspace.GetWorkspaceAsync();
         var dialog = Section(leased, "case-handoff-dialog-title");
         Assert.Contains("handler=AssignToMe", dialog, StringComparison.Ordinal);
@@ -161,16 +150,16 @@ public sealed class CaseRecordFrameV26WebTests
             "Workflow?handler=AssignToMe",
             Form(
                 workspace.AntiforgeryToken,
-                ("id", engineerStore.CaseId.ToString("D")),
-                ("expectedVersion", engineerStore.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
                 ("operationKey", operationKey),
-                ("editLeaseToken", engineerStore.LeaseToken)));
-        AssertPrg(response, engineerStore.CaseId);
-        var assignment = Assert.Single(engineerStore.SelfAssignments);
+                ("editLeaseToken", store.LeaseToken)));
+        AssertPrg(response, store.CaseId);
+        var assignment = Assert.Single(store.SelfAssignments);
         AssertClaimant(workspace, assignment.Actor);
-        Assert.Equal(engineerStore.CaseId, assignment.CaseId);
-        Assert.Equal(engineerStore.CaseVersion, assignment.ExpectedVersion);
-        Assert.Equal(engineerStore.LeaseToken, assignment.EditLeaseToken);
+        Assert.Equal(store.CaseId, assignment.CaseId);
+        Assert.Equal(store.CaseVersion, assignment.ExpectedVersion);
+        Assert.Equal(store.LeaseToken, assignment.EditLeaseToken);
         Assert.Equal(operationKey, assignment.OperationKey);
         Assert.Contains("The case was assigned to you.", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
@@ -289,6 +278,30 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Matches("<div class=\"fc ro idn rec-notes\" data-record-notes=\"principal\">", editing);
     }
 
+    [Fact]
+    public async Task OverviewKeepsItsContactNotesAndAccidentBandsInsideBalancedMarkup()
+    {
+        var reading = OverviewPanel(await ReadCaseAsync(new RecordingCaseDetailsStore()));
+        AssertOverviewBands(reading);
+
+        using var workspace = await EnterEditModeAsync(new RecordingCaseDetailsStore(), _ => { });
+        var editing = OverviewPanel(await workspace.GetWorkspaceAsync());
+        AssertOverviewBands(editing);
+    }
+
+    private static void AssertOverviewBands(string overview)
+    {
+        Assert.Equal(Occurrences(overview, "<div"), Occurrences(overview, "</div>"));
+        Assert.DoesNotContain("}", overview, StringComparison.Ordinal);
+        Assert.Contains("data-collapse=\"case.overview.contact\"", overview, StringComparison.Ordinal);
+        Assert.Contains("data-notes-band", overview, StringComparison.Ordinal);
+        Assert.Contains("data-accident-band", overview, StringComparison.Ordinal);
+        var sectionEnd = overview.IndexOf("</section>", StringComparison.Ordinal);
+        Assert.True(sectionEnd > overview.IndexOf("data-collapse=\"case.overview.contact\"", StringComparison.Ordinal));
+        Assert.True(sectionEnd > overview.IndexOf("data-notes-band", StringComparison.Ordinal));
+        Assert.True(sectionEnd > overview.IndexOf("data-accident-band", StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// v25 decision A: Save asks for no reason. The Save form renders no
     /// reason field, a Save posted without one reaches the workspace command
@@ -326,49 +339,6 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Equal(store.LeaseToken, saved.EditLeaseToken);
         Assert.Equal("Handler prefers e-mail.", saved.Overview!.PrincipalNotes);
         Assert.Equal("Quote the claim source's reference.", saved.Overview.ClaimSourceNotes);
-    }
-
-    /// <summary>
-    /// Enters edit mode as a staff member holding only <paramref name="role"/>,
-    /// through the test authentication scheme, the way the operator does.
-    /// </summary>
-    private static async Task<LeasedWorkspace> EnterEditModeAsRoleAsync(
-        RecordingCaseDetailsStore store,
-        string role,
-        Action<IServiceCollection> substitutePorts)
-    {
-        var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                Substitute<IGetCase>(services, store);
-                Substitute<IGetCasePageFrame>(services, store);
-                Substitute<IGetCaseVehicleSection>(services, store);
-                Substitute<IGetCaseValuationSection>(services, store);
-                Substitute<IGetCaseNotesSection>(services, store);
-                Substitute<IGetCaseFilesSection>(services, store);
-                Substitute<IAcquireCaseEditLease>(services, store);
-                Substitute<IGetAssessmentWorkspace>(services, store);
-                substitutePorts(services);
-            }));
-        var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-        client.DefaultRequestHeaders.Add("X-Test-Roles", role);
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        using var claim = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
-            Form(
-                AntiforgeryValue(initial),
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", InputValue(initial, "operationKey"))));
-        AssertPrg(claim, store.CaseId);
-        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
-        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
     }
 
     /// <summary>The store's own Case data with this Case's notes recorded on it.</summary>
