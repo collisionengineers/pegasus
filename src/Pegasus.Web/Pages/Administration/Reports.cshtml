@@ -36,9 +36,9 @@
                 </form>
                 <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
                 <div class="metric-strip metric-strip--3 section-gap" aria-label="Engineer activity totals">
-                    <div class="metric"><span class="metric-label">Queries received</span><span class="metric-value">@Model.EngineerResult.Rows.Sum(row => row.QueriesReceived)</span></div>
-                    <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@Model.EngineerResult.Rows.Sum(row => row.ReportsSent)</span></div>
-                    <div class="metric"><span class="metric-label">Audit reports sent</span><span class="metric-value">@Model.EngineerResult.Rows.Sum(row => row.AuditReportsSent)</span></div>
+                    <div class="metric"><span class="metric-label">Queries received</span><span class="metric-value">@(Model.EngineerActivityUnavailable ? "Unavailable" : Model.EngineerResult.Rows.Sum(row => row.QueriesReceived).ToString())</span></div>
+                    <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@(Model.EngineerActivityUnavailable ? "Unavailable" : Model.EngineerResult.Rows.Sum(row => row.ReportsSent).ToString())</span></div>
+                    <div class="metric"><span class="metric-label">Audit reports sent</span><span class="metric-value">@(Model.EngineerActivityUnavailable ? "Unavailable" : Model.EngineerResult.Rows.Sum(row => row.AuditReportsSent).ToString())</span></div>
                 </div>
                 <div class="table-wrap section-gap">
                     <table class="table table--compact" data-engineer-activity>
@@ -54,19 +54,26 @@
                             </tr>
                         </thead>
                         <tbody>
-                        @foreach (var row in Model.EngineerResult.Rows)
+                        @if (Model.EngineerActivityUnavailable)
                         {
-                            <tr>
-                                <td>@row.DisplayName</td>
-                                <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostQueriesReceived, 1)" value="@row.QueriesReceived" aria-hidden="true"></meter><span class="tabular">@row.QueriesReceived</span></span></td>
-                                <td class="num tabular">@row.Disputes</td>
-                                <td class="num tabular">@row.AmendmentRequests</td>
-                                <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostReportsSent, 1)" value="@row.ReportsSent" aria-hidden="true"></meter><span class="tabular">@row.ReportsSent</span></span></td>
-                                <td class="num tabular">@row.AuditReportsSent</td>
-                                <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
-                            </tr>
+                            <tr><td colspan="7" class="muted">Unavailable</td></tr>
                         }
-                        @if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="7" class="muted">No engineer activity was recorded for this period.</td></tr> }
+                        else
+                        {
+                            @foreach (var row in Model.EngineerResult.Rows)
+                            {
+                                <tr>
+                                    <td>@row.DisplayName</td>
+                                    <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostQueriesReceived, 1)" value="@row.QueriesReceived" aria-hidden="true"></meter><span class="tabular">@row.QueriesReceived</span></span></td>
+                                    <td class="num tabular">@row.Disputes</td>
+                                    <td class="num tabular">@row.AmendmentRequests</td>
+                                    <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostReportsSent, 1)" value="@row.ReportsSent" aria-hidden="true"></meter><span class="tabular">@row.ReportsSent</span></span></td>
+                                    <td class="num tabular">@row.AuditReportsSent</td>
+                                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
+                                </tr>
+                            }
+                            @if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="7" class="muted">No engineer activity was recorded for this period.</td></tr> }
+                        }
                         </tbody>
                     </table>
                 </div>

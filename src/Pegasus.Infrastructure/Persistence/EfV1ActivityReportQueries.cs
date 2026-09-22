@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using Pegasus.Core;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
@@ -111,19 +112,55 @@ internal sealed class EfV1ActivityReportQueries(
                     x.operation.ActorSubjectId))
             .ToListAsync(cancellationToken);
 
-        // MI-02: the agreed fee frozen in each confirmed report generation,
-        // counted once per Case however many artifacts it produced. The live
-        // assessment fields are deliberately not a source for this report.
-        var agreedFees = artifacts
+        // MI-02: the agreed fee is frozen in each Case's first confirmed
+        // AssessmentReport generation globally, then assigned to the London
+        // month in which that first report falls. This must match the monthly
+        // query even when the first report is outside the selected period.
+        var confirmedCaseIds = artifacts
             .Where(IsConfirmed)
-            .Where(x => x.Kind == nameof(CaseReportArtifactKind.AssessmentReport))
+            .Select(x => x.CaseId)
+            .Distinct()
+            .ToArray();
+        var firstReports = confirmedCaseIds.Length == 0
+            ? []
+            : await (
+                from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
+                join artifact in db.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
+                    on generation.Id equals artifact.GenerationId
+                join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
+                    on artifact.VersionId equals (Guid?)documentVersion.Id
+                join @case in db.Cases.AsNoTracking() on generation.CaseId equals @case.Id
+                where confirmedCaseIds.Contains(generation.CaseId)
+                    && artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
+                    && artifact.Sha256 != null
+                    && artifact.Sha256 == documentVersion.Sha256
+                    && documentVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
+                select new ArtifactRow(
+                    @case.PrincipalId,
+                    @case.Principal.Code,
+                    @case.Id,
+                    @case.OriginIntakeReceiptId,
+                    generation.Id,
+                    generation.GeneratedAtUtc,
+                    artifact.Kind,
+                    generation.SnapshotJson,
+                    artifact.VersionId,
+                    artifact.Sha256,
+                    documentVersion.Sha256,
+                    documentVersion.CustodyStatus))
+            .ToListAsync(cancellationToken);
+        var agreedFees = firstReports
             .GroupBy(x => x.CaseId)
             .ToDictionary(
                 group => group.Key,
-                group => FrozenFeeOf(group
-                    .OrderBy(x => x.GeneratedAtUtc)
-                    .ThenBy(x => x.GenerationId)
-                    .First()));
+                group =>
+                {
+                    var first = group
+                        .OrderBy(x => x.GeneratedAtUtc)
+                        .ThenBy(x => x.GenerationId)
+                        .First();
+                    return new FirstReportFee(FrozenFeeOf(first), MonthOf(first.GeneratedAtUtc));
+                });
 
         var receiptIds = artifacts.Select(x => x.OriginIntakeReceiptId)
             .Concat(readyTransitions.Select(x => x.OriginIntakeReceiptId))
@@ -200,7 +237,7 @@ internal sealed class EfV1ActivityReportQueries(
         List<TriageRow> triage,
         List<HeldRow> held,
         Dictionary<Guid, DateTimeOffset> received,
-        Dictionary<Guid, decimal> agreedFees)
+        Dictionary<Guid, FirstReportFee> agreedFees)
     {
         var confirmed = artifacts.Where(IsConfirmed).ToList();
         var generatedArtifactDurations = confirmed
@@ -253,7 +290,11 @@ internal sealed class EfV1ActivityReportQueries(
             held.Select(x => x.HeldAtUtc).Min(),
             held.Count(x => x.HeldAtUtc is null),
             types,
-            confirmed.Select(x => x.CaseId).Distinct().Sum(caseId => agreedFees.GetValueOrDefault(caseId)));
+            confirmed.Select(x => x.CaseId).Distinct()
+                .Where(caseId => agreedFees.TryGetValue(caseId, out var fee)
+                    && confirmed.Any(artifact => artifact.CaseId == caseId
+                        && MonthOf(artifact.GeneratedAtUtc) == fee.Month))
+                .Sum(caseId => agreedFees[caseId].Fee));
     }
 
     private static decimal FrozenFeeOf(ArtifactRow report)
@@ -292,6 +333,12 @@ internal sealed class EfV1ActivityReportQueries(
         && artifact.ArtifactSha256 == artifact.VersionSha256
         && artifact.CustodyStatus == DocumentCustodyStatus.Confirmed;
 
+    private static (int Year, int Month) MonthOf(DateTimeOffset instant)
+    {
+        var local = LondonCalendar.DateAt(instant);
+        return (local.Year, local.Month);
+    }
+
     private static TimeSpan? Average(List<TimeSpan> durations) => durations.Count == 0
         ? null
         : TimeSpan.FromTicks((long)durations.Average(x => x.Ticks));
@@ -322,6 +369,7 @@ internal sealed class EfV1ActivityReportQueries(
     }
 
     private sealed record PrincipalKey(Guid PrincipalId, string Code);
+    private sealed record FirstReportFee(decimal Fee, (int Year, int Month) Month);
     private sealed record ArtifactRow(
         Guid PrincipalId,
         string Code,

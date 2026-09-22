@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Net;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -78,6 +79,61 @@ public sealed class AdministrationReportsWebTests
     }
 
     [Fact]
+    public async Task OperationalMonthlyFailureRendersUnavailableWithoutFailingThePage()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IMonthlyReportActivityQueries>();
+                services.AddSingleton<IMonthlyReportActivityQueries, UnavailableMonthlyReportQueries>();
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        using var response = await client.GetAsync(Page);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+
+        using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, workbookResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvalidEngineerDataRendersUnavailableWithoutFailingThePage()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IEngineerActivityQueries>();
+                services.AddSingleton<IEngineerActivityQueries, InvalidEngineerActivityQueries>();
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+        using var response = await client.GetAsync(Page);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("<span class=\"metric-value\">Unavailable</span>", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"7\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+
+        using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, workbookResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task WorkbookRefusesUnavailablePrincipalData()
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -125,6 +181,31 @@ public sealed class AdministrationReportsWebTests
             CancellationToken cancellationToken) =>
             Task.FromException<IReadOnlyList<MonthlyReportActivity>>(
                 new InvalidDataException("Malformed monthly report snapshot."));
+    }
+
+    private sealed class UnavailableMonthlyReportQueries : IMonthlyReportActivityQueries
+    {
+        public Task<IReadOnlyList<MonthlyReportActivity>> GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            CancellationToken cancellationToken) =>
+            Task.FromException<IReadOnlyList<MonthlyReportActivity>>(new SyntheticDbException());
+    }
+
+    private sealed class InvalidEngineerActivityQueries : IEngineerActivityQueries
+    {
+        public Task<IReadOnlyList<EngineerActivityCounts>> GetAsync(
+            DateTimeOffset fromUtc,
+            DateTimeOffset toUtc,
+            Guid? engineerId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<EngineerActivityCounts>>(
+            [new(Guid.NewGuid(), 1, 1, AverageReceivedToSent: TimeSpan.FromHours(-1))]);
+    }
+
+    private sealed class SyntheticDbException : DbException
+    {
+        public SyntheticDbException() : base("The monthly report database is unavailable.") { }
     }
 
     private sealed class InvalidPrincipalReportQueries : IV1ActivityReportQueries

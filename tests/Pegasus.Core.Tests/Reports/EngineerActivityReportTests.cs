@@ -97,6 +97,9 @@ public sealed class EngineerActivityReportTests
         var excessiveAuditReports = new GetEngineerActivityReport(
             new Counts([new(id, 1, 1, AuditReportsSent: 2)]),
             new Accounts(id, "engineer.one"));
+        var negativeTurnaround = new GetEngineerActivityReport(
+            new Counts([new(id, 1, 1, AverageReceivedToSent: TimeSpan.FromHours(-1))]),
+            new Accounts(id, "engineer.one"));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             duplicate.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
@@ -110,6 +113,8 @@ public sealed class EngineerActivityReportTests
             excessiveAmendments.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             excessiveAuditReports.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            negativeTurnaround.ExecuteAsync(Administrator(), From, To, null, CancellationToken.None));
     }
 
     [Fact]

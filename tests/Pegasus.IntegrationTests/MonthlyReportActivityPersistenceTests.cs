@@ -119,6 +119,14 @@ public sealed class MonthlyReportActivityPersistenceTests
         ], rows);
         Assert.Equal(principalRow.GeneratedArtifacts, rows.Sum(row => row.ReportsGenerated + row.FeeNotesGenerated));
         Assert.Equal(principalRow.AgreedFeeTotal, rows.Sum(row => row.AgreedFeeTotal));
+
+        var laterOnlyRows = await queries.GetAsync(From.AddMonths(1), To, CancellationToken.None);
+        var laterOnlyPrincipalRow = Assert.Single(
+            await principalQueries.GetAsync(From.AddMonths(1), To, CancellationToken.None));
+
+        Assert.Equal([new MonthlyReportActivity(principalId, "QDOS", 2031, 7, 1, 0, 0, 0m)], laterOnlyRows);
+        Assert.Equal(0m, laterOnlyPrincipalRow.AgreedFeeTotal);
+        Assert.Equal(laterOnlyPrincipalRow.AgreedFeeTotal, laterOnlyRows.Sum(row => row.AgreedFeeTotal));
     }
 
     private static CaseReportGenerationEntity Generation(
