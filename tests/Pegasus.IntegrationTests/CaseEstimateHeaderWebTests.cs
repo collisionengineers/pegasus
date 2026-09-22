@@ -61,7 +61,7 @@ public sealed class CaseEstimateHeaderWebTests
         if (editing)
         {
             using var workspace = await EnterEngineerEditModeAsync(store, services =>
-                Substitute<IListCaseEstimates>(services, estimates));
+                Substitute<IListCaseEstimates>(services, estimates), StaffRole.User);
             var html = await GetHtmlAsync(
                 workspace.Client,
                 $"/Cases/{store.CaseId:D}?section=estimate&estimate={estimates.Estimate.SpecificationId:D}");
@@ -85,7 +85,7 @@ public sealed class CaseEstimateHeaderWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost"),
         });
-        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         var readHtml = await GetHtmlAsync(
             client,
@@ -113,7 +113,7 @@ public sealed class CaseEstimateHeaderWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost"),
         });
-        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         var html = await GetHtmlAsync(
             client,
@@ -126,7 +126,7 @@ public sealed class CaseEstimateHeaderWebTests
     public async Task WithoutAConfirmedEngineersValueTheEstimateHeaderShowsNeitherSendToAiNorALockedPill()
     {
         var store = new RecordingCaseDetailsStore();
-        using var workspace = await EnterEngineerEditModeAsync(store, _ => { });
+        using var workspace = await EnterEngineerEditModeAsync(store, _ => { }, StaffRole.User);
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=estimate");
 

@@ -79,6 +79,22 @@ public sealed class EstimateLineAmendmentTests
         Assert.Equal(SavedAtUtc, amendedAtUtc);
     }
 
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStaffRoleReceivesAmendmentAttributionForAChangedLine(StaffRole role)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+        var saved = Saved() with { Description = "Changed by staff." };
+
+        var (amendedBy, amendedAtUtc) =
+            EstimatePolicy.StampAmendment(saved, Loaded(), actor.SubjectId, SavedAtUtc);
+
+        Assert.Equal(actor.SubjectId, amendedBy);
+        Assert.Equal(SavedAtUtc, amendedAtUtc);
+    }
+
     /// <summary>
     /// A line the operator cleared moved just as much as one they retyped.
     /// </summary>

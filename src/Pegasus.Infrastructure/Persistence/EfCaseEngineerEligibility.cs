@@ -6,12 +6,6 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfCaseEngineerEligibility(
     IDbContextFactory<PegasusDbContext> contextFactory) : ICaseEngineerEligibility
 {
-    private static readonly string[] EngineerEligibleRoleNames =
-    [
-        StaffRoleNames.Administrator.ToUpperInvariant(),
-        StaffRoleNames.Engineer.ToUpperInvariant()
-    ];
-
     private readonly IDbContextFactory<PegasusDbContext> _contextFactory =
         contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
 
@@ -28,18 +22,8 @@ public sealed class EfCaseEngineerEligibility(
         return await context.Users
             .AsNoTracking()
             .Where(user => user.Id == staffId)
-            .Select(user => new CaseEngineerEligibility(
-                true,
-                user.IsEnabled,
-                context.UserRoles
-                    .Join(
-                        context.Roles,
-                        userRole => userRole.RoleId,
-                        role => role.Id,
-                        (userRole, role) => new { userRole.UserId, role.NormalizedName })
-                    .Any(item => item.UserId == user.Id
-                        && EngineerEligibleRoleNames.Contains(item.NormalizedName!))))
+            .Select(user => new CaseEngineerEligibility(true, user.IsEnabled))
             .SingleOrDefaultAsync(cancellationToken)
-            ?? new CaseEngineerEligibility(false, false, false);
+            ?? new CaseEngineerEligibility(false, false);
     }
 }
