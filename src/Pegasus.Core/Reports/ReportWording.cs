@@ -76,7 +76,8 @@ public static class ReportWordingComposition
     public static IReadOnlyList<ReportWordingBlock> Compose(
         AssessmentReportSnapshot snapshot,
         IReadOnlyList<CaseReportWording> saved) =>
-        [.. Offered(snapshot, saved).Where(block => block.Included)];
+        [.. Offered(snapshot, saved)
+            .Where(block => block.Included && !string.IsNullOrWhiteSpace(block.Text))];
 
     /// <summary>
     /// Every block the Report section offers, in the Engineer's order and
@@ -102,7 +103,10 @@ public static class ReportWordingComposition
             byKey.TryGetValue(key, out var change);
             var composed = ComposedText(key, snapshot, presentation);
             var text = string.IsNullOrWhiteSpace(change?.Text) ? composed : change!.Text!.Trim();
-            if (string.IsNullOrWhiteSpace(text))
+            var hasChange = change is not null
+                && (change.Title is not null || change.Text is not null
+                    || change.Order is not null || !change.Included);
+            if (string.IsNullOrWhiteSpace(text) && !hasChange)
             {
                 continue;
             }

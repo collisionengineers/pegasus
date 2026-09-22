@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
@@ -540,13 +541,25 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var preparationId = Guid.NewGuid();
         var send = new RecordingSendPreparedReport(returnedState);
+        var generation = new FakeCurrentGeneration(caseId, includeFeeNote: false);
+        var snapshots = new RecordingRepairSpecificationSnapshots();
         using var factory = Compose(
             baseFactory,
             new FakeGetCase(caseId),
             FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId)),
             new FakeRenderer([1]),
-            sendPreparedReport: send);
+            sendPreparedReport: send)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(generation);
+                services.RemoveAll<ICaseReportDeliveryPreparationStore>();
+                services.AddSingleton<ICaseReportDeliveryPreparationStore>(
+                    new FakeDeliveryPreparation(caseId, generation.Record.Id, preparationId));
+                services.RemoveAll<IRepairSpecificationSnapshotStore>();
+                services.AddSingleton<IRepairSpecificationSnapshotStore>(snapshots);
+            }));
         using var client = Client(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
 
@@ -576,6 +589,16 @@ public sealed partial class AssessmentReportDraftWebTests
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendObservedSent,
             reloaded,
             StringComparison.Ordinal);
+        if (returnedState == StaffMailState.Submitted)
+        {
+            Assert.Equal(
+                generation.Record.Snapshot.CurrentEstimateId,
+                Assert.Single(snapshots.Requests).SpecificationId);
+        }
+        else
+        {
+            Assert.Empty(snapshots.Requests);
+        }
     }
 
     /// <summary>
@@ -664,6 +687,8 @@ public sealed partial class AssessmentReportDraftWebTests
             repairSpecOperationKey,
             imagePackStatus,
             imagePackOperationKey);
+
+        public CaseReportGenerationRecord Record => record;
 
         public Task<CaseReportGenerationRecord?> GetCurrentAsync(
             ActionActor actor, Guid id, CancellationToken cancellationToken) =>
@@ -930,5 +955,62 @@ public sealed partial class AssessmentReportDraftWebTests
                 StaffMailPurpose.CaseReport, request.CaseId,
                 request.ExpectedPreparationVersion, null));
         }
+    }
+
+    private sealed class FakeDeliveryPreparation(Guid caseId, Guid generationId, Guid preparationId)
+        : ICaseReportDeliveryPreparationStore
+    {
+        private readonly CaseReportDeliveryPreparationRecord record = new(
+            new(preparationId, caseId, generationId, 1, 1, [], ActionActor.SystemWorker("test"), ReportFixtureAtUtc, "fingerprint"),
+            new([], [], "subject"),
+            0,
+            0,
+            CaseReportGenerationState.Confirmed,
+            true,
+            1,
+            []);
+
+        public Task<CaseReportDeliveryPreparationRecord> PrepareAsync(
+            PrepareCaseReportDeliveryCommand command,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<CaseReportDeliveryPreparationRecord?> GetAsync(
+            ActionActor actor,
+            Guid ownerCaseId,
+            Guid ownerPreparationId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseReportDeliveryPreparationRecord?>(
+                ownerCaseId == caseId && ownerPreparationId == preparationId ? record : null);
+
+        public Task<CaseReportDeliveryPreparationRecord?> GetCurrentAsync(
+            ActionActor actor,
+            Guid ownerCaseId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseReportDeliveryPreparationRecord?>(
+                ownerCaseId == caseId ? record : null);
+    }
+
+    private sealed class RecordingRepairSpecificationSnapshots : IRepairSpecificationSnapshotStore
+    {
+        public List<FreezeRepairSpecificationRequest> Requests { get; } = [];
+
+        public Task<RepairSpecificationSnapshot> FreezeAsync(
+            FreezeRepairSpecificationRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new RepairSpecificationSnapshot(
+                Guid.NewGuid(), request.CaseId, request.SpecificationId, 1, request.Kind,
+                request.Origin, request.Actor.SubjectId, ReportFixtureAtUtc,
+                new EstimateDetails("Sent", 0m, null, 0m), [], 0m, true));
+        }
+
+        public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListAsync(
+            Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RepairSpecificationSnapshot>>([]);
+
+        public Task<RepairSpecificationSnapshot?> GetAsync(
+            Guid caseId, Guid snapshotId, CancellationToken cancellationToken) =>
+            Task.FromResult<RepairSpecificationSnapshot?>(null);
     }
 }
