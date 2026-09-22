@@ -999,7 +999,7 @@
         };
         // Cancel is the operator discarding: it needs no second question.
         var isCancel = form.hasAttribute('data-case-cancel-form');
-        if (!isSave && dirty && !isCancel && !isImport) {
+        if (!isSave && dirty && !isCancel) {
             askUnsaved().then(function (answer) {
                 if (answer === 'keep') {
                     return;
