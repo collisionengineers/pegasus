@@ -10,7 +10,9 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var offset = (filter.Page - 1) * filter.PageSize;
         var actionQuery = context.ActionHistory.AsNoTracking().Where(item =>
-            item.OccurredAtUtc >= filter.FromUtc && item.OccurredAtUtc < filter.ToUtc);
+            item.OccurredAtUtc >= filter.FromUtc
+            && item.OccurredAtUtc < filter.ToUtc
+            && item.EventKind != EfRepairSpecificationStore.SourceHashReplayEventType);
         var securityQuery = context.SecurityEvents.AsNoTracking().Where(item =>
             item.OccurredAtUtc >= filter.FromUtc && item.OccurredAtUtc < filter.ToUtc);
 
@@ -28,6 +30,11 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
             // it landed on, and the operator asking about a person wants either.
             securityQuery = securityQuery.Where(item =>
                 item.ActorSubjectId == actor || item.SubjectId == actor);
+        }
+        if (filter.ActingActor is { } actingActor)
+        {
+            actionQuery = actionQuery.Where(item => item.ActorSubjectId == actingActor);
+            securityQuery = securityQuery.Where(item => item.ActorSubjectId == actingActor);
         }
         if (filter.ActorType is { } actorType)
         {

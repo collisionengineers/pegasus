@@ -22,7 +22,8 @@ public sealed record ActionLogFilter(
     bool OldestFirst = false,
     int Page = 1,
     int PageSize = 50,
-    string? ActorType = null);
+    string? ActorType = null,
+    string? ActingActor = null);
 
 public sealed record ActionLogRow(
     Guid Id, string Area, string Operation, string Reference, string Actor,
