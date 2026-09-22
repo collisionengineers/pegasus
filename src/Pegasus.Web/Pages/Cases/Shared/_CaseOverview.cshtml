@@ -133,8 +133,6 @@
         @* The remaining Core lifecycle actions: return to Review and the
            correction of a wrongly linked report-Sent item. Archiving ends a
            terminal case's editability. Offered only in edit context. *@
-            </div>
-        }
 
         @if (mayEdit)
         {
@@ -224,7 +222,6 @@
                         <div class="fc">@{ Lbl("f-claim-source-contact-email", Frame.ContactEmail); }<div class="@ValueClass(claimSource?.OverrideContactEmailAddress)">@Value(claimSource?.OverrideContactEmailAddress)</div><input id="f-claim-source-contact-email" class="fi" name="claimSourceContactEmail" form="case-edit-form" type="email" maxlength="300" value="@claimSource?.OverrideContactEmailAddress" data-claim-source-contact-override /></div>
                     }
                 </div>
-            </div>
             </div>
         </div>
         @* The Case's own contact: who to speak to, distinct from the claimant. *@

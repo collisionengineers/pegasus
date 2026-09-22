@@ -289,6 +289,30 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Matches("<div class=\"fc ro idn rec-notes\" data-record-notes=\"principal\">", editing);
     }
 
+    [Fact]
+    public async Task OverviewKeepsItsContactNotesAndAccidentBandsInsideBalancedMarkup()
+    {
+        var reading = OverviewPanel(await ReadCaseAsync(new RecordingCaseDetailsStore()));
+        AssertOverviewBands(reading);
+
+        using var workspace = await EnterEditModeAsync(new RecordingCaseDetailsStore(), _ => { });
+        var editing = OverviewPanel(await workspace.GetWorkspaceAsync());
+        AssertOverviewBands(editing);
+    }
+
+    private static void AssertOverviewBands(string overview)
+    {
+        Assert.Equal(Occurrences(overview, "<div"), Occurrences(overview, "</div>"));
+        Assert.DoesNotContain("}", overview, StringComparison.Ordinal);
+        Assert.Contains("data-collapse=\"case.overview.contact\"", overview, StringComparison.Ordinal);
+        Assert.Contains("data-notes-band", overview, StringComparison.Ordinal);
+        Assert.Contains("data-accident-band", overview, StringComparison.Ordinal);
+        var sectionEnd = overview.IndexOf("</section>", StringComparison.Ordinal);
+        Assert.True(sectionEnd > overview.IndexOf("data-collapse=\"case.overview.contact\"", StringComparison.Ordinal));
+        Assert.True(sectionEnd > overview.IndexOf("data-notes-band", StringComparison.Ordinal));
+        Assert.True(sectionEnd > overview.IndexOf("data-accident-band", StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// v25 decision A: Save asks for no reason. The Save form renders no
     /// reason field, a Save posted without one reaches the workspace command
