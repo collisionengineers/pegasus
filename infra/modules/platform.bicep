@@ -14,6 +14,10 @@ param workerActivation string
 param graphChangeNotificationClientStateSecretUri string
 param boxConfigJsonSecretUri string
 param boxClientSecretSecretUri string
+@description('Versioned Key Vault secret URI containing the fine-grained GitHub token that raises problem reports as issues (ADR-0055).')
+param gitHubProblemReportTokenSecretUri string
+@description('The owner/name repository that receives problem reports as issues.')
+param gitHubProblemReportRepository string
 param boxHoldingFolderId string
 param automationMcpClientSecretUri string
 param automationMcpSigningCertificateSecretUris string
@@ -441,6 +445,9 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         { name: 'Box__HoldingFolderId', value: boxHoldingFolderId }
         { name: 'Box__ConfigJson', value: '@Microsoft.KeyVault(SecretUri=${boxConfigJsonSecretUri})' }
         { name: 'Box__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${boxClientSecretSecretUri})' }
+        { name: 'GitHub__ProblemReports__Token', value: '@Microsoft.KeyVault(SecretUri=${gitHubProblemReportTokenSecretUri})' }
+        { name: 'GitHub__ProblemReports__Repository', value: gitHubProblemReportRepository }
+        { name: 'GitHub__ProblemReports__Labels', value: 'problem-report' }
         { name: 'Features__AutomationMcp', value: 'true' }
         { name: 'Features__ProviderApi', value: 'true' }
         { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
