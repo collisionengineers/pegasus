@@ -63,6 +63,10 @@ public static class DependencyInjection
         services.AddScoped<ListActionLogs>();
         services.AddScoped<IV1ActivityReportQueries, EfV1ActivityReportQueries>();
         services.AddScoped<GetV1ActivityReport>();
+        services.AddScoped<IMonthlyReportActivityQueries, EfMonthlyReportActivityQueries>();
+        services.AddScoped<GetMonthlyReportActivity>();
+        services.AddSingleton<IWorkbookWriter, Pegasus.Infrastructure.Reports.OpenXmlWorkbookWriter>();
+        services.AddScoped<ExportAdministrationReports>();
         services.AddScoped<IAdministrationAiJobQueries, EfAdministrationAiJobQueries>();
         services.AddScoped<GetAdministrationAiJobs>();
         services.AddScoped<IAdministrationHealthMetricsQueries, EfAdministrationHealthMetricsQueries>();
@@ -430,6 +434,10 @@ public static class DependencyInjection
         services.AddScoped<Pegasus.Core.ReleaseNotes.IReleaseNoteStore, EfReleaseNoteStore>();
         services.AddScoped<Pegasus.Core.ReleaseNotes.ReleaseNoteAdministration>();
         services.AddScoped<Pegasus.Core.ReleaseNotes.IMyReleaseNotes, Pegasus.Core.ReleaseNotes.MyReleaseNotes>();
+        services.AddScoped<Pegasus.Core.Support.IProblemReportStore, EfProblemReportStore>();
+        services.AddScoped<Pegasus.Core.Support.ReportProblem>();
+        services.AddScoped<Pegasus.Core.Support.RetryProblemReport>();
+        services.AddScoped<Pegasus.Core.Support.ListProblemReports>();
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
