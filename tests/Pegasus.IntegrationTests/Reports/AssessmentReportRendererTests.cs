@@ -288,8 +288,8 @@ public sealed partial class AssessmentReportRendererTests
             {
                 Impacts =
                 [
-                    new ReportImpact("Right rear door", "Moderate", "Creased below the swage line", "right_rear_door"),
-                    new ReportImpact("Wheel right rear", "Light", "Kerbed rim", "wheel_right_rear"),
+                    new ReportImpact("RH Side, RH Rear", "Moderate", "Creased below the swage line", ["right_side", "right_rear"]),
+                    new ReportImpact("Underside", "Light", "Exhaust hanger bent", ["underside"]),
                 ],
             },
             Photos =

@@ -6,9 +6,9 @@
 
 - Roadworthiness and Assessment are separate Engineer findings. A correction
   is a new reasoned version, never an edit of the old one.
-- A damage entry records a zone, a severity and a note. Impact location and
-  severity are derived by `Pegasus.Core`, never typed in.
-- Glass's, Brego and Super CAP are guide valuation sources. Engineer's Value
+- A damage entry records the areas it covers, a severity and a note. Impact
+  location and severity are derived by `Pegasus.Core`, never typed in.
+- Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources. Engineer's Value
   is adopted only by an explicit Apply, in a fixed order.
 - Settlement saves with the Case's single workspace Save. Equity is derived,
   never typed in.
@@ -78,29 +78,33 @@ signature items. The Sign-off Engineer account
 ([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)) is the only
 source of the signatory tuple.
 
-Each damage entry records a zone, a severity and a note; collision work has
-no separate damage type. The zone vocabulary is 23 detailed diagram regions,
-eight broad regions (front, left front, right front, left side, right side,
-rear, left rear, right rear), plus roof, the four wheels (which roll up to
-one wheel headline), underside, interior and mechanical. A parent-region map
-sits beside the broad regions: detailed regions roll up to their broad parent
-for the headline impact location. A broad entry and a detailed entry are
-separate entries and are never merged.
+Each damage entry records the areas it covers, a severity and a note;
+collision work has no separate damage type (v28 P5, ruled 20 September 2026).
+The areas are the eight of the plan — Front, LH Front, RH Front, LH Side, RH
+Side, Rear, LH Rear, RH Rear — and Underside, Interior and Mechanical. A disc
+drawn on the plan is one entry naming one or more plan areas; each of the
+other three is an entry of its own, recorded once. Two discs may cover the
+same area and stay two entries. The record keeps the areas only: the disc is
+drawn from them, centred between its areas and wide enough to reach each,
+on the workspace and on the report alike.
 
 The record also carries tyres and seat belts per corner, the spare tyre, the
 centre belt, unrelated damage with its deduction, and paint or material
-transfer. `impact_location` and `impact_severity` are derived from the zone
-list by `Pegasus.Core`, never typed in. The report prints the marked diagram
+transfer. `impact_location` and `impact_severity` are derived from the areas
+by `Pegasus.Core`, never typed in: one distinct area reads as itself, more
+read Multiple. The report prints the marked diagram
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
 
 ### Valuation sources
 
-Valuation records keep guide month and source. Glass's, Brego and Super CAP
-are guide sources. Each is a card whose **Get valuation** asks that source's
-connected provider for the month, shows a notice while the source has no
-provider, and also lets the figures be typed by hand
-([FRD-16](frd-16-case-record-workspace.md#case-workspace)). Cazana is a
-disabled seam. AI market research is automation-only. No guide provider is
+Valuation records keep guide month and source. Glass's, Brego, Super CAP,
+CAP and Cazana are guide sources, each an entry card of the same shape. The
+figures are typed by hand; **Get valuation** at the foot of the card asks
+that source's connected provider for the month and, while the source has no
+provider, answers `Error. Contact an administrator.` The basis is chosen by
+clicking a card (or Enter or Space on it); there is no Basis control beside
+the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
+market research is automation-only. No guide provider is
 connected today; connecting one needs its own accepted decision
 ([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
 

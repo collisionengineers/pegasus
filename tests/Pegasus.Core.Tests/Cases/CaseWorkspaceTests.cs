@@ -165,12 +165,12 @@ public sealed class CaseWorkspaceTests
     {
         var request = CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
         {
-            Damage = new([new("left_front_wing", "light", "Scuffed")], null)
+            Damage = new([new(["left_front"], "light", "Scuffed")], null)
         }));
 
         var fields = CaseWorkspacePolicy.AssessmentFields(request);
         Assert.Equal(
-            "[{\"zone\":\"left_front_wing\",\"severity\":\"light\",\"note\":\"Scuffed\"}]",
+            "[{\"areas\":[\"left_front\"],\"severity\":\"light\",\"note\":\"Scuffed\"}]",
             fields[AssessmentVocabulary.DamageImpacts]);
         Assert.DoesNotContain(AssessmentVocabulary.ImpactLocation, fields.Keys);
         Assert.Equal(

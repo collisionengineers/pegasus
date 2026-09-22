@@ -24,7 +24,6 @@ public sealed class FetchGuideValuationTests
     [Theory]
     [InlineData(ValuationSource.EngineersValue)]
     [InlineData(ValuationSource.AiMarketResearch)]
-    [InlineData(ValuationSource.Cazana)]
     public async Task OnlyAGuideSourceCanBeFetched(ValuationSource source)
     {
         var fetch = new FetchGuideValuation([], new RecordingCaseData());

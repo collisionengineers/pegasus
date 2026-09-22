@@ -8,7 +8,7 @@ namespace Pegasus.Core.Reports;
 
 public static class AssessmentReportContract
 {
-    public const string TemplateVersion = "rendererref1-v4";
+    public const string TemplateVersion = "rendererref1-v5";
     public const string VatNumber = "262 0937 10";
     public const decimal FeeVatRate = 0.20m;
     public const string AccountName = "Collision Engineers Ltd";
@@ -103,7 +103,8 @@ public sealed record ReportVehicle(
 /// label. The code lets the report draw the same selected regions as the Case
 /// workspace without reverse-mapping display text.
 /// </summary>
-public sealed record ReportImpact(string Zone, string Severity, string Note, string Code = "");
+/// <summary>One recorded damage as the report prints it: the area names, the severity and note, and the area codes the diagram draws from.</summary>
+public sealed record ReportImpact(string Areas, string Severity, string Note, IReadOnlyList<string> Codes);
 
 public sealed record ReportDamage(
     IReadOnlyList<ReportImpact> Impacts,
@@ -316,10 +317,14 @@ public sealed record AssessmentReportPresentation(
     string SettlementText,
     decimal? RecommendedSettlement)
 {
-    public static string DamageZone(string code) =>
-        Assessment.AssessmentVocabulary.DamageZones.TryGetValue(code, out var item)
-            ? item.Display
-            : throw new ReportRenderRejectedException($"Unsupported damage zone '{code}'.");
+    public static string DamageAreas(IReadOnlyList<string> codes)
+    {
+        ArgumentNullException.ThrowIfNull(codes);
+        return string.Join(", ", codes.Select(code =>
+            Assessment.AssessmentVocabulary.DamageAreas.TryGetValue(code, out var name)
+                ? name
+                : throw new ReportRenderRejectedException($"Unsupported damage area '{code}'.")));
+    }
 
     public static string DamageSeverity(string code) =>
         Assessment.AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var display)

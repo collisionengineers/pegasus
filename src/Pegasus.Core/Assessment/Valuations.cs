@@ -13,6 +13,7 @@ public enum ValuationSource
     AiMarketResearch,
     Brego,
     SuperCap,
+    Cap,
 }
 
 /// <summary>
@@ -132,17 +133,19 @@ public static class ValuationPolicy
     }
 
     /// <summary>
-    /// The sources staff may type in. Collision Engineers reads Glass's,
-    /// Brego and Super CAP guides and records the figure by hand: none of
-    /// them has a live provider here, and the guide is evidence rather than a
-    /// call. Cazana remains a disabled seam and AI market research is written
-    /// only by the automation completion, so neither is offered to the staff
-    /// save and edit actions.
+    /// The sources staff may type in. Collision Engineers reads the Glass's,
+    /// Brego, Super CAP, CAP and Cazana guides and records the figure by hand
+    /// (v28 P8 and P13, 18 September 2026): none of them has a live provider
+    /// here, and the guide is evidence rather than a call. AI market research
+    /// is written only by the automation completion, so it is not offered to
+    /// the staff save and edit actions.
     /// </summary>
     public static bool IsManuallyRecordable(ValuationSource source) =>
         source is ValuationSource.Glasses
             or ValuationSource.Brego
             or ValuationSource.SuperCap
+            or ValuationSource.Cap
+            or ValuationSource.Cazana
             or ValuationSource.EngineersValue;
 
     private static void RequireManuallyRecordableSource(ValuationSource source)

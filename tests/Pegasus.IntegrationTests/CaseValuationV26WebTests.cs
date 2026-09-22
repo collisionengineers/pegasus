@@ -13,12 +13,12 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The v26 Valuation section on the one Case workspace: while editing,
-/// Glass's, Brego and Super CAP are each one entry card whose Get valuation
-/// fills its boxes from the connected provider and whose Save records them
-/// (one route to a card), the Valuation month and AI market research start
-/// the existing job for the month, a pending job shows as a Researching
-/// card, and Apply as Engineer's Value posts the calculator's selection to
-/// the Core policy shape.
+/// Glass's, Brego, Super CAP, CAP and Cazana are each one entry card whose
+/// Get valuation fills its boxes from the connected provider and whose Save
+/// records them (one route to a card), the Valuation month and AI market
+/// research start the existing job for the month, a pending job shows as a
+/// Researching card, and Apply as Engineer's Value posts the calculator's
+/// selection to the Core policy shape.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseValuationV26WebTests
@@ -47,7 +47,14 @@ public sealed class CaseValuationV26WebTests
         Assert.Contains("form=\"case-market-research-form\"", month, StringComparison.Ordinal);
         Assert.Contains($"value=\"{currentMonth}\"", month, StringComparison.Ordinal);
 
-        foreach (var (source, name) in new[] { ("glasses", "Glasses"), ("brego", "Brego"), ("super-cap", "SuperCap") })
+        foreach (var (source, name) in new[]
+                 {
+                     ("glasses", "Glasses"),
+                     ("brego", "Brego"),
+                     ("super-cap", "SuperCap"),
+                     ("cap", "Cap"),
+                     ("cazana", "Cazana")
+                 })
         {
             var card = EntryCard(html, source);
             Assert.Contains("handler=SaveValuation", card, StringComparison.Ordinal);
@@ -60,6 +67,7 @@ public sealed class CaseValuationV26WebTests
             Assert.Contains("type=\"submit\"", button, StringComparison.Ordinal);
             Assert.Contains("handler=GetValuation", button, StringComparison.Ordinal);
             Assert.Contains("source=" + name, button, StringComparison.Ordinal);
+            Assert.Contains("formnovalidate", button, StringComparison.Ordinal);
             Assert.DoesNotContain("form=", button, StringComparison.Ordinal);
             ButtonTagByHook(html, $"data-valuation-save=\"{source}\"");
         }
@@ -261,6 +269,21 @@ public sealed class CaseValuationV26WebTests
         Assert.Contains("data-case-editing=\"true\"", after, StringComparison.Ordinal);
         Assert.Equal(store.LeaseToken, InputValue(after, "editLeaseToken"));
         AssertEditorCommit(after, "case-valuation-form", operationKey, applied.ExpectedVersion);
+    }
+
+    [Fact]
+    public async Task SelectableValuationBasisCardsAreFocusable()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+
+        var entry = EntryCard(html, "glasses");
+        Assert.Contains($"data-valuation-card=\"{glasses.ValuationId:D}\"", entry, StringComparison.Ordinal);
+        Assert.Contains("tabindex=\"0\"", entry, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -166,9 +166,11 @@ public static class AssessmentPolicy
             return (null, null);
         }
 
-        var location = impacts.Count > 1
-            ? "multiple"
-            : AssessmentVocabulary.DamageZones[impacts[0].Zone].ImpactLocation;
+        var areas = impacts
+            .SelectMany(impact => impact.Areas)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var location = areas.Length > 1 ? "multiple" : areas[0];
         var severity = impacts.MaxBy(
             impact => AssessmentVocabulary.DamageSeverities[impact.Severity].Rank)!.Severity;
         return (location, severity);
@@ -538,7 +540,12 @@ public static class AssessmentPolicy
             {
                 ArgumentNullException.ThrowIfNull(impact);
                 writer.WriteStartObject();
-                writer.WriteString("zone", impact.Zone);
+                writer.WriteStartArray("areas");
+                foreach (var area in impact.Areas)
+                {
+                    writer.WriteStringValue(area);
+                }
+                writer.WriteEndArray();
                 writer.WriteString("severity", impact.Severity);
                 writer.WriteString("note", impact.Note);
                 writer.WriteEndObject();
@@ -574,27 +581,51 @@ public static class AssessmentPolicy
             throw new ArgumentException("The damage impacts must be a JSON array.", nameof(root));
         }
         var result = new List<AssessmentImpact>();
-        var zones = new HashSet<string>(StringComparer.Ordinal);
+        var alone = new HashSet<string>(StringComparer.Ordinal);
         foreach (var element in root.EnumerateArray())
         {
             if (element.ValueKind != JsonValueKind.Object
-                || element.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(["note", "severity", "zone"]) is false
-                || !element.TryGetProperty("zone", out var zoneElement)
+                || element.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(["areas", "note", "severity"]) is false
+                || !element.TryGetProperty("areas", out var areasElement)
                 || !element.TryGetProperty("severity", out var severityElement)
                 || !element.TryGetProperty("note", out var noteElement)
-                || zoneElement.ValueKind != JsonValueKind.String
+                || areasElement.ValueKind != JsonValueKind.Array
                 || severityElement.ValueKind != JsonValueKind.String
                 || noteElement.ValueKind != JsonValueKind.String)
             {
-                throw new ArgumentException("Each damage impact must contain exactly string zone, severity, and note members.", nameof(root));
+                throw new ArgumentException("Each damage impact must contain exactly an areas array and string severity and note members.", nameof(root));
             }
-            var zone = zoneElement.GetString()!;
+            var areas = new List<string>();
+            foreach (var areaElement in areasElement.EnumerateArray())
+            {
+                var area = areaElement.ValueKind == JsonValueKind.String ? areaElement.GetString() : null;
+                if (area is null || !AssessmentVocabulary.DamageAreas.ContainsKey(area) || areas.Contains(area, StringComparer.Ordinal))
+                {
+                    throw new ArgumentException("Damage impact areas must be accepted and unique.", nameof(root));
+                }
+                areas.Add(area);
+            }
+            // A disc names one or more plan areas; Underside, Interior and
+            // Mechanical are each one impact of their own, recorded once.
+            if (areas.Count == 0
+                || (areas.Any(AssessmentVocabulary.DamageOtherAreas.Contains) && (areas.Count > 1 || !alone.Add(areas[0]))))
+            {
+                throw new ArgumentException("A damage impact names one or more plan areas, or one other area recorded once.", nameof(root));
+            }
+            if (areas.All(AssessmentVocabulary.DamagePlanAreas.Contains))
+            {
+                var completed = DamageAreaGeometry.CompletePlanAreas(areas);
+                if (completed.Count != areas.Count
+                    || completed.Any(area => !areas.Contains(area, StringComparer.Ordinal)))
+                {
+                    throw new ArgumentException(
+                        "A damage impact must record every plan area positively covered by its disc.",
+                        nameof(root));
+                }
+            }
+            areas.Sort((left, right) => AssessmentVocabulary.DamageAreaOrder(left).CompareTo(AssessmentVocabulary.DamageAreaOrder(right)));
             var severity = severityElement.GetString()!;
             var note = noteElement.GetString()!.Trim();
-            if (!AssessmentVocabulary.DamageZones.ContainsKey(zone) || !zones.Add(zone))
-            {
-                throw new ArgumentException("Damage impact zones must be accepted and unique.", nameof(root));
-            }
             if (!AssessmentVocabulary.DamageSeverities.ContainsKey(severity))
             {
                 throw new ArgumentException("A damage impact severity is not accepted.", nameof(root));
@@ -603,7 +634,7 @@ public static class AssessmentPolicy
             {
                 throw new ArgumentException("A damage impact note cannot exceed 200 characters or contain control characters.", nameof(root));
             }
-            result.Add(new(zone, severity, note));
+            result.Add(new(areas, severity, note));
         }
         return result;
     }

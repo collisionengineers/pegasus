@@ -1,4 +1,4 @@
-using Pegasus.Core.Assessment;
+﻿using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -24,15 +24,15 @@ public sealed class ValuationTests
         Assert.False(ValuationSources.IsSupported((ValuationSource)99));
         Assert.Equal(
             [ValuationSource.Glasses, ValuationSource.Cazana, ValuationSource.EngineersValue,
-                ValuationSource.AiMarketResearch, ValuationSource.Brego, ValuationSource.SuperCap],
+                ValuationSource.AiMarketResearch, ValuationSource.Brego, ValuationSource.SuperCap, ValuationSource.Cap],
             Enum.GetValues<ValuationSource>());
     }
 
     /// <summary>
-    /// Collision Engineers reads the Glass's, Brego and Super CAP guides and
-    /// types the figure in; none of them is a live call here. Cazana stays a
-    /// disabled seam and AI market research is written only by the automation
-    /// completion, so neither is offered to the staff save and edit actions.
+    /// Collision Engineers reads the Glass's, Brego, Super CAP, CAP and Cazana
+    /// guides and types the figure in; none of them is a live call here. AI
+    /// market research is written only by the automation completion, so it is
+    /// not offered to the staff save and edit actions.
     /// </summary>
     [Fact]
     public void OnlyTheTypedGuidesAndTheEngineersValueAreManuallyRecordable()
@@ -43,10 +43,11 @@ public sealed class ValuationTests
                 ValuationSource.Glasses,
                 ValuationSource.Brego,
                 ValuationSource.SuperCap,
+                ValuationSource.Cap,
+                ValuationSource.Cazana,
                 ValuationSource.EngineersValue
             },
             source => Assert.True(ValuationPolicy.IsManuallyRecordable(source)));
-        Assert.False(ValuationPolicy.IsManuallyRecordable(ValuationSource.Cazana));
         Assert.False(ValuationPolicy.IsManuallyRecordable(ValuationSource.AiMarketResearch));
     }
 
@@ -180,11 +181,12 @@ public sealed class ValuationTests
         Assert.Equal(ValuationSource.SuperCap, superCap.Details.Source);
         Assert.Equal(3, store.Saves.Count);
 
-        // Cazana is a disabled seam, not a source staff may type in.
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            save.ExecuteAsync(
-                SaveRequest(actor, "valuation-staff-cazana", ValuationSource.Cazana),
-                CancellationToken.None));
+        // Cazana is typed in like the other guides (v28 P8).
+        var cazana = await save.ExecuteAsync(
+            SaveRequest(actor, "valuation-staff-cazana", ValuationSource.Cazana),
+            CancellationToken.None);
+        Assert.Equal(ValuationSource.Cazana, cazana.Details.Source);
+        Assert.Equal(4, store.Saves.Count);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             save.ExecuteAsync(

@@ -2937,7 +2937,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CaseValuations_RetailValue", "[RetailValue] >= 0");
 
-                            t.HasCheckConstraint("CK_CaseValuations_Source", "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch', 'Brego', 'SuperCap')");
+                            t.HasCheckConstraint("CK_CaseValuations_Source", "[Source] IN ('Glasses', 'Cazana', 'EngineersValue', 'AiMarketResearch', 'Brego', 'SuperCap', 'Cap')");
 
                             t.HasCheckConstraint("CK_CaseValuations_TradeValue", "[TradeValue] >= 0");
                         });
