@@ -17,7 +17,7 @@ public sealed class GitHubIssueProblemReportSinkTests
             "/Cases/x?section=estimate", "GET", "00-trace", "integration-user", "Engineer", "QDOS26001", null, null,
             [], new ProblemReportClientFacts("1580x1000", "agent", false, [])),
         new DateTimeOffset(2026, 9, 20, 15, 0, 0, TimeSpan.Zero),
-        ProblemReportStatus.NotSent, null, null, null, null);
+        ProblemReportStatus.NotSent, null, null, null, null, null, null);
 
     [Fact]
     public async Task PostsOneIssueWithTheTokenTheLabelsAndThePersonsWordsFirst()

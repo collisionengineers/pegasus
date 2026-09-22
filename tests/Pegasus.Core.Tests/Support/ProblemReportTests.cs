@@ -64,6 +64,8 @@ public sealed class ProblemReportTests
         Assert.Null(report.IssueNumber);
         Assert.Equal("GitHub refused the issue with 401 Unauthorized.", report.Failure);
         Assert.Equal("The Save button did nothing.", report.Description);
+        Assert.Null(report.DispatchClaimToken);
+        Assert.Null(report.DispatchClaimExpiresAtUtc);
 
         var retry = new RetryProblemReport(store, sink, clock);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => retry.ExecuteAsync(User(), report.Id, default));
@@ -105,6 +107,95 @@ public sealed class ProblemReportTests
         Assert.Empty(report.Snapshot.RecentActions);
     }
 
+    [Fact]
+    public async Task ListReturnsEveryRetainedReportInNewestFirstOrder()
+    {
+        var store = new FakeStore();
+        for (var index = 0; index < 201; index++)
+        {
+            store.Reports.Add(RetainedReport(index));
+        }
+
+        var reports = await new ListProblemReports(store).ExecuteAsync(Administrator(), default);
+
+        Assert.Equal(201, reports.Count);
+        Assert.Equal("Report 200", reports[0].Description);
+        Assert.Equal("Report 0", reports[^1].Description);
+    }
+
+    private static ProblemReport RetainedReport(int index)
+    {
+        var request = Request(User());
+        var occurredAt = Now.AddMinutes(index);
+        var snapshot = new ProblemReportSnapshot(
+            request.Version,
+            request.SourceSha,
+            occurredAt,
+            request.Route,
+            request.Method,
+            request.TraceId,
+            request.ActorName,
+            request.ActorRole,
+            request.CaseReference,
+            request.ExceptionType,
+            request.ExceptionMessage,
+            [],
+            request.Client);
+        return new ProblemReport(
+            Guid.NewGuid(),
+            UserId,
+            $"Report {index}",
+            snapshot,
+            occurredAt,
+            ProblemReportStatus.NotSent,
+            null,
+            null,
+            "not sent",
+            null,
+            null,
+            null);
+    }
+
+    [Fact]
+    public async Task ConcurrentRetriesGiveTheSinkToOnlyOneClaimant()
+    {
+        var store = new FakeStore();
+        var failedSink = new FakeSink { Failure = new HttpRequestException("temporary failure") };
+        var failed = await new ReportProblem(store, failedSink, new FakeLogs([]), new FixedClock(Now)).ExecuteAsync(Request(User()), default);
+        var sink = new BlockingSink();
+        var retry = new RetryProblemReport(store, sink, new FixedClock(Now));
+
+        var first = retry.ExecuteAsync(Administrator(), failed.Id, default);
+        await sink.Entered.Task;
+
+        var second = await retry.ExecuteAsync(Administrator(), failed.Id, default);
+        Assert.Equal(ProblemReportStatus.NotSent, second!.Status);
+        Assert.Equal(1, sink.Calls);
+
+        sink.Release.TrySetResult(true);
+        var sent = await first;
+        Assert.Equal(ProblemReportStatus.Sent, sent!.Status);
+        Assert.Single(sink.Sent);
+    }
+
+    [Fact]
+    public async Task AnExpiredClaimCanBeReclaimedAfterAnAbandonedAttempt()
+    {
+        var store = new FakeStore();
+        var sink = new FakeSink { Failure = new HttpRequestException("temporary failure") };
+        var failed = await new ReportProblem(store, sink, new FakeLogs([]), new FixedClock(Now)).ExecuteAsync(Request(User()), default);
+
+        var lease = ProblemReportPolicy.DispatchClaimLease;
+        var abandoned = await store.TryClaimAsync(failed.Id, "abandoned", Now - lease, lease, default);
+        Assert.Equal("abandoned", abandoned!.DispatchClaimToken);
+
+        sink.Failure = null;
+        var recovered = await new RetryProblemReport(store, sink, new FixedClock(Now)).ExecuteAsync(Administrator(), failed.Id, default);
+
+        Assert.Equal(ProblemReportStatus.Sent, recovered!.Status);
+        Assert.Single(sink.Sent);
+    }
+
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
@@ -139,6 +230,23 @@ public sealed class ProblemReportTests
         }
     }
 
+    private sealed class BlockingSink : IProblemReportSink
+    {
+        public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<ProblemReport> Sent { get; } = [];
+        public int Calls;
+
+        public async Task<ProblemReportDelivery> SendAsync(ProblemReport report, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref Calls);
+            Entered.TrySetResult(true);
+            await Release.Task.WaitAsync(cancellationToken);
+            Sent.Add(report);
+            return new ProblemReportDelivery(42, "https://github.com/example/pegasus/issues/42");
+        }
+    }
+
     private sealed class FakeStore : IProblemReportStore
     {
         public List<ProblemReport> Reports { get; } = [];
@@ -146,7 +254,7 @@ public sealed class ProblemReportTests
         public Task<ProblemReport> AddAsync(NewProblemReport report, CancellationToken cancellationToken)
         {
             var added = new ProblemReport(Guid.NewGuid(), report.StaffId, report.Description, report.Snapshot, report.CreatedAtUtc,
-                ProblemReportStatus.NotSent, null, null, null, null);
+                ProblemReportStatus.NotSent, null, null, null, null, null, null);
             Reports.Add(added);
             return Task.FromResult(added);
         }
@@ -154,20 +262,71 @@ public sealed class ProblemReportTests
         public Task<ProblemReport?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Reports.SingleOrDefault(report => report.Id == id));
 
-        public Task<IReadOnlyList<ProblemReport>> ListAsync(int count, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ProblemReport>>(Reports.OrderByDescending(report => report.CreatedAtUtc).Take(count).ToArray());
+        public Task<IReadOnlyList<ProblemReport>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProblemReport>>(Reports.OrderByDescending(report => report.CreatedAtUtc).ToArray());
 
-        public Task<ProblemReport> MarkSentAsync(Guid id, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken) =>
-            Task.FromResult(Replace(id, report => report with { Status = ProblemReportStatus.Sent, IssueNumber = delivery.IssueNumber, IssueUrl = delivery.IssueUrl, Failure = null, SentAtUtc = atUtc }));
+        public Task<ProblemReport?> TryClaimAsync(
+            Guid id,
+            string claimToken,
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken)
+        {
+            var claimExpiresAtUtc = nowUtc.Add(leaseDuration);
+            lock (Reports)
+            {
+                var index = Reports.FindIndex(report => report.Id == id
+                    && report.Status == ProblemReportStatus.NotSent
+                    && (report.DispatchClaimToken is null
+                        || report.DispatchClaimExpiresAtUtc is null
+                        || report.DispatchClaimExpiresAtUtc <= nowUtc));
+                if (index < 0)
+                {
+                    return Task.FromResult<ProblemReport?>(null);
+                }
 
-        public Task<ProblemReport> MarkNotSentAsync(Guid id, string failure, CancellationToken cancellationToken) =>
-            Task.FromResult(Replace(id, report => report with { Status = ProblemReportStatus.NotSent, Failure = failure }));
+                Reports[index] = Reports[index] with
+                {
+                    DispatchClaimToken = claimToken,
+                    DispatchClaimExpiresAtUtc = claimExpiresAtUtc
+                };
+                return Task.FromResult<ProblemReport?>(Reports[index]);
+            }
+        }
+
+        public Task<ProblemReport> MarkSentAsync(Guid id, string claimToken, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(Replace(id, report => report.DispatchClaimToken == claimToken
+                ? report with
+                {
+                    Status = ProblemReportStatus.Sent,
+                    IssueNumber = delivery.IssueNumber,
+                    IssueUrl = delivery.IssueUrl,
+                    Failure = null,
+                    SentAtUtc = atUtc,
+                    DispatchClaimExpiresAtUtc = null,
+                    DispatchClaimToken = null
+                }
+                : report));
+
+        public Task<ProblemReport> MarkNotSentAsync(Guid id, string claimToken, string failure, CancellationToken cancellationToken) =>
+            Task.FromResult(Replace(id, report => report.DispatchClaimToken == claimToken
+                ? report with
+                {
+                    Status = ProblemReportStatus.NotSent,
+                    Failure = failure,
+                    DispatchClaimExpiresAtUtc = null,
+                    DispatchClaimToken = null
+                }
+                : report));
 
         private ProblemReport Replace(Guid id, Func<ProblemReport, ProblemReport> change)
         {
-            var index = Reports.FindIndex(report => report.Id == id);
-            Reports[index] = change(Reports[index]);
-            return Reports[index];
+            lock (Reports)
+            {
+                var index = Reports.FindIndex(report => report.Id == id);
+                Reports[index] = change(Reports[index]);
+                return Reports[index];
+            }
         }
     }
 }

@@ -22,6 +22,8 @@ internal sealed class ProblemReportEntity
     public string? IssueUrl { get; set; }
     public string? Failure { get; set; }
     public DateTimeOffset? SentAtUtc { get; set; }
+    public DateTimeOffset? DispatchClaimExpiresAtUtc { get; set; }
+    public string? DispatchClaimToken { get; set; }
 }
 
 internal static class ProblemReportModelConfiguration
@@ -41,6 +43,7 @@ internal static class ProblemReportModelConfiguration
             entity.Property(item => item.Status).HasMaxLength(20).IsRequired();
             entity.Property(item => item.IssueUrl).HasMaxLength(400);
             entity.Property(item => item.Failure).HasMaxLength(400);
+            entity.Property(item => item.DispatchClaimToken).HasMaxLength(64);
             // The Administrator's list reads newest first.
             entity.HasIndex(item => item.CreatedAtUtc).IsDescending();
         });

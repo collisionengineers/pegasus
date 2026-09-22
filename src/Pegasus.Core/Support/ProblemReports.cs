@@ -57,7 +57,9 @@ public sealed record ProblemReport(
     int? IssueNumber,
     string? IssueUrl,
     string? Failure,
-    DateTimeOffset? SentAtUtc);
+    DateTimeOffset? SentAtUtc,
+    DateTimeOffset? DispatchClaimExpiresAtUtc,
+    string? DispatchClaimToken);
 
 public sealed record NewProblemReport(
     Guid StaffId,
@@ -74,12 +76,20 @@ public interface IProblemReportStore
 
     Task<ProblemReport?> GetAsync(Guid id, CancellationToken cancellationToken);
 
-    /// <summary>The newest reports first, at most <paramref name="count"/>.</summary>
-    Task<IReadOnlyList<ProblemReport>> ListAsync(int count, CancellationToken cancellationToken);
+    /// <summary>Every retained report, newest first.</summary>
+    Task<IReadOnlyList<ProblemReport>> ListAsync(CancellationToken cancellationToken);
 
-    Task<ProblemReport> MarkSentAsync(Guid id, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken);
+    /// <summary>Atomically claims an unsent report for one dispatch attempt.</summary>
+    Task<ProblemReport?> TryClaimAsync(
+        Guid id,
+        string claimToken,
+        DateTimeOffset nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken);
 
-    Task<ProblemReport> MarkNotSentAsync(Guid id, string failure, CancellationToken cancellationToken);
+    Task<ProblemReport> MarkSentAsync(Guid id, string claimToken, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken);
+
+    Task<ProblemReport> MarkNotSentAsync(Guid id, string claimToken, string failure, CancellationToken cancellationToken);
 }
 
 /// <summary>The outward side: raises the report as an issue, or throws with the reason it could not.</summary>
@@ -93,8 +103,8 @@ public static class ProblemReportPolicy
     public const int MaximumDescriptionLength = 4000;
     public const int RecentActionCount = 20;
     public const int RecentErrorCount = 10;
-    public const int MaximumListCount = 200;
     public static readonly TimeSpan RecentActionWindow = TimeSpan.FromDays(7);
+    public static readonly TimeSpan DispatchClaimLease = TimeSpan.FromMinutes(2);
 
     public static string ValidateDescription(string? description)
     {
@@ -240,7 +250,8 @@ public sealed class ReportProblem(
                 RecentErrors = request.Client.RecentErrors.Take(ProblemReportPolicy.RecentErrorCount).ToArray()
             });
         var report = await _store.AddAsync(new NewProblemReport(staffId, description, snapshot, now), cancellationToken);
-        return await ProblemReportDispatch.SendAsync(_store, _sink, report, _timeProvider, cancellationToken);
+        return await ProblemReportDispatch.SendAsync(_store, _sink, report.Id, _timeProvider, cancellationToken)
+            ?? throw new InvalidOperationException($"Problem report {report.Id:D} was not found after it was stored.");
     }
 
     private async Task<IReadOnlyList<ProblemReportAction>> RecentActionsAsync(
@@ -288,13 +299,7 @@ public sealed class RetryProblemReport(
     public async Task<ProblemReport?> ExecuteAsync(ActionActor actor, Guid id, CancellationToken cancellationToken)
     {
         ProblemReportPolicy.RequireStaff(actor, StaffAccessRight.ViewOperationalReports);
-        var report = await _store.GetAsync(id, cancellationToken);
-        if (report is null || report.Status == ProblemReportStatus.Sent)
-        {
-            return report;
-        }
-
-        return await ProblemReportDispatch.SendAsync(_store, _sink, report, _timeProvider, cancellationToken);
+        return await ProblemReportDispatch.SendAsync(_store, _sink, id, _timeProvider, cancellationToken);
     }
 }
 
@@ -305,28 +310,41 @@ public sealed class ListProblemReports(IProblemReportStore store)
     public Task<IReadOnlyList<ProblemReport>> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         ProblemReportPolicy.RequireStaff(actor, StaffAccessRight.ViewOperationalReports);
-        return _store.ListAsync(ProblemReportPolicy.MaximumListCount, cancellationToken);
+        return _store.ListAsync(cancellationToken);
     }
 }
 
 internal static class ProblemReportDispatch
 {
-    public static async Task<ProblemReport> SendAsync(
+    public static async Task<ProblemReport?> SendAsync(
         IProblemReportStore store,
         IProblemReportSink sink,
-        ProblemReport report,
+        Guid id,
         TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
+        var claimToken = Guid.NewGuid().ToString("N");
+        var nowUtc = timeProvider.GetUtcNow();
+        var report = await store.TryClaimAsync(
+            id,
+            claimToken,
+            nowUtc,
+            ProblemReportPolicy.DispatchClaimLease,
+            cancellationToken);
+        if (report is null)
+        {
+            return await store.GetAsync(id, cancellationToken);
+        }
+
         try
         {
             var delivery = await sink.SendAsync(report, cancellationToken);
-            return await store.MarkSentAsync(report.Id, delivery, timeProvider.GetUtcNow(), cancellationToken);
+            return await store.MarkSentAsync(report.Id, claimToken, delivery, timeProvider.GetUtcNow(), cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             var failure = exception.Message.Length > 400 ? exception.Message[..400] : exception.Message;
-            return await store.MarkNotSentAsync(report.Id, failure, cancellationToken);
+            return await store.MarkNotSentAsync(report.Id, claimToken, failure, cancellationToken);
         }
     }
 }

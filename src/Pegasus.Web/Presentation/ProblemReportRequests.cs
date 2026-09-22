@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.AspNetCore.WebUtilities;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ReleaseNotes;
 using Pegasus.Core.Support;
@@ -20,10 +21,16 @@ public static class ProblemReportRequests
     private const int MaximumReferenceLength = 40;
     private const int MaximumErrorLength = 300;
     private static readonly TimeSpan RememberedExceptionLifetime = TimeSpan.FromHours(1);
+    private static readonly Dictionary<string, string> EstablishedCaseSections =
+        OperatorLabels.CaseWorkspace.Sections.ToDictionary(
+            section => section.Key,
+            section => section.Key,
+            StringComparer.OrdinalIgnoreCase);
 
     public sealed record PostedFacts(
         string? Description,
         string? Route,
+        string? Method,
         string? TraceId,
         string? CaseReference,
         string? Viewport,
@@ -63,9 +70,7 @@ public static class ProblemReportRequests
             exception = remembered;
         }
 
-        var route = Clean(posted.Route, MaximumRouteLength) is { } postedRoute && postedRoute.StartsWith('/')
-            ? postedRoute
-            : http.Request.Path + http.Request.QueryString;
+        var route = SanitiseRoute(http, posted.Route);
         var role = http.User.FindFirst(ClaimTypes.Role)?.Value;
         return new ProblemReportRequest(
             actor,
@@ -73,7 +78,7 @@ public static class ProblemReportRequests
             build.Version,
             build.SourceSha,
             route,
-            http.Request.Method,
+            Clean(posted.Method, 16)?.ToUpperInvariant() ?? "GET",
             traceId,
             http.User.Identity?.Name ?? actor.SubjectId,
             OperatorLabels.StaffRole(role),
@@ -108,6 +113,42 @@ public static class ProblemReportRequests
         {
             return [];
         }
+    }
+
+    private static string SanitiseRoute(HttpContext http, string? postedRoute)
+    {
+        var candidate = Clean(postedRoute, MaximumRouteLength);
+        if (candidate is null || !candidate.StartsWith('/'))
+        {
+            candidate = http.Request.Path + http.Request.QueryString;
+        }
+
+        var fragment = candidate.IndexOf('#');
+        if (fragment >= 0)
+        {
+            candidate = candidate[..fragment];
+        }
+
+        var queryStart = candidate.IndexOf('?');
+        var path = queryStart >= 0 ? candidate[..queryStart] : candidate;
+        if (path.Length == 0)
+        {
+            path = "/";
+        }
+
+        string? section = null;
+        if (queryStart >= 0)
+        {
+            var query = QueryHelpers.ParseQuery(candidate[(queryStart + 1)..]);
+            if (query.TryGetValue("section", out var values) && values.Count == 1
+                && EstablishedCaseSections.TryGetValue(values[0]!, out var canonical))
+            {
+                section = canonical;
+            }
+        }
+
+        var route = section is null ? path : QueryHelpers.AddQueryString(path, "section", section);
+        return Clean(route, MaximumRouteLength) ?? "/";
     }
 
     private static string? Clean(string? value, int length)

@@ -36,38 +36,85 @@ internal sealed class EfProblemReportStore(IDbContextFactory<PegasusDbContext> c
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<IReadOnlyList<ProblemReport>> ListAsync(int count, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ProblemReport>> ListAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await context.Set<ProblemReportEntity>().AsNoTracking()
             .OrderByDescending(item => item.CreatedAtUtc)
             .ThenByDescending(item => item.Id)
-            .Take(count)
             .ToArrayAsync(cancellationToken);
         return rows.Select(Map).ToArray();
     }
 
-    public async Task<ProblemReport> MarkSentAsync(Guid id, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken)
+    public async Task<ProblemReport?> TryClaimAsync(
+        Guid id,
+        string claimToken,
+        DateTimeOffset nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(delivery);
+        ArgumentException.ThrowIfNullOrWhiteSpace(claimToken);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(leaseDuration, TimeSpan.Zero);
+        var claimExpiresAtUtc = nowUtc.Add(leaseDuration);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.Set<ProblemReportEntity>().SingleAsync(item => item.Id == id, cancellationToken);
-        entity.Status = nameof(ProblemReportStatus.Sent);
-        entity.IssueNumber = delivery.IssueNumber;
-        entity.IssueUrl = Truncate(delivery.IssueUrl, 400);
-        entity.Failure = null;
-        entity.SentAtUtc = atUtc;
-        await context.SaveChangesAsync(cancellationToken);
+        var claimed = await context.Set<ProblemReportEntity>()
+            .Where(item => item.Id == id
+                && item.Status == nameof(ProblemReportStatus.NotSent)
+                && (item.DispatchClaimToken == null
+                    || item.DispatchClaimExpiresAtUtc == null
+                    || item.DispatchClaimExpiresAtUtc <= nowUtc))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.DispatchClaimToken, claimToken)
+                .SetProperty(item => item.DispatchClaimExpiresAtUtc, claimExpiresAtUtc), cancellationToken);
+        if (claimed == 0)
+        {
+            return null;
+        }
+
+        var entity = await context.Set<ProblemReportEntity>().AsNoTracking()
+            .SingleAsync(item => item.Id == id, cancellationToken);
         return Map(entity);
     }
 
-    public async Task<ProblemReport> MarkNotSentAsync(Guid id, string failure, CancellationToken cancellationToken)
+    public async Task<ProblemReport> MarkSentAsync(Guid id, string claimToken, ProblemReportDelivery delivery, DateTimeOffset atUtc, CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(claimToken);
+        ArgumentNullException.ThrowIfNull(delivery);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.Set<ProblemReportEntity>().SingleAsync(item => item.Id == id, cancellationToken);
-        entity.Status = nameof(ProblemReportStatus.NotSent);
-        entity.Failure = Truncate(failure, 400);
-        await context.SaveChangesAsync(cancellationToken);
+        await context.Set<ProblemReportEntity>()
+            .Where(item => item.Id == id && item.DispatchClaimToken == claimToken)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Status, nameof(ProblemReportStatus.Sent))
+                .SetProperty(item => item.IssueNumber, delivery.IssueNumber)
+                .SetProperty(item => item.IssueUrl, Truncate(delivery.IssueUrl, 400))
+                .SetProperty(item => item.Failure, (string?)null)
+                .SetProperty(item => item.SentAtUtc, atUtc)
+                .SetProperty(item => item.DispatchClaimExpiresAtUtc, (DateTimeOffset?)null)
+                .SetProperty(item => item.DispatchClaimToken, (string?)null), cancellationToken);
+        return await GetRequiredAsync(context, id, cancellationToken);
+    }
+
+    public async Task<ProblemReport> MarkNotSentAsync(Guid id, string claimToken, string failure, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(claimToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await context.Set<ProblemReportEntity>()
+            .Where(item => item.Id == id && item.DispatchClaimToken == claimToken)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Status, nameof(ProblemReportStatus.NotSent))
+                .SetProperty(item => item.Failure, Truncate(failure, 400))
+                .SetProperty(item => item.DispatchClaimExpiresAtUtc, (DateTimeOffset?)null)
+                .SetProperty(item => item.DispatchClaimToken, (string?)null), cancellationToken);
+        return await GetRequiredAsync(context, id, cancellationToken);
+    }
+
+    private static async Task<ProblemReport> GetRequiredAsync(
+        PegasusDbContext context,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var entity = await context.Set<ProblemReportEntity>().AsNoTracking()
+            .SingleAsync(item => item.Id == id, cancellationToken);
         return Map(entity);
     }
 
@@ -85,5 +132,7 @@ internal sealed class EfProblemReportStore(IDbContextFactory<PegasusDbContext> c
         entity.IssueNumber,
         entity.IssueUrl,
         entity.Failure,
-        entity.SentAtUtc);
+        entity.SentAtUtc,
+        entity.DispatchClaimExpiresAtUtc,
+        entity.DispatchClaimToken);
 }

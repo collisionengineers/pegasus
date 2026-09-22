@@ -23,6 +23,7 @@
         <form method="post" asp-page="/ProblemReports" asp-page-handler="Report" class="stack" data-problem-form>
             <input type="hidden" name="returnUrl" value="@(Model.ReturnPath ?? "/")" />
             <input type="hidden" name="route" value="@(Model.ReturnPath ?? string.Empty)" />
+            <input type="hidden" name="method" value="@HttpContext.Request.Method" />
             <input type="hidden" name="traceId" value="@Model.RequestId" />
             <input type="hidden" name="caseReference" value="" data-problem-case />
             <input type="hidden" name="viewport" value="" data-problem-viewport />
