@@ -516,6 +516,15 @@ function Get-MigrationPermissionMatrix {
         }
         $expected.Add("$role|D|DELETE|CaseFieldProposals")
     }
+    # 20260921080000_RepairSpecificationSnapshots: frozen repair specification
+    # versions (v28 P43). Web freezes and reads them; the Worker reads only;
+    # neither deletes one.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|CaseRepairSpecificationSnapshots")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseRepairSpecificationSnapshots')
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseRepairSpecificationSnapshots')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseRepairSpecificationSnapshots')
     # 20260914091000_PreCaseImagePreparation: crop, rotation and tags on pre-Case
     # images. Web records crops (never deletes) and tags (never updates); the
     # Worker reads both and copies the tags onto the Case occurrence.

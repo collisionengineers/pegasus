@@ -178,6 +178,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260920201616_ProblemReports",
                 "20260921060711_CapValuationSource",
                 "20260921070000_DamageImpactsAsAreas",
+                "20260921070455_RepairSpecHeaderByLine",
+                "20260921073633_RepairSpecificationSnapshots",
                 "20260921142708_ProblemReportDispatchClaims"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());

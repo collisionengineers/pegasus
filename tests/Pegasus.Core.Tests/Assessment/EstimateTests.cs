@@ -35,7 +35,8 @@ public sealed class EstimateTests
         Assert.Null(submitted.Lines[0].AmendedAtUtc);
         Assert.Null(submitted.Lines[0].SourceRowIdentity);
         Assert.Equal(sourceLine.SourceRowIdentity, resolved.Lines[0].SourceRowIdentity);
-        Assert.Equal(7m, resolved.Lines[0].Materials);
+        // Materials are the editor's own now (v28 P48): a line posted without one carries none.
+        Assert.Null(resolved.Lines[0].Materials);
         Assert.Equal(Now.AddMinutes(1), resolved.Lines[0].AmendedAtUtc);
         Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ApplyEditorEvidence(
             submitted with { ExistingLineIds = [Guid.NewGuid()] }, existing, Now));
@@ -53,8 +54,9 @@ public sealed class EstimateTests
     public void OneSnapshotRatePricesPanelAndPaintHoursAlike()
     {
         var estimate = Estimate(
-            new("Repairer estimate", 3, 40m, 25m, 10m, 17.5m, null,
+            new("Repairer estimate", 40m, 10m, 17.5m,
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            MaterialsLine(25m),
             Line("new_part", price: 100m, quantity: 2),
             Line("repair", workUnits: 2.5m),
             Line("paint_repair", paintWorkUnits: 1.5m),
@@ -94,7 +96,7 @@ public sealed class EstimateTests
     public void TotalsWithoutRatesOrVatAreThePartsAlone()
     {
         var estimate = Estimate(
-            new("Parts only", null, null, null, null, 0m, null),
+            new("Parts only", null, null, 0m),
             Line("new_part", price: 50m),
             Line("repair", workUnits: 4m));
 
@@ -211,7 +213,7 @@ public sealed class EstimateTests
     public void EachOperationLandsInExactlyOneCostBucket()
     {
         var estimate = Estimate(
-            Header(rate: 50m, additionalMaterials: 5m, otherCosts: 7m),
+            Header(rate: 50m, otherCosts: 7m), MaterialsLine(5m),
             Line("new_part", price: 120m, quantity: 2, workUnits: 0.4m),
             Line("repair", workUnits: 1.5m),
             Line("rnr", workUnits: 0.6m),
@@ -243,14 +245,34 @@ public sealed class EstimateTests
     [InlineData("Estimate", 20, 40.123)]
     public void DetailsOutsideTheirBoundsAreRefused(string name, double vat, double rate) =>
         Assert.Throws<ArgumentException>(() => EstimatePolicy.ValidateDetails(
-            new(name, null, (decimal)rate, null, null, (decimal)vat, null)));
+            new(name, (decimal)rate, null, (decimal)vat)));
 
     [Fact]
-    public void DetailsAreTrimmedAndNotesBlankedToNull()
+    public void DetailsAreTrimmed()
     {
-        var details = EstimatePolicy.ValidateDetails(new("  Glass's  ", 2, 40m, null, null, 20m, "   "));
+        var details = EstimatePolicy.ValidateDetails(new("  Glass's  ", 40m, null, 20m));
         Assert.Equal("Glass's", details.Name);
-        Assert.Null(details.Notes);
+    }
+
+    [Fact]
+    public void TheRegionalUpliftLiftsTheOneRateByFifteenPercent()
+    {
+        // v28 P17: the uplift is a flag on the header; the typed or card
+        // rate stays what it was and every priced hour reads the lifted rate.
+        var plain = Header(rate: 40m);
+        var lifted = Header(rate: 40m, regionalUplift: true);
+        Assert.Equal(40m, plain.HourlyRate);
+        Assert.Equal(40m, lifted.BaseHourlyRate);
+        Assert.Equal(46m, lifted.HourlyRate);
+        var totals = EstimateTotals.Compute(Estimate(lifted, Line("repair", workUnits: 2m)));
+        Assert.Equal(92m, totals.Printed.PanelLabour);
+
+        Assert.True(RegionalUpliftPolicy.Suggests("Unit 4, Purley Way, Croydon CR0 4XT"));
+        Assert.True(RegionalUpliftPolicy.Suggests("12 High Street, Stevenage SG1 3AB"));
+        Assert.False(RegionalUpliftPolicy.Suggests("Stevenage SG6 1AA"));
+        Assert.False(RegionalUpliftPolicy.Suggests("1 Deansgate, Manchester M3 4EN"));
+        Assert.False(RegionalUpliftPolicy.Suggests(null));
+        Assert.Equal("CR0", RegionalUpliftPolicy.OutwardCode("Croydon CR0 4XT"));
     }
 
     [Theory]
@@ -371,7 +393,7 @@ public sealed class EstimateTests
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
         var draft = Estimate(
-            new("Draft", 2, 40m, 25m, 0m, 20m, null,
+            new("Draft", 40m, 0m, 20m,
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             Line("new_part", price: 100m), Line("repair", workUnits: 2m));
         EstimatePolicy.ValidateSetCurrent(draft, actor);
@@ -498,10 +520,11 @@ public sealed class EstimateTests
     {
         var estimate = Estimate(
             Header(
-                additionalMaterials: 100.10m, otherCosts: 60.10m,
+                otherCosts: 60.10m,
                 discounts: new(0m, 0m, 0m, 0.05m),
                 vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-            Line("new_part", price: 200.10m));
+            Line("new_part", price: 200.10m),
+            MaterialsLine(100.10m));
 
         var totals = EstimateTotals.Compute(estimate);
 
@@ -540,24 +563,17 @@ public sealed class EstimateTests
     // ---- The repairer's VAT status and acceptance ----
 
     [Fact]
-    public void AnUnknownRepairerVatStatusBlocksUseAsCurrentUntilItIsResolved()
+    public void AnUnknownRepairerVatStatusNoLongerGatesUseAsCurrent()
     {
+        // v28 P10: Use repair spec is simply available; an unknown status
+        // means the totals carry no VAT, which the policy still names.
         var unknown = Estimate(
             Header(rate: 40m, vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
             Line("repair", workUnits: 1m));
-        Assert.True(unknown.Details.VatPolicy.BlocksAcceptance);
-        var blocked = Assert.Throws<InvalidOperationException>(
-            () => EstimatePolicy.ValidateSetCurrent(unknown, Engineer));
-        Assert.Contains("VAT status", blocked.Message, StringComparison.Ordinal);
+        Assert.True(unknown.Details.VatPolicy.TreatmentPending);
+        Assert.Equal(0m, EstimateTotals.Compute(unknown).Printed.Vat);
+        EstimatePolicy.ValidateSetCurrent(unknown, Engineer);
 
-        // Recording the status resolves it.
-        var recorded = unknown with
-        {
-            Details = unknown.Details with { Vat = EstimateVatPolicy.For(RepairerVatStatus.NotRegistered) },
-        };
-        EstimatePolicy.ValidateSetCurrent(recorded, Engineer);
-
-        // So does choosing the categories by hand while the status stays unknown.
         var overridden = unknown with
         {
             Details = unknown.Details with
@@ -565,16 +581,8 @@ public sealed class EstimateTests
                 Vat = new(RepairerVatStatus.Unknown, EstimateVatCategories.Parts, true),
             },
         };
-        Assert.False(overridden.Details.VatPolicy.BlocksAcceptance);
+        Assert.False(overridden.Details.VatPolicy.TreatmentPending);
         EstimatePolicy.ValidateSetCurrent(overridden, Engineer);
-
-        // Resetting to the repairer's status restores the block.
-        var reset = overridden with
-        {
-            Details = overridden.Details with { Vat = EstimateVatPolicy.For(RepairerVatStatus.Unknown) },
-        };
-        Assert.True(reset.Details.VatPolicy.BlocksAcceptance);
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(reset, Engineer));
     }
 
     [Fact]
@@ -1129,14 +1137,17 @@ public sealed class EstimateTests
 
     private static EstimateDetails Header(
         decimal? rate = null,
-        decimal? additionalMaterials = null,
         decimal? otherCosts = null,
         EstimateDiscounts? discounts = null,
         EstimateVatPolicy? vat = null,
         decimal vatPercent = 20m,
-        EstimateRateSnapshot? snapshot = null) => new(
-        "Estimate", null, rate, additionalMaterials, otherCosts, vatPercent, null,
-        discounts, vat, snapshot);
+        EstimateRateSnapshot? snapshot = null,
+        bool regionalUplift = false) => new(
+        "Estimate", rate, otherCosts, vatPercent, discounts, vat, snapshot, regionalUplift);
+
+    /// <summary>Materials sit on the lines (v28 P48): a paint line carrying the figure the header once did.</summary>
+    private static CaseEstimateLineRecord MaterialsLine(decimal materials) =>
+        Line("paint_repair", materials: materials);
 
     /// <summary>
     /// Plan vector V2: parts 299.80, 4.7 panel and 3.2 paint hours at 52.00,
@@ -1146,12 +1157,13 @@ public sealed class EstimateTests
     private static RepairSpecificationVersion DiscountedEstimate(
         RepairerVatStatus status, EstimateVatPolicy? policy = null) => Estimate(
         Header(
-            rate: 52m, additionalMaterials: 30m, otherCosts: 65m,
+            rate: 52m, otherCosts: 65m,
             discounts: new(0.125m, 0.05m, 0.10m, 0.025m),
             vat: policy ?? EstimateVatPolicy.For(status)),
         Line("new_part", price: 125.75m, quantity: 2),
         Line("new_part", price: 48.30m),
         Line("repair", workUnits: 3.5m, materials: 45.60m),
+        MaterialsLine(30m),
         Line("rnr", workUnits: 1.2m),
         Line("paint_repair", paintWorkUnits: 2.4m),
         Line("paint_blend", paintWorkUnits: 0.8m),
@@ -1370,6 +1382,18 @@ public sealed class EstimateTests
             Saved.Add(request);
             return Task.FromResult(Estimate(request.Details) with { AiJobId = request.AiJobId, Source = request.Source });
         }
+
+        public Task<RepairSpecificationVersion> SaveAndScaleAsync(
+            SaveAndScaleRepairSpecificationRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RepairSpecificationVersion> RemoveScalingAsync(
+            RemoveRepairSpecificationScalingRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<RepairSpecificationVersion> RestoreSnapshotAsync(
+            RestoreRepairSpecificationSnapshotRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<RepairSpecificationVersion> SetCurrentEstimateAsync(SetCurrentEstimateRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(Current);

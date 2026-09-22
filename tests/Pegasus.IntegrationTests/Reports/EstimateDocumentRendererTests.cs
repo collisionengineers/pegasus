@@ -41,7 +41,7 @@ public sealed partial class EstimateDocumentRendererTests
         {
             "ESTIMATE", "QDOS26001", "CLAIM-1", "Alex Example", "Ford Focus",
             "AB12 CDE", "Estimate 1", "DRAFT", "Door skin", "PN-42",
-            "Additional materials", "Additional costs", "Hours", "Rate and discounts",
+            "Additional costs", "Hours", "Rate and discounts",
             "Labour", "Materials", "Parts", "Specialist / Other", "Net", "Gross",
         })
         {
@@ -105,7 +105,7 @@ public sealed partial class EstimateDocumentRendererTests
         await using var provider = Provider();
         var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
         var estimate = Estimate(
-            new EstimateDetails("EVA estimate", 3, 83.28m, null, null, 20m, null,
+            new EstimateDetails("EVA estimate", 83.28m, null, 20m,
                 EstimateDiscounts.None, EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             EvaEstimateLines("specialist_fixed"));
 
@@ -130,7 +130,7 @@ public sealed partial class EstimateDocumentRendererTests
         await using var provider = Provider();
         var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
         var estimate = Estimate(
-            new EstimateDetails("EVA estimate", 3, 83.28m, null, null, 20m, null,
+            new EstimateDetails("EVA estimate", 83.28m, null, 20m,
                 EstimateDiscounts.None, EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             EvaEstimateLines("check_labour"));
 
@@ -202,7 +202,7 @@ public sealed partial class EstimateDocumentRendererTests
     ];
 
     private static EstimateDetails DefaultDetails() => new(
-        "Estimate 1", 3, 83.28m, 12m, 8m, 20m, null,
+        "Estimate 1", 83.28m, 8m, 20m,
         EstimateDiscounts.None, EstimateVatPolicy.For(RepairerVatStatus.Registered));
 
     private static CaseEstimateLineRecord Line(int position, string description) => new(

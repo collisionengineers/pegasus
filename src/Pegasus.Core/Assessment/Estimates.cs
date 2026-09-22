@@ -61,10 +61,11 @@ public sealed record EstimateVatPolicy(
         new(status, DefaultFor(status), false);
 
     /// <summary>
-    /// An unknown repairer VAT status blocks acceptance until the operator
-    /// records the status or overrides the categories by hand.
+    /// An unknown repairer VAT status with no hand-made override: the totals
+    /// carry no VAT until the operator records the status or selects the
+    /// categories. It never gates Use repair spec (v28 P10, 18 September 2026).
     /// </summary>
-    public bool BlocksAcceptance =>
+    public bool TreatmentPending =>
         RepairerStatus == RepairerVatStatus.Unknown && !CategoriesOverridden;
 
     public bool Charges(EstimateVatCategories category) => (Categories & category) == category;
@@ -95,10 +96,12 @@ public sealed record EstimateRateSnapshot(
     decimal HourlyRate);
 
 /// <summary>
-/// The editable header of one named estimate on a Case (FRD-11 § Estimate VAT on the rendered report). Money is in pounds to two
-/// places; the one labour rate is per hour; the VAT percentage is free per
-/// estimate (D9).
-/// <see cref="PaintMaterials"/> is the estimate's additional materials.
+/// The editable header of one named repair specification on a Case (FRD-11
+/// § Estimate VAT on the rendered report). Money is in pounds to two places;
+/// the one labour rate is per hour, lifted by <see cref="RegionalUpliftFactor"/>
+/// when the regional uplift is on (v28 P17); the VAT percentage is free per
+/// estimate (D9). Materials sit on the lines (v28 P48), so the header carries
+/// no materials figure.
 /// </summary>
 /// <remarks>
 /// D9 reconciliation: the B04 plan writes VAT as 20 %, this repository keeps
@@ -111,18 +114,22 @@ public sealed record EstimateRateSnapshot(
 /// </remarks>
 public sealed record EstimateDetails(
     string Name,
-    int? RepairDays,
     decimal? LabourRate,
-    decimal? PaintMaterials,
     decimal? OtherCosts,
     decimal VatPercent,
-    string? Notes,
     EstimateDiscounts? Discounts = null,
     EstimateVatPolicy? Vat = null,
-    EstimateRateSnapshot? Rate = null)
+    EstimateRateSnapshot? Rate = null,
+    bool RegionalUplift = false)
 {
-    /// <summary>The one rate that prices panel, paint and Specialist work-unit hours.</summary>
-    public decimal HourlyRate => Rate?.HourlyRate ?? LabourRate ?? 0m;
+    /// <summary>The London and Home Counties uplift on the labour rate (v28 P17): + 15 %.</summary>
+    public const decimal RegionalUpliftFactor = 1.15m;
+
+    /// <summary>The rate as typed or as the card gave it, before any uplift.</summary>
+    public decimal BaseHourlyRate => Rate?.HourlyRate ?? LabourRate ?? 0m;
+
+    /// <summary>The one rate that prices panel, paint and Specialist work-unit hours, uplifted when the regional uplift is on.</summary>
+    public decimal HourlyRate => RegionalUplift ? BaseHourlyRate * RegionalUpliftFactor : BaseHourlyRate;
 
     public EstimateDiscounts AppliedDiscounts => Discounts ?? EstimateDiscounts.None;
 
@@ -370,7 +377,7 @@ public sealed record EstimateTotals(
         var hours = EstimateHours.Of(estimate);
 
         decimal parts = 0m;
-        decimal materials = details.PaintMaterials ?? 0m;
+        decimal materials = 0m;
         decimal specialist = details.OtherCosts ?? 0m;
         decimal offPattern = 0m;
         foreach (var line in estimate.Lines)
@@ -491,7 +498,6 @@ public sealed record EstimateTotals(
 public static class EstimatePolicy
 {
     public const int MaximumNameLength = 100;
-    public const int MaximumNotesLength = 4000;
     public const decimal DefaultVatPercent = 20m;
     public const string CopySuffix = " copy";
 
@@ -531,7 +537,6 @@ public static class EstimatePolicy
                 Status = previous.Status,
                 EvidenceLabel = previous.EvidenceLabel,
                 Justification = previous.Justification,
-                Materials = previous.Materials,
                 Origin = previous.Origin,
                 SourceDocumentIdentity = previous.SourceDocumentIdentity,
                 SourceDocumentVersionId = previous.SourceDocumentVersionId,
@@ -641,24 +646,12 @@ public static class EstimatePolicy
                 $"An estimate name cannot exceed {MaximumNameLength} characters or contain control characters.",
                 nameof(details));
         }
-        if (details.RepairDays is < 0)
-        {
-            throw new ArgumentException("Repair days cannot be negative.", nameof(details));
-        }
         Money(details.LabourRate, "labour rate");
-        Money(details.PaintMaterials, "paint materials");
         Money(details.OtherCosts, "other costs");
         if (details.VatPercent is < 0 or > 100 || decimal.Round(details.VatPercent, 2) != details.VatPercent)
         {
             throw new ArgumentException(
                 "The VAT percentage must be between 0 and 100 with at most two decimal places.",
-                nameof(details));
-        }
-        var notes = string.IsNullOrWhiteSpace(details.Notes) ? null : details.Notes.Trim();
-        if (notes is { Length: > MaximumNotesLength })
-        {
-            throw new ArgumentException(
-                $"Estimate notes cannot exceed {MaximumNotesLength} characters.",
                 nameof(details));
         }
         if (details.Discounts is { } discounts)
@@ -673,7 +666,7 @@ public static class EstimatePolicy
         {
             Money(rate.HourlyRate, "labour rate");
         }
-        return details with { Name = name, Notes = notes };
+        return details with { Name = name };
     }
 
     /// <summary>
@@ -924,11 +917,8 @@ public static class EstimatePolicy
         switch (estimate.State)
         {
             case RepairSpecificationState.Draft:
-                if (estimate.Details.VatPolicy.BlocksAcceptance)
-                {
-                    throw new InvalidOperationException(
-                        "Record the repairer's VAT status, or select the VAT categories, before using this estimate.");
-                }
+                // An unknown repairer VAT status no longer gates acceptance
+                // (v28 P10): the totals then carry no VAT.
                 RepairSpecificationPolicy.ValidateAcceptance(
                     estimate with { CalculationBasis = BasisFor(estimate) },
                     actor);
@@ -975,6 +965,12 @@ public sealed record SaveEstimateRequest(
 {
     public Guid? SelectedRateCardId { get; init; }
     public long? SelectedRateCardVersion { get; init; }
+
+    /// <summary>The history event an act records instead of the plain save (v28 P44): scaled, scaling removed, restored.</summary>
+    public string? EventType { get; init; }
+
+    /// <summary>What this specification says about the one it supplements (v28 P20); null clears it.</summary>
+    public RepairSpecificationSupplementary? Supplementary { get; init; }
 }
 
 public sealed record DuplicateEstimateRequest(

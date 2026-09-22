@@ -786,6 +786,8 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .toast strong{display:block;margin-bottom:3px}
 .toast--warning{border-left-color:#e0a144}
 .toast--danger{border-left-color:#df6268}
+.toast--undo{pointer-events:auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.toast--undo strong{margin:0}
 @keyframes toast-in{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
 
 /* ---------------------------------------------------------------------------

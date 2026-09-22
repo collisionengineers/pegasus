@@ -1114,6 +1114,9 @@ public static class OperatorLabels
         "triage_response_linked" => "Reply linked",
         "case_report_draft_previewed" => "Report draft viewed",
         "case_report_artifact_downloaded" => "Report downloaded",
+        "estimate_scaled" => "Repair spec scaled",
+        "estimate_scaling_removed" => "Scaling removed",
+        "estimate_restored" => "Repair spec restored",
         _ => Humanise(eventType)
     };
 
@@ -1970,7 +1973,7 @@ public static class OperatorLabels
             new("vehicle", "Vehicle", "icon-car"),
             new("damage", "Damage", "icon-alert-triangle"),
             new("valuation", "Valuation", "icon-file-text"),
-            new("estimate", "Estimate", "icon-list"),
+            new("estimate", "Repair Spec", "icon-list"),
             new("settlement", "Decisions", "icon-check-circle"),
             new("report", "Report", "icon-file"),
             new("files", "Files", "icon-folder"),
@@ -2031,32 +2034,32 @@ public static class OperatorLabels
             public const string ImpactLocation = "Impact location";
             public const string ImpactSeverity = "Impact severity";
             public const string IncidentNarrative = "Incident narrative";
-            public const string Estimate = "Estimate";
-            public const string Estimates = "Estimates";
-            public const string NoEstimatesRecorded = "No estimates recorded";
-            public const string NewEstimate = "New estimate";
+            public const string Estimate = "Repair Spec";
+            public const string Estimates = "Repair specs";
+            public const string NoEstimatesRecorded = "No repair specs recorded";
+            public const string NewEstimate = "New repair spec";
             public const string Current = "Current";
             public const string Recorded = "recorded";
-            public const string DeleteEstimate = "Delete estimate";
+            public const string DeleteEstimate = "Delete repair spec";
             public const string Duplicate = "Duplicate";
             public const string Compare = "Compare";
-            public const string CompareEstimates = "Compare estimates";
+            public const string CompareEstimates = "Compare repair specs";
             public const string State = "State";
-            public const string UseEstimate = "Use estimate";
-            public const string SaveEstimate = "Save estimate";
+            public const string UseEstimate = "Use repair spec";
+            public const string SaveEstimate = "Save repair spec";
             public const string AddLine = "Add line";
-            public const string EstimateName = "Estimate name";
+            public const string DeleteAllLines = "Delete all lines";
+            public const string LinesWord = "lines";
+            public const string EstimateName = "Repair spec name";
             public const string Source = "Source";
-            public const string RepairDays = "Repair days";
             public const string LabourRate = "Labour rate";
             public const string LabourRatePerHour = "Labour rate (\u00a3/h)";
-            public const string PaintMaterials = "Paint materials";
-            public const string PaintMaterialsPounds = "Paint materials (\u00a3)";
+            public const string RegionalUplift = "Regional uplift";
+            public const string MaterialPounds = "Material \u00a3";
             public const string OtherCosts = "Other costs";
             public const string OtherCostsPounds = "Other costs (\u00a3)";
             public const string Vat = "VAT";
             public const string VatPercent = "VAT %";
-            public const string EstimateNotes = "Estimate notes";
             public const string PartsAndOperations = "Parts and operations";
             public const string Operation = "Operation";
             public const string Description = "Description";

@@ -2433,10 +2433,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("Notes")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
                     b.Property<decimal?>("OtherCosts")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -2444,10 +2440,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("OverallDiscountPercent")
                         .HasPrecision(7, 4)
                         .HasColumnType("decimal(7,4)");
-
-                    b.Property<decimal?>("PaintMaterials")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("PartsDiscountPercent")
                         .HasPrecision(7, 4)
@@ -2462,8 +2454,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<long?>("RateCardVersion")
                         .HasColumnType("bigint");
 
-                    b.Property<int?>("RepairDays")
-                        .HasColumnType("int");
+                    b.Property<bool>("RegionalUplift")
+                        .HasColumnType("bit");
 
                     b.Property<bool?>("RepairerVatRegistered")
                         .HasColumnType("bit");
@@ -2510,6 +2502,20 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<bool>("SupplementaryExplainOnReport")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("SupplementaryOfSpecificationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SupplementaryReason")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SupplementaryStatement")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
                     b.Property<string>("VatOverrideReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -2548,6 +2554,74 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_VatPercent", "[VatPercent] BETWEEN 0 AND 100");
 
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_Version", "[Version] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseRepairSpecificationSnapshotEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DetailsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("LinesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("SentOnReport")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("SpecificationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("SpecificationId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("CaseRepairSpecificationSnapshots", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", "[Kind] IN ('Imported', 'BeforeScaling', 'Scaled', 'ScalingRemoved', 'BeforeRestore', 'Restored', 'Sent')");
+
+                            t.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Number", "[Number] > 0");
                         });
                 });
 
@@ -8558,6 +8632,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseRepairSpecificationEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", "Case")
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Case");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseRepairSpecificationSnapshotEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", "Case")
                         .WithMany()
