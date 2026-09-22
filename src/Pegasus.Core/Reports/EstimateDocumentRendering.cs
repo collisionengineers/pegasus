@@ -44,7 +44,6 @@ public sealed record EstimateDocumentSnapshot(
     EstimateHours Hours,
     decimal HourlyRate,
     EstimateDiscounts Discounts,
-    decimal? PaintMaterials,
     decimal? OtherCosts,
     EstimateTotals Totals,
     bool VatTreatmentPending,
@@ -95,10 +94,9 @@ public sealed record EstimateDocumentSnapshot(
             EstimateHours.Of(estimate),
             estimate.Details.HourlyRate,
             estimate.Details.AppliedDiscounts,
-            estimate.Details.PaintMaterials,
             estimate.Details.OtherCosts,
             totals,
-            totals.VatPolicy.BlocksAcceptance,
+            totals.VatPolicy.TreatmentPending,
             lines.Count(line => line.Unpriced));
     }
 

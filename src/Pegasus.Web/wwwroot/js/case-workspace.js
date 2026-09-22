@@ -1,4 +1,4 @@
-// Case record behaviour (v26). Everything here is a convenience on top of
+﻿// Case record behaviour (v26). Everything here is a convenience on top of
 // markup that already works as plain forms and links; nothing creates a
 // separate mutation path and no business rule lives in the browser.
 //
@@ -1956,19 +1956,260 @@
             window.setTimeout(appendPhantom, 0);
         });
 
-        body.addEventListener('click', function (event) {
-            var remove = event.target.closest('button[name="removeLine"]');
-            if (!remove) { return; }
-            event.preventDefault();
-            remove.closest('tr').remove();
+        function renumber() {
             body.querySelectorAll('tr[data-estimate-line] button[name="removeLine"]').forEach(function (button, index) {
                 button.value = String(index);
             });
             form.dispatchEvent(new Event('input', { bubbles: true }));
             appendPhantom();
+        }
+
+        // A removed line, or all of them, can be put back for eight seconds
+        // (v28 P16): the toast carries the one Undo.
+        var undoLabel = (form.querySelector('[data-estimate-delete-all]') || {}).getAttribute
+            ? form.querySelector('[data-estimate-delete-all]').getAttribute('data-undo-label') || 'Undo'
+            : 'Undo';
+        function undoToast(text, restore) {
+            var region = document.querySelector('[data-toast-region]');
+            if (!region) {
+                return;
+            }
+            var note = document.createElement('div');
+            note.className = 'toast toast--undo';
+            note.setAttribute('role', 'status');
+            var strong = document.createElement('strong');
+            strong.textContent = text;
+            var undo = document.createElement('button');
+            undo.type = 'button';
+            undo.className = 'btn btn--small';
+            undo.textContent = undoLabel;
+            undo.addEventListener('click', function () { restore(); note.remove(); });
+            note.appendChild(strong);
+            note.appendChild(undo);
+            region.appendChild(note);
+            window.setTimeout(function () { note.remove(); }, 8000);
+        }
+
+        body.addEventListener('click', function (event) {
+            var remove = event.target.closest('button[name="removeLine"]');
+            if (!remove) { return; }
+            event.preventDefault();
+            var row = remove.closest('tr');
+            var next = row.nextSibling;
+            row.remove();
+            renumber();
+            undoToast(form.getAttribute('data-line-removed-label') || 'Line removed', function () {
+                if (next && next.parentNode === body) { body.insertBefore(row, next); } else { body.appendChild(row); }
+                renumber();
+            });
         });
 
+        var deleteAll = form.querySelector('[data-estimate-delete-all]');
+        var confirmDialog = document.querySelector('[data-dialog="delete-lines-dialog"]');
+        if (deleteAll && confirmDialog) {
+            var pendingDeleteRows = null;
+            var yes = confirmDialog.querySelector('[data-delete-lines-confirm]');
+            if (yes) {
+                yes.addEventListener('click', function () {
+                    var rows = pendingDeleteRows;
+                    pendingDeleteRows = null;
+                    if (!rows) { return; }
+                    confirmDialog.hidden = true;
+                    rows.forEach(function (row) { row.remove(); });
+                    renumber();
+                    undoToast(rows.length + ' ' + (form.getAttribute('data-lines-removed-label') || 'lines removed'), function () {
+                        rows.forEach(function (row) { body.insertBefore(row, body.querySelector('tr[data-estimate-phantom]')); });
+                        renumber();
+                    });
+                });
+            }
+            deleteAll.addEventListener('click', function (event) {
+                event.preventDefault();
+                var rows = Array.prototype.slice.call(body.querySelectorAll('tr[data-estimate-line]'));
+                if (!rows.length) {
+                    return;
+                }
+                var count = confirmDialog.querySelector('[data-delete-lines-count]');
+                if (count) { count.textContent = String(rows.length); }
+                pendingDeleteRows = rows;
+                confirmDialog.hidden = false;
+            });
+        }
+
         appendPhantom();
+    }
+
+    // Target % of value (v28 P34): the browser carries only scaling intent.
+    // Core owns the Engineer's Value,
+    // floors and all monetary arithmetic when Apply is posted.
+    function bindScale(form) {
+        var bar = form.querySelector('[data-estimate-scale]');
+        if (!bar) {
+            return;
+        }
+        var range = bar.querySelector('[data-scale-range]');
+        var percent = bar.querySelector('[data-scale-percent]');
+        var apply = bar.querySelector('[data-scale-apply]');
+        if (!range || !percent) {
+            return;
+        }
+        var initial = percent.value || '100';
+        percent.value = initial;
+        range.value = initial;
+        function reveal() {
+            if (apply) { apply.hidden = false; }
+        }
+        range.addEventListener('input', function () {
+            percent.value = range.value;
+            reveal();
+        });
+        percent.addEventListener('input', function () {
+            range.value = percent.value;
+            reveal();
+        });
+    }
+
+    // Contract repair (v28 P35): the tick is the outcome in Decisions; ticking
+    // seeds the agreed sum from the specification, a different sum sets the
+    // scaling target.
+    function bindContract(form) {
+        var bar = form.querySelector('[data-estimate-contract]');
+        if (!bar) {
+            return;
+        }
+        var tick = bar.querySelector('[data-contract-agreed]');
+        var sum = document.getElementById(bar.getAttribute('data-estimate-contract-sum-control') || '');
+        var read = bar.querySelector('[data-contract-sum-read]');
+        var outcome = document.getElementById(bar.getAttribute('data-estimate-outcome-control') || '');
+        var grossCell = form.querySelector('[data-estimate-gross]');
+        var previous = outcome ? outcome.value : '';
+        function gross() { return grossCell ? (parseFloat((grossCell.textContent || '').replace(/[^0-9.]/g, '')) || 0) : 0; }
+        function setOutcome(contract) {
+            if (!outcome) { return; }
+            var wanted = contract ? 'contract_repair' : previous;
+            if (outcome.value !== wanted) {
+                outcome.value = wanted;
+                outcome.dispatchEvent(new Event('input', { bubbles: true }));
+                outcome.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
+        if (tick) {
+            tick.addEventListener('change', function () {
+                if (tick.checked) {
+                    if (outcome && outcome.value !== 'contract_repair') { previous = outcome.value; }
+                    if (sum && !sum.value) { sum.value = gross().toFixed(2); sum.dispatchEvent(new Event('input', { bubbles: true })); }
+                    setOutcome(true);
+                } else {
+                    if (sum) { sum.value = ''; sum.dispatchEvent(new Event('input', { bubbles: true })); }
+                    setOutcome(false);
+                }
+                paintSum();
+            });
+        }
+        function paintSum() {
+            if (!read) { return; }
+            var agreed = sum ? parseFloat(sum.value) : NaN;
+            read.textContent = isNaN(agreed) || !sum.value ? '\u2014' : '\u00a3' + agreed.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        if (sum) {
+            sum.addEventListener('input', paintSum);
+        }
+        if (outcome) {
+            outcome.addEventListener('change', function () {
+                var is = outcome.value === 'contract_repair';
+                if (tick && tick.checked !== is) { tick.checked = is; if (sum) { sum.disabled = !is; if (is && !sum.value) { sum.value = gross().toFixed(2); } } }
+            });
+        }
+    }
+
+    // Compare (v28 P19): choosing From and To reloads the dialog with both.
+    function bindCompare(section) {
+        var form = section.querySelector('[data-estimate-compare-form]');
+        if (!form) {
+            return;
+        }
+        form.querySelectorAll('select').forEach(function (select) {
+            select.addEventListener('change', function () {
+                var from = form.querySelector('[name="from"]').value, to = form.querySelector('[name="to"]').value;
+                if (from && to && from !== to) { form.requestSubmit(); }
+            });
+        });
+        var go = form.querySelector('[data-estimate-compare-go]');
+        if (go) { go.hidden = true; }
+    }
+
+    // The one labour rate control (v28 P33): choosing a card fills the
+    // figure; typing a figure keeps the entered rate.
+    function bindRate(form) {
+        var pair = form.querySelector('[data-estimate-rate-pair]');
+        if (!pair) {
+            return;
+        }
+        var card = pair.querySelector('select');
+        var rate = pair.querySelector('input');
+        if (!card || !rate) {
+            return;
+        }
+        // Filling the figure from a card still raises input, so the rest of the
+        // form sees the change, but that is the card speaking rather than the
+        // operator typing: only typing drops the card.
+        var filling = false;
+        card.addEventListener('change', function () {
+            var option = card.options[card.selectedIndex];
+            var figure = option && option.getAttribute('data-rate');
+            if (figure) {
+                filling = true;
+                rate.value = figure;
+                rate.dispatchEvent(new Event('input', { bubbles: true }));
+                filling = false;
+            }
+        });
+        rate.addEventListener('input', function () {
+            if (!filling && card.value) { card.value = ''; }
+        });
+    }
+
+    // The name is edited on its tab (v28 P32): double-click the selected tab,
+    // Enter or clicking away keeps it, Escape puts it back. The header cell
+    // is hidden while this works; without script it is the form field.
+    function bindRename(section, form) {
+        var cell = form.querySelector('[data-estimate-name-cell]');
+        var input = form.querySelector('#estimate-name');
+        var tab = section.querySelector('.estimate-tab[aria-selected="true"]');
+        var label = tab && tab.querySelector('[data-estimate-tab-label]');
+        if (!cell || !input || !tab || !label) {
+            return;
+        }
+        cell.hidden = true;
+        var finish = function (keep) {
+            label.removeAttribute('contenteditable');
+            var typed = (label.textContent || '').trim();
+            if (keep && typed) {
+                input.value = typed;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            } else {
+                label.textContent = input.value;
+            }
+        };
+        tab.addEventListener('dblclick', function (event) {
+            event.preventDefault();
+            label.setAttribute('contenteditable', 'true');
+            label.setAttribute('spellcheck', 'false');
+            label.focus();
+            var range = document.createRange();
+            range.selectNodeContents(label);
+            var selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+        });
+        tab.addEventListener('click', function (event) {
+            if (label.isContentEditable) { event.preventDefault(); }
+        });
+        label.addEventListener('blur', function () { if (label.isContentEditable) { finish(true); } });
+        label.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter') { event.preventDefault(); finish(true); label.blur(); }
+            if (event.key === 'Escape') { event.preventDefault(); finish(false); label.blur(); }
+        });
     }
 
     function bindVat(form) {
@@ -2085,7 +2326,12 @@
             if (form) {
                 bindGrid(form);
                 bindVat(form);
+                bindRate(form);
+                bindRename(section, form);
+                bindScale(form);
+                bindContract(form);
             }
+            bindCompare(document);
         });
         bindRange(root);
     }

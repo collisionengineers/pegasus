@@ -118,6 +118,9 @@
         <div class="fg g4">
             @{ await Field(AssessmentVocabulary.SettlementExcess, labels[AssessmentVocabulary.SettlementExcess]);
                 await Field(AssessmentVocabulary.SettlementBetterment, labels[AssessmentVocabulary.SettlementBetterment]);
+                @* The agreed contract sum (v28 P35) is a decision, recorded
+                   here; the Repair Spec bar ties to this one control. *@
+                await Field(AssessmentVocabulary.SettlementContractSum, labels[AssessmentVocabulary.SettlementContractSum]);
             }
         </div>
 
@@ -131,7 +134,6 @@
                     await Field(AssessmentVocabulary.SettlementReportDelay, labels[AssessmentVocabulary.SettlementReportDelay]);
                 }
                 <div class="fc ro"><span class="lbl">@SettlementLabels.StorageCharge</span><div class="fv mono derived @(Model.AssessmentIsAbsent(AssessmentVocabulary.CostStorageCharge) ? "empty" : null)">@Model.AssessmentDisplay(AssessmentVocabulary.CostStorageCharge)</div></div>
-                <div class="fc ro"><span class="lbl">@SettlementLabels.RepairDays</span><div class="fv derived @(Model.AcceptedSpecification?.Details.RepairDays is null ? "empty" : null)">@(Model.AcceptedSpecification?.Details.RepairDays?.ToString(CultureInfo.InvariantCulture) ?? OperatorLabels.CaseWorkspace.AbsentValue)@if (Model.AcceptedSpecification?.Details.RepairDays is not null){<span class="src-tag">@SettlementLabels.CurrentEstimate</span>}</div></div>
             </div>
         </div>
 

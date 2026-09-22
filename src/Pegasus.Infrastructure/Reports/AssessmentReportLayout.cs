@@ -231,6 +231,10 @@ internal static class AssessmentReportLayout
                 Section(column, title, section => WorkList(section.Item(), items), bottomGap: 4);
             }
         }
+        if (!string.IsNullOrWhiteSpace(snapshot.SupplementaryStatement))
+        {
+            Section(column, "Supplementary Damage", section => Paragraph(section, snapshot.SupplementaryStatement));
+        }
 
         column.Item().PageBreak();
         Section(column, "Vehicle Images", section => PhotoGrid(section.Item(), images.Photos));
@@ -684,7 +688,7 @@ internal static class AssessmentReportLayout
     [
         ("Excess", OptionalMoney(settlement.Excess)), ("Betterment", OptionalMoney(settlement.Betterment)),
         ("Claimant VAT Registered", Flag(settlement.ClaimantVatRegistered)), ("Reserve", OptionalMoney(settlement.Reserve)),
-        ("Equity", Money(settlement.Equity)), ("Repair Duration", settlement.RepairDays is { } days ? $"{days} days" : "—"),
+        ("Equity", Money(settlement.Equity)), ("Agreed Contract Sum", OptionalMoney(settlement.ContractSum)),
         ("Repair Delays", settlement.RepairDelays ?? "—"), ("Report Delay", settlement.ReportDelay ?? "—"),
         ("Storage Per Day", OptionalMoney(settlement.StoragePerDay)), ("Recovery", OptionalMoney(settlement.Recovery)),
         ("Hire Start", Date(settlement.HireStart)), ("Hire Daily Cost", OptionalMoney(settlement.HireDailyCost)),

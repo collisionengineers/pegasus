@@ -124,6 +124,8 @@ public static class AssessmentVocabulary
     public const string SettlementHireStart = "settlement.hire_start";
     public const string SettlementHireDailyCost = "settlement.hire_daily_cost";
     public const string SettlementDiminution = "settlement.diminution";
+    /// <summary>The agreed contract repair sum (v28 P35): the Engineer's figure the report prints as the cap.</summary>
+    public const string SettlementContractSum = "settlement.contract_sum";
     public const string OriginalReportAssessor = "original_report.assessor";
     public const string OriginalReportDate = "original_report.report_date";
     public const string OriginalReportRoadworthiness = "original_report.roadworthiness";
@@ -277,6 +279,7 @@ public static class AssessmentVocabulary
         new(SettlementHireStart, AssessmentFieldType.Date, 10, IsFinding: false),
         new(SettlementHireDailyCost, AssessmentFieldType.Money, 20, IsFinding: false),
         new(SettlementDiminution, AssessmentFieldType.Money, 20, IsFinding: false),
+        new(SettlementContractSum, AssessmentFieldType.Money, 20, IsFinding: false),
         // An Audit's original report (v28 P51): who wrote it, when, and what it found.
         new(OriginalReportAssessor, AssessmentFieldType.Text, 200, IsFinding: false),
         new(OriginalReportDate, AssessmentFieldType.Date, 10, IsFinding: false),

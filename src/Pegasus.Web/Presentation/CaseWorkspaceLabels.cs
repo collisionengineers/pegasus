@@ -123,6 +123,7 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SettlementHireStart] = "Hire start",
             [AssessmentVocabulary.SettlementHireDailyCost] = "Hire daily cost",
             [AssessmentVocabulary.SettlementDiminution] = "Diminution",
+            [AssessmentVocabulary.SettlementContractSum] = "Agreed contract sum",
             [AssessmentVocabulary.SettlementSalvageAt] = "Salvage location",
             [AssessmentVocabulary.SettlementSalvageAgent] = "Salvage agent",
             [AssessmentVocabulary.SettlementSalvageAgentReference] = "Salvage agent reference",
@@ -272,13 +273,12 @@ public static class CaseWorkspaceLabels
         public const string LabourHours = "Labour hours";
         public const string RepairCostOfValue = "Repair cost of value";
         public const string ExceedsEngineersValue = "Exceeds Engineer's Value";
-        public const string FromCurrentEstimate = "From current estimate";
+        public const string FromCurrentEstimate = "From current repair spec";
         public const string CurrentEstimate = "current estimate";
         public const string ApplyInValuationMeta = "Apply in Valuation";
         public const string CostsHireDelays = "Costs, hire & delays";
         public const string Salvage = "Salvage";
         public const string StorageCharge = "Storage charge";
-        public const string RepairDays = "Repair days";
         public const string AwaitingReview = "awaiting review";
         public const string AiProposal = "AI proposal";
     }
@@ -320,7 +320,69 @@ public static class CaseWorkspaceLabels
         public const string ExpandEstimate = "Expand estimate";
         public const string CloseFullScreen = "Close full screen";
         public const string Discard = "Discard";
-        public const string DiscardEstimate = "Discard estimate";
+        public const string DiscardEstimate = "Discard repair spec";
+        public const string PrintRepairSpec = "Print Repair Spec";
+        public const string Undo = "Undo";
+        public const string LineRemoved = "Line removed";
+        public const string OffPattern = "Off-pattern";
+        public const string UpliftPercent = "+ 15 %";
+        public const string Suggested = "Suggested";
+        public const string LondonAndHomeCounties = "London & Home Counties";
+        public const string Rename = "Rename";
+        public const string TargetPercentOfValue = "Target % of value";
+        public const string Scaled = "Scaled";
+        public const string Preview = "Preview";
+        public const string Apply = "Apply";
+        public const string RemoveScaling = "Remove scaling";
+        public const string Floors = "Floors";
+        public const string FloorLabour = "labour \u00a3/h";
+        public const string FloorPrices = "prices %";
+        public const string AsEstimated = "as estimated";
+        public const string ContractRepair = "Contract repair";
+        public const string ContractRepairAgreed = "Contract repair agreed";
+        public const string AgreedTotalSum = "agreed total sum \u00a3";
+        public const string Versions = "Versions";
+        public const string VersionsTitle = "Repair Spec versions";
+        public const string Version = "Version";
+        public const string When = "When";
+        public const string HowItCameAbout = "How it came about";
+        public const string Lines = "Lines";
+        public const string Rate = "Rate";
+        public const string TotalIncVat = "Total inc VAT";
+        public const string SentOnReport = "Sent on report";
+        public const string Working = "Working";
+        public const string TheDraftBeingEdited = "The draft being edited";
+        public const string Restore = "Restore";
+        public const string Now = "now";
+        public const string From = "From";
+        public const string To = "To";
+        public const string Change = "Change";
+        public const string Added = "Added";
+        public const string Changed = "Changed";
+        public const string Removed = "Removed";
+        public const string Net = "net";
+        public const string Supplementary = "Supplementary";
+        public const string ChangesVs = "Changes vs";
+        public const string ExplainOnReport = "Explain the change on the report";
+        public const string SupplementaryDamage = "Supplementary damage";
+        public const string Choose = "Choose\u2026";
+
+        public static string VersionsCount(int count) => $"{Versions} ({count})";
+        public static string SpecAboveAgreed(string gross) => $"Spec {gross} above agreed";
+        public static string SpecBelowAgreed(string gross) => $"Spec {gross} below agreed";
+        public static string LinesCount(int count) => count == 1 ? "1 line" : $"{count} lines";
+
+        public static string LinesRemoved(int count) => count == 1 ? LineRemoved : $"{count} lines removed";
+
+        /// <summary>The import a line came in on, as its Source chip reads it (v28 P18).</summary>
+        public static string ImportedFrom(RepairSpecificationSourceRoute route) => route switch
+        {
+            RepairSpecificationSourceRoute.AudatexPdf => SourceImported + " \u00b7 AX",
+            RepairSpecificationSourceRoute.Glasses => SourceImported + " \u00b7 GL",
+            RepairSpecificationSourceRoute.Json => SourceImported + " \u00b7 JSON",
+            RepairSpecificationSourceRoute.ApprovedAiProposal or RepairSpecificationSourceRoute.AiDraft => SourceImported + " \u00b7 AI",
+            _ => SourceImported
+        };
         public const string Blend = "Blend";
         public const string LabourRateCard = "Labour-rate card";
         public const string KeepEnteredRate = "Keep entered rate";
@@ -580,6 +642,7 @@ public static class CaseWorkspaceLabels
         public const string Specialist = "Specialist";
         public const string Net = "Net";
         public const string Gross = "Gross";
+        public const string OffPatternItems = "Off-pattern items (treated as specialist)";
     }
 
     /// <summary>
@@ -594,7 +657,6 @@ public static class CaseWorkspaceLabels
         public const string RepairerStatus = "Repairer VAT status";
         public const string ChargedOn = "VAT charged on";
         public const string NoCategories = "Nothing";
-        public const string UnknownStatusCondition = "No repairer VAT status recorded";
 
         /// <summary>
         /// The four categories of <see cref="EstimateVatCategories.All"/>, in

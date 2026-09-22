@@ -127,8 +127,8 @@ own accepted contract.
 ### Settlement
 
 The settlement fields are outcome, category, salvage value, excess,
-betterment, claimant VAT registered, reserve, equity (derived), repair days
-and delays, report delay, storage per day, recovery, hire start and daily
+betterment, claimant VAT registered, reserve, equity (derived), repair
+delays, report delay, storage per day, recovery, hire start and daily
 cost, diminution, and salvage logistics. Equity is derived, never typed in.
 Financial ratio lines are allowed, not required; the "no percentage" rule in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review) applies
@@ -137,8 +137,8 @@ only to completeness. Outcome meanings are owned by
 
 Settlement saves with the Case's single workspace Save. Storage per day and
 recovery use the existing typed Inspection members; a lump storage charge is
-a separate fact. Repair total and repair days are read from the Current
-accepted estimate, and repair days are edited only through Estimate. Equity
+a separate fact. The repair total is read from the Current accepted repair
+specification; repair days are no longer recorded (v28 P32). Equity
 uses the report's existing calculation over accepted inputs and is absent
 when those inputs are incomplete, never a made-up zero.
 

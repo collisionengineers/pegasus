@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
@@ -302,7 +302,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             AcceptedAtUtc = recordedAt,
             Name = "Engineer's",
             LabourRate = 40m,
-            PaintMaterials = 50m,
             OtherCosts = 0m,
             VatPercent = 20m,
             IsCurrent = true
@@ -690,7 +689,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
         var lease1 = await harness.AcquireLeaseAsync(caseId, 0, actor, "replay-lease-1");
         var create = new SaveEstimateRequest(caseId, 0, actor, "replay-K1", "Recorded an estimate.",
-            lease1.Token, null, new("Repairer", 2, 40m, null, null, 20m, null),
+            lease1.Token, null, new("Repairer", 40m, null, 20m),
             [new("repair", null, "Repair door", 2m, null, false, null, null, "confirmed", "judgement", null)],
             new(RepairSpecificationSourceRoute.Manual, null, null, null));
         var first = await save.ExecuteAsync(create, default);
@@ -768,11 +767,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var repairer = await save.ExecuteAsync(
             new(caseId, leaseA.Version, engineer, "estimate-save-a", "Recorded the repairer's estimate.",
                 leaseA.Token, null,
-                new("Repairer", 3, 40m, 25m, 0m, 20m, "Typed from the repairer's e-mail.",
+                new("Repairer", 40m, 0m, 20m,
                     Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
                 [
                     new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
-                        "confirmed", "official", null, Quantity: 1),
+                        "confirmed", "official", null, Quantity: 1, Materials: 25m),
                     new("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
                         "confirmed", "judgement", null),
                     new("paint_repair", null, "Paint door", null, null, false, null, null,
@@ -791,7 +790,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var engineers = await save.ExecuteAsync(
             new(caseId, leaseB.Version, engineer, "estimate-save-b", "Recorded the Engineer's own estimate.",
                 leaseB.Token, null,
-                new("Engineer's", 2, 45m, null, 0m, 0m, null,
+                new("Engineer's", 45m, 0m, 0m,
                     Vat: EstimateVatPolicy.For(RepairerVatStatus.NotRegistered)),
                 [new("repair", null, "Repair nearside door", 2m, null, false, null, null, "confirmed", "judgement", null)],
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
@@ -912,7 +911,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 // carries the status the Engineer recorded on it before using it.
                 // What happens when none is recorded is proved by
                 // AnUnknownRepairerVatStatusBlocksUseAsCurrentUntilItOrTheCategoriesAreRecorded.
-                new("Claude draft", 2, 40m, 20m, 0m, 20m, null,
+                new("Claude draft", 40m, 0m, 20m,
                     Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
                 [new("repair", null, "Repair nearside door", 3m, null, false, null, null, "estimated", "judgement", "Visible damage")],
                 new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
@@ -989,7 +988,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     "Attempted ordinary estimate after report completion.",
                     lease.Token,
                     null,
-                    new("Read-only estimate", 2, 40m, null, null, 20m, null),
+                    new("Read-only estimate", 40m, null, 20m),
                     [new("repair", null, "Repair door", 2m, null, false, null, null, "confirmed", "judgement", null)],
                     new(RepairSpecificationSourceRoute.Manual, null, null, null)),
                 CancellationToken.None));
@@ -1014,7 +1013,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         // Chosen VAT/rate are existing Engineer header inputs, not inferred
         // from source VAT. The canonical caller separately proves Unknown VAT.
         var request = new SaveEstimateRequest(caseId, 0, engineer, "import-store-save", ImportRawEstimate.ImportReason,
-            lease.Token, null, new("Glass's 1", null, 40m, null, null, 20m, null,
+            lease.Token, null, new("Glass's 1", 40m, null, 20m,
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)), parsed.Lines, source);
         var authority = new ImportRawEstimateRequest(engineer, caseId, 0, lease.Token,
             Guid.NewGuid(), Guid.NewGuid(), hash, request.OperationKey, request.Details.Name);
@@ -1134,7 +1133,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var request = new SaveEstimateRequest(
             caseId, 0, engineer, "import-store-collision-import", ImportRawEstimate.ImportReason,
             lease.Token, null,
-            new("Glass's 1", null, 40m, null, null, 20m, null,
+            new("Glass's 1", 40m, null, 20m,
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             parsed.Lines,
             new(RepairSpecificationSourceRoute.Glasses, "estimate-import:collision", parsed.SourceVersion, hash));
@@ -1200,7 +1199,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var origin = new EstimateLineOrigin(
             "new_part", "Door skin", "P-1234", 1, null, null, 240.00m, 12.50m);
         var details = new EstimateDetails(
-            "Repairer", 3, 40m, 25m, 110m, 20m, "Typed from the repairer's e-mail.",
+            "Repairer", 40m, 110m, 20m,
             new EstimateDiscounts(0.125m, 0.05m, 0.1m, 0.025m),
             new EstimateVatPolicy(
                 RepairerVatStatus.NotRegistered,
@@ -1218,7 +1217,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 AmendedBy: engineer.SubjectId,
                 AmendedAtUtc: amendedAtUtc),
             new EstimateLineInput("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
-                "confirmed", "judgement", null),
+                "confirmed", "judgement", null, Materials: 25m),
         };
         var source = new RepairSpecificationSource(RepairSpecificationSourceRoute.Manual, null, null, null);
 
@@ -1268,7 +1267,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var resaved = await save.ExecuteAsync(
             new(caseId, editLease.Version, engineer, "estimate-canonical-edit",
                 "Retain the estimate's recorded rate.", editLease.Token, saved.SpecificationId,
-                read.Details with { Notes = "Confirmed after the rate card changed." }, lines, source,
+                read.Details, lines, source,
                 ExistingLineIds: read.Lines.Select(line => (Guid?)line.Id).ToArray()),
             CancellationToken.None);
         Assert.Equal(initialRateSnapshot, resaved.Details.Rate);
@@ -1342,11 +1341,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var original = await save.ExecuteAsync(
             new(caseId, saveLease.Version, engineer, "estimate-frozen-save",
                 "Recorded the repairer's estimate.", saveLease.Token, null,
-                new("Repairer", 3, 40m, 25m, 0m, 20m, null,
+                new("Repairer", 40m, 0m, 20m,
                     Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
                 [
                     new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
-                        "confirmed", "official", null, Quantity: 1),
+                        "confirmed", "official", null, Quantity: 1, Materials: 25m),
                     new("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
                         "confirmed", "judgement", null),
                 ],
@@ -1378,7 +1377,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await save.ExecuteAsync(
             new(caseId, editLease.Version, engineer, "estimate-frozen-edit",
                 "Repriced at the agreed rate.", editLease.Token, copy.SpecificationId,
-                copy.Details with { LabourRate = 55m, PaintMaterials = 90m },
+                copy.Details with { LabourRate = 55m },
                 [
                     new("new_part", null, "Door skin", null, 310.00m, false, "P-1234", null,
                         "confirmed", "official", null, Quantity: 1),
@@ -1433,7 +1432,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     /// categories are selected by hand.
     /// </summary>
     [Fact]
-    public async Task AnUnknownRepairerVatStatusBlocksUseAsCurrentUntilItOrTheCategoriesAreRecorded()
+    public async Task AnUnknownRepairerVatStatusNoLongerBlocksUseAsCurrent()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("estimate-vat-accept");
@@ -1453,7 +1452,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             save.ExecuteAsync(
                 new(caseId, lease.Version, engineer, key, "Recorded an estimate.", lease.Token,
                     estimateId,
-                    new(name, 3, 40m, 25m, 0m, 20m, null, null, vat, null),
+                    new(name, 40m, 0m, 20m, null, vat, null),
                     [
                         new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
                             "confirmed", "official", null, Quantity: 1),
@@ -1473,7 +1472,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(RepairerVatStatus.Unknown, unrecordedRead.Details.VatPolicy.RepairerStatus);
         Assert.Equal(EstimateVatCategories.None, unrecordedRead.Details.VatPolicy.Categories);
         Assert.False(unrecordedRead.Details.VatPolicy.CategoriesOverridden);
-        Assert.True(unrecordedRead.Details.VatPolicy.BlocksAcceptance);
+        Assert.True(unrecordedRead.Details.VatPolicy.TreatmentPending);
         Assert.Equal(20m, unrecordedRead.Details.VatPercent);
         Assert.Equal(0m, EstimateTotals.Compute(unrecordedRead).Printed.Vat);
 
@@ -1483,27 +1482,23 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             EstimateVatPolicy.For(RepairerVatStatus.Unknown));
         version++;
         Assert.Equal(RepairerVatStatus.Unknown, unknown.Details.VatPolicy.RepairerStatus);
-        Assert.True(unknown.Details.VatPolicy.BlocksAcceptance);
+        Assert.True(unknown.Details.VatPolicy.TreatmentPending);
 
-        var blockedLease = await LeaseAsync("estimate-vat-lease-blocked");
-        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            setCurrent.ExecuteAsync(
-                new(caseId, blockedLease.Version, engineer, "estimate-vat-use-blocked",
-                    "Use the estimate.", blockedLease.Token, unknown.SpecificationId),
-                CancellationToken.None));
-        Assert.Contains("VAT", refusal.Message, StringComparison.Ordinal);
-        // The refusal changed nothing: the estimate is still an unaccepted
-        // Draft and the case still stands at the same version.
-        var stillDraft = (await harness.RepairSpecifications.GetVersionAsync(
-            caseId, unknown.SpecificationId, CancellationToken.None))!;
-        Assert.Equal(RepairSpecificationState.Draft, stillDraft.State);
-        Assert.Null(stillDraft.CalculationBasis);
+        // v28 P10: the unknown status no longer refuses Use as Current; the
+        // accepted basis simply carries no VAT.
+        var unknownUseLease = await LeaseAsync("estimate-vat-lease-use-unknown");
+        var unknownCurrent = await setCurrent.ExecuteAsync(
+            new(caseId, unknownUseLease.Version, engineer, "estimate-vat-use-unknown",
+                "Use the estimate.", unknownUseLease.Token, unknown.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.True(unknownCurrent.IsCurrent);
+        Assert.Equal(0m, unknownCurrent.CalculationBasis!.Vat);
 
-        // The refusal rolled its own transaction back, so the Engineer still
-        // holds the lease they took to try it. Recording the status on the
-        // same edit unblocks the estimate.
+        // Recording the status on a later edit is an ordinary header change.
+        var recordedLease = await LeaseAsync("estimate-vat-lease-recorded");
         var recorded = await SaveAsync(
-            blockedLease, "estimate-vat-save-recorded", unknown.SpecificationId, "Repairer",
+            recordedLease, "estimate-vat-save-recorded", null, "Repairer",
             EstimateVatPolicy.For(RepairerVatStatus.Registered));
         version++;
         Assert.Equal(EstimateVatCategories.All, recorded.Details.VatPolicy.Categories);
@@ -1528,7 +1523,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             caseId, overridden.SpecificationId, CancellationToken.None))!;
         Assert.Equal(RepairerVatStatus.Unknown, reread.Details.Vat!.RepairerStatus);
         Assert.True(reread.Details.Vat.CategoriesOverridden);
-        Assert.False(reread.Details.Vat.BlocksAcceptance);
+        Assert.False(reread.Details.Vat.TreatmentPending);
 
         var overrideUseLease = await LeaseAsync("estimate-vat-lease-use-override");
         var overriddenCurrent = await setCurrent.ExecuteAsync(

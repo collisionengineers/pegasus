@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -64,6 +64,10 @@ public sealed partial class DetailsModel(
     ISetCurrentEstimate setCurrentEstimate,
     IRepairSpecificationStore repairSpecifications,
     IImportRawEstimate importRawEstimate,
+    IRepairSpecificationSnapshotStore specificationSnapshots,
+    ISaveAndScaleRepairSpecification saveAndScaleRepairSpecification,
+    IRemoveRepairSpecificationScaling removeRepairSpecificationScaling,
+    IRestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot,
     IAddCaseDocument addCaseDocument,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
     IAcquireCaseEditLease acquireLease,
@@ -406,19 +410,6 @@ public sealed partial class DetailsModel(
         && (SelectedEstimate.State == RepairSpecificationState.Draft
             || SelectedEstimate.State == RepairSpecificationState.Accepted);
 
-    /// <summary>
-    /// The condition that stops the selected estimate being made Current, or
-    /// null when nothing does. Core owns the refusal
-    /// (<see cref="EstimatePolicy.ValidateSetCurrent"/>) and only a Draft is
-    /// held to it; this names the same condition on the disabled control so
-    /// the screen never presents a button the save would refuse.
-    /// </summary>
-    public string? UseEstimateCondition =>
-        SelectedEstimate is { State: RepairSpecificationState.Draft } draft
-        && draft.Details.VatPolicy.BlocksAcceptance
-            ? EstimateVatLabels.UnknownStatusCondition
-            : null;
-
     public EstimateTotals EditorTotals
     {
         get
@@ -426,12 +417,9 @@ public sealed partial class DetailsModel(
             var details = EditorDetails ?? SelectedEstimate?.Details
                 ?? new EstimateDetails(
                     Name: Labels.CaseWorkspace.EngineerSections.Estimate,
-                    RepairDays: null,
                     LabourRate: null,
-                    PaintMaterials: null,
                     OtherCosts: null,
-                    VatPercent: EstimatePolicy.DefaultVatPercent,
-                    Notes: null);
+                    VatPercent: EstimatePolicy.DefaultVatPercent);
             return EstimateTotals.Compute(new(
                 SelectedEstimate?.SpecificationId ?? Guid.Empty,
                 SelectedEstimate?.CaseId ?? Guid.Empty,
@@ -462,7 +450,8 @@ public sealed partial class DetailsModel(
                     ParseNumber(line.PaintHours),
                     string.IsNullOrWhiteSpace(line.Quantity)
                         ? null
-                        : (int?)ParseNumber(line.Quantity)))],
+                        : (int?)ParseNumber(line.Quantity),
+                    ParseNumber(line.Materials)))],
                 null,
                 SelectedEstimate?.CreatedBy ?? string.Empty,
                 SelectedEstimate?.CreatedAtUtc ?? DateTimeOffset.UtcNow,
@@ -474,6 +463,33 @@ public sealed partial class DetailsModel(
                 SelectedEstimate?.IsCurrent ?? false,
                 SelectedEstimate?.AiJobId,
                 SelectedEstimate?.DiscardReason));
+        }
+    }
+
+    /// <summary>
+    /// The addresses whose postcode suggests the regional uplift (v28 P17),
+    /// each named with its outward code: the repairer's, the claimant's and
+    /// the storage location's.
+    /// </summary>
+    public IReadOnlyList<string> RegionalUpliftSuggestions
+    {
+        get
+        {
+            var data = Case?.Data;
+            if (data is null)
+            {
+                return [];
+            }
+            var candidates = new (string Label, string? Address)[]
+            {
+                (Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.Repairer, Accepted(data.Inspection.RepairerAddress)?.Value),
+                (Labels.CaseWorkspace.RibbonClaimant, Accepted(data.Claimant.Address)?.Value),
+                (Pegasus.Web.Presentation.CaseWorkspaceLabels.Inspection.Storage, Accepted(data.Inspection.StorageLocation)?.Value),
+            };
+            return candidates
+                .Where(candidate => RegionalUpliftPolicy.Suggests(candidate.Address))
+                .Select(candidate => $"{candidate.Label} ({RegionalUpliftPolicy.OutwardCode(candidate.Address)})")
+                .ToArray();
         }
     }
 
@@ -561,6 +577,30 @@ public sealed partial class DetailsModel(
 
     public string UseEstimateOperationKey { get; private set; } = NewOperationKey();
 
+    public string RestoreOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>The selected specification's frozen versions, oldest first (v28 P43).</summary>
+    public IReadOnlyList<RepairSpecificationSnapshot> SelectedEstimateSnapshots { get; private set; } = [];
+
+    /// <summary>Whether the selected specification's latest scaling state is scaled (v28 P34).</summary>
+    public bool SelectedEstimateIsScaled =>
+        SelectedEstimateSnapshots
+            .Where(snapshot => snapshot.Kind is RepairSpecificationSnapshotKind.Scaled
+                or RepairSpecificationSnapshotKind.ScalingRemoved)
+            .MaxBy(snapshot => snapshot.Number)?.Kind == RepairSpecificationSnapshotKind.Scaled;
+
+    /// <summary>The two specifications Compare reads, when the query names both (v28 P19).</summary>
+    public RepairSpecificationVersion? ComparisonFrom { get; private set; }
+
+    public RepairSpecificationVersion? ComparisonTo { get; private set; }
+
+    public RepairSpecificationComparison.Diff? Comparison { get; private set; }
+
+    /// <summary>The specification the selected one supplements, and their differences (v28 P20).</summary>
+    public RepairSpecificationVersion? SupplementaryBase { get; private set; }
+
+    public RepairSpecificationComparison.Diff? SupplementaryDiff { get; private set; }
+
     public string SendOperationKey { get; private set; } = NewOperationKey();
 
     public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
@@ -631,7 +671,6 @@ public sealed partial class DetailsModel(
             : decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
                 ? parsed
                 : null;
-
     /// <summary>
     /// The values a refused editor submitted, held for comparison against the values the case now
     /// holds. There is no control that applies, merges, or forces them: the only way forward is to
@@ -870,6 +909,25 @@ public sealed partial class DetailsModel(
         Estimates = await listEstimates.ExecuteAsync(id, cancellationToken);
         LabourRateCards = await labourRateCards.ListAsync(actor, cancellationToken);
         ApplyEstimateSelection(estimate);
+        if (SelectedEstimate is not null)
+        {
+            SelectedEstimateSnapshots = await specificationSnapshots.ListAsync(id, SelectedEstimate.SpecificationId, cancellationToken);
+            if (SelectedEstimate.Supplementary is { } supplementary)
+            {
+                SupplementaryBase = Estimates.FirstOrDefault(item => item.SpecificationId == supplementary.OfSpecificationId);
+                SupplementaryDiff = SupplementaryBase is null
+                    ? null
+                    : RepairSpecificationComparison.Compare(SupplementaryBase, SelectedEstimate);
+            }
+        }
+        if (Guid.TryParse(Request.Query["from"], out var fromId) && Guid.TryParse(Request.Query["to"], out var toId) && fromId != toId)
+        {
+            ComparisonFrom = Estimates.FirstOrDefault(item => item.SpecificationId == fromId);
+            ComparisonTo = Estimates.FirstOrDefault(item => item.SpecificationId == toId);
+            Comparison = ComparisonFrom is null || ComparisonTo is null
+                ? null
+                : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
+        }
         if (AssessmentCanOpen)
         {
             var inputs = await reportSnapshotSource.GetAsync(id, actor, cancellationToken);
@@ -894,6 +952,7 @@ public sealed partial class DetailsModel(
         {
             "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
             "compare-estimates" when Estimates.Count >= 2 => "compare-estimates",
+            "versions" when SelectedEstimate is not null => "versions",
             "delete-estimate" when SelectedEstimateIsEditable
                 && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
             _ => null
@@ -945,13 +1004,10 @@ public sealed partial class DetailsModel(
             EditingNewEstimate = true;
             EditorDetails = new EstimateDetails(
                 Name: Labels.CaseWorkspace.EngineerSections.NewEstimate,
-                RepairDays: null,
                 LabourRate: null,
-                PaintMaterials: null,
                 OtherCosts: null,
-                VatPercent: EstimatePolicy.DefaultVatPercent,
-                Notes: null);
-            EditorLines = [new EstimateEditorLine("", null, null, null, null, null, null)];
+                VatPercent: EstimatePolicy.DefaultVatPercent);
+            EditorLines = [new EstimateEditorLine("", null, null, null, null, null, null, null)];
             return;
         }
 
@@ -976,6 +1032,7 @@ public sealed partial class DetailsModel(
                 line.WorkUnits?.ToString(CultureInfo.InvariantCulture),
                 line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture),
                 line.Price?.ToString("0.##", CultureInfo.InvariantCulture),
+                line.Materials?.ToString("0.##", CultureInfo.InvariantCulture),
                 line.Id))
             .ToList();
     }
@@ -1976,9 +2033,18 @@ public sealed partial class DetailsModel(
         }
         var operationKey = preparationId.ToString("N");
 
+        Guid reportSpecificationId;
         StaffMailOperation operation;
         try
         {
+            var preparation = await deliveryPreparations.GetAsync(
+                actor, id, preparationId, cancellationToken)
+                ?? throw new InvalidOperationException("The report delivery preparation is unavailable.");
+            var generation = await reportGenerations.GetAsync(
+                actor, id, preparation.Preparation.GenerationId, cancellationToken)
+                ?? throw new InvalidOperationException("The report generation is unavailable.");
+            reportSpecificationId = generation.Snapshot.CurrentEstimateId;
+
             operation = await sendPreparedReport.ExecuteAsync(
                 new(actor, id, preparationId, expectedPreparationVersion, operationKey),
                 cancellationToken);
@@ -1995,6 +2061,14 @@ public sealed partial class DetailsModel(
                 exception,
                 "The report was not sent because the case changed or the preparation is no longer current. Prepare it again.");
             return RedirectToReport(id);
+        }
+
+        if (operation.State is StaffMailState.Sent or StaffMailState.Submitted)
+        {
+            // The immutable generation snapshot the report went out with is frozen and marked (v28 P43).
+            await specificationSnapshots.FreezeAsync(
+                new(id, reportSpecificationId, actor, RepairSpecificationSnapshotKind.Sent, "As sent on the report"),
+                cancellationToken);
         }
 
         switch (operation.State)
@@ -2276,7 +2350,7 @@ public sealed partial class DetailsModel(
                     expectedVersion.Value,
                     actor,
                     operationKey,
-                    estimateId is null ? "Estimate created" : "Estimate saved",
+                    estimateId is null ? "Repair spec created" : "Repair spec saved",
                     editLeaseToken!,
                     estimateId,
                     details,
@@ -2285,13 +2359,14 @@ public sealed partial class DetailsModel(
                     ExistingLineIds: editor.ExistingLineIds)
                 {
                     SelectedRateCardId = selectedRateCard.Id,
-                    SelectedRateCardVersion = selectedRateCard.Version
+                    SelectedRateCardVersion = selectedRateCard.Version,
+                    Supplementary = await ReadSupplementaryAsync(id, existing, details, editor.Lines, cancellationToken),
                 },
                 cancellationToken);
             RecordEditorCommit("case-estimate-form", operationKey, expectedVersion.Value);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
-            TempData["CaseStatus"] = "The estimate was saved.";
+            TempData["CaseStatus"] = "The repair spec was saved.";
             return RedirectToEstimate(id, saved.SpecificationId.ToString("D"));
         }
         catch (StaffAuthorizationException)
@@ -2316,7 +2391,11 @@ public sealed partial class DetailsModel(
     {
         var editor = ReadEditorPost();
         IReadOnlyList<EstimateEditorLine> rows = editor.Rows;
-        if (Request.Form.TryGetValue("removeLine", out var removed)
+        if (Request.Form.TryGetValue("clearLines", out var cleared) && cleared.ToString() == "true")
+        {
+            rows = [];
+        }
+        else if (Request.Form.TryGetValue("removeLine", out var removed)
             && int.TryParse(removed.ToString(), out var removeAt)
             && removeAt >= 0 && removeAt < rows.Count)
         {
@@ -2324,10 +2403,202 @@ public sealed partial class DetailsModel(
         }
         else
         {
-            rows = [.. rows, new EstimateEditorLine("", null, null, null, null, null, null)];
+            rows = [.. rows, new EstimateEditorLine("", null, null, null, null, null, null, null)];
         }
 
         return await RedrawEditorAsync(id, editor.EstimateId, editor, rows, cancellationToken);
+    }
+
+    /// <summary>
+    /// What the editor said about the specification this one supplements
+    /// (v28 P20): the base, the reason and whether the report explains it.
+    /// The statement is composed from the base and the lines as posted, so
+    /// the record and the report say the same thing.
+    /// </summary>
+    private async Task<RepairSpecificationSupplementary?> ReadSupplementaryAsync(
+        Guid caseId,
+        RepairSpecificationVersion? existing,
+        EstimateDetails details,
+        IReadOnlyList<EstimateLineInput> lines,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(Request.Form["supplementaryOf"], out var baseId) || baseId == Guid.Empty)
+        {
+            return null;
+        }
+        var reason = Request.Form["supplementaryReason"].ToString();
+        if (RepairSpecificationComparison.SupplementaryReasons.All(item => item.Code != reason))
+        {
+            reason = RepairSpecificationComparison.SupplementaryReasons[0].Code;
+        }
+        var baseSpecification = await repairSpecifications.GetVersionAsync(caseId, baseId, cancellationToken);
+        if (baseSpecification is null || baseSpecification.SpecificationId == existing?.SpecificationId)
+        {
+            return null;
+        }
+        var provisional = new RepairSpecificationVersion(
+            existing?.SpecificationId ?? Guid.Empty, caseId, existing?.Version ?? 1, RepairSpecificationState.Draft,
+            existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
+            [.. lines.Select((line, index) => new CaseEstimateLineRecord(
+                Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
+                line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel, line.Justification,
+                ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow, null, null,
+                line.PaintWorkUnits, line.Quantity, line.Materials))],
+            null, string.Empty, DateTimeOffset.UtcNow, null, null, null, null, details);
+        var diff = RepairSpecificationComparison.Compare(baseSpecification, provisional);
+        var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
+        return new(baseId, reason, explain, RepairSpecificationComparison.SupplementaryStatement(diff, reason));
+    }
+
+    /// <summary>
+    /// Apply (v28 P34): the posted editor and scaling intent are one Core
+    /// operation, so the draft and both frozen versions commit together.
+    /// </summary>
+    public async Task<IActionResult> OnPostScaleEstimateAsync(
+        Guid id,
+        long? expectedVersion,
+        string operationKey,
+        string? editLeaseToken,
+        Guid? estimateId,
+        decimal? targetPercent,
+        decimal? floorRate,
+        decimal? floorPrice,
+        bool contractTarget,
+        CancellationToken cancellationToken)
+    {
+        var editor = ReadEditorPost();
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (expectedVersion is null || estimateId is null || editor.Lines is null)
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id, estimateId?.ToString("D"));
+        }
+        try
+        {
+            var existing = await ResolveEstimateAsync(id, estimateId, cancellationToken);
+            var details = EditorDetailsFrom(editor, existing);
+            var supplementary = await ReadSupplementaryAsync(id, existing, details, editor.Lines, cancellationToken);
+            var selectedRateCard = ParseSelectedRateCard();
+            if (targetPercent is null)
+            {
+                throw new ArgumentException("A target percentage of the Engineer's Value is required.");
+            }
+            var floors = new ScalingFloors(floorRate ?? ScalingFloors.Default.LabourRatePerHour, floorPrice ?? ScalingFloors.Default.PricePercent);
+            var saved = await saveAndScaleRepairSpecification.ExecuteAsync(
+                new SaveAndScaleRepairSpecificationRequest(
+                    new SaveEstimateRequest(
+                        id, expectedVersion.Value, actor, operationKey, "Repair spec scaled", editLeaseToken!, estimateId,
+                        details, editor.Lines,
+                        new(RepairSpecificationSourceRoute.Manual, null, null, null),
+                        ExistingLineIds: editor.ExistingLineIds)
+                     {
+                         SelectedRateCardId = selectedRateCard.Id,
+                         SelectedRateCardVersion = selectedRateCard.Version,
+                         Supplementary = supplementary,
+                     },
+                     targetPercent.Value,
+                     floors,
+                     ContractTarget: contractTarget),
+                cancellationToken);
+            ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
+            TempData["CaseStatus"] = "The repair spec was scaled.";
+            return RedirectToEstimate(id, saved.SpecificationId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The repair spec was not scaled. Retry the operation.");
+            return RedirectToEstimate(id, estimateId?.ToString("D"));
+        }
+    }
+
+    /// <summary>Remove scaling (v28 P34): the specification returns to the version frozen before the last Apply.</summary>
+    public async Task<IActionResult> OnPostRemoveEstimateScalingAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid estimateId,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        try
+        {
+            await removeRepairSpecificationScaling.ExecuteAsync(
+                new(id, currentCaseVersion, actor, operationKey, editLeaseToken!, estimateId),
+                cancellationToken);
+            ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
+            TempData["CaseStatus"] = "The scaling was removed.";
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The scaling was not removed. Retry the operation.");
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+    }
+
+    /// <summary>Restore (v28 P43): a frozen version becomes the draft; the outgoing draft is frozen first.</summary>
+    public async Task<IActionResult> OnPostRestoreEstimateSnapshotAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid estimateId,
+        Guid snapshotId,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        try
+        {
+            await restoreRepairSpecificationSnapshot.ExecuteAsync(
+                new(id, currentCaseVersion, actor, operationKey, editLeaseToken!, estimateId, snapshotId),
+                cancellationToken);
+            ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
+            TempData["CaseStatus"] = "The version was restored.";
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The version was not restored. Retry the operation.");
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
     }
 
     /// <summary>Creates an Engineer's working copy of the selected estimate.</summary>
@@ -2355,7 +2626,7 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
-            TempData["CaseStatus"] = "The estimate was duplicated.";
+            TempData["CaseStatus"] = "The repair spec was duplicated.";
             return RedirectToEstimate(id, copy.SpecificationId.ToString("D"));
         }
         catch (StaffAuthorizationException)
@@ -2390,7 +2661,7 @@ public sealed partial class DetailsModel(
         }
         if (string.IsNullOrWhiteSpace(reason))
         {
-            TempData["CaseError"] = "Give the reason this estimate is deleted.";
+            TempData["CaseError"] = "Give the reason this repair spec is deleted.";
             return RedirectToEstimate(id, estimateId.ToString("D"));
         }
 
@@ -2401,7 +2672,7 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
-            TempData["CaseStatus"] = "The estimate was discarded.";
+            TempData["CaseStatus"] = "The repair spec was discarded.";
             return RedirectToEstimate(id);
         }
         catch (StaffAuthorizationException)
@@ -2444,7 +2715,7 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
-            TempData["CaseStatus"] = "The estimate is now the case's current estimate.";
+            TempData["CaseStatus"] = "The repair spec is now the case's current repair spec.";
             return RedirectToEstimate(id, estimateId.ToString("D"));
         }
         catch (StaffAuthorizationException)
@@ -2808,18 +3079,16 @@ public sealed partial class DetailsModel(
         // Redrawing a row must not change what the totals mean: the header
         // is read back on exactly the terms the save reads it.
         EditorDetails = EditorDetailsFrom(editor, SelectedEstimate);
-        EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null)];
+        EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null, null)];
         return Page();
     }
 
     private sealed record EstimateEditorPost(
         string? Name,
-        int? RepairDays,
         decimal? LabourRate,
-        decimal? PaintMaterials,
+        bool RegionalUplift,
         decimal? OtherCosts,
         decimal? VatPercent,
-        string? Notes,
         RepairerVatStatus VatStatus,
         EstimateVatCategories VatCategories,
         EstimateDiscounts Discounts,
@@ -2861,14 +3130,12 @@ public sealed partial class DetailsModel(
     private static EstimateDetails EditorDetailsFrom(
         EstimateEditorPost editor, RepairSpecificationVersion? existing) => EstimatePolicy.RetainEditorRate(new(
         editor.Name ?? string.Empty,
-        editor.RepairDays,
         editor.LabourRate,
-        editor.PaintMaterials,
         editor.OtherCosts,
         editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
-        editor.Notes,
         editor.Discounts,
-        editor.VatPolicy), existing?.Details);
+        editor.VatPolicy,
+        RegionalUplift: editor.RegionalUplift), existing?.Details);
 
     private EstimateEditorPost ReadEditorPost()
     {
@@ -2879,12 +3146,6 @@ public sealed partial class DetailsModel(
                 : decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
                     ? parsed
                     : decimal.MinusOne;
-        static int? Days(string? value) =>
-            string.IsNullOrWhiteSpace(value)
-                ? null
-                : int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-                    ? parsed
-                    : -1;
         // A discount is typed as a percentage and held as a fraction. A blank
         // box is no discount; anything unreadable stays negative through the
         // conversion, so EstimatePolicy.ValidateDiscounts' [0,1] rule refuses
@@ -2904,6 +3165,7 @@ public sealed partial class DetailsModel(
         var labourHoursValues = form["lineLabourHours"].ToArray();
         var paintHoursValues = form["linePaintHours"].ToArray();
         var partPoundsValues = form["linePartPounds"].ToArray();
+        var materialsValues = form["lineMaterials"].ToArray();
         var rows = new List<EstimateEditorLine>(operations.Length);
         var lines = new List<EstimateLineInput>(operations.Length);
         var existingLineIds = new List<Guid?>(operations.Length);
@@ -2919,18 +3181,20 @@ public sealed partial class DetailsModel(
             var labourHours = Field(labourHoursValues, index);
             var paintHours = Field(paintHoursValues, index);
             var partPounds = Field(partPoundsValues, index);
+            var lineMaterials = Field(materialsValues, index);
             var existingLineId = Guid.TryParse(Field(postedLineIds, index), out var parsedLineId)
                 ? parsedLineId
                 : (Guid?)null;
             rows.Add(new EstimateEditorLine(
-                operation, description, partNumber, quantity, labourHours, paintHours, partPounds, existingLineId));
+                operation, description, partNumber, quantity, labourHours, paintHours, partPounds, lineMaterials, existingLineId));
 
             var isEmpty = string.IsNullOrWhiteSpace(description)
                 && string.IsNullOrWhiteSpace(partNumber)
                 && string.IsNullOrWhiteSpace(quantity)
                 && string.IsNullOrWhiteSpace(labourHours)
                 && string.IsNullOrWhiteSpace(paintHours)
-                && string.IsNullOrWhiteSpace(partPounds);
+                && string.IsNullOrWhiteSpace(partPounds)
+                && string.IsNullOrWhiteSpace(lineMaterials);
             if (isEmpty)
             {
                 continue;
@@ -2941,6 +3205,7 @@ public sealed partial class DetailsModel(
             var workUnits = Money(labourHours);
             var paintWorkUnits = Money(paintHours);
             var price = Money(partPounds);
+            var materials = Money(lineMaterials);
             int? parsedQuantity = null;
             if (!string.IsNullOrWhiteSpace(quantity))
             {
@@ -2956,10 +3221,12 @@ public sealed partial class DetailsModel(
                 || workUnits == decimal.MinusOne
                 || paintWorkUnits == decimal.MinusOne
                 || price == decimal.MinusOne
+                || materials == decimal.MinusOne
                 || parsedQuantity == -1
                 || workUnits is < 0
                 || paintWorkUnits is < 0
-                || price is < 0)
+                || price is < 0
+                || materials is < 0)
             {
                 linesAreValid = false;
                 continue;
@@ -2978,7 +3245,8 @@ public sealed partial class DetailsModel(
                 null,
                 null,
                 paintWorkUnits,
-                parsedQuantity));
+                parsedQuantity,
+                materials));
         }
 
         Guid? estimateId = Guid.TryParse(form["estimateId"].ToString(), out var parsedId)
@@ -2996,12 +3264,10 @@ public sealed partial class DetailsModel(
 
         return new(
             form["estimateName"].ToString(),
-            Days(form["estimateRepairDays"].ToString()),
             Money(form["estimateLabourRate"].ToString()),
-            Money(form["estimatePaintMaterials"].ToString()),
+            Checked("estimateRegionalUplift"),
             Money(form["estimateOtherCosts"].ToString()),
             Money(form["estimateVatPercent"].ToString()),
-            form["estimateNotes"].ToString(),
             // Enum.TryParse accepts any number, so a posted value that is not
             // one of the three named states falls back to Unknown rather than
             // reaching Core as an undefined status.
@@ -3622,4 +3888,5 @@ public sealed record EstimateEditorLine(
     string? LabourHours,
     string? PaintHours,
     string? PartPounds,
+    string? Materials,
     Guid? ExistingLineId = null);

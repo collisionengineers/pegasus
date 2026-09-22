@@ -54,7 +54,7 @@ public sealed class CaseEstimateHeaderWebTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CaseEstimateHeaderOffersPdfForTheSavedSelectedEstimateInReadAndEditMode(bool editing)
+    public async Task CaseEstimateHeaderOffersPrintRepairSpecUnderMoreInReadAndEditMode(bool editing)
     {
         var store = new RecordingCaseDetailsStore();
         var estimates = new SingleEstimateList(store.CaseId);
@@ -66,7 +66,7 @@ public sealed class CaseEstimateHeaderWebTests
                 workspace.Client,
                 $"/Cases/{store.CaseId:D}?section=estimate&estimate={estimates.Estimate.SpecificationId:D}");
             Assert.Contains("data-document-preview", html, StringComparison.Ordinal);
-            Assert.Contains(">Estimate PDF<", html, StringComparison.Ordinal);
+            Assert.Contains(">Print Repair Spec<", html, StringComparison.Ordinal);
             return;
         }
 
@@ -92,11 +92,11 @@ public sealed class CaseEstimateHeaderWebTests
             $"/Cases/{store.CaseId:D}?section=estimate&estimate={estimates.Estimate.SpecificationId:D}");
 
         Assert.Contains("data-document-preview", readHtml, StringComparison.Ordinal);
-        Assert.Contains(">Estimate PDF<", readHtml, StringComparison.Ordinal);
+        Assert.Contains(">Print Repair Spec<", readHtml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task CaseEstimateHeaderOmitsPdfForAnEmptyDraft()
+    public async Task CaseEstimateHeaderOmitsPrintRepairSpecForAnEmptyDraft()
     {
         var store = new RecordingCaseDetailsStore();
         var estimates = new SingleEstimateList(store.CaseId, includeLine: false);
@@ -119,7 +119,7 @@ public sealed class CaseEstimateHeaderWebTests
             client,
             $"/Cases/{store.CaseId:D}?section=estimate&estimate={estimates.Estimate.SpecificationId:D}");
 
-        Assert.DoesNotContain(">Estimate PDF<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Print Repair Spec<", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class CaseEstimateHeaderWebTests
         {
             var now = new DateTimeOffset(2026, 9, 16, 12, 0, 0, TimeSpan.Zero);
             var details = new EstimateDetails(
-                "Estimate 1", 2, 50m, null, null, 20m, null,
+                "Estimate 1", 50m, null, 20m,
                 EstimateDiscounts.None, EstimateVatPolicy.For(RepairerVatStatus.Registered));
             Estimate = new(
                 Guid.NewGuid(), caseId, 1, RepairSpecificationState.Draft,

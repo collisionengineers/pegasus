@@ -1,0 +1,52 @@
+@*
+    Two repair specifications line by line (v28 P19): the net difference and
+    the counts, then every added, changed and removed line with the changed
+    cells in bold. Read by the Compare dialog and the Supplementary panel.
+*@
+@using System.Globalization
+@using Pegasus.Core.Assessment
+@using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
+@using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
+@model Pegasus.Core.Assessment.RepairSpecificationComparison.Diff
+@{
+    var culture = CultureInfo.GetCultureInfo("en-GB");
+    string Money(decimal value) => "£" + value.ToString("N2", culture);
+    string Number(decimal? value) => value is { } present ? present.ToString("0.0", CultureInfo.InvariantCulture) : "—";
+    string Cell(bool changed) => changed ? "diff" : string.Empty;
+}
+<p class="mono est-diff-sum" data-estimate-diff-sum>@(Model.GrossDelta >= 0 ? "+" : "−")@Money(Math.Abs(Model.GrossDelta)) @EstimateLabels.Net · @Model.Added.Count @EstimateLabels.Added.ToLowerInvariant() · @Model.Changed.Count @EstimateLabels.Changed.ToLowerInvariant() · @Model.Removed.Count @EstimateLabels.Removed.ToLowerInvariant()</p>
+@if (Model.Added.Count + Model.Changed.Count + Model.Removed.Count > 0)
+{
+    <div class="table-wrap">
+        <table class="table table--compact est-diff" data-estimate-diff-table>
+            <thead>
+                <tr>
+                    <th scope="col">@EstimateLabels.Change</th>
+                    <th scope="col">@EngineerLabels.Type</th>
+                    <th scope="col">@EngineerLabels.Description</th>
+                    <th scope="col">@EstimateLabels.PartNumberShort</th>
+                    <th scope="col" class="num">@EngineerLabels.QuantityShort</th>
+                    <th scope="col" class="num">@EstimateLabels.UnitPounds</th>
+                    <th scope="col" class="num">@EstimateLabels.Hours</th>
+                    <th scope="col" class="num">@EngineerLabels.PaintHoursShort</th>
+                    <th scope="col" class="num">@EngineerLabels.MaterialPounds</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in Model.Added)
+                {
+                    <tr class="added"><td>@EstimateLabels.Added</td><td>@Pegasus.Web.Presentation.OperatorLabels.EstimateLineType(line.Type)</td><td>@line.Description</td><td class="mono">@(line.PartNumber ?? "—")</td><td class="num mono">@(line.Quantity ?? 1)</td><td class="num mono">@(line.Price is { } price ? Money(price) : "—")</td><td class="num mono">@Number(line.WorkUnits)</td><td class="num mono">@Number(line.PaintWorkUnits)</td><td class="num mono">@(line.Materials is { } materials ? Money(materials) : "—")</td></tr>
+                }
+                @foreach (var change in Model.Changed)
+                {
+                    var line = change.To;
+                    <tr class="changed"><td>@EstimateLabels.Changed</td><td>@Pegasus.Web.Presentation.OperatorLabels.EstimateLineType(line.Type)</td><td class="@Cell(change.ChangedFields.Contains("description"))">@line.Description</td><td class="mono @Cell(change.ChangedFields.Contains("part number"))">@(line.PartNumber ?? "—")</td><td class="num mono @Cell(change.ChangedFields.Contains("quantity"))">@(line.Quantity ?? 1)</td><td class="num mono @Cell(change.ChangedFields.Contains("unit amount"))">@(line.Price is { } price ? Money(price) : "—")</td><td class="num mono @Cell(change.ChangedFields.Contains("hours"))">@Number(line.WorkUnits)</td><td class="num mono @Cell(change.ChangedFields.Contains("paint hours"))">@Number(line.PaintWorkUnits)</td><td class="num mono @Cell(change.ChangedFields.Contains("materials"))">@(line.Materials is { } materials ? Money(materials) : "—")</td></tr>
+                }
+                @foreach (var line in Model.Removed)
+                {
+                    <tr class="removed"><td>@EstimateLabels.Removed</td><td>@Pegasus.Web.Presentation.OperatorLabels.EstimateLineType(line.Type)</td><td>@line.Description</td><td class="mono">@(line.PartNumber ?? "—")</td><td class="num mono">@(line.Quantity ?? 1)</td><td class="num mono">@(line.Price is { } price ? Money(price) : "—")</td><td class="num mono">@Number(line.WorkUnits)</td><td class="num mono">@Number(line.PaintWorkUnits)</td><td class="num mono">@(line.Materials is { } materials ? Money(materials) : "—")</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

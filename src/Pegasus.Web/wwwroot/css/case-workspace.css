@@ -281,6 +281,23 @@
 #section-estimate .grid .col-del{width:30px}
 #section-estimate .grid input{width:100%;min-height:30px;border:1px solid transparent;border-radius:3px;padding:3px 6px;font-size:12px;background:transparent}
 #section-estimate .grid input.num{text-align:right;font-family:var(--mono)}
+#section-estimate .grid input.viol{border-color:var(--amber);background:var(--amber-bg)}
+#section-estimate .rate-pair{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px}
+#section-estimate .uplift{display:flex;align-items:center;gap:8px;min-height:32px}
+#section-estimate .estimate-tab [contenteditable="true"]{outline:1px solid var(--navy);outline-offset:2px;border-radius:2px}
+#section-estimate .est-add-line{justify-content:flex-end}
+#section-estimate .est-origin{margin:6px 0 0;font-size:12px}
+#section-estimate .est-scale input[type="range"]{flex:1;min-width:120px;accent-color:var(--navy)}
+#section-estimate .est-floors{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+#section-estimate .est-contract{flex-wrap:wrap}
+#section-estimate .est-contract .est-contract-sentence{flex-basis:100%;margin:4px 0 0}
+#section-estimate .est-contract .dsc input{width:120px}
+.est-diff-sum{font-size:12.5px;margin:6px 0}
+.est-diff td.diff{font-weight:700}
+.est-diff tr.added td:first-child{color:var(--red)}
+.est-diff tr.changed td:first-child{color:var(--amber)}
+.est-diff tr.removed td:first-child{color:var(--quiet)}
+.versions-table tr.cur td{background:var(--surface-2,#f6f8f9)}
 #section-estimate .grid input:hover{border-color:var(--line)}
 #section-estimate .grid input:focus{border-color:var(--navy);background:#fff}
 #section-estimate .grid select{min-height:30px;border:1px solid transparent;padding:2px 4px;font-size:12px;background:transparent;width:100%}

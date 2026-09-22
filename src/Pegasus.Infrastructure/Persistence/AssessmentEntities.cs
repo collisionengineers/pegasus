@@ -87,9 +87,8 @@ internal sealed class CaseRepairSpecificationEntity
     // Named estimate header. Exactly one row per case carries
     // IsCurrent; the Current estimate is the one the report costs from.
     public required string Name { get; set; }
-    public int? RepairDays { get; set; }
     public decimal? LabourRate { get; set; }
-    public decimal? PaintMaterials { get; set; }
+    public bool RegionalUplift { get; set; }
     public decimal? OtherCosts { get; set; }
     public Guid? RateCardId { get; set; }
     public long? RateCardVersion { get; set; }
@@ -105,14 +104,41 @@ internal sealed class CaseRepairSpecificationEntity
     public string? VatOverrideReason { get; set; }
     public string? CalculationBreakdownJson { get; set; }
     public decimal VatPercent { get; set; }
-    public string? Notes { get; set; }
     public bool IsCurrent { get; set; }
     public Guid? AiJobId { get; set; }
     public string? DiscardedBy { get; set; }
     public DateTimeOffset? DiscardedAtUtc { get; set; }
     public string? DiscardReason { get; set; }
     public string? LastOperationKey { get; set; }
+
+    // What this specification says about the one it supplements (v28 P20).
+    public Guid? SupplementaryOfSpecificationId { get; set; }
+    public string? SupplementaryReason { get; set; }
+    public bool SupplementaryExplainOnReport { get; set; }
+    public string? SupplementaryStatement { get; set; }
     public List<CaseEstimateLineEntity> Lines { get; set; } = [];
+}
+
+/// <summary>
+/// One frozen version of a repair specification (v28 P43): the header and
+/// lines as JSON, numbered per specification, with how it came about.
+/// </summary>
+internal sealed class CaseRepairSpecificationSnapshotEntity
+{
+    public Guid Id { get; set; }
+    public Guid CaseId { get; set; }
+    public CaseEntity Case { get; set; } = null!;
+    public Guid SpecificationId { get; set; }
+    public int Number { get; set; }
+    public required string Kind { get; set; }
+    public required string Origin { get; set; }
+    public required string CreatedBy { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public required string DetailsJson { get; set; }
+    public required string LinesJson { get; set; }
+    public required string ContentHash { get; set; }
+    public decimal Gross { get; set; }
+    public bool SentOnReport { get; set; }
 }
 
 internal sealed class CaseValuationEntity

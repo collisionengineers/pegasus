@@ -72,7 +72,8 @@ public sealed record RepairSpecificationVersion(
     bool IsCurrent = false,
     Guid? AiJobId = null,
     string? DiscardReason = null,
-    EstimateTotals? RecordedTotals = null);
+    EstimateTotals? RecordedTotals = null,
+    RepairSpecificationSupplementary? Supplementary = null);
 
 public sealed record RepairSpecificationDisplayLists(
     IReadOnlyList<string> NewParts,
@@ -336,6 +337,18 @@ public interface IRepairSpecificationStore
     // replay-by-operation-key, and the one-Current-per-case invariant.
     Task<RepairSpecificationVersion> SaveEstimateAsync(
         SaveEstimateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RepairSpecificationVersion> SaveAndScaleAsync(
+        SaveAndScaleRepairSpecificationRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RepairSpecificationVersion> RemoveScalingAsync(
+        RemoveRepairSpecificationScalingRequest request,
+        CancellationToken cancellationToken);
+
+    Task<RepairSpecificationVersion> RestoreSnapshotAsync(
+        RestoreRepairSpecificationSnapshotRequest request,
         CancellationToken cancellationToken);
 
     Task<RepairSpecificationVersion> DuplicateEstimateAsync(
