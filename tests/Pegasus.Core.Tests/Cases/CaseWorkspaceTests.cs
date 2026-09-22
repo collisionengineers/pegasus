@@ -10,8 +10,6 @@ public sealed class CaseWorkspaceTests
 {
     private static readonly ActionActor Engineer =
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-    private static readonly ActionActor Administrator =
-        ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
     [Fact]
     public void PostedReadinessIsNotPartOfTheWorkspacePayload()
@@ -110,8 +108,11 @@ public sealed class CaseWorkspaceTests
         Assert.Contains("Apply", clear.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void AdministratorCanWriteAWorkspaceFinding()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStaffRoleCanWriteAWorkspaceFinding(StaffRole role)
     {
         var normalized = CaseWorkspacePolicy.ValidateAndNormalize(
             Request(
@@ -122,7 +123,7 @@ public sealed class CaseWorkspaceTests
                         [AssessmentVocabulary.Outcome] = "repairable"
                     })
                 },
-                Administrator));
+                ActionActor.Staff(Guid.NewGuid(), [role])));
 
         Assert.Equal(
             "repairable",
@@ -364,8 +365,11 @@ public sealed class CaseWorkspaceTests
             })));
     }
 
-    [Fact]
-    public void AdministratorMaySubmitTheEstimateSection()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStaffRoleMaySubmitTheEstimateSection(StaffRole role)
     {
         var normalized = CaseWorkspacePolicy.ValidateAndNormalize(
             Request(
@@ -373,7 +377,7 @@ public sealed class CaseWorkspaceTests
                 {
                     Estimate = new(null, null, [])
                 },
-                Administrator));
+                ActionActor.Staff(Guid.NewGuid(), [role])));
 
         Assert.NotNull(normalized.Estimate);
         Assert.Empty(normalized.Estimate.Lines!);

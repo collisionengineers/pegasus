@@ -241,6 +241,44 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
+    public void ContractRepairWithoutAConfirmedSumIsNotReady()
+    {
+        var input = ReadyInput();
+        var contractFields = input.Assessment.Fields
+            .Select(field => field.Path == AssessmentVocabulary.Outcome
+                ? field with { Value = "contract_repair" }
+                : field)
+            .ToArray();
+
+        var missing = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = contractFields } });
+        AssertNotReady(missing, "Agreed contract sum");
+
+        var unconfirmed = contractFields
+            .Append(Field(AssessmentVocabulary.SettlementContractSum, "4500.00") with
+            {
+                ConfirmedBy = null,
+                ConfirmedAtUtc = null,
+            })
+            .ToArray();
+        var refused = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = unconfirmed } });
+        AssertNotReady(refused, "Agreed contract sum");
+
+        var confirmed = AssessmentReportProjection.Project(
+            input with
+            {
+                Assessment = input.Assessment with
+                {
+                    Fields = contractFields.Append(
+                        Field(AssessmentVocabulary.SettlementContractSum, "4500.00")).ToArray(),
+                },
+            });
+        Assert.True(confirmed.IsReady);
+        Assert.Equal(4500m, confirmed.Snapshot!.Settlement.ContractSum);
+    }
+
+    [Fact]
     public void TheCurrentEstimateSuppliesTheCanonicalBreakdownAndTheLists()
     {
         var estimate = CurrentEstimate(new("Repairer", 45m, 15m, 5m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)), materials: 60m);

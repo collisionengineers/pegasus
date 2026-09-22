@@ -113,11 +113,6 @@ public sealed class IndexModel(
                 return null;
             }
             SettingsPostRole = selectedRole;
-            if (selectedRole == StaffRole.User)
-            {
-                isSignOffEngineer = false;
-                isDefaultSignOffEngineer = false;
-            }
             if (isSignOffEngineer && !Require(printedName, OperatorLabels.StaffAccounts.PrintedNameRequired))
             {
                 return null;
@@ -246,7 +241,6 @@ public sealed class IndexModel(
         StaffAccountAdministrationError.AssignedToOpenCases => "The account is the Engineer or Sign-off Engineer on open cases. Reassign those cases first.",
         StaffAccountAdministrationError.SelfAction => "An account cannot act on itself.",
         StaffAccountAdministrationError.OperationConflict => "The form was already used for a different operation. Retry from the current page.",
-        StaffAccountAdministrationError.SignOffEngineerRequiresEngineerRole => OperatorLabels.StaffAccounts.EngineerRoleRequired,
         StaffAccountAdministrationError.SignOffPrintedNameRequired => OperatorLabels.StaffAccounts.PrintedNameRequired,
         StaffAccountAdministrationError.IneligibleSignOffEngineer => OperatorLabels.StaffAccounts.DefaultRequiresEligible,
         _ => "The change was not accepted."

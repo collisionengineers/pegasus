@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
@@ -22,14 +23,18 @@ public sealed class CaseValuationWebTests
     /// the store enforces it against the live case, and the page never
     /// rewrites it with a fresher version it read for itself.
     /// </summary>
-    [Fact]
-    public async Task SaveValuationForwardsTheSubmittedVersionAndDetailsUnchanged()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task SaveValuationForwardsTheSubmittedVersionAndDetailsUnchanged(StaffRole role)
     {
         var store = new RecordingCaseDetailsStore();
         var valuations = new RecordingValuationSaver();
         using var workspace = await EnterEngineerEditModeAsync(
             store,
-            services => Substitute<ISaveValuation>(services, valuations));
+            services => Substitute<ISaveValuation>(services, valuations),
+            role);
         const string operationKey = "0f0e0d0c0b0a09080706050403020100";
 
         using var response = await workspace.Client.PostAsync(
@@ -45,6 +50,7 @@ public sealed class CaseValuationWebTests
 
         AssertValuationPrg(response, store.CaseId);
         var save = Assert.Single(valuations.Saves);
+        Assert.True(save.Actor.IsInRole(role));
         AssertLeasedMutation(workspace, save, operationKey, "Valuation recorded.");
         Assert.Equal(store.CaseVersion, save.ExpectedVersion);
         // v25 decision F: the valuation is an immediate post inside the
@@ -103,10 +109,8 @@ public sealed class CaseValuationWebTests
     }
 
     /// <summary>
-    /// The shared harness enters edit mode as the offline Administrator; a
-    /// valuation is an Engineer's act, so this workspace authenticates the
-    /// same staff member with the Engineer role and claims the lease the same
-    /// way.
+    /// The shared harness claims the same antiforgery-protected edit lease for
+    /// each human staff role before posting the valuation command.
     /// </summary>
     private sealed class RecordingValuationSaver : ISaveValuation
     {

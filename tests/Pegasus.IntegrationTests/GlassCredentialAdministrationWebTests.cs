@@ -161,6 +161,44 @@ public sealed partial class GlassCredentialAdministrationWebTests
     }
 
     [Fact]
+    public async Task AdministratorCanSaveAGlassCredentialForAUser()
+    {
+        var store = new RecordingCredentialAdministration
+        {
+            Status = Configured(version: 0, generation: 0)
+        };
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory, store);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IStaffAccountQueries>();
+        var administrator = (await queries.ListAsync(0, ListStaffAccounts.MaximumPageSize, default))
+            .Accounts.Single(item => item.UserName == DevelopmentOfflineIdentity.UserName);
+        var user = await scope.ServiceProvider.GetRequiredService<ICreateStaffAccount>()
+            .ExecuteAsync(
+                new(
+                    ActionActor.Staff(administrator.Id, [administrator.Role]),
+                    "glass-credential-user",
+                    "Tempor4ryPassword!",
+                    Guid.NewGuid().ToString("D")),
+                default);
+        Assert.Equal(StaffRole.User, user.Account.Role);
+
+        var html = await GetHtmlAsync(client, PageFor(user.Account.Id));
+        var save = FormOf(html, "Save");
+        using var response = await client.PostAsync(
+            $"{PageFor(user.Account.Id)}?handler=Save",
+            Form(
+                html,
+                ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
+                ("ExpectedStaffAccountVersion", InputValue(save, "ExpectedStaffAccountVersion")),
+                ("username", FixtureUsername),
+                ("password", FixturePassword)));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(user.Account.Id, Assert.Single(store.Replaced).PegasusUserId);
+    }
+
+    [Fact]
     public async Task ClearingForwardsTheExpectedVersionToTheStore()
     {
         var store = new RecordingCredentialAdministration
