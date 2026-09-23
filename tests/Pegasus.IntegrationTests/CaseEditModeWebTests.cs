@@ -1114,7 +1114,7 @@ public sealed class CaseEditModeWebTests
         // An open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", html, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotMatch(GuidRegex(), VisibleText(note));
     }

@@ -37,10 +37,10 @@ public sealed class CaseWorkflowMigrationTests
                  CreatedBy, CreationOperationKey, CreatedAtUtc)
             VALUES
                 ('{emptySpecificationId}', '{ReviewCaseId}', 1, 'Draft', 'Manual',
-                 N'Materials only', 1, 'Unknown', 20, 15,
+                 N'Materials only', 0, 'Unknown', 20, 15,
                  'migration-test', 'materials-only', SYSUTCDATETIME()),
                 ('{linedSpecificationId}', '{NotReadyCaseId}', 1, 'Draft', 'Manual',
-                 N'Existing paint line', 1, 'Unknown', 20, 20,
+                 N'Existing paint line', 0, 'Unknown', 20, 20,
                  'migration-test', 'paint-line', SYSUTCDATETIME());
             INSERT INTO CaseEstimateLines
                 (Id, CaseId, RepairSpecificationId, Position, LineType,

@@ -170,7 +170,9 @@ public sealed class EfCaseWorkflowStore(
         var previousHolder = CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
             ? workflow.EditLeaseHolder
             : null;
-        if (previousHolder is not null && !request.TakeOver)
+        if (previousHolder is not null
+            && (!request.TakeOver || request.Actor.Kind != ActorKind.Staff
+                || workflow.EditLeaseHolderKind != nameof(ActorKind.Staff)))
         {
             throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
         }

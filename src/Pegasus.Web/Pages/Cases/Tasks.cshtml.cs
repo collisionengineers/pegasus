@@ -24,6 +24,14 @@ public sealed class TasksModel(
 {
     public IActionResult OnGet() => NotFound();
 
+    // These retired task actions must refuse direct posts as well as disappear
+    // from the workspace. Razor Pages otherwise answers an unknown handler
+    // with an empty success response.
+    public IActionResult OnPostCreateTask() => NotFound();
+    public IActionResult OnPostAssignTask() => NotFound();
+    public IActionResult OnPostCompleteTask() => NotFound();
+    public IActionResult OnPostCancelTask() => NotFound();
+
     /// <summary>
     /// A note takes no edit lease and no expected version: it adds to the case's
     /// record rather than changing the case, so it must not contend with an

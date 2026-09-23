@@ -466,7 +466,7 @@ public sealed partial class AssessmentReportDraftWebTests
             ReportDate: new DateOnly(2026, 8, 19),
             Photos: [photo],
             Sources: [source],
-            CurrentEstimate: CurrentEstimate(),
+            CurrentEstimate: CurrentEstimate() with { CaseId = caseId },
             Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
     }
 
@@ -705,7 +705,7 @@ public sealed partial class AssessmentReportDraftWebTests
             Task.FromResult<CaseAssessmentProjection?>(projection);
     }
 
-    private sealed class FakeProjectionSource(AssessmentReportProjectionInput input)
+    internal sealed class FakeProjectionSource(AssessmentReportProjectionInput input)
         : IAssessmentReportProjectionSource, ICaseReportSnapshotSource
     {
         public int MetadataReads { get; private set; }

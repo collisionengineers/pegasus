@@ -180,7 +180,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         CaseWorkflowEvents:SELECT,INSERT
         CaseWorkflows:SELECT,INSERT,UPDATE
         Cases:SELECT,INSERT,UPDATE
-        DocumentOccurrences:SELECT,INSERT,UPDATE
+        DocumentOccurrences:SELECT,INSERT
         DocumentVersions:SELECT,INSERT,UPDATE
         EmailResponseEvidence:SELECT
         EvaFirstHandoffProxies:SELECT,INSERT
@@ -867,6 +867,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await context.Database.MigrateAsync();
 
         var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        var webGranted = await ReadGrantedPermissionsAsync(database, WebRole);
+        Assert.Contains("DocumentOccurrences:UPDATE", webGranted);
         var deniedDelete = await ReadDeniedDeleteTablesAsync(database, WorkerRole);
         foreach (var (table, expected) in new[]
         {

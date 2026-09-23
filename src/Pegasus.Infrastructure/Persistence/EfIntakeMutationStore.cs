@@ -423,8 +423,11 @@ internal sealed class EfIntakeMutationStore(
                 workItem.LeaseToken = null;
                 workItem.LeaseExpiresAtUtc = null;
                 workItem.FailureCode = null;
-                // The pending work item is the processing status. Preserve the
-                // last decision until the Worker actually re-evaluates the source.
+                // This receipt marker distinguishes a new evaluation from a
+                // custody retry, including when the first holding failed before
+                // any evaluation row existed. The prior decision remains on
+                // the receipt until the Worker replaces it.
+                receipt.FailureCode = "reevaluation_pending";
             },
             occurredAtUtc,
             cancellationToken);

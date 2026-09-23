@@ -7,7 +7,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
+using Pegasus.IntegrationTests.Reports;
 using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
@@ -498,6 +500,9 @@ public sealed class CaseAssetPreparationWebTests
         using var workspace = await EnterEditModeAsync(store, services =>
         {
             Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ICaseReportSnapshotSource>(services,
+                new AssessmentReportDraftWebTests.FakeProjectionSource(
+                    AssessmentReportDraftWebTests.ReadyInput(store.CaseId)));
         });
 
         var html = await workspace.GetWorkspaceAsync();
