@@ -301,14 +301,14 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         EditScopes:SELECT,INSERT,UPDATE,DELETE
         EvaSubmissions:SELECT,INSERT
         GeneratedCaseArtifacts:SELECT,INSERT,UPDATE
-        GlassRepairEstimateSessions:SELECT,INSERT,UPDATE
+        GlassRepairEstimateSessions:SELECT,INSERT,UPDATE,DELETE
         IntakeOcrOperations:SELECT,INSERT
         IntakeSourceCandidates:SELECT
         LabourRateCards:SELECT,INSERT,UPDATE
         RetainedInstructionAnalyses:SELECT
         StaffMailSendOperations:SELECT,INSERT,UPDATE
         TriageSequences:SELECT,INSERT,UPDATE
-        UserExternalCredentials:SELECT,INSERT,UPDATE
+        UserExternalCredentials:SELECT,INSERT,UPDATE,DELETE
         ValuationPresets:SELECT,INSERT,UPDATE
         """;
 
@@ -758,7 +758,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         {
             var expectedDeniedTables = role == WorkerRole
                 ? tables.Where(table => table is not ("DocumentContentCacheEntries" or "EditScopes" or "AutomaticEvaReviewSubmissions" or "EvaSubmissions")).ToArray()
-                : tables.Where(table => table is not ("ContactRoles" or "ContactPrincipalLinks" or "EditScopes" or "AutomaticEvaReviewSubmissions" or "EvaSubmissions")).ToArray();
+                : tables.Where(table => table is not ("ContactRoles" or "ContactPrincipalLinks" or "EditScopes" or "AutomaticEvaReviewSubmissions" or "EvaSubmissions" or "GlassRepairEstimateSessions" or "UserExternalCredentials")).ToArray();
             Assert.Equal(expectedDeniedTables, (await ReadDeniedDeleteTablesAsync(database, role))
                 .Where(tables.Contains)
                 .ToArray());
@@ -784,6 +784,25 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                     CASE WHEN indexDefinition.[type] = 1 THEN 900 ELSE 1700 END
             ) AS oversizedIndex
             """));
+    }
+
+    [Fact]
+    public async Task LatestMigrationAllowsOnlyStaffAccountDeletionTablesForWeb()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        var deleteGrants = (await ReadGrantedPermissionsAsync(database, WebRole))
+            .Where(value => value.EndsWith(":DELETE", StringComparison.Ordinal))
+            .ToArray();
+        foreach (var table in new[] { "AspNetUsers", "UserExternalCredentials", "GlassRepairEstimateSessions", "StaffNotifications" })
+        {
+            Assert.Contains($"{table}:DELETE", deleteGrants);
+            Assert.DoesNotContain(table, await ReadDeniedDeleteTablesAsync(database, WebRole));
+        }
+        Assert.DoesNotContain("ProblemReports:DELETE", deleteGrants);
+        Assert.Contains("ProblemReports", await ReadDeniedDeleteTablesAsync(database, WebRole));
     }
 
     [Fact]

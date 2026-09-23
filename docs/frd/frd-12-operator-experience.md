@@ -147,12 +147,15 @@ query failure must not block the page: nothing opens, and the failure is
 logged.
 
 **Report a problem** is in the Account dialog and on the error page: one
-text box, What happened, and **Send**. The report is kept with the state
-the application captures (the build, the page, the trace, the person, the
-Case reference on screen, the fault the error page saw, the person's own
-recent acts and the browser's last script errors; never document content,
-images, mail or a claimant's details) and raised as an issue on the
-configured repository ([ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md)).
+text box, What happened, and **Send**. The report retains the person's
+complete submitted text and the state Pegasus captures: build, page and
+method, UTC time, trace, person, Case reference on screen, recent acts and
+browser errors. A report from the Error page includes the captured server
+exception, inner causes and stack; other reports state when no server
+exception was captured. Pegasus does not automatically collect document
+content, images, mail or request bodies. The issue in the configured
+repository contains that text and diagnostic snapshot
+([ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md)).
 The person returns to the page they were on with `Reported as #<n>.` as
 the confirmation, or `The report was kept but could not be sent.` when the
 raise failed; an Administrator retries it from

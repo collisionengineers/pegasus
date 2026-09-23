@@ -20,6 +20,7 @@ public static class ProblemReportRequests
     private const int MaximumRouteLength = 400;
     private const int MaximumReferenceLength = 40;
     private const int MaximumErrorLength = 300;
+    private const int MaximumExceptionDetailsLength = 16000;
     private static readonly TimeSpan RememberedExceptionLifetime = TimeSpan.FromHours(1);
     private static readonly Dictionary<string, string> EstablishedCaseSections =
         OperatorLabels.CaseWorkspace.Sections.ToDictionary(
@@ -48,7 +49,12 @@ public static class ProblemReportRequests
             return;
         }
 
-        cache.Set(CacheKey(traceId), (exception.GetType().FullName ?? exception.GetType().Name, exception.Message), RememberedExceptionLifetime);
+        var details = exception.ToString();
+        if (details.Length > MaximumExceptionDetailsLength)
+            details = details[..MaximumExceptionDetailsLength] + "\n[Exception details truncated.]";
+        cache.Set(CacheKey(traceId),
+            (exception.GetType().FullName ?? exception.GetType().Name, exception.Message, details),
+            RememberedExceptionLifetime);
     }
 
     public static ProblemReportRequest Build(
@@ -65,8 +71,8 @@ public static class ProblemReportRequests
         ArgumentNullException.ThrowIfNull(posted);
 
         var traceId = Clean(posted.TraceId, 200) ?? Activity.Current?.Id ?? http.TraceIdentifier;
-        (string Type, string Message)? exception = null;
-        if (cache.TryGetValue(CacheKey(traceId), out (string Type, string Message) remembered))
+        (string Type, string Message, string Details)? exception = null;
+        if (cache.TryGetValue(CacheKey(traceId), out (string Type, string Message, string Details) remembered))
         {
             exception = remembered;
         }
@@ -91,7 +97,8 @@ public static class ProblemReportRequests
                 Clean(http.Request.Headers.UserAgent.ToString(), 300),
                 posted.Editing,
                 ParseErrors(posted.ErrorsJson)),
-            posted.OperationKey ?? string.Empty);
+            posted.OperationKey ?? string.Empty,
+            exception?.Details);
     }
 
     private static string[] ParseErrors(string? json)

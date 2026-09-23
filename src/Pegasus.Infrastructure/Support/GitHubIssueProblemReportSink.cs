@@ -7,7 +7,7 @@ using Pegasus.Core.Support;
 namespace Pegasus.Infrastructure.Support;
 
 /// <summary>
-/// Where public-safe problem report references go (ADR-0055): one repository's issues. The token is
+/// Where complete problem reports go (ADR-0055): one repository's issues. The token is
 /// a fine-grained personal access token with Issues read and write on that
 /// repository only, read from configuration and never logged.
 /// </summary>
