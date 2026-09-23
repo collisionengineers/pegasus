@@ -337,6 +337,25 @@ try {
         throw 'A table built from two of three shards must be refused: the missing shard''s classes would be under-recorded.'
     }
 
+    # Combining runs takes the per-class median, so one run's contention spike
+    # cannot move a class. Fewer than three runs is refused.
+    $runs = foreach ($i in 1..3) { Join-Path $root "run-$i.json" }
+    Set-Content -LiteralPath $runs[0] -Value '{"Example.Slow": 10, "Example.Quick": 1}'
+    Set-Content -LiteralPath $runs[1] -Value '{"Example.Slow": 400, "Example.Quick": 3}'
+    Set-Content -LiteralPath $runs[2] -Value '{"Example.Slow": 30, "Example.New": 5}'
+    $combinedPath = Join-Path $root 'combined.json'
+    & (Join-Path $PSScriptRoot 'Update-TestShardDurations.ps1') -Combine $runs -Path $combinedPath | Out-Null
+    $combined = Get-Content -Raw -LiteralPath $combinedPath | ConvertFrom-Json
+    if ($combined.'Example.Slow' -ne 30 -or $combined.'Example.Quick' -ne 2 -or $combined.'Example.New' -ne 5) {
+        throw "Combining runs did not take the per-class median: $(Get-Content -Raw $combinedPath)"
+    }
+    $refusedTwo = $false
+    try { & (Join-Path $PSScriptRoot 'Update-TestShardDurations.ps1') -Combine $runs[0], $runs[1] -Path $combinedPath | Out-Null }
+    catch { $refusedTwo = $true }
+    if (-not $refusedTwo) {
+        throw 'Combining two runs must be refused.'
+    }
+
     $validSix = Join-Path $root 'first-6'
 
     $inconsistent = Join-Path $root 'negative-inconsistent-inventories'

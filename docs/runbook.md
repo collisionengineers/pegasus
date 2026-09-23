@@ -347,13 +347,21 @@ in the workflow matrix, execution and partition verification consistent.
 Shards are dealt by recorded class duration from
 `scripts/test-shard-durations.json`, not by test count; a class the table does
 not name costs the median. Every complete CI run reports its per-shard test time
-and uploads a refreshed table as the `test-shard-durations` artifact. When that
-report's longest-over-shortest ratio drifts well above 1, refresh the table:
+and uploads that run's table as the `test-shard-durations` artifact. A single
+run is not a table: a class's time depends on what shared its shard, and varies
+from under half to over twice its median between runs. When the reported
+longest-over-shortest ratio drifts upward across several runs, combine at least
+three recent runs by per-class median:
 
 ```powershell
-gh run download <run-id> --name test-shard-durations --dir artifacts
-Copy-Item artifacts/test-shard-durations.json scripts/test-shard-durations.json
+$runs = gh run list --workflow ci.yml --status success --limit 8 --json databaseId --jq '.[].databaseId'
+foreach ($run in $runs) { gh run download $run --name test-shard-durations --dir "artifacts/durations/$run" }
+./scripts/Update-TestShardDurations.ps1 -Combine (Get-ChildItem artifacts/durations -Recurse -Filter *.json).FullName
 ```
+
+Runs from before the artifact existed can still contribute: download their
+`test-shard-*` artifacts and build a table from each with
+`Update-TestShardDurations.ps1 -ArtifactRoot <dir> -ShardCount 6 -Path <run>.json`.
 
 Each test-run process migrates one template database once and restores every
 disposable test database from its backup instead of migrating each one. A
