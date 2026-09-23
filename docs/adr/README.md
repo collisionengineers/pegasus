@@ -34,7 +34,7 @@ never renumbered or reused.
 | [ADR-0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract | accepted | ADR-0029 | — |
 | [ADR-0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | accepted | — | — |
 | [ADR-0015](0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | superseded | ADR-0049 | — |
-| [ADR-0016](0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | accepted | — | — |
+| [ADR-0016](0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | superseded | — | — |
 | [ADR-0018](0018-provider-inspection-mode-database-setting.md) | Provider-determined inspection mode as a database setting | accepted | — | — |
 | [ADR-0019](0019-in-process-onnx-vrm-recognition.md) | In-process ONNX VRM recognition engine | accepted | — | — |
 | [ADR-0020](0020-accepted-qdos-case-association-predicates.md) | Accepted QDOS automatic case-association predicates | superseded | — | — |

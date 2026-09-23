@@ -1,6 +1,6 @@
 # FRD-08: Email, mailbox, and background processing
 
-> Owner capabilities: EVAL-01 to EVAL-05, MAIL-01 to MAIL-05, MAIL-07, MAIL-09, MAIL-13, MAIL-20 to MAIL-23, OPS-22, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-01 to MAIL-05, MAIL-07, MAIL-09, MAIL-13, MAIL-21 to MAIL-23, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -263,21 +263,6 @@ returns it, follow
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query). The
 received query and the actual reply are retained as Case correspondence.
 
-### QDOS evaluation boundary
-
-The Development/local email evaluation workbench is a separately delivered
-evidence harness. It is not a product surface, a caller or an acceptance
-checkpoint for the QDOS mail route. The QDOS route adds and claims no
-evaluator route, no `unchecked`/`checked` workspace workflow, no evaluator
-command, no reviewer report campaign and no Administrator evaluator
-approval. A separately delivered evaluator may exercise the shared policy
-and produce accepted, source-labelled evidence where the shared mail policy
-needs it. That call and its review mechanics are evaluator evidence, not
-delivery or activation proof. The capability inventory's evaluator
-allocation boundary owns the evaluator allocations. Shared Core mail policy,
-production intake, Graph replay and live adapters, and their genuine-evidence
-and caller requirements stay in QDOS scope.
-
 ## States and transitions
 
 | Thing | States |
@@ -310,8 +295,8 @@ mailbox and Graph subscription states are owned by
 
 ## Links
 
-- Capabilities: `EVAL-01`–`EVAL-05`, `MAIL-01`–`MAIL-05`, `MAIL-07`,
-  `MAIL-09`, `MAIL-13`, `MAIL-20`–`MAIL-23`, `OPS-22`, `UI-14` in
+- Capabilities: `MAIL-01`–`MAIL-05`, `MAIL-07`, `MAIL-09`, `MAIL-13`,
+  `MAIL-21`–`MAIL-23`, `UI-14` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md)
   (Unidentified, intake receipts),

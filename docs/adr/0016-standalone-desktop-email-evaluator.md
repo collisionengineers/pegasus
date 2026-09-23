@@ -1,6 +1,6 @@
 ---
 id: ADR-0016
-status: accepted
+status: superseded
 date: 2026-07-29
 supersedes: []
 superseded_by: []
@@ -11,7 +11,7 @@ tags: [evaluator, tooling]
 # ADR-0016: Standalone local desktop email evaluator
 
 - Date: 2026-07-29
-- Status: accepted
+- Status: superseded by the operator's 23 September 2026 decision that local evaluator tools have no Pegasus requirement, verification or delivery authority.
 
 ## Context
 
