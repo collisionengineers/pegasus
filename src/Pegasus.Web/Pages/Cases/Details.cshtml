@@ -232,7 +232,7 @@
                     </button>
                     @if (editingCaseData && details.Data is not null)
                     {
-                        <button type="submit" form="case-edit-form" class="btn btn--primary" data-case-save>
+                        <button type="submit" form="case-edit-form" class="btn btn--primary" name="finishEditing" value="true" data-case-save>
                             <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
                             <span>@Frame.Save</span>
                         </button>

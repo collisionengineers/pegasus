@@ -46,7 +46,11 @@ public static class DamagePlanGeometry
         (196, 160, 22, 11)
     ];
 
-    /// <summary>The body box the unit plan maps onto: x 42 to 198, y 16 to 410.</summary>
+    /// <summary>
+    /// The body box the unit plan maps onto: x 42 to 198, y 16 to 410. Core's
+    /// canonical plan has this box's shape, so a disc touches the same areas
+    /// here as where Core judges them.
+    /// </summary>
     public const int PlanLeft = 42;
     public const int PlanTop = 16;
     public const int PlanWidth = 156;
@@ -56,10 +60,15 @@ public static class DamagePlanGeometry
     public static string GuidesPath { get; } = FormattableString.Invariant(
         $"M{PlanLeft} {PlanY(DamageAreaGeometry.FrontBand)} H{PlanLeft + PlanWidth} M{PlanLeft} {PlanY(DamageAreaGeometry.RearBand)} H{PlanLeft + PlanWidth} M{PlanX(DamageAreaGeometry.LeftBand)} {PlanTop} V{PlanTop + PlanHeight} M{PlanX(DamageAreaGeometry.RightBand)} {PlanTop} V{PlanTop + PlanHeight}");
 
-    /// <summary>The disc a damage's plan areas draw as, in this plan's coordinates; null for the other areas.</summary>
-    public static DamageDisc? Disc(IReadOnlyList<string> areas)
+    /// <summary>
+    /// The disc a damage draws as, in this plan's coordinates: its drawn disc,
+    /// or for a damage recorded by area the disc its areas give; null for the
+    /// other areas.
+    /// </summary>
+    public static DamageDisc? Disc(AssessmentImpact impact)
     {
-        var disc = DamageAreaGeometry.RenderDisc(areas, PlanWidth, PlanHeight);
+        ArgumentNullException.ThrowIfNull(impact);
+        var disc = DamageAreaGeometry.RenderDisc(impact.Areas, PlanWidth, PlanHeight, impact.Disc);
         return disc is null ? null : disc with { CentreX = disc.CentreX + PlanLeft, CentreY = disc.CentreY + PlanTop };
     }
 

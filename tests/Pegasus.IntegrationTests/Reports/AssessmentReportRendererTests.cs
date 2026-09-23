@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure;
@@ -19,6 +20,24 @@ namespace Pegasus.IntegrationTests.Reports;
 /// </summary>
 public sealed partial class AssessmentReportRendererTests
 {
+    /// <summary>
+    /// The damage diagram (23 September 2026): a drawn disc prints as drawn,
+    /// however wide, and every disc is clipped to the body so none paints off
+    /// the vehicle.
+    /// </summary>
+    [Fact]
+    public void TheDamageDiagramClipsEveryDiscToTheBody()
+    {
+        var wide = DamageAreaGeometry.RenderDisc(["left_side", "right_side"], 124, 364, new DamageDisc(0.5, 0.5, DamageAreaGeometry.MaxRadius))!;
+        var svg = AssessmentReportLayout.DiagramSvg([wide]);
+
+        Assert.Contains("<clipPath id=\"plan-body\"><path d=\"", svg, StringComparison.Ordinal);
+        var clipped = Regex.Match(svg, "<g clip-path=\"url\\(#plan-body\\)\">(.*?)</g>", RegexOptions.Singleline);
+        Assert.True(clipped.Success, "The discs are not clipped to the body.");
+        Assert.Contains("r=\"62\"", clipped.Groups[1].Value, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(clipped.Groups[1].Value, "<circle "));
+    }
+
     [Fact]
     public void NoSignatoryResourceIsEmbedded()
     {
@@ -411,7 +430,7 @@ public sealed partial class AssessmentReportRendererTests
             {
                 Impacts =
                 [
-                    new ReportImpact("RH Side, RH Rear", "Moderate", "Creased below the swage line", ["right_side", "right_rear"]),
+                    new ReportImpact("RH Side, RH Rear", "Moderate", "Creased below the swage line", ["right_side", "right_rear"], new DamageDisc(0.8, 0.72, 0.12)),
                     new ReportImpact("Underside", "Light", "Exhaust hanger bent", ["underside"]),
                 ],
             },
