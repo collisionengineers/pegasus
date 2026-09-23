@@ -104,7 +104,7 @@ public sealed class GitHubIssueProblemReportSinkTests
     }
 
     [Fact]
-    public async Task PublicRepositoryCanReceiveOnlyTheOpaqueReportReference()
+    public async Task PublicRepositoryReceivesTheCapturedReport()
     {
         var handler = new FakeHandler(HttpStatusCode.Created,
             "{\"number\":12,\"html_url\":\"https://github.com/collisionengineers/pegasus/issues/12\"}",
@@ -116,7 +116,8 @@ public sealed class GitHubIssueProblemReportSinkTests
         await sink.SendAsync(Report, default);
 
         Assert.Equal("POST", handler.Requests[1].Method);
-        Assert.DoesNotContain("QDOS26001", handler.Requests[1].Body, StringComparison.Ordinal);
+        Assert.Contains("QDOS26001", handler.Requests[1].Body, StringComparison.Ordinal);
+        Assert.Contains(Report.Description, handler.Requests[1].Body, StringComparison.Ordinal);
     }
 
     [Fact]
