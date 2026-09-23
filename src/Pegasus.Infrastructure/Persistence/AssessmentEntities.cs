@@ -181,9 +181,9 @@ internal sealed class CaseValuationEntity
     public DateOnly Date { get; set; }
     public TimeOnly Time { get; set; }
     public DateOnly? GuideMonth { get; set; }
-    public long Mileage { get; set; }
-    public decimal RetailValue { get; set; }
-    public decimal TradeValue { get; set; }
+    public long? Mileage { get; set; }
+    public decimal? RetailValue { get; set; }
+    public decimal? TradeValue { get; set; }
     public required string RecordedBy { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
     public string? LastEditedBy { get; set; }

@@ -700,14 +700,6 @@ public static class CaseWorkspaceLabels
             EstimateVatCategories.Specialist => EstimateTotals.Specialist,
             _ => category.ToString(),
         };
-
-        /// <summary>The charged categories as a value, in the order above.</summary>
-        public static string ChargedLabel(EstimateVatPolicy policy)
-        {
-            ArgumentNullException.ThrowIfNull(policy);
-            var charged = Categories.Where(policy.Charges).Select(CategoryLabel).ToArray();
-            return charged.Length == 0 ? NoCategories : string.Join(" · ", charged);
-        }
     }
 
     /// <summary>

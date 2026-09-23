@@ -137,11 +137,15 @@ public sealed class CaseWorkspaceTests
             {
                 Valuation = new(null, [GuideCard(ValuationSource.EngineersValue, april)])
             })));
-        Assert.Throws<ArgumentException>(() =>
-            CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
-            {
-                Valuation = new(null, [GuideCard(ValuationSource.Glasses, null)])
-            })));
+        // Any box of a card may be blank (operator, 23 September 2026).
+        var partly = CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
+        {
+            Valuation = new(null, [GuideCard(ValuationSource.Glasses, null) with { TradeValue = null, Mileage = null }])
+        }));
+        var card = Assert.Single(partly.Valuation!.GuideEntries!);
+        Assert.Null(card.GuideMonth);
+        Assert.Null(card.TradeValue);
+        Assert.Null(card.Mileage);
     }
 
     [Fact]

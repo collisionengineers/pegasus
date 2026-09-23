@@ -677,7 +677,7 @@ public sealed class CaseValuationV26WebTests
         /// </summary>
         public AppliedValuation SetApplied(CaseValuation basis, ValuationPreset preset, decimal amount)
         {
-            var retail = basis.Details.RetailValue;
+            var retail = basis.Details.RetailValue!.Value;
             var calculation = new ValuationCalculation(
                 retail, true, retail * 0.2m, retail * 1.2m, 0.10m, retail * 0.12m,
                 [new ValuationAddition(preset.Id, preset.Version, preset.Label, preset.SuggestedAmount, amount)],
@@ -768,10 +768,11 @@ public sealed class CaseValuationV26WebTests
         {
             Applied.Add(request);
             var basis = guides.Single(guide => guide.ValuationId == request.Selection.GuideValuationId);
+            var basisRetail = basis.Details.RetailValue!.Value;
             var calculation = new ValuationCalculation(
-                basis.Details.RetailValue, false, 0m, basis.Details.RetailValue,
+                basisRetail, false, 0m, basisRetail,
                 request.Selection.PriorTotalLossPercentage, 0m, [], 0m, request.Selection.ConditionDeduction,
-                basis.Details.RetailValue);
+                basisRetail);
             return Task.FromResult(new AppliedValuation(
                 Guid.NewGuid(),
                 request.CaseId,

@@ -26,6 +26,14 @@ public enum ValuationSource
 public static class ValuationSources
 {
     public static bool IsSupported(ValuationSource source) => Enum.IsDefined(source);
+
+    /// <summary>The published guides, one card each on the Case.</summary>
+    public static bool IsGuide(ValuationSource source) =>
+        source is ValuationSource.Glasses
+            or ValuationSource.Brego
+            or ValuationSource.SuperCap
+            or ValuationSource.Cap
+            or ValuationSource.Cazana;
 }
 
 /// <summary>
@@ -38,14 +46,18 @@ public static class ValuationSources
 /// An <see cref="ValuationSource.EngineersValue"/> row additionally writes
 /// the confirmed <c>assessment.values.engineer</c> field, which stays the one
 /// owner of the Engineer's Value the product consumes.
+/// A guide source's card holds whatever staff entered or Get valuation brought
+/// back, so any of its mileage, retail, trade and guide month may be absent
+/// (operator, 23 September 2026); an Engineer's Value or AI market research
+/// row always carries its figures.
 /// </summary>
 public sealed record ValuationDetails(
     ValuationSource Source,
     DateOnly Date,
     TimeOnly Time,
-    long Mileage,
-    decimal RetailValue,
-    decimal TradeValue,
+    long? Mileage,
+    decimal? RetailValue,
+    decimal? TradeValue,
     DateOnly? GuideMonth = null);
 
 public sealed record CaseValuation(
@@ -135,6 +147,13 @@ public static class ValuationPolicy
                 "The valuation guide month must be represented by the first day of the month.",
                 nameof(details));
         }
+        if (!ValuationSources.IsGuide(details.Source)
+            && (details.Mileage is null || details.RetailValue is null || details.TradeValue is null))
+        {
+            throw new ArgumentException(
+                "An Engineer's Value or market research valuation carries its mileage, retail and trade values.",
+                nameof(details));
+        }
         Money(details.RetailValue, "retail value");
         Money(details.TradeValue, "trade value");
 
@@ -163,10 +182,9 @@ public static class ValuationPolicy
 
     /// <summary>
     /// One guide source's card as the Case save records it (23 September
-    /// 2026: the source cards have no Save of their own). A guide card is
-    /// a published guide's figure for a month, so it names that month;
-    /// the Engineer's Value is the Apply command's and AI market research
-    /// is the automation's, so neither is a guide card.
+    /// 2026: the source cards have no Save of their own), with whatever of
+    /// its boxes were entered. The Engineer's Value is the Apply command's
+    /// and AI market research is the automation's, so neither is a guide card.
     /// </summary>
     public static ValuationDetails ValidateGuideEntry(ActionActor actor, ValuationDetails details)
     {
@@ -177,10 +195,6 @@ public static class ValuationPolicy
         {
             throw new InvalidOperationException(
                 "The Engineer's Value is recorded by the valuation Apply command, not as a guide card.");
-        }
-        if (details.GuideMonth is null)
-        {
-            throw new ArgumentException("A guide valuation card requires its guide month.", nameof(details));
         }
         RequireActor(actor, details);
         return ValidateDetails(details);
@@ -199,16 +213,17 @@ public static class ValuationPolicy
     /// A valuation fetched or typed for the same source and guide month replaces
     /// the earlier card rather than sitting beside it (planning, 13 September): the
     /// guide publishes one figure per month, so two cards for one month would be
-    /// two answers to one question. Cards without a guide month are never replaced,
-    /// and a different month is a new card.
+    /// two answers to one question. A card without a guide month replaces the
+    /// source's card without one (operator, 23 September 2026: the Case save
+    /// carries every card, so a card left without a month is still one card), and
+    /// a different month is a new card.
     /// </summary>
     public static bool Replaces(ValuationDetails incoming, ValuationDetails existing)
     {
         ArgumentNullException.ThrowIfNull(incoming);
         ArgumentNullException.ThrowIfNull(existing);
         return incoming.Source == existing.Source
-            && incoming.GuideMonth is { } month
-            && existing.GuideMonth == month;
+            && incoming.GuideMonth == existing.GuideMonth;
     }
 
     /// <summary>The card <paramref name="incoming"/> replaces among <paramref name="existing"/>, if any.</summary>
@@ -278,13 +293,13 @@ public static class ValuationPolicy
         return details.Source == ValuationSource.EngineersValue
             ? AssessmentPolicy.NormalizeFieldValue(
                 AssessmentVocabulary.ValueEngineer,
-                details.RetailValue.ToString(CultureInfo.InvariantCulture))
+                details.RetailValue!.Value.ToString(CultureInfo.InvariantCulture))
             : null;
     }
 
-    private static void Money(decimal value, string description)
+    private static void Money(decimal? value, string description)
     {
-        if (value < 0 || decimal.Round(value, 2) != value)
+        if (value is { } amount && (amount < 0 || decimal.Round(amount, 2) != amount))
         {
             throw new ArgumentException(
                 $"The {description} must be a non-negative amount with at most two decimal places.",

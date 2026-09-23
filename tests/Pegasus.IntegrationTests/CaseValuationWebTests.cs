@@ -42,7 +42,7 @@ public sealed class CaseValuationWebTests
                 ("guideEntries[0].RetailValue", "12500.00"),
                 ("guideEntries[0].TradeValue", "10250.00"),
                 ("guideEntries[1].Source", nameof(ValuationSource.Brego)),
-                ("guideEntries[1].GuideMonth", "2031-05"),
+                ("guideEntries[1].GuideMonth", ""),
                 ("guideEntries[1].Mileage", ""),
                 ("guideEntries[1].RetailValue", ""),
                 ("guideEntries[1].TradeValue", "")));
@@ -64,11 +64,11 @@ public sealed class CaseValuationWebTests
     }
 
     /// <summary>
-    /// A card with some boxes filled and others empty is refused before the
-    /// save reaches its port, and the refusal is shown on the record.
+    /// A card saves whatever was entered (operator, 23 September 2026): any of
+    /// its boxes may be left blank, and a blank box is recorded as absent.
     /// </summary>
     [Fact]
-    public async Task AHalfFilledGuideCardRefusesTheSave()
+    public async Task APartlyFilledGuideCardSavesWhatWasEntered()
     {
         var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
         using var workspace = await EnterEngineerEditModeAsync(
@@ -79,16 +79,19 @@ public sealed class CaseValuationWebTests
             $"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(
                 DetailsModelOperationKey,
-                "Half a card",
+                "Part of a card",
                 ("guideEntries[0].Source", nameof(ValuationSource.SuperCap)),
-                ("guideEntries[0].GuideMonth", "2031-05"),
-                ("guideEntries[0].Mileage", "42000"),
+                ("guideEntries[0].GuideMonth", ""),
+                ("guideEntries[0].Mileage", ""),
                 ("guideEntries[0].RetailValue", "12500.00"),
                 ("guideEntries[0].TradeValue", "")));
 
-        Assert.Equal(System.Net.HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Empty(store.Saves);
-        var html = await workspace.GetWorkspaceAsync();
-        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        AssertPrg(response, store.CaseId);
+        var card = Assert.Single(Assert.Single(store.Saves).Valuation!.GuideEntries!);
+        Assert.Equal(ValuationSource.SuperCap, card.Source);
+        Assert.Equal(12_500m, card.RetailValue);
+        Assert.Null(card.TradeValue);
+        Assert.Null(card.Mileage);
+        Assert.Null(card.GuideMonth);
     }
 }

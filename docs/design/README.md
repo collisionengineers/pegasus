@@ -809,7 +809,8 @@ valuation button that looks the figures up and fills the boxes in place
 (answering with the card's notice while that source has no working
 provider); the boxes are typed by hand just as well. The card has no Save of
 its own (23 September 2026): its boxes belong to the Case form and the
-ribbon Save records a changed card. There is no separate Add valuation
+ribbon Save records a changed card with whatever was entered; any box may be
+left blank. There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
 repair-estimate launch; a connected Glass's valuation provider
@@ -1040,7 +1041,7 @@ this section holds the cross-cutting rules every page is held to.
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
 | Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
-| Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. |
+| Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
 | Mail preview | Keyboard and pointer intent exposes an accessible preview that changes no message or Case state; when intent moves away the pane restores the selected message and stays visible with its navigation links. |

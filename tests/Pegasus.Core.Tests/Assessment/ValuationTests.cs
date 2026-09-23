@@ -245,8 +245,9 @@ public sealed class ValuationTests
 
         Assert.Equal(details, ValuationPolicy.ValidateGuideEntry(User, details));
         Assert.Equal(details, ValuationPolicy.ValidateGuideEntry(Engineer, details));
-        Assert.Throws<ArgumentException>(() =>
-            ValuationPolicy.ValidateGuideEntry(User, Details(source)));
+        // Any box of a guide card may be blank (operator, 23 September 2026).
+        var blank = Details(source) with { Mileage = null, RetailValue = null, TradeValue = null };
+        Assert.Equal(blank, ValuationPolicy.ValidateGuideEntry(User, blank));
         Assert.Throws<ArgumentException>(() =>
             ValuationPolicy.ValidateGuideEntry(User, Details(source, guideMonth: new DateOnly(2030, 4, 2))));
     }
@@ -258,6 +259,9 @@ public sealed class ValuationTests
     {
         Assert.Throws<InvalidOperationException>(() =>
             ValuationPolicy.ValidateGuideEntry(Engineer, Details(source, guideMonth: new DateOnly(2030, 4, 1))));
+        // Unlike a guide card, they always carry their figures.
+        Assert.Throws<ArgumentException>(() =>
+            ValuationPolicy.ValidateDetails(Details(source) with { RetailValue = null }));
     }
 
     [Fact]

@@ -455,7 +455,10 @@ public sealed class EfValuationStore(
         return new(
             guide.ValuationId,
             StampOf(guide),
-            guide.Details.RetailValue,
+            // The calculation starts from retail; a card recorded without one
+            // is never offered as the basis, so this refuses only a stale page.
+            guide.Details.RetailValue
+                ?? throw new ArgumentException("The chosen guide valuation has no retail value to calculate from."),
             string.Equals(claimantVatField?.Value, "true", StringComparison.Ordinal),
             [.. presets.Select(EfValuationPresetStore.Map)])
         {

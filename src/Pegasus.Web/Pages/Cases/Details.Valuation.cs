@@ -71,12 +71,19 @@ public sealed partial class DetailsModel
     public IReadOnlyList<CaseValuation> GuideValuations =>
         [.. Valuations.Where(valuation => valuation.Details.Source != ValuationSource.EngineersValue)];
 
-    /// <summary>The guide card the calculator starts from: the latest adoption's basis, else the first recorded guide.</summary>
+    /// <summary>
+    /// The guide card the calculator starts from: the latest adoption's basis,
+    /// else the first recorded guide. The calculation starts from retail, so a
+    /// card recorded without a retail value is never a basis.
+    /// </summary>
     public CaseValuation? DefaultBasis =>
         (LatestAppliedValuation is { } applied
             ? Valuations.FirstOrDefault(valuation => valuation.ValuationId == applied.GuideValuationId)
             : null)
-        ?? (GuideValuations.Count > 0 ? GuideValuations[0] : null);
+        ?? GuideValuations.FirstOrDefault(CanBeBasis);
+
+    /// <summary>Whether a card can be the Apply basis: it has a retail value.</summary>
+    public static bool CanBeBasis(CaseValuation valuation) => valuation.Details.RetailValue is not null;
 
     /// <summary>Whether the claimant is VAT registered, which means there was never a commercial addition to make.</summary>
     public bool ClaimantVatRegistered =>
@@ -105,8 +112,12 @@ public sealed partial class DetailsModel
 
             try
             {
+                if (basis.Details.RetailValue is not { } basisRetail)
+                {
+                    return null;
+                }
                 return ValuationCalculationPolicy.Calculate(new ValuationCalculationInput(
-                    basis.Details.RetailValue,
+                    basisRetail,
                     false,
                     ClaimantVatRegistered,
                     null,
@@ -367,11 +378,12 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// The guide cards this save records. A card left blank records nothing,
-    /// and so does a card still showing the source's latest recorded figures,
-    /// so an untouched card never writes a row; a card with some of its boxes
-    /// filled and others empty is refused. Each card is stamped with the
-    /// moment of the save, as a hand-recorded guide card always was.
+    /// The guide cards this save records, each with whatever of its boxes
+    /// were entered (operator, 23 September 2026: any box may be left blank).
+    /// A card with every box empty records nothing, and so does a card still
+    /// showing the source's recorded figures, so an untouched card never
+    /// writes a row. Each card is stamped with the moment of the save, as a
+    /// hand-recorded guide card always was.
     /// </summary>
     private static List<ValuationDetails> GuideEntriesToRecord(
         GuideEntryForm[] forms,
@@ -381,27 +393,18 @@ public sealed partial class DetailsModel
         var entries = new List<ValuationDetails>(forms.Length);
         foreach (var form in forms)
         {
-            // The month and mileage open filled in, so a card is blank until
-            // one of its figures is typed or fetched.
-            if (string.IsNullOrWhiteSpace(form.RetailValue) && string.IsNullOrWhiteSpace(form.TradeValue))
+            if (new[] { form.RetailValue, form.TradeValue, form.Mileage, form.GuideMonth }.All(string.IsNullOrWhiteSpace))
             {
                 continue;
-            }
-            if (!decimal.TryParse(form.RetailValue, NumberStyles.Number, CultureInfo.InvariantCulture, out var retail)
-                || !decimal.TryParse(form.TradeValue, NumberStyles.Number, CultureInfo.InvariantCulture, out var trade)
-                || !long.TryParse(form.Mileage, NumberStyles.Integer, CultureInfo.InvariantCulture, out var mileage))
-            {
-                throw new InvalidOperationException(
-                    $"The {CaseWorkspaceLabels.Valuation.SourceLabel(form.Source)} card needs its retail, trade and mileage.");
             }
 
             var details = new ValuationDetails(
                 form.Source,
                 DateOnly.FromDateTime(recordedAt),
                 TimeOnly.FromDateTime(recordedAt),
-                mileage,
-                retail,
-                trade,
+                Box(form.Mileage, value => long.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture)),
+                Box(form.RetailValue, value => decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture)),
+                Box(form.TradeValue, value => decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture)),
                 ParseGuideMonth(form.GuideMonth));
             if (ValuationPolicy.FindReplaced(details, recorded) is { } replaced
                 && ValuationPolicy.IsUnchanged(details, replaced.Details))
@@ -412,6 +415,28 @@ public sealed partial class DetailsModel
             entries.Add(details);
         }
         return entries;
+    }
+
+    // One box of a card: absent when left blank. The boxes are number
+    // inputs, so a value that does not read as a number is not a Case field.
+    private static T? Box<T>(string? text, Func<string, T> parse) where T : struct
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+        try
+        {
+            return parse(text.Trim());
+        }
+        catch (FormatException exception)
+        {
+            throw new InvalidOperationException("A submitted Case field is invalid.", exception);
+        }
+        catch (OverflowException exception)
+        {
+            throw new InvalidOperationException("A submitted Case field is invalid.", exception);
+        }
     }
 
     /// <summary>Whether the caller asked for the figures as JSON: the card's own script does.</summary>
