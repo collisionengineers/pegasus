@@ -93,9 +93,16 @@ for review. Ctrl S submits the active dirty editor. Selecting a tab also
 updates the section that Refresh submits; after a refresh its active lazy
 body loads.
 
-While editing, each section shows its one edit form instead of its read
-view, never both. The Overview and Inspection sections each show exactly one
-panel per mode. The edit-mode Overview uses the label **Claim reference** for
+Reading and editing show the same fields in the same places (operator, 23
+September 2026): every value is a box, greyed where it cannot be edited and a
+white control where it can, and entering edit changes only which boxes are
+controls. The Overview and Inspection sections each show exactly one panel
+per mode. Each value carries its source tag in its label line in both modes
+(Extracted, AI, E-mail, Lookup, Principal, Automatic); a staff value carries
+none ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)).
+A control opens holding the value its box shows, except a decision's AI
+proposal awaiting review, which stays in the Decisions strip's Proposed
+column. The edit-mode Overview uses the label **Claim reference** for
 the provider's claim number everywhere it appears. Our ref is the separate,
 immutable Case reference. The Registration, Make and Model inputs live in
 the Vehicle section's edit state, not on Overview.
@@ -163,8 +170,8 @@ from the instruction email, also lists **Original report missing**, sourced
 from Audit.
 
 Then the Case and Principal cards, each folding and staying folded per
-browser; the Sign-off Engineer is decided on the Case card. Identity cells read with a lock while
-the rest edits; the Case card carries the derived Matter line and, once a
+browser; the Sign-off Engineer is decided on the Case card. Identity cells (Case type, Our ref,
+Received, Principal) stay greyed while the rest edits, with no padlock; the Case card carries the derived Matter line and, once a
 report has been sent, when and from which mailbox. The Claim source is chosen from the active
 Claim Source contacts. A Notes band shows the Principal's and the Claim
 source's Notes on every Case, read-only and absent when the record has none
@@ -191,17 +198,19 @@ once wired (v28 P51, ruled 20 September 2026).
 Inspection shows the recorded inspect-at value with its fast-update choice:
 Image Based Assessment, Claimant address, Repairer location, Storage
 location, previous addresses used for this principal, Manual entry. An option
-without a value is disabled. The read view shows one row per fact not
-already implied by the row above it: Inspect at (the recorded address or
-`Image Based Assessment`, with its mode chip only when the mode says
-something the value does not), Principal default only when it differs from
-the recorded value, Storage location, and Repairer
+without a value is disabled. Reading and editing show one row per fact
+not already implied by the row above it: Inspection type (the mode, read
+once), Inspect at, the recorded address or `Image Based Assessment` with its
+source tag, Principal default only when it differs from the recorded value,
+Storage location, and Repairer
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
 
 ### Vehicle
 
 Vehicle shows registration, make, model, year, and one mileage with its
-editable unit and provenance (Extracted · Lookup · Staff). One **Look up
+editable unit, each with its source tag (a staff value untagged). The rows a
+lookup fills (engine, fuel, colour, transmission, tax and MOT expiry) are
+always drawn, reading Not recorded until a lookup answers. One **Look up
 DVLA & MOT** action (`EXT-01`) fills an empty Make, Model, Year or Mileage,
 and a Vehicle type that staff have not confirmed. It never overwrites an
 extracted or staff-entered value. There is no checks panel and no suggestion
@@ -220,28 +229,38 @@ chips, and five graded severity fills with a legend. While editable, dashed
 band guides show the eight areas, pressing and dragging on the vehicle sizes
 a disc, dragging a disc moves it, the readout names the area under the
 pointer, and Reset returns the damage to the values held when the edit
-opened. Beside it sits the recorded-areas list numbered like the discs, with
-the areas, severity and note per damage, and the other damage facts. The
-field set is owned by
+opened. A disc stays as it was drawn, names the areas it touches, is never
+wider than half the vehicle and is clipped to its body, so it never covers
+the page around the plan. Beside it sits the recorded-areas list numbered
+like the discs, with the areas, severity and note per damage, and the other
+damage facts; the list rows and the chips stand in the same places in read
+and edit mode, greyed when they cannot be edited. The field set is owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record).
 
 ### Valuation
 
 Valuation lists each entry with its source, date, time, mileage, retail and
-trade values, and guide month (`EXT-10`). Sources are Glass's, Brego and Super
-CAP guide cards, Cazana (disabled seam), Engineer's Value and AI market
-research (automation only). While editing, each guide source is one card with
-month, mileage, retail and trade boxes, **Get valuation** and **Save**. Get
-valuation asks the connected provider for the Case's accepted registration
-and mileage in that month and fills the boxes, with a notice while that
-source has no provider. Save records the card. The same source and month
-replaces the earlier card, and a typed figure saves the same way. A
-**Valuation month** and **AI market research** above the cards create a
-`MarketResearch` job and show a "Researching · {month}" card until it
-completes; a re-run replaces the card
+trade values, and guide month (`EXT-10`). Sources are Glass's, Brego, Super
+CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
+(automation only). Read and edit show the same cards: each guide source is
+one card with month, mileage, retail and trade boxes holding that source's
+latest recorded figures, greyed while reading. While editing, the boxes are
+inputs that belong to the Case form, and the card has **Get valuation**,
+which asks the connected provider for the Case's accepted registration and
+mileage in that month and fills the boxes in place, without redrawing the
+page; while the source has no working provider the card shows "{Source}
+valuation is unavailable. Contact an administrator or report a problem."
+The card has no Save of its own (23 September 2026): the ribbon Save records
+every card whose figures changed, a card left blank or unchanged records
+nothing, and the same source and month replaces the earlier card; a typed
+figure saves the same way. A **Valuation month** and **AI market research**
+above the cards create a `MarketResearch` job and show a
+"Researching · {month}" card until it completes; a re-run replaces the card
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
-Read mode shows only applied increases. The calculator applies presets and
-custom lines through Core. Valuation sources are owned by
+Read and edit list the same value increases, every active preset with a tick
+on each the latest adoption applied, and the calculator opens on that
+applied selection. The calculator applies presets and custom lines through
+Core. Valuation sources are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources).
 
 ### Repair Spec

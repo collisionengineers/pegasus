@@ -84,8 +84,14 @@ The areas are the eight of the plan — Front, LH Front, RH Front, LH Side, RH
 Side, Rear, LH Rear, RH Rear — and Underside, Interior and Mechanical. A disc
 drawn on the plan is one entry naming one or more plan areas; each of the
 other three is an entry of its own, recorded once. Two discs may cover the
-same area and stay two entries. The record keeps the areas only: the disc is
-drawn from them, centred between its areas and wide enough to reach each,
+same area and stay two entries. A drawn disc is kept as drawn — its centre on
+the plan and its radius, no smaller than the plan's smallest disc and no
+wider than half the vehicle — and the entry's areas are exactly the plan
+areas that disc touches, which `Pegasus.Core` reads off the disc (operator
+decision, 23 September 2026, superseding the 20 September ruling that the
+record keeps the areas only). An entry recorded by area alone, from the
+keyboard, keeps just its areas and is drawn with a disc centred between them,
+no wider than half the vehicle. Every disc is clipped to the vehicle's body,
 on the workspace and on the report alike.
 
 The record also carries tyres and seat belts per corner, the spare tyre, the
@@ -100,8 +106,12 @@ read Multiple. The report prints the marked diagram
 Valuation records keep guide month and source. Glass's, Brego, Super CAP,
 CAP and Cazana are guide sources, each an entry card of the same shape. The
 figures are typed by hand; **Get valuation** at the foot of the card asks
-that source's connected provider for the month and, while the source has no
-provider, answers `Error. Contact an administrator.` The basis is chosen by
+that source's connected provider for the month and fills the card's boxes,
+and while the source has no working provider the card answers `{Source}
+valuation is unavailable. Contact an administrator or report a problem.`
+(23 September 2026). The card has no Save of its own: the Case's single
+workspace Save records every changed card, and a card left blank or
+unchanged records nothing. The basis is chosen by
 clicking a card (or Enter or Space on it); there is no Basis control beside
 the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
 market research is automation-only. No guide provider is
@@ -195,8 +205,8 @@ circular readiness gate is acceptable.
   zero.
 - A generic assessment save never writes the Engineer's Value; only an
   explicit Apply does.
-- A valuation source with no connected provider shows a notice and still
-  lets the figures be typed by hand.
+- A valuation source with no connected provider shows the card's notice and
+  still lets the figures be typed by hand; the Case Save records them.
 - Research evidence and an AI valuation proposal never become the Engineer's
   Value on their own.
 - No circular readiness gate is acceptable.

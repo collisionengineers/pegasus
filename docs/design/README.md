@@ -177,7 +177,8 @@ Engineer, Archive, Place on Hold or Release Hold, Correct
 principal, Create audit — then, after a separator and in red, Close case.
 Outside an edit session the menu appears only when Send to EVA is available.
 Damage uses the **plan** only: a top-down silhouette drawn as the panels,
-one numbered disc per recorded damage sized and placed by dragging, five
+one numbered disc per recorded damage sized and placed by dragging and kept
+as drawn (no wider than half the vehicle, clipped to its body), five
 graded severity fills with a legend, and a recorded-areas list numbered like
 the discs. Images open in a full-screen **viewer** (title,
 tag, position, Rotate, Zoom, Download, In report while editing, and a filmstrip
@@ -236,8 +237,9 @@ imagery is needed for the internal application still holds for marketing
 photography and for generated or substitute glyphs, neither of which these are.
 They do not replace the Lucide sprite and do not compete with it:
 
-- **A Lucide glyph names a thing inside a row** — an action, a state, a
-  provenance word. It is 16px, inline, and one glyph means one thing everywhere.
+- **A Lucide glyph names a thing inside a row** — an action or a state. It is
+  16px, inline, and one glyph means one thing everywhere. Where a value came
+  from is a text tag, not a glyph ([source tags](README.md#source-tags)).
 - **A mark names a whole surface** — an administration area, an empty result,
   the product itself. It is 30–112px and sits beside text that already says
   the same thing.
@@ -326,10 +328,19 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
   fold load lazily, and `?section=` reaches a section. Tabs hide inactive
   sections without removing their loaded fields or discarding unsaved edits.
   Retain the personal display preference and the single Case Notes timeline.
-- Provenance is an icon with a one-word tooltip, shown on hover **and** on
-  keyboard focus with a matching accessible name: Staff · Extracted · AI ·
-  E-mail · Lookup · Principal · Automatic. Source labels, policy keys and
-  provenance sentences do not appear in markup.
+- <a id="source-tags"></a>**Source tags.** Where a value came from is one
+  visible word in a small `src-tag` pill in the cell's label line, the same in
+  read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
+  Provider API. Lookup reads blue, AI navy, every other source neutral. A value
+  staff typed or corrected carries no tag. There is no provenance icon or
+  hover tooltip (operator, 23 September 2026: one tag system, the Lookup
+  chip's). Source labels, policy keys and provenance sentences do not appear
+  in markup.
+- **Read and edit look the same** (operator, 23 September 2026). Every Case
+  field renders in both modes, in the same place, as a box: a greyed box where
+  it cannot be edited — every field while reading, and a derived, identity or
+  locked field while editing — and a white control where it can. No padlock
+  marks a field. The greyed box is a value, never a disabled control.
 - A count query and a rendered time cannot be proved locally: an empty
   database returns the same zero as a correct query, and a Europe/London
   workstation clock matches the office by accident. Both need populated test
@@ -612,7 +623,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `copy` | `copy` | `10CBC775CD0ACEBBB15F863348821192DBD4A2858380CC295BEB020AB4144DCB` | Copy reference |
 | `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download ZIP in the Send to EVA dialog |
 | `folder` | `folder` | `6E9E30D6DB22DC0118AC8C8466659342AFAE90784EFD65B5E2929BE1BA7B0C16` | Folder scopes, Case Files |
-| `info` | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Provenance, informational notice |
+| `info` | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Informational notice |
 | `car` | `car` | `36AE3DC22866D02D1159AB8D6256BB09E91B2D98C03BC7126EE576437BECF0C5` | Vehicle section |
 | `person` | `user` | (as `user`) | Claimant, parties |
 | `task` | `check-square` | `D84CA64CC54CFF1C150D4D31618203F054470D80DFD59989B3EE52009574CE31` | Work items, checks |
@@ -725,10 +736,12 @@ Approved necessary copy includes:
 
 > Unlinking this email cancels case <reference>.
 
-> Error. Contact an administrator.
+> {Source} valuation is unavailable. Contact an administrator or report a problem.
 
-The last is the operator's own wording (18 September 2026) for Get valuation
-on a source that answered with nothing. Received-mail chasing categories read
+The last is the operator's own wording (23 September 2026) for Get valuation
+on a source with no working provider, shown in that source's card; "report a
+problem" opens the Report a problem dialog. It replaces the 18 September
+"Error. Contact an administrator." Received-mail chasing categories read
 "Update Request", also the operator's wording; "provider" never appears in
 operator copy (Principal is the word), except the Provider API's own name.
 
@@ -789,12 +802,15 @@ approved design:
 **Narrowed 2026-09-01.** An excluded capability is absent, never drawn as
 a disabled control. The direct Audatex service-launch control is removed on
 that rule. By the operator's 15 September 2026 instruction the
-Valuation section has one route to a guide card: while editing, Glass's,
-Brego and Super CAP are each one card with editable month, mileage, retail
-and trade boxes, a Get valuation button that looks the figures up and fills
-the boxes (answering with a notice while that source has no connected
-provider), and Save, which records the card; the boxes are typed by hand
-just as well. There is no separate Add valuation dialog. This does not
+Valuation section has one route to a guide card: Glass's, Brego, Super CAP,
+CAP and Cazana are each one card with month, mileage, retail and trade boxes
+— greyed while reading, editable while editing — and, while editing, a Get
+valuation button that looks the figures up and fills the boxes in place
+(answering with the card's notice while that source has no working
+provider); the boxes are typed by hand just as well. The card has no Save of
+its own (23 September 2026): its boxes belong to the Case form and the
+ribbon Save records a changed card. There is no separate Add valuation
+dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
 repair-estimate launch; a connected Glass's valuation provider
 supersedes the earlier rule that Pegasus "records no Glass's valuation". Glass's and Audatex file
@@ -861,11 +877,12 @@ deleted in wave 5.
 | `section-row`, `section-nav`, `section-link`, `section-tools`, `layout-switch` | The 40px section row: section links (the one in view carries `aria-current`), Refresh and the Scroll/Tabs switch |
 | `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (Figures, Next action) that folds above the sections below 1441px |
 | `record-section`, `panel[data-collapse]`, `panel-collapse`, `is-collapsed`, `is-editing`, `is-locked` | One section panel, foldable and remembered per browser; the record's edit and read-only states |
-| `fg`, `fc`, `fv`, `fi`, `ro`, `idn` | One-geometry cells: a value that becomes its input while editing; `ro` never edits; `idn` reads with a lock while the rest edits |
+| `fg`, `fc`, `fv`, `fi`, `ro` | One-look cells: the same cells in both modes; the value (`fv`) is a greyed box that becomes its white control (`fi`) while editing; `ro` marks a cell rendered without a control, whose greyed value stays while the rest edits; no padlock |
+| `src-tag` and its `--lookup`, `--ai`, `--warn` tones | The source tag: one word in the cell's label line saying where a value came from ([source tags](README.md#source-tags)); the same pill names other short origins (AI, Manual, Amended) |
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
 | `gated`, `avail` | The dashed availability label, stated once per section head |
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its numbered discs, and the aside figures |
-| `damage-diagram`, `dm`, `dm-guides` | The plan silhouette, one disc per recorded damage, and the dashed band guides shown while editing |
+| `damage-diagram`, `dm`, `dm-guides` | The plan silhouette, one disc per recorded damage (kept as drawn, clipped to the body by `damage-plan-clip`), and the dashed band guides shown while editing |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
 | `valuation-card` | One valuation entry: source, date, time, mileage, guide month, retail, trade |
 | `outcome-option` | Settlement outcome choice |
@@ -910,7 +927,7 @@ second caller and a recorded reason.
 | `_LucideSprite` | The inlined sprite |
 | `_ShellDialogs` | Account, Notifications, command palette |
 | `_AdminNav` | Administration panel nav |
-| `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadOutcome`, `_Provenance` | Retained, restyled to the vocabulary |
+| `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadOutcome` | Retained, restyled to the vocabulary |
 | `Presentation/OperatorLabels.cs` | The one label map |
 | `Presentation/RailCountsPageFilter.cs` | Rail counts |
 
@@ -1017,7 +1034,7 @@ this section holds the cross-cutting rules every page is held to.
 | Shell/access | Sign-in and disabled/stale-role/denied outcomes; permitted-route visibility plus server authorisation; rail counts absent, never zero. |
 | Metric/queue | Label, value or unavailable state, last-good time, current refresh state, and exact destination filter. `0`, loading, current, stale, partial, unavailable, and failed remain distinct. |
 | Row | One keyboard-focusable full-row button with visible affordance; all row text contributes to its accessible name; arrow-key navigation within the list. |
-| Field provenance | Every editable or source-derived Case datum shows its current origin marker. Origin and status remain distinct. |
+| Field provenance | Every source-derived Case datum shows its current source tag; a staff value carries none. Origin and status remain distinct. |
 | Supporting detail navigation | Opening evidence or supporting detail preserves list/detail position, the current context, and every unsaved edit; returning never silently discards or replaces proposed values. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
@@ -1102,6 +1119,7 @@ Use guidance only where the operator must understand a consequence:
 - "No case or reference was created; review the missing or conflicting evidence."
 - "Created in error cannot be reopened. Create and link the replacement case."
 - "Unlinking this email cancels case <reference>."
+- "{Source} valuation is unavailable. Contact an administrator or report a problem."
 
 Illustrative text must not fabricate operational input. Loading, empty,
 stale/partial, retryable error, denied/unauthenticated, validation, conflict,
@@ -1141,7 +1159,7 @@ does not impose a global tab/scrolling prohibition on every other screen.
 Functions should be apparent from labels and actions. Do not narrate the
 application or expose internal service names, GUIDs, hashes, storage paths,
 enum names, event codes or version integers. Use Evidence for files, images
-and mail. Display source with the accepted icon/short-label treatment.
+and mail. Display source with the source tag.
 
 Do not display the internal word intake (the Administrator's Intake log tab is
 the one exception); use Inbox, Upload, received files or vehicle images. Where
