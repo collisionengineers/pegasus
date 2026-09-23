@@ -1316,20 +1316,6 @@ public static class OperatorLabels
     ];
 
     /// <summary>
-    /// Where a value came from, as the one word the provenance icon announces
-    /// and the approved Lucide glyph that carries it.
-    /// </summary>
-    /// <remarks>
-    /// The sprite is a checksummed asset of seventeen glyphs and the design
-    /// authority records that none was added, removed or redrawn, so two of the
-    /// seven words share a glyph with a neighbour and lean on the tooltip to
-    /// tell them apart.
-    ///
-    /// "AI" has no persisted distinction from a plain document read: both are
-    /// IntakeEvidence. It is derived from the reader identity already carried on
-    /// the source label, and falls back to Extracted rather than guessing.
-    /// </remarks>
-    /// <summary>
     /// The supplied/external/estimated classification a mileage figure carries. The
     /// binding rule sits in Core (<see cref="VehicleMileageEvidenceClassification"/>):
     /// a derived estimate is never presented as supplied.
@@ -1376,28 +1362,59 @@ public static class OperatorLabels
         _ => Humanise(code)
     };
 
-    public static (string Word, string Icon) Provenance(CaseDataSource? source)
+    /// <summary>
+    /// Where a Case datum came from, as the one word its source tag carries and
+    /// the tag's tone (<c>src-tag--{Tone}</c>; empty is the neutral tag). Null
+    /// for a value staff typed or corrected, and for no source: those carry no
+    /// tag (operator, 23 September 2026).
+    /// </summary>
+    public static SourceTagWord? SourceTag(CaseDataSource? source) => source?.Kind switch
     {
-        var isAiReader = source is not null
-            && source.Kind == CaseDataSourceKind.IntakeEvidence
-            && (source.Label.Contains("ai", StringComparison.OrdinalIgnoreCase)
-                || source.PolicyKey.Contains("ai", StringComparison.OrdinalIgnoreCase));
+        null or CaseDataSourceKind.StaffCorrection => null,
+        CaseDataSourceKind.IntakeEvidence => SourceTagWord.Extracted,
+        CaseDataSourceKind.MailRoute => SourceTagWord.Email,
+        CaseDataSourceKind.VehicleLookup => SourceTagWord.Lookup,
+        CaseDataSourceKind.ProviderSetting => SourceTagWord.Principal,
+        CaseDataSourceKind.ProviderApi => SourceTagWord.ProviderApi,
+        CaseDataSourceKind.CaseAcceptance => SourceTagWord.Automatic,
+        _ => null
+    };
 
-        return source?.Kind switch
+    /// <summary>
+    /// The source tag of a recorded assessment value: the vehicle lookup's
+    /// writes read Lookup, any other Automation actor's AI, a Pegasus worker's
+    /// Automatic; a staff value carries none.
+    /// </summary>
+    public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
+    {
+        ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
+        ActorKind.Automation => SourceTagWord.Ai,
+        ActorKind.SystemWorker => SourceTagWord.Automatic,
+        _ => null
+    };
+
+    /// <summary>One source tag: its word and its tone class suffix.</summary>
+    public sealed record SourceTagWord(string Word, string Tone)
+    {
+        public static readonly SourceTagWord Extracted = new("Extracted", string.Empty);
+        public static readonly SourceTagWord Email = new("E-mail", string.Empty);
+        public static readonly SourceTagWord Lookup = new("Lookup", "lookup");
+        public static readonly SourceTagWord Principal = new("Principal", string.Empty);
+        public static readonly SourceTagWord ProviderApi = new(ProviderSubmissionApi.Source, string.Empty);
+        public static readonly SourceTagWord Automatic = new("Automatic", string.Empty);
+        public static readonly SourceTagWord Ai = new("AI", "ai");
+
+        public string CssClass => Tone.Length == 0 ? "src-tag" : "src-tag src-tag--" + Tone;
+
+        /// <summary>The tag as markup — the one place a source tag's span is written.</summary>
+        public Microsoft.AspNetCore.Html.IHtmlContent Render()
         {
-            null => ("Unknown", "icon-info"),
-            CaseDataSourceKind.StaffCorrection => ("Staff", "icon-user"),
-            CaseDataSourceKind.IntakeEvidence when isAiReader => ("AI", "icon-filter"),
-            CaseDataSourceKind.IntakeEvidence => ("Extracted", "icon-file-text"),
-            CaseDataSourceKind.MailRoute => ("E-mail", "icon-arrow-right"),
-            CaseDataSourceKind.VehicleLookup => ("Lookup", "icon-search"),
-            CaseDataSourceKind.ProviderSetting => ("Principal", "icon-shield"),
-            CaseDataSourceKind.ProviderApi => (
-                ProviderSubmissionApi.Source,
-                ProviderSubmissionApi.ProvenanceIcon),
-            CaseDataSourceKind.CaseAcceptance => ("Automatic", "icon-refresh-cw"),
-            _ => ("Unknown", "icon-info")
-        };
+            var span = new Microsoft.AspNetCore.Mvc.Rendering.TagBuilder("span");
+            span.Attributes["class"] = CssClass;
+            span.Attributes["data-provenance-word"] = Word;
+            span.InnerHtml.Append(Word);
+            return span;
+        }
     }
 
     /// <summary>
@@ -1560,7 +1577,6 @@ public static class OperatorLabels
     public static class ProviderSubmissionApi
     {
         public const string Source = "Provider API";
-        public const string ProvenanceIcon = "icon-link";
     }
 
     private static string HumanizeSlug(string slug)

@@ -403,7 +403,7 @@
         }
 
         <div class="fg g4">
-            <div class="fc" data-field="reportDate">
+            <div class="fc @(editing ? null : "ro")" data-field="reportDate">
                 @if (editing)
                 {
                     <label for="f-report-date">@Words.ReportDate</label>
@@ -458,12 +458,22 @@
                 }
                 else
                 {
+                    @* Reading, every block draws in the row it edits in — its
+                       heading and wording in greyed boxes, a block off the
+                       report dimmed as it is while editing (23 September 2026). *@
                     <div class="stack">
-                        @foreach (var block in Model.ReportWording.Where(item => item.Included))
+                        @foreach (var block in Model.ReportWording)
                         {
-                            <div class="fc ro" data-wording-block="@block.Key">
-                                <span class="lbl">@block.Title <span class="src-tag @(block.HandEdited ? "src-tag--warn" : null)">@WordingChip(block)</span></span>
-                                <div class="fv derived multi">@block.Text</div>
+                            <div class="wb @(block.Included ? null : "is-off")" data-wording-block="@block.Key">
+                                <div class="wbh">
+                                    <div class="fc ro wbt"><div class="fv">@block.Title</div></div>
+                                    <span class="src-tag @(block.HandEdited ? "src-tag--warn" : null)">@WordingChip(block)</span>
+                                    @if (block.Included)
+                                    {
+                                        <span class="wb-tools"><span class="choice"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>@WordingLabels.OnReport</span></span></span>
+                                    }
+                                </div>
+                                <div class="fc ro"><div class="fv multi">@block.Text</div></div>
                             </div>
                         }
                     </div>
@@ -576,14 +586,15 @@
         var name = CaseWorkspaceLabels.Editors.FormName(path);
         var id = "f-" + path.Replace('.', '-').Replace('_', '-');
         var mono = definition.Type is AssessmentFieldType.Money or AssessmentFieldType.WholeNumber;
-        <div class="fc @extraClass" data-field="@path">
+        var tag = Model.AssessmentSourceTag(path);
+        <div class="fc @extraClass @(editable ? null : "ro")" data-field="@path">
             @if (editable)
             {
-                <label for="@id">@label</label>
+                <label for="@id">@label@(tag?.Render())</label>
             }
             else
             {
-                <span class="lbl">@label</span>
+                <span class="lbl">@label@(tag?.Render())</span>
             }
             <div class="fv @(mono ? "mono" : null) @(multi ? "multi" : null) @(absent ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
             @if (editable)

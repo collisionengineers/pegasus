@@ -200,6 +200,20 @@ public sealed class EfCaseWorkspaceStore(
             now,
             cancellationToken);
 
+        // The guide source cards are recorded by this save (23 September
+        // 2026): the valuation store's transaction-local writer, under this
+        // transaction's one version, workflow event and history line.
+        var guideEntries = request.Valuation?.GuideEntries is { Count: > 0 } entries
+            ? await EfValuationStore.RecordGuideEntriesAsync(
+                context,
+                workflow,
+                request.Actor,
+                request.OperationKey,
+                entries,
+                now,
+                cancellationToken)
+            : null;
+
         var signOffEngineerProfiles = await new EfStaffAccountQueries(context)
             .ListSignOffEngineersAsync(cancellationToken);
         var beforeSignOffEngineerId = CaseSignOffEngineerResolver.Resolve(
@@ -290,7 +304,8 @@ public sealed class EfCaseWorkspaceStore(
                     ? null
                     : new { estimate.Id, estimate.Version, estimate.Name },
                 ImagePreparation = preparedImages,
-                Guidance = appliedGuidance
+                Guidance = appliedGuidance,
+                Valuations = guideEntries?.Recorded
             },
             JsonOptions);
         CaseMutationHistory.Add(
@@ -307,7 +322,8 @@ public sealed class EfCaseWorkspaceStore(
                     && JsonSerializer.Serialize(beforeLines, JsonOptions) != JsonSerializer.Serialize(afterLines, JsonOptions),
                 imagesPrepared: preparedImages?.Count ?? 0,
                 request.Reason,
-                wordingChanged),
+                wordingChanged,
+                guideEntries?.Recorded),
             EventType,
             requestHash,
             beforeVersion,
@@ -351,6 +367,18 @@ public sealed class EfCaseWorkspaceStore(
                 context,
                 request.CaseId,
                 freshness.ReasonCode!,
+                now,
+                cancellationToken);
+        }
+        else if (guideEntries is { Recorded.Count: > 0 })
+        {
+            // The report is marked stale once per save: the valuation rule
+            // only runs when the workspace's own rule left it fresh.
+            await EfValuationStore.MarkStaleIfNeededAsync(
+                context,
+                request.CaseId,
+                guideEntries.Before,
+                guideEntries.After,
                 now,
                 cancellationToken);
         }

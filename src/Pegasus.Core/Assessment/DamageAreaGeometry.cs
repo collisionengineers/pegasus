@@ -4,10 +4,12 @@ namespace Pegasus.Core.Assessment;
 /// The plan areas as geometry (v28 P5): where each of the eight areas sits on
 /// a unit plan (x from 0 at the left to 1 at the right, y from 0 at the front
 /// to 1 at the rear), the bands that divide the plan into them, and the disc a
-/// recorded damage is drawn as. The Case workspace and the assessment report
-/// map the unit plan onto their own silhouettes, so both draw the same disc
-/// from the same areas; the record keeps the areas only (ruled 20 September
-/// 2026).
+/// recorded damage is drawn as. A damage drawn on the plan keeps its disc as
+/// drawn and names the areas that disc touches (ruled 23 September 2026,
+/// replacing the 20 September areas-only record); a damage recorded by area
+/// alone is drawn with the disc <see cref="Disc"/> gives its areas. The Case
+/// workspace and the assessment report map the unit plan onto their own
+/// silhouettes, so both draw the same disc.
 /// </summary>
 public static class DamageAreaGeometry
 {
@@ -23,12 +25,22 @@ public static class DamageAreaGeometry
     public const double BaseRadius = 0.12;
     public const double Margin = 0.08;
 
-    // Core validates the closed area representation against this canonical
-    // plan scale. The same 1:2 aspect ratio is used by the plan geometry's
-    // existing contract tests; renderers map the unit plan onto their own
-    // dimensions without changing the area vocabulary.
+    /// <summary>
+    /// The smallest and largest disc the operator can draw, as fractions of the
+    /// plan's width: the smallest is ten units of the workspace's 156-unit body
+    /// box, and no disc is wider than the vehicle.
+    /// </summary>
+    public const double MinRadius = 10d / 156d;
+    public const double MaxRadius = 0.5;
+
+    /// <summary>
+    /// The canonical plan Core judges coverage on: one unit wide and as tall as
+    /// the Case workspace's body box (156 by 394), so the areas a disc touches
+    /// here are the areas it touches where the operator draws it. A disc's
+    /// radius is a fraction of the width, so it stays round on every renderer.
+    /// </summary>
     public const double CanonicalWidth = 1;
-    public const double CanonicalHeight = 2;
+    public const double CanonicalHeight = 394d / 156d;
 
     /// <summary>The centre of each plan area on the unit plan.</summary>
     public static IReadOnlyDictionary<string, DamagePlanPoint> Centres { get; } =
@@ -56,16 +68,17 @@ public static class DamageAreaGeometry
     }
 
     /// <summary>
-    /// The canonical disc drawn for a damage's plan areas: centred between the
-    /// areas and wide enough to reach each of them. Null when the damage names
-    /// no plan area.
+    /// The disc drawn for a damage recorded by area alone, in unit-plan terms
+    /// (centre as fractions of the plan, radius as a fraction of its width):
+    /// centred between the areas and wide enough to reach them, never wider
+    /// than <see cref="MaxRadius"/>. Null when the damage names no plan area.
     /// </summary>
     public static DamageDisc? Disc(IReadOnlyList<string> areas)
     {
         ArgumentNullException.ThrowIfNull(areas);
         var points = areas
             .Where(Centres.ContainsKey)
-            .Select(area => (X: Centres[area].X * CanonicalWidth, Y: Centres[area].Y * CanonicalHeight))
+            .Select(area => Centres[area])
             .ToArray();
         if (points.Length == 0)
         {
@@ -73,61 +86,40 @@ public static class DamageAreaGeometry
         }
         var centreX = points.Average(point => point.X);
         var centreY = points.Average(point => point.Y);
-        var spread = points.Max(point => Math.Sqrt(Math.Pow(point.X - centreX, 2) + Math.Pow(point.Y - centreY, 2)));
-        return new(centreX, centreY, Math.Max(BaseRadius * CanonicalWidth, spread + Margin * CanonicalWidth));
-    }
-
-    /// <summary>Draws the disc in renderer coordinates, keeping its centre between the rendered area centres.</summary>
-    public static DamageDisc? RenderDisc(IReadOnlyList<string> areas, double width, double height)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        ArgumentNullException.ThrowIfNull(areas);
-        var points = areas
-            .Where(Centres.ContainsKey)
-            .Select(area => (X: Centres[area].X * width, Y: Centres[area].Y * height))
-            .ToArray();
-        if (points.Length == 0)
-        {
-            return null;
-        }
-
-        var centreX = points.Average(point => point.X);
-        var centreY = points.Average(point => point.Y);
-        var spread = points.Max(point => Math.Sqrt(Math.Pow(point.X - centreX, 2) + Math.Pow(point.Y - centreY, 2)));
-        return new(centreX, centreY, Math.Max(BaseRadius * width, spread + Margin * width));
+        // The spread is measured on the canonical plan, so it is a true
+        // distance on the shape the operator sees, in widths.
+        var spread = points.Max(point => Math.Sqrt(
+            Math.Pow((point.X - centreX) * CanonicalWidth, 2) + Math.Pow((point.Y - centreY) * CanonicalHeight, 2))) / CanonicalWidth;
+        return new(centreX, centreY, Math.Clamp(spread + Margin, BaseRadius, MaxRadius));
     }
 
     /// <summary>
-    /// Adds every plan area positively covered by the regenerated canonical
-    /// disc until the representation reaches a fixed point.
+    /// Draws a damage in renderer coordinates: the <paramref name="drawn"/>
+    /// disc when the operator drew one, otherwise the disc <see cref="Disc"/>
+    /// gives its areas. The centre maps onto the renderer's plan and the
+    /// radius scales with its width, so the disc stays round. Null when there
+    /// is nothing to draw.
     /// </summary>
-    public static IReadOnlyList<string> CompletePlanAreas(IReadOnlyList<string> areas)
+    public static DamageDisc? RenderDisc(IReadOnlyList<string> areas, double width, double height, DamageDisc? drawn = null)
     {
         ArgumentNullException.ThrowIfNull(areas);
-        var completed = new HashSet<string>(areas, StringComparer.Ordinal);
-        if (completed.Count == 0)
-        {
-            return [];
-        }
-        if (completed.Any(area => !Centres.ContainsKey(area)))
-        {
-            throw new ArgumentException("Every area must be a plan area.", nameof(areas));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        var unit = drawn ?? Disc(areas);
+        return unit is null ? null : new(unit.CentreX * width, unit.CentreY * height, unit.Radius * width);
+    }
 
-        while (true)
-        {
-            var disc = Disc(completed.ToArray())!;
-            var changed = false;
-            foreach (var area in IntersectedPlanAreas(disc, CanonicalWidth, CanonicalHeight))
-            {
-                changed |= completed.Add(area);
-            }
-            if (!changed)
-            {
-                return Centres.Keys.Where(completed.Contains).ToArray();
-            }
-        }
+    /// <summary>
+    /// The plan areas a drawn disc (unit-plan terms) touches on the canonical
+    /// plan, in the vocabulary's order.
+    /// </summary>
+    public static IReadOnlyList<string> AreasUnder(DamageDisc disc)
+    {
+        ArgumentNullException.ThrowIfNull(disc);
+        return IntersectedPlanAreas(
+            new(disc.CentreX * CanonicalWidth, disc.CentreY * CanonicalHeight, disc.Radius * CanonicalWidth),
+            CanonicalWidth,
+            CanonicalHeight);
     }
 
     /// <summary>
@@ -179,4 +171,9 @@ public static class DamageAreaGeometry
 
 public sealed record DamagePlanPoint(double X, double Y);
 
+/// <summary>
+/// A disc on a plan. A recorded damage's disc is in unit-plan terms (centre as
+/// fractions of the plan's width and height, radius as a fraction of its
+/// width); a rendered disc is in the renderer's own coordinates.
+/// </summary>
 public sealed record DamageDisc(double CentreX, double CentreY, double Radius);

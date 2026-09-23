@@ -305,7 +305,8 @@ public static class AssessmentReportProjection
                 AssessmentReportPresentation.DamageAreas(impact.Areas),
                 AssessmentReportPresentation.DamageSeverity(impact.Severity),
                 impact.Note,
-                impact.Areas))
+                impact.Areas,
+                impact.Disc))
             .ToArray();
         return new(
             impacts,

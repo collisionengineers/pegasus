@@ -52,17 +52,18 @@
         var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("original-report") && Model.Case!.Data is not null;
         var value = Model.AssessmentEditorValue(path);
-        var absent = string.IsNullOrWhiteSpace(Model.Assessment?.Field(path)?.Value);
+        var absent = Model.AssessmentIsAbsent(path);
+        var tag = Model.AssessmentSourceTag(path);
         var name = CaseWorkspaceLabels.Editors.FormName(path);
         var id = "f-" + path.Replace('.', '-').Replace('_', '-');
-        <div class="fc" data-field="@path">
+        <div class="fc @(editable ? null : "ro")" data-field="@path">
             @if (editable)
             {
-                <label for="@id">@label</label>
+                <label for="@id">@label@(tag?.Render())</label>
             }
             else
             {
-                <span class="lbl">@label</span>
+                <span class="lbl">@label@(tag?.Render())</span>
             }
             <div class="fv @(absent ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
             @if (editable)

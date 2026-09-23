@@ -677,15 +677,16 @@ internal static class AssessmentReportLayout
         .FitArea();
 
     /// <summary>
-    /// The top-down damage diagram: one disc per recorded damage, drawn from
-    /// its plan areas by the shared <see cref="DamageAreaGeometry"/> so the
-    /// report shows what the Case workspace shows. Nothing is drawn when no
-    /// damage names a plan area.
+    /// The top-down damage diagram: one disc per recorded damage, the disc the
+    /// operator drew or, for a damage recorded by area, the disc its areas
+    /// give, mapped by the shared <see cref="DamageAreaGeometry"/> so the
+    /// report shows what the Case workspace shows, clipped to the body.
+    /// Nothing is drawn when no damage names a plan area.
     /// </summary>
     private static void ImpactDiagram(ColumnDescriptor column, IReadOnlyList<ReportImpact> impacts)
     {
         var discs = impacts
-            .Select(impact => DamageAreaGeometry.RenderDisc(impact.Codes, PlanWidth, PlanHeight))
+            .Select(impact => DamageAreaGeometry.RenderDisc(impact.Codes, PlanWidth, PlanHeight, impact.Disc))
             .Where(disc => disc is not null)
             .Select(disc => disc!)
             .ToArray();
@@ -725,10 +726,11 @@ internal static class AssessmentReportLayout
     private const double PlanHeight = 364;
     private static readonly (int CentreX, int CentreY)[] PlanWheels = [(44, 96), (176, 96), (44, 286), (176, 286)];
 
-    private static string DiagramSvg(IReadOnlyList<DamageDisc> discs)
+    internal static string DiagramSvg(IReadOnlyList<DamageDisc> discs)
     {
         var svg = new StringBuilder();
         svg.Append(CultureInfo.InvariantCulture, $"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"{PlanViewBox}\">");
+        svg.Append(CultureInfo.InvariantCulture, $"<defs><clipPath id=\"plan-body\"><path d=\"{PlanBodyPath}\"/></clipPath></defs>");
         foreach (var wheel in PlanWheels)
         {
             svg.Append(CultureInfo.InvariantCulture, $"<rect fill=\"#30383d\" x=\"{wheel.CentreX - 10}\" y=\"{wheel.CentreY - 22}\" width=\"20\" height=\"44\" rx=\"6\"/>");
@@ -738,10 +740,12 @@ internal static class AssessmentReportLayout
         svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"#e9eef0\" stroke=\"#9ba7ad\" stroke-width=\"1\" d=\"{PlanRearGlassPath}\"/>");
         svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"none\" stroke=\"#9ba7ad\" stroke-width=\"1\" d=\"{PlanStrongLinesPath}\"/>");
         svg.Append(CultureInfo.InvariantCulture, $"<path fill=\"none\" stroke=\"#75828a\" stroke-width=\"1\" d=\"{PlanLinesPath}\"/>");
+        svg.Append("<g clip-path=\"url(#plan-body)\">");
         foreach (var disc in discs)
         {
             svg.Append(CultureInfo.InvariantCulture, $"<circle fill=\"#f8dce1\" fill-opacity=\"0.75\" stroke=\"#c80a32\" stroke-width=\"1.5\" cx=\"{PlanLeft + disc.CentreX:0.#}\" cy=\"{PlanTop + disc.CentreY:0.#}\" r=\"{disc.Radius:0.#}\"/>");
         }
+        svg.Append("</g>");
         foreach (var disc in discs)
         {
             svg.Append(CultureInfo.InvariantCulture, $"<circle fill=\"#c80a32\" cx=\"{PlanLeft + disc.CentreX:0.#}\" cy=\"{PlanTop + disc.CentreY:0.#}\" r=\"4\"/>");

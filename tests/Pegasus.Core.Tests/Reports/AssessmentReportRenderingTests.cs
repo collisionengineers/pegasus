@@ -14,7 +14,7 @@ public sealed class AssessmentReportRenderingTests
     public void ExpandedSnapshotUsesVersionFiveAndImpactRetainsItsAreaCodes()
     {
         Assert.Equal("rendererref1-v5", Snapshot(AssessmentReportOutcome.Repairable).PayloadVersion);
-        Assert.Equal(["Areas", "Severity", "Note", "Codes"], typeof(ReportImpact).GetProperties().Select(property => property.Name));
+        Assert.Equal(["Areas", "Severity", "Note", "Codes", "Disc"], typeof(ReportImpact).GetProperties().Select(property => property.Name));
     }
 
     [Theory]

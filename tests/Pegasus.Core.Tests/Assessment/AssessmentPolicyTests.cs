@@ -20,8 +20,6 @@ public sealed class AssessmentPolicyTests
             new[] { AssessmentVocabulary.Outcome }, CaseType.Inspection);
     }
 
-    private static readonly string[] BoundaryClosure = ["front", "left_front", "right_front", "left_side", "right_side"];
-
     private static readonly ActionActor Automation = ActionActor.Automation("pegasus-automation");
     private static readonly ActionActor Engineer =
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
@@ -310,24 +308,54 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void DamageImpactsMustRecordEveryPlanAreaCoveredByTheirRegeneratedDisc()
+    public void ADamageRecordedByAreaKeepsExactlyItsAreas()
     {
-        var sparse = "[{\"areas\":[\"front\",\"rear\"],\"severity\":\"light\",\"note\":\"\"}]";
-        Assert.Throws<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { [AssessmentVocabulary.DamageImpacts] = sparse })));
+        // No disc: the areas are recorded as named, with nothing added around
+        // them (the 20 September completion rule is retired).
+        foreach (var json in new[]
+        {
+            "[{\"areas\":[\"front\",\"rear\"],\"severity\":\"light\",\"note\":\"\"}]",
+            "[{\"areas\":[\"front\",\"left_front\",\"left_side\"],\"severity\":\"light\",\"note\":\"\"}]"
+        })
+        {
+            var normalized = AssessmentPolicy.ValidateAndNormalize(
+                Request(new() { [AssessmentVocabulary.DamageImpacts] = json }));
 
-        var boundaryAreas = new[] { "front", "left_front", "left_side" };
-        Assert.Equal(BoundaryClosure, DamageAreaGeometry.CompletePlanAreas(boundaryAreas));
-        var boundarySparse = "[{\"areas\":[\"front\",\"left_front\",\"left_side\"],\"severity\":\"light\",\"note\":\"\"}]";
-        Assert.Throws<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { [AssessmentVocabulary.DamageImpacts] = boundarySparse })));
+            Assert.Equal(json, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
+        }
+    }
 
-        var closedAdjacent = "[{\"areas\":[\"front\",\"left_front\"],\"severity\":\"light\",\"note\":\"\"}]";
+    [Fact]
+    public void ADrawnDiscIsKeptAsDrawnAndNamesTheAreasItTouches()
+    {
+        // The operator's case (23 September 2026): a small disc on the centre
+        // line stays small and names the two sides it touches, whatever areas
+        // the browser sent with it; it never grows to cover the vehicle.
+        const string centre =
+            "[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.53,\"r\":0.08},\"severity\":\"light\",\"note\":\"\"}]";
+
         var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { [AssessmentVocabulary.DamageImpacts] = closedAdjacent }));
+            Request(new() { [AssessmentVocabulary.DamageImpacts] = centre }));
 
-        Assert.Equal(closedAdjacent, normalized.Fields[AssessmentVocabulary.DamageImpacts]);
+        Assert.Equal(
+            "[{\"areas\":[\"left_side\",\"right_side\"],\"disc\":{\"x\":0.5,\"y\":0.53,\"r\":0.08},\"severity\":\"light\",\"note\":\"\"}]",
+            normalized.Fields[AssessmentVocabulary.DamageImpacts]);
+        var impact = Assert.Single(AssessmentPolicy.ParseImpacts(normalized.Fields[AssessmentVocabulary.DamageImpacts]));
+        Assert.Equal(new DamageDisc(0.5, 0.53, 0.08), impact.Disc);
 
+        // A disc inside one area names that area alone; the stored disc keeps
+        // four decimals.
+        var inside = AssessmentPolicy.ParseImpacts(
+            "[{\"areas\":[\"left_side\"],\"disc\":{\"x\":0.200004,\"y\":0.53,\"r\":0.08},\"severity\":\"light\",\"note\":\"\"}]");
+        Assert.Equal(["left_side"], Assert.Single(inside).Areas);
+        Assert.Equal(new DamageDisc(0.2, 0.53, 0.08), Assert.Single(inside).Disc);
+
+        // The widest disc the plan allows is recorded as drawn.
+        var widest = Assert.Single(AssessmentPolicy.ParseImpacts(
+            "[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.5,\"r\":0.5},\"severity\":\"heavy\",\"note\":\"\"}]"));
+        Assert.Equal(DamageAreaGeometry.MaxRadius, widest.Disc!.Radius);
+        Assert.Contains("left_side", widest.Areas);
+        Assert.Contains("right_side", widest.Areas);
     }
 
     [Fact]
@@ -355,6 +383,14 @@ public sealed class AssessmentPolicyTests
     [InlineData("[{\"areas\":[\"underside\",\"front\"],\"severity\":\"light\",\"note\":\"x\"}]")]
     [InlineData("[{\"areas\":[\"underside\"],\"severity\":\"light\",\"note\":\"x\"},{\"areas\":[\"underside\"],\"severity\":\"heavy\",\"note\":\"y\"}]")]
     [InlineData("[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.1,\"r\":0.6},\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.1,\"r\":0.01},\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":1.2,\"y\":0.1,\"r\":0.1},\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":-0.1,\"r\":0.1},\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"underside\"],\"disc\":{\"x\":0.5,\"y\":0.5,\"r\":0.1},\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":0.5,\"y\":0.1,\"r\":0.1,\"z\":1},\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"front\"],\"disc\":{\"x\":\"0.5\",\"y\":0.1,\"r\":0.1},\"severity\":\"light\",\"note\":\"x\"}]")]
+    [InlineData("[{\"areas\":[\"front\"],\"disc\":[0.5,0.1,0.1],\"severity\":\"light\",\"note\":\"x\"}]")]
     public void DamageImpactsFailClosed(string json)
     {
         Assert.ThrowsAny<ArgumentException>(() => AssessmentPolicy.ValidateAndNormalize(
@@ -440,25 +476,44 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void RenderedDiscsReachEveryNamedPlanCentreAtWorkspaceAndReportScales()
+    public void AreaDiscsReachTheirAreasAndAreNeverWiderThanTheVehicle()
     {
-        foreach (var (width, height) in new[] { (156d, 394d), (124d, 364d) })
+        // On the workspace plan (the canonical shape) a disc drawn for two
+        // neighbouring areas reaches both of their centres.
+        const double width = 156;
+        const double height = 394;
+        Assert.Equal(height / width, DamageAreaGeometry.CanonicalHeight / DamageAreaGeometry.CanonicalWidth, 10);
+        foreach (var areas in new[]
         {
-            var disc = DamageAreaGeometry.RenderDisc(
-                AssessmentVocabulary.DamagePlanAreas,
-                width,
-                height)!;
-
-            foreach (var area in AssessmentVocabulary.DamagePlanAreas)
+            new[] { "front", "left_front" },
+            new[] { "rear", "left_rear" },
+            new[] { "left_side", "left_rear" },
+            new[] { "right_front", "right_side" }
+        })
+        {
+            var disc = DamageAreaGeometry.RenderDisc(areas, width, height)!;
+            foreach (var area in areas)
             {
                 var centre = DamageAreaGeometry.Centres[area];
-                var x = centre.X * width;
-                var y = centre.Y * height;
                 Assert.True(
-                    Math.Sqrt(Math.Pow(x - disc.CentreX, 2) + Math.Pow(y - disc.CentreY, 2)) <= disc.Radius,
-                    $"The rendered disc does not reach {area} at {width}x{height}.");
+                    Math.Sqrt(Math.Pow(centre.X * width - disc.CentreX, 2) + Math.Pow(centre.Y * height - disc.CentreY, 2)) <= disc.Radius,
+                    $"The rendered disc for {string.Join('+', areas)} does not reach {area}.");
             }
         }
+
+        // However many areas a damage names, its disc is never wider than
+        // the vehicle, at the workspace's scale or the report's.
+        foreach (var (renderWidth, renderHeight) in new[] { (156d, 394d), (124d, 364d) })
+        {
+            var all = DamageAreaGeometry.RenderDisc(AssessmentVocabulary.DamagePlanAreas, renderWidth, renderHeight)!;
+            Assert.True(all.Radius <= DamageAreaGeometry.MaxRadius * renderWidth + 1e-9);
+        }
+
+        // A drawn disc renders as drawn, its radius scaled by the width.
+        var drawn = DamageAreaGeometry.RenderDisc(["left_side", "right_side"], 100, 200, new DamageDisc(0.5, 0.53, 0.08))!;
+        Assert.Equal(50d, drawn.CentreX, 9);
+        Assert.Equal(106d, drawn.CentreY, 9);
+        Assert.Equal(8d, drawn.Radius, 9);
     }
 
     [Fact]

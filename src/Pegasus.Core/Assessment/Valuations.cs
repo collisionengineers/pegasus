@@ -83,6 +83,19 @@ public static class ValuationPolicy
     public const string PolicyKey = "case-valuation";
     public const int PolicyVersion = 1;
 
+    /// <summary>A valuation source as the operator reads it, on the page and in the Case history alike.</summary>
+    public static string SourceName(ValuationSource source) => source switch
+    {
+        ValuationSource.Glasses => "Glass's",
+        ValuationSource.Cazana => "Cazana",
+        ValuationSource.EngineersValue => "Engineer's Value",
+        ValuationSource.AiMarketResearch => "AI market research",
+        ValuationSource.Brego => "Brego",
+        ValuationSource.SuperCap => "Super CAP",
+        ValuationSource.Cap => "CAP",
+        _ => source.ToString(),
+    };
+
     public static SaveValuationRequest ValidateSave(SaveValuationRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
@@ -148,6 +161,31 @@ public static class ValuationPolicy
             or ValuationSource.Cazana
             or ValuationSource.EngineersValue;
 
+    /// <summary>
+    /// One guide source's card as the Case save records it (23 September
+    /// 2026: the source cards have no Save of their own). A guide card is
+    /// a published guide's figure for a month, so it names that month;
+    /// the Engineer's Value is the Apply command's and AI market research
+    /// is the automation's, so neither is a guide card.
+    /// </summary>
+    public static ValuationDetails ValidateGuideEntry(ActionActor actor, ValuationDetails details)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(details);
+        RequireManuallyRecordableSource(details.Source);
+        if (details.Source == ValuationSource.EngineersValue)
+        {
+            throw new InvalidOperationException(
+                "The Engineer's Value is recorded by the valuation Apply command, not as a guide card.");
+        }
+        if (details.GuideMonth is null)
+        {
+            throw new ArgumentException("A guide valuation card requires its guide month.", nameof(details));
+        }
+        RequireActor(actor, details);
+        return ValidateDetails(details);
+    }
+
     private static void RequireManuallyRecordableSource(ValuationSource source)
     {
         if (!IsManuallyRecordable(source))
@@ -178,6 +216,21 @@ public static class ValuationPolicy
     {
         ArgumentNullException.ThrowIfNull(existing);
         return existing.FirstOrDefault(valuation => Replaces(incoming, valuation.Details));
+    }
+
+    /// <summary>
+    /// Whether a card the Case save carries says nothing new over the card it
+    /// replaces: the same mileage, retail and trade. Such a card writes
+    /// nothing, so an untouched card never re-stamps the Apply basis.
+    /// </summary>
+    public static bool IsUnchanged(ValuationDetails incoming, ValuationDetails replaced)
+    {
+        ArgumentNullException.ThrowIfNull(incoming);
+        ArgumentNullException.ThrowIfNull(replaced);
+        return Replaces(incoming, replaced)
+            && incoming.Mileage == replaced.Mileage
+            && incoming.RetailValue == replaced.RetailValue
+            && incoming.TradeValue == replaced.TradeValue;
     }
 
     public static ValuationDetails ValidateAutomationMarketResearch(ValuationDetails details)
