@@ -21,8 +21,10 @@ pwsh ./scripts/Get-CiStatus.ps1 -PullRequest 793, 795 -Wait
 #>
 [CmdletBinding()]
 param(
-    # Defaults to the pull request for the current branch.
-    [int[]] $PullRequest = @(),
+    # Defaults to the pull request for the current branch. Strings, because
+    # `pwsh -File ... -PullRequest 803,807` passes one string, and converting
+    # that to an int reads the comma as a thousands separator: 803807.
+    [string[]] $PullRequest = @(),
 
     # Poll until no watched request has a pending check.
     [switch] $Wait,
@@ -37,12 +39,17 @@ $ErrorActionPreference = 'Stop'
 
 $repository = (& gh repo view --json nameWithOwner --jq '.nameWithOwner').Trim()
 
+$PullRequest = @($PullRequest | ForEach-Object { $_ -split '[,\s]+' } | Where-Object { $_ })
+if (@($PullRequest | Where-Object { $_ -notmatch '^\d+$' }).Count -gt 0) {
+    throw "Pull request numbers must be digits: $($PullRequest -join ', ')."
+}
+
 if ($PullRequest.Count -eq 0) {
     $current = & gh pr view --json number --jq '.number' 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $current) {
         throw 'No pull request for the current branch. Pass -PullRequest explicitly.'
     }
-    $PullRequest = @([int] $current)
+    $PullRequest = @([string] $current)
 }
 
 function Get-Checks {
@@ -92,7 +99,12 @@ foreach ($number in $PullRequest) {
             continue
         }
 
-        $jobId = $failure.Url -replace '.*/job/', ''
+        # Check links can carry a query string (?pr=N); take the digits only.
+        if ($failure.Url -notmatch '/job/(?<id>\d+)') {
+            Write-Host '         (no job link)'
+            continue
+        }
+        $jobId = $Matches['id']
         $log = & gh api "repos/$repository/actions/jobs/$jobId/logs" 2>$null
         if ($LASTEXITCODE -ne 0) {
             Write-Host '         (log unavailable)'
