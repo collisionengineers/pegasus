@@ -360,6 +360,8 @@ public sealed class StructuredIntakeSourceReaderTests
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             BuildLabelledTableDocx());
 
+        var bytesBeforeReading = Convert.ToHexStringLower(SHA256.HashData(source.Content));
+
         var first = await ReadAsync(source);
         var second = await ReadAsync(source);
 
@@ -373,10 +375,11 @@ public sealed class StructuredIntakeSourceReaderTests
         Assert.Equal(first.ReaderKey, second.ReaderKey);
         Assert.Equal(first.ReaderVersion, second.ReaderVersion);
 
-        // The bytes themselves are what the locators are anchored to, so the
-        // fixture's own hash is asserted here rather than assumed.
+        // The locators are anchored to these bytes, so reading twice must not
+        // have consumed or altered them. What stood here compared one hash
+        // expression with itself and could not fail.
         Assert.Equal(
-            Convert.ToHexStringLower(SHA256.HashData(source.Content)),
+            bytesBeforeReading,
             Convert.ToHexStringLower(SHA256.HashData(source.Content)));
     }
 

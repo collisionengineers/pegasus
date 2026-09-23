@@ -752,6 +752,7 @@ public sealed partial class ThirdPartyReportExtractionTests
     /// An ambiguous verdict costs a report every candidate it prints, so it is
     /// a failure here rather than a shrug.
     /// </summary>
+    [Trait("Category", "Corpus")]
     [ReferencePackFact]
     public void EveryCorpusOriginalClassifiesTheSameWhicheverWayTheTextIsSpaced()
     {
@@ -803,6 +804,7 @@ public sealed partial class ThirdPartyReportExtractionTests
     /// candidate and at least one usable field. A family that classified but
     /// read nothing is a regression the classification test cannot see.
     /// </summary>
+    [Trait("Category", "Corpus")]
     [ReferencePackFact]
     public void EveryClassifiedCorpusReportReadsAtLeastOneUsableField()
     {

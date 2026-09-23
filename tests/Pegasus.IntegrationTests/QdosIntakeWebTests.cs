@@ -530,7 +530,7 @@ public sealed class QdosIntakeWebTests
             services.GetRequiredService<IIntakeArtifactStore>(),
             services.GetRequiredService<IIntakeWorkStore>(),
             clock,
-            new CommittedWorkPublisherDouble());
+            new DiscardingCommittedWorkPublisher());
         var received = await receiver.ExecuteAsync(
             new(
                 sample.UploadName,

@@ -1,5 +1,8 @@
 name: repository-check
 
+# A push to dev deliberately runs nothing: the dev -> main pull request is where
+# the whole of dev is tested as one, and that run is the release-route evidence.
+# Adding dev here would buy a third full run of a tree two runs already covered.
 on:
   pull_request:
   push:
@@ -25,6 +28,9 @@ jobs:
     outputs:
       build: ${{ steps.detect.outputs.build }}
       infrastructure: ${{ steps.detect.outputs.infrastructure }}
+      localDevelopment: ${{ steps.detect.outputs.localDevelopment }}
+      referenceData: ${{ steps.detect.outputs.referenceData }}
+      heavy: ${{ steps.detect.outputs.heavy }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -47,6 +53,10 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
           $forceAll = $true
           $files = @()
@@ -71,61 +81,101 @@ jobs:
           $flags = ./scripts/Get-CiChangeFlags.ps1 -ChangedPath $files -ForceAll:$forceAll
           "build=$($flags.Build.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "infrastructure=$($flags.Infrastructure.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "localDevelopment=$($flags.LocalDevelopment.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "referenceData=$($flags.ReferenceData.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+          # Whether the unit and SQL lanes run is decided by
+          # scripts/Get-CiHeavyLaneDecision.ps1; this step only gathers its
+          # inputs. Labels are read live rather than from the event payload so
+          # that adding ci:full and re-running the workflow is enough: a re-run
+          # replays the original payload, which predates the label.
+          $labels = @()
+          $stackedAbove = $null
+          if ($env:EVENT_NAME -eq 'pull_request') {
+            $labels = @(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels" --jq '.[].name')
+            if ($LASTEXITCODE -ne 0) { $labels = @($env:PR_LABELS -split ',') }
+            $head = [uri]::EscapeDataString($env:HEAD_REF)
+            $stacked = gh api "repos/${{ github.repository }}/pulls?state=open&base=$head&per_page=100" --jq 'length'
+            if ($LASTEXITCODE -eq 0) { $stackedAbove = [int]$stacked }
+          }
+          $decision = ./scripts/Get-CiHeavyLaneDecision.ps1 -Build $flags.Build -EventName $env:EVENT_NAME `
+            -BaseRef $env:BASE_REF -Label $labels -StackedAbove $stackedAbove
+          "heavy=$($decision.Heavy.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "Heavy lanes: $(if ($decision.Heavy) { 'running' } else { 'not running' }). $($decision.Reason)"
       - name: Test SQL shard assignment
+        if: steps.detect.outputs.build == 'true'
         shell: pwsh
         run: ./scripts/Test-TestShard.ps1
       - name: Migration runtime-grant check
+        if: steps.detect.outputs.infrastructure == 'true'
         shell: pwsh
         run: ./scripts/Test-MigrationGrants.ps1
 
-  documentation:
-    # The one lane every change set runs, including change sets that touch no
-    # build-relevant path (docs/engineering.md "Branches and delivery"). It
-    # stays on Windows because the link check resolves targets with Test-Path,
-    # which is case-insensitive there and case-sensitive on Linux; moving it
-    # would quietly change the rule.
+  invariants:
+    # The cheap invariant checks, in one runner rather than three. They gate
+    # every heavy lane (DELIV-043): a broken link used to buy ~85 runner-minutes
+    # of tests whose verdict could not change the outcome. A lane skipped
+    # because a cheap check failed is not green (docs/engineering.md "Delivery
+    # evidence").
+    #
+    # One job with conditional steps, not three jobs with conditions: a skipped
+    # job skips its dependents, so gating these as jobs would take every heavy
+    # lane down with them. Each step keeps its own name, so each verdict is
+    # still read individually.
+    #
+    # Windows, because the documentation link check resolves targets with
+    # Test-Path, which is case-insensitive there and case-sensitive on Linux;
+    # moving it would quietly change the rule.
+    #
+    # It needs `changes` for the step flags but must not inherit its verdict:
+    # without `!cancelled()`, a failed path detection would take the link check
+    # down with it and no change set would get the one check all of them run.
+    needs: [changes]
+    if: ${{ !cancelled() }}
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Documentation links
+        # The one check every change set runs, including change sets that touch
+        # no build-relevant path (docs/engineering.md "Delivery evidence").
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
-
-  local-development-scripts:
-    # This parser contract is Windows-specific and must be called independently
-    # of application, documentation, infrastructure, or cloud lanes.
-    runs-on: windows-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
       - name: LocalDB lifecycle classifier tests
+        # This parser contract is Windows-specific, and it is gated on its own
+        # subject alone: Test-PegasusPlatform.ps1 dot-sources PegasusPlatform.ps1
+        # and nothing else, so no application, documentation, infrastructure or
+        # cloud change implies it.
+        if: needs.changes.outputs.localDevelopment == 'true'
         shell: pwsh
         run: ./scripts/Test-PegasusPlatform.ps1
-
-  reference-data:
-    # The provider-reference generator and tests share one scripts-owned
-    # component. This job is their executable gate; no application caller or
-    # production import is implied.
-    runs-on: windows-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
+      - name: Build-output pruning tests
+        # Clear-BuildOutput.ps1 deletes. This proves it touches only the bin and
+        # obj beside a tracked project, never an evidence or archive folder that
+        # happens to contain one.
+        if: needs.changes.outputs.localDevelopment == 'true'
+        shell: pwsh
+        run: ./scripts/Test-ClearBuildOutput.ps1
       - uses: actions/setup-python@v6
+        if: needs.changes.outputs.referenceData == 'true'
         with:
           python-version: '3.13'
       - name: Provider-reference generator tests
+        # The generator and its tests share one scripts-owned component. This
+        # step is their executable gate; no application caller or production
+        # import is implied.
+        if: needs.changes.outputs.referenceData == 'true'
         shell: pwsh
         run: python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'
 
   infrastructure:
     # Local mode checks committed fail-closed invariants and compiles Bicep.
     # It does not authenticate, read Azure state, run azd or deploy anything.
-    # The cheap invariant jobs gate every heavy lane (DELIV-043): a broken link
-    # used to buy ~85 runner-minutes of tests whose verdict could
-    # not change the outcome. A lane skipped because a cheap job failed is not
-    # green (docs/engineering.md "Branches and delivery").
-    needs: [changes, documentation, local-development-scripts, reference-data]
+    #
+    # Gated on its own path flag rather than on the tip, unlike the heavy lanes:
+    # it costs well under a minute, so deferring it up a stack would lose
+    # committed-invariant coverage for no runner saving.
+    needs: [changes, invariants]
     if: needs.changes.outputs.infrastructure == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
@@ -149,8 +199,8 @@ jobs:
     # read the private reference pack and skip themselves with a stated reason
     # when PEGASUS_REFERENCE_PACK_ROOT is absent, so no filter is needed here
     # and the skips are visible in the run, not hidden by a filter.
-    needs: [changes, documentation, local-development-scripts, reference-data]
-    if: needs.changes.outputs.build == 'true'
+    needs: [changes, invariants]
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -171,8 +221,8 @@ jobs:
     # tests/Pegasus.IntegrationTests/xunit.runner.json, and the shards divide
     # whole classes across six runners. Allow setup/build plus the longest shard
     # and evidence upload: the 2026-09-09 run exhausted a 30-minute job budget.
-    needs: [changes, documentation, local-development-scripts, reference-data]
-    if: needs.changes.outputs.build == 'true'
+    needs: [changes, invariants]
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: windows-latest
     timeout-minutes: 45
     strategy:
@@ -205,9 +255,9 @@ jobs:
     # assigned tests would otherwise pass.
     needs: [changes, sql-integration]
     # `always()` so a failing shard still gets its coverage reported, but never
-    # when the lane was path-skipped or skipped because a cheap invariant job
-    # failed upstream (there are no artifacts to verify then).
-    if: always() && needs.changes.outputs.build == 'true' && needs.sql-integration.result != 'skipped' && needs.sql-integration.result != 'cancelled'
+    # when the lane was path-skipped, deferred to the tip, or skipped because a
+    # cheap invariant failed upstream (there are no artifacts to verify then).
+    if: always() && needs.changes.outputs.heavy == 'true' && needs.sql-integration.result != 'skipped' && needs.sql-integration.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -220,3 +270,21 @@ jobs:
       - name: Every enumerated test ran in exactly one shard
         shell: pwsh
         run: ./scripts/Invoke-TestShard.ps1 -VerifyPartition -ShardCount 6
+      - name: Report shard balance and refresh the duration table
+        # The shards are dealt from scripts/test-shard-durations.json, which only
+        # stays right if someone refreshes it. Every complete run measures the
+        # real per-shard test time and offers the refreshed table as an
+        # artifact, so a stale table shows up as a ratio in this log rather than
+        # as one shard quietly setting the critical path again.
+        if: needs.sql-integration.result == 'success'
+        shell: pwsh
+        run: >
+          ./scripts/Update-TestShardDurations.ps1
+          -ArtifactRoot artifacts/test-shards -ShardCount 6
+          -Path artifacts/test-shard-durations.json
+      - name: Retain the refreshed duration table
+        if: needs.sql-integration.result == 'success'
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-shard-durations
+          path: artifacts/test-shard-durations.json

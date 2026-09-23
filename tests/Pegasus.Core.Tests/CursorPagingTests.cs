@@ -19,6 +19,18 @@ public sealed class CursorPagingTests
     public void RejectsUnsupportedLimits(int requested) =>
         Assert.Throws<ArgumentOutOfRangeException>(() => CursorPaging.NormalizeLimit(requested));
 
+    /// <summary>
+    /// The limit expectations above are literals on purpose: reading them from
+    /// DefaultLimit and MaximumLimit would let a changed constant pass. This is
+    /// the one place the two are compared.
+    /// </summary>
+    [Fact]
+    public void TheLimitConstantsStillHoldTheValuesTheseTestsExpect()
+    {
+        Assert.Equal(50, CursorPaging.DefaultLimit);
+        Assert.Equal(100, CursorPaging.MaximumLimit);
+    }
+
     [Fact]
     public void ScopeIsCanonicalAndBindsActorFiltersAndOrder()
     {

@@ -256,7 +256,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
                     acceptanceStore,
                     new FixedConfiguration(),
                     new EfProviderInspectionModeStore(factory),
-                    new CommittedWorkPublisherDouble(),
+                    new DiscardingCommittedWorkPublisher(),
                     new TriageCasePairing(new EfTriageStore(factory,
                         [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider)));
                 var dataStore = new EfCaseDataStore(factory, timeProvider);

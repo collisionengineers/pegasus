@@ -704,7 +704,7 @@ public sealed class CaseDataCompletenessPersistenceTests
                     acceptanceStore,
                     configuration,
                     new EfProviderInspectionModeStore(factory),
-                    new CommittedWorkPublisherDouble(),
+                    new DiscardingCommittedWorkPublisher(),
                     new TriageCasePairing(new EfTriageStore(factory,
                         [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())], timeProvider)));
                 var outcome = await accept.ExecuteAsync(

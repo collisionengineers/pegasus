@@ -2311,7 +2311,7 @@ public sealed class CaseWorkflowPersistenceTests
         var missingPrincipalLease = await harness.Store.ClaimAsync(
             new(harness.SecondCaseId, 0, actor, "claim-missing-principal"),
             default);
-        var create = new CreateLinkedReplacement(harness.ReplacementStore, new CommittedWorkPublisherDouble());
+        var create = new CreateLinkedReplacement(harness.ReplacementStore, new DiscardingCommittedWorkPublisher());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => create.ExecuteAsync(
             new(
@@ -2475,7 +2475,7 @@ public sealed class CaseWorkflowPersistenceTests
             default);
         var replacement = await new CreateLinkedReplacement(
             harness.ReplacementStore,
-            new CommittedWorkPublisherDouble()).ExecuteAsync(
+            new DiscardingCommittedWorkPublisher()).ExecuteAsync(
             new(
                 harness.CaseId,
                 0,
@@ -2586,7 +2586,7 @@ public sealed class CaseWorkflowPersistenceTests
             "Correct the immutable principal only after resolving open work",
             lease.Token,
             "QDOS");
-        var create = new CreateLinkedReplacement(harness.ReplacementStore, new CommittedWorkPublisherDouble());
+        var create = new CreateLinkedReplacement(harness.ReplacementStore, new DiscardingCommittedWorkPublisher());
         var initialCaseCount = await harness.CountCasesAsync();
         var initialQdosReferenceCount = await harness.CountQdosReferencesAsync();
 
@@ -2621,7 +2621,7 @@ public sealed class CaseWorkflowPersistenceTests
         var lease = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-concurrent-task-replacement"),
             default);
-        var replacement = new CreateLinkedReplacement(harness.ReplacementStore, new CommittedWorkPublisherDouble()).ExecuteAsync(
+        var replacement = new CreateLinkedReplacement(harness.ReplacementStore, new DiscardingCommittedWorkPublisher()).ExecuteAsync(
             new(
                 harness.CaseId,
                 0,

@@ -17,6 +17,12 @@ If you are running subagents, do not have all the subagents running builds and t
 
 If GitHub CI already runs a test, DO NOT RUN THE TEST LOCALLY unless SPECIFICALLY requested to do so by the user. DO NOT waste time running resource intensive local tests that could have been done on GitHub CIs.
 
+`scripts/Invoke-Verification.ps1` decides this for you: it refuses to build for
+a prose change, reports a green exact-head CI run instead of repeating it, and
+otherwise runs only the test classes the change touches. `-Full` serializes on a
+host slot shared by every worktree on this machine.
+`scripts/Clear-BuildOutput.ps1` reports what those worktrees are holding.
+
 Read [engineering verification policy](docs/engineering.md#verification-policy)
 and the [verification procedure](docs/runbook.md).
 ## Repository map
