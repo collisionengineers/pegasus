@@ -486,22 +486,21 @@
            section no longer repeats the strip or the preparation cards. *@
         </div>
         <div id="report-pane-fee" class="stack" role="tabpanel" aria-label="@Words.FeeTab" data-report-pane="fee">
-            <dl class="detail-list" data-report-fee-note>
-                @if (feeNote is { } fee)
-                {
-                    <div><dt>@Words.FeeNet</dt><dd class="mono">@FeeMoney(fee.Net)</dd></div>
-                    <div><dt>@Words.FeeVat</dt><dd class="mono">@FeeMoney(fee.Vat)</dd></div>
-                    <div><dt>@Words.FeeTotal</dt><dd class="mono"><b>@FeeMoney(fee.Total)</b></dd></div>
-                }
-                else
-                {
-                    <div><dt>@Words.FeeNet</dt><dd class="empty">@Words.NoAgreedFee</dd></div>
-                }
-            </dl>
-            <div class="fg g4" data-report-fee-fields>
-                @{ await Field(AssessmentVocabulary.AgreedFee, labels[AssessmentVocabulary.AgreedFee]);
-                    await Field(AssessmentVocabulary.FeeDescriptionLines, labels[AssessmentVocabulary.FeeDescriptionLines], multi: true, extraClass: "span3");
-                }
+            @* The agreed fee is recorded once; the fee note's VAT and total
+               are read from it beside it (23 September 2026). *@
+            <div class="fg g3" data-report-fee-fields>
+                @{ await Field(AssessmentVocabulary.AgreedFee, labels[AssessmentVocabulary.AgreedFee]); }
+                <div class="fc ro" data-report-fee-note="vat">
+                    <span class="lbl">@Words.FeeVat</span>
+                    <div class="fv mono derived @(feeNote is null ? "empty" : null)">@(feeNote is { } vatFee ? FeeMoney(vatFee.Vat) : OperatorLabels.CaseWorkspace.AbsentValue)</div>
+                </div>
+                <div class="fc ro" data-report-fee-note="total">
+                    <span class="lbl">@Words.FeeTotal</span>
+                    <div class="fv mono derived @(feeNote is null ? "empty" : null)">@(feeNote is { } totalFee ? FeeMoney(totalFee.Total) : OperatorLabels.CaseWorkspace.AbsentValue)</div>
+                </div>
+            </div>
+            <div class="fg">
+                @{ await Field(AssessmentVocabulary.FeeDescriptionLines, labels[AssessmentVocabulary.FeeDescriptionLines], multi: true); }
             </div>
             @if (feeNoteArtifact is { Status: CaseReportArtifactStatus.Confirmed } confirmedFeeNote && generation is not null)
             {

@@ -1415,6 +1415,7 @@ public sealed partial class DetailsModel(
         string operationKey,
         string? reason,
         bool saveUnroadworthyReason,
+        bool finishEditing,
         string editLeaseToken,
         string? claimantName,
         string? claimNumber,
@@ -1746,6 +1747,22 @@ public sealed partial class DetailsModel(
                 }, cancellationToken);
                 RecordEditorCommit("case-edit-form", operationKey, expectedVersion);
 
+                // The ribbon Save ends edit mode (operator, 23 September
+                // 2026); a save the page continues from keeps it.
+                if (finishEditing)
+                {
+                    try
+                    {
+                        await releaseLease.ExecuteAsync(
+                            new(id, actor, NewOperationKey(), editLeaseToken), cancellationToken);
+                    }
+                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    {
+                        // The Case is saved; an unreleased lease expires by server time.
+                        LogCaseCommandFailed(logger, id, "release_lease", exception);
+                    }
+                }
+
                 if (saveUnroadworthyReason)
                 {
                     try
@@ -1766,7 +1783,7 @@ public sealed partial class DetailsModel(
             },
             "Case saved.",
             caseId => RedirectToSection(caseId, section),
-            keepEditing: true);
+            keepEditing: !finishEditing);
 
         if (bankError is not null)
         {

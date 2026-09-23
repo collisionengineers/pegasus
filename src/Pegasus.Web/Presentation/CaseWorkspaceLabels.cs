@@ -309,10 +309,8 @@ public static class CaseWorkspaceLabels
         public const string ReportDate = "Report date";
         public const string ReportTab = "Report";
         public const string FeeTab = "Fee";
-        public const string FeeNet = "Agreed fee";
         public const string FeeVat = "VAT";
         public const string FeeTotal = "Total";
-        public const string NoAgreedFee = "No agreed fee recorded";
         public const string ReportContent = "Report content";
         public const string DiscloseGuideSource = "Disclose guide source";
         public const string ValuationCommentary = "Valuation commentary";

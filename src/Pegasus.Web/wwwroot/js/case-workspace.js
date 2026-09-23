@@ -1009,7 +1009,12 @@
             submitting = true;
             if (isSave && !dirtyEditors.has(form.getAttribute('id'))) { markDirty(form); }
             form.dataset.inplaceSubmitting = 'true';
-            submitInPlace(form, submitter);
+            // The ribbon Save ends edit mode, unless another editor still
+            // holds unsaved changes: the session stays open to keep them.
+            var othersDirty = Array.from(dirtyEditors.keys()).some(function (editor) {
+                return editor !== form.getAttribute('id');
+            });
+            submitInPlace(form, submitter && submitter.name === 'finishEditing' && othersDirty ? null : submitter);
         };
         // A command that reads what the Case records (Apply adopts the saved
         // guide card) saves the Case's own unsaved changes first and follows
