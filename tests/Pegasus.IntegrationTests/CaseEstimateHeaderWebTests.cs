@@ -95,6 +95,86 @@ public sealed class CaseEstimateHeaderWebTests
         Assert.Contains(">Print Repair Spec<", readHtml, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Reading and editing are one layout (operator, 23 September 2026): the
+    /// read view draws the editor's header cells, its ten grid columns and its
+    /// contract, discount and VAT bars, each value greyed in its control's
+    /// place and no control among them.
+    /// </summary>
+    [Fact]
+    public async Task ReadModeDrawsTheEditorsHeaderCellsGridColumnsAndBarsWithoutControls()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var estimates = new SingleEstimateList(store.CaseId);
+        var path = $"/Cases/{store.CaseId:D}?section=estimate&estimate={estimates.Estimate.SpecificationId:D}";
+
+        string editing;
+        using (var workspace = await EnterEngineerEditModeAsync(store, services =>
+            Substitute<IListCaseEstimates>(services, estimates), StaffRole.User))
+        {
+            editing = WebUtility.HtmlDecode(EstimateSection(await GetHtmlAsync(workspace.Client, path)));
+        }
+        Assert.Contains("id=\"case-estimate-form\"", editing, StringComparison.Ordinal);
+
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            Substitute<IGetCase>(services, store);
+            SubstituteDetailsPageReaders(services, store);
+            Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
+            Substitute<IListCaseEstimates>(services, estimates);
+        }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost"),
+        });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
+        var reading = WebUtility.HtmlDecode(EstimateSection(await GetHtmlAsync(client, path)));
+        var readStart = reading.IndexOf("data-estimate-read", StringComparison.Ordinal);
+        Assert.True(readStart >= 0, "Read mode must draw the Repair Spec body.");
+        var body = reading[readStart..];
+
+        foreach (var label in new[]
+        {
+            OperatorLabels.CaseWorkspace.EngineerSections.EstimateName,
+            OperatorLabels.CaseWorkspace.EngineerSections.LabourRatePerHour,
+            OperatorLabels.CaseWorkspace.EngineerSections.RegionalUplift,
+            OperatorLabels.CaseWorkspace.EngineerSections.OtherCostsPounds,
+            OperatorLabels.CaseWorkspace.EngineerSections.VatPercent,
+            CaseWorkspaceLabels.EstimateVat.RepairerStatus
+        })
+        {
+            Assert.Contains(label, editing, StringComparison.Ordinal);
+            Assert.Contains(label, body, StringComparison.Ordinal);
+        }
+        Assert.Equal(10, Occurrences(editing, "<th scope=\"col\""));
+        Assert.Equal(10, Occurrences(body, "<th scope=\"col\""));
+        foreach (var bar in new[] { "data-estimate-contract", "data-estimate-discounts", "data-estimate-vat" })
+        {
+            Assert.Contains(bar, editing, StringComparison.Ordinal);
+            Assert.Contains(bar, body, StringComparison.Ordinal);
+        }
+        Assert.DoesNotContain("<input", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("<select", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("<textarea", body, StringComparison.Ordinal);
+        Assert.Contains("<div class=\"fc ro\" data-estimate-name-cell>", body, StringComparison.Ordinal);
+        // The line's Type reads in the words the editor's control offers.
+        Assert.Contains(
+            $"<span class=\"gv\">{OperatorLabels.CaseWorkspace.EngineerSections.Repair}</span>",
+            body,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>The Repair Spec section, up to its import drop overlay.</summary>
+    private static string EstimateSection(string html)
+    {
+        var start = html.IndexOf("id=\"section-estimate\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Repair Spec section must render.");
+        var end = html.IndexOf("data-estimate-import-overlay", start, StringComparison.Ordinal);
+        return end < 0 ? html[start..] : html[start..end];
+    }
+
     [Fact]
     public async Task CaseEstimateHeaderOmitsPrintRepairSpecForAnEmptyDraft()
     {

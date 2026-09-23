@@ -47,7 +47,6 @@
 
     string GetValuationAction(ValuationSource source) =>
         Url.Page("/Cases/Details", "GetValuation", new { id = caseId, source })!;
-    var acceptedMileage = Pegasus.Web.Pages.Cases.DetailsModel.Accepted((section?.Data ?? Model.Case!.Data)?.Vehicle.Mileage)?.Value;
     var basisName = basis is null ? null : ValuationLabels.SourceLabel(basis.Details.Source);
     var appliedBasis = applied is null
         ? null
@@ -68,10 +67,11 @@
     var hasIncreases = editable || activePresets.Length > 0 || otherApplied.Length > 0;
 
     string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
+    string MoneyOrAbsent(decimal? value) => value is { } amount ? Money(amount) : OperatorLabels.CaseWorkspace.AbsentValue;
 
     string CardMeta(CaseValuation valuation) =>
         (valuation.Details.GuideMonth?.ToString("MMM yyyy", CultureInfo.InvariantCulture) ?? ValuationLabels.AbsentGuideMonth)
-        + " · " + valuation.Details.Mileage.ToString("N0", CultureInfo.InvariantCulture) + " miles · "
+        + (valuation.Details.Mileage is { } metaMileage ? " · " + metaMileage.ToString("N0", CultureInfo.InvariantCulture) + " miles" : string.Empty) + " · "
         + valuation.Details.Date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
 
     string Adjustments(ValuationCalculation recorded)
@@ -138,9 +138,12 @@
                 var selected = recorded is not null && selectedId == recorded.ValuationId;
                 var retail = recorded?.Details.RetailValue;
                 var trade = recorded?.Details.TradeValue;
-                var mileage = recorded?.Details.Mileage ?? (editable ? acceptedMileage : null);
+                // A card holds exactly what was recorded, in both modes: any
+                // box may be blank (operator, 23 September 2026).
+                var mileage = recorded?.Details.Mileage;
+                var canBeBasis = recorded is not null && Pegasus.Web.Pages.Cases.DetailsModel.CanBeBasis(recorded);
                 var month = recorded?.Details.GuideMonth;
-                var monthValue = month?.ToString("yyyy-MM", CultureInfo.InvariantCulture) ?? Model.ValuationMonth;
+                var monthValue = month?.ToString("yyyy-MM", CultureInfo.InvariantCulture);
                 var cellClass = editable ? "fc" : "fc ro";
                 var field = "guideEntries[" + index.ToString(CultureInfo.InvariantCulture) + "].";
                 var idPrefix = "f-valuation-" + slug + "-";
@@ -149,19 +152,19 @@
                    valuation fills them by script. The Basis radio belongs to the
                    calculator's form and is chosen by clicking the card. *@
                 <div class="valuation-card entry @(selected ? "sel" : null)"
-                     tabindex="@(editable && recorded is not null ? "0" : null)"
+                     tabindex="@(editable && canBeBasis ? "0" : null)"
                      data-valuation-entry="@slug"
                      data-valuation-source-card="@source"
                      data-valuation-card="@(recorded?.ValuationId.ToString("D") ?? slug)"
-                     data-retail="@(recorded?.Details.RetailValue.ToString("0.00", CultureInfo.InvariantCulture))"
-                     data-trade="@(recorded?.Details.TradeValue.ToString("0.00", CultureInfo.InvariantCulture))">
+                     data-retail="@(recorded?.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture))"
+                     data-trade="@(recorded?.Details.TradeValue?.ToString("0.00", CultureInfo.InvariantCulture))">
                     @if (editable)
                     {
                         <input type="hidden" name="@(field)Source" value="@source" form="case-edit-form" />
                     }
                     <h3>
                         <span>@ValuationLabels.SourceLabel(source)</span>
-                        @if (editable && recorded is not null)
+                        @if (editable && canBeBasis && recorded is not null)
                         {
                             <label class="pick sr-only">
                                 <input type="radio" name="selection.GuideValuationId" value="@recorded.ValuationId"
@@ -202,7 +205,7 @@
                         </div>
                         <div class="@cellClass">
                             @{ CardLabel(editable, idPrefix + "mileage", ValuationLabels.Mileage); }
-                            <div class="fv mono @(recorded is null ? "empty" : null)">@(recorded is null ? absent : recorded.Details.Mileage.ToString("N0", CultureInfo.InvariantCulture))</div>
+                            <div class="fv mono @(mileage is null ? "empty" : null)">@(mileage is { } mileageShown ? mileageShown.ToString("N0", CultureInfo.InvariantCulture) : absent)</div>
                             @if (editable)
                             {
                                 <input id="@(idPrefix)mileage" class="fi mono" type="number" min="0" name="@(field)Mileage" form="case-edit-form" value="@mileage?.ToString(CultureInfo.InvariantCulture)" data-valuation-mileage />
@@ -241,8 +244,8 @@
                      tabindex="@(editable ? "0" : null)"
                      data-valuation-card="@valuation.ValuationId"
                      data-valuation-source-card="@valuation.Details.Source"
-                     data-retail="@valuation.Details.RetailValue.ToString("0.00", CultureInfo.InvariantCulture)"
-                     data-trade="@valuation.Details.TradeValue.ToString("0.00", CultureInfo.InvariantCulture)">
+                     data-retail="@(valuation.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture))"
+                     data-trade="@(valuation.Details.TradeValue?.ToString("0.00", CultureInfo.InvariantCulture))">
                     <h3>
                         <span>@ValuationLabels.SourceLabel(valuation.Details.Source)</span>
                         @if (isAi)
@@ -266,8 +269,8 @@
                         }
                     </h3>
                     <div class="figs fg g2">
-                        <div class="fc ro"><span class="lbl">@ValuationLabels.Retail</span><div class="fv mono">@Money(valuation.Details.RetailValue)</div></div>
-                        <div class="fc ro"><span class="lbl">@ValuationLabels.Trade</span><div class="fv mono">@Money(valuation.Details.TradeValue)</div></div>
+                        <div class="fc ro"><span class="lbl">@ValuationLabels.Retail</span><div class="fv mono">@MoneyOrAbsent(valuation.Details.RetailValue)</div></div>
+                        <div class="fc ro"><span class="lbl">@ValuationLabels.Trade</span><div class="fv mono">@MoneyOrAbsent(valuation.Details.TradeValue)</div></div>
                     </div>
                     <div class="meta">@CardMeta(valuation)</div>
                 </div>

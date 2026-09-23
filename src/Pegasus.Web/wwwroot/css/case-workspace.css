@@ -312,10 +312,19 @@
 #section-estimate .glass-close-form .choice,#section-estimate .glass-close-form .consequence{grid-column:1/-1}
 #section-estimate .glass-close-form .consequence{font-size:12px;color:var(--muted);font-weight:400;margin:0}
 
-/* The read-mode summary line; the header grid returns on Edit. */
-#section-estimate .est-head-read{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;padding:4px 9px;min-height:var(--control);align-items:center}
-#section-estimate .est-head-read span{white-space:nowrap;color:var(--muted)}
-#section-estimate .est-head-read b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+/* One layout for reading and editing (23 September 2026): where the spec
+   cannot be changed, a grid cell or a discount holds a greyed value in its
+   control's place, and a choice reads as its box, ticked or not. */
+#section-estimate .grid .gv{display:flex;align-items:center;min-height:30px;padding:3px 6px;font-size:12px;border:1px solid var(--line);border-radius:3px;background:var(--surface-2);overflow-wrap:anywhere}
+#section-estimate .grid td.num .gv{justify-content:flex-end;font-family:var(--mono)}
+#section-estimate .grid .gv.mono{font-family:var(--mono)}
+#section-estimate .grid .gv.viol{border-color:var(--amber);background:var(--amber-bg)}
+#section-estimate .bar .dsc .dsl{font-size:12px;color:var(--muted)}
+#section-estimate .bar .dsc .gv{display:inline-flex;align-items:center;justify-content:flex-end;min-width:64px;min-height:30px;padding:3px 8px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);font:600 12.5px var(--mono)}
+#section-estimate .choice.is-static{cursor:default;color:var(--muted)}
+#section-estimate .choice.is-static[data-on="true"]{color:var(--ink)}
+#section-estimate .choice.is-static .tick{display:inline-grid;place-items:center;width:15px;height:15px;flex:none;border:1px solid var(--line-strong);border-radius:2px;background:var(--surface-2)}
+#section-estimate .choice.is-static .tick .icon{width:11px;height:11px}
 
 /* The grid: transparent inputs that read as cells; the phantom row at the foot. */
 #section-estimate .grid{overflow:auto}

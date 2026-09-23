@@ -137,7 +137,8 @@ Glass's, Brego, Super CAP, CAP and Cazana each own one card, the same in read an
 The boxes are greyed while reading and inputs of the Case form while editing. Get valuation fills
 the same card in place, without redrawing the page, or shows the card's notice when the source has
 no working provider. The ribbon Save is the writer (23 September 2026): it records every changed
-card, and an untouched or blank card records nothing.
+card with whatever was entered — any box may be left blank — and an untouched or blank card records
+nothing. A card opens holding only what is recorded, in both modes.
 
 Do not reintroduce:
 
@@ -161,6 +162,12 @@ contract.
 
 Toolbar and header controls must remain compact and on one line where the existing design expects
 that. Scope width fixes locally; do not make every select full width.
+
+Read and edit are one layout (operator, 23 September 2026): a spec that cannot be changed renders
+the editor's header cells, grid columns and contract, discount and VAT bars, each value greyed in its
+control's place (`EstimateBody` in `_CaseEstimate.cshtml`). Do not reintroduce a read-mode summary
+line or a separate read table; only tools (add/delete lines, the Target % of value controls, Reset
+to repairer status) are edit-only, and a scaled spec's Target % bar reads with its Scaled state.
 
 ## Damage
 

@@ -244,7 +244,8 @@ trade values, and guide month (`EXT-10`). Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
 (automation only). Read and edit show the same cards: each guide source is
 one card with month, mileage, retail and trade boxes holding that source's
-latest recorded figures, greyed while reading. While editing, the boxes are
+latest recorded figures, greyed while reading; any box may be blank and is
+saved as entered. While editing, the boxes are
 inputs that belong to the Case form, and the card has **Get valuation**,
 which asks the connected provider for the Case's accepted registration and
 mileage in that month and fills the boxes in place, without redrawing the
@@ -377,7 +378,15 @@ Source chip (P18); a cell Core finds off-pattern reads amber and named
 Off-pattern, and the rollup carries the off-pattern amount as specialist
 (P37). **Delete all lines** sits beside Add line and asks first; a removed
 line or lines can be put back from the toast for eight seconds (P16). No
-provider-versus-assessed savings figure is shown. The More menu holds New repair spec
+provider-versus-assessed savings figure is shown. Reading and editing are one
+layout (operator, 23 September 2026): a spec that cannot be changed — every
+spec while reading, and a spec that is not a Draft while editing — shows the
+same header cells, the same grid columns and the same contract, discount and
+VAT bars as the editor, each value greyed in its control's place and a line's
+Type in the editor's words; a scaled spec's Target % of value bar stands in
+its place with the Scaled state; the tools (add and delete lines, the Target
+% of value controls, Reset to repairer status) are drawn only while the spec
+edits. The More menu holds New repair spec
 (editing), **Print Repair Spec** for a saved spec with lines, and Compare,
 greyed out until the Case holds two specs (P9). Previewing the document
 does not save or discard pending edits. The section also
