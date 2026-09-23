@@ -455,11 +455,8 @@ internal sealed class EfQueuedCustodyProcessor(
             {
                 var asset = await context.Set<IntakeAssetEntity>()
                     .SingleAsync(value => value.Id == intakeAssetId, cancellationToken);
-                asset.BoxFileId = file.BoxFileId;
-                asset.BoxVersionId = file.BoxVersionId;
                 // The Case folder holds the confirmed copy: readers expect it.
-                asset.BoxParentFolderId = caseRootRemoteId;
-                asset.CustodyStatus = "confirmed";
+                asset.ConfirmCustody(file.BoxFileId, file.BoxVersionId, caseRootRemoteId);
             }
             var occurrence = new DocumentOccurrenceEntity
             {
@@ -1163,10 +1160,7 @@ internal sealed class EfQueuedCustodyProcessor(
             {
                 throw new InvalidDataException("A registered image file no longer has its retained asset.");
             }
-            asset.BoxFileId = version.RemoteId;
-            asset.BoxVersionId = version.BoxVersionId;
-            asset.BoxParentFolderId = root.RemoteId;
-            asset.CustodyStatus = "confirmed";
+            asset.ConfirmCustody(version.RemoteId, version.BoxVersionId, root.RemoteId);
         }
         CompleteWork(work, now, root.RemoteId);
         await context.SaveChangesAsync(cancellationToken);

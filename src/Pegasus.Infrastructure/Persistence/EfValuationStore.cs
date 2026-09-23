@@ -314,29 +314,22 @@ public sealed class EfValuationStore(
         };
         context.Set<AppliedValuationSnapshotEntity>().Add(entity);
         var result = Map(entity, snapshot);
-        context.ActionHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            AggregateType = "case_applied_valuation",
-            AggregateId = result.Id.ToString("D"),
-            EventKind = "valuation_applied",
-            ActorKind = actor.Kind.ToString(),
-            ActorSubjectId = actor.SubjectId,
-            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role), SerializerOptions),
-            OccurredAtUtc = now,
-            Outcome = "Succeeded",
-            CorrelationId = operationKey,
-            Reason = reason,
-            BeforeJson = engineersValue?.Before is null
+        AddActionHistory(
+            context,
+            actor,
+            "case_applied_valuation",
+            result.Id,
+            "valuation_applied",
+            operationKey,
+            reason,
+            engineersValue?.Before is null
                 ? null
-                : JsonSerializer.Serialize(
-                    new { EngineersValue = engineersValue.Before },
-                    SerializerOptions),
-            AfterJson = JsonSerializer.Serialize(
+                : JsonSerializer.Serialize(new { EngineersValue = engineersValue.Before }, SerializerOptions),
+            JsonSerializer.Serialize(
                 new { AppliedValuation = result, EngineersValue = engineersValue?.After },
                 SerializerOptions),
-            PolicyVersion = ValuationCalculationPolicy.PolicyStamp,
-        });
+            ValuationCalculationPolicy.PolicyStamp,
+            now);
         return new(result, engineersValue);
     }
 
@@ -617,7 +610,7 @@ public sealed class EfValuationStore(
 
     internal sealed record EngineersValueChange(string? Before, string? After);
 
-    internal static async Task<CaseReportValuationDependencies> ReadReportDependenciesAsync(
+    private static async Task<CaseReportValuationDependencies> ReadReportDependenciesAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
@@ -860,25 +853,18 @@ public sealed class EfValuationStore(
             }
 
             var result = Map(entity);
-            context.ActionHistory.Add(new()
-            {
-                Id = Guid.NewGuid(),
-                AggregateType = "case_valuation",
-                AggregateId = result.ValuationId.ToString("D"),
-                EventKind = replaced is null ? "valuation_created" : "valuation_replaced",
-                ActorKind = actor.Kind.ToString(),
-                ActorSubjectId = actor.SubjectId,
-                ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role), SerializerOptions),
-                OccurredAtUtc = now,
-                Outcome = "Succeeded",
-                CorrelationId = operationKey,
-                Reason = "Valuation recorded.",
-                BeforeJson = before is null
-                    ? null
-                    : JsonSerializer.Serialize(new { Valuation = before }, SerializerOptions),
-                AfterJson = JsonSerializer.Serialize(new { Valuation = result }, SerializerOptions),
-                PolicyVersion = $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
-            });
+            AddActionHistory(
+                context,
+                actor,
+                "case_valuation",
+                result.ValuationId,
+                replaced is null ? "valuation_created" : "valuation_replaced",
+                operationKey,
+                "Valuation recorded.",
+                before is null ? null : JsonSerializer.Serialize(new { Valuation = before }, SerializerOptions),
+                JsonSerializer.Serialize(new { Valuation = result }, SerializerOptions),
+                $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
+                now);
             recorded.Add(details);
             written.Add(entity);
         }
@@ -935,11 +921,42 @@ public sealed class EfValuationStore(
             $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
             now);
 
+    /// <summary>One action-history entry for a valuation write.</summary>
+    private static void AddActionHistory(
+        PegasusDbContext context,
+        ActionActor actor,
+        string aggregateType,
+        Guid aggregateId,
+        string eventKind,
+        string operationKey,
+        string reason,
+        string? beforeJson,
+        string afterJson,
+        string policyVersion,
+        DateTimeOffset now) =>
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = aggregateType,
+            AggregateId = aggregateId.ToString("D"),
+            EventKind = eventKind,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role), SerializerOptions),
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = operationKey,
+            Reason = reason,
+            BeforeJson = beforeJson,
+            AfterJson = afterJson,
+            PolicyVersion = policyVersion,
+        });
+
     /// <summary>
-    /// The one history shape every valuation write records: the replayable
-    /// workflow event, the action-history entry with its before/after payload,
-    /// and the Case history line. Recording a card and adopting a calculated
-    /// Engineer's Value differ only in what they put in those payloads.
+    /// The history a valuation command records: the replayable workflow event,
+    /// the action-history entry with its before/after payload, and the Case
+    /// history line. (A Case save's cards and adoption record only the
+    /// action-history entry: the save owns the workflow event.)
     /// </summary>
     private static void AddHistory(
         PegasusDbContext context,
@@ -978,23 +995,9 @@ public sealed class EfValuationStore(
             AfterVersion = workflow.Version,
             ResultJson = resultJson,
         });
-        context.ActionHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            AggregateType = aggregateType,
-            AggregateId = aggregateId.ToString("D"),
-            EventKind = eventKind,
-            ActorKind = actor.Kind.ToString(),
-            ActorSubjectId = actor.SubjectId,
-            ActorRolesJson = roles,
-            OccurredAtUtc = now,
-            Outcome = "Succeeded",
-            CorrelationId = operationKey,
-            Reason = reason.Trim(),
-            BeforeJson = beforeJson,
-            AfterJson = afterJson,
-            PolicyVersion = policyVersion,
-        });
+        AddActionHistory(
+            context, actor, aggregateType, aggregateId, eventKind, operationKey,
+            reason.Trim(), beforeJson, afterJson, policyVersion, now);
         context.CaseHistory.Add(new()
         {
             Id = Guid.NewGuid(),

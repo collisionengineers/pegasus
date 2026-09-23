@@ -1200,6 +1200,15 @@ public sealed class EfRepairSpecificationStore(
         }
     }
 
+    /// <summary>The recorded result of a Case operation already applied under this key, if any.</summary>
+    internal static Task<string?> ReplayedCaseAfterJsonAsync(
+        PegasusDbContext context, Guid caseId, string operationKey, string eventKind, CancellationToken cancellationToken) =>
+        context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "case" && item.AggregateId == caseId.ToString("D")
+                && item.CorrelationId == operationKey && item.EventKind == eventKind)
+            .Select(item => item.AfterJson)
+            .SingleOrDefaultAsync(cancellationToken);
+
     private static async Task<RepairSpecificationVersion> ReplayedAsync(
         PegasusDbContext context, Guid caseId, string operationKey, CancellationToken cancellationToken)
     {
@@ -1209,10 +1218,7 @@ public sealed class EfRepairSpecificationStore(
         var eventType = await context.CaseWorkflowEvents.AsNoTracking()
             .Where(item => item.CaseId == caseId && item.OperationKey == operationKey)
             .Select(item => item.EventType).SingleAsync(cancellationToken);
-        var after = await context.ActionHistory.AsNoTracking()
-            .Where(item => item.AggregateType == "case" && item.AggregateId == caseId.ToString("D")
-                && item.CorrelationId == operationKey && item.EventKind == eventType)
-            .Select(item => item.AfterJson).SingleAsync(cancellationToken);
+        var after = await ReplayedCaseAfterJsonAsync(context, caseId, operationKey, eventType, cancellationToken);
         using var result = JsonDocument.Parse(after
             ?? throw new InvalidOperationException("The estimate operation has no recorded result identity."));
         var estimateId = result.RootElement.GetProperty("id").GetGuid();

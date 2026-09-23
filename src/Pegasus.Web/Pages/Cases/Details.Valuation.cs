@@ -142,33 +142,37 @@ public sealed partial class DetailsModel
         decimal? Amount,
         bool Selected);
 
-    /// <summary>The calculator's value-increase rows, in the order the screen draws them.</summary>
-    public IReadOnlyList<ValuationIncreaseRow> ValuationIncreaseRows
+    private IReadOnlyList<ValuationIncreaseRow>? valuationIncreaseRows;
+
+    /// <summary>
+    /// The value-increase rows, in the order the screen draws them in both
+    /// modes: read mode shows the preset rows and the applied ones.
+    /// </summary>
+    public IReadOnlyList<ValuationIncreaseRow> ValuationIncreaseRows => valuationIncreaseRows ??= IncreaseRows();
+
+    private List<ValuationIncreaseRow> IncreaseRows()
     {
-        get
+        var applied = LatestAppliedValuation?.Calculation.Additions ?? [];
+        var active = ValuationPresets.Where(preset => preset.Active && preset.RemovedAtUtc is null).ToArray();
+        var rows = new List<ValuationIncreaseRow>(active.Length + 2);
+        foreach (var preset in active)
         {
-            var applied = LatestAppliedValuation?.Calculation.Additions ?? [];
-            var active = ValuationPresets.Where(preset => preset.Active && preset.RemovedAtUtc is null).ToArray();
-            var rows = new List<ValuationIncreaseRow>(active.Length + 2);
-            foreach (var preset in active)
-            {
-                var chosen = applied.FirstOrDefault(addition =>
-                    addition.PresetId != Guid.Empty && addition.PresetId == preset.Id);
-                rows.Add(new(preset.Id, preset.Version, preset.Label, chosen?.Amount ?? preset.SuggestedAmount, chosen is not null));
-            }
-            // An applied increase that is not an active preset (a custom one,
-            // or a preset since withdrawn) opens in a custom row, so the
-            // calculation opens as it was applied.
-            var others = applied
-                .Where(addition => addition.PresetId == Guid.Empty || active.All(preset => preset.Id != addition.PresetId))
-                .ToArray();
-            for (var custom = 0; custom < Math.Max(2, others.Length); custom++)
-            {
-                var carried = custom < others.Length ? others[custom] : null;
-                rows.Add(new(Guid.Empty, 0, carried?.Label, carried?.Amount, carried is not null));
-            }
-            return rows;
+            var chosen = applied.FirstOrDefault(addition =>
+                addition.PresetId != Guid.Empty && addition.PresetId == preset.Id);
+            rows.Add(new(preset.Id, preset.Version, preset.Label, chosen?.Amount ?? preset.SuggestedAmount, chosen is not null));
         }
+        // An applied increase that is not an active preset (a custom one,
+        // or a preset since withdrawn) opens in a custom row, so the
+        // calculation opens as it was applied.
+        var others = applied
+            .Where(addition => addition.PresetId == Guid.Empty || active.All(preset => preset.Id != addition.PresetId))
+            .ToArray();
+        for (var custom = 0; custom < Math.Max(2, others.Length); custom++)
+        {
+            var carried = custom < others.Length ? others[custom] : null;
+            rows.Add(new(Guid.Empty, 0, carried?.Label, carried?.Amount, carried is not null));
+        }
+        return rows;
     }
 
     /// <summary>
@@ -176,7 +180,7 @@ public sealed partial class DetailsModel
     /// basis card, with the latest adoption's controls. The Case Save compares
     /// what it posts with this, so an untouched calculator adopts nothing.
     /// </summary>
-    public ValuationCalculationSelection OpeningValuationSelection => new(
+    private ValuationCalculationSelection OpeningValuationSelection => new(
         DefaultBasis?.ValuationId ?? Guid.Empty,
         !ClaimantVatRegistered && LatestAppliedValuation is { Calculation.CommercialVatApplied: true },
         LatestAppliedValuation?.Calculation.PriorTotalLossPercentage,

@@ -570,13 +570,7 @@ internal sealed class EfCaseArtifactCustody(
             .SingleOrDefaultAsync(value => value.Id == assetId && value.IntakeReceiptId == receiptId,
                 cancellationToken)
             ?? throw new InvalidDataException("The filed intake evidence has no retained asset identity.");
-        if (!string.IsNullOrWhiteSpace(boxFileId) && !string.IsNullOrWhiteSpace(boxVersionId))
-        {
-            asset.BoxFileId = boxFileId;
-            asset.BoxVersionId = boxVersionId;
-        }
-        asset.BoxParentFolderId = caseRootRemoteId;
-        asset.CustodyStatus = "confirmed";
+        asset.ConfirmCustody(boxFileId, boxVersionId, caseRootRemoteId);
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -680,10 +674,7 @@ internal sealed class EfCaseArtifactCustody(
                 NormalizeHash(request.Sha256),
                 cancellationToken);
         }
-        asset.BoxFileId = file.Id;
-        asset.BoxVersionId = file.VersionId;
-        asset.BoxParentFolderId = holdingFolderId;
-        asset.CustodyStatus = "confirmed";
+        asset.ConfirmCustody(file.Id, file.VersionId, holdingFolderId);
         await db.SaveChangesAsync(cancellationToken);
         return new(
             CaseArtifactCustodyDisposition.Confirmed,
