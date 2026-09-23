@@ -64,6 +64,27 @@ function Get-DirectorySize {
     return [long] $measured.Sum
 }
 
+function Get-ProjectBuildOutput {
+    param([Parameter(Mandatory)][string] $Worktree)
+
+    # Only the bin and obj beside a project file git tracks in that worktree:
+    # that is what MSBuild writes and nothing else is. Matching any directory
+    # named bin or obj reached into ignored evidence and archive folders - an
+    # earlier version of this script removed build output inside
+    # artifacts/ui-baseline-review and an archived source pack that way - and it
+    # counted nested matches twice.
+    $projects = @(& git -C $Worktree ls-files -- '*.csproj' '*.fsproj' '*.vbproj' '*.proj' 2>$null)
+    foreach ($project in $projects) {
+        $directory = Split-Path (Join-Path $Worktree $project) -Parent
+        foreach ($name in 'bin', 'obj') {
+            $output = Join-Path $directory $name
+            if (Test-Path -LiteralPath $output -PathType Container) {
+                Get-Item -LiteralPath $output -Force
+            }
+        }
+    }
+}
+
 $worktrees = @(& git -C $PSScriptRoot worktree list --porcelain |
     Select-String -Pattern '^worktree (?<path>.+)$' |
     ForEach-Object { $_.Matches[0].Groups['path'].Value })
@@ -79,9 +100,7 @@ foreach ($worktree in $worktrees) {
     $isCurrent = [IO.Path]::GetFullPath($worktree).TrimEnd('\', '/') -eq
         [IO.Path]::GetFullPath($current).TrimEnd('\', '/')
 
-    $outputs = @(Get-ChildItem -LiteralPath $worktree -Recurse -Directory -Force `
-            -Include 'bin', 'obj' -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch '[\\/]node_modules[\\/]' })
+    $outputs = @(Get-ProjectBuildOutput -Worktree $worktree)
 
     if ($outputs.Count -eq 0) {
         continue
