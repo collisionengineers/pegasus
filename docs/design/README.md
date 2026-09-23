@@ -221,7 +221,8 @@ Dialogs are `.dialog` inside `.dialog-backdrop`, mounted in the dialog root:
 initial focus on the first control, a focus trap, the rest of the document
 `inert` while open, Escape closes where safe, and focus returns to the
 invoking control. Toasts live in `.toast-region`, are announced restrainedly,
-and never carry an action the page does not also offer.
+and never carry an action the page does not also offer. Every toast carries the
+shared `.dismiss` × so it can be put away before it expires.
 
 ### The Pegasus marks
 

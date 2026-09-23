@@ -1904,6 +1904,25 @@
         return;
     }
 
+    // Every toast can be put away before it goes: the shared dismiss
+    // control, removed by the [data-dismiss] handler.
+    function dismissable(element) {
+        element.setAttribute('data-dismissable', '');
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'dismiss';
+        close.setAttribute('data-dismiss', '');
+        close.setAttribute('aria-label', 'Dismiss');
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'icon');
+        svg.setAttribute('aria-hidden', 'true');
+        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#icon-x');
+        svg.appendChild(use);
+        close.appendChild(svg);
+        element.appendChild(close);
+    }
+
     function toast(title, tone) {
         var element = document.createElement('div');
         element.className = 'toast' + (tone ? ' toast--' + tone : '');
@@ -1911,6 +1930,7 @@
         var strong = document.createElement('strong');
         strong.textContent = title;
         element.appendChild(strong);
+        dismissable(element);
         region.appendChild(element);
         window.setTimeout(function () { element.remove(); }, 4200);
     }
@@ -1932,6 +1952,7 @@
         undo.addEventListener('click', function () { restore(); element.remove(); });
         element.appendChild(strong);
         element.appendChild(undo);
+        dismissable(element);
         region.appendChild(element);
         window.setTimeout(function () { element.remove(); }, 8000);
     };
