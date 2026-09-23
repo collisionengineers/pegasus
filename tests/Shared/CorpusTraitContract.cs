@@ -66,9 +66,12 @@ internal static class CorpusTraitContract
             .ToArray();
     }
 
+    // Reads attribute metadata rather than constructing the attributes: every
+    // gate's constructor probes the filesystem or environment to decide Skip,
+    // and a guard should not run that code or fail if it throws.
     private static Type? GateOf(MethodInfo method, IReadOnlySet<Type> gates) =>
-        method.GetCustomAttributes(inherit: false)
-            .Select(attribute => attribute.GetType())
+        method.GetCustomAttributesData()
+            .Select(data => data.AttributeType)
             .FirstOrDefault(gates.Contains);
 
     private static bool IsCorpusClassified(MethodInfo method) =>
