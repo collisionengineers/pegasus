@@ -554,6 +554,38 @@ internal static partial class CaseWebTestSupport
     internal static int Occurrences(string html, string value) =>
         html.Split(value, StringSplitOptions.None).Length - 1;
 
+    /// <summary>
+    /// Razor compiles a stray <c>}</c> or closing tag as markup and the browser repairs it
+    /// silently, moving whatever follows out of its column (issue 816). Every container opened
+    /// is closed, and no brace stands alone as text.
+    /// </summary>
+    internal static void AssertBalancedMarkup(string html)
+    {
+        var markup = UnparsedContentRegex().Replace(html, string.Empty);
+        foreach (var tag in new[] { "div", "section", "details", "form", "aside", "nav", "ul", "table" })
+        {
+            Assert.True(
+                Regex.Count(markup, $"<{tag}[\\s>]") == Occurrences(markup, $"</{tag}>"),
+                $"Every <{tag}> is not closed exactly once.");
+        }
+        Assert.DoesNotMatch(StrayBraceRegex(), markup);
+    }
+
+    /// <summary>The record's main column, from its opening tag to the aside that follows it.</summary>
+    internal static string MainColumn(string html)
+    {
+        var start = html.IndexOf("<div class=\"workspace-main\" id=\"case-main\">", StringComparison.Ordinal);
+        var end = html.IndexOf("<aside class=\"workspace-aside\"", StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "The record's main column and aside are not rendered.");
+        return html[start..end];
+    }
+
+    [GeneratedRegex("<(script|style)[^>]*>.*?</\\1>|<!--.*?-->", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex UnparsedContentRegex();
+
+    [GeneratedRegex(">\\s*[{}]\\s*<", RegexOptions.CultureInvariant)]
+    private static partial Regex StrayBraceRegex();
+
     [GeneratedRegex(
         "<section class=\"record-section[^\"]*\" id=\"section-([a-z-]+)\"",
         RegexOptions.CultureInvariant)]
