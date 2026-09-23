@@ -3310,12 +3310,21 @@
                 delete dialog.dataset.caseMessageState;
             });
     });
-    // Open full message closes the dialog first (capture, ahead of the edit
-    // session's unsaved-changes guard), so that question is not left behind
+    // Capture, ahead of the shell's dialog opener and the edit session's
+    // unsaved-changes guard. A modified click on Open message stays a link
+    // click (a new tab or window) rather than opening the dialog. Open full
+    // message closes the dialog first, so that question is not left behind
     // this dialog's inert backdrop.
     document.addEventListener('click', function (event) {
-        var link = event.target instanceof Element ? event.target.closest('[data-case-message-full]') : null;
-        if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey) { return; }
+        var target = event.target instanceof Element ? event.target : null;
+        if (!target) { return; }
+        var modified = event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey;
+        if (modified && target.closest('[data-correspondence] a[data-dialog-open]')) {
+            event.stopPropagation();
+            return;
+        }
+        var link = target.closest('[data-case-message-full]');
+        if (!link || modified) { return; }
         var dialog = link.closest('[data-case-message-dialog]');
         if (dialog && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
     }, true);
