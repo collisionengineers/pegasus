@@ -181,6 +181,36 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("data-editor-commit=\"{", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task TheRibbonSaveEndsEditModeAndReleasesTheLease()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<IReleaseCaseEditLease>(services, store);
+        });
+        var leased = await workspace.GetWorkspaceAsync();
+        Assert.Contains("name=\"finishEditing\" value=\"true\" data-case-save", leased, StringComparison.Ordinal);
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            Form(workspace.AntiforgeryToken,
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("finishEditing", "true"),
+                ("claimNumber", "CLM-42")));
+        AssertPrg(response, store.CaseId);
+        Assert.Single(store.Saves);
+        Assert.Single(store.Claims);
+        var release = Assert.Single(store.LeaseReleases);
+        AssertClaimant(workspace, release.Actor);
+        Assert.Equal(store.LeaseToken, release.LeaseToken);
+        var after = await workspace.GetWorkspaceAsync();
+        Assert.Contains("Case saved.", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", after, StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", after, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("Engineer", false, true)]
     [InlineData("User", false, true)]

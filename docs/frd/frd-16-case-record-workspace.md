@@ -83,10 +83,13 @@ navigation or an immediate action.
 
 **Edit session.** The whole record enters one edit mode over one lease
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Case Save, Estimate
-Save and Valuation Apply are separate commands. Saving one keeps editing open
-and keeps the other editors' pending values, including estimate rows and
-staged image preparations. Only that command's confirmed save clears its
-draft. Pending editors advance their Case version and lease only after the
+Save and Valuation Apply are separate commands. The ribbon Save ends edit
+mode and releases the lease (operator, 23 September 2026). Editing stays open
+when another editor still holds unsaved changes, when the save carries on into
+the command that asked for it, and after Estimate Save, Valuation Apply or
+Ctrl S. An open session keeps the other editors' pending values, including
+estimate rows and staged image preparations. Only that command's confirmed
+save clears its draft. Pending editors advance their Case version and lease only after the
 same operator's confirmed command, with no Case change in between. A refusal
 or unknown response keeps the proposed values and their original authority
 for review. Ctrl S submits the active dirty editor. Selecting a tab also
@@ -393,9 +396,9 @@ does not save or discard pending edits. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
 ([AI Job List](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)),
 disabled without an Engineer's Value. The Report section reads in two tabs (v28 P24): **Report**, everything the
-report itself carries, and **Fee**, the fee note the agreed fee makes — the
-fee, the VAT the report charges on it and their total, beside the agreed fee
-and its description lines, with the generated fee note to download. Without
+report itself carries, and **Fee**, the fee note the agreed fee makes: the
+agreed fee, the VAT the report charges on it and their total in one row, the
+description lines below, and the generated fee note to download. Without
 script both panes stand.
 
 The Report tab carries **Report wording** (v28 P30): every narrative block
