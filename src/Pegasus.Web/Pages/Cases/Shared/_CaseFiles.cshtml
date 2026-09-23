@@ -7,12 +7,12 @@
 @{
     var custodyState = Model.FilesSection?.CustodyState ?? CaseCustodyState.Pending;
     var custodyFolderRemoteId = Model.FilesSection?.CustodyFolderRemoteId;
-    var queryEmails = Model.FilesSection?.QueryEmails ?? [];
+    var correspondenceEmails = Model.FilesSection?.CorrespondenceEmails ?? [];
     var custodyConfirmed = custodyState == CaseCustodyState.Confirmed
         && !string.IsNullOrWhiteSpace(custodyFolderRemoteId);
     var documentCount = Model.CaseDocumentFiles.Count;
     var imageCount = Model.CaseImageFiles.Count + Model.ImageIntakes.Sum(intake => Model.ImagesByIntake.GetValueOrDefault(intake.Id, []).Count);
-    var correspondenceCount = queryEmails.Count;
+    var correspondenceCount = correspondenceEmails.Count;
     var headTools = new CaseSectionHeadView(Model, "files");
 }
 

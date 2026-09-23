@@ -1109,11 +1109,14 @@
     // the shell), so inert is set on the siblings of each of its ancestors up
     // to body - never on an ancestor - and exactly those elements are
     // released on close. Other [data-dialog]/[data-reason-dialog] elements
-    // are never inerted by this: a dialog that auto-opens on load (a
-    // settings dialog) is commonly a sibling of further action dialogs it
-    // triggers (Disable, Delete), and marking a closed sibling inert would
-    // leave it unusable the moment it opens on top; `hidden` already keeps a
-    // closed dialog out of the tab order and off screen. A
+    // and native <dialog> elements are never inerted by this: a dialog that
+    // auto-opens on load (a settings dialog) is commonly a sibling of further
+    // action dialogs it triggers (the Accounts Delete confirmation is a
+    // native dialog), and marking a closed sibling inert would leave it
+    // unusable the moment it opens on top; `hidden` already keeps a closed
+    // backdrop dialog out of the tab order and off screen, a closed native
+    // dialog is not rendered, and showModal() makes the rest of the page
+    // inert itself. A
     // module-level stack of currently-open dialogs tracks which one is
     // topmost, so a stacked open (a confirm dialog nested inside settings,
     // or an action dialog opened from a sibling settings dialog) leaves the
@@ -1124,7 +1127,7 @@
         for (var node = dialog; node && node !== document.body; node = node.parentElement) {
             Array.prototype.forEach.call(node.parentElement.children, function (sibling) {
                 if (sibling !== node && !sibling.hasAttribute('inert') && sibling.tagName !== 'SCRIPT'
-                    && !sibling.matches('[data-dialog], [data-reason-dialog]')) {
+                    && !sibling.matches('[data-dialog], [data-reason-dialog], dialog')) {
                     sibling.setAttribute('inert', '');
                     made.push(sibling);
                 }
@@ -1232,6 +1235,12 @@
                 // trap Tab; a dialog further down waits until it is on top
                 // again.
                 if (openDialogStack[openDialogStack.length - 1] !== dialog) {
+                    return;
+                }
+                // A native modal dialog opened from this one (the Accounts
+                // Delete confirmation) is not on the stack; its keys are its
+                // own, so Escape closes it rather than this dialog behind it.
+                if (event.target instanceof Element && event.target.closest('dialog[open]')) {
                     return;
                 }
                 if (event.key === 'Escape') {
