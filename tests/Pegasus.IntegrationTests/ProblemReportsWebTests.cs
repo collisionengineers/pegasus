@@ -74,7 +74,8 @@ public sealed class ProblemReportsWebTests
         Assert.Equal("/Cases?section=estimate", sent.Snapshot.Route);
         var body = ProblemReportPolicy.Body(sent);
         Assert.Contains(sent.Id.ToString("D"), body, StringComparison.Ordinal);
-        Assert.DoesNotContain("/Cases?section=estimate", body, StringComparison.Ordinal);
+        Assert.Contains("The Save button did nothing.", body, StringComparison.Ordinal);
+        Assert.Contains("/Cases?section=estimate", body, StringComparison.Ordinal);
         Assert.DoesNotContain("claimant-secret", body, StringComparison.Ordinal);
         Assert.DoesNotContain("mail-secret", body, StringComparison.Ordinal);
         Assert.Equal("QDOS26001", sent.Snapshot.CaseReference);
@@ -195,7 +196,8 @@ public sealed class ProblemReportsWebTests
         var feature = new ExceptionHandlerFeature
         {
             Path = "/Cases",
-            Error = new InvalidOperationException("The Save request failed.")
+            Error = new InvalidOperationException("The Save request failed.",
+                new InvalidOperationException("The inner cause."))
         };
         http.Features.Set<IExceptionHandlerFeature>(feature);
         http.Features.Set<IExceptionHandlerPathFeature>(feature);
@@ -232,6 +234,8 @@ public sealed class ProblemReportsWebTests
         Assert.Equal("/Cases", request.Route);
         Assert.Equal(typeof(InvalidOperationException).FullName, request.ExceptionType);
         Assert.Equal("The Save request failed.", request.ExceptionMessage);
+        Assert.Contains("InvalidOperationException: The Save request failed.", request.ExceptionDetails, StringComparison.Ordinal);
+        Assert.Contains("The inner cause.", request.ExceptionDetails, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -187,7 +187,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260922213214_ProviderSubmissionBodyDigest",
                 "20260922223104_RepairSpecificationSnapshotSupplementary",
                 "20260922224715_ProblemReportDispatchIdentity",
-                "20260922225349_ReleaseNoteCreateIdentity"
+                "20260922225349_ReleaseNoteCreateIdentity",
+                "20260923120000_StaffAccountDeletionRuntimePermissions"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

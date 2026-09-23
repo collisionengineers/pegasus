@@ -31,7 +31,7 @@ public sealed class ProblemReportTests
         operationKey ?? Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task AReportIsStoredWithFullDetailButItsPublicIssueCarriesOnlyTheReportId()
+    public async Task AReportIssueCarriesTheReporterAndCapturedContext()
     {
         var store = new FakeStore();
         var sink = new FakeSink();
@@ -44,17 +44,32 @@ public sealed class ProblemReportTests
         Assert.Equal(Now, report.SentAtUtc);
         Assert.Equal(UserId, report.StaffId);
         var sent = Assert.Single(sink.Sent);
-        Assert.Equal($"Pegasus problem report {sent.Id:D}", ProblemReportPolicy.Title(sent));
+        Assert.Equal($"Pegasus: The Save button did nothing. [{sent.Id:D}]", ProblemReportPolicy.Title(sent));
         var body = ProblemReportPolicy.Body(sent);
         Assert.Contains(sent.Id.ToString("D"), body, StringComparison.Ordinal);
-        Assert.DoesNotContain(sent.Description, body, StringComparison.Ordinal);
-        Assert.DoesNotContain("QDOS26001", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("integration-user", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("TypeError: x is undefined", body, StringComparison.Ordinal);
+        Assert.Contains(sent.Description, body, StringComparison.Ordinal);
+        Assert.Contains("QDOS26001", body, StringComparison.Ordinal);
+        Assert.Contains("integration-user", body, StringComparison.Ordinal);
+        Assert.Contains("TypeError: x is undefined", body, StringComparison.Ordinal);
+        Assert.Contains("No server exception was captured", body, StringComparison.Ordinal);
         Assert.Equal("QDOS26001", sent.Snapshot.CaseReference);
         Assert.Null(logs.LastFilter!.Actor);
         Assert.Equal(UserId.ToString("D"), logs.LastFilter.ActingActor);
         Assert.Equal(ProblemReportPolicy.RecentActionCount, logs.LastFilter.PageSize);
+    }
+
+    [Fact]
+    public void IssueBodyIncludesCapturedInnerExceptionAndStack()
+    {
+        var report = RetainedReport(0);
+        var details = "System.InvalidOperationException: deletion failed\n ---> Microsoft.Data.SqlClient.SqlException: DELETE permission denied\n   at Pegasus.Delete()";
+        report = report with { Snapshot = report.Snapshot with { ExceptionDetails = details } };
+
+        var body = ProblemReportPolicy.Body(report);
+
+        Assert.Contains("DELETE permission denied", body, StringComparison.Ordinal);
+        Assert.Contains("at Pegasus.Delete()", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("No server exception was captured", body, StringComparison.Ordinal);
     }
 
     [Fact]

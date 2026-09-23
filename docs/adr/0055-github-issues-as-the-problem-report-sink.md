@@ -1,7 +1,7 @@
 ---
 id: ADR-0055
 status: accepted
-date: 2026-09-20
+date: 2026-09-23
 supersedes: []
 superseded_by: []
 related_capabilities: []
@@ -13,53 +13,56 @@ tags: [problem-reports, support, github, persistence]
 
 ## Status
 
-Accepted, recording the operator's 20 September 2026 decision and the 22
-September choice of the public `collisionengineers/pegasus` repository. FRD-12 owns
-the Report a problem action; FRD-17 owns the Administrator's list; this
-record owns where a report goes and what it carries.
+Accepted. Rewritten on 23 September 2026 at the operator's direction after
+issues #809 and #810 showed that the previous ID-only issue design did not
+serve diagnosis. FRD-12 owns Report a problem; FRD-17 owns the
+Administrator's list. This record owns delivery and diagnostic content.
 
 ## Context
 
-When something goes wrong a staff member needs one press to say so, and the
-people who fix Pegasus need the state around it without asking. The
-operator keeps the work in the repository's issues, so a report that
-arrives there is already in the queue that gets worked.
+When something goes wrong a staff member needs one press to say so. The
+people who fix Pegasus need the person's explanation and the captured
+application state directly in the GitHub issue that they work.
 
 ## Decision
 
 Pegasus keeps one **ProblemReports** table in the application database,
-owned by `Pegasus.Core` through a problem report store port. A report is the
-person's own words plus a snapshot the application captures: the build's
-version and source SHA, the route and method, the trace identifier, the
-person's name and role, the Case reference on screen, the exception the
-Error page remembered for that trace, the person's own last twenty acts
-from the action log, and the browser's window, agent, editing state and
-last ten script errors. It never carries document content, images, e-mail
-bodies or a claimant's personal data.
+owned by `Pegasus.Core` through a problem report store port. A report stores
+the person's complete submitted description and a bounded snapshot: build
+version and source SHA, UTC time, route and method, trace identifier, staff
+name and role, Case reference on screen, the person's last twenty logged
+actions, and browser viewport, agent, editing state and last ten script
+errors. When a report comes from the Error page, the snapshot also carries
+the captured server exception, including inner causes and stack trace. A
+report without a captured exception says so plainly; Pegasus does not infer
+one from an unrelated request. The application does not automatically
+collect documents, images, email bodies or request bodies for a report.
 
-Every report is stored first, then raised as an issue on the configured public
-`collisionengineers/pegasus` repository through the GitHub REST API by an
-outbound-only sink. The public issue contains only the opaque local report ID;
-the full description and snapshot remain visible to authorised staff in
-Administration → Problem reports. A failed
-raise leaves the row Not sent with the reason; an Administrator retries
-from Administration → Problem reports. The token is a fine-grained personal
-access token scoped to that repository with Issues read and write only,
-held in Key Vault and read as configuration; it appears in no source, log or
-document. The sink verifies the repository identity before creating the issue.
+Every report is stored first, then raised as an issue in
+`collisionengineers/pegasus` through the GitHub REST API. The issue title
+summarises the first line of the description and retains the report ID. Its
+body carries the full description and captured snapshot, including server
+exception detail when available. The issue is the diagnostic work item;
+staff need not copy the report from Administration to make it actionable.
+A failed raise leaves the row Not sent with the reason; an Administrator
+retries the same stored report from Administration → Problem reports.
+
+The token is a fine-grained personal access token scoped to that repository
+with Issues read and write only, held in Key Vault and read as configuration;
+it appears in no source, log or document. The sink verifies the repository
+identity before creating the issue.
 
 ## Consequences
 
-- One additive migration, one Core port pair (store and sink), one named
-  HttpClient; no queue or background process. Web alone writes the table and
-  is denied DELETE.
+- One Core store port and sink port, one named HttpClient; no queue or
+  background process. Web alone writes the table and is denied DELETE.
 - Without the token and repository configured (DevelopmentOffline, or an
   environment not yet connected) every report is kept as Not sent with the
   reason, so nothing a person wrote is lost.
 - Rotating the token is a Key Vault secret version change and a
   configuration read-back; no release is needed.
-- Adding what a report carries is a Core change to the snapshot and this
-  record's list, never a silent widening.
+- Adding what a report captures or publishes requires a Core change and
+  an update to this record's list.
 
 ## Links
 
