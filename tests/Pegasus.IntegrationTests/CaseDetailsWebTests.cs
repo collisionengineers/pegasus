@@ -407,11 +407,28 @@ public sealed class CaseDetailsWebTests
 
         var reading = WebUtility.HtmlDecode(OverviewPanel(await ReadCaseAsync(store)));
 
-        Assert.Contains(
-            "data-claim-source-contact>Case Handler · 0113 000 0000 · case@acme.example</div>",
-            reading,
-            StringComparison.Ordinal);
+        // Three cells, the same in both modes: each the Case's override where
+        // one is recorded, else the contact copied from the record.
+        foreach (var (part, label, value) in new[]
+        {
+            ("name", "Claim source contact name", "Case Handler"),
+            ("phone", "Claim source contact phone", "0113 000 0000"),
+            ("email", "Claim source contact e-mail", "case@acme.example")
+        })
+        {
+            Assert.Contains(
+                $"<div class=\"fc ro\" data-claim-source-contact=\"{part}\"><span class=\"lbl\">{label}</span><div class=\"fv\">{value}</div></div>",
+                reading,
+                StringComparison.Ordinal);
+        }
         Assert.DoesNotContain("name=\"claimSourceContactName\"", reading, StringComparison.Ordinal);
+
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        var editing = WebUtility.HtmlDecode(OverviewPanel(await workspace.GetWorkspaceAsync()));
+        Assert.Contains(
+            "name=\"claimSourceContactTelephone\" form=\"case-edit-form\" maxlength=\"100\" value=\"0113 000 0000\"",
+            editing,
+            StringComparison.Ordinal);
     }
 
     /// <summary>

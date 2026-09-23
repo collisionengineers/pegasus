@@ -202,11 +202,12 @@
         var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
         var chosen = Model.AssessmentEditorValue(path);
+        var pills = definition.Type == AssessmentFieldType.Enumerated;
         <div class="dec" data-decision="@path" data-shown-when="@shownWhen" hidden="@(hidden ? "hidden" : null)">
             <span class="dl">@label</span>
             @{ Proposal(path); }
-            @{ await Field(path, label); }
-            @if (editable && definition.Type == AssessmentFieldType.Enumerated)
+            @{ await Field(path, label, pills: pills && !editable); }
+            @if (pills && editable)
             {
                 @* P29: the codes as a radio group. The select above stays the
                    posted control; script shows this group and hides the select,
@@ -216,6 +217,19 @@
                     @foreach (var code in definition.Codes ?? [])
                     {
                         <button type="button" class="pick-radio" role="radio" aria-checked="@(chosen == code ? "true" : "false")" tabindex="@(chosen == code ? "0" : "-1")" data-radio-value="@code"><span class="dot"></span>@Pegasus.Web.Pages.Cases.DetailsModel.CodeWords(code)</button>
+                    }
+                </div>
+            }
+            else if (pills)
+            {
+                @* Reading, the same group draws greyed and still: the choice
+                   reads where it is made (23 September 2026). The value box
+                   above carries the words for assistive technology. *@
+                <div class="radiorow is-static" aria-hidden="true" data-decision-radios-read="@path">
+                    <span class="pick-radio" data-on="@(chosen is null ? "true" : "false")"><span class="dot"></span>@OperatorLabels.CaseWorkspace.AbsentValue</span>
+                    @foreach (var code in definition.Codes ?? [])
+                    {
+                        <span class="pick-radio" data-on="@(chosen == code ? "true" : "false")"><span class="dot"></span>@Pegasus.Web.Pages.Cases.DetailsModel.CodeWords(code)</span>
                     }
                 </div>
             }
@@ -285,27 +299,27 @@
     // One assessment cell on the vocabulary's own type: a Yes/No select for a
     // flag, the codes for an enumeration, a money/number/date input, a text
     // input or textarea. The control renders only while the field edits.
-    private async Task Field(string path, string label, bool multi = false, string? extraClass = null)
+    private async Task Field(string path, string label, bool multi = false, string? extraClass = null, bool pills = false)
     {
         var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
         var value = Model.AssessmentEditorValue(path);
-        var raw = Model.Assessment?.Field(path)?.Value;
-        var absent = string.IsNullOrWhiteSpace(raw);
+        var absent = Model.AssessmentIsAbsent(path);
+        var tag = Model.AssessmentSourceTag(path);
         var name = CaseWorkspaceLabels.Editors.FormName(path);
         var id = "f-" + path.Replace('.', '-').Replace('_', '-');
         var mono = definition.Type is AssessmentFieldType.Money or AssessmentFieldType.WholeNumber;
         var isMulti = multi || (definition.Type == AssessmentFieldType.Text && definition.MaximumLength > 500);
-        <div class="fc @extraClass" data-field="@path">
+        <div class="fc @extraClass @(editable ? null : "ro")" data-field="@path">
             @if (editable)
             {
-                <label for="@id">@label</label>
+                <label for="@id">@label@(tag?.Render())</label>
             }
             else
             {
-                <span class="lbl">@label</span>
+                <span class="lbl">@label@(tag?.Render())</span>
             }
-            <div class="fv @(mono ? "mono" : null) @(isMulti ? "multi" : null) @(absent ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
+            <div class="fv @(mono ? "mono" : null) @(isMulti ? "multi" : null) @(absent ? "empty" : null) @(pills ? "sr-only" : null)">@Model.AssessmentDisplay(path)</div>
             @if (editable)
             {
                 if (definition.Type == AssessmentFieldType.Flag)

@@ -783,41 +783,32 @@
 })();
 
 // Inspect-at choices fill the ordinary form-associated address
-// input. The input remains the no-script editing path.
+// input. The input remains the no-script editing path. The cells stay where
+// they are: reading and editing show the same fields (23 September 2026).
 (function () {
     function bind(root) {
         root.querySelectorAll('[data-inspection-address-choice]').forEach(function (select) {
             if (select.dataset.inspectionAddressBound === 'true') return;
             var input = document.querySelector('[data-inspection-address-input]');
             var mode = document.querySelector('input[name="inspectionMode"]');
-            var field = document.querySelector('[data-inspection-address-field]');
-            var providerDefault = document.querySelector('[data-inspection-provider-default]');
-            if (!input || !mode || !field || !providerDefault) return;
+            if (!input || !mode) return;
 
             select.dataset.inspectionAddressBound = 'true';
-            function showImageBasedAssessment(show) {
-                field.hidden = show;
-                providerDefault.hidden = !show;
-            }
             function choose() {
                 var option = select.options[select.selectedIndex];
                 if (!option) return;
                 if (option.value === 'ManualEntry') {
                     if (input.value.toLowerCase() === 'image based assessment') input.value = '';
                     mode.value = input.value.trim() ? 'PhysicalAddress' : '';
-                    showImageBasedAssessment(false);
                     return;
                 }
                 input.value = option.dataset.address || '';
-                var imageBased = option.value === 'ImageBasedAssessment';
-                mode.value = imageBased ? 'ImageBasedAssessment' : 'PhysicalAddress';
-                showImageBasedAssessment(imageBased);
+                mode.value = option.value === 'ImageBasedAssessment' ? 'ImageBasedAssessment' : 'PhysicalAddress';
             }
             select.addEventListener('change', choose);
             input.addEventListener('input', function () {
                 mode.value = input.value.trim() ? 'PhysicalAddress' : '';
             });
-            showImageBasedAssessment(select.value === 'ImageBasedAssessment');
         });
     }
     bind(document);

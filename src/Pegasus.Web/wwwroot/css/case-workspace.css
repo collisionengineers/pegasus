@@ -32,14 +32,11 @@
    a locked section keeps its availability sentence. */
 .case-record.is-editing [data-section-edit]{display:none}
 
-/* Text tags: a source or provenance word beside a value ("DVLA", "AI",
-   "Principal default"). Not the shared .prov icon. */
-.src-tag{display:inline-flex;align-items:center;font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface-2);white-space:nowrap;vertical-align:middle}
-.src-tag--ai{color:var(--navy);border-color:var(--navy);background:var(--navy-bg)}
-.src-tag--lookup{color:var(--blue);border-color:var(--blue);background:var(--blue-bg)}
-.src-tag--warn{color:var(--amber);border-color:var(--amber);background:var(--amber-bg)}
-.fc .fv .src-tag{margin-left:2px}
+/* Source tags (.src-tag) are the shared site.css component. */
 .fc .fv.derived{color:var(--muted)}
+/* The record's Save form holds only hidden fields: it takes no place in the
+   section, so entering edit moves nothing. */
+.case-record #case-edit-form{display:contents}
 
 /* Aside: Figures and Next action. */
 .next-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px}
@@ -61,10 +58,7 @@
 .sub-panel.blockers .blocker{background:#fff}
 .overview-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:10px}
 .accident{border:1px solid #bfcbd1;background:#f6f9fa;padding:10px 12px;border-radius:var(--radius)}
-.accident .fc .fv{background:transparent}
 .notes-band .fg.g2{column-gap:14px}
-.notes-band .fc .fv.multi{min-height:36px}
-.rec-notes .fv.multi{background:var(--surface-2);border-left:2px solid var(--line-strong);padding:6px 8px;border-radius:2px;white-space:pre-wrap}
 .fc .fv.multi{white-space:pre-wrap}
 .audit-facts{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;margin:0;align-items:baseline}
 .audit-facts dt{font:600 10.5px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
@@ -102,10 +96,8 @@
 
 /* ==== vehicle ==== */
 /* ---- Inspection details and Vehicle (lane A) ---- */
-.address-lines{display:grid;gap:1px}
 .record-section>.panel-head>.meta.empty{color:var(--quiet)}
 .record-section>.panel-head>.meta[data-vehicle-lookup-line]{flex:1 1 auto;text-align:right;padding-right:6px}
-.fc .fv .prov{margin-left:2px;width:18px;height:18px}
 .vehicle-history .fc .fv.multi{white-space:pre-wrap}
 [data-inspection-provider-default][hidden]{display:none}
 @media(max-width:1180px){.record-section>.panel-head>.meta[data-vehicle-lookup-line]{flex-basis:100%;text-align:left;padding-right:0}}
@@ -116,7 +108,7 @@
 #section-damage .damage-workbench{display:grid;grid-template-columns:minmax(220px,300px) minmax(260px,1fr);gap:14px;align-items:start}
 #section-damage .damage-view{margin:0 auto;width:100%;max-width:300px}
 #section-damage .damage-facts{min-width:0}
-#section-damage .damage-diagram{display:block;inline-size:100%;block-size:auto;margin:0 auto;overflow:visible}
+#section-damage .damage-diagram{display:block;inline-size:100%;block-size:auto;margin:0 auto;overflow:hidden}
 #section-damage .damage-diagram-label{fill:var(--quiet);font:650 8px/1 var(--font);letter-spacing:.1em}
 #section-damage .dv-body{fill:#fff;stroke:var(--line-strong);stroke-width:1.2;stroke-linejoin:round}
 #section-damage .dv-glass{fill:#cfd8de;stroke:var(--line-strong);stroke-width:.6}
@@ -149,13 +141,12 @@
 #section-damage .dv-legend i{width:10px;height:10px;border-radius:2px;border:1px solid var(--red)}
 #section-damage .damage-extra{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:8px}
 #section-damage .damage-extra .btn.is-damaged{border-color:var(--red);background:var(--red);color:#fff}
+/* Read mode: the same chips, greyed and inert; a recorded one keeps its fill. */
+#section-damage .damage-extra .btn.is-static{cursor:default;pointer-events:none;border-color:var(--line);background:var(--surface-2);color:var(--muted)}
+#section-damage .damage-extra .btn.is-static.is-damaged{border-color:var(--red);background:var(--red);color:#fff}
 #section-damage .impact-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
 #section-damage .impact-list .muted{font-size:12.5px}
 #section-damage .impact-row{display:grid;grid-template-columns:1fr 150px 1fr 30px;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
-#section-damage .impact-row--areas{grid-template-columns:1fr minmax(200px,2fr) 150px 1fr 30px}
-#section-damage .damage-area-set{display:flex;flex-wrap:wrap;gap:4px 10px;min-width:0;margin:0;padding:4px;border:1px solid var(--line);border-radius:var(--radius)}
-#section-damage .damage-area-set legend{font-size:11px;color:var(--quiet);padding:0 4px}
-#section-damage .damage-area-set label{display:inline-flex;align-items:center;gap:4px;font-size:11px}
 #section-damage .impact-row.is-hover{border-color:var(--navy)}
 #section-damage .impact-row .zc{font:600 11px var(--mono);color:var(--ink);display:inline-flex;align-items:center;min-width:0}
 #section-damage .impact-row .zn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font:700 10px/1 var(--font);margin-right:6px;flex:none}
@@ -171,7 +162,6 @@
 @media(max-width:1180px){#section-damage .thumbs.evidence{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:900px){#section-damage .damage-workbench{grid-template-columns:1fr}#section-damage .damage-view{max-width:320px}}
 @media(max-width:760px){#section-damage .impact-row{grid-template-columns:1fr 1fr}#section-damage .thumbs.evidence{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:760px){#section-damage .impact-row--areas .damage-area-set{grid-column:1/-1}}
 
 
 /* ==== valuation ==== */
@@ -192,18 +182,16 @@
 #section-valuation .valuation-card h3{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:12.5px;font-weight:700;min-width:0}
 #section-valuation .valuation-card .pick{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);font-weight:500;cursor:pointer}
 #section-valuation .valuation-card .pick input{accent-color:var(--navy);margin:0}
-#section-valuation .valuation-card .figs{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-#section-valuation .valuation-card .figs div{font-size:11px;color:var(--muted)}
-#section-valuation .valuation-card .figs b{display:block;font-family:var(--mono);font-size:13.5px;color:var(--ink);font-weight:650}
-#section-valuation .valuation-card .figs b.derived{color:var(--quiet)}
+/* A source card (23 September 2026): the figures are the record's own .fc
+   cells, greyed boxes while reading and inputs while editing, a little more
+   compact than a section's fields so five cards fit their row. */
+#section-valuation .valuation-card .fg{gap:6px 8px}
+#section-valuation .valuation-card .fg.meta{margin-top:6px}
+#section-valuation .valuation-card .fc .fv,#section-valuation .valuation-card .fc .fi{min-height:28px;padding:3px 7px;font-size:12.5px}
 #section-valuation .valuation-card .meta{margin-top:6px;font-size:11px;color:var(--muted)}
-/* An entry card (v26, 15 September): the source's figures in boxes, typed or filled by Get valuation, saved by the card. */
-#section-valuation .valuation-card.entry .figs label,#section-valuation .valuation-card.entry .meta label{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);min-width:0}
-#section-valuation .valuation-card.entry .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-#section-valuation .valuation-card.entry input.fi{width:100%;min-height:28px;padding:3px 7px;font-size:12.5px;border-color:var(--line-strong)}
-#section-valuation .valuation-card.entry .entry-actions{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-top:8px}
-#section-valuation .valuation-card.entry .entry-actions [data-valuation-source]{grid-column:2}
-#section-valuation .valuation-card.entry .entry-actions [data-valuation-save]{grid-column:3;justify-self:end}
+#section-valuation .valuation-card .notice{margin-top:8px;padding:6px 8px;font-size:12px}
+#section-valuation .valuation-card .notice .link-button{color:inherit;text-decoration:underline}
+#section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:center;margin-top:8px}
 #section-valuation .valuation-card.is-pending .meta::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:valspin .8s linear infinite}
 @keyframes valspin{to{transform:rotate(360deg)}}
 #section-valuation .valuation-card .gated{margin-left:0}
@@ -219,7 +207,8 @@
 #section-valuation .add:not(.on) .amt,#section-valuation .add:not(.on) input[type=text]{opacity:.55}
 #section-valuation .add .add-check{display:inline-grid;place-items:center;width:15px;height:15px;color:var(--green)}
 #section-valuation .add .add-check .icon{width:13px;height:13px}
-.case-record:not(.is-editing) #section-valuation .add:not(.on){display:none}
+/* On the report: the switches stand in the summary's cell while editing. */
+#section-valuation .fc .fi.switches{border:0;padding-left:0;background:transparent}
 #section-valuation .fc .fi.chk.choice{border:0;padding-left:0;display:none;align-items:center;gap:7px;min-height:var(--control);font-size:12.5px}
 .case-record.is-editing #section-valuation .fc .fi.chk.choice{display:inline-flex}
 #section-valuation .fc .fi.chk.choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
@@ -248,6 +237,11 @@
 #section-settlement .pick-radio[aria-checked="true"]{border-color:var(--navy);background:#f4f7fa;font-weight:600}
 #section-settlement .pick-radio[aria-checked="true"] .dot{border-color:var(--navy);background:var(--navy);box-shadow:inset 0 0 0 2px #fff}
 #section-settlement .pick-radio:focus-visible{outline:2px solid var(--navy);outline-offset:1px}
+/* Reading, the same group is greyed and still. */
+#section-settlement .radiorow.is-static .pick-radio{background:var(--surface-2);color:var(--muted);cursor:default}
+#section-settlement .radiorow.is-static .pick-radio:hover{border-color:var(--line);color:var(--muted)}
+#section-settlement .radiorow.is-static .pick-radio[data-on="true"]{border-color:var(--line-strong);color:var(--ink)}
+#section-settlement .radiorow.is-static .pick-radio[data-on="true"] .dot{border-color:var(--muted);background:var(--muted)}
 #section-settlement .salvage-share{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px}
 #section-settlement .salvage-share input[type="range"]{flex:1;min-width:120px;accent-color:var(--navy)}
 #section-settlement .salvage-share .snaps{display:inline-flex;gap:4px}
@@ -288,6 +282,10 @@
 .wb-tools{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
 .wb-tools .choice{display:inline-flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
 .wb textarea.fi{width:100%}
+/* Reading, a block's heading and wording are ordinary read-only cells. */
+.wbh>.fc.wbt{flex:1 1 180px}
+.wbh>.fc.wbt .fv{font-weight:600}
+.wb-tools .choice .icon{width:13px;height:13px}
 
 /* ==== estimate ==== */
 /* ---- Estimate (v26 § Estimate) ---------------------------------------------- */

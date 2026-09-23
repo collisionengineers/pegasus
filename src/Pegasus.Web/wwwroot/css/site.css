@@ -1029,27 +1029,29 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .gated:not([data-condition]) .icon{width:12px;height:12px}
 .avail{margin-left:auto}
 
-/* One geometry for read and edit (v25 decision 2). A .fg grid of .fc cells;
-   each cell is a label, a value box (.fv) and a control box (.fi) in the
-   same 36px-minimum box; only the border and background change. .is-editing
-   on the record (or any ancestor) shows the controls; .is-locked on a
-   section keeps that section reading; .ro marks a cell that never edits;
-   .idn marks an identity cell that reads with a lock glyph (.lk) and a
-   quiet fill while the rest of the page edits. */
+/* One look for read and edit (operator, 23 September 2026). A .fg grid of
+   .fc cells; each cell is a label, a value box (.fv) and, while the cell
+   edits, a control box (.fi) in the same 36px-minimum box. The value box is
+   a greyed box in every mode, so a value that cannot be edited reads as one;
+   .is-editing on the record (or any ancestor) swaps an editable cell's value
+   box for its white control. .ro marks a cell with no control — the server
+   sets it wherever it renders none, so its value stays in place while the
+   rest of the page edits; .is-locked on a section keeps that section
+   reading. A source word (.src-tag) sits in the label line. */
 .fg{display:grid;gap:10px 14px}
 .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
 .fc{min-width:0}
 .fc>label,.fc>.lbl{display:block;font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:0 0 3px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fc .fv,.fc .fi{min-height:var(--control);padding:6px 9px;border:1px solid transparent;border-radius:var(--radius);font-size:13.5px;line-height:1.4;width:100%}
-.fc .fv{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere}
+.fc>label .src-tag,.fc>.lbl .src-tag{margin-left:6px;vertical-align:1px;letter-spacing:.04em}
+.fc .fv,.fc .fi{min-height:var(--control);padding:6px 9px;border:1px solid var(--line);border-radius:var(--radius);font-size:13.5px;line-height:1.4;width:100%}
+.fc .fv{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere;background:var(--surface-2)}
 .fc .fv.mono{font-family:var(--mono)}
 .fc .fv.multi{align-items:flex-start;min-height:72px}
-.fc .fv.empty{color:var(--quiet)}
+.fc .fv.empty{color:var(--muted)}
 .fc .fi{display:none;border-color:var(--line-strong);background:#fff}
 .fc textarea.fi{min-height:72px;resize:vertical}
-.fc .lk{display:none;width:11px;height:11px;vertical-align:-1px;margin-left:4px;flex:none}
 .fc.span2{grid-column:span 2}
 .fc.span3{grid-column:span 3}
 .fc.span4{grid-column:span 4}
@@ -1058,10 +1060,8 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .is-editing .fc:not(.ro) .fv{display:none}
 .is-editing .fc:not(.ro) .fi{display:block}
 .is-editing .fc:not(.ro) .fi.chk{display:inline-flex}
-.is-editing .fc.idn .lk{display:inline-block}
-.is-editing .fc.idn .fv{background:var(--surface-2);border-color:var(--line)}
-.is-editing .is-locked .fc .fv{display:flex;background:transparent;border-color:transparent}
-.is-editing .is-locked .fc .fi,.is-editing .is-locked .fc .lk{display:none}
+.is-editing .is-locked .fc .fv{display:flex}
+.is-editing .is-locked .fc .fi{display:none}
 .switches{display:none;flex-wrap:wrap;gap:4px 16px;border:0;padding:0}
 .is-editing .switches{display:flex}
 .is-editing .is-locked .switches{display:none}
@@ -2284,48 +2284,21 @@ table tfoot th {
 .subtabs a[aria-current="page"] { border-color: var(--charcoal); background: var(--charcoal); color: #fff; }
 .subtabs a[aria-current="page"] .n { color: #c9c6c2; }
 /* ---------------------------------------------------------------------------
-   Provenance. Where a value came from is never a sentence, a source label, a
-   policy key or a third table column: it is a small icon whose tooltip — on
-   hover and on keyboard focus — is exactly one word. The row must still make
-   sense with the icon ignored, so the icon is always supplementary.
+   Source tags. Where a value came from is one visible word in a small pill —
+   Extracted, AI, E-mail, Lookup, Principal, Automatic — never a sentence, a
+   source label or a policy key (operator, 23 September 2026: one tag system,
+   the Lookup chip's). A value staff typed or corrected carries no tag. Lookup
+   reads blue and AI navy; every other source is the neutral tag. The same pill
+   names other short origins beside a value (AI, Manual, Amended), and --warn
+   marks a caution word.
    --------------------------------------------------------------------------- */
 
-.prov {
-  position: relative;
-  display: inline-flex;
-  width: 22px;
-  height: 22px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  color: #8c8880;
-  cursor: help;
-}
+.src-tag{display:inline-flex;align-items:center;font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface-2);white-space:nowrap;vertical-align:middle}
+.src-tag--ai{color:var(--navy);border-color:var(--navy);background:var(--navy-bg)}
+.src-tag--lookup{color:var(--blue);border-color:var(--blue);background:var(--blue-bg)}
+.src-tag--warn{color:var(--amber);border-color:var(--amber);background:var(--amber-bg)}
 
-.prov:hover, .prov:focus-visible { background: rgba(22, 25, 29, .05); color: var(--charcoal); }
-.prov .icon { width: .9375rem; height: .9375rem; }
-
-.prov::after {
-  position: absolute;
-  right: -2px;
-  bottom: calc(100% + 5px);
-  padding: 3px var(--sp-2);
-  border-radius: 4px;
-  background: var(--band);
-  color: #fff;
-  content: attr(data-word);
-  font-size: var(--t-eyebrow);
-  font-weight: 600;
-  opacity: 0;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.prov:hover::after, .prov:focus-visible::after { opacity: 1; }
-
-/* The same tooltip shape carries a disabled control's condition. */
+/* A tooltip shape carries a disabled control's condition. */
 .gated { position: relative; display: inline-flex; }
 
 .gated::after {
@@ -2394,7 +2367,8 @@ table tfoot th {
 
 @media (forced-colors: active) {
   .tabs a, .subtabs a { border: 1px solid CanvasText; }
-  .prov::after, .gated::after { forced-color-adjust: none; }
+  .gated::after { forced-color-adjust: none; }
+  .src-tag { border-color: CanvasText; }
 }
 /* Confirmed completion of an action taken on another page. */
 .status-card--done {

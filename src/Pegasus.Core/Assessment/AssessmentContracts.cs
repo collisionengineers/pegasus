@@ -24,13 +24,14 @@ public enum AssessmentFieldType
 }
 
 /// <summary>
-/// One recorded damage (v28 P5, ruled 20 September 2026): the areas it
-/// covers in the vocabulary's order, a severity and a note. A disc drawn on
-/// the plan names one or more of the eight plan areas; Underside, Interior
-/// and Mechanical are each recorded alone. The record keeps the areas only;
-/// the disc is drawn from them.
+/// One recorded damage (v28 P5): the areas it covers in the vocabulary's
+/// order, a severity and a note. A damage drawn on the plan keeps its
+/// <paramref name="Disc"/> as drawn (unit-plan terms, see
+/// <see cref="DamageAreaGeometry"/>) and names exactly the plan areas that
+/// disc touches (ruled 23 September 2026). A damage recorded by area alone,
+/// and Underside, Interior and Mechanical, each recorded alone, have no disc.
 /// </summary>
-public sealed record AssessmentImpact(IReadOnlyList<string> Areas, string Severity, string Note);
+public sealed record AssessmentImpact(IReadOnlyList<string> Areas, string Severity, string Note, DamageDisc? Disc = null);
 
 public sealed record AssessmentFieldDefinition(
     string Path,

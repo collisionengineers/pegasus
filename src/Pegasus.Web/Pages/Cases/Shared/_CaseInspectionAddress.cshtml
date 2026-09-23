@@ -1,9 +1,9 @@
 @*
-    Inspection details (v26): the inspection facts as one geometry — type,
-    date, Inspect at, the recorded address with its provenance word, the
-    Principal's default only where the Case holds something else — then the
-    Repairer and Storage sub-panels. Storage per day and the recovery charge
-    live here (v25 decision E); Settlement keeps only the derived charge.
+    Inspection details (v26): the inspection facts as one look for reading and
+    editing — type, date, Inspect at, the recorded address with its source
+    tag, the Principal's default only where the Case holds something else —
+    then the Repairer and Storage sub-panels. Storage per day and the recovery
+    charge live here (v25 decision E); Settlement keeps only the derived charge.
 
     Every control joins the record's one Save form, #case-edit-form,
     so this section never posts a second whole-record form. The address input
@@ -33,7 +33,8 @@
     var providerDefault = new[] { address?.Confirmed, address?.Fact, address?.Suggestion }
         .FirstOrDefault(value => value?.Source.Kind == CaseDataSourceKind.ProviderSetting);
     var mode = data?.Inspection.Mode.Current;
-    var inspectionDate = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.InspectionDate)?.Value;
+    var inspectionDateValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.InspectionDate);
+    var inspectionDate = inspectionDateValue?.Value;
     var storage = data?.Inspection.StorageLocation?.Current;
     var repairerName = data?.Inspection.RepairerName?.Current;
     var repairerAddress = data?.Inspection.RepairerAddress?.Current;
@@ -45,22 +46,17 @@
         && string.Equals(choice.Address, recorded.Value, StringComparison.OrdinalIgnoreCase))
         ?? choices.FirstOrDefault(choice => choice.Kind == InspectionAddressChoiceKind.ManualEntry);
     // One row per fact: the Principal's default only where the Case does not
-    // already hold it, and the mode only where its words are not the value
-    // already shown.
+    // already hold it. The mode reads once, in Inspection type.
     var showProviderDefault = providerDefault is not null
         && !string.Equals(providerDefault.Value, recorded?.Value, StringComparison.OrdinalIgnoreCase);
     var modeLabel = mode is null ? null : OperatorLabels.InspectionMode(mode.Value);
-    var showModeChip = modeLabel is not null
-        && !string.Equals(modeLabel, recorded?.Value, StringComparison.OrdinalIgnoreCase);
-    var isPhysicalAddress = mode?.Value == CaseInspectionMode.PhysicalAddress;
-    var addressLines = recorded is null
-        ? Array.Empty<string>()
-        : recorded.Value.Split([',', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     var storagePerDay = Model.AssessmentEditorValue(AssessmentVocabulary.SettlementStoragePerDay);
     var recoveryCharge = Model.AssessmentEditorValue(AssessmentVocabulary.CostRecoveryCharge);
 
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
+    // A cell without a control is .ro, so its value stays while the record edits.
+    string? Ro(bool editable) => editable ? null : "ro";
     string Money(string? text) => decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
         ? "£" + amount.ToString("N2", CultureInfo.GetCultureInfo("en-GB"))
         : Value(text);
@@ -92,8 +88,8 @@
                 <span class="lbl">@InspectionLabels.InspectionType</span>
                 <div class="@ValueClass(modeLabel)">@Value(modeLabel)</div>
             </div>
-            <div class="fc">
-                @{ Lbl("f-inspection-date", InspectionLabels.InspectionDate); }
+            <div class="fc @Ro(mayEdit)">
+                @{ Lbl("f-inspection-date", InspectionLabels.InspectionDate, OperatorLabels.SourceTag(inspectionDateValue?.Source)); }
                 <div class="@ValueClass(inspectionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(inspectionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>
                 @if (mayEdit)
                 {
@@ -101,7 +97,7 @@
                            value="@inspectionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
                 }
             </div>
-            <div class="fc" data-inspection-choice-cell>
+            <div class="fc @Ro(mayEdit)" data-inspection-choice-cell>
                 @{ Lbl("inspection-address-choice", OperatorLabels.CaseWorkspace.InspectAt); }
                 <div class="@ValueClass(selectedChoice is null ? null : ChoiceLabel(selectedChoice))">@(selectedChoice is null ? OperatorLabels.CaseWorkspace.AbsentValue : ChoiceLabel(selectedChoice))</div>
                 @if (mayEdit)
@@ -117,45 +113,17 @@
                     </select>
                 }
             </div>
-            <div class="fc" data-inspection-address-field data-inspection-address>
-                @{ Lbl("inspection-address", OperatorLabels.CaseWorkspace.InspectionAddressPanel); }
-                <div class="@ValueClass(recorded?.Value)" data-inspection-address-read>
-                    @if (recorded is null)
-                    {
-                        @OperatorLabels.CaseWorkspace.NotRecorded
-                    }
-                    else if (isPhysicalAddress)
-                    {
-                        <div class="address-lines">
-                            @foreach (var line in addressLines)
-                            {
-                                <div>@line</div>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <span>@recorded.Value</span>
-                    }
-                    @if (recorded is not null)
-                    {
-                        var (word, _) = OperatorLabels.Provenance(recorded.Source);
-                        <span class="src-tag" data-provenance-word="@word">@(recorded.Source.Kind == CaseDataSourceKind.ProviderSetting ? OperatorLabels.CaseWorkspace.PrincipalDefaultInspectionAddress : word)</span>
-                    }
-                    @if (showModeChip)
-                    {
-                        <span class="status status--navy status--plain">@modeLabel</span>
-                    }
-                </div>
+            <div class="fc @Ro(mayEdit)" data-inspection-address-field data-inspection-address>
+                @{ Lbl("inspection-address", OperatorLabels.CaseWorkspace.InspectionAddressPanel, OperatorLabels.SourceTag(recorded?.Source)); }
+                <div class="@ValueClass(recorded?.Value)" data-inspection-address-read>@(recorded is null ? OperatorLabels.CaseWorkspace.NotRecorded : recorded.Value)</div>
                 @if (mayEdit)
                 {
                     <input id="inspection-address" class="fi" name="inspectionAddress" form="case-edit-form"
                            maxlength="1000" value="@recorded?.Value" data-inspection-address-input />
                 }
             </div>
-            @* Rendered whenever the Principal has a default; shown by the Inspect-at
-               block only while the choice is image based, and by the read view
-               only where the recorded address differs from it. *@
+            @* Rendered whenever the Principal has a default; shown, reading and
+               editing alike, only where the recorded address differs from it. *@
             <div class="fc ro" data-inspection-provider-default hidden="@(showProviderDefault ? null : "hidden")">
                 <span class="lbl">@OperatorLabels.CaseWorkspace.PrincipalDefaultInspectionAddress</span>
                 <div class="@ValueClass(providerDefault?.Value)">@Value(providerDefault?.Value)</div>
@@ -164,7 +132,7 @@
 
         <div class="sub-panel @Model.CollapsedClass("case.inspection.repairer")" data-inspection-repairer data-collapse="case.inspection.repairer"><h3>@OperatorLabels.CaseWorkspace.Repairer <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.inspection.repairer")" /></h3>
             <div class="fg g4">
-                <div class="fc">
+                <div class="fc @Ro(mayEdit)">
                     @{ Lbl("repairer-directory", OperatorLabels.CaseWorkspace.RepairerDirectory); }
                     @{
                         var linkedRepairer = Model.RepairerChoices.FirstOrDefault(contact => contact.OrganizationId == linkedRepairerId);
@@ -183,16 +151,16 @@
                         </select>
                     }
                 </div>
-                <div class="fc">
-                    @{ Lbl("repairer-name", OperatorLabels.CaseWorkspace.Repairer); }
+                <div class="fc @Ro(mayEdit)">
+                    @{ Lbl("repairer-name", OperatorLabels.CaseWorkspace.Repairer, OperatorLabels.SourceTag(repairerName?.Source)); }
                     <div class="@ValueClass(repairerName?.Value)">@Value(repairerName?.Value)</div>
                     @if (mayEdit)
                     {
                         <input id="repairer-name" class="fi" name="repairerName" form="case-edit-form" maxlength="300" value="@repairerName?.Value" />
                     }
                 </div>
-                <div class="fc span2">
-                    @{ Lbl("repairer-address", InspectionLabels.Address); }
+                <div class="fc span2 @Ro(mayEdit)">
+                    @{ Lbl("repairer-address", InspectionLabels.Address, OperatorLabels.SourceTag(repairerAddress?.Source)); }
                     <div class="@ValueClass(repairerAddress?.Value)">@Value(repairerAddress?.Value)</div>
                     @if (mayEdit)
                     {
@@ -204,24 +172,24 @@
 
         <div class="sub-panel @Model.CollapsedClass("case.inspection.storage")" data-inspection-storage data-collapse="case.inspection.storage"><h3>@InspectionLabels.Storage <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.inspection.storage")" /></h3>
             <div class="fg g4">
-                <div class="fc span2">
-                    @{ Lbl("storage-location", OperatorLabels.CaseWorkspace.StorageLocation); }
+                <div class="fc span2 @Ro(mayEdit)">
+                    @{ Lbl("storage-location", OperatorLabels.CaseWorkspace.StorageLocation, OperatorLabels.SourceTag(storage?.Source)); }
                     <div class="@ValueClass(storage?.Value)">@Value(storage?.Value)</div>
                     @if (mayEdit)
                     {
                         <input id="storage-location" class="fi" name="storageLocation" form="case-edit-form" maxlength="1000" value="@storage?.Value" />
                     }
                 </div>
-                <div class="fc">
-                    @{ LblWhen(mayEditMoney, "edit-storage-per-day", InspectionLabels.StoragePerDay); }
+                <div class="fc @Ro(mayEditMoney)">
+                    @{ LblWhen(mayEditMoney, "edit-storage-per-day", InspectionLabels.StoragePerDay, Model.AssessmentSourceTag(AssessmentVocabulary.SettlementStoragePerDay)); }
                     <div class="@ValueClass(storagePerDay) mono">@Money(storagePerDay)</div>
                     @if (mayEditMoney)
                     {
                         <input type="number" step="0.01" min="0" id="edit-storage-per-day" class="fi mono" name="storagePerDay" form="case-edit-form" value="@storagePerDay" />
                     }
                 </div>
-                <div class="fc">
-                    @{ LblWhen(mayEditMoney, "edit-recovery-charge", OperatorLabels.CaseWorkspace.EngineerSections.RecoveryCharge); }
+                <div class="fc @Ro(mayEditMoney)">
+                    @{ LblWhen(mayEditMoney, "edit-recovery-charge", OperatorLabels.CaseWorkspace.EngineerSections.RecoveryCharge, Model.AssessmentSourceTag(AssessmentVocabulary.CostRecoveryCharge)); }
                     <div class="@ValueClass(recoveryCharge) mono">@Money(recoveryCharge)</div>
                     @if (mayEditMoney)
                     {
@@ -235,19 +203,20 @@
 
 @functions {
     // The cell's label: a real <label> for the control while editing, the
-    // same words as a plain caption while reading.
-    private void Lbl(string id, string text) =>
-        LblWhen(Model.CanEditCaseData && Model.Case!.Data is not null, id, text);
+    // same words as a plain caption while reading, with the value's source
+    // tag in the label line in both.
+    private void Lbl(string id, string text, OperatorLabels.SourceTagWord? tag = null) =>
+        LblWhen(Model.CanEditCaseData && Model.Case!.Data is not null, id, text, tag);
 
-    private void LblWhen(bool editable, string id, string text)
+    private void LblWhen(bool editable, string id, string text, OperatorLabels.SourceTagWord? tag = null)
     {
         if (editable)
         {
-            <label for="@id">@text</label>
+            <label for="@id">@text@(tag?.Render())</label>
         }
         else
         {
-            <span class="lbl">@text</span>
+            <span class="lbl">@text@(tag?.Render())</span>
         }
     }
 }

@@ -108,6 +108,61 @@ public sealed class CaseWorkspaceTests
         Assert.Contains("Apply", clear.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The guide source cards have no Save of their own (23 September 2026):
+    /// the Case save carries them, each checked by the valuation policy, and
+    /// one source's card for one month is one answer.
+    /// </summary>
+    [Fact]
+    public void TheCaseSaveCarriesGuideCardsCheckedByTheValuationPolicy()
+    {
+        var april = new DateOnly(2030, 4, 1);
+        var glasses = GuideCard(ValuationSource.Glasses, april);
+        var brego = GuideCard(ValuationSource.Brego, april);
+
+        var normalized = CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
+        {
+            Valuation = new(null, [glasses, brego])
+        }));
+
+        Assert.Equal([glasses, brego], normalized.Valuation!.GuideEntries);
+        Assert.Empty(CaseWorkspacePolicy.AssessmentFields(normalized));
+        Assert.Throws<InvalidOperationException>(() =>
+            CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
+            {
+                Valuation = new(null, [glasses, glasses with { RetailValue = 1m }])
+            })));
+        Assert.Throws<InvalidOperationException>(() =>
+            CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
+            {
+                Valuation = new(null, [GuideCard(ValuationSource.EngineersValue, april)])
+            })));
+        Assert.Throws<ArgumentException>(() =>
+            CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
+            {
+                Valuation = new(null, [GuideCard(ValuationSource.Glasses, null)])
+            })));
+    }
+
+    [Fact]
+    public void TheHistoryLineNamesTheGuideCardsTheSaveRecorded()
+    {
+        var data = new CaseEditableData(ClaimantName: "A Claimant");
+        var fields = new Dictionary<string, object?>();
+
+        var summary = CaseWorkspaceChangeSummary.Describe(
+            data,
+            data,
+            fields,
+            fields,
+            estimateChanged: false,
+            imagesPrepared: 0,
+            reason: null,
+            valuationsRecorded: [GuideCard(ValuationSource.SuperCap, new DateOnly(2030, 4, 1))]);
+
+        Assert.Equal("Valuation: Super CAP Apr 2030", summary);
+    }
+
     [Theory]
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
@@ -216,6 +271,40 @@ public sealed class CaseWorkspaceTests
         Assert.Equal(original, overlaid.VehicleMileage);
         Assert.Equal("miles", overlaid.VehicleMileageUnit);
         Assert.Equal("kilometres", overlaid.VehicleMileageDisplayUnit);
+    }
+
+    /// <summary>
+    /// The claim source's contact boxes show the effective contact in both
+    /// modes, so posting back the contact copied from the record clears the
+    /// Case's own override, and only a different value is kept as one.
+    /// </summary>
+    [Fact]
+    public void AClaimSourceContactPostedAsCopiedClearsTheCasesOverride()
+    {
+        var sourceId = Guid.NewGuid();
+        var persisted = new CaseEditableData(
+            ClaimSourceId: sourceId,
+            ClaimSourceContactName: "Directory Handler",
+            ClaimSourceContactTelephone: "0113 000 0000",
+            ClaimSourceOverrideContactName: "Case Handler",
+            ClaimSourceOverrideContactTelephone: "0113 111 1111");
+        var overlaid = CaseWorkspacePolicy.Overlay(
+            persisted,
+            Request(request => request with
+            {
+                Overview = new(
+                    null, null, null, null, null, null, null, null, null, null, null, null,
+                    new CaseWorkspaceClaimSource(
+                        sourceId, 4, "Acme Claims", "Directory Handler", "0113 000 0000", null,
+                        OverrideContactName: " Directory Handler ",
+                        OverrideContactTelephone: "0113 999 9999",
+                        OverrideContactEmailAddress: null))
+            }));
+
+        Assert.True(string.IsNullOrEmpty(overlaid.ClaimSourceOverrideContactName));
+        Assert.Equal("0113 999 9999", overlaid.ClaimSourceOverrideContactTelephone);
+        Assert.Null(overlaid.ClaimSourceOverrideContactEmailAddress);
+        Assert.Null(CaseWorkspaceClaimSource.SubmittedOverride(null, "Directory Handler"));
     }
 
     [Fact]
@@ -416,4 +505,7 @@ public sealed class CaseWorkspaceTests
             "lease-token");
         return configure is null ? request : configure(request);
     }
+
+    private static ValuationDetails GuideCard(ValuationSource source, DateOnly? guideMonth) =>
+        new(source, new DateOnly(2030, 5, 6), new TimeOnly(10, 30), 42_000, 12_500m, 10_250m, guideMonth);
 }

@@ -84,7 +84,9 @@ public static class CaseWorkspaceLabels
         public const string Received = "Received";
         public const string Due = "Due";
         public const string ClaimSource = "Claim source";
-        public const string ClaimSourceContact = "Claim source contact";
+        public const string ClaimSourceContactName = "Claim source contact name";
+        public const string ClaimSourceContactPhone = "Claim source contact phone";
+        public const string ClaimSourceContactEmail = "Claim source contact e-mail";
         public const string Contact = "Contact";
         public const string ContactName = "Contact name";
         public const string ContactEmail = "Contact e-mail";
@@ -484,9 +486,6 @@ public static class CaseWorkspaceLabels
         public const string Kilometres = "Kilometres";
         public const string History = "Vehicle history";
 
-        /// <summary>The provenance word on a value a lookup wrote.</summary>
-        public const string LookupWord = "Lookup";
-
         /// <summary>13 September (Work Centre D1): a blocking external failure reads in operator words at the point of use.</summary>
         public const string LookupFailedPrefix = "Lookup failed · ";
 
@@ -569,10 +568,18 @@ public static class CaseWorkspaceLabels
     public static class Valuation
     {
         public const string SectionTitle = "Valuation";
-        public static string NotConnected(ValuationSource source) => SourceLabel(source) + " is not connected";
 
-        /// <summary>Get valuation on a source that answered with nothing (operator's words, 18 September 2026).</summary>
-        public const string Error = "Error. Contact an administrator.";
+        /// <summary>
+        /// Get valuation on a source with no working provider (operator-approved
+        /// wording, 23 September 2026): "{Source} valuation is unavailable.
+        /// Contact an administrator or report a problem." In the card the last
+        /// words are the Report a problem button, so the sentence is held in
+        /// its two parts.
+        /// </summary>
+        public static string UnavailableLead(ValuationSource source) =>
+            SourceLabel(source) + " valuation is unavailable. Contact an administrator or ";
+        public const string ReportAProblem = "report a problem";
+        public static string Unavailable(ValuationSource source) => UnavailableLead(source) + ReportAProblem + ".";
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.
@@ -607,17 +614,7 @@ public static class CaseWorkspaceLabels
         public const string GuideRetail = "Guide retail";
         public const string ProposedEngineersValue = "Proposed Engineer's Value";
 
-        public static string SourceLabel(ValuationSource source) => source switch
-        {
-            ValuationSource.Glasses => "Glass's",
-            ValuationSource.Cazana => "Cazana",
-            ValuationSource.EngineersValue => "Engineer's Value",
-            ValuationSource.AiMarketResearch => "AI market research",
-            ValuationSource.Brego => "Brego",
-            ValuationSource.SuperCap => "Super CAP",
-            ValuationSource.Cap => "CAP",
-            _ => source.ToString(),
-        };
+        public static string SourceLabel(ValuationSource source) => ValuationPolicy.SourceName(source);
 
         /// <summary>The hook slug for a source, one list beside its label.</summary>
         public static string SourceSlug(ValuationSource source) => source switch
