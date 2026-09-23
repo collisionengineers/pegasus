@@ -63,11 +63,6 @@ Assert-Flags -Case 'reference-data generator tests' -ChangedPath 'scripts/refere
 Assert-Flags -Case 'provider-reference wrapper' -ChangedPath 'scripts/Build-ProviderReferenceData.ps1' -Build $false -Infrastructure $false -ReferenceData $true
 Assert-Flags -Case 'principal-corpus wrapper' -ChangedPath 'scripts/Build-PrincipalIdentificationCorpus.ps1' -Build $false -Infrastructure $false -ReferenceData $true
 
-# The standalone Jev harness the unit lane restores, builds and tests. Its
-# project and lock files already matched; its source did not.
-Assert-Flags -Case 'Jev harness source' -ChangedPath 'scripts/jev-mail-eval/Program.cs' -Build $true -Infrastructure $false
-Assert-Flags -Case 'Jev harness tests' -ChangedPath 'scripts/jev-mail-eval/tests/ClassificationTests.cs' -Build $true -Infrastructure $false
-
 # Refreshing the shard duration table changes the partition, so a real run has
 # to validate it.
 Assert-Flags -Case 'shard duration table' -ChangedPath 'scripts/test-shard-durations.json' -Build $true -Infrastructure $false

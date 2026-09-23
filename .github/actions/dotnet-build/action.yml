@@ -19,13 +19,10 @@ runs:
     # package id and version, those contents are immutable, and --locked-mode
     # validates the graph against the committed lock files rather than against
     # whatever the folder happens to hold.
-    #
-    # One glob covers src, tests and the standalone harnesses under scripts, so
-    # a new lock file participates in the key without editing this file.
     - uses: actions/cache@v6
       with:
         path: ~/.nuget/packages
-        key: dotnet-nuget-${{ runner.os }}-${{ hashFiles('global.json', '**/packages.lock.json') }}
+        key: dotnet-nuget-${{ runner.os }}-${{ hashFiles('global.json', 'src/**/packages.lock.json', 'tests/**/packages.lock.json') }}
         restore-keys: |
           dotnet-nuget-${{ runner.os }}-
     - name: Restore
