@@ -238,9 +238,9 @@
                         </button>
                     }
                 }
-                else
+                else if (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff)
                 {
-                    @* A live lease can be taken over by an authorised editor;
+                    @* A staff lease can be taken over by an authorised editor;
                        the operation rotates its token and records the prior holder. *@
                     <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
                         <input type="hidden" name="id" value="@summary.CaseId" />

@@ -1318,14 +1318,27 @@ public sealed partial class DetailsModel(
         }
     }
 
-    public Task<IActionResult> OnPostClaimLeaseAsync(
+    public async Task<IActionResult> OnPostClaimLeaseAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         bool takeOver,
         string? section,
-        CancellationToken cancellationToken) =>
-        ClaimLeaseAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details?.ActiveEditLease is { HolderKind: not Pegasus.Core.Identity.ActorKind.Staff })
+        {
+            TempData["CaseError"] = "This case is already being edited.";
+            return RedirectToSection(id, section);
+        }
+
+        return await ClaimLeaseAsync(
             acquireLease,
             id,
             expectedVersion,
@@ -1333,6 +1346,7 @@ public sealed partial class DetailsModel(
             takeOver,
             () => RedirectToSection(id, section),
             cancellationToken);
+    }
 
     /// <summary>
     /// The full-POST fallback lands back on the section the operator was
@@ -3601,8 +3615,11 @@ public sealed partial class DetailsModel(
         }
         estimateFile = Request.Form.Files[0];
         var fileName = Path.GetFileName(estimateFile.FileName);
+        var extension = Path.GetExtension(fileName);
         if (estimateFile.Length is <= 0 or > ImportRawEstimate.MaximumDocumentBytes
-            || estimateParsers.Count(parser => parser.CanParse(fileName, estimateFile.ContentType)) != 1)
+            || estimateParsers.Count(parser =>
+                parser.FileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)
+                && parser.CanParse(fileName, estimateFile.ContentType)) != 1)
         {
             TempData["CaseError"] = "Choose a non-empty supported estimate file of 32 MiB or less.";
             return RedirectToEstimate(id);

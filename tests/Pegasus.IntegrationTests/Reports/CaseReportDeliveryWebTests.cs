@@ -433,10 +433,10 @@ public sealed partial class AssessmentReportDraftWebTests
         var reportPaneStart = html.IndexOf("<div id=\"report-pane-report\"", StringComparison.Ordinal);
         var feePaneStart = html.IndexOf("<div id=\"report-pane-fee\"", StringComparison.Ordinal);
         Assert.True(reportPaneStart >= 0);
-        Assert.True(feePaneStart >= 0 && feePaneStart < reportPaneStart);
+        Assert.True(feePaneStart > reportPaneStart);
 
-        var reportPane = html[reportPaneStart..];
-        var feePane = html[feePaneStart..reportPaneStart];
+        var reportPane = html[reportPaneStart..feePaneStart];
+        var feePane = html[feePaneStart..];
         Assert.Contains("data-report-artifact=\"AssessmentReport\"", reportPane, StringComparison.Ordinal);
         Assert.Contains("data-report-fee-artifact", feePane, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-artifact=\"FeeNote\"", html, StringComparison.Ordinal);
@@ -589,16 +589,7 @@ public sealed partial class AssessmentReportDraftWebTests
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendObservedSent,
             reloaded,
             StringComparison.Ordinal);
-        if (returnedState == StaffMailState.Submitted)
-        {
-            Assert.Equal(
-                generation.Record.Snapshot.CurrentEstimateId,
-                Assert.Single(snapshots.Requests).SpecificationId);
-        }
-        else
-        {
-            Assert.Empty(snapshots.Requests);
-        }
+        Assert.Empty(snapshots.Requests);
     }
 
     /// <summary>

@@ -144,8 +144,10 @@ public sealed class ProviderApiSubmissionTests
         }
 
         // The same key with a different body: refused, and nothing new retained.
+        var differentEmail = IntakeTestEvidence.CreateEmail(
+            "other.eml", "A different provider instruction", senderAddress: "intermediary@example.test");
         using (var conflict = await SubmitAsync(
-                   client, secret, "order-1", [("other.eml", email.MediaType, [1, 2, 3])], "PROV-001"))
+                   client, secret, "order-1", [("other.eml", differentEmail.MediaType, differentEmail.Content)], "PROV-001"))
         {
             Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
         }

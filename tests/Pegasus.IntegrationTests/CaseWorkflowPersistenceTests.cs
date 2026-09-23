@@ -1636,6 +1636,27 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
+    public async Task StaffCannotTakeOverAnAutomationHeldCase()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var automation = ActionActor.Automation("pegasus-automation");
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var held = await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, automation, "automation-claim"), default);
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new ClaimCaseEditLeaseRequest(harness.CaseId, 0, staff, "staff-takeover")
+                {
+                    TakeOver = true
+                }, default));
+
+        Assert.Equal(held.Token, (await harness.Store.ClaimAsync(
+            new ClaimCaseEditLeaseRequest(harness.CaseId, 0, automation, "automation-claim"), default)).Token);
+        Assert.Equal(0, await harness.WorkflowEventCountAsync("staff-takeover"));
+    }
+
+    [Fact]
     public async Task LeaseReleaseAndExpiryDiscardReplayCredentialBeforeReplacement()
     {
         await using var harness = await WorkflowHarness.CreateAsync();

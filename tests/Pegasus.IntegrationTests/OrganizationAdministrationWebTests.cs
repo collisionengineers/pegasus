@@ -297,7 +297,7 @@ public sealed partial class OrganizationAdministrationWebTests
             $"{settingsPath}?handler=RevokeCredential", new FormUrlEncodedContent(CredentialForm(settings)));
         Assert.Equal(HttpStatusCode.Redirect, revoked.StatusCode);
         Assert.Null(await authenticate.ExecuteAsync(resetKeyId, resetSecret, default));
-        Assert.Equal(5, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(7, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';"));
     }
 

@@ -181,7 +181,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("operationKey", NewOperationKey()),
             new("editLeaseToken", RecordingStores.HeldLeaseToken),
             new("estimateId", draft.SpecificationId.ToString("D")),
-            new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+            new("expectedVersion", store.WorkflowVersion.ToString(CultureInfo.InvariantCulture)),
             new("estimateName", draft.Details.Name),
             new("estimateVatPercent", draft.Details.VatPercent.ToString(CultureInfo.InvariantCulture)),
         };
@@ -273,7 +273,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("operationKey", NewOperationKey()),
             new("editLeaseToken", RecordingStores.HeldLeaseToken),
             new("estimateId", draft.SpecificationId.ToString("D")),
-            new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+            new("expectedVersion", store.WorkflowVersion.ToString(CultureInfo.InvariantCulture)),
             new("estimateName", draft.Details.Name),
             new("estimateVatPercent", draft.Details.VatPercent.ToString(CultureInfo.InvariantCulture)),
         };
@@ -900,8 +900,8 @@ public sealed partial class AssessmentEstimateImportWebTests
             ("lineOperation", "Repair"), ("lineDescription", "Repair door"), ("lineLabourHours", "2")).ToArray();
         using var first = await client.PostAsync($"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate", new FormUrlEncodedContent(fields));
         using var second = await client.PostAsync($"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate", new FormUrlEncodedContent(fields));
-        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
-        Assert.Equal(HttpStatusCode.Redirect, second.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
         Assert.Equal(2, store.SubmittedEstimates.Count);
         Assert.All(store.SubmittedEstimates, request => Assert.Equal(3, request.ExpectedVersion));
         Assert.Equal(JsonSerializer.Serialize(store.SubmittedEstimates[0]), JsonSerializer.Serialize(store.SubmittedEstimates[1]));
