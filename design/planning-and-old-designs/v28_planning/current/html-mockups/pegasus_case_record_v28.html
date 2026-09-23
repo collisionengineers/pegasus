@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<!--
+  v28 baseline, Case record. Captured from origin/dev 904903fd1; the operator's proposals sit over it as a switchable layer.
+  This file is a frame around captured state pages (states/*.html), which are the
+  application's own server-rendered HTML with the live CSS and JS. The bar at the
+  top is demo control, not product UI. Temporary design review artifact: not
+  application code, not design authority, not implementation evidence.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Case record · Pegasus v28 baseline</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #2a2f32; font: 12px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #e7e9ea; }
+  body { display: grid; grid-template-rows: auto 1fr; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 6px 10px; background: #1b1e20; border-bottom: 1px solid #33383b; }
+  .bar strong { font-weight: 600; }
+  .bar label { display: inline-flex; align-items: center; gap: 6px; color: #9aa0a3; }
+  .bar select, .bar button, .bar a.button { font: inherit; background: #2a2f32; color: #e7e9ea; border: 1px solid #454b4f; border-radius: 3px; padding: 3px 8px; text-decoration: none; cursor: pointer; }
+  .bar select { max-width: 46ch; }
+  .bar button[aria-pressed="true"] { background: #e7e9ea; color: #1b1e20; }
+  .bar .live { font-family: ui-monospace, Consolas, monospace; color: #c9cdd0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60ch; }
+  .bar .note { color: #9aa0a3; font-style: italic; }
+  .stage { display: flex; justify-content: center; overflow: auto; min-height: 0; }
+  iframe { border: 0; background: #fff; height: 100%; width: 100%; flex: none; }
+</style>
+</head>
+<body>
+  <div class="bar" role="group" aria-label="Mockup controls (demo control, not product UI)">
+    <strong>v28 baseline</strong>
+    <label>Area <select id="family"><option value="pegasus_work_centre_v28.html">Work Centre</option><option value="pegasus_cases_index_v28.html">Cases and Create case</option><option value="pegasus_case_record_v28.html" selected>Case record</option><option value="pegasus_triage_unidentified_v28.html">Triage and Unidentified</option><option value="pegasus_image_intake_v28.html">Image intake</option><option value="pegasus_mail_upload_v28.html">Inbox and Upload</option><option value="pegasus_search_operations_v28.html">Search and Operations</option><option value="pegasus_administration_v28.html">Administration</option><option value="pegasus_account_shell_v28.html">Account, errors and shell</option></select></label>
+    <label>State <select id="state">
+        <option value="case-record" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="">Read</option><option value="case-record" data-query="click=%5Bdata-case-layout%3D%22tabs%22%5D" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: click=%5Bdata-case-layout%3D%22tabs%22%5D">&nbsp;&nbsp;&nbsp;Tabs layout</option><option value="case-record" data-query="scroll=section-inspection" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-inspection">&nbsp;&nbsp;&nbsp;Inspection details</option><option value="case-record" data-query="scroll=section-vehicle" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-vehicle">&nbsp;&nbsp;&nbsp;Vehicle</option><option value="case-record" data-query="scroll=section-damage" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-damage">&nbsp;&nbsp;&nbsp;Damage</option><option value="case-record" data-query="scroll=section-valuation" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-valuation">&nbsp;&nbsp;&nbsp;Valuation</option><option value="case-record" data-query="scroll=section-estimate" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-estimate">&nbsp;&nbsp;&nbsp;Estimate</option><option value="case-record" data-query="scroll=section-settlement" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-settlement">&nbsp;&nbsp;&nbsp;Settlement</option><option value="case-record" data-query="scroll=section-report" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-report">&nbsp;&nbsp;&nbsp;Report</option><option value="case-record" data-query="scroll=section-files" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-files">&nbsp;&nbsp;&nbsp;Files</option><option value="case-record" data-query="scroll=section-notes" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-notes">&nbsp;&nbsp;&nbsp;Notes</option><option value="case-record" data-query="scroll=section-estimate&amp;click=%5Bdata-estimate-more%5D%20summary" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-estimate&amp;click=%5Bdata-estimate-more%5D%20summary">&nbsp;&nbsp;&nbsp;Proposal: P9 Print Estimate and Compare under More</option><option value="case-record" data-query="dialog=compare-estimates-dialog" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: dialog=compare-estimates-dialog">&nbsp;&nbsp;&nbsp;Proposal: The live Compare estimates dialog, reachable from More (baseline behaviour, shown for P9)</option><option value="case-record" data-query="scroll=section-claim" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-claim">&nbsp;&nbsp;&nbsp;Proposal: P26 nine-section map: Case details then Claim</option><option value="case-record" data-query="dialog=compare-estimates-dialog" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: dialog=compare-estimates-dialog">&nbsp;&nbsp;&nbsp;Proposal: P19 Compare with From and To</option><option value="case-record" data-query="scroll=section-estimate&amp;glass=recorded" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-estimate&amp;glass=recorded">&nbsp;&nbsp;&nbsp;Proposal: P36 Glass's estimate recorded, read mode</option><option value="case-record" data-query="scroll=section-overview" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-overview">&nbsp;&nbsp;&nbsp;Proposal: P49 product type cell in read mode</option><option value="case-record" data-query="demo=stale" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: demo=stale">&nbsp;&nbsp;&nbsp;Proposal: P47 page-wide stale banner under the ribbon</option><option value="case-record" data-query="demo=images" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: demo=images">&nbsp;&nbsp;&nbsp;Proposal: P50 read mode: each tile says its report role</option><option value="case-record" data-query="demo=audit" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: demo=audit">&nbsp;&nbsp;&nbsp;Proposal: P51 Original report in read mode with example values</option>
+        <option value="case-record-editing" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="">Page-wide edit session</option><option value="case-record-editing" data-query="scroll=section-vehicle" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-vehicle">&nbsp;&nbsp;&nbsp;Vehicle</option><option value="case-record-editing" data-query="scroll=section-damage" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-damage">&nbsp;&nbsp;&nbsp;Damage</option><option value="case-record-editing" data-query="scroll=section-valuation" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-valuation">&nbsp;&nbsp;&nbsp;Valuation</option><option value="case-record-editing" data-query="scroll=section-estimate" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-estimate">&nbsp;&nbsp;&nbsp;Estimate</option><option value="case-record-editing" data-query="scroll=section-settlement" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-settlement">&nbsp;&nbsp;&nbsp;Settlement</option><option value="case-record-editing" data-query="scroll=section-report" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-report">&nbsp;&nbsp;&nbsp;Report</option><option value="case-record-editing" data-query="scroll=section-files" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-files">&nbsp;&nbsp;&nbsp;Files</option><option value="case-record-editing" data-query="dialog=case-hold-dialog" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: dialog=case-hold-dialog">&nbsp;&nbsp;&nbsp;Place on Hold dialog</option><option value="case-record-editing" data-query="dialog=case-close-dialog" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: dialog=case-close-dialog">&nbsp;&nbsp;&nbsp;Close Case dialog</option><option value="case-record-editing" data-query="dialog=case-correct-principal-dialog" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: dialog=case-correct-principal-dialog">&nbsp;&nbsp;&nbsp;Correct principal dialog</option><option value="case-record-editing" data-query="dialog=case-return-review-dialog" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: dialog=case-return-review-dialog">&nbsp;&nbsp;&nbsp;Return to Review dialog</option><option value="case-record-editing" data-query="dialog=import-estimate-dialog" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: dialog=import-estimate-dialog">&nbsp;&nbsp;&nbsp;Import estimate dialog</option><option value="case-record-editing" data-query="scroll=section-notes" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-notes">&nbsp;&nbsp;&nbsp;Proposal: P28 Queries on Notes</option><option value="case-record-editing" data-query="scroll=v28-target&amp;demo=scale" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=v28-target&amp;demo=scale">&nbsp;&nbsp;&nbsp;Proposal: P34 Target % of value, previewing the lowest the floors allow</option><option value="case-record-editing" data-query="scroll=v28-contract&amp;demo=contract" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=v28-contract&amp;demo=contract">&nbsp;&nbsp;&nbsp;Proposal: P35 Contract repair agreed</option><option value="case-record-editing" data-query="scroll=section-estimate&amp;glass=open" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-estimate&amp;glass=open">&nbsp;&nbsp;&nbsp;Proposal: P36 Glass's session open: Resume and the session line</option><option value="case-record-editing" data-query="scroll=section-estimate&amp;glass=waiting" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-estimate&amp;glass=waiting">&nbsp;&nbsp;&nbsp;Proposal: P36 Glass's estimate held: Complete import</option><option value="case-record-editing" data-query="scroll=section-estimate&amp;glass=failed" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-estimate&amp;glass=failed">&nbsp;&nbsp;&nbsp;Proposal: P36 Glass's session failed</option><option value="case-record-editing" data-query="scroll=v28-target" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=v28-target">&nbsp;&nbsp;&nbsp;Proposal: P34 price floor 65 %</option><option value="case-record-editing" data-query="scroll=section-estimate&amp;demo=versions" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-estimate&amp;demo=versions">&nbsp;&nbsp;&nbsp;Proposal: P43 Versions dialog: the working draft, v1 and v2 with how each came about, Sent on report, Compare with current and Restore</option><option value="case-record-editing" data-query="scroll=section-report&amp;demo=produce" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-report&amp;demo=produce">&nbsp;&nbsp;&nbsp;Proposal: P42 Produce PDF: the report as it will print, with Report, Repair Spec and Images</option><option value="case-record-editing" data-query="scroll=section-report&amp;demo=spec" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-report&amp;demo=spec">&nbsp;&nbsp;&nbsp;Proposal: P42 the Repair Spec document, the one Print Estimate opens</option><option value="case-record-editing" data-query="demo=images" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: demo=images">&nbsp;&nbsp;&nbsp;Proposal: P41 rotate, full page, remove, grip and Add images on every tile</option><option value="case-record-editing" data-query="scroll=section-overview" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: scroll=section-overview">&nbsp;&nbsp;&nbsp;Proposal: P49 product type select</option><option value="case-record-editing" data-query="demo=audit" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f" data-note="Preset: demo=audit">&nbsp;&nbsp;&nbsp;Proposal: P51 Original report section for an Audit product type: assessor, report date, roadworthiness, repairable status</option>
+        <option value="case-record-new-estimate" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f?section=estimate&amp;estimate=new" data-note="">Edit session, new estimate being entered</option><option value="case-record-new-estimate" data-query="scroll=section-estimate" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f?section=estimate&amp;estimate=new" data-note="Preset: scroll=section-estimate">&nbsp;&nbsp;&nbsp;Estimate editor</option>
+        <option value="case-record-eva-send" data-live="/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f/Eva/Send" data-note="">EVA send</option>
+    </select></label>
+    <span role="group" aria-label="Width">
+      <button type="button" data-width="" aria-pressed="true">Fit</button>
+      <button type="button" data-width="1580" aria-pressed="false">1580</button>
+      <button type="button" data-width="1440" aria-pressed="false">1440</button>
+      <button type="button" data-width="760" aria-pressed="false">760</button>
+    </span>
+    <span role="group" aria-label="Baseline or proposals">
+      <button type="button" data-layer="on" aria-pressed="true">Proposals</button>
+      <button type="button" data-layer="off" aria-pressed="false">Baseline</button>
+    </span>
+    <a class="button" id="alone" href="#" target="_blank" rel="noopener">Open state alone</a>
+    <span class="live" id="live" title="The live route this state was captured from"></span>
+    <span class="note" id="note"></span>
+  </div>
+  <div class="stage"><iframe id="view" title="Case record"></iframe></div>
+<script src="assets/mock/routes.js"></script>
+<script>
+(function () {
+  var family = "case_record";
+  var select = document.getElementById('state');
+  var view = document.getElementById('view');
+  var owner = {};
+  var baseline = false;
+  (window.V28_ROUTES.families || []).forEach(function (f) { f.states.forEach(function (s) { owner[s.id] = f; }); });
+
+  function show(option, push) {
+    var id = option.value;
+    var query = option.getAttribute('data-query') || '';
+    var layer = baseline ? '&proposals=off' : '';
+    view.src = 'states/' + id + '.html?embed=1' + layer + (query ? '&' + query : '');
+    document.getElementById('alone').href = 'states/' + id + '.html?' + (baseline ? 'proposals=off' : 'proposals=on') + (query ? '&' + query : '');
+    document.getElementById('live').textContent = option.getAttribute('data-live') || '';
+    document.getElementById('note').textContent = option.getAttribute('data-note') || '';
+    if (push) history.replaceState(null, '', '#' + id + (query ? '?' + query : ''));
+  }
+  function find(id, query) {
+    for (var i = 0; i < select.options.length; i++) {
+      var o = select.options[i];
+      if (o.value === id && (o.getAttribute('data-query') || '') === (query || '')) return o;
+    }
+    return null;
+  }
+  select.addEventListener('change', function () { show(select.options[select.selectedIndex], true); });
+  document.getElementById('family').addEventListener('change', function (event) { window.location.href = event.target.value; });
+  document.querySelectorAll('[data-width]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      document.querySelectorAll('[data-width]').forEach(function (b) { b.setAttribute('aria-pressed', b === button ? 'true' : 'false'); });
+      var width = button.getAttribute('data-width');
+      view.style.width = width ? width + 'px' : '100%';
+    });
+  });
+  document.querySelectorAll('[data-layer]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      baseline = button.getAttribute('data-layer') === 'off';
+      document.querySelectorAll('[data-layer]').forEach(function (b) { b.setAttribute('aria-pressed', b === button ? 'true' : 'false'); });
+      show(select.options[select.selectedIndex], false);
+    });
+  });
+  // A captured page navigating to another captured state tells the frame.
+  window.addEventListener('message', function (event) {
+    if (!event.data || event.data.v28 !== 'state') return;
+    var id = event.data.id;
+    var target = owner[id];
+    if (target && target.key !== family) { window.location.href = target.file + '#' + id; return; }
+    var option = find(id, '');
+    if (option) { select.value = id; select.selectedIndex = option.index; show(option, true); }
+  });
+  var hash = decodeURIComponent(window.location.hash.replace(/^#/, ''));
+  var parts = hash.split('?');
+  var start = (hash && find(parts[0], parts[1] || '')) || select.options[0];
+  select.selectedIndex = start.index;
+  show(start, false);
+})();
+</script>
+</body>
+</html>
