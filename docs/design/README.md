@@ -206,7 +206,7 @@ application (see
 | Ctrl K | Command palette dialog (also Enter in the utility search) |
 | Ctrl U | Upload (`/upload`) |
 | Ctrl N | Create Case |
-| Ctrl S | Save, only while a Case is in edit |
+| Ctrl S | Save and keep editing, only while a Case is in edit |
 | F5 | Refresh — re-query the current page, never a browser reload |
 | ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, `work-item`, result rows) |
 | Escape | Close the open dialog |
@@ -811,7 +811,9 @@ valuation button that looks the figures up and fills the boxes in place
 provider); the boxes are typed by hand just as well. The card has no Save of
 its own (23 September 2026): its boxes belong to the Case form and the
 ribbon Save records a changed card with whatever was entered; any box may be
-left blank. There is no separate Add valuation
+left blank. The ribbon Save is the Case's one save (23 September 2026): the
+Repair Spec and the valuation calculator carry no Save or Apply of their own.
+There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
 repair-estimate launch; a connected Glass's valuation provider

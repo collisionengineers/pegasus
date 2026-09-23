@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
@@ -11,13 +12,14 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Valuation section's members (v26 § Valuation): the calculator on the
-/// Core policy shape — presets, a preview that Core computes, an Apply that
-/// adopts the Engineer's Value with its applied-history row — and the
-/// per-source Get valuation controls: AI market research starts the existing
-/// Market research job for the chosen month, and every guide source asks
-/// GetValuation, which answers the connected provider's figures for the card
-/// to show in its boxes, or that the source is unavailable. The Case save
-/// records the cards (23 September 2026); nothing here writes one.
+/// Core policy shape — presets, a preview that Core computes, and the
+/// calculation the page opened on, against which the Case Save decides
+/// whether the operator changed it — and the per-source Get valuation
+/// controls: AI market research starts the existing Market research job for
+/// the chosen month, and every guide source asks GetValuation, which answers
+/// the connected provider's figures for the card to show in its boxes, or
+/// that the source is unavailable. The one Case Save (23 September 2026)
+/// records the cards and adopts a changed calculation; nothing here writes.
 /// </summary>
 public sealed partial class DetailsModel
 {
@@ -82,7 +84,7 @@ public sealed partial class DetailsModel
             : null)
         ?? GuideValuations.FirstOrDefault(CanBeBasis);
 
-    /// <summary>Whether a card can be the Apply basis: it has a retail value.</summary>
+    /// <summary>Whether a card can be the calculation's basis: it has a retail value.</summary>
     public static bool CanBeBasis(CaseValuation valuation) => valuation.Details.RetailValue is not null;
 
     /// <summary>Whether the claimant is VAT registered, which means there was never a commercial addition to make.</summary>
@@ -91,10 +93,6 @@ public sealed partial class DetailsModel
             Assessment?.Field(AssessmentVocabulary.SettlementClaimantVatRegistered)?.Value,
             "true",
             StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>The card's own last-written stamp, which an Apply pins itself to.</summary>
-    public static DateTimeOffset StampOf(CaseValuation valuation) =>
-        valuation.LastEditedAtUtc ?? valuation.RecordedAtUtc;
 
     /// <summary>
     /// The calculation the calculator opens on: the default basis card's
@@ -132,6 +130,71 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
+    /// One value-increase row of the calculator while editing: an active
+    /// preset (ticked where the latest adoption applied it, with the amount it
+    /// applied, else the preset's suggestion), or a custom row carrying an
+    /// applied increase that is not an active preset, or blank.
+    /// </summary>
+    public sealed record ValuationIncreaseRow(
+        Guid PresetId,
+        long PresetVersion,
+        string? Label,
+        decimal? Amount,
+        bool Selected);
+
+    /// <summary>The calculator's value-increase rows, in the order the screen draws them.</summary>
+    public IReadOnlyList<ValuationIncreaseRow> ValuationIncreaseRows
+    {
+        get
+        {
+            var applied = LatestAppliedValuation?.Calculation.Additions ?? [];
+            var active = ValuationPresets.Where(preset => preset.Active && preset.RemovedAtUtc is null).ToArray();
+            var rows = new List<ValuationIncreaseRow>(active.Length + 2);
+            foreach (var preset in active)
+            {
+                var chosen = applied.FirstOrDefault(addition =>
+                    addition.PresetId != Guid.Empty && addition.PresetId == preset.Id);
+                rows.Add(new(preset.Id, preset.Version, preset.Label, chosen?.Amount ?? preset.SuggestedAmount, chosen is not null));
+            }
+            // An applied increase that is not an active preset (a custom one,
+            // or a preset since withdrawn) opens in a custom row, so the
+            // calculation opens as it was applied.
+            var others = applied
+                .Where(addition => addition.PresetId == Guid.Empty || active.All(preset => preset.Id != addition.PresetId))
+                .ToArray();
+            for (var custom = 0; custom < Math.Max(2, others.Length); custom++)
+            {
+                var carried = custom < others.Length ? others[custom] : null;
+                rows.Add(new(Guid.Empty, 0, carried?.Label, carried?.Amount, carried is not null));
+            }
+            return rows;
+        }
+    }
+
+    /// <summary>
+    /// The calculation the calculator opens on while editing: the default
+    /// basis card, with the latest adoption's controls. The Case Save compares
+    /// what it posts with this, so an untouched calculator adopts nothing.
+    /// </summary>
+    public ValuationCalculationSelection OpeningValuationSelection => new(
+        DefaultBasis?.ValuationId ?? Guid.Empty,
+        !ClaimantVatRegistered && LatestAppliedValuation is { Calculation.CommercialVatApplied: true },
+        LatestAppliedValuation?.Calculation.PriorTotalLossPercentage,
+        [.. ValuationIncreaseRows
+            .Where(row => row.Selected)
+            .Select(row => new ValuationAdditionSelection(
+                row.PresetId,
+                row.PresetVersion,
+                row.PresetId == Guid.Empty ? row.Label : null,
+                row.Amount ?? 0m))],
+        LatestAppliedValuation?.Calculation.ConditionDeduction ?? 0m);
+
+    /// <summary>What the calculator opened on, as the page posts it back beside the calculator.</summary>
+    public string OpeningValuationCanonical => ValuationSelectionForm.Canonical(
+        OpeningValuationSelection,
+        DefaultBasis?.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture));
+
+    /// <summary>
     /// The latest recorded card of one guide source, which that source's card
     /// shows in both modes: older months stay in the history, not on screen.
     /// </summary>
@@ -165,13 +228,16 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// The selection as the calculator's form posts it. The addition rows are
-    /// parallel arrays over every row on the screen; <see cref="AdditionSelected"/>
-    /// holds the indexes of the ticked rows, so an unticked row posts without
-    /// script and is still left out.
+    /// The selection as the calculator posts it with the Case form. The
+    /// addition rows are parallel arrays over every row on the screen;
+    /// <see cref="AdditionSelected"/> holds the indexes of the ticked rows, so
+    /// an unticked row posts without script and is still left out.
+    /// <see cref="Opening"/> is the calculation the page opened on.
     /// </summary>
     public sealed class ValuationSelectionForm
     {
+        public string? Opening { get; set; }
+
         public Guid GuideValuationId { get; set; }
 
         public bool CommercialVat { get; set; }
@@ -222,6 +288,76 @@ public sealed partial class DetailsModel
                 additions,
                 ConditionDeduction ?? 0m);
         }
+
+        /// <summary>
+        /// One calculation written the one way, so the one the page opened on
+        /// and the one it posts compare as text: the basis card, that card's
+        /// retail as shown, and every control, with amounts to two places.
+        /// </summary>
+        public static string Canonical(ValuationCalculationSelection selection, string? basisRetail)
+        {
+            ArgumentNullException.ThrowIfNull(selection);
+            static string Amount(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
+            var retail = string.IsNullOrWhiteSpace(basisRetail)
+                ? null
+                : decimal.TryParse(basisRetail.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+                    ? Amount(parsed)
+                    : basisRetail.Trim();
+            return JsonSerializer.Serialize(new
+            {
+                basis = selection.GuideValuationId,
+                retail,
+                vat = selection.CommercialVat,
+                ptl = selection.PriorTotalLossPercentage is { } percentage ? Amount(percentage) : null,
+                deduction = Amount(selection.ConditionDeduction),
+                increases = selection.Additions.Select(addition => new
+                {
+                    preset = addition.PresetId,
+                    version = addition.PresetId == Guid.Empty ? 0 : addition.PresetVersion,
+                    label = addition.PresetId == Guid.Empty ? addition.Label?.Trim() : null,
+                    amount = Amount(addition.Amount),
+                }),
+            });
+        }
+    }
+
+    /// <summary>
+    /// The calculation this save adopts (operator, 23 September 2026): the
+    /// posted one, when what the calculator shows changed since the page
+    /// opened — a different basis card, the basis card's own figures, or any
+    /// calculator control. An untouched calculator adopts nothing, and so does
+    /// a basis card left with no retail to calculate from.
+    /// </summary>
+    private static ValuationCalculationSelection? ChangedCalculation(
+        ValuationSelectionForm? selection,
+        GuideEntryForm[] guideEntries,
+        IReadOnlyList<CaseValuation> recorded)
+    {
+        if (selection is null || selection.GuideValuationId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var basis = recorded.FirstOrDefault(card => card.ValuationId == selection.GuideValuationId);
+        // The basis card's retail as the page now shows it: a guide source's
+        // card shows it in its own box, any other card as recorded.
+        var shownRetail = basis is null
+            ? null
+            : guideEntries.FirstOrDefault(entry => entry.Source == basis.Details.Source) is { } entry
+                ? entry.RetailValue
+                : basis.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture);
+        if (string.IsNullOrWhiteSpace(shownRetail))
+        {
+            return null;
+        }
+
+        var posted = selection.ToSelection();
+        return string.Equals(
+            ValuationSelectionForm.Canonical(posted, shownRetail),
+            selection.Opening,
+            StringComparison.Ordinal)
+            ? null
+            : posted;
     }
 
     /// <summary>
@@ -254,66 +390,6 @@ public sealed partial class DetailsModel
         {
             return Partial("Cases/Shared/_CaseValuationLines", (ValuationCalculation?)null);
         }
-    }
-
-    /// <summary>
-    /// Apply as Engineer's Value: adopts the calculated proposal (or the
-    /// Engineer's corrected figure over the same basis) and records the
-    /// applied-history row. The stamp pins the adoption to the card shown.
-    /// </summary>
-    public async Task<IActionResult> OnPostApplyValuationAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string? editLeaseToken,
-        DateTimeOffset guideValuationStampUtc,
-        string? reason,
-        ValuationSelectionForm selection,
-        CancellationToken cancellationToken)
-    {
-        var guard = await GuardValuationCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
-        if (guard is not null)
-        {
-            return guard;
-        }
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await applyValuation.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    string.IsNullOrWhiteSpace(reason) ? "Engineer's Value applied." : reason,
-                    editLeaseToken!,
-                    selection.ToSelection(),
-                    guideValuationStampUtc),
-                cancellationToken);
-            RecordEditorCommit("case-valuation-form", operationKey, expectedVersion);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or KeyNotFoundException)
-        {
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception, "The Engineer's Value was not applied. Retry the operation.");
-            return RedirectToValuation(id);
-        }
-
-        ClearLeaseState();
-        await ReclaimLeaseAsync(id, cancellationToken);
-        TempData["CaseStatus"] = "The Engineer's Value was applied.";
-        return RedirectToValuation(id);
     }
 
     /// <summary>

@@ -9,7 +9,7 @@
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources. Engineer's Value
-  is adopted only by an explicit Apply, in a fixed order.
+  is adopted by a staff member's Save when the calculation changed, in a fixed order.
 - Settlement saves with the Case's single workspace Save. Equity is derived,
   never typed in.
 - AI and Market Research only propose. An authorised person decides.
@@ -130,11 +130,14 @@ the proposal recorded by the `MarketResearch` job
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
 it never becomes the Engineer's Value by itself.
 
-**Engineer's Value** is adopted only by an explicit Apply by an enabled human
-staff member, in this order:
+**Engineer's Value** is adopted only by an enabled human staff member's Case
+Save, and only when the valuation calculation changed since the page opened
+(a different basis card, the basis card's figures, or any calculator
+control; operator, 23 September 2026), in this order:
 commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
-condition deduction, rounding to whole pounds away from zero. A generic
-assessment save never writes the adopted value. This calculation is current
+condition deduction, rounding to whole pounds away from zero. No field of the
+Save writes the adopted value directly; an unchanged calculation adopts
+nothing. This calculation is current
 required behaviour. Extra rationale or revaluation-history scope needs its
 own accepted contract.
 
@@ -207,8 +210,8 @@ circular readiness gate is acceptable.
 - A correction never edits an accepted or issued finding in place.
 - Equity is absent when its accepted inputs are incomplete, never a made-up
   zero.
-- A generic assessment save never writes the Engineer's Value; only an
-  explicit Apply does.
+- No assessment field writes the Engineer's Value; only a staff Save whose
+  valuation calculation changed adopts it.
 - A valuation source with no connected provider shows the card's notice and
   still lets the figures be typed by hand; the Case Save records them.
 - Research evidence and an AI valuation proposal never become the Engineer's

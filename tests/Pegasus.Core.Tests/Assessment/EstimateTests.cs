@@ -1133,6 +1133,42 @@ public sealed class EstimateTests
         Assert.Empty(save.Saved);
     }
 
+    /// <summary>
+    /// The one Case Save posts the whole editor every time (23 September
+    /// 2026): a spec nobody touched is left as recorded, and any change to a
+    /// line, the header or the lines' order is a change.
+    /// </summary>
+    [Fact]
+    public void AnEditorSaveOfTheSpecAsRecordedIsUnchanged()
+    {
+        var recorded = Estimate(
+            Header(rate: 40m, vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            Line("repair", workUnits: 2m),
+            Line("new_part", price: 120m, quantity: 1) with { Position = 2 });
+        var save = new SaveEstimateRequest(
+            CaseId, 3, Engineer, "op", string.Empty, Lease, recorded.SpecificationId, recorded.Details,
+            [.. recorded.Lines.Select(RepairSpecificationScaling.ToInput)],
+            recorded.Source,
+            ExistingLineIds: [.. recorded.Lines.Select(line => (Guid?)line.Id)]);
+
+        Assert.True(EstimatePolicy.IsUnchanged(save, recorded));
+        Assert.False(EstimatePolicy.IsUnchanged(save, null));
+        Assert.False(EstimatePolicy.IsUnchanged(save with { EstimateId = null }, recorded));
+        Assert.False(EstimatePolicy.IsUnchanged(save with { Details = save.Details with { Name = "Renamed" } }, recorded));
+        Assert.False(EstimatePolicy.IsUnchanged(save with { Details = save.Details with { VatPercent = 5m } }, recorded));
+        Assert.False(EstimatePolicy.IsUnchanged(
+            save with { Lines = [save.Lines[0] with { WorkUnits = 3m }, save.Lines[1]] }, recorded));
+        Assert.False(EstimatePolicy.IsUnchanged(
+            save with
+            {
+                Lines = [save.Lines[1], save.Lines[0]],
+                ExistingLineIds = [save.ExistingLineIds![1], save.ExistingLineIds[0]]
+            },
+            recorded));
+        Assert.False(EstimatePolicy.IsUnchanged(
+            save with { Lines = [save.Lines[0]], ExistingLineIds = [save.ExistingLineIds![0]] }, recorded));
+    }
+
     private static EstimateDetails Details() => Header(rate: 40m) with { Name = "Estimate 1" };
 
     private static EstimateDetails Header(
@@ -1385,8 +1421,8 @@ public sealed class EstimateTests
             return Task.FromResult(Estimate(request.Details) with { AiJobId = request.AiJobId, Source = request.Source });
         }
 
-        public Task<RepairSpecificationVersion> SaveAndScaleAsync(
-            SaveAndScaleRepairSpecificationRequest request, CancellationToken cancellationToken) =>
+        public Task<RepairSpecificationVersion> ScaleAsync(
+            ScaleRepairSpecificationRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<RepairSpecificationVersion> RemoveScalingAsync(

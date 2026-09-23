@@ -1,7 +1,4 @@
-﻿using System.Globalization;
-using System.Net;
-using System.Text.Json;
-using System.Text.RegularExpressions;
+﻿using System.Net;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
@@ -9,18 +6,24 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Estimate Apply post carries percentage intent only. A forged monetary
-/// target is ignored, the composed act receives one lease, and the persisted
-/// scaling state enables removal after Apply and removes the action after a
-/// successful removal.
+/// The Estimate Apply post carries percentage intent only and scales the saved
+/// spec: the page saves the Case, the spec with it, first (one Save, 23
+/// September 2026). A forged monetary target is ignored, the composed act
+/// receives one lease, and the persisted scaling state enables removal after
+/// Apply and removes the action after a successful removal.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseEstimateScalingWebTests
 {
+    /// <summary>
+    /// The one Case Save carries the Repair Spec: a line that does not read as
+    /// a number, or a stale Case, refuses the whole save and records nothing
+    /// of the spec, naming the line's reason.
+    /// </summary>
     [Theory]
     [InlineData("bad amount", false)]
     [InlineData("120.50", true)]
-    public async Task NativeSaveRefusalRetainsEditedHeaderAndBothLines(string firstPrice, bool staleVersion)
+    public async Task ARefusedCaseSaveRecordsNothingOfTheSpec(string firstPrice, bool staleVersion)
     {
         var caseId = Guid.NewGuid();
         var store = new AssessmentEstimateImportWebTests.RecordingStores(caseId)
@@ -64,21 +67,18 @@ public sealed class CaseEstimateScalingWebTests
             ("lineMaterials", "12.00")).ToArray();
 
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate",
+            $"/Cases/{caseId:D}?handler=Save&section=estimate",
             new FormUrlEncodedContent(fields));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var refusal = await response.Content.ReadAsStringAsync();
-        Assert.Contains("New repairer draft", refusal, StringComparison.Ordinal);
-        Assert.Contains("value=\"81.25\"", refusal, StringComparison.Ordinal);
-        Assert.Contains("value=\"14.40\"", refusal, StringComparison.Ordinal);
-        Assert.Contains("Front bumper revision", refusal, StringComparison.Ordinal);
-        Assert.Contains("FB-123", refusal, StringComparison.Ordinal);
-        Assert.Contains($"value=\"{firstPrice}\"", refusal, StringComparison.Ordinal);
-        Assert.Contains("Door repair", refusal, StringComparison.Ordinal);
-        Assert.Contains("value=\"3.5\"", refusal, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Empty(store.SavedEstimates);
         Assert.Equal(staleVersion ? 1 : 0, store.SubmittedEstimates.Count);
+        if (!staleVersion)
+        {
+            var refusal = await AssessmentEstimateImportWebTests.GetHtmlAsync(
+                client, response.Headers.Location!.OriginalString);
+            Assert.Contains("does not read as a number", refusal, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -117,32 +117,18 @@ public sealed class CaseEstimateScalingWebTests
             caseId,
             $"?section=estimate&estimate={store.CurrentDraft.SpecificationId:D}");
         var draft = store.CurrentDraft;
+        // Apply is its own form, saved first: it carries the scaling intent
+        // alone, never the editor's content.
+        Assert.Contains("id=\"case-estimate-scale-form\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"targetPercent\" form=\"case-estimate-scale-form\"", html, StringComparison.Ordinal);
         var leaseToken = AssessmentEstimateImportWebTests.InputValue(html, "editLeaseToken");
-        var applyOperationKey = AssessmentEstimateImportWebTests.NewOperationKey();
         var fields = AssessmentEstimateImportWebTests.NewEnumerable(
             ("__RequestVerificationToken", AssessmentEstimateImportWebTests.AntiforgeryValue(html)),
             ("id", caseId.ToString("D")),
-            ("operationKey", applyOperationKey),
+            ("operationKey", AssessmentEstimateImportWebTests.NewOperationKey()),
             ("editLeaseToken", leaseToken),
             ("expectedVersion", AssessmentEstimateImportWebTests.InputValue(html, "expectedVersion")),
             ("estimateId", draft!.SpecificationId.ToString("D")),
-            ("estimateName", draft.Details.Name),
-            ("estimateLabourRate", draft.Details.LabourRate!.Value.ToString(CultureInfo.InvariantCulture)),
-            ("estimateRegionalUplift", "false"),
-            ("estimateOtherCosts", ""),
-            ("supplementaryOf", baseEstimate.SpecificationId.ToString("D")),
-            ("supplementaryReason", "inspect"),
-            ("supplementaryExplain", "true"),
-            ("estimateVatPercent", "20"),
-            ("estimateVatStatus", "Registered"),
-            ("lineId", draft.Lines[0].Id.ToString("D")),
-            ("lineOperation", "Replace"),
-            ("lineDescription", draft.Lines[0].Description ?? "Line"),
-            ("linePartPounds", draft.Lines[0].Price?.ToString(CultureInfo.InvariantCulture) ?? ""),
-            ("lineQuantity", "1"),
-            ("lineLabourHours", ""),
-            ("linePaintHours", ""),
-            ("lineMaterials", ""),
             ("targetPercent", "45"),
             ("targetGross", "0.01"),
             ("floorRate", "50"),
@@ -156,28 +142,16 @@ public sealed class CaseEstimateScalingWebTests
         var applied = Assert.Single(store.ScaleRequests);
         Assert.Equal(45m, applied.TargetPercentOfValue);
         Assert.Equal(1_000m, applied.EngineerValue);
-        Assert.Equal(leaseToken, applied.Save.EditLeaseToken);
-        var supplementary = Assert.IsType<RepairSpecificationSupplementary>(applied.Save.Supplementary);
-        Assert.Equal(baseEstimate.SpecificationId, supplementary.OfSpecificationId);
-        Assert.Equal("inspect", supplementary.Reason);
-        Assert.True(supplementary.ExplainOnReport);
-        Assert.NotEmpty(supplementary.Statement);
+        Assert.Equal(leaseToken, applied.EditLeaseToken);
+        Assert.Equal(draft.SpecificationId, applied.SpecificationId);
         Assert.True(store.CurrentDraft!.Details.BaseHourlyRate < 80m);
         Assert.Null(store.CurrentDraft.Details.Rate);
 
         var afterApply = await AssessmentEstimateImportWebTests.GetHtmlAsync(
             client, response.Headers.Location!.OriginalString);
         Assert.Contains("data-case-editing=\"true\"", afterApply, StringComparison.Ordinal);
-        var commitAttribute = Regex.Match(afterApply,
-            "data-editor-commit=\"(?<value>[^\"]*)\"", RegexOptions.CultureInvariant);
-        Assert.True(commitAttribute.Success);
-        using (var commit = JsonDocument.Parse(WebUtility.HtmlDecode(commitAttribute.Groups["value"].Value)))
-        {
-            Assert.Equal("case-estimate-form", commit.RootElement.GetProperty("editor").GetString());
-            Assert.Equal(applyOperationKey, commit.RootElement.GetProperty("operationKey").GetString());
-            Assert.Equal(AssessmentEstimateImportWebTests.RecordingStores.CaseVersion,
-                commit.RootElement.GetProperty("expectedVersion").GetInt64());
-        }
+        // The scale form is not an editor: it clears no draft of the Case's.
+        Assert.DoesNotContain("data-editor-commit=\"", afterApply, StringComparison.Ordinal);
         Assert.NotEqual(leaseToken, AssessmentEstimateImportWebTests.InputValue(afterApply, "editLeaseToken"));
         Assert.DoesNotContain("data-scale-remove disabled=\"disabled\"", afterApply, StringComparison.Ordinal);
         Assert.Contains("id=\"remove-scaling-form\"", afterApply, StringComparison.Ordinal);
@@ -274,20 +248,6 @@ public sealed class CaseEstimateScalingWebTests
             ("editLeaseToken", AssessmentEstimateImportWebTests.InputValue(html, "editLeaseToken")),
             ("expectedVersion", AssessmentEstimateImportWebTests.InputValue(html, "expectedVersion")),
             ("estimateId", draft!.SpecificationId.ToString("D")),
-            ("estimateName", draft.Details.Name),
-            ("estimateLabourRate", draft.Details.LabourRate!.Value.ToString(CultureInfo.InvariantCulture)),
-            ("estimateRegionalUplift", "false"),
-            ("estimateOtherCosts", ""),
-            ("estimateVatPercent", "20"),
-            ("estimateVatStatus", "Registered"),
-            ("lineId", draft.Lines[0].Id.ToString("D")),
-            ("lineOperation", "Replace"),
-            ("lineDescription", draft.Lines[0].Description ?? "Line"),
-            ("linePartPounds", draft.Lines[0].Price?.ToString(CultureInfo.InvariantCulture) ?? ""),
-            ("lineQuantity", "1"),
-            ("lineLabourHours", ""),
-            ("linePaintHours", ""),
-            ("lineMaterials", ""),
             ("targetPercent", "37"),
             ("targetGross", "0.01"),
             ("contractTarget", "true"),

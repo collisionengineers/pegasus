@@ -339,8 +339,8 @@ public interface IRepairSpecificationStore
         SaveEstimateRequest request,
         CancellationToken cancellationToken);
 
-    Task<RepairSpecificationVersion> SaveAndScaleAsync(
-        SaveAndScaleRepairSpecificationRequest request,
+    Task<RepairSpecificationVersion> ScaleAsync(
+        ScaleRepairSpecificationRequest request,
         CancellationToken cancellationToken);
 
     Task<RepairSpecificationVersion> RemoveScalingAsync(
