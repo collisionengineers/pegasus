@@ -9,7 +9,9 @@
 
 @* The Files section's Correspondence tab: every retained email
    associated with the Case - polled mail and uploaded .eml files - and
-   Compose where staff mail is available. *@
+   Compose where staff mail is available. Open message shows the message in
+   a dialog over the Case, its content fetched from the Inbox record on
+   first open; without script the link opens that record. *@
 <div class="correspondence" data-correspondence>
     @if (Model.StaffMailAvailable)
     {
@@ -45,11 +47,35 @@
                             <td>@(row.EffectiveSenderAddress ?? row.SenderDisplayName ?? row.SenderAddress)</td>
                             <td>@row.Subject</td>
                             <td>@(row.Classification is { } classification ? OperatorLabels.MailClassification(classification) : OperatorLabels.CaseWorkspace.AbsentValue)</td>
-                            <td class="row-actions"><a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a></td>
+                            <td class="row-actions nowrap"><a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-dialog-open="case-message-@row.RetainedMessageId.ToString("N")">@OperatorLabels.CaseWorkspace.OpenMessage</a></td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
+        @foreach (var row in emails)
+        {
+            var dialogId = $"case-message-{row.RetainedMessageId:N}";
+            <div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" data-case-message-dialog
+                 data-case-message-url="@Url.Page("/Mail/Message", "Content", new { id = row.RetainedMessageId })" hidden>
+                <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="@dialogId-title">
+                    <div class="dialog-head">
+                        <h2 id="@dialogId-title" class="wrap" tabindex="-1">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(row.Subject)</h2>
+                        <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                        </button>
+                    </div>
+                    <div class="dialog-body" data-case-message-body aria-busy="true">
+                        <div class="spinner" aria-hidden="true"></div>
+                    </div>
+                    <div class="dialog-foot">
+                        <a class="btn btn--dark" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-case-message-full>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                            <span>@OperatorLabels.Inbox.OpenFullMessage</span>
+                        </a>
+                    </div>
+                </section>
+            </div>
+        }
     }
 </div>
