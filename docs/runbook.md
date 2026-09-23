@@ -69,7 +69,6 @@ What Windows gives this project that Linux does not:
 | SQL Server Express LocalDB | Zero-configuration local database with integrated security and no container. |
 | `dotnet dev-certs https --trust` | Trust works directly. On Linux it populates per-user NSS and OpenSSL stores and needs `libnss3-tools` plus `SSL_CERT_DIR`. |
 | The Entra interactive authentication broker, and the `SqlServer` and `ExchangeOnlineManagement` modules | Used by the approved live-work profile. |
-| `scripts/email-eval-desktop` | It targets `net10.0-windows` with Windows Forms, which has no Linux implementation, so it is Windows-only by construction. |
 
 A 2026-07-27 currency check found:
 
@@ -448,67 +447,6 @@ These are dated observations, not an evergreen inventory.
 - Keep repository consistency, caller behavior, corpus evidence, deployment evidence, and acceptance as separate conclusions.
 
 Use the focused Pegasus corpus lane only with its supplied immutable input and applicable authorization.
-
-### Jev mail-categorisation evaluation
-
-`scripts/jev-mail-eval` is a standalone local evidence harness. It is not part
-of `Pegasus.slnx`, Web, Worker, production intake or the desktop email reviewer.
-It reads EML files immutably through the existing intake reader and writes only
-under ignored `artifacts/evaluation/jev-mail/`.
-
-Create and review a deterministic 60-message cohort before any external call:
-
-```powershell
-$evaluationRoot = "./artifacts/evaluation/jev-mail/pilot-2026-09-22"
-
-dotnet run --project ./scripts/jev-mail-eval -- prepare `
-  --corpus ./corpus `
-  --cohort "$evaluationRoot/cohort.jsonl"
-
-dotnet run --project ./scripts/jev-mail-eval -- review `
-  --corpus ./corpus `
-  --cohort "$evaluationRoot/cohort.jsonl" `
-  --labels "$evaluationRoot/labels.jsonl"
-```
-
-The review command is resumable. It records only the canonical Received family,
-an optional canonical subtype, an ambiguity flag and required reasoning. It does
-not copy, move or modify source mail.
-
-Only an instruction explicitly authorising this corpus and TypeSafe permits the
-next command. `--acknowledge-external-upload` is mandatory. The harness sends
-bounded plain message text, attachment metadata and existing extracted document
-text; it never sends raw attachment binaries. Infisical injects `jev_api_key`,
-which is neither persisted nor logged:
-
-```powershell
-infisical run -- dotnet run --project ./scripts/jev-mail-eval -- classify `
-  --file "C:\full\path\message.eml" `
-  --acknowledge-external-upload
-
-infisical run -- dotnet run --project ./scripts/jev-mail-eval -- run `
-  --corpus ./corpus `
-  --cohort "$evaluationRoot/cohort.jsonl" `
-  --predictions "$evaluationRoot/predictions.jsonl" `
-  --acknowledge-external-upload
-
-dotnet run --project ./scripts/jev-mail-eval -- report `
-  --labels "$evaluationRoot/labels.jsonl" `
-  --predictions "$evaluationRoot/predictions.jsonl" `
-  --output "$evaluationRoot/report"
-```
-
-The `classify` command handles one `.eml` and prints a normal text result with
-the family, subtype, confidence, leading alternatives, evidence warnings, model,
-tokens and latency. Omit `--file` to receive an interactive full-path prompt. It
-does not write a prediction file.
-
-The run is resumable, refuses to aggregate different returned model versions,
-and records probabilities, confidence, prompt/model versions, state hashes,
-tokens and latency. The report compares flat and hierarchical categorisation,
-attachment ablation and bounded repeat stability. It is Development evidence,
-not permission to activate Jev in a product path or to choose a production
-confidence threshold.
 
 Run the focused corpus lane only when genuine ignored input is present and required:
 

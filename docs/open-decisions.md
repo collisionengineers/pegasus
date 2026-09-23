@@ -33,9 +33,6 @@ for each: write it into the named owner, or drop it.
 
 | ID | Clause with no owner | Likely owner |
 | --- | --- | --- |
-| OPS-22 | The evaluation harness runs over the genuine corpus | FRD-08 |
-| EVAL-02 | The reviewer must record reasoning for every category, not only `Other` | ADR-0016 |
-| EVAL-05 | The rule result is displayed beside the human review | ADR-0016 |
 | MAIL-03 | One shared classification policy across all supported mailboxes, stated as a rule | FRD-08 |
 | MAIL-10 | Unlink and relink of a message from a Case in the Inbox | FRD-20 |
 | MAIL-17 | Standing-note preferences; report delivery through the Provider API; management-event recording | FRD-27, FRD-21 |

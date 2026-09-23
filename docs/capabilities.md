@@ -12,13 +12,6 @@ exclusion.
 | ID | Capability | Owner |
 | --- | --- | --- |
 | OPS-10 | Production environment deployed directly from an authorised terminal | [ADR-0014](adr/0014-local-to-production-deployment.md) |
-| OPS-22 | Genuine-corpus local evaluation harness | [QDOS evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-evaluation-boundary) |
-| EVAL-01 | Local development-only EML categorisation evaluator | [QDOS evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-evaluation-boundary); [ADR-0016](adr/0016-standalone-desktop-email-evaluator.md) |
-| EVAL-02 | Reviewer selects from the detailed Received/Sent/Reply taxonomy and records required reasoning | [QDOS evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-evaluation-boundary) |
-| EVAL-03 | `Other` category lets the reviewer enter a new category name and reasoning | [QDOS evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-evaluation-boundary) |
-| EVAL-04 | Evaluator copies the EML and appends a JSONL adjudication log | [QDOS evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-evaluation-boundary); [ADR-0016](adr/0016-standalone-desktop-email-evaluator.md) |
-| EVAL-05 | Show the rule-generated category beside the human review | [QDOS evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-evaluation-boundary) |
-| MAIL-20 | Run provider instruction-email categorisation in the local evaluator | [QDOS evaluation boundary](frd/frd-08-email-mailbox-and-background-processing.md#qdos-evaluation-boundary) |
 | MAIL-21 | Shared Core classification: versioned rules, evidence, ambiguity outcome | [Classification, destination, and folder catalogue](frd/frd-08-email-mailbox-and-background-processing.md#classification-destination-and-folder-catalogue) |
 | MAIL-22 | Detailed Received/Sent/Reply taxonomy with reasoned Other | [Settled mailbox taxonomy and correction](frd/frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction) |
 | ACC-01 | Staff sign-in with Pegasus-managed usernames and passwords | [Staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) |
