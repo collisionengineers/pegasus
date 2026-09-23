@@ -1,0 +1,33 @@
+@model Pegasus.Core.Intake.RetainedMailDetail
+@{
+    var summary = Model.Summary;
+    var routeParts = Pegasus.Web.Pages.Mail.MessageModel.RouteParts(Model);
+}
+
+@* The Case's Correspondence dialog body, fetched on open: the Inbox
+   preview's head, the record's text and the attachment names. The dialog
+   title carries the subject. *@
+<div data-message-content>
+    <div class="mail-header">
+        <div class="mail-route">
+            From @Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary) ·
+            <time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time>
+        </div>
+        @if (routeParts.Count > 0)
+        {
+            <div class="mail-route">@string.Join(" · ", routeParts)</div>
+        }
+    </div>
+    <partial name="Shared/_MessageBody" model="Model" />
+    @if (Model.Attachments.Count > 0)
+    {
+        <div class="section-gap">
+            <ul class="accepted-list">
+                @foreach (var attachment in Model.Attachments)
+                {
+                    <li>@attachment.FileName</li>
+                }
+            </ul>
+        </div>
+    }
+</div>

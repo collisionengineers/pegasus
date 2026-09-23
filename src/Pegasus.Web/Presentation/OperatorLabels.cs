@@ -2342,6 +2342,7 @@ public static class OperatorLabels
         public const string DismissedNotice = "Dismissed";
         public const string RestoredNotice = "Restored";
         public const string OpenFile = "Open file";
+        public const string OpenFullMessage = "Open full message";
     }
 
     /// <summary>Upload: one upload is one group with one decision (Upload, 13 September).</summary>
