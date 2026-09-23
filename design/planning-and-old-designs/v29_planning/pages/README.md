@@ -3,8 +3,9 @@
 One folder per live page this round touches. The round proposes three
 changes: Inspection and Audit living on one Case instead of Create audit
 making a second, linked Audit Case; Triage becoming a Case type shown at
-`/Cases/{id}`; and Inspection and Audit views replacing the Case record's
-Scroll/Tabs switch.
+`/Cases/{id}`; and Inspection and Audit views replacing the working-set
+strip of open records (second pass, 23 September 2026; the first pass wrongly
+replaced the Case record's Scroll/Tabs switch).
 
 Each `how-it-works.md` is read from the live source (`origin/dev`
 `446c3ce2f`, 23 September 2026) and describes the page as it is today, so the

@@ -54,7 +54,10 @@ const FACTS = `JSON.stringify((() => {
     on: document.documentElement.getAttribute('data-v29-proposals') === 'on',
     made: [...new Set(qa('[data-v29-proposal]').map((e) => e.getAttribute('data-v29-proposal')))].sort(),
     layoutButtons: qa('[data-case-layout]').filter(visible).length,
-    viewSwitch: qa('[data-v29-view-switch] a').filter(visible).map((a) => text(a) + (a.getAttribute('aria-current') === 'page' ? '*' : '')),
+    viewTabs: qa('[data-v29-view-tabs] .workspace-tab').filter(visible).map((t) => text(t.querySelector('.ref')) + ' ' + text(t.querySelector('.reg')) + (t.classList.contains('is-active') ? '*' : '')),
+    workingSet: visible(q('[data-working-set]')),
+    triageFiles: visible(q('#section-files[data-v29-proposal="P7"]')),
+    searchLinks: qa('.pane table tbody tr').filter(visible).map((r) => { const a = r.querySelector('td .table-row-link'); return a ? text(a) + ' -> ' + a.getAttribute('href').replace(/[0-9a-f-]{36}/, '{id}') : ''; }),
     heading: text(q('.ribbon-ref .ribbon-value')),
     auditReference: text(q('[data-v29-audit-reference] .ribbon-value')),
     typeChip: text(q('[data-case-type-chip]')),
@@ -89,10 +92,11 @@ const FACTS = `JSON.stringify((() => {
 
 const expectations = {
   'audit-view': (f) => [
-    [f.viewSwitch.join(',') === 'Inspection,Audit*', `view switch reads ${f.viewSwitch.join(',')}`],
-    [f.layoutButtons === 0, 'Scroll/Tabs still visible'],
+    [f.viewTabs.join(',') === 'Inspection QDOS31001,Audit a.QDOS31001*', `view tabs ${f.viewTabs.join(',')}`],
+    [!f.workingSet, 'the working-set strip is still shown'],
+    [f.layoutButtons === 2, `Scroll/Tabs should stay; ${f.layoutButtons} buttons`],
     [f.heading === 'QDOS31001', `heading ${f.heading}`],
-    [f.auditReference === 'a.QDOS31001', `audit reference ${f.auditReference}`],
+    [f.auditReference === '', 'the ribbon names the Audit reference by default'],
     [f.typeChip === 'Inspection + Audit', `type chip ${f.typeChip}`],
     [f.reportStatus.startsWith('a.QDOS31001'), `audit report card ${f.reportStatus}`],
     [/QDOS31001 · Sent/.test(f.inspectionReport) && /Inspection view/.test(f.inspectionReport), `inspection report line ${f.inspectionReport}`],
@@ -100,39 +104,40 @@ const expectations = {
     [f.editCase.length === 1, 'Edit Case missing from the Audit view'],
     [f.sectionEdits > 0, 'section Edit missing from the Audit view']
   ],
-  'inspection-view': (f) => [
-    [f.viewSwitch.join(',') === 'Inspection*,Audit', `view switch reads ${f.viewSwitch.join(',')}`],
-    [f.editCase.length === 0, 'Edit Case offered in the Inspection view'],
-    [f.sectionEdits === 0, `${f.sectionEdits} section Edit buttons in the Inspection view`],
-    [f.gatedLabels.length === 0, 'availability labels shown by default'],
-    [f.reportStatus === 'QDOS31001 · Sent 06 May 2031 11:30', `report status ${f.reportStatus}`],
-    [!f.notReady, 'Report not ready shown on a sent report'],
-    [f.auditReference === '', 'Audit reference shown in the Inspection view by default']
-  ],
   'audit-view-report': (f) => [
     [f.reportStatus.startsWith('a.QDOS31001'), `audit report card ${f.reportStatus}`],
     [/QDOS31001 · Sent/.test(f.inspectionReport), `inspection report line ${f.inspectionReport}`]
+  ],
+  'inspection-view': (f) => [
+    [f.viewTabs.join(',') === 'Inspection QDOS31001*,Audit a.QDOS31001', `view tabs ${f.viewTabs.join(',')}`],
+    [f.editCase.length === 0, 'Edit Case offered in the Inspection view'],
+    [f.sectionEdits === 0, `${f.sectionEdits} section Edit buttons in the Inspection view`],
+    [f.gatedLabels.length > 0 && f.gatedLabels.every((t) => t === 'Read-only · Audit created'), `labels ${f.gatedLabels.join('|')}`],
+    [f.reportStatus === 'QDOS31001 · Sent 06 May 2031 11:30', `report status ${f.reportStatus}`],
+    [!f.notReady, 'Report not ready shown on a sent report'],
+    [f.layoutButtons === 2, `Scroll/Tabs should stay; ${f.layoutButtons} buttons`]
+  ],
+  'audit-view-files': (f) => [
+    [f.auditFolder === 'Box audit folder: preparing', 'audit folder chip missing']
   ],
   'inspection-view-report': (f) => [
     [f.reportStatus === 'QDOS31001 · Sent 06 May 2031 11:30', `report status ${f.reportStatus}`],
     [!f.notReady, 'Report not ready shown on a sent report']
   ],
-  'audit-view-files': (f) => [
-    [f.auditFolder === 'Box audit folder: preparing', 'audit folder chip missing']
-  ],
-  'inspection-view-label': (f) => [
-    [f.gatedLabels.length > 0 && f.gatedLabels.every((t) => t === 'Read-only · Audit created'), `labels ${f.gatedLabels.join('|')}`]
+  'audit-view-ribbon-ref': (f) => [
+    [f.auditReference === 'a.QDOS31001', `audit reference ${f.auditReference}`]
   ],
   'audit-editing': (f) => [
-    [f.viewSwitch.join(',') === 'Inspection,Audit*', `view switch reads ${f.viewSwitch.join(',')}`],
-    [f.layoutButtons === 0, 'Scroll/Tabs still visible while editing'],
+    [f.viewTabs.join(',') === 'Inspection QDOS31001,Audit a.QDOS31001*', `view tabs ${f.viewTabs.join(',')}`],
     [f.createAuditItem === 0, 'Create audit offered after the Audit exists']
   ],
   'sent-read': (f) => [
-    [f.viewSwitch.length === 0, 'view switch shown before the Audit exists'],
-    [f.layoutButtons === 0, 'Scroll/Tabs still visible'],
-    [f.reportStatus === 'QDOS31001 · Sent 06 May 2031 11:30', `report status ${f.reportStatus}`],
-    [f.auditReference === '', 'Audit reference shown before the Audit exists']
+    [f.viewTabs.length === 0 && !f.workingSet, 'a strip is shown before the Audit exists'],
+    [f.layoutButtons === 2, `Scroll/Tabs should stay; ${f.layoutButtons} buttons`],
+    [f.reportStatus === 'QDOS31001 · Sent 06 May 2031 11:30', `report status ${f.reportStatus}`]
+  ],
+  'sent-read-single-tab': (f) => [
+    [f.viewTabs.join(',') === 'Inspection QDOS31001*', `view tabs ${f.viewTabs.join(',')}`]
   ],
   'sent-actions': (f) => [
     [f.menuOpen, 'Actions menu not open'],
@@ -144,29 +149,25 @@ const expectations = {
     [!!f.dialog && f.dialog.values[0] === 'QDOS31001' && f.dialog.values[1] === 'a.QDOS31001', `dialog values ${f.dialog && f.dialog.values.join(',')}`]
   ],
   'standalone-audit': (f) => [
-    [f.layoutButtons === 0, 'Scroll/Tabs still visible'],
-    [f.viewSwitch.length === 0, 'view switch on a standalone Audit'],
+    [f.viewTabs.length === 0 && !f.workingSet, 'a strip is shown on a Case with one view'],
+    [f.layoutButtons === 2, `Scroll/Tabs should stay; ${f.layoutButtons} buttons`],
     [f.originalReport, 'Original report section missing'],
     [f.heading === 'a.QDOS31002', `heading ${f.heading}`]
   ],
   'triage-case': (f) => [
-    [f.triageFrame, 'Triage not in the Case frame'],
-    [f.heading === 't.QDOS31003', `heading ${f.heading}`],
-    [f.typeChip === 'Triage', `type chip ${f.typeChip}`],
-    [f.triageSections.join(',') === 'Source,Determinations,Files,Notes', `sections ${f.triageSections.join(',')}`],
-    [f.setPrincipal === 0, 'Set principal still offered'],
-    [!f.pageHeader, 'page header still shown'],
-    [!f.oldTriageRef, 'a T- reference remains'],
-    [f.editCase.join(',') === 'Edit Case', `edit label ${f.editCase.join(',')}`]
-  ],
-  'triage-case-edit-label': (f) => [
-    [f.editCase.join(',') === 'Edit Triage', `edit label ${f.editCase.join(',')}`]
+    [!f.workingSet && f.viewTabs.length === 0, 'a strip is shown on the Triage Case'],
+    [f.triageFiles, 'the Case Files section is missing'],
+    [!f.triageFrame, 'the Triage page was restructured'],
+    [f.pageHeader, 'the live page header was removed'],
+    [f.setPrincipal === 1, 'the live Set principal was removed'],
+    [!f.oldTriageRef && f.triageRef, 'a T- reference remains']
   ],
   'work-centre': (f) => [
     [f.metrics.join(',') === 'Not ready,Review,Held,Unidentified,Triages', `metrics ${f.metrics.join(',')}`],
     [/metric-strip--5/.test(f.stripClass), 'metric strip not five wide'],
     [!f.oldTriageRef && f.triageRef, 'Needs attention still names T-'],
-    [f.triageLinks === 0, 'a /Triage/ link remains']
+    [f.triageLinks === 0, 'a /Triage/ link remains'],
+    [!f.workingSet, 'the working-set strip is still shown']
   ],
   'work-centre-metric-after-held': (f) => [
     [f.metrics.join(',') === 'Not ready,Review,Held,Triages,Unidentified', `metrics ${f.metrics.join(',')}`]
@@ -183,10 +184,13 @@ const expectations = {
   'open-triage': (f) => [
     [f.openTriage === 1, 'Open the Triage not offered'],
     [!!f.dialog && f.dialog.title === 'Open the Triage', 'dialog not open'],
+    [!!f.dialog && f.dialog.labels.join(',') === 'Vehicle registration', `dialog labels ${f.dialog && f.dialog.labels.join(',')}`]
+  ],
+  'open-triage-principal': (f) => [
     [!!f.dialog && f.dialog.labels.join(',') === 'Principal,Vehicle registration', `dialog labels ${f.dialog && f.dialog.labels.join(',')}`]
   ],
-  'open-triage-no-principal': (f) => [
-    [!!f.dialog && f.dialog.labels.join(',') === 'Vehicle registration', `dialog labels ${f.dialog && f.dialog.labels.join(',')}`]
+  'search-audit-entry': (f) => [
+    [f.searchLinks.join(' | ') === 'a.QDOS31002 -> /Cases/{id} | QDOS31001 -> /Cases/{id}?view=inspection | a.QDOS31001 -> /Cases/{id}?view=audit', `search entries ${f.searchLinks.join(' | ')}`]
   ],
   'search-triage': (f) => [
     [f.searchRows.join(',') === 't.QDOS31003', `search rows ${f.searchRows.join(',')}`]

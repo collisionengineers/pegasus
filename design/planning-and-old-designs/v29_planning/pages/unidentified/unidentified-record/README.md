@@ -13,8 +13,8 @@
 ## Screenshots
 
 - Baseline: [1580](../../../current/v29-shots/s09-unidentified-record-1580.png) · [1440](../../../current/v29-shots/s09-unidentified-record-1440.png) · [760](../../../current/v29-shots/s09-unidentified-record-760.png)
-- Open the Triage with Principal (P12): [1580](../../../current/v29-shots/p18-open-triage-1580.png) · [1440](../../../current/v29-shots/p18-open-triage-1440.png) · [760](../../../current/v29-shots/p18-open-triage-760.png)
-- Live dialog, registration only (P12 variant): [1580](../../../current/v29-shots/p19-open-triage-no-principal-1580.png) · [1440](../../../current/v29-shots/p19-open-triage-no-principal-1440.png) · [760](../../../current/v29-shots/p19-open-triage-no-principal-760.png)
+- Open the Triage, live dialog (P12): [1580](../../../current/v29-shots/p18-open-triage-1580.png) · [1440](../../../current/v29-shots/p18-open-triage-1440.png) · [760](../../../current/v29-shots/p18-open-triage-760.png)
+- With a Principal pick (P12 variant): [1580](../../../current/v29-shots/p19-open-triage-principal-1580.png) · [1440](../../../current/v29-shots/p19-open-triage-principal-1440.png) · [760](../../../current/v29-shots/p19-open-triage-principal-760.png)
 
 ## Notes
 

@@ -13,6 +13,11 @@
 //   ?type=triage         Create case with Triage chosen
 //   ?opt=key:value,...   undecided choices (see OPTIONS)
 //
+// Second pass, 23 September 2026: the views replace the working-set strip (the
+// open-records tabs), not the Scroll/Tabs switch; a Triage Case changes only as
+// its prior requirements say; the approved wording shows by default; Search
+// lists an Audit as its own entry.
+//
 // Proposal ids P1..P13 are the ones v29-notes.md and the sign-off list use.
 (function () {
   'use strict';
@@ -28,10 +33,10 @@
 
   // Undecided choices, each a strip variable with its proposed default.
   var OPTIONS = {
-    auditref: 'audit',     // audit | both | none   where the ribbon shows a.{Case/PO} (item C)
-    rolabel: 'none',       // none | on             an availability label on read-only Inspection heads (item B)
-    triageedit: 'case',    // case | triage         "Edit Case" or the live "Edit Triage" on a Triage Case (item P)
-    principal: 'on',       // on | off              the Principal pick in Open the Triage (item S)
+    auditref: 'none',      // none | audit | both   the ribbon also names a.{Case/PO} (item C); the Audit view tab carries it
+    rolabel: 'on',         // on | none             the approved label on read-only Inspection heads (item B)
+    singleview: 'none',    // none | tab            a Case with one view shows no strip, or its one view tab (item A)
+    principal: 'off',      // off | on              the live Open the Triage, or with a Principal pick (item S)
     metric: 'end'          // end | afterheld       where the Triages metric sits (item Q)
   };
   (params.get('opt') || '').split(',').forEach(function (pair) {
@@ -116,7 +121,6 @@
     });
   }
 
-  var isCasePage = function () { return !!$('[data-case-record]'); };
   var isInspectionAndAudit = function () {
     var chip = $('[data-case-type-chip]');
     return !!chip && /Inspection \+ Audit/.test(chip.textContent);
@@ -129,25 +133,41 @@
   var auditCreated = function () { return isInspectionAndAudit() && stage === 'audit'; };
   var inspectionView = function () { return auditCreated() && view === 'inspection'; };
 
-  // ---- P1 · Views replace the Scroll/Tabs switch (item A) -----------------
-  // Every Case page loses Scroll/Tabs and always scrolls. An Inspection + Audit
-  // Case whose Audit exists gets a view switch in the same place and the same
-  // control vocabulary: Inspection | Audit, server-rendered links (?view=).
-  function p1Views() {
+  // ---- P1 · Views replace the working-set strip (item A) -----------------
+  // The open-records strip under the utility bar goes from every page. On an
+  // Inspection + Audit Case whose Audit exists, the same strip carries the
+  // Case's views instead: Inspection and Audit, in the working-set tab's own
+  // markup, each naming the reference its report carries. Scroll/Tabs stays.
+  function viewTab(key, label, reference, active) {
+    var wrapper = el('div', { 'class': 'workspace-tab' + (active ? ' is-active' : ''), 'data-v29-view': key });
+    var link = el('a', { 'class': 'workspace-tab-link', href: presetHref({ view: key }) }, [
+      icon('folder'), el('span', { 'class': 'ref' }, [label]), el('span', { 'class': 'reg' }, [reference])
+    ]);
+    if (active) link.setAttribute('aria-current', 'page');
+    wrapper.appendChild(link);
+    return wrapper;
+  }
+  function p1ViewTabs() {
+    var strip = $('[data-working-set]');
+    if (strip) removed(strip, 'P1');
+    document.body.classList.remove('has-working-set');
     var record = $('[data-case-record]');
-    if (!record) return;
-    record.setAttribute('data-layout', 'scroll');
-    var layoutSwitch = $('[data-case-layout-switch]');
-    if (!layoutSwitch) return;
-    if (!auditCreated()) { removed(layoutSwitch, 'P1'); return; }
-    var views = el('div', { 'class': 'layout-switch', role: 'group', 'aria-label': 'Case view', 'data-v29-view-switch': '' });
-    [['inspection', 'Inspection'], ['audit', 'Audit']].forEach(function (entry) {
-      var link = el('a', { href: presetHref({ view: entry[0] }), 'data-v29-view': entry[0] }, [entry[1]]);
-      if (entry[0] === view) link.setAttribute('aria-current', 'page');
-      views.appendChild(link);
-    });
-    layoutSwitch.parentNode.replaceChild(mark(views, 'P1'), layoutSwitch);
-    record.setAttribute('data-v29-view', view);
+    if (!record || !strip) return;
+    var tabs = [];
+    if (auditCreated()) {
+      tabs.push(viewTab('inspection', 'Inspection', caseReference(), view === 'inspection'));
+      tabs.push(viewTab('audit', 'Audit', auditReference(), view === 'audit'));
+    } else if (OPTIONS.singleview === 'tab') {
+      // A standalone Audit's one view is its Audit; every other Case's is its Inspection.
+      var chip = ($('[data-case-type-chip]') || { textContent: '' }).textContent.trim();
+      var single = chip === 'Audit' ? 'Audit' : 'Inspection';
+      tabs.push(viewTab(single.toLowerCase(), single, caseReference(), true));
+    }
+    if (!tabs.length) return;
+    var views = el('nav', { 'class': 'workspace-tabs', 'aria-label': 'Case views', 'data-v29-view-tabs': '' }, tabs);
+    strip.parentNode.insertBefore(mark(views, 'P1'), strip);
+    document.body.classList.add('has-working-set');
+    record.setAttribute('data-v29-view', auditCreated() ? view : 'single');
   }
 
   // ---- P2 · The ribbon names the Audit's reference (item C) ---------------
@@ -275,107 +295,17 @@
     chip.parentNode.insertBefore(mark(audit, 'P6'), chip.nextSibling);
   }
 
-  // ---- P7 · A Triage Case uses the Case frame (items P, T) ----------------
-  // /Cases/{id} renders a Triage Case: the Case ribbon (t. Case/PO, Triage
-  // state and type chips, Edit Case, one Actions menu), the section row with
-  // one view, and the live Triage panels as its sections. Set principal goes.
-  function p7TriageCase() {
+  // ---- P7 · A Triage Case gains the Case's Files (item P) -----------------
+  // Operator, 23 September: Triage Cases change only as their prior
+  // requirements say. Those add the established Case Files upload path (PR 803
+  // plan); the t. Case/PO and /Cases/{id} are P9. Everything else is live.
+  function p7TriageFiles() {
     if (state.id !== 'triage-record') return;
-    var main = $('#main-content');
-    var header = $('.page-header', main);
-    var liveRibbon = $('.triage-ribbon', main);
-    var recordBar = $('.triage-record-actions', main);
-    var body = $('.record-body', main);
-    if (!main || !liveRibbon || !body) return;
-
-    var css = el('link', { rel: 'stylesheet', href: '../assets/css/case-workspace.css' });
-    document.head.appendChild(css);
-
-    var registration = '';
-    var opened = '';
-    var assignee = '';
-    $$('.ribbon-item', liveRibbon).forEach(function (item) {
-      var label = ($('.ribbon-label', item) || { textContent: '' }).textContent.trim();
-      var value = ($('.ribbon-value', item) || { textContent: '' }).textContent.trim();
-      if (label === 'Registration') registration = value;
-      if (label === 'Opened') opened = value;
-      if (label === 'Assignee') assignee = value;
-    });
-    var stateChip = $('.ribbon-chips .status', liveRibbon) || el('span', { 'class': 'status status--navy' }, ['Open']);
-    var principal = '';
-    $$('.triage-source-panel dl.definition').forEach(function (definition) {
-      var term = $('dt', definition);
-      var value = $('dd', definition);
-      if (!term || !value) return;
-      if (term.textContent.trim() === 'Principal') principal = value.textContent.trim();
-      // The Triage's reference is now its Case/PO, labelled as the Case card labels it.
-      if (term.textContent.trim() === 'Triage reference') { term.textContent = 'Our ref'; mark(term, 'P7'); }
-    });
-
-    function ribbonItem(label, value, mono) {
-      return el('div', { 'class': 'ribbon-item' }, [
-        el('div', { 'class': 'ribbon-label' }, [label]),
-        el('div', { 'class': 'ribbon-value' + (mono ? ' mono' : '') }, [el('span', {}, [value])])
-      ]);
-    }
-
-    // Ribbon actions: Edit (the Triage edit scope, unchanged) and one Actions menu.
-    var editForm = recordBar ? $('form[action*="handler=Edit"]', recordBar) : null;
-    if (editForm) {
-      var editButton = $('button', editForm);
-      editButton.className = 'btn btn--dark';
-      editButton.textContent = '';
-      editButton.appendChild(icon('pencil'));
-      editButton.appendChild(el('span', {}, [OPTIONS.triageedit === 'triage' ? 'Edit Triage' : 'Edit Case']));
-    }
-    var menuBody = el('div', { 'class': 'menu-body menu-body--end' });
-    var assignMe = recordBar ? $('form[data-triage-assign-to-me]', recordBar) : null;
-    if (assignMe) { $('button', assignMe).className = 'btn'; menuBody.appendChild(assignMe); }
-    var assignEngineer = recordBar ? $('[data-dialog-open="triage-assign-dialog"]', recordBar) : null;
-    if (assignEngineer) menuBody.appendChild(assignEngineer);
-    var actions = el('details', { 'class': 'menu', 'data-menu': '' }, [
-      el('summary', { 'class': 'btn' }, [el('span', {}, ['Actions']), icon('chevron-down')]),
-      menuBody
-    ]);
-    var ribbonActions = el('div', { 'class': 'ribbon-actions' }, [editForm || el('span'), actions]);
-
-    var ribbon = el('div', { 'class': 'ribbon', 'aria-label': 'Case identity' }, [
-      el('div', { 'class': 'ribbon-facts' }, [
-        el('div', { 'class': 'ribbon-item ribbon-ref' }, [
-          el('div', { 'class': 'ribbon-label' }, ['Case workspace · ' + registration]),
-          el('h1', { 'class': 'ribbon-value' }, [TRIAGE_REFERENCE])
-        ]),
-        ribbonItem('Principal', principal),
-        ribbonItem('Assignee', assignee || 'Unassigned'),
-        ribbonItem('Opened', opened),
-        el('div', { 'class': 'ribbon-chips', 'aria-label': 'State' }, [
-          stateChip,
-          el('span', { 'class': 'status status--navy status--plain', 'data-case-type-chip': '' }, ['Triage'])
-        ])
-      ]),
-      ribbonActions
-    ]);
-
-    // Sections: the live panels, in the order the work runs, as record sections.
-    var panels = {
-      triage: $('.triage-resolution-panel', body),
-      source: $('.triage-source-panel', body),
-      notes: $$('section.panel', main).filter(function (panel) { var h = $('h2', panel); return h && h.textContent.trim() === 'Notes'; })[0]
-    };
-    var extra = $$('section.panel', body).filter(function (panel) {
-      return panel !== panels.triage && panel !== panels.source && panel !== panels.notes;
-    });
-    // The live order: site.css puts the Source panel first (.triage-source-panel{order:-1}).
-    var order = [['source', 'Source', 'file-text', panels.source], ['triage', 'Determinations', 'clipboard-list', panels.triage]];
-    extra.forEach(function (panel, index) {
-      var h = $('h2', panel);
-      order.push(['extra-' + index, h ? h.textContent.trim() : 'Section', 'mail', panel]);
-    });
-
-    // Files: the Case's Files section, with upload (standard Case custody).
-    var files = el('section', { 'class': 'record-section panel', id: 'section-files', 'data-section': 'files', 'aria-labelledby': 'section-files-title' }, [
+    var notes = $$('section.panel').filter(function (panel) { var h = $('h2', panel); return h && h.textContent.trim() === 'Notes'; })[0];
+    if (!notes) return;
+    var files = el('section', { 'class': 'panel section-gap', id: 'section-files', 'aria-labelledby': 'triage-files-title' }, [
       el('div', { 'class': 'panel-head' }, [
-        el('h2', { id: 'section-files-title' }, ['Files']),
+        el('h2', { id: 'triage-files-title' }, ['Files']),
         el('span', { 'class': 'status status--amber status--plain' }, ['Box case folder: preparing']),
         el('div', { 'class': 'panel-actions' }, [
           el('a', { 'class': 'btn btn--small btn--primary', href: '/Upload' }, [icon('upload'), el('span', {}, ['Add evidence'])])
@@ -386,41 +316,7 @@
         el('p', { 'class': 'muted' }, ['No documents on this Case.'])
       ])
     ]);
-    order.push(['files', 'Files', 'folder', files]);
-    order.push(['notes', 'Notes', 'history', panels.notes]);
-
-    var nav = el('nav', { 'class': 'section-nav', 'aria-label': 'Case sections' });
-    var workspaceMain = el('div', { 'class': 'workspace-main', id: 'case-main' });
-    order.forEach(function (entry, index) {
-      var panel = entry[3];
-      if (!panel) return;
-      panel.classList.add('record-section');
-      if (panel.id !== 'section-' + entry[0]) panel.id = 'section-' + entry[0];
-      workspaceMain.appendChild(panel);
-      var link = el('a', { 'class': 'section-link', href: '#section-' + entry[0], 'aria-current': index === 0 ? 'true' : 'false' }, [icon(entry[2]), el('span', {}, [entry[1]])]);
-      nav.appendChild(link);
-    });
-    var refresh = header ? $('form[data-refresh-form]', header) : null;
-    var tools = el('div', { 'class': 'section-tools' }, refresh ? [refresh] : []);
-    if (refresh) {
-      var refreshButton = $('button', refresh);
-      refreshButton.className = 'btn btn--icon btn--small';
-      refreshButton.textContent = '';
-      refreshButton.setAttribute('aria-label', 'Refresh');
-      refreshButton.appendChild(icon('refresh-cw'));
-    }
-
-    var record = el('article', { 'class': 'record case-record', 'data-case-record': '', 'data-layout': 'scroll', 'data-v29-triage-case': '' }, [
-      el('div', { 'class': 'sticky-block', 'data-sticky-block': '' }, [ribbon, el('div', { 'class': 'section-row' }, [nav, tools])]),
-      el('div', { 'class': 'workspace workspace--single' }, [workspaceMain])
-    ]);
-
-    var content = $('.content', main) || main;
-    content.insertBefore(mark(record, 'P7'), content.firstChild);
-    // Set principal goes: the Principal is a Case's identity (item T).
-    $$('[data-dialog-open="triage-principal-dialog"]', record).forEach(function (button) { removed(button, 'P7'); });
-    [header, liveRibbon, recordBar, body].forEach(function (node) { if (node && node.parentNode) node.parentNode.removeChild(node); });
-    bindLive(record);
+    notes.parentNode.insertBefore(mark(files, 'P7'), notes);
   }
 
   // ---- P8 · The Work Centre counts Triages (item Q) -----------------------
@@ -452,14 +348,6 @@
       mark(link, 'P9');
       if (routes && routes.exact) routes.exact['/cases/' + id.toLowerCase()] = 'triage-record';
     });
-    if (state.id === 'triage-record') {
-      var main = $('#main-content');
-      if (main) {
-        var live = state.live || '';
-        main.setAttribute('data-record-href', live.replace(/^\/Triage\//, '/Cases/'));
-        main.setAttribute('data-record-kind', 'case');
-      }
-    }
   }
 
   // ---- P10 · Triage sits in the Workflow group of Cases (item Q) ----------
@@ -564,11 +452,42 @@
     if (window.V29_ROUTES && triageId) window.V29_ROUTES.exact['/cases/' + triageId] = 'triage-record';
   }
 
+  // ---- P14 · Search lists an Audit as its own entry (item J) --------------
+  // Operator, 23 September: an Inspection + Audit Case whose Audit exists
+  // surfaces twice, QDOS26001 and a.QDOS26001, both going to the same Case.
+  function p14SearchAuditEntry() {
+    if (state.id !== 'search-results') return;
+    var rows = $$('.pane table tbody tr');
+    var inspection = rows.filter(function (row) {
+      var link = $('td .table-row-link', row);
+      return link && /^[A-Z]+\d+$/.test(link.textContent.trim());
+    })[0];
+    if (!inspection) return;
+    var link = $('td .table-row-link', inspection);
+    var reference = link.textContent.trim();
+    var href = link.getAttribute('href');
+    var audit = inspection.cloneNode(true);
+    audit.setAttribute('aria-selected', 'false');
+    var auditLink = $('td .table-row-link', audit);
+    auditLink.textContent = 'a.' + reference;
+    auditLink.setAttribute('href', href + '?view=audit');
+    link.setAttribute('href', href + '?view=inspection');
+    var template = $('template', audit);
+    if (template) {
+      var heading = template.content.querySelector('h2');
+      if (heading) heading.textContent = heading.textContent.replace(reference, 'a.' + reference);
+    }
+    inspection.parentNode.insertBefore(mark(audit, 'P14'), inspection.nextSibling);
+    var pane = inspection.closest('.pane');
+    var count = pane ? $('.pane-head .muted', pane) : null;
+    if (count) count.textContent = rows.length + 1 + ' results';
+  }
+
   var PROPOSALS = [
-    ['P1', p1Views], ['P2', p2AuditReference], ['P3', p3InspectionReadOnly], ['P4', p4Report],
-    ['P5', p5CreateAudit], ['P6', p6AuditFolder], ['P7', p7TriageCase], ['P8', p8TriagesMetric],
+    ['P1', p1ViewTabs], ['P2', p2AuditReference], ['P3', p3InspectionReadOnly], ['P4', p4Report],
+    ['P5', p5CreateAudit], ['P6', p6AuditFolder], ['P7', p7TriageFiles], ['P8', p8TriagesMetric],
     ['P9', p9TriageIdentity], ['P10', p10Rail], ['P11', p11CreateTriage], ['P12', p12OpenTriage],
-    ['P13', p13SearchTriage]
+    ['P13', p13SearchTriage], ['P14', p14SearchAuditEntry]
   ];
   function run() {
     PROPOSALS.forEach(function (proposal) {

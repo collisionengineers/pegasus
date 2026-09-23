@@ -118,6 +118,22 @@ link marked `aria-current` is `SectionLinkKey` (a nested key marks Vehicle).
 Refresh is a GET form carrying the current section in a hidden
 `data-case-section-field`, so it reloads onto the section being read.
 
+### The working-set strip
+
+Added for the second pass (read 23 September 2026 from
+`src/Pegasus.Web/wwwroot/js/site.js`, the working-set block, and FRD-12 "Working
+set, command palette and keyboard"). The strip under the utility bar
+(`nav.workspace-tabs[data-working-set]`) holds open records only. A Case,
+Triage, Unidentified item, vehicle-images record or message joins it on load
+by announcing itself on `main[data-record-kind]` with `data-record-href`,
+`-ref`, `-reg` and `-glyph`, and it leaves by its x. Six tabs show; the rest sit
+in an "N more" menu; at most 12 are kept (`SHOWN`, `MAX`). The set is per browser
+under localStorage `pegasus.workingSet`. Each tab shows the kind's glyph
+(`KIND_ICON`), the reference in bold, the registration in mono, and a state
+glyph: unsaved edits (`pegasus:dirty`), a Glass's session open, or a colleague
+editing. Closing the current record returns to the Work Centre. With nothing
+open the strip is absent and `body.has-working-set` is removed.
+
 ### The Scroll/Tabs switch
 
 **Where it is rendered.** In `Details.cshtml`, inside `.section-tools` after

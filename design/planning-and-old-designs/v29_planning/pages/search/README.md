@@ -11,8 +11,9 @@
 ## Screenshots
 
 - Baseline, by registration: [1580](../../current/v29-shots/s10-search-results-1580.png) · [1440](../../current/v29-shots/s10-search-results-1440.png) · [760](../../current/v29-shots/s10-search-results-760.png)
+- The Audit as its own entry (P14): [1580](../../current/v29-shots/p20-search-audit-entry-1580.png) · [1440](../../current/v29-shots/p20-search-audit-entry-1440.png) · [760](../../current/v29-shots/p20-search-audit-entry-760.png)
 - Baseline, the Triage's registration: [1580](../../current/v29-shots/s11-search-triage-1580.png) · [1440](../../current/v29-shots/s11-search-triage-1440.png) · [760](../../current/v29-shots/s11-search-triage-760.png)
-- The Triage Case found (P13): [1580](../../current/v29-shots/p20-search-triage-1580.png) · [1440](../../current/v29-shots/p20-search-triage-1440.png) · [760](../../current/v29-shots/p20-search-triage-760.png)
+- The Triage Case found (P13): [1580](../../current/v29-shots/p21-search-triage-1580.png) · [1440](../../current/v29-shots/p21-search-triage-1440.png) · [760](../../current/v29-shots/p21-search-triage-760.png)
 
 ## Notes
 

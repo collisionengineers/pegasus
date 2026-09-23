@@ -26,11 +26,11 @@ server. The dark bar at the top is demo control, not product UI:
 
 | File | Surfaces |
 | --- | --- |
-| [pegasus_case_record_v29.html](pegasus_case_record_v29.html) | The Inspection + Audit Case: Audit and Inspection views, Create audit, the Report of each view |
+| [pegasus_case_record_v29.html](pegasus_case_record_v29.html) | The Inspection + Audit Case: the Inspection and Audit views in the strip that held the working set, Create audit, the Report of each view |
 | [pegasus_audit_record_v29.html](pegasus_audit_record_v29.html) | A standalone Audit Case, the regression check |
-| [pegasus_triage_case_v29.html](pegasus_triage_case_v29.html) | A Triage Case at `/Cases/{id}` in the Case frame |
+| [pegasus_triage_case_v29.html](pegasus_triage_case_v29.html) | A Triage Case at `/Cases/{id}`: the live Triage page with its `t.` Case/PO and the Case's Files |
 | [pegasus_work_centre_v29.html](pegasus_work_centre_v29.html) | Work Centre with the Triages metric, the Cases list, Create case with Triage |
-| [pegasus_unidentified_search_v29.html](pegasus_unidentified_search_v29.html) | Open the Triage from Unidentified, Search finding a Triage Case |
+| [pegasus_unidentified_search_v29.html](pegasus_unidentified_search_v29.html) | Open the Triage from Unidentified; Search listing the Audit as its own entry and finding a Triage Case |
 
 Presets are query strings on a state page:
 
@@ -51,6 +51,12 @@ Presets are query strings on a state page:
 
 ## Status
 
-Stage 1 is complete and **awaiting the operator's sign-off**. Every lettered item in
-[v29-notes.md](v29-notes.md#6-sign-off-list) is open. Stage 2 does not start until
-each is settled and the operator approves.
+Second pass, 23 September 2026. The views now replace the working-set strip, not
+Scroll/Tabs, and a Triage Case keeps its prior requirements. **Awaiting the
+operator's sign-off.**
+
+- **Settled:** B, E, J (Search), O and P.
+- **Open:** every other lettered item in
+  [v29-notes.md](v29-notes.md#6-sign-off-list).
+
+Stage 2 does not start until each item is settled and the operator approves.

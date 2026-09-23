@@ -14,8 +14,7 @@
 ## Screenshots
 
 - Baseline, /Triage/{id}: [1580](../../../current/v29-shots/s04-triage-record-1580.png) · [1440](../../../current/v29-shots/s04-triage-record-1440.png) · [760](../../../current/v29-shots/s04-triage-record-760.png)
-- Triage Case in the Case frame (P7, P9): [1580](../../../current/v29-shots/p12-triage-case-1580.png) · [1440](../../../current/v29-shots/p12-triage-case-1440.png) · [760](../../../current/v29-shots/p12-triage-case-760.png)
-- Edit Triage label variant (P7): [1580](../../../current/v29-shots/p13-triage-case-edit-label-1580.png) · [1440](../../../current/v29-shots/p13-triage-case-edit-label-1440.png) · [760](../../../current/v29-shots/p13-triage-case-edit-label-760.png)
+- Triage Case: live page with the Case's Files (P7, P9): [1580](../../../current/v29-shots/p13-triage-case-1580.png) · [1440](../../../current/v29-shots/p13-triage-case-1440.png) · [760](../../../current/v29-shots/p13-triage-case-760.png)
 
 ## Notes
 
