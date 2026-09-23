@@ -151,7 +151,7 @@ public sealed record CaseHistoryEntry(
     public IReadOnlyList<CaseGuidanceEntry> Guidance { get; init; } = [];
 }
 
-public sealed record CaseQueryEmail(
+public sealed record CaseCorrespondenceEmail(
     Guid RetainedMessageId,
     DateTimeOffset ReceivedAtUtc,
     string? EffectiveSenderAddress,
@@ -176,7 +176,7 @@ public sealed record CaseDetails(
     public GeneratedCaseChaser? LatestChaser { get; init; }
     public CaseVehicleEvidence? VehicleEvidence { get; init; }
     public IReadOnlyList<CaseCustodyPreparation> Custody { get; init; } = [];
-    public IReadOnlyList<CaseQueryEmail> QueryEmails { get; init; } = [];
+    public IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails { get; init; } = [];
 
     /// <summary>
     /// The operator-facing name for <c>Workflow.ReportApproval.ApprovedBy</c>,
@@ -285,7 +285,7 @@ public sealed record CaseFilesSection(
     IReadOnlyList<CaseDocument> Documents,
     string? CustodyFolderRemoteId,
     CaseCustodyState CustodyState,
-    IReadOnlyList<CaseQueryEmail> QueryEmails,
+    IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
     Guid? AuditOfCaseId = null);
 
@@ -450,7 +450,7 @@ public sealed record CaseFilesSectionData(
     IReadOnlyList<CaseDocument> Documents,
     string? CustodyFolderRemoteId,
     CaseCustodyState CustodyState,
-    IReadOnlyList<CaseQueryEmail> QueryEmails,
+    IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
     Guid? AuditOfCaseId = null);
 
@@ -594,7 +594,7 @@ public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSe
         }
 
         return new(body.Frame, query.Documents ?? body.Documents, body.CustodyFolderRemoteId,
-            body.CustodyState, body.QueryEmails,
+            body.CustodyState, body.CorrespondenceEmails,
             body.StandaloneAuditEvidenceId, body.AuditOfCaseId);
     }
 }

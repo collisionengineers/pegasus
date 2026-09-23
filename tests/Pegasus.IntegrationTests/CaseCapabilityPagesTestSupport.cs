@@ -826,7 +826,7 @@ internal static partial class CaseWebTestSupport
 
         public IReadOnlyList<CaseHistoryEntry> HistoryEntries { get; init; } = [];
 
-        public IReadOnlyList<CaseQueryEmail> QueryEmails { get; init; } = [];
+        public IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails { get; init; } = [];
 
         public string LeaseToken { get; } = new('a', CaseEditAuthority.LeaseTokenLength);
 
@@ -888,7 +888,7 @@ internal static partial class CaseWebTestSupport
             {
                 Data = DataOverride ?? CreateData(),
                 VehicleEvidence = VehicleLookupEvidence,
-                QueryEmails = QueryEmails,
+                CorrespondenceEmails = CorrespondenceEmails,
                 RecordNotes = RecordNotes,
                 Custody = ExposeCustody
                     ? [new(CaseId, CaseVersion, CustodyTargetKind.CaseSource, "Failed", "Provider storage was unavailable.", 1, true)]
@@ -971,7 +971,7 @@ internal static partial class CaseWebTestSupport
                     query.Documents ?? CaseDocuments,
                     null,
                     CaseCustodyState.Pending,
-                    QueryEmails,
+                    CorrespondenceEmails,
                     StandaloneAuditEvidenceId,
                     AuditOfCaseId)
                 : null);
