@@ -843,14 +843,10 @@ public sealed class ProcessQueuedIntake(
                     }
                     else
                     {
-                        content = await artifactStore.ReadAsync(stagedReceipt.StorageKey, cancellationToken)
-                            ?? throw new IntakeArtifactIntegrityException();
-                        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
-                        if (!string.Equals(actualHash, stagedReceipt.SourceHash, StringComparison.Ordinal))
-                        {
-                            throw new IntakeArtifactIntegrityException();
-                        }
-
+                        content = await ReadVerifiedAsync(
+                            stagedReceipt.StorageKey,
+                            stagedReceipt.SourceHash,
+                            cancellationToken);
                         durableStorageKey = await artifactStore.StoreAsync(
                             stagedReceipt.SourceHash,
                             content,
@@ -1039,17 +1035,23 @@ public sealed class ProcessQueuedIntake(
         // processing reads staging, integrity-checked. It needs no Box copy, so
         // it never makes one: the holding decision follows destination
         // automation here as on every other path.
-        var content = await artifactStore.ReadAsync(source.StorageKey, cancellationToken)
+        var content = await ReadVerifiedAsync(source.StorageKey, source.ContentHash, cancellationToken);
+        return (content, source.StorageKey);
+    }
+
+    /// <summary>Staged or retained intake bytes whose SHA-256 is the recorded one; anything else fails closed.</summary>
+    private async Task<ReadOnlyMemory<byte>> ReadVerifiedAsync(
+        string storageKey,
+        string sha256,
+        CancellationToken cancellationToken)
+    {
+        var content = await artifactStore.ReadAsync(storageKey, cancellationToken)
             ?? throw new IntakeArtifactIntegrityException();
-        if (content.Length != source.ContentLength
-            || !string.Equals(
-                Convert.ToHexString(SHA256.HashData(content.Span)),
-                source.ContentHash,
-                StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(Convert.ToHexString(SHA256.HashData(content.Span)), sha256, StringComparison.Ordinal))
         {
             throw new IntakeArtifactIntegrityException();
         }
-        return (content, source.StorageKey);
+        return content;
     }
 
     private static Activity? StartStage(string stage)

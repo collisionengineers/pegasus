@@ -332,7 +332,6 @@ public sealed class ValuationCalculationTests
         Assert.Equal(3100m, first.Calculation.Proposal);
         Assert.Equal(may, second.GuideValuationId);
         Assert.Equal(3250m, second.Calculation.Proposal);
-        Assert.NotEqual(first.GuideValuationStampUtc, second.GuideValuationStampUtc);
     }
 
     /// <summary>

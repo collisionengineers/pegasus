@@ -517,13 +517,8 @@ public sealed class EfCaseWorkspaceStore(
         string operationKey,
         CancellationToken cancellationToken)
     {
-        var after = await context.ActionHistory.AsNoTracking()
-            .Where(item => item.AggregateType == "case"
-                && item.AggregateId == caseId.ToString("D")
-                && item.CorrelationId == operationKey
-                && item.EventKind == EventType)
-            .Select(item => item.AfterJson)
-            .SingleOrDefaultAsync(cancellationToken);
+        var after = await EfRepairSpecificationStore.ReplayedCaseAfterJsonAsync(
+            context, caseId, operationKey, EventType, cancellationToken);
         if (after is null)
         {
             return null;

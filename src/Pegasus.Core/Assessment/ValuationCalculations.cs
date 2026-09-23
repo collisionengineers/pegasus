@@ -199,13 +199,9 @@ public sealed record ValuationCalculation(
     decimal ConditionDeduction,
     decimal Proposal);
 
-/// <summary>
-/// What the calculator shows before anything is adopted. It carries the guide
-/// card's stamp, the moment the card was last written.
-/// </summary>
+/// <summary>What the calculator shows before anything is adopted.</summary>
 public sealed record ValuationPreview(
     Guid GuideValuationId,
-    DateTimeOffset GuideValuationStampUtc,
     ValuationCalculation Calculation);
 
 public sealed record PreviewValuationRequest(
@@ -714,7 +710,6 @@ public sealed class PreviewValuationCalculation(IAppliedValuationStore store)
             cancellationToken);
         return new(
             basis.GuideValuationId,
-            basis.GuideValuationStampUtc,
             ValuationCalculationPolicy.Calculate(
                 ValuationCalculationPolicy.Resolve(request.Selection, basis)));
     }

@@ -1620,6 +1620,21 @@ internal sealed class IntakeAssetEntity
     public string? BoundsJson { get; set; }
     public int? WidthPixels { get; set; }
     public int? HeightPixels { get; set; }
+
+    /// <summary>
+    /// Records the confirmed copy and the folder that holds it; an absent file
+    /// or version identity keeps the one already recorded.
+    /// </summary>
+    public void ConfirmCustody(string? boxFileId, string? boxVersionId, string parentFolderId)
+    {
+        if (!string.IsNullOrWhiteSpace(boxFileId) && !string.IsNullOrWhiteSpace(boxVersionId))
+        {
+            BoxFileId = boxFileId;
+            BoxVersionId = boxVersionId;
+        }
+        BoxParentFolderId = parentFolderId;
+        CustodyStatus = "confirmed";
+    }
 }
 
 internal sealed class IntakeReceiptEventEntity

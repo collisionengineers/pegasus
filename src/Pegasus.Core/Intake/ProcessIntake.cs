@@ -51,8 +51,7 @@ public sealed class ProcessIntake(
             cancellationToken);
         // No destination automation runs on this path, so nothing files the
         // receipt anywhere else: it is held.
-        var held = await RetainHoldingAssetsAsync(receipt, cancellationToken);
-        return receipt.IsDuplicate ? held with { IsDuplicate = true } : held;
+        return await RetainHoldingAssetsAsync(receipt, cancellationToken);
     }
 
     /// <param name="isFinalAttempt">
@@ -403,10 +402,12 @@ public sealed class ProcessIntake(
         // Retention writes custody state and Box identities through its own
         // store. Reload rather than returning the pre-handoff projection so
         // the current caller, gallery and following automation all see the
-        // confirmed files without waiting for a later request.
-        return await receiptStore.FindBySourceIdentityAsync(receipt.SourceIdentity, cancellationToken)
+        // confirmed files without waiting for a later request. Whether this
+        // call found a duplicate is the caller's fact, not a stored one.
+        var reloaded = await receiptStore.FindBySourceIdentityAsync(receipt.SourceIdentity, cancellationToken)
             ?? throw new InvalidDataException(
                 "The receipt retained for holding custody is no longer available.");
+        return reloaded with { IsDuplicate = receipt.IsDuplicate };
     }
 
     private static bool IsHoldingRetentionCandidate(

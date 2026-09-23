@@ -1472,8 +1472,8 @@ public sealed partial class DetailsModel(
         // form (one Save, 23 September 2026). They read like the estimate and
         // valuation commands did, so they answer to the assessment access
         // those commands required.
-        var carriesEstimate = Request.HasFormContentType && Request.Form.ContainsKey("estimateName");
-        var carriesCalculator = Request.HasFormContentType && Request.Form.ContainsKey("selection.Opening");
+        var carriesEstimate = Posted("estimateName");
+        var carriesCalculator = selection?.Opening is not null;
         if ((carriesEstimate || carriesCalculator)
             && TryGetActor(out var accessActor)
             && !await HasAssessmentAccessAsync(id, accessActor, cancellationToken))

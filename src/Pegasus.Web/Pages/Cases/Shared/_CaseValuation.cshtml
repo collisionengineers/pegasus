@@ -34,7 +34,6 @@
     var applied = Model.LatestAppliedValuation;
     var pending = Model.PendingMarketResearch;
     var claimantVat = Model.ClaimantVatRegistered;
-    var appliedAdditions = applied?.Calculation.Additions ?? [];
     // The calculator opens on the selection the latest adoption applied, so
     // the lines read the same in both modes until the Engineer changes one.
     var appliedIsBasis = applied is not null && basis is not null && basis.ValuationId == applied.GuideValuationId;
@@ -59,16 +58,12 @@
     var lineForm = editable ? "case-edit-form" : null;
     var absent = OperatorLabels.CaseWorkspace.AbsentValue;
 
-    // The value increases, one list in both modes: every active preset, ticked
-    // where the latest adoption applied it, then any applied increase that is
-    // not an active preset (a custom one, or a preset since withdrawn).
-    var activePresets = Model.ValuationPresets.Where(item => item.Active && item.RemovedAtUtc is null).ToArray();
-    ValuationAddition? AppliedPreset(ValuationPreset preset) =>
-        appliedAdditions.FirstOrDefault(addition => addition.PresetId != Guid.Empty && addition.PresetId == preset.Id);
-    var otherApplied = appliedAdditions
-        .Where(addition => addition.PresetId == Guid.Empty || activePresets.All(preset => preset.Id != addition.PresetId))
-        .ToArray();
-    var hasIncreases = editable || activePresets.Length > 0 || otherApplied.Length > 0;
+    // The value increases, one list in both modes (DetailsModel.ValuationIncreaseRows):
+    // every active preset, ticked where the latest adoption applied it, then any
+    // applied increase that is not an active preset. Read mode leaves out the
+    // blank custom rows the calculator offers.
+    var shownIncreases = Model.ValuationIncreaseRows.Where(row => row.PresetId != Guid.Empty || row.Selected).ToArray();
+    var hasIncreases = editable || shownIncreases.Length > 0;
 
     string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
     string MoneyOrAbsent(decimal? value) => value is { } amount ? Money(amount) : OperatorLabels.CaseWorkspace.AbsentValue;
@@ -412,21 +407,12 @@
                     {
                         @* Read mode lists the same increases; a tick marks each one
                            the latest adoption applied (a mark, not a control). *@
-                        foreach (var preset in activePresets)
+                        foreach (var row in shownIncreases)
                         {
-                            var chosen = AppliedPreset(preset);
-                            <div class="add @(chosen is null ? null : "on")" data-valuation-applied-addition="@(chosen is null ? null : "true")">
-                                <span class="add-check" aria-hidden="@(chosen is null ? "true" : null)">@if (chosen is not null) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
-                                <span>@preset.Label</span>
-                                <span class="amt">@Money(chosen?.Amount ?? preset.SuggestedAmount)</span>
-                            </div>
-                        }
-                        foreach (var addition in otherApplied)
-                        {
-                            <div class="add on" data-valuation-applied-addition="true">
-                                <span class="add-check"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
-                                <span>@addition.Label</span>
-                                <span class="amt">@Money(addition.Amount)</span>
+                            <div class="add @(row.Selected ? "on" : null)" data-valuation-applied-addition="@(row.Selected ? "true" : null)">
+                                <span class="add-check" aria-hidden="@(row.Selected ? null : "true")">@if (row.Selected) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
+                                <span>@row.Label</span>
+                                <span class="amt">@Money(row.Amount ?? 0m)</span>
                             </div>
                         }
                     }

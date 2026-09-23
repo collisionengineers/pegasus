@@ -427,6 +427,7 @@
         if (!isDirty) { estimateTouched = false; }
         document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: isDirty } }));
     }
+    function estimateIsDirty() { return estimateTouched && dirtyEditors.has('case-edit-form'); }
     function editorFor(control) {
         var form = control.form || (control.closest ? control.closest('form') : null);
         return form && editorLabels[form.getAttribute('id')] ? form : null;
@@ -750,8 +751,10 @@
         }
     }
     function submitInPlace(form, submitter) {
-        var preferred = form.pegasusKeep || null;
-        form.pegasusKeep = null;
+        // A section-head Edit keeps its own section where it is on screen.
+        var editKey = submitter ? submitter.getAttribute('data-section-edit') : null;
+        var editHost = editKey ? sectionFor(editKey) : null;
+        var preferred = editHost ? { key: editKey, top: editHost.getBoundingClientRect().top } : null;
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
         var isImport = form.hasAttribute('data-estimate-import-form');
         var command = editorLabels[form.getAttribute('id')] || isImport ? {
@@ -885,7 +888,6 @@
                 return Boolean(event.dataTransfer)
                     && Array.prototype.slice.call(event.dataTransfer.types || []).indexOf('Files') >= 0;
             };
-            function estimateIsDirty() { return estimateTouched && dirtyEditors.has('case-edit-form'); }
             function canAccept() {
                 return !submitting && !confirmResolve && form.dataset.inplaceSubmitting !== 'true';
             }
@@ -1012,7 +1014,7 @@
         event.preventDefault();
         var isImport = form.hasAttribute('data-estimate-import-form');
         if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') { return; }
-        if (isImport && estimateTouched && dirtyEditors.has('case-edit-form')) {
+        if (isImport && estimateIsDirty()) {
             showActionError(form.dataset.estimateImportDirty
                 || 'Save or cancel the estimate changes before importing another estimate.');
             return;
@@ -1031,7 +1033,6 @@
         // across (again()).
         var caseForm = document.getElementById('case-edit-form');
         if (form.hasAttribute('data-case-save-first') && caseForm && dirtyEditors.has('case-edit-form')) {
-            dirtyEditors.delete(form.getAttribute('id'));
             saveThen(caseForm, again(form, submitter));
             return;
         }
@@ -1062,7 +1063,7 @@
     });
 
     // The frame owns this shortcut even inside a field; site.js handles it on
-    // other pages. Each editor retains its distinct Save/Apply command.
+    // other pages. It saves the Case and keeps editing (no finishEditing).
     document.addEventListener('keydown', function (event) {
         if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') { return; }
         event.preventDefault();
@@ -1160,8 +1161,7 @@
     });
 
     // ---- the section-head Edit posts the ribbon's claim and remembers the
-    //      section so the swapped page keeps the reader where they were: the
-    //      edited section's head stays exactly where it is on screen ---------
+    //      section so the swapped page keeps the reader where they were ------
     document.addEventListener('click', function (event) {
         var edit = event.target.closest('[data-section-edit]');
         if (!edit || !record.contains(edit)) {
@@ -1172,10 +1172,6 @@
         var field = form && form.querySelector('input[name="section"]');
         if (field) {
             field.value = key;
-        }
-        var host = sectionFor(key);
-        if (form && host) {
-            form.pegasusKeep = { key: key, top: host.getBoundingClientRect().top };
         }
     });
 
@@ -1857,6 +1853,19 @@
 (function () {
     'use strict';
 
+    // The Case form's own fields that a request carries, chosen by name.
+    function caseFields(keep) {
+        var body = new FormData();
+        var caseForm = document.getElementById('case-edit-form');
+        if (caseForm) {
+            new FormData(caseForm).forEach(function (value, name) {
+                if (keep(name)) { body.append(name, value); }
+            });
+        }
+        return body;
+    }
+    function isSelection(name) { return typeof name === 'string' && name.indexOf('selection.') === 0; }
+
     function bind(root) {
         root.querySelectorAll('[data-valuation-form]').forEach(function (calc) {
             if (calc.dataset.valuationBound === 'true') {
@@ -1874,21 +1883,15 @@
             // the Case form (the guide cards' own boxes are the Case's too, but
             // they are the cards, not the calculation).
             function belongs(control) {
-                var caseForm = document.getElementById('case-edit-form');
-                return !!control && !!caseForm && control.form === caseForm && section.contains(control)
-                    && typeof control.name === 'string' && control.name.indexOf('selection.') === 0;
+                return !!control && isSelection(control.name);
             }
 
             function preview() {
-                var caseForm = document.getElementById('case-edit-form');
-                if (!previewUrl || !host || !caseForm) {
+                if (!previewUrl || !host) {
                     return;
                 }
-                var body = new FormData();
-                new FormData(caseForm).forEach(function (value, name) {
-                    if (name === '__RequestVerificationToken' || name.indexOf('selection.') === 0) {
-                        body.append(name, value);
-                    }
+                var body = caseFields(function (name) {
+                    return name === '__RequestVerificationToken' || isSelection(name);
                 });
                 if (inFlight) {
                     inFlight.abort();
@@ -2005,13 +2008,8 @@
                     return;
                 }
                 var notice = card.querySelector('[data-valuation-notice]');
-                var body = new FormData();
-                ['__RequestVerificationToken', 'id', 'expectedVersion', 'operationKey', 'editLeaseToken'].forEach(function (name) {
-                    var field = caseForm.querySelector('[name="' + name + '"]');
-                    if (field) {
-                        body.append(name, field.value);
-                    }
-                });
+                var authority = ['__RequestVerificationToken', 'id', 'expectedVersion', 'operationKey', 'editLeaseToken'];
+                var body = caseFields(function (name) { return authority.indexOf(name) >= 0; });
                 var month = card.querySelector('[data-valuation-entry-month]');
                 if (month) {
                     body.append('guideMonth', month.value);
@@ -2172,7 +2170,7 @@
             });
             // The frame's dirty guard listens for input on the Case form's
             // controls: a removed line is an unsaved change of the spec.
-            (form.querySelector('input[name="estimateId"]') || form).dispatchEvent(new Event('input', { bubbles: true }));
+            form.querySelector('input[name="estimateId"]').dispatchEvent(new Event('input', { bubbles: true }));
             appendPhantom();
         }
 

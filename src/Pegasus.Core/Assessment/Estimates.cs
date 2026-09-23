@@ -600,13 +600,6 @@ public static class EstimatePolicy
     }
 
     /// <summary>
-    /// The eight values an operator can change on a line. The operation is
-    /// compared in the editor's vocabulary, because no editor offers a finer
-    /// choice than <see cref="EstimateOperation"/>: an imported
-    /// <c>paint_new</c> line the operator never touched comes back as
-    /// <c>paint_repair</c>, and that is not an amendment.
-    /// </summary>
-    /// <summary>
     /// Whether an editor save, with its evidence carried and its rate card
     /// resolved, is the estimate exactly as recorded: the same lines in the
     /// same order, no line amended, the same header and the same supplementary
@@ -646,6 +639,13 @@ public static class EstimatePolicy
             && evidenced.Supplementary == existing.Supplementary;
     }
 
+    /// <summary>
+    /// The eight values an operator can change on a line. The operation is
+    /// compared in the editor's vocabulary, because no editor offers a finer
+    /// choice than <see cref="EstimateOperation"/>: an imported
+    /// <c>paint_new</c> line the operator never touched comes back as
+    /// <c>paint_repair</c>, and that is not an amendment.
+    /// </summary>
     public static bool IsAmendmentUnchanged(EstimateLineInput saved, CaseEstimateLineRecord loaded)
     {
         ArgumentNullException.ThrowIfNull(saved);
