@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.Unidentified;
@@ -691,7 +690,6 @@ public sealed class ProcessQueuedIntake(
     IAutomaticCaseAssociationStore caseAssociationStore,
     IAllocateIntake allocateIntake,
     TimeProvider timeProvider,
-    IReadLogicalDocumentVersion retainedContentReader,
     IIntakeOcrOperationStore ocrOperations,
     Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null,
     IRegisterUnidentified? registerUnidentified = null,
@@ -759,8 +757,6 @@ public sealed class ProcessQueuedIntake(
                 // association, image automation, or Unidentified work.
                 return QueuedIntakeProcessingOutcome.NoOp;
             }
-            completedReceipt = await processIntake.RetainHoldingAssetsAsync(
-                completedReceipt, cancellationToken);
             var replayAssociated = await AssociateCaseIfUnambiguousAsync(
                 completedReceipt,
                 completedEvaluation,
@@ -777,7 +773,8 @@ public sealed class ProcessQueuedIntake(
                     completedEvaluation.ProcessedReceiptId,
                     cancellationToken) ?? completedReceipt;
             }
-            await PromoteAssociatedCaseEvidenceAsync(completedReceipt, cancellationToken);
+            var replayPromotion = await PromoteAssociatedCaseEvidenceAsync(
+                completedReceipt, cancellationToken);
 
             // Completed redelivery replays destination operation identities.
             var replayAllocation = await allocateIntake.AttemptAutomaticAsync(
@@ -800,7 +797,8 @@ public sealed class ProcessQueuedIntake(
             var replayImageOutcome = await ApplyImageIntakeAutomationAsync(
                 completedReceipt,
                 cancellationToken);
-            completedReceipt = replayImageOutcome.Receipt;
+            completedReceipt = await RetainHoldingIfRequiredAsync(
+                replayImageOutcome.Receipt, replayPromotion, cancellationToken);
             if (replayImageOutcome.GroupPending)
             {
                 return QueuedIntakeProcessingOutcome.RetryScheduled;
@@ -829,7 +827,6 @@ public sealed class ProcessQueuedIntake(
             {
                 processed = await receiptQueries.GetAsync(workItem.ProcessedReceiptId!.Value, cancellationToken)
                     ?? throw new InvalidDataException("The pending evaluation receipt is missing.");
-                processed = await processIntake.RetainHoldingAssetsAsync(processed, cancellationToken);
             }
             else
             {
@@ -892,6 +889,7 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken);
 
             TriageCreationOutcome triage;
+            AutomaticCaseEvidencePromotionOutcome promotion;
             using (StartStage("association_and_allocation"))
             {
                 var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
@@ -903,7 +901,7 @@ public sealed class ProcessQueuedIntake(
                 {
                     processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
                 }
-                await PromoteAssociatedCaseEvidenceAsync(processed, cancellationToken);
+                promotion = await PromoteAssociatedCaseEvidenceAsync(processed, cancellationToken);
 
                 var allocation = await allocateIntake.AttemptAutomaticAsync(
                     processed.Id,
@@ -921,7 +919,8 @@ public sealed class ProcessQueuedIntake(
 
             var imageOutcome = await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
             groupPending = imageOutcome.GroupPending;
-            processed = imageOutcome.Receipt;
+            processed = await RetainHoldingIfRequiredAsync(
+                imageOutcome.Receipt, promotion, cancellationToken);
             if (!imageOutcome.GroupPending)
             {
                 await SynchronizeUnidentifiedAsync(
@@ -1036,34 +1035,21 @@ public sealed class ProcessQueuedIntake(
             throw new IntakeArtifactIntegrityException();
         }
 
-        // Re-evaluation normally reads the confirmed Box version. If the original
-        // hand-over never completed, first repair custody from the same verified
-        // quarantine assets; a missing Box version is not corrupt source evidence.
-        receipt = await processIntake.RetainHoldingAssetsAsync(receipt, cancellationToken);
-
-        try
-        {
-            await using var logical = await retainedContentReader.OpenAsync(
-                new(
-                    SystemWorkerActor,
-                    DocumentId: null,
-                    VersionId: null,
-                    IntakeAssetId: source.Id,
-                    CaseId: receipt.CurrentCaseId,
-                    IntakeReceiptId: receipt.Id,
-                    ExpectedSha256: source.ContentHash,
-                    ExpectedContentLength: source.ContentLength),
-                cancellationToken);
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)source.ContentLength));
-            await logical.Content.ReadExactlyAsync(bytes, cancellationToken);
-            return (bytes, source.StorageKey);
-        }
-        catch (Exception exception) when (exception is FileNotFoundException
-            or InvalidDataException
-            or UnauthorizedAccessException)
+        // Re-evaluation reads the retained source bytes the same way first
+        // processing reads staging, integrity-checked. It needs no Box copy, so
+        // it never makes one: the holding decision follows destination
+        // automation here as on every other path.
+        var content = await artifactStore.ReadAsync(source.StorageKey, cancellationToken)
+            ?? throw new IntakeArtifactIntegrityException();
+        if (content.Length != source.ContentLength
+            || !string.Equals(
+                Convert.ToHexString(SHA256.HashData(content.Span)),
+                source.ContentHash,
+                StringComparison.OrdinalIgnoreCase))
         {
             throw new IntakeArtifactIntegrityException();
         }
+        return (content, source.StorageKey);
     }
 
     private static Activity? StartStage(string stage)
@@ -1205,13 +1191,13 @@ public sealed class ProcessQueuedIntake(
         return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
     }
 
-    private async Task PromoteAssociatedCaseEvidenceAsync(
+    private async Task<AutomaticCaseEvidencePromotionOutcome> PromoteAssociatedCaseEvidenceAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
         if (promoteAssociatedCaseEvidence is null)
         {
-            return;
+            return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
         }
 
         var outcome = await promoteAssociatedCaseEvidence.ExecuteAsync(receipt, cancellationToken);
@@ -1223,7 +1209,22 @@ public sealed class ProcessQueuedIntake(
             throw new IntakeDependencyUnavailableException(
                 "Automatic Case evidence promotion is waiting for the Case editor.");
         }
+
+        return outcome;
     }
+
+    /// <summary>
+    /// Holds the receipt's files once its destination is known, and only when
+    /// no automatic destination files them (<see cref="ProcessIntake.RequiresHolding"/>).
+    /// An unconfirmed hand-over throws, so the work item keeps its bounded retry.
+    /// </summary>
+    private async Task<IntakeReceipt> RetainHoldingIfRequiredAsync(
+        IntakeReceipt receipt,
+        AutomaticCaseEvidencePromotionOutcome promotion,
+        CancellationToken cancellationToken) =>
+        ProcessIntake.RequiresHolding(receipt, promotion)
+            ? await processIntake.RetainHoldingAssetsAsync(receipt, cancellationToken)
+            : receipt;
 
     private async Task TryDeleteCompletedStagingAsync(
         string storageKey,

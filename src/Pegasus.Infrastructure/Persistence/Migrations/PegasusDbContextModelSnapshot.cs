@@ -4693,6 +4693,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("BoxParentFolderId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("BoxVersionId")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");

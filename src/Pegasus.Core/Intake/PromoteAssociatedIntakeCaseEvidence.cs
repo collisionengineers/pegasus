@@ -7,8 +7,10 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// Files the retained evidence from a system-associated receipt on its already
-/// matched Case. Holding custody and Case custody intentionally use different
-/// operation identities: confirmation in the holding area is not filing.
+/// matched Case: its source email, its documents and its selected photographs.
+/// A receipt filed here is not held; holding custody and Case custody use
+/// different operation identities, and confirmation in the holding area is
+/// not filing.
 /// </summary>
 public sealed class PromoteAssociatedIntakeCaseEvidence(
     IIntakeArtifactStore artifactStore,
@@ -28,13 +30,11 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
             return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
         }
 
+        // A matched follow-up is filed whether or not it carries photographs:
+        // its email and documents belong on the Case too (operator, 23 September 2026).
         var selectedPhotographIds = InstructionEvidenceImages.Select(receipt.AssetRecords)
             .Select(asset => asset.Id)
             .ToHashSet();
-        if (selectedPhotographIds.Count == 0)
-        {
-            return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
-        }
         var assets = SelectAssets(receipt, selectedPhotographIds);
         if (assets.Length == 0)
         {

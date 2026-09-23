@@ -321,6 +321,9 @@ internal sealed class EfCaseArtifactCustody(
             db, caseId, occurrence.OperationKey, timeProvider.GetUtcNow(), cancellationToken);
         if (request.IsAutomaticIntakeEvidencePromotion)
         {
+            await RecordFiledIntakeAssetAsync(
+                db, request.IntakeReceiptId!.Value, occurrence.SourceOccurrenceIdentity,
+                write.RemoteId, write.BoxVersionId, capturedRoot, cancellationToken);
             await CompleteAutomaticPromotionIfReadyAsync(
                 db, caseId, request.IntakeReceiptId!.Value,
                 request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
@@ -545,6 +548,38 @@ internal sealed class EfCaseArtifactCustody(
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// An intake asset filed on its Case is read from the Case folder from then
+    /// on: its confirmed copy is the Case document, so it needs no holding copy
+    /// and readers expect the Case root as its parent.
+    /// </summary>
+    internal static async Task RecordFiledIntakeAssetAsync(
+        PegasusDbContext db,
+        Guid receiptId,
+        string occurrenceIdentity,
+        string? boxFileId,
+        string? boxVersionId,
+        string caseRootRemoteId,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParseExact(occurrenceIdentity.Trim(), "N", out var assetId))
+        {
+            throw new InvalidDataException("The filed intake evidence has no retained asset identity.");
+        }
+        var asset = await db.Set<IntakeAssetEntity>()
+            .SingleOrDefaultAsync(value => value.Id == assetId && value.IntakeReceiptId == receiptId,
+                cancellationToken)
+            ?? throw new InvalidDataException("The filed intake evidence has no retained asset identity.");
+        if (!string.IsNullOrWhiteSpace(boxFileId) && !string.IsNullOrWhiteSpace(boxVersionId))
+        {
+            asset.BoxFileId = boxFileId;
+            asset.BoxVersionId = boxVersionId;
+        }
+        asset.BoxParentFolderId = caseRootRemoteId;
+        asset.CustodyStatus = "confirmed";
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     internal static async Task RecordConfirmedSourceChangeAsync(
         PegasusDbContext db, Guid caseId, string operationKey,
         DateTimeOffset nowUtc, CancellationToken cancellationToken)
@@ -647,6 +682,7 @@ internal sealed class EfCaseArtifactCustody(
         }
         asset.BoxFileId = file.Id;
         asset.BoxVersionId = file.VersionId;
+        asset.BoxParentFolderId = holdingFolderId;
         asset.CustodyStatus = "confirmed";
         await db.SaveChangesAsync(cancellationToken);
         return new(
@@ -964,6 +1000,11 @@ public sealed class ReconcilePendingArtifactCustody
                         timeProvider.GetUtcNow(), cancellationToken);
                     if (automaticPromotion is { } completedPromotion)
                     {
+                        await EfCaseArtifactCustody.RecordFiledIntakeAssetAsync(
+                            update, completedPromotion.ReceiptId,
+                            candidate.Occurrence.SourceOccurrenceIdentity,
+                            write.RemoteId, write.BoxVersionId,
+                            candidate.Case.CustodyRootRemoteId!, cancellationToken);
                         await EfCaseArtifactCustody.CompleteAutomaticPromotionIfReadyAsync(
                             update, candidate.Case.Id, completedPromotion.ReceiptId,
                             completedPromotion.ExpectedCaseVersion, timeProvider.GetUtcNow(), cancellationToken);

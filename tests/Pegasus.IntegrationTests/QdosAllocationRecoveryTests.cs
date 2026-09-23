@@ -927,6 +927,68 @@ public sealed class QdosAllocationRecoveryTests
     }
 
     [Fact]
+    public async Task AnAutomaticallyAllocatedInstructionIsFiledOnItsCaseAndNeverHeld()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            initializeDevelopmentOffline: false,
+            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        var email = IntakeTestEvidence.CreateEmail(
+            "qdos-direct-filing.eml",
+            "QDOS instruction\r\nClaimant Name: Direct Claimant\r\nClaim Number: DIR-1\r\nVehicle Registration: AB12 CDE");
+        var receiptId = await AllocationTestData.SubmitAndProcessAsync(
+            factory.Services,
+            new(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                factory.Services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
+            $"qdos-direct-filing:{Guid.NewGuid():N}");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receipt = Assert.IsType<IntakeReceipt>(await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None));
+        var caseId = Assert.IsType<Guid>(receipt.AcceptedCaseId);
+
+        // The new Case files the instruction through its own custody, so the
+        // receipt is never copied to the holding folder.
+        Guid workId;
+        await using (var db = await factory.Database.CreateContextAsync())
+        {
+            Assert.All(
+                await db.IntakeAssets.AsNoTracking()
+                    .Where(asset => asset.IntakeReceiptId == receiptId).ToListAsync(),
+                asset =>
+                {
+                    Assert.Null(asset.CustodyStatus);
+                    Assert.Null(asset.BoxParentFolderId);
+                });
+            workId = await db.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.CaseId == caseId
+                    && item.Kind == Pegasus.Core.Custody.ExternalWorkKinds.CreateCaseCustody)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+
+        await services.GetRequiredService<Pegasus.Core.Custody.IProcessQueuedCustody>()
+            .ExecuteAsync(workId, CancellationToken.None);
+
+        await using var verify = await factory.Database.CreateContextAsync();
+        var caseRoot = await verify.Cases.Where(value => value.Id == caseId)
+            .Select(value => value.CustodyRootRemoteId).SingleAsync();
+        Assert.False(string.IsNullOrWhiteSpace(caseRoot));
+        var source = await verify.IntakeAssets.AsNoTracking()
+            .SingleAsync(asset => asset.IntakeReceiptId == receiptId && asset.Kind == "source");
+        Assert.Equal("confirmed", source.CustodyStatus);
+        Assert.Equal(caseRoot, source.BoxParentFolderId);
+    }
+
+    [Fact]
     public async Task DestinationFailureStaysDurableAndRetriesTheSameEvaluation()
     {
         // Allocation-start failure must leave a retryable work item, not a
@@ -973,7 +1035,6 @@ public sealed class QdosAllocationRecoveryTests
             services.GetRequiredService<IAutomaticCaseAssociationStore>(),
             spy,
             clock,
-            services.GetRequiredService<Pegasus.Core.Documents.IReadLogicalDocumentVersion>(),
             services.GetRequiredService<IIntakeOcrOperationStore>(),
             services.GetService<IImageIntakeAutomation>());
 
@@ -1143,7 +1204,6 @@ public sealed class QdosAllocationRecoveryTests
             providerAssociationStore,
             allocateIntake,
             clock,
-            services.GetRequiredService<Pegasus.Core.Documents.IReadLogicalDocumentVersion>(),
             services.GetRequiredService<IIntakeOcrOperationStore>(),
             imageIntakeAutomation: imageIntakeAutomation,
             automaticMailCaseAssociation: automaticMailCaseAssociation);
