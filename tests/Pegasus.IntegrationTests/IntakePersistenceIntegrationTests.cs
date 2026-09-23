@@ -874,8 +874,8 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         // This database harness has no queue transport. Production composition
         // supplies the mandatory publishers; persistence tests replace only that
         // transport boundary while exercising the durable outbox state.
-        serviceCollection.AddScoped<ICommittedIntakeWorkPublisher, CommittedWorkPublisherDouble>();
-        serviceCollection.AddScoped<ICommittedExternalWorkPublisher, CommittedWorkPublisherDouble>();
+        serviceCollection.AddScoped<ICommittedIntakeWorkPublisher, DiscardingCommittedWorkPublisher>();
+        serviceCollection.AddScoped<ICommittedExternalWorkPublisher, DiscardingCommittedWorkPublisher>();
         configureServices?.Invoke(serviceCollection);
         services = serviceCollection.BuildServiceProvider(validateScopes: true);
     }

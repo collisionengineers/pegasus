@@ -165,9 +165,9 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             // publishers, but this host replaces transport only after the
             // Core route tests have proved its exact-ID call contract.
             services.RemoveAll<ICommittedIntakeWorkPublisher>();
-            services.AddScoped<ICommittedIntakeWorkPublisher, CommittedWorkPublisherDouble>();
+            services.AddScoped<ICommittedIntakeWorkPublisher, DiscardingCommittedWorkPublisher>();
             services.RemoveAll<ICommittedExternalWorkPublisher>();
-            services.AddScoped<ICommittedExternalWorkPublisher, CommittedWorkPublisherDouble>();
+            services.AddScoped<ICommittedExternalWorkPublisher, DiscardingCommittedWorkPublisher>();
             services.AddSingleton(timeProvider);
             if (artifactStore is not null)
             {

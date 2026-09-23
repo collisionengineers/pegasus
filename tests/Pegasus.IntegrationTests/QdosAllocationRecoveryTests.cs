@@ -56,7 +56,7 @@ public sealed class QdosAllocationRecoveryTests
         var clock = services.GetRequiredService<TimeProvider>();
         var workStore = new RetainingWorkStore(services.GetRequiredService<IIntakeWorkStore>(), factory.Services);
         var artifacts = services.GetRequiredService<IIntakeArtifactStore>();
-        var receiver = new ReceiveIntake(artifacts, workStore, clock, new CommittedWorkPublisherDouble());
+        var receiver = new ReceiveIntake(artifacts, workStore, clock, new DiscardingCommittedWorkPublisher());
         var processor = CreateMailAssociationProcessor(services, workStore, artifacts,
             services.GetRequiredService<ProcessIntake>(),
             services.GetRequiredService<IAutomaticCaseAssociationStore>(),
@@ -947,7 +947,7 @@ public sealed class QdosAllocationRecoveryTests
         var store = services.GetRequiredService<IIntakeWorkStore>();
         var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
 
-        var received = await new ReceiveIntake(artifactStore, store, clock, new CommittedWorkPublisherDouble()).ExecuteAsync(
+        var received = await new ReceiveIntake(artifactStore, store, clock, new DiscardingCommittedWorkPublisher()).ExecuteAsync(
             new(
                 email.FileName,
                 email.MediaType,
@@ -1045,7 +1045,7 @@ public sealed class QdosAllocationRecoveryTests
             services.GetRequiredService<IIntakeWorkStore>(),
             factory.Services);
         var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
-        var received = await new ReceiveIntake(artifactStore, workStore, clock, new CommittedWorkPublisherDouble()).ExecuteAsync(
+        var received = await new ReceiveIntake(artifactStore, workStore, clock, new DiscardingCommittedWorkPublisher()).ExecuteAsync(
             new(
                 email.FileName,
                 email.MediaType,

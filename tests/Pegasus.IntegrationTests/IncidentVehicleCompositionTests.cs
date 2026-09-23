@@ -37,7 +37,7 @@ public sealed class IncidentVehicleCompositionTests
             services.GetRequiredService<IIntakeArtifactStore>(),
             workStore,
             clock,
-            new CommittedWorkPublisherDouble());
+            new DiscardingCommittedWorkPublisher());
         var source = new IntakeSource(
             Path.GetFileName(path),
             Top15InstructionCorpusTests.MediaType(path),

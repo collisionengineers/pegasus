@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -91,6 +92,7 @@ public sealed class AssessmentPolicyTests
     [InlineData(CaseLifecycleState.PostReport, true)]
     [InlineData(CaseLifecycleState.Held, false)]
     [InlineData(CaseLifecycleState.PostReportComplete, false)]
+    [InlineData(CaseLifecycleState.Query, false)]
     [InlineData(CaseLifecycleState.ProviderCancelled, false)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]
@@ -99,6 +101,31 @@ public sealed class AssessmentPolicyTests
         CaseLifecycleState state, bool expected)
     {
         Assert.Equal(expected, AssessmentPolicy.IsWritableState(state));
+    }
+
+    /// <summary>
+    /// The table above is the owner of writability per lifecycle state, and web
+    /// tests read it rather than re-rendering a page per state. That only holds
+    /// if it names every state: Query was absent until this guard was written,
+    /// so a state added to the enum now fails here instead of going unasserted.
+    /// </summary>
+    [Fact]
+    public void TheWritableStateTableNamesEveryLifecycleState()
+    {
+        var method = typeof(AssessmentPolicyTests).GetMethod(
+            nameof(WorkspaceAssessmentWritesUseOnlyTheSupportedLifecycleStates))!;
+        var named = method.GetCustomAttributes<InlineDataAttribute>(inherit: false)
+            .SelectMany(data => data.GetData(method))
+            .Select(row => (CaseLifecycleState)row[0]!)
+            .ToHashSet();
+
+        var missing = Enum.GetValues<CaseLifecycleState>()
+            .Where(state => !named.Contains(state))
+            .ToArray();
+
+        Assert.True(
+            missing.Length == 0,
+            $"No writable-state row for: {string.Join(", ", missing)}.");
     }
 
     [Fact]
@@ -517,7 +544,11 @@ public sealed class AssessmentPolicyTests
     [Fact]
     public void SystemWorkerActorsAreRefused()
     {
-        Assert.ThrowsAny<Exception>(() =>
+        // The typed refusal Core actually gives a non Staff/Automation actor.
+        // ThrowsAny would also have accepted a null reference or any unrelated
+        // fault. (The audit expected InvalidOperationException here; the real
+        // type is the domain authorization one, which is a stronger contract.)
+        Assert.Throws<StaffAuthorizationException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
                 Request(
                     new() { ["vehicle.condition"] = "good" },

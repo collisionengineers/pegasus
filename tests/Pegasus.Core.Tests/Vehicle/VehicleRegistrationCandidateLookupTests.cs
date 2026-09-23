@@ -102,13 +102,16 @@ public sealed class VehicleRegistrationCandidateLookupTests
     [Fact]
     public async Task ConcurrentMultipleViableResultsRemainAmbiguousWithoutDiscardingEither()
     {
-        var adapter = new RecordingAdapter((registration, _) => Valid(registration, VehicleLookupOutcome.Stale), delay: true);
+        // Five candidates, all of which the use case issues through Task.WhenAll.
+        var adapter = new RecordingAdapter(
+            (registration, _) => Valid(registration, VehicleLookupOutcome.Stale),
+            rendezvousCount: 5);
         var result = await new VehicleRegistrationCandidateLookup(adapter).LookupAsync(
             new("O100IOO", MachineReadRegistrationSource.DocumentOcr, "ocr-operation-9"));
         Assert.True(result.IsAmbiguous);
         Assert.Null(result.AcceptedResult);
         Assert.Equal(5, result.Attempts.Count);
-        Assert.True(adapter.MaximumConcurrency > 1);
+        Assert.Equal(5, adapter.MaximumConcurrency);
     }
 
     [Fact]
@@ -165,21 +168,52 @@ public sealed class VehicleRegistrationCandidateLookupTests
             unresolved ? new VehicleLookupFailure("temporary", true) : null);
     }
 
-    private sealed class RecordingAdapter(Func<string, int, VehicleLookupResult> result, bool delay = false) : IVehicleLookupAdapter
+    /// <summary>
+    /// When <paramref name="rendezvousCount"/> is set, every caller waits inside
+    /// the adapter until that many callers are inside it at once. A sleep only
+    /// made an overlap likely; this makes it required, so a production path that
+    /// issued the lookups one at a time fails by timing out instead of passing
+    /// on a lucky interleaving.
+    /// </summary>
+    private sealed class RecordingAdapter(
+        Func<string, int, VehicleLookupResult> result,
+        int rendezvousCount = 0) : IVehicleLookupAdapter
     {
+        private readonly TaskCompletionSource allArrived =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int active;
         private int sequence;
+        private int arrived;
+
         public List<string> Requests { get; } = [];
         public int MaximumConcurrency { get; private set; }
 
         public async Task<VehicleLookupResult> LookupAsync(VehicleLookupRequest request, CancellationToken cancellationToken)
         {
             int order;
-            lock (Requests) { order = sequence++; Requests.Add(request.Registration); }
-            var current = Interlocked.Increment(ref active);
-            MaximumConcurrency = Math.Max(MaximumConcurrency, current);
-            if (delay) await Task.Delay(20, cancellationToken);
-            Interlocked.Decrement(ref active);
+            // MaximumConcurrency moves under the same lock as the ledger: it was
+            // a read-modify-write from every caller at once, so an overlap could
+            // be recorded and then lost.
+            lock (Requests)
+            {
+                order = sequence++;
+                Requests.Add(request.Registration);
+                MaximumConcurrency = Math.Max(MaximumConcurrency, ++active);
+            }
+
+            if (rendezvousCount > 0)
+            {
+                if (Interlocked.Increment(ref arrived) >= rendezvousCount)
+                {
+                    allArrived.TrySetResult();
+                }
+
+                await allArrived.Task
+                    .WaitAsync(TimeSpan.FromSeconds(30), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            lock (Requests) { active--; }
             return result(request.Registration, order);
         }
     }

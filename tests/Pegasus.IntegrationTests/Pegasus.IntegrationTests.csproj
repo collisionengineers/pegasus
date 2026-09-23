@@ -17,6 +17,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- One copy of the corpus lane rule, compiled into each test assembly so
+         it reflects over that assembly's own discovery attributes. -->
+    <Compile Include="..\Shared\CorpusTraitContract.cs" Link="Support\CorpusTraitContract.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Pegasus.IntegrationTests.Support" />
   </ItemGroup>

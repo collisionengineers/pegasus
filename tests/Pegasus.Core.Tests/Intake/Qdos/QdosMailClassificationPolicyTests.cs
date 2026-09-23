@@ -232,8 +232,12 @@ public sealed class PrincipalMailClassificationPolicyTests
 
         elapsed.Stop();
         Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+
+        // Ten seconds, not two: the failure this guards is exponential, so at 24
+        // prefixes a regressed rule takes minutes and any bound catches it,
+        // while a bound near the linear cost fails on a loaded runner instead.
         Assert.True(
-            elapsed.Elapsed < TimeSpan.FromSeconds(2),
+            elapsed.Elapsed < TimeSpan.FromSeconds(10),
             $"Classifying a {subject.Length}-character subject took {elapsed.Elapsed}.");
     }
 

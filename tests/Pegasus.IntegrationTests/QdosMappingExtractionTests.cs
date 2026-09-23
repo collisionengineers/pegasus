@@ -11,6 +11,7 @@ namespace Pegasus.IntegrationTests;
 /// reader, route policy, and extraction policy; the values are pinned from the
 /// approved mapping document. Runs only where that corpus folder exists.
 /// </summary>
+[Trait("Category", "Corpus")]
 public sealed class QdosMappingExtractionTests(ITestOutputHelper output)
 {
     private static readonly DateTimeOffset ReceivedAtUtc =

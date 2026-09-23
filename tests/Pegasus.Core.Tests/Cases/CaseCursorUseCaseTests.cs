@@ -15,26 +15,8 @@ namespace Pegasus.Core.Tests.Cases;
 /// surfaces as <see cref="CursorRejectedException"/>, never a raw parse
 /// exception.
 /// </summary>
-public sealed class CursorPagingTests
+public sealed class CaseCursorUseCaseTests
 {
-    [Fact]
-    public void ANullLimitTakesTheDefault() =>
-        Assert.Equal(CursorPaging.DefaultLimit, CursorPaging.NormalizeLimit(null));
-
-    [Theory]
-    [InlineData(1)]
-    [InlineData(50)]
-    [InlineData(CursorPaging.MaximumLimit)]
-    public void AnInRangeLimitPassesThroughUnchanged(int limit) =>
-        Assert.Equal(limit, CursorPaging.NormalizeLimit(limit));
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(CursorPaging.MaximumLimit + 1)]
-    public void AnOutOfRangeLimitIsRefusedNeverClamped(int limit) =>
-        Assert.Throws<ArgumentOutOfRangeException>(() => CursorPaging.NormalizeLimit(limit));
-
     [Fact]
     public async Task ANextCursorIsMintedThroughTheSharedProtector()
     {

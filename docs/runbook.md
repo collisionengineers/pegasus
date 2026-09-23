@@ -286,6 +286,22 @@ action. Never manually repurpose these commands to remove another run,
 
 ## Locked restore, build, and test
 
+Start with `scripts/Invoke-Verification.ps1`. It selects the checks the change
+set needs and refuses the ones it does not, using the same classifier CI uses:
+prose runs the link check and no build, a commit that already has a green
+exact-head CI run reports that run instead of repeating it, and anything else
+gets a focused run over the test classes the changed files own. `-WhatIf`
+prints the selection without running it, and `-Full` takes the whole-solution
+lane below while holding the host slot.
+
+```powershell
+pwsh ./scripts/Invoke-Verification.ps1
+```
+
+Read a hosted failure with `scripts/Get-CiStatus.ps1`, which prints the failing
+test names from the job log; a shard's log is served while its siblings are
+still running, so reproducing the failure here is rarely the cheapest route.
+
 Run focused owning projects while iterating. When full solution verification is required, run the canonical solution commands exactly (`--locked-mode` enforces the committed package locks):
 
 ```powershell
@@ -304,6 +320,15 @@ dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj -
 dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus"
 ```
 
+Three categories exist. `SqlServer` marks the integration tests that need a
+reachable server; `Corpus` marks the tests that read local corpus or the private
+reference pack, which ordinary CI excludes; `QdosAlphaAcceptance` labels a QDOS
+triage cohort that also runs in the ordinary lane. To run that cohort alone:
+
+```powershell
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=QdosAlphaAcceptance"
+```
+
 Test classes run in parallel. The integration project caps concurrency at four
 in `tests/Pegasus.IntegrationTests/xunit.runner.json`: one named heavy verifier runs whole-solution suites on this host. The per-process
 cap bounds that run’s concurrent restores; it is not permission for competing
@@ -318,6 +343,25 @@ Shared test support contains no tests or shared mutable fixtures. Each shard
 retains its enumerated and assigned test lists and results; the partition gate
 checks that every selected test is assigned exactly once. Keep the shard count
 in the workflow matrix, execution and partition verification consistent.
+
+Shards are dealt by recorded class duration from
+`scripts/test-shard-durations.json`, not by test count; a class the table does
+not name costs the median. Every complete CI run reports its per-shard test time
+and uploads that run's table as the `test-shard-durations` artifact. A single
+run is not a table: a class's time depends on what shared its shard, and varies
+from under half to over twice its median between runs. When the reported
+longest-over-shortest ratio drifts upward across several runs, combine at least
+three recent runs by per-class median:
+
+```powershell
+$runs = gh run list --workflow ci.yml --status success --limit 8 --json databaseId --jq '.[].databaseId'
+foreach ($run in $runs) { gh run download $run --name test-shard-durations --dir "artifacts/durations/$run" }
+./scripts/Update-TestShardDurations.ps1 -Combine (Get-ChildItem artifacts/durations -Recurse -Filter *.json).FullName
+```
+
+Runs from before the artifact existed can still contribute: download their
+`test-shard-*` artifacts and build a table from each with
+`Update-TestShardDurations.ps1 -ArtifactRoot <dir> -ShardCount 6 -Path <run>.json`.
 
 Each test-run process migrates one template database once and restores every
 disposable test database from its backup instead of migrating each one. A

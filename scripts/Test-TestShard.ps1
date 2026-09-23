@@ -11,16 +11,30 @@ $testList = Join-Path $root 'tests.txt'
 function Invoke-ListOnly {
     param(
         [Parameter(Mandatory)][string] $ArtifactRoot,
-        [Parameter(Mandatory)][int] $ShardCount
+        [Parameter(Mandatory)][int] $ShardCount,
+        # Always explicit, so no case silently picks up the committed table and
+        # starts depending on whatever the last refresh measured.
+        [Parameter(Mandatory)][string] $DurationPath
     )
 
     for ($shard = 1; $shard -le $ShardCount; $shard++) {
         & $shardScript -Project ignored -Filter ignored -Shard $shard -ShardCount $ShardCount `
-            -TestListPath $testList -ArtifactRoot $ArtifactRoot -ListOnly
+            -TestListPath $testList -ArtifactRoot $ArtifactRoot -DurationPath $DurationPath -ListOnly
         if ($LASTEXITCODE -ne 0) {
             throw "List-only assignment failed for shard $shard."
         }
     }
+}
+
+function Get-ShardClasses {
+    param(
+        [Parameter(Mandatory)][string] $ArtifactRoot,
+        [Parameter(Mandatory)][int] $Shard
+    )
+
+    return @(Get-Content (Join-Path $ArtifactRoot "assigned-$Shard.txt") |
+        ForEach-Object { ($_ -split '\.')[1] } |
+        Sort-Object -Unique)
 }
 
 function Copy-ShardArtifacts {
@@ -83,6 +97,8 @@ function Assert-WorkflowShardCountsAgree {
 
 try {
     New-Item -ItemType Directory -Path $root | Out-Null
+    # Never created: the count-balanced cases below must not read a table.
+    $noDurations = Join-Path $root 'absent-durations.json'
     Assert-WorkflowShardCountsAgree
     foreach ($shardCount in 3, 6) {
         $classSizes = if ($shardCount -eq 6) {
@@ -110,10 +126,10 @@ try {
 
         $first = Join-Path $root "first-$shardCount"
         $second = Join-Path $root "second-$shardCount"
-        Invoke-ListOnly -ArtifactRoot $first -ShardCount $shardCount
+        Invoke-ListOnly -ArtifactRoot $first -ShardCount $shardCount -DurationPath $noDurations
         # Discovery order must not affect class ownership.
         Set-Content -Path $testList -Value @($tests | Sort-Object -Descending)
-        Invoke-ListOnly -ArtifactRoot $second -ShardCount $shardCount
+        Invoke-ListOnly -ArtifactRoot $second -ShardCount $shardCount -DurationPath $noDurations
 
         $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
         for ($shard = 1; $shard -le $shardCount; $shard++) {
@@ -148,22 +164,32 @@ try {
         }
 
         if ($shardCount -eq 6) {
+            # With no table every class costs its test count, so the
+            # lightest-runner rule lands on these owners. Totals are
+            # 13, 13, 12, 11, 11, 11 of 71.
             $expectedOwners = @{
-                1 = @('Alpha', 'Lima', 'Mike')
-                2 = @('Bravo', 'Kilo', 'November')
-                3 = @('Charlie', 'Juliett', 'Oscar')
-                4 = @('Delta', 'India')
-                5 = @('Echo', 'Hotel')
-                6 = @('Foxtrot', 'Golf')
+                1 = @('Alpha', 'Kilo', 'Mike')
+                2 = @('Bravo', 'Lima', 'November')
+                3 = @('Charlie', 'India', 'Oscar')
+                4 = @('Delta', 'Juliett')
+                5 = @('Echo', 'Golf')
+                6 = @('Foxtrot', 'Hotel')
             }
             foreach ($shard in 1..$shardCount) {
-                $actualClasses = @(Get-Content (Join-Path $first "assigned-$shard.txt") |
-                    ForEach-Object { ($_ -split '\.')[1] } |
-                    Sort-Object -Unique)
+                $actualClasses = Get-ShardClasses -ArtifactRoot $first -Shard $shard
                 if (Compare-Object -ReferenceObject @($expectedOwners[$shard]) `
                         -DifferenceObject $actualClasses -CaseSensitive) {
-                    throw "Shard $shard did not follow the six-runner snake across both direction changes."
+                    throw "Shard $shard owned $($actualClasses -join ', ') rather than $($expectedOwners[$shard] -join ', ')."
                 }
+            }
+
+            $shardTotals = @(1..$shardCount | ForEach-Object {
+                $owned = Get-ShardClasses -ArtifactRoot $first -Shard $_
+                ($owned | ForEach-Object { $classSizes[$_] } | Measure-Object -Sum).Sum
+            })
+            $spread = ($shardTotals | Measure-Object -Maximum).Maximum - ($shardTotals | Measure-Object -Minimum).Minimum
+            if ($spread -gt 2) {
+                throw "Count-balanced shards spread $spread tests apart: $($shardTotals -join ', ')."
             }
         }
 
@@ -174,7 +200,7 @@ try {
 
         Set-Content -Path $testList -Value @('Example.Alpha.Test1', 'Example.Bravo.Test1')
         $sparse = Join-Path $root "sparse-$shardCount"
-        Invoke-ListOnly -ArtifactRoot $sparse -ShardCount $shardCount
+        Invoke-ListOnly -ArtifactRoot $sparse -ShardCount $shardCount -DurationPath $noDurations
         foreach ($emptyShard in 3..$shardCount) {
             if (@(Get-Content (Join-Path $sparse "assigned-$emptyShard.txt")).Count -ne 0) {
                 throw 'A shard with no class should write an empty assignment.'
@@ -184,6 +210,150 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw 'Empty shards must not lose or duplicate assigned tests.'
         }
+    }
+
+    # Cost, not count. Two classes that each restore a database per test cost far
+    # more than two parsers with fifty cheap tests, and a fixed-row deal puts both
+    # expensive classes in the same slot as soon as the row boundary falls between
+    # them. That is how one shard came to run 2.35 times another.
+    $skewed = @(
+        @(1..1 | ForEach-Object { 'Example.Exp1.Test(value: 1)' })
+        @(1..1 | ForEach-Object { 'Example.Exp2.Test(value: 1)' })
+        @(1..50 | ForEach-Object { "Example.Cheap1.Test(value: $_)" })
+        @(1..50 | ForEach-Object { "Example.Cheap2.Test(value: $_)" })
+    )
+    Set-Content -Path $testList -Value $skewed
+
+    $skewTable = Join-Path $root 'skewed-durations.json'
+    $skewCosts = @{ 'Example.Exp1' = 100.0; 'Example.Exp2' = 100.0; 'Example.Cheap1' = 1.0; 'Example.Cheap2' = 1.0 }
+    Set-Content -Path $skewTable -Encoding utf8NoBOM -Value ($skewCosts | ConvertTo-Json)
+
+    function Measure-CostSpread {
+        param(
+            [Parameter(Mandatory)][string] $ArtifactRoot,
+            [Parameter(Mandatory)][int] $ShardCount,
+            [Parameter(Mandatory)][hashtable] $Cost
+        )
+
+        $totals = @(1..$ShardCount | ForEach-Object {
+            $owned = Get-ShardClasses -ArtifactRoot $ArtifactRoot -Shard $_
+            ($owned | ForEach-Object { $Cost["Example.$_"] } | Measure-Object -Sum).Sum
+        })
+        return [pscustomobject]@{
+            Totals = $totals
+            Spread = ($totals | Measure-Object -Maximum).Maximum - ($totals | Measure-Object -Minimum).Minimum
+        }
+    }
+
+    $byCount = Join-Path $root 'skew-by-count'
+    $byCost = Join-Path $root 'skew-by-cost'
+    Invoke-ListOnly -ArtifactRoot $byCount -ShardCount 3 -DurationPath $noDurations
+    Invoke-ListOnly -ArtifactRoot $byCost -ShardCount 3 -DurationPath $skewTable
+
+    $countSpread = Measure-CostSpread -ArtifactRoot $byCount -ShardCount 3 -Cost $skewCosts
+    $costSpread = Measure-CostSpread -ArtifactRoot $byCost -ShardCount 3 -Cost $skewCosts
+    if ($costSpread.Spread -ge $countSpread.Spread) {
+        throw "Balancing on recorded duration did not beat balancing on test count: cost spread $($costSpread.Spread) ($($costSpread.Totals -join ', ')) against count spread $($countSpread.Spread) ($($countSpread.Totals -join ', '))."
+    }
+
+    $expensiveOwners = @(1..3 | Where-Object {
+        $owned = Get-ShardClasses -ArtifactRoot $byCost -Shard $_
+        @($owned | Where-Object { $_ -like 'Exp*' }).Count -gt 0
+    })
+    if ($expensiveOwners.Count -ne 2) {
+        throw "The two expensive classes landed on $($expensiveOwners.Count) shard(s); they must not share one."
+    }
+
+    & $shardScript -VerifyPartition -ShardCount 3 -ArtifactRoot $byCost
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The cost-balanced assignment failed exact partition verification.'
+    }
+
+    # Discovery order must not matter with a table either.
+    $byCostRepeat = Join-Path $root 'skew-by-cost-repeat'
+    Set-Content -Path $testList -Value @($skewed | Sort-Object -Descending)
+    Invoke-ListOnly -ArtifactRoot $byCostRepeat -ShardCount 3 -DurationPath $skewTable
+    foreach ($shard in 1..3) {
+        if (Compare-Object @(Get-Content (Join-Path $byCost "assigned-$shard.txt")) `
+                @(Get-Content (Join-Path $byCostRepeat "assigned-$shard.txt")) -CaseSensitive) {
+            throw "Shard $shard was not deterministic when balanced on recorded duration."
+        }
+    }
+
+    # A class the table does not name costs the median, not nothing. Were it free,
+    # both unnamed classes would pile onto the lightest shard and the split would
+    # be three classes against one.
+    Set-Content -Path $testList -Value @(
+        'Example.Known1.Test(value: 1)'
+        'Example.Known2.Test(value: 1)'
+        'Example.Unnamed1.Test(value: 1)'
+        'Example.Unnamed2.Test(value: 1)'
+    )
+    $partialTable = Join-Path $root 'partial-durations.json'
+    Set-Content -Path $partialTable -Encoding utf8NoBOM -Value (@{ 'Example.Known1' = 100.0; 'Example.Known2' = 100.0 } | ConvertTo-Json)
+
+    $partial = Join-Path $root 'partial-table'
+    Invoke-ListOnly -ArtifactRoot $partial -ShardCount 2 -DurationPath $partialTable
+    foreach ($shard in 1..2) {
+        $owned = Get-ShardClasses -ArtifactRoot $partial -Shard $shard
+        if ($owned.Count -ne 2) {
+            throw "Shard $shard owned $($owned.Count) classes ($($owned -join ', ')); an unmeasured class must cost the median, not nothing."
+        }
+    }
+
+    # Update-TestShardDurations.ps1 reads the .trx files a run retains and keys
+    # each result by the declaring class the runner recorded, so theory rows and
+    # methods collapse onto their class exactly as the sharder groups them.
+    $trxRoot = Join-Path $root 'trx'
+    New-Item -ItemType Directory -Path (Join-Path $trxRoot 'test-shard-1'), (Join-Path $trxRoot 'test-shard-2') | Out-Null
+    function New-Trx([string] $Path, [object[]] $Rows) {
+        $definitions = ($Rows | ForEach-Object { "<UnitTest id=`"$($_[0])`"><TestMethod className=`"$($_[1])`" name=`"m`" /></UnitTest>" }) -join ''
+        $results = ($Rows | ForEach-Object { "<UnitTestResult testId=`"$($_[0])`" duration=`"$($_[2])`" />" }) -join ''
+        Set-Content -LiteralPath $Path -Value "<TestRun><TestDefinitions>$definitions</TestDefinitions><Results>$results</Results></TestRun>"
+    }
+    New-Trx (Join-Path $trxRoot 'test-shard-1/shard-1.trx') @(
+        @('a1', 'Example.Slow', '00:01:30.5000000'),
+        @('a2', 'Example.Slow', '00:00:29.5000000'),
+        @('a3', 'Example.Quick', '00:00:00.2500000'))
+    # The leading comma keeps a single row an array of one row, not three strings.
+    New-Trx (Join-Path $trxRoot 'test-shard-2/shard-2.trx') @(
+        , @('b1', 'Example.Quick', '00:00:00.7500000'))
+
+    $table = Join-Path $root 'durations.json'
+    & (Join-Path $PSScriptRoot 'Update-TestShardDurations.ps1') -ArtifactRoot $trxRoot -Path $table -ShardCount 2 | Out-Null
+    $recorded = Get-Content -Raw -LiteralPath $table | ConvertFrom-Json
+    if ($recorded.'Example.Slow' -ne 120 -or $recorded.'Example.Quick' -ne 1) {
+        throw "Durations were not summed per declaring class across shards: $(Get-Content -Raw $table)"
+    }
+
+    $refused = $false
+    try {
+        & (Join-Path $PSScriptRoot 'Update-TestShardDurations.ps1') -ArtifactRoot $trxRoot -Path $table -ShardCount 3 | Out-Null
+    }
+    catch {
+        $refused = $true
+    }
+    if (-not $refused) {
+        throw 'A table built from two of three shards must be refused: the missing shard''s classes would be under-recorded.'
+    }
+
+    # Combining runs takes the per-class median, so one run's contention spike
+    # cannot move a class. Fewer than three runs is refused.
+    $runs = foreach ($i in 1..3) { Join-Path $root "run-$i.json" }
+    Set-Content -LiteralPath $runs[0] -Value '{"Example.Slow": 10, "Example.Quick": 1}'
+    Set-Content -LiteralPath $runs[1] -Value '{"Example.Slow": 400, "Example.Quick": 3}'
+    Set-Content -LiteralPath $runs[2] -Value '{"Example.Slow": 30, "Example.New": 5}'
+    $combinedPath = Join-Path $root 'combined.json'
+    & (Join-Path $PSScriptRoot 'Update-TestShardDurations.ps1') -Combine $runs -Path $combinedPath | Out-Null
+    $combined = Get-Content -Raw -LiteralPath $combinedPath | ConvertFrom-Json
+    if ($combined.'Example.Slow' -ne 30 -or $combined.'Example.Quick' -ne 2 -or $combined.'Example.New' -ne 5) {
+        throw "Combining runs did not take the per-class median: $(Get-Content -Raw $combinedPath)"
+    }
+    $refusedTwo = $false
+    try { & (Join-Path $PSScriptRoot 'Update-TestShardDurations.ps1') -Combine $runs[0], $runs[1] -Path $combinedPath | Out-Null }
+    catch { $refusedTwo = $true }
+    if (-not $refusedTwo) {
+        throw 'Combining two runs must be refused.'
     }
 
     $validSix = Join-Path $root 'first-6'
@@ -218,7 +388,7 @@ try {
     Assert-PartitionFails -ArtifactRoot $notPartition -ShardCount 6 `
         -Scenario 'an assignment set that is not a partition of the inventory'
 
-    Write-Output 'Test-shard assignment passed for 3 and 6 shards.'
+    Write-Output 'Test-shard assignment passed for 3 and 6 shards, by test count and by recorded duration.'
 }
 finally {
     if (Test-Path -LiteralPath $root) {
