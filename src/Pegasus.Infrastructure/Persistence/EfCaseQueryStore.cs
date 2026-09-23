@@ -274,7 +274,7 @@ public sealed class EfCaseQueryStore(
             .ThenBy(item => item.Id)
             .Take(100)
             .ToArrayAsync(cancellationToken);
-        var queryEmails = await ReadQueryEmailsAsync(context, query.CaseId, cancellationToken);
+        var correspondenceEmails = await ReadCorrespondenceEmailsAsync(context, query.CaseId, cancellationToken);
         var historyEntities = await context.CaseWorkflowEvents
             .AsNoTracking()
             .Where(item => item.CaseId == query.CaseId)
@@ -301,7 +301,7 @@ public sealed class EfCaseQueryStore(
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
             history)
         {
-            QueryEmails = queryEmails,
+            CorrespondenceEmails = correspondenceEmails,
             RecordNotes = recordNotes
         };
     }
@@ -511,7 +511,7 @@ public sealed class EfCaseQueryStore(
         IReadOnlyList<CaseDocument> documents = includeDocuments
             ? await ReadDocumentsAsync(context, caseId, cancellationToken)
             : [];
-        var queryEmails = await ReadQueryEmailsAsync(context, caseId, cancellationToken);
+        var correspondenceEmails = await ReadCorrespondenceEmailsAsync(context, caseId, cancellationToken);
         // The two Audit facts the Files section needs are not on the section
         // frame a caller may hand in, so read them in one narrow projection.
         var auditFacts = await context.Cases
@@ -520,7 +520,7 @@ public sealed class EfCaseQueryStore(
             .Select(item => new { item.StandaloneAuditEvidenceId, item.AuditOfCaseId })
             .SingleAsync(cancellationToken);
         return new(sectionFrame, documents, sectionFrame.CustodyFolderRemoteId,
-            sectionFrame.CustodyState, queryEmails,
+            sectionFrame.CustodyState, correspondenceEmails,
             auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId);
     }
 
@@ -606,34 +606,28 @@ public sealed class EfCaseQueryStore(
                 : null);
     }
 
-    private static async Task<IReadOnlyList<CaseQueryEmail>> ReadQueryEmailsAsync(
+    /// <summary>
+    /// The Case's correspondence (FRD-20 § Case correspondence view): every
+    /// retained email whose receipt is currently linked to the Case, whatever
+    /// its classification - the email the Case was created from, polled mail
+    /// associated later, and uploaded .eml files - newest first. Only the two
+    /// channels an email arrives through are read, since a receipt token is
+    /// unique only within its channel.
+    /// </summary>
+    private static async Task<IReadOnlyList<CaseCorrespondenceEmail>> ReadCorrespondenceEmailsAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        var querySelection = MailOperationalDestinationPolicy.Query(MailOperationalDestination.Queries);
-        var queryFamilies = querySelection.Families.Select(MailTaxonomy.CategoryName).ToArray();
-        var exactQuery = querySelection.ExactClassification;
-        var exactDirection = exactQuery?.Direction.ToString().ToLowerInvariant();
         var associatedReceiptIds = context.IntakeManualAssociations.AsNoTracking()
             .Where(item => item.CaseId == caseId)
             .Select(item => item.IntakeReceiptId)
             .Union(context.CaseIntakeLinks.AsNoTracking()
                 .Where(item => item.CaseId == caseId)
                 .Select(item => item.IntakeReceiptId));
-        var classifiedReceipts = await context.IntakeReceipts.AsNoTracking()
+        var associatedReceipts = await context.IntakeReceipts.AsNoTracking()
             .Where(item => associatedReceiptIds.Contains(item.Id)
-                && ((item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
-                        && item.MailClassificationDecision != null
-                        && item.MailClassificationDecision.Outcome == "classified"
-                        && ((item.MailClassificationDecision.Direction == "received"
-                                && item.MailClassificationDecision.Family != null
-                                && queryFamilies.Contains(item.MailClassificationDecision.Family))
-                            || (exactQuery != null
-                                && item.MailClassificationDecision.OtherName == null
-                                && item.MailClassificationDecision.Direction == exactDirection
-                                && item.MailClassificationDecision.Family == exactQuery.Name
-                                && item.MailClassificationDecision.Subtype == exactQuery.Subtype)))
+                && (item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
                     || item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload)))
             .Select(item => new
             {
@@ -644,8 +638,8 @@ public sealed class EfCaseQueryStore(
             })
             .ToArrayAsync(cancellationToken);
         var associations = await CurrentIntakeAssociations.ReadAsync(
-            context, classifiedReceipts.Select(item => item.Id).ToArray(), cancellationToken);
-        var linkedReceipts = classifiedReceipts
+            context, associatedReceipts.Select(item => item.Id).ToArray(), cancellationToken);
+        var linkedReceipts = associatedReceipts
             .Where(item => associations.Current.TryGetValue(item.Id, out var association) && association.CaseId == caseId)
             .ToArray();
         var tokens = linkedReceipts.Select(item => item.ExternalReceiptToken).Distinct(StringComparer.Ordinal).ToArray();
@@ -668,7 +662,7 @@ public sealed class EfCaseQueryStore(
         return messages.Select(item =>
             {
                 var receipt = receiptByToken[item.ExternalReceiptToken];
-                return new CaseQueryEmail(item.Id, item.ReceivedAtUtc, receipt.EffectiveSenderAddress,
+                return new CaseCorrespondenceEmail(item.Id, item.ReceivedAtUtc, receipt.EffectiveSenderAddress,
                     item.SenderDisplayName, item.SenderAddress, item.Subject,
                     receipt.Classification is null ? null
                         : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification).Category,

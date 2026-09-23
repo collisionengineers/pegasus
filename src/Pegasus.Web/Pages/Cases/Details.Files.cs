@@ -27,7 +27,7 @@ public sealed partial class DetailsModel
                 return [];
             }
 
-            var correspondence = (FilesSection?.QueryEmails ?? [])
+            var correspondence = (FilesSection?.CorrespondenceEmails ?? [])
                 .Select(email => email.SourceSha256)
                 .Where(hash => !string.IsNullOrWhiteSpace(hash))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);

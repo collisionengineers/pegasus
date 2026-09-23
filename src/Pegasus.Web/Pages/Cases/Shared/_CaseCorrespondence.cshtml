@@ -3,7 +3,7 @@
 @using Pegasus.Web.Presentation
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
-    var emails = Model.FilesSection?.QueryEmails ?? [];
+    var emails = Model.FilesSection?.CorrespondenceEmails ?? [];
     var summary = Model.CurrentSummary!;
 }
 
