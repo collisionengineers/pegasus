@@ -56,8 +56,8 @@ different value or a clear makes it **Corrected**, recording who resolved it.
 It stays resolved until the next Automation value. The Settlement section
 shows the Proposed column only when a proposal exists. It offers Accept and
 Accept all only while a proposal is Awaiting and the Case is being edited.
-The Engineer's Value row offers Apply in Valuation instead, because that
-value is adopted only through an explicit valuation Apply. A Save that leaves
+The Engineer's Value row offers Set in Valuation instead, because that
+value is adopted only by a Save whose valuation calculation changed. A Save that leaves
 an Awaiting field untouched leaves it Awaiting.
 
 Durable Send to AI work has stable request, hand-off, reply and disposition

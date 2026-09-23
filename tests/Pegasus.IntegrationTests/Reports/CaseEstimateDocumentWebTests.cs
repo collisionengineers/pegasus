@@ -263,8 +263,8 @@ public sealed class CaseEstimateDocumentWebTests
             SaveEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<RepairSpecificationVersion> SaveAndScaleAsync(
-            SaveAndScaleRepairSpecificationRequest request, CancellationToken cancellationToken) =>
+        public Task<RepairSpecificationVersion> ScaleAsync(
+            ScaleRepairSpecificationRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<RepairSpecificationVersion> RemoveScalingAsync(

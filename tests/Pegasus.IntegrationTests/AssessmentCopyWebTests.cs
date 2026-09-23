@@ -63,9 +63,9 @@ public sealed class AssessmentCopyWebTests
     }
 
     /// <summary>
-    /// D11: the workspace's mutation gate (GuardEstimateEditAsync) still
-    /// refuses a POST when CanOpen is false, retargeted from the retired
-    /// Assessment page onto the Case handler host.
+    /// D11: the assessment access gate still refuses a POST when CanOpen is
+    /// false. The Repair Spec is saved by the one Case Save (23 September
+    /// 2026), so a Case Save carrying the editor answers to it.
     /// </summary>
     [Fact]
     public async Task InaccessibleCaseCannotPostEstimateMutations()
@@ -76,12 +76,13 @@ public sealed class AssessmentCopyWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
 
         using var response = await client.PostAsync(
-            $"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate",
+            $"/Cases/{caseId:D}?handler=Save&section=estimate",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = AntiforgeryValue(html),
                 ["id"] = caseId.ToString("D"),
                 ["operationKey"] = Guid.NewGuid().ToString("N"),
+                ["estimateName"] = "Repair spec",
             }));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);

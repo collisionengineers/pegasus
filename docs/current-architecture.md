@@ -38,7 +38,8 @@ flowchart LR
 - Triage and Image Intake records use typed, versioned edit scopes.
   Administration settings use expected-version checks on each save. Case
   editing retains its existing workflow lease and one atomic workspace save
-  for data, assessment, damage and image preparation.
+  for data, assessment, damage, image preparation, the Draft repair
+  specification, guide cards and valuation adoption.
 - Direct manual Case creation shares the permanent reference allocator with
   receipt acceptance. It creates no intake receipt or invented source provenance.
 - Notes and immutable applied guidance share the Case workflow timeline.

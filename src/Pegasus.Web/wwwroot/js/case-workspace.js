@@ -35,11 +35,14 @@
     var dirtyEditors = new Map();
     var activeEditor = null;
     var submitting = false;
+    // One editor: the record's Save form (one Save, 23 September 2026). The
+    // Repair Spec and the valuation calculator are controls of it.
     var editorLabels = {
-        'case-edit-form': 'Case',
-        'case-estimate-form': 'Estimate',
-        'case-valuation-form': 'Valuation'
+        'case-edit-form': 'Case'
     };
+    // Whether the unsaved Case changes include the Repair Spec's, which an
+    // import must not overwrite. Cleared with the Case's draft.
+    var estimateTouched = false;
     var pendingAnchor = null;
     var navigationVersion = 0;
 
@@ -421,6 +424,7 @@
     // ---- the edit session: dirty guard, heartbeat, expiry ------------------
     function announce(isDirty) {
         dirty = isDirty;
+        if (!isDirty) { estimateTouched = false; }
         document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: isDirty } }));
     }
     function editorFor(control) {
@@ -436,7 +440,9 @@
     ['input', 'change'].forEach(function (name) {
         document.addEventListener(name, function (event) {
             var form = editorFor(event.target);
-            if (form) { markDirty(form); }
+            if (!form) { return; }
+            markDirty(form);
+            if (event.target.closest && event.target.closest('[data-estimate-form]')) { estimateTouched = true; }
         });
     });
     document.addEventListener('focusin', function (event) {
@@ -542,7 +548,7 @@
             var form = activeDirtyForm();
             var label = form ? editorLabels[form.getAttribute('id')] : 'Case';
             confirmDialog.querySelector('h2').textContent = 'Unsaved ' + Array.from(dirtyEditors.keys()).map(function (id) { return editorLabels[id]; }).join(', ') + ' changes';
-            confirmDialog.querySelector('[data-edit-finish-save]').textContent = label === 'Valuation' ? 'Apply valuation' : 'Save ' + label;
+            confirmDialog.querySelector('[data-edit-finish-save]').textContent = 'Save ' + label;
             confirmDialog.hidden = false;
             var keep = confirmDialog.querySelector('[data-edit-finish-keep]');
             if (keep) { keep.focus(); }
@@ -872,7 +878,7 @@
                 return Boolean(event.dataTransfer)
                     && Array.prototype.slice.call(event.dataTransfer.types || []).indexOf('Files') >= 0;
             };
-            function estimateIsDirty() { return dirtyEditors.has('case-estimate-form'); }
+            function estimateIsDirty() { return estimateTouched && dirtyEditors.has('case-edit-form'); }
             function canAccept() {
                 return !submitting && !confirmResolve && form.dataset.inplaceSubmitting !== 'true';
             }
@@ -999,7 +1005,7 @@
         event.preventDefault();
         var isImport = form.hasAttribute('data-estimate-import-form');
         if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') { return; }
-        if (isImport && dirtyEditors.has('case-estimate-form')) {
+        if (isImport && estimateTouched && dirtyEditors.has('case-edit-form')) {
             showActionError(form.dataset.estimateImportDirty
                 || 'Save or cancel the estimate changes before importing another estimate.');
             return;
@@ -1009,17 +1015,13 @@
             submitting = true;
             if (isSave && !dirtyEditors.has(form.getAttribute('id'))) { markDirty(form); }
             form.dataset.inplaceSubmitting = 'true';
-            // The ribbon Save ends edit mode, unless another editor still
-            // holds unsaved changes: the session stays open to keep them.
-            var othersDirty = Array.from(dirtyEditors.keys()).some(function (editor) {
-                return editor !== form.getAttribute('id');
-            });
-            submitInPlace(form, submitter && submitter.name === 'finishEditing' && othersDirty ? null : submitter);
+            submitInPlace(form, submitter);
         };
-        // A command that reads what the Case records (Apply adopts the saved
-        // guide card) saves the Case's own unsaved changes first and follows
-        // in the same press. Its section renders afresh after the save, so it
-        // reads the card as saved; its choices ride across (again()).
+        // A command that reads what the Case records (Apply and Remove scaling
+        // work on the saved repair spec) saves the Case's own unsaved changes
+        // first and follows in the same press. Its section renders afresh
+        // after the save, so it reads the spec as saved; its choices ride
+        // across (again()).
         var caseForm = document.getElementById('case-edit-form');
         if (form.hasAttribute('data-case-save-first') && caseForm && dirtyEditors.has('case-edit-form')) {
             dirtyEditors.delete(form.getAttribute('id'));
@@ -1838,35 +1840,44 @@
 // --- Valuation: the calculator's preview, basis cards and additions -----------
 // The lines are Core's arithmetic: every change posts the selection to the
 // PreviewValuation handler and the returned partial replaces the lines. The
-// Apply submit itself is the frame's in-place post. Without script the
-// calculator still posts and the applied calculation shows after the redirect.
+// calculator's controls and the Basis radios belong to the Case form, so the
+// ribbon Save adopts a changed calculation (one Save, 23 September 2026).
 (function () {
     'use strict';
 
     function bind(root) {
-        root.querySelectorAll('[data-valuation-form]').forEach(function (form) {
-            if (form.dataset.valuationBound === 'true') {
+        root.querySelectorAll('[data-valuation-form]').forEach(function (calc) {
+            if (calc.dataset.valuationBound === 'true') {
                 return;
             }
-            form.dataset.valuationBound = 'true';
-            var section = form.closest('.record-section') || document;
+            calc.dataset.valuationBound = 'true';
+            var section = calc.closest('.record-section') || document;
             var host = section.querySelector('[data-valuation-lines-host]');
-            var stamp = form.querySelector('[data-valuation-stamp]');
             var basisName = section.querySelector('[data-valuation-basis-name]');
-            var apply = section.querySelector('[data-valuation-apply]');
-            var previewUrl = form.getAttribute('data-preview-url');
+            var previewUrl = calc.getAttribute('data-preview-url');
             var timer = null;
             var inFlight = null;
 
+            // A calculator control: one of this section's selection fields of
+            // the Case form (the guide cards' own boxes are the Case's too, but
+            // they are the cards, not the calculation).
             function belongs(control) {
-                return control && control.form === form;
+                var caseForm = document.getElementById('case-edit-form');
+                return !!control && !!caseForm && control.form === caseForm && section.contains(control)
+                    && typeof control.name === 'string' && control.name.indexOf('selection.') === 0;
             }
 
             function preview() {
-                if (!previewUrl || !host) {
+                var caseForm = document.getElementById('case-edit-form');
+                if (!previewUrl || !host || !caseForm) {
                     return;
                 }
-                var body = new FormData(form);
+                var body = new FormData();
+                new FormData(caseForm).forEach(function (value, name) {
+                    if (name === '__RequestVerificationToken' || name.indexOf('selection.') === 0) {
+                        body.append(name, value);
+                    }
+                });
                 if (inFlight) {
                     inFlight.abort();
                 }
@@ -1885,8 +1896,8 @@
                 }).then(function (html) {
                     host.innerHTML = html;
                 }).catch(function () {
-                    // The lines keep their last state; a refused preview
-                    // shows on Apply, which Core answers.
+                    // The lines keep their last state; a refused calculation
+                    // shows on Save, which Core answers.
                 });
             }
             function schedule() {
@@ -1899,14 +1910,8 @@
                     var own = card.querySelector('[data-valuation-basis]');
                     card.classList.toggle('sel', own === radio);
                 });
-                if (stamp) {
-                    stamp.value = radio.getAttribute('data-stamp') || '';
-                }
                 if (basisName) {
                     basisName.textContent = 'from ' + (radio.getAttribute('data-source-name') || 'guide') + ' retail';
-                }
-                if (apply) {
-                    apply.disabled = false;
                 }
             }
 
@@ -2147,18 +2152,15 @@
             });
         }
 
-        // A phantom row that is still blank at submit is dropped here as well
-        // as by the save, so a removeLine redraw never counts it.
-        form.addEventListener('submit', function () {
-            body.querySelectorAll('tr[data-estimate-phantom]').forEach(function (row) { row.remove(); });
-            window.setTimeout(appendPhantom, 0);
-        });
-
+        // The editor's controls belong to the Case form; the save drops a
+        // blank line, so the phantom row posts as nothing.
         function renumber() {
             body.querySelectorAll('tr[data-estimate-line] button[name="removeLine"]').forEach(function (button, index) {
                 button.value = String(index);
             });
-            form.dispatchEvent(new Event('input', { bubbles: true }));
+            // The frame's dirty guard listens for input on the Case form's
+            // controls: a removed line is an unsaved change of the spec.
+            (form.querySelector('input[name="estimateId"]') || form).dispatchEvent(new Event('input', { bubbles: true }));
             appendPhantom();
         }
 
@@ -2494,7 +2496,7 @@
             }
             section.dataset.estimateBound = 'true';
             bindExpand(section);
-            var form = section.querySelector('form[data-estimate-form]');
+            var form = section.querySelector('[data-estimate-form]');
             if (form) {
                 bindGrid(form);
                 bindVat(form);

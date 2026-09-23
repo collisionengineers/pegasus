@@ -606,6 +606,46 @@ public static class EstimatePolicy
     /// <c>paint_new</c> line the operator never touched comes back as
     /// <c>paint_repair</c>, and that is not an amendment.
     /// </summary>
+    /// <summary>
+    /// Whether an editor save, with its evidence carried and its rate card
+    /// resolved, is the estimate exactly as recorded: the same lines in the
+    /// same order, no line amended, the same header and the same supplementary
+    /// statement. The one Case Save posts the whole editor every time, so an
+    /// estimate nobody touched is left as it is rather than rewritten — which
+    /// would confirm its unconfirmed lines and stale a report it pinned.
+    /// </summary>
+    public static bool IsUnchanged(SaveEstimateRequest evidenced, RepairSpecificationVersion? existing)
+    {
+        ArgumentNullException.ThrowIfNull(evidenced);
+        if (existing is null
+            || evidenced.EstimateId != existing.SpecificationId
+            || evidenced.ExistingLineIds is not { } identities
+            || evidenced.Lines.Count != existing.Lines.Count
+            || identities.Count != existing.Lines.Count)
+        {
+            return false;
+        }
+        for (var index = 0; index < existing.Lines.Count; index++)
+        {
+            if (identities[index] != existing.Lines[index].Id
+                || !IsAmendmentUnchanged(evidenced.Lines[index], existing.Lines[index]))
+            {
+                return false;
+            }
+        }
+        var posted = evidenced.Details;
+        var recorded = existing.Details;
+        return string.Equals(posted.Name, recorded.Name, StringComparison.Ordinal)
+            && posted.LabourRate == recorded.LabourRate
+            && posted.Rate == recorded.Rate
+            && posted.RegionalUplift == recorded.RegionalUplift
+            && posted.OtherCosts == recorded.OtherCosts
+            && posted.VatPercent == recorded.VatPercent
+            && posted.AppliedDiscounts == recorded.AppliedDiscounts
+            && posted.VatPolicy == recorded.VatPolicy
+            && evidenced.Supplementary == existing.Supplementary;
+    }
+
     public static bool IsAmendmentUnchanged(EstimateLineInput saved, CaseEstimateLineRecord loaded)
     {
         ArgumentNullException.ThrowIfNull(saved);
@@ -718,6 +758,18 @@ public static class EstimatePolicy
     public static SaveEstimateRequest ValidateSave(SaveEstimateRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
+        return ValidateContent(request);
+    }
+
+    /// <summary>
+    /// The estimate's own content: its header, lines, line identities, source
+    /// and author. The Case save carries an estimate inside its own envelope,
+    /// so it checks this part alone; <see cref="ValidateSave"/> adds the
+    /// command's envelope.
+    /// </summary>
+    public static SaveEstimateRequest ValidateContent(SaveEstimateRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Lines);
         if (request.ExistingLineIds is { } identities)
         {

@@ -353,7 +353,7 @@ public sealed class CaseWorkspacePersistenceTests
         var first = await harness.WorkspaceStore.SaveAsync(
             Request(harness, initial.Version, lease.Token, "guide-save-1") with
             {
-                Valuation = new(null, [GuideCard(ValuationSource.Glasses, april, 12_500m), GuideCard(ValuationSource.Brego, april, 11_000m)])
+                Valuation = new([GuideCard(ValuationSource.Glasses, april, 12_500m), GuideCard(ValuationSource.Brego, april, 11_000m)])
             },
             CancellationToken.None);
 
@@ -370,7 +370,7 @@ public sealed class CaseWorkspacePersistenceTests
         var second = await harness.WorkspaceStore.SaveAsync(
             Request(harness, first.Version, again.Token, "guide-save-2") with
             {
-                Valuation = new(null, [GuideCard(ValuationSource.Glasses, april, 12_500m), GuideCard(ValuationSource.Brego, april, 11_750m)])
+                Valuation = new([GuideCard(ValuationSource.Glasses, april, 12_500m), GuideCard(ValuationSource.Brego, april, 11_750m)])
             },
             CancellationToken.None);
 
@@ -1116,7 +1116,7 @@ public sealed class CaseWorkspacePersistenceTests
             engineer,
             "lease-partial");
         var historyBefore = await harness.HistoryCountAsync();
-        await AcceptAnEstimateAsync(harness);
+        var accepted = await AcceptAnEstimateAsync(harness);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             harness.WorkspaceStore.SaveAsync(
@@ -1141,7 +1141,9 @@ public sealed class CaseWorkspacePersistenceTests
                         [AssessmentVocabulary.EngineersComments] = "Never written",
                         [AssessmentVocabulary.AgreedFee] = "120.00"
                     }, null, new DateOnly(2031, 5, 20)),
-                    Estimate = new(null, null, [])
+                    // An accepted spec is not an editor's Draft: the refusal
+                    // comes after the Case facts were written.
+                    Estimate = new(accepted, new("Accepted estimate", null, null, 20m), [])
                 },
                 CancellationToken.None));
 
@@ -1157,7 +1159,7 @@ public sealed class CaseWorkspacePersistenceTests
     {
         await using var harness = await Harness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
-        await AcceptAnEstimateAsync(harness);
+        var accepted = await AcceptAnEstimateAsync(harness);
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
@@ -1168,10 +1170,10 @@ public sealed class CaseWorkspacePersistenceTests
             harness.WorkspaceStore.SaveAsync(
                 Request(harness, initial.Version, lease.Token, "workspace-accepted", engineer) with
                 {
-                    Estimate = new(null, null, [])
+                    Estimate = new(accepted, new("Accepted estimate", null, null, 20m), [])
                 },
                 CancellationToken.None));
-        Assert.Contains("immutable", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("Only a draft estimate can be changed", refusal.Message, StringComparison.Ordinal);
 
         await MarkTerminalAsync(harness);
         await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
@@ -1227,6 +1229,94 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(engineer.SubjectId, line.ConfirmedBy);
         Assert.Equal(initial.Version + 1, result.Version);
         Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+    }
+
+    /// <summary>
+    /// The one Case Save posts the whole Repair Spec editor every time (23
+    /// September 2026): a spec saved exactly as recorded is not rewritten, so
+    /// its lines keep their identities and the history line does not name it.
+    /// </summary>
+    [Fact]
+    public async Task AnUnchangedSpecIsNotRewrittenByTheCaseSave()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-spec-1");
+        var first = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "spec-save-1", engineer) with
+            {
+                Estimate = new(
+                    null,
+                    new("Estimate 1", 45m, 0m, 20m),
+                    [new("new_part", null, "Front bumper", 1.5m, 240m, false, "BP-1", null, null, null, null, null, 1)])
+            },
+            CancellationToken.None);
+        var spec = Assert.IsType<RepairSpecificationVersion>(first.Estimate);
+
+        var again = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-spec-2");
+        var second = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, first.Version, again.Token, "spec-save-2", engineer) with
+            {
+                Estimate = new(
+                    spec.SpecificationId,
+                    spec.Details,
+                    [.. spec.Lines.Select(RepairSpecificationScaling.ToInput)],
+                    [.. spec.Lines.Select(line => (Guid?)line.Id)])
+            },
+            CancellationToken.None);
+
+        Assert.Equal(first.Version + 1, second.Version);
+        Assert.Equal(spec.Lines[0].Id, Assert.Single(second.Estimate!.Lines).Id);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var line = await context.CaseHistory.AsNoTracking()
+            .Where(item => item.CaseId == harness.CaseId && item.OperationKey == "spec-save-2")
+            .Select(item => item.Reason)
+            .SingleAsync();
+        Assert.DoesNotContain("Estimate", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An adoption in a Save that records a new guide month for the basis
+    /// source is calculated from that new card, the one the page shows (one
+    /// Save, 23 September 2026), and names the Case version the save produced.
+    /// </summary>
+    [Fact]
+    public async Task AnAdoptionCalculatesFromTheBasisCardTheSameSaveRecorded()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var april = new DateOnly(2030, 4, 1);
+        var may = new DateOnly(2030, 5, 1);
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-basis-1");
+        var first = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "basis-save-1", engineer) with
+            {
+                Valuation = new([GuideCard(ValuationSource.Glasses, april, 12_500m)])
+            },
+            CancellationToken.None);
+        var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
+        var aprilCard = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None));
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var again = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-basis-2");
+        var second = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, first.Version, again.Token, "basis-save-2", engineer) with
+            {
+                Valuation = new(
+                    [GuideCard(ValuationSource.Glasses, may, 13_000m)],
+                    new ValuationCalculationSelection(aprilCard.ValuationId, false, null, [], 0m))
+            },
+            CancellationToken.None);
+
+        var mayCard = (await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None))
+            .Single(card => card.Details.Source == ValuationSource.Glasses && card.Details.GuideMonth == may);
+        var applied = Assert.Single(await valuations.ListAppliedAsync(harness.CaseId, CancellationToken.None));
+        Assert.Equal(mayCard.ValuationId, applied.GuideValuationId);
+        Assert.Equal(13_000m, applied.AcceptedEngineerValue);
+        Assert.Equal(second.Version, applied.CaseVersion);
+        Assert.Equal(2, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
     }
 
     [Fact]
@@ -1667,8 +1757,9 @@ public sealed class CaseWorkspacePersistenceTests
         Guid.Parse(harness.StaffActor.SubjectId),
         [role]);
 
-    private static async Task AcceptAnEstimateAsync(Harness harness)
+    private static async Task<Guid> AcceptAnEstimateAsync(Harness harness)
     {
+        var id = Guid.NewGuid();
         await using var context = await harness.Factory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"""
@@ -1676,11 +1767,12 @@ public sealed class CaseWorkspacePersistenceTests
                 (Id, CaseId, Version, State, SourceRoute, CreatedBy, CreationOperationKey,
                  CreatedAtUtc, Name, VatPercent, IsCurrent, AcceptedBy, AcceptedAtUtc)
             VALUES
-                ({Guid.NewGuid()}, {harness.CaseId}, {1}, {"Accepted"}, {"LegacyUnresolved"},
+                ({id}, {harness.CaseId}, {1}, {"Accepted"}, {"LegacyUnresolved"},
                  {harness.StaffActor.SubjectId}, {"accepted-estimate"},
                  {DateTimeOffset.UtcNow}, {"Accepted estimate"}, {20m}, {true},
                  {harness.StaffActor.SubjectId}, {DateTimeOffset.UtcNow})
             """);
+        return id;
     }
 
     private static async Task<Guid> SeedCurrentGenerationAsync(Harness harness, long caseVersion)

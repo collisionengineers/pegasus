@@ -51,7 +51,8 @@ public sealed class CaseValuationWebTests
         var saved = Assert.Single(store.Saves);
         Assert.True(saved.Actor.IsInRole(role));
         AssertLeasedMutation(workspace, saved, DetailsModelOperationKey, "Recorded the Glass's figure", before);
-        Assert.Null(saved.Valuation!.DraftInputs);
+        // A card alone adopts nothing: no calculation was posted.
+        Assert.Null(saved.Valuation!.Adoption);
         var card = Assert.Single(saved.Valuation.GuideEntries!);
         Assert.Equal(ValuationSource.Glasses, card.Source);
         Assert.Equal(42_000, card.Mileage);
