@@ -499,6 +499,7 @@ public sealed class CaseAssetPreparationWebTests
         var store = new PreparedImages().Store();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
+            Substitute<IGetAssessmentAccess>(services, store);
             Substitute<ICaseAssetPreparationQueries>(services, store);
             Substitute<ICaseReportSnapshotSource>(services,
                 new AssessmentReportDraftWebTests.FakeProjectionSource(

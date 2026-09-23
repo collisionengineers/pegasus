@@ -170,9 +170,11 @@ public sealed class EfCaseWorkflowStore(
         var previousHolder = CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
             ? workflow.EditLeaseHolder
             : null;
+        ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(workflow.EditLeaseHolderKind, out var parsedKind)
+            ? parsedKind
+            : null;
         if (previousHolder is not null
-            && (!request.TakeOver || request.Actor.Kind != ActorKind.Staff
-                || workflow.EditLeaseHolderKind != nameof(ActorKind.Staff)))
+            && (!request.TakeOver || !CaseEditAuthority.CanTakeOver(previousHolderKind, request.Actor)))
         {
             throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
         }
