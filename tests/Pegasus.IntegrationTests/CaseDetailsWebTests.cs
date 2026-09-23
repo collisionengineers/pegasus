@@ -228,6 +228,48 @@ public sealed class CaseDetailsWebTests
         Assert.DoesNotContain("section-nav", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-main\"", fragment, StringComparison.Ordinal);
         Assert.DoesNotContain("<html", fragment, StringComparison.OrdinalIgnoreCase);
+        AssertBalancedMarkup(fragment);
+    }
+
+    /// <summary>
+    /// Issue 816: a stray closing tag in one section let the browser close the
+    /// main column early, so Decisions and every section after it drew in the
+    /// aside. Read and edit mode each render the record with every section
+    /// closed inside the main column.
+    /// </summary>
+    [Fact]
+    public async Task EverySectionClosesInsideTheMainColumnInReadAndEditMode()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        var reading = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        using var workspace = await EnterEditModeAsync(new RecordingCaseDetailsStore(), _ => { });
+        var editing = await workspace.GetWorkspaceAsync();
+
+        foreach (var html in new[] { reading, editing })
+        {
+            AssertBalancedMarkup(html);
+            var main = MainColumn(html);
+            AssertBalancedMarkup(main);
+            Assert.Equal(CaseSectionKeys, HostOrder(main));
+        }
     }
 
     /// <summary>
