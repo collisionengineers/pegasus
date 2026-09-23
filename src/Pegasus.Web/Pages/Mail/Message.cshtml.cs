@@ -331,6 +331,56 @@ public sealed class MessageModel(
         return Page();
     }
 
+    /// <summary>
+    /// The message's head, text and attachment names as a fragment, for the
+    /// Case's Correspondence dialog. The same actor and read as the record,
+    /// and like the Inbox preview it changes nothing.
+    /// </summary>
+    public async Task<IActionResult> OnGetContentAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        RetainedMailDetail? detail;
+        try
+        {
+            detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            return NotFound();
+        }
+
+        return detail is null ? NotFound() : Partial("Shared/_MessageContent", detail);
+    }
+
+    /// <summary>The route line under a message's subject: its forwarder and its To and Cc recipients.</summary>
+    public static IReadOnlyList<string> RouteParts(RetainedMailDetail detail)
+    {
+        var parts = new List<string>();
+        if (IndexModel.ForwarderLine(detail.Summary) is { } forwarder)
+        {
+            parts.Add($"Forwarded by {forwarder}");
+        }
+        if (detail.ToAddresses.Count > 0)
+        {
+            parts.Add($"To {string.Join(", ", detail.ToAddresses)}");
+        }
+        if (detail.CcAddresses.Count > 0)
+        {
+            parts.Add($"Cc {string.Join(", ", detail.CcAddresses)}");
+        }
+        return parts;
+    }
+
     /// <summary>Dismiss on the record: always allowed; an open Unidentified item stays open (Inbox, 13 September).</summary>
     public Task<IActionResult> OnPostDismissAsync(Guid id, string? operationKey, CancellationToken cancellationToken) =>
         ChangeDismissalAsync(

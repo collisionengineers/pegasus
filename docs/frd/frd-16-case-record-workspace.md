@@ -335,8 +335,12 @@ in [FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces).
 **Correspondence** lists every email linked to the Case, whatever its
 classification: the email the Case was created from, received mail
 associated with it later and uploaded `.eml` files, newest first
-([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)). Each row
-opens the message, and Compose sits above the list where staff mail is
+([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)). Each row's
+**Open message** shows that message in a dialog over the Case: sender,
+received time, recipients, its text and attachment names. The dialog changes
+nothing. Its **Open full message** leads to the Inbox message record, which
+keeps classification, the Case link, Reply and Forward; without script the
+row opens that record. Compose sits above the list where staff mail is
 available
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 A file whose bytes are one of these emails is read here and is not repeated
