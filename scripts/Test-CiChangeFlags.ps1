@@ -35,7 +35,9 @@ function Assert-Flags {
     }
 }
 
-Assert-Flags -Case 'Bicep module' -ChangedPath 'infra/modules/platform.bicep' -Build $false -Infrastructure $true
+# The Architecture tests assert on platform.bicep, so a template change has to
+# run them as well as the infrastructure lane.
+Assert-Flags -Case 'Bicep module' -ChangedPath 'infra/modules/platform.bicep' -Build $true -Infrastructure $true
 Assert-Flags -Case 'azd configuration' -ChangedPath 'azure.yaml' -Build $false -Infrastructure $true
 Assert-Flags -Case 'local validator dependency' -ChangedPath 'scripts/Invoke-ProductionSmoke.ps1' -Build $false -Infrastructure $true
 Assert-Flags -Case 'migration validator dependency' -ChangedPath 'scripts/Test-MigrationGrants.ps1' -Build $false -Infrastructure $true
@@ -70,8 +72,14 @@ Assert-Flags -Case 'Jev harness tests' -ChangedPath 'scripts/jev-mail-eval/tests
 # to validate it.
 Assert-Flags -Case 'shard duration table' -ChangedPath 'scripts/test-shard-durations.json' -Build $true -Infrastructure $false
 
-# Generated reference data is an input to the application, not to the generator.
-Assert-Flags -Case 'generated reference data' -ChangedPath 'reference/workproviders-and-repairers/principal-identification-corpus.v1.json' -Build $false -Infrastructure $false
+# Reference data is read by Core and integration tests; an earlier revision of
+# this file asserted the opposite, which encoded the gap as the rule.
+Assert-Flags -Case 'reference data' -ChangedPath 'reference/workproviders-and-repairers/principal-identification-corpus.v1.json' -Build $true -Infrastructure $false
+Assert-Flags -Case 'EVA bundle reference' -ChangedPath 'reference/eva_information/AX_SP58WVO.json' -Build $true -Infrastructure $false
+Assert-Flags -Case 'embedded report logo' -ChangedPath 'docs/design/brand/logos/logo_no_margin.png' -Build $true -Infrastructure $false
+Assert-Flags -Case 'SQL read by integration tests' -ChangedPath 'scripts/Reset-TestEstate.sql' -Build $true -Infrastructure $false
+Assert-Flags -Case 'shard duration refresh script' -ChangedPath 'scripts/Update-TestShardDurations.ps1' -Build $true -Infrastructure $false
+Assert-Flags -Case 'brand guidance prose stays prose' -ChangedPath 'docs/design/README.md' -Build $false -Infrastructure $false
 
 $forced = & $classifier -ChangedPath 'docs/index.md' -ForceAll
 foreach ($lane in 'Build', 'Infrastructure', 'LocalDevelopment', 'ReferenceData') {
@@ -79,5 +87,29 @@ foreach ($lane in 'Build', 'Infrastructure', 'LocalDevelopment', 'ReferenceData'
         throw "ForceAll must enable every conditional lane when a reliable diff is unavailable; $lane stayed off."
     }
 }
+
+$decide = Join-Path $PSScriptRoot 'Get-CiHeavyLaneDecision.ps1'
+function Assert-Heavy {
+    param([string] $Case, [bool] $Expected, [hashtable] $Arguments)
+    $actual = & $decide @Arguments
+    if ($actual.Heavy -ne $Expected) {
+        throw "$Case expected heavy=$Expected; got $($actual.Heavy) ($($actual.Reason))."
+    }
+}
+
+$pr = @{ Build = $true; EventName = 'pull_request' }
+Assert-Heavy 'push to main' $true @{ Build = $true; EventName = 'push' }
+Assert-Heavy 'no build-relevant path' $false @{ Build = $false; EventName = 'pull_request'; BaseRef = 'dev'; StackedAbove = 0 }
+Assert-Heavy 'merges into dev, nothing stacked' $true ($pr + @{ BaseRef = 'dev'; StackedAbove = 0 })
+Assert-Heavy 'bottom of a stack still runs' $true ($pr + @{ BaseRef = 'dev'; StackedAbove = 1 })
+Assert-Heavy 'dev to main promotion' $true ($pr + @{ BaseRef = 'main'; StackedAbove = 0 })
+# The case the first version got backwards: the tip holds the whole stack.
+Assert-Heavy 'tip of a stack' $true ($pr + @{ BaseRef = 'task/v28-wording'; StackedAbove = 0 })
+Assert-Heavy 'middle of a stack defers' $false ($pr + @{ BaseRef = 'task/v28-vehicle'; StackedAbove = 1 })
+Assert-Heavy 'ci:full overrides deferral' $true ($pr + @{ BaseRef = 'task/v28-vehicle'; StackedAbove = 1; Label = @('docs', ' ci:full') })
+Assert-Heavy 'near-miss label does not' $false ($pr + @{ BaseRef = 'task/v28-vehicle'; StackedAbove = 1; Label = @('ci-full') })
+Assert-Heavy 'unknown stacking counts as tip' $true ($pr + @{ BaseRef = 'task/v28-vehicle'; StackedAbove = $null })
+
+Assert-Flags -Case 'build-output pruning' -ChangedPath 'scripts/Clear-BuildOutput.ps1' -Build $false -Infrastructure $false -LocalDevelopment $true
 
 Write-Output 'CI change classification passed.'
