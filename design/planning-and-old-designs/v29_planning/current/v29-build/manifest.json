@@ -1,0 +1,35 @@
+{
+  "source": "origin/dev 446c3ce2f",
+  "bases": {
+    "default": "https://localhost:5240"
+  },
+  "families": [
+    { "key": "case_record", "title": "Inspection + Audit Case", "file": "pegasus_case_record_v29.html" },
+    { "key": "audit_record", "title": "Standalone Audit Case", "file": "pegasus_audit_record_v29.html" },
+    { "key": "triage_case", "title": "Triage Case", "file": "pegasus_triage_case_v29.html" },
+    { "key": "work_centre", "title": "Work Centre, Cases and Create case", "file": "pegasus_work_centre_v29.html" },
+    { "key": "unidentified_search", "title": "Unidentified and Search", "file": "pegasus_unidentified_search_v29.html" }
+  ],
+  "states": [
+    { "id": "case-record", "family": "case_record", "label": "Read", "path": "/Cases/{{caseId}}", "primary": true,
+      "transitions": [{ "match": "handler=ClaimLease", "to": "case-record-editing" }] },
+    { "id": "case-record-editing", "family": "case_record", "label": "Page-wide edit session", "path": "/Cases/{{caseId}}",
+      "steps": ["document.querySelector('form[action*=\"handler=ClaimLease\"] button[type=submit], form[action*=\"handler=ClaimLease\"] button').click()"],
+      "settle": 3000, "route": false, "expect": "editLeaseToken",
+      "after": ["document.getElementById('case-finish-editing-form').requestSubmit()"],
+      "transitions": [{ "match": "handler=ReleaseLease", "to": "case-record" }] },
+
+    { "id": "audit-record", "family": "audit_record", "label": "Read", "path": "/Cases/{{auditCaseId}}", "primary": true },
+
+    { "id": "triage-record", "family": "triage_case", "label": "Triage record (live /Triage/{id})", "path": "/Triage/{{triageId}}", "primary": true },
+
+    { "id": "work-centre", "family": "work_centre", "label": "Work Centre, office-wide", "path": "/", "primary": true },
+    { "id": "cases-with-engineer", "family": "work_centre", "label": "Cases, With Engineer", "path": "/Cases?tab=with_engineer" },
+    { "id": "cases-triage", "family": "work_centre", "label": "Cases, Triage", "path": "/Cases?tab=triage" },
+    { "id": "create-case", "family": "work_centre", "label": "Create case, manual", "path": "/Cases/Create", "primary": true },
+
+    { "id": "unidentified-record", "family": "unidentified_search", "label": "Unidentified record", "path": "/Unidentified/{{unidentifiedId}}", "primary": true },
+    { "id": "search-results", "family": "unidentified_search", "label": "Search by registration", "path": "/Search?Registration=AB12CDE", "primary": true },
+    { "id": "search-triage", "family": "unidentified_search", "label": "Search by the Triage's registration", "path": "/Search?Registration=TR32AGE" }
+  ]
+}
