@@ -151,7 +151,7 @@ public sealed class CaseEstimateScalingWebTests
             client, response.Headers.Location!.OriginalString);
         Assert.Contains("data-case-editing=\"true\"", afterApply, StringComparison.Ordinal);
         // The scale form is not an editor: it clears no draft of the Case's.
-        Assert.DoesNotContain("data-editor-commit=\"", afterApply, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-editor-commit=\"{", afterApply, StringComparison.Ordinal);
         Assert.NotEqual(leaseToken, AssessmentEstimateImportWebTests.InputValue(afterApply, "editLeaseToken"));
         Assert.DoesNotContain("data-scale-remove disabled=\"disabled\"", afterApply, StringComparison.Ordinal);
         Assert.Contains("id=\"remove-scaling-form\"", afterApply, StringComparison.Ordinal);

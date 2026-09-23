@@ -32,6 +32,11 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
 
         // A matched follow-up is filed whether or not it carries photographs:
         // its email and documents belong on the Case too (operator, 23 September 2026).
+        // A receipt that retained nothing has nothing to file.
+        if (receipt.AssetRecords.Count == 0)
+        {
+            return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
+        }
         var selectedPhotographIds = InstructionEvidenceImages.Select(receipt.AssetRecords)
             .Select(asset => asset.Id)
             .ToHashSet();

@@ -1765,11 +1765,11 @@ public sealed class CaseWorkspacePersistenceTests
             $"""
             INSERT INTO CaseRepairSpecifications
                 (Id, CaseId, Version, State, SourceRoute, CreatedBy, CreationOperationKey,
-                 CreatedAtUtc, Name, VatPercent, IsCurrent, AcceptedBy, AcceptedAtUtc)
+                 CreatedAtUtc, Name, VatPercent, RepairerVatStatus, IsCurrent, AcceptedBy, AcceptedAtUtc)
             VALUES
                 ({id}, {harness.CaseId}, {1}, {"Accepted"}, {"LegacyUnresolved"},
                  {harness.StaffActor.SubjectId}, {"accepted-estimate"},
-                 {DateTimeOffset.UtcNow}, {"Accepted estimate"}, {20m}, {true},
+                 {DateTimeOffset.UtcNow}, {"Accepted estimate"}, {20m}, {"Unknown"}, {true},
                  {harness.StaffActor.SubjectId}, {DateTimeOffset.UtcNow})
             """);
         return id;
