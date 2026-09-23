@@ -55,6 +55,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
           $forceAll = $true
@@ -83,30 +84,24 @@ jobs:
           "localDevelopment=$($flags.LocalDevelopment.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "referenceData=$($flags.ReferenceData.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
-          # Where the heavy lanes are worth running. A stack of pull requests
-          # each based on the one before it holds the same commits many times
-          # over, so testing every link tests the earliest slice once per link
-          # and starves the runner pool the tip's own run needs. The tip's tree
-          # contains every branch below it, so the lane runs when the base is a
-          # long-lived branch, on a push to main, or when a label asks for it.
-          $atTip = $env:EVENT_NAME -eq 'push' -or $env:BASE_REF -in @('dev', 'main')
-          $labels = @(($env:PR_LABELS -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-          $forced = $labels -contains 'ci:full'
-          $heavy = [bool]($flags.Build -and ($atTip -or $forced))
-          "heavy=$($heavy.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-
-          if (-not $flags.Build) {
-            Write-Host 'Heavy lanes: skipped. No build-relevant path changed.'
+          # Whether the unit and SQL lanes run is decided by
+          # scripts/Get-CiHeavyLaneDecision.ps1; this step only gathers its
+          # inputs. Labels are read live rather than from the event payload so
+          # that adding ci:full and re-running the workflow is enough: a re-run
+          # replays the original payload, which predates the label.
+          $labels = @()
+          $stackedAbove = $null
+          if ($env:EVENT_NAME -eq 'pull_request') {
+            $labels = @(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/labels" --jq '.[].name')
+            if ($LASTEXITCODE -ne 0) { $labels = @($env:PR_LABELS -split ',') }
+            $head = [uri]::EscapeDataString($env:HEAD_REF)
+            $stacked = gh api "repos/${{ github.repository }}/pulls?state=open&base=$head&per_page=100" --jq 'length'
+            if ($LASTEXITCODE -eq 0) { $stackedAbove = [int]$stacked }
           }
-          elseif ($forced) {
-            Write-Host "Heavy lanes: running. The ci:full label asks for them on a base of '$env:BASE_REF'."
-          }
-          elseif ($atTip) {
-            Write-Host "Heavy lanes: running. This change set is measured against a long-lived branch."
-          }
-          else {
-            Write-Host "Heavy lanes: deferred to the tip. This pull request is based on '$env:BASE_REF', so its commits are an ancestor of the branch that merges into dev, and that branch's run covers them. Add the ci:full label to run them here."
-          }
+          $decision = ./scripts/Get-CiHeavyLaneDecision.ps1 -Build $flags.Build -EventName $env:EVENT_NAME `
+            -BaseRef $env:BASE_REF -Label $labels -StackedAbove $stackedAbove
+          "heavy=$($decision.Heavy.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "Heavy lanes: $(if ($decision.Heavy) { 'running' } else { 'not running' }). $($decision.Reason)"
       - name: Test SQL shard assignment
         if: steps.detect.outputs.build == 'true'
         shell: pwsh
@@ -154,6 +149,13 @@ jobs:
         if: needs.changes.outputs.localDevelopment == 'true'
         shell: pwsh
         run: ./scripts/Test-PegasusPlatform.ps1
+      - name: Build-output pruning tests
+        # Clear-BuildOutput.ps1 deletes. This proves it touches only the bin and
+        # obj beside a tracked project, never an evidence or archive folder that
+        # happens to contain one.
+        if: needs.changes.outputs.localDevelopment == 'true'
+        shell: pwsh
+        run: ./scripts/Test-ClearBuildOutput.ps1
       - uses: actions/setup-python@v6
         if: needs.changes.outputs.referenceData == 'true'
         with:
@@ -268,3 +270,21 @@ jobs:
       - name: Every enumerated test ran in exactly one shard
         shell: pwsh
         run: ./scripts/Invoke-TestShard.ps1 -VerifyPartition -ShardCount 6
+      - name: Report shard balance and refresh the duration table
+        # The shards are dealt from scripts/test-shard-durations.json, which only
+        # stays right if someone refreshes it. Every complete run measures the
+        # real per-shard test time and offers the refreshed table as an
+        # artifact, so a stale table shows up as a ratio in this log rather than
+        # as one shard quietly setting the critical path again.
+        if: needs.sql-integration.result == 'success'
+        shell: pwsh
+        run: >
+          ./scripts/Update-TestShardDurations.ps1
+          -ArtifactRoot artifacts/test-shards -ShardCount 6
+          -Path artifacts/test-shard-durations.json
+      - name: Retain the refreshed duration table
+        if: needs.sql-integration.result == 'success'
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-shard-durations
+          path: artifacts/test-shard-durations.json

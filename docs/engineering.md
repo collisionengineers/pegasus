@@ -13,10 +13,10 @@ Integrate reviewed work into `dev`. The primary agent records the candidate SHA
 and assigns one owner for heavy verification on the host.
 CI routing and required jobs are defined in `.github/workflows/ci.yml`; exact-head
 success or a justified path skip is evidence for that job only.
-A pull request based on another task branch defers the heavy lanes to the
-branch that merges into `dev`, whose tree contains it. That deferral is a
-justified skip; the `ci:full` label runs them on the stacked request when one
-slice has to be isolated.
+In a stack of pull requests, the unit and SQL lanes run on the one based on
+`dev` and on the tip, whose tree holds every link; the links between them defer
+to the tip. That deferral is a justified skip, not evidence, and the `ci:full`
+label runs the lanes on a stacked request when one slice has to be isolated.
 
 ## Documentation authoring
 
