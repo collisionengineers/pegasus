@@ -293,12 +293,11 @@ diagram.
 
 ### Files
 
-Files is one panel with two tabs. Both are rendered, so a no-script visit
-shows the two lists one after the other under their own headings. The panel
-header carries Add evidence, Open Box case folder (or the folder's own state
-chip before custody is confirmed) and Open Operations. Linked
-correspondence sits below both tabs
-([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
+Files is one panel with three tabs: Documents, Images and Correspondence.
+All three are rendered, so a no-script visit shows the lists one after the
+other under their own headings. The panel header carries Add evidence, Open
+Box case folder (or the folder's own state chip before custody is confirmed)
+and Open Operations.
 
 **Documents** lists every live file as a row: filename, role, size, origin,
 recorded time and custody-state chip, with Preview, Save as and, while
@@ -332,6 +331,16 @@ and Download returns the original.
 Images on pre-Case records (a vehicle-images record, a Triage or an
 Unidentified item) carry the same crop, rotation and tags. Their rules are
 in [FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces).
+
+**Correspondence** lists every email linked to the Case, whatever its
+classification: the email the Case was created from, received mail
+associated with it later and uploaded `.eml` files, newest first
+([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)). Each row
+opens the message, and Compose sits above the list where staff mail is
+available
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+A file whose bytes are one of these emails is read here and is not repeated
+on Documents.
 
 ### Notes
 

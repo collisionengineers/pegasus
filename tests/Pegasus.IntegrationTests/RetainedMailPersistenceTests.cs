@@ -679,25 +679,29 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
-    public async Task CaseQueryStoreProjectsCurrentlyLinkedQueryMailNewestFirst()
+    public async Task CaseQueryStoreProjectsEveryCurrentlyLinkedEmailNewestFirst()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await SeedPollStateAsync(database);
         var (caseId, otherCaseId) = await SeedQueryCasesAsync(database);
+        // The instruction email a Case was created from is correspondence like
+        // any other linked email, whatever its classification.
+        var instruction = Message("case-instruction", "Instruction", ReceivedAtUtc.AddMinutes(-1));
         var query = Message("case-query", "Query", ReceivedAtUtc.AddMinutes(1));
         var dispute = Message("case-dispute", "Dispute", ReceivedAtUtc);
         var otherCase = Message("other-case-query", "Other case", ReceivedAtUtc.AddMinutes(8));
-        var nonQuery = Message("case-update", "Case update", ReceivedAtUtc.AddMinutes(7));
+        var caseUpdate = Message("case-update", "Case update", ReceivedAtUtc.AddMinutes(7));
         var reversed = Message("reversed-query", "Reversed", ReceivedAtUtc.AddMinutes(6));
         var billing = Message("billing-query", "Billing query", ReceivedAtUtc.AddMinutes(5));
         var unassociated = Message("unassociated-query", "Unassociated", ReceivedAtUtc.AddMinutes(4));
         var sharedToken = Message("shared-token-query", "Shared first", ReceivedAtUtc.AddMinutes(3));
         var fixtures = new[]
         {
+            (instruction, ReceivedMailFamily.NewInstructionReceived, "inspection"),
             (query, ReceivedMailFamily.PostReportEmails, "query"),
             (dispute, ReceivedMailFamily.PostReportEmails, "dispute"),
             (otherCase, ReceivedMailFamily.PostReportEmails, "query"),
-            (nonQuery, ReceivedMailFamily.InProgressCases, "case-update"),
+            (caseUpdate, ReceivedMailFamily.InProgressCases, "case-update"),
             (reversed, ReceivedMailFamily.PostReportEmails, "query"),
             (billing, ReceivedMailFamily.Billing, "billing-query"),
             (unassociated, ReceivedMailFamily.PostReportEmails, "query"),
@@ -717,6 +721,8 @@ public sealed class RetainedMailPersistenceTests
                     1));
         }
 
+        Guid instructionId;
+        Guid caseUpdateId;
         Guid queryId;
         Guid disputeId;
         Guid billingId;
@@ -726,10 +732,11 @@ public sealed class RetainedMailPersistenceTests
         {
             var receiptByToken = await context.IntakeReceipts
                 .ToDictionaryAsync(item => item.ExternalReceiptToken, StringComparer.Ordinal);
+            AddAssociation(context, receiptByToken[instruction.ExternalReceiptToken], caseId, true);
             AddAssociation(context, receiptByToken[query.ExternalReceiptToken], caseId, true);
             AddAssociation(context, receiptByToken[dispute.ExternalReceiptToken], caseId, true);
             AddAssociation(context, receiptByToken[otherCase.ExternalReceiptToken], otherCaseId, true);
-            AddAssociation(context, receiptByToken[nonQuery.ExternalReceiptToken], caseId, true);
+            AddAssociation(context, receiptByToken[caseUpdate.ExternalReceiptToken], caseId, true);
             AddAssociation(context, receiptByToken[reversed.ExternalReceiptToken], caseId, false);
             AddAssociation(context, receiptByToken[billing.ExternalReceiptToken], caseId, true);
             AddAssociation(context, receiptByToken[sharedToken.ExternalReceiptToken], caseId, true);
@@ -737,6 +744,8 @@ public sealed class RetainedMailPersistenceTests
             var retained = await context.RetainedMailboxMessages.ToDictionaryAsync(
                 item => item.ImmutableMessageId,
                 StringComparer.Ordinal);
+            instructionId = retained[instruction.ImmutableMessageId].Id;
+            caseUpdateId = retained[caseUpdate.ImmutableMessageId].Id;
             queryId = retained[query.ImmutableMessageId].Id;
             disputeId = retained[dispute.ImmutableMessageId].Id;
             billingId = retained[billing.ImmutableMessageId].Id;
@@ -776,18 +785,21 @@ public sealed class RetainedMailPersistenceTests
             .GetAsync(new(caseId, ActionActor.SystemWorker("query-test")), CancellationToken.None));
 
         Assert.Equal(
-            [billingId, sharedFirstId, sharedSecondId, queryId, disputeId],
-            details.QueryEmails.Select(item => item.RetainedMessageId));
+            [caseUpdateId, billingId, sharedFirstId, sharedSecondId, queryId, disputeId, instructionId],
+            details.CorrespondenceEmails.Select(item => item.RetainedMessageId));
         Assert.Equal(
-            ["Billing query", "Shared first", "Shared second", "Query", "Dispute"],
-            details.QueryEmails.Select(item => item.Subject));
-        Assert.Equal(ReceivedAtUtc.AddMinutes(5), details.QueryEmails[0].ReceivedAtUtc);
-        Assert.Equal("sender@example.invalid", details.QueryEmails[0].SenderAddress);
-        Assert.Equal(ReceivedMailFamily.Billing, details.QueryEmails[0].Classification!.ReceivedFamily);
-        Assert.Equal("billing-query", details.QueryEmails[0].Classification!.Subtype);
-        Assert.Equal("second@example.invalid", details.QueryEmails[2].SenderAddress);
-        Assert.DoesNotContain(details.QueryEmails, item => item.Subject is
-            "Other case" or "Case update" or "Reversed" or "Unassociated");
+            ["Case update", "Billing query", "Shared first", "Shared second", "Query", "Dispute", "Instruction"],
+            details.CorrespondenceEmails.Select(item => item.Subject));
+        Assert.Equal(ReceivedAtUtc.AddMinutes(5), details.CorrespondenceEmails[1].ReceivedAtUtc);
+        Assert.Equal("sender@example.invalid", details.CorrespondenceEmails[1].SenderAddress);
+        Assert.Equal(ReceivedMailFamily.Billing, details.CorrespondenceEmails[1].Classification!.ReceivedFamily);
+        Assert.Equal("billing-query", details.CorrespondenceEmails[1].Classification!.Subtype);
+        Assert.Equal("second@example.invalid", details.CorrespondenceEmails[3].SenderAddress);
+        Assert.Equal(
+            ReceivedMailFamily.NewInstructionReceived,
+            details.CorrespondenceEmails[6].Classification!.ReceivedFamily);
+        Assert.DoesNotContain(details.CorrespondenceEmails, item => item.Subject is
+            "Other case" or "Reversed" or "Unassociated");
     }
 
     [Fact]

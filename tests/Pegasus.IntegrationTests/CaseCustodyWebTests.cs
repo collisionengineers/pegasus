@@ -337,7 +337,7 @@ public sealed class CaseCustodyWebTests
         var receivedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 15, 0, TimeSpan.Zero);
         var store = new RecordingCaseDetailsStore
         {
-            QueryEmails =
+            CorrespondenceEmails =
             [
                 new(
                     forwardedId,
@@ -376,7 +376,7 @@ public sealed class CaseCustodyWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
-        // v26: the retained query mail is the Files section's Correspondence
+        // v26: the Case's linked email is the Files section's Correspondence
         // tab, counted on its tab and listed as a plain table.
         Assert.Contains("data-file-tab=\"correspondence\">Correspondence · 2<", html, StringComparison.Ordinal);
         var queries = Correspondence(html);
@@ -652,7 +652,7 @@ public sealed class CaseCustodyWebTests
 
 
 
-    /// <summary>The Files section's Correspondence tab body (v26): the table of retained query mail.</summary>
+    /// <summary>The Files section's Correspondence tab body (v26): the table of the Case's linked email.</summary>
 
     private static string Correspondence(string html)
     {
