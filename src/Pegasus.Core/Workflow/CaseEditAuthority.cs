@@ -32,6 +32,13 @@ public static class CaseEditAuthority
     public static bool IsHeld(DateTimeOffset? leaseExpiresAtUtc, DateTimeOffset nowUtc) =>
         leaseExpiresAtUtc is { } expiresAtUtc && expiresAtUtc > nowUtc;
 
+    /// <summary>A colleague takeover is a staff action on a staff-held lease.</summary>
+    public static bool CanTakeOver(ActorKind? retainedLeaseHolderKind, ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return retainedLeaseHolderKind == ActorKind.Staff && actor.Kind == ActorKind.Staff;
+    }
+
     public static void RequireVersion(Guid caseId, long caseVersion, long expectedVersion)
     {
         if (caseVersion != expectedVersion)

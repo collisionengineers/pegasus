@@ -1318,27 +1318,14 @@ public sealed partial class DetailsModel(
         }
     }
 
-    public async Task<IActionResult> OnPostClaimLeaseAsync(
+    public Task<IActionResult> OnPostClaimLeaseAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         bool takeOver,
         string? section,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details?.ActiveEditLease is { HolderKind: not Pegasus.Core.Identity.ActorKind.Staff })
-        {
-            TempData["CaseError"] = "This case is already being edited.";
-            return RedirectToSection(id, section);
-        }
-
-        return await ClaimLeaseAsync(
+        CancellationToken cancellationToken) =>
+        ClaimLeaseAsync(
             acquireLease,
             id,
             expectedVersion,
@@ -1346,7 +1333,6 @@ public sealed partial class DetailsModel(
             takeOver,
             () => RedirectToSection(id, section),
             cancellationToken);
-    }
 
     /// <summary>
     /// The full-POST fallback lands back on the section the operator was

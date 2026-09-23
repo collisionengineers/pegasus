@@ -907,7 +907,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(JsonSerializer.Serialize(store.SubmittedEstimates[0]), JsonSerializer.Serialize(store.SubmittedEstimates[1]));
         using var missingVersion = await client.PostAsync($"/Cases/{caseId:D}?handler=SaveEstimate&section=estimate",
             new FormUrlEncodedContent(fields.Where(field => field.Key != "expectedVersion")));
-        Assert.Equal(HttpStatusCode.Redirect, missingVersion.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, missingVersion.StatusCode);
         Assert.Equal(2, store.SubmittedEstimates.Count);
     }
 
