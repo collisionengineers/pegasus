@@ -561,6 +561,14 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
     }
     $expected.Add('pegasus_worker_runtime_role|G|INSERT|DocumentOccurrenceTags')
+    # 20260923120000_StaffAccountDeletionRuntimePermissions: Web replaces its
+    # DELETE denial with a grant on the four tables staff-account deletion
+    # removes rows from. Earlier blocks may list the denial more than once.
+    foreach ($table in @('AspNetUsers', 'UserExternalCredentials', 'GlassRepairEstimateSessions', 'StaffNotifications')) {
+        $denied = "pegasus_web_runtime_role|D|DELETE|$table"
+        [void]$expected.RemoveAll([Predicate[string]] { param($row) $row -ceq $denied })
+        $expected.Add("pegasus_web_runtime_role|G|DELETE|$table")
+    }
     return @($expected | Sort-Object -Unique)
 }
 
