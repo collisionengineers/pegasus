@@ -14,9 +14,10 @@ namespace Pegasus.Web.Pages.Cases;
 /// Core policy shape — presets, a preview that Core computes, an Apply that
 /// adopts the Engineer's Value with its applied-history row — and the
 /// per-source Get valuation controls: AI market research starts the existing
-/// Market research job for the chosen month, and every guide source posts to
-/// GetValuation, which records the connected provider's figures as a card
-/// and answers with a notice while that source has no provider.
+/// Market research job for the chosen month, and every guide source asks
+/// GetValuation, which answers the connected provider's figures for the card
+/// to show in its boxes, or that the source is unavailable. The Case save
+/// records the cards (23 September 2026); nothing here writes one.
 /// </summary>
 public sealed partial class DetailsModel
 {
@@ -70,12 +71,19 @@ public sealed partial class DetailsModel
     public IReadOnlyList<CaseValuation> GuideValuations =>
         [.. Valuations.Where(valuation => valuation.Details.Source != ValuationSource.EngineersValue)];
 
-    /// <summary>The guide card the calculator starts from: the latest adoption's basis, else the first recorded guide.</summary>
+    /// <summary>
+    /// The guide card the calculator starts from: the latest adoption's basis,
+    /// else the first recorded guide. The calculation starts from retail, so a
+    /// card recorded without a retail value is never a basis.
+    /// </summary>
     public CaseValuation? DefaultBasis =>
         (LatestAppliedValuation is { } applied
             ? Valuations.FirstOrDefault(valuation => valuation.ValuationId == applied.GuideValuationId)
             : null)
-        ?? (GuideValuations.Count > 0 ? GuideValuations[0] : null);
+        ?? GuideValuations.FirstOrDefault(CanBeBasis);
+
+    /// <summary>Whether a card can be the Apply basis: it has a retail value.</summary>
+    public static bool CanBeBasis(CaseValuation valuation) => valuation.Details.RetailValue is not null;
 
     /// <summary>Whether the claimant is VAT registered, which means there was never a commercial addition to make.</summary>
     public bool ClaimantVatRegistered =>
@@ -104,8 +112,12 @@ public sealed partial class DetailsModel
 
             try
             {
+                if (basis.Details.RetailValue is not { } basisRetail)
+                {
+                    return null;
+                }
                 return ValuationCalculationPolicy.Calculate(new ValuationCalculationInput(
-                    basis.Details.RetailValue,
+                    basisRetail,
                     false,
                     ClaimantVatRegistered,
                     null,
@@ -120,9 +132,20 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
+    /// The latest recorded card of one guide source, which that source's card
+    /// shows in both modes: older months stay in the history, not on screen.
+    /// </summary>
+    public CaseValuation? LatestRecorded(ValuationSource source) => GuideValuations
+        .Where(valuation => valuation.Details.Source == source)
+        .OrderByDescending(valuation => valuation.Details.Date)
+        .ThenByDescending(valuation => valuation.Details.Time)
+        .ThenByDescending(valuation => valuation.RecordedAtUtc)
+        .FirstOrDefault();
+
+    /// <summary>
     /// The calculator's preview and history, read with the section's cards.
-    /// The presets are read only while the section edits, because read mode
-    /// shows applied increases alone.
+    /// The presets are read in both modes: read and edit list the same value
+    /// increases, ticked where the latest adoption applied them.
     /// </summary>
     private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
     {
@@ -135,7 +158,7 @@ public sealed partial class DetailsModel
                 ? (await staffAccountQueries.GetAsync(staffId, cancellationToken))?.UserName ?? ActorDisplayNames.UnknownStaff
                 : ActorDisplayNames.UnknownStaff;
         }
-        if (CanEditEngineering)
+        if (StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
         {
             ValuationPresets = await listValuationPresets.ExecuteAsync(actor, cancellationToken);
         }
@@ -337,110 +360,100 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// The figures Get valuation brought back for one source's card, held for
-    /// the redirect that redraws the section: the card shows them in its
-    /// boxes over its recorded values, and Save records them. Nothing is
-    /// written until then.
+    /// One guide source's card as the Case save posts it: the card's boxes
+    /// joined to the one Case form (23 September 2026). The boxes are text so a
+    /// card left blank posts as nothing rather than as a binding error.
     /// </summary>
-    public sealed record GuideValuationPrefill(decimal RetailValue, decimal TradeValue, long Mileage, DateOnly GuideMonth);
-
-    private static string PrefillKey(ValuationSource source) => "Valuation.Prefill:" + source;
-
-    public GuideValuationPrefill? ValuationPrefill(ValuationSource source)
+    public sealed class GuideEntryForm
     {
-        if (TempData[PrefillKey(source)] is not string held)
+        public ValuationSource Source { get; set; }
+
+        public string? GuideMonth { get; set; }
+
+        public string? Mileage { get; set; }
+
+        public string? RetailValue { get; set; }
+
+        public string? TradeValue { get; set; }
+    }
+
+    /// <summary>
+    /// The guide cards this save records, each with whatever of its boxes
+    /// were entered (operator, 23 September 2026: any box may be left blank).
+    /// A card with every box empty records nothing, and so does a card still
+    /// showing the source's recorded figures, so an untouched card never
+    /// writes a row. Each card is stamped with the moment of the save, as a
+    /// hand-recorded guide card always was.
+    /// </summary>
+    private static List<ValuationDetails> GuideEntriesToRecord(
+        GuideEntryForm[] forms,
+        IReadOnlyList<CaseValuation> recorded)
+    {
+        var recordedAt = Pegasus.Core.LondonCalendar.TimeAt(DateTimeOffset.UtcNow);
+        var entries = new List<ValuationDetails>(forms.Length);
+        foreach (var form in forms)
+        {
+            if (new[] { form.RetailValue, form.TradeValue, form.Mileage, form.GuideMonth }.All(string.IsNullOrWhiteSpace))
+            {
+                continue;
+            }
+
+            var details = new ValuationDetails(
+                form.Source,
+                DateOnly.FromDateTime(recordedAt),
+                TimeOnly.FromDateTime(recordedAt),
+                Box(form.Mileage, value => long.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture)),
+                Box(form.RetailValue, value => decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture)),
+                Box(form.TradeValue, value => decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture)),
+                ParseGuideMonth(form.GuideMonth));
+            if (ValuationPolicy.FindReplaced(details, recorded) is { } replaced
+                && ValuationPolicy.IsUnchanged(details, replaced.Details))
+            {
+                continue;
+            }
+
+            entries.Add(details);
+        }
+        return entries;
+    }
+
+    // One box of a card: absent when left blank. The boxes are number
+    // inputs, so a value that does not read as a number is not a Case field.
+    private static T? Box<T>(string? text, Func<string, T> parse) where T : struct
+    {
+        if (string.IsNullOrWhiteSpace(text))
         {
             return null;
         }
-
-        var parts = held.Split('|');
-        return parts.Length == 4
-            && decimal.TryParse(parts[0], NumberStyles.Number, CultureInfo.InvariantCulture, out var retail)
-            && decimal.TryParse(parts[1], NumberStyles.Number, CultureInfo.InvariantCulture, out var trade)
-            && long.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var mileage)
-            && DateOnly.TryParseExact(parts[3], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month)
-                ? new GuideValuationPrefill(retail, trade, mileage, month)
-                : null;
-    }
-
-    /// <summary>
-    /// Save one guide source's card (Glass's, Brego, Super CAP): the figures in
-    /// its boxes, typed or brought back by Get valuation, become the source's
-    /// record for that month through the one valuation save, which ends and
-    /// re-claims the edit session; the same source and month replaces the
-    /// earlier card.
-    /// </summary>
-    public async Task<IActionResult> OnPostSaveValuationAsync(
-        Guid id,
-        string operationKey,
-        string? editLeaseToken,
-        long expectedVersion,
-        ValuationSource source,
-        string? guideMonth,
-        long mileage,
-        decimal retailValue,
-        decimal tradeValue,
-        CancellationToken cancellationToken)
-    {
-        var guard = await GuardValuationCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
-        if (guard is not null)
-        {
-            return guard;
-        }
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
         try
         {
-            var recordedAt = Pegasus.Core.LondonCalendar.TimeAt(DateTimeOffset.UtcNow);
-            await saveValuation.ExecuteAsync(
-                new(
-                    id,
-                    // The submitted version travels unchanged: the store
-                    // enforces it against the live case, and a network replay
-                    // must keep the request's original fingerprint rather
-                    // than being rewritten with a newer version.
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    "Valuation recorded.",
-                    editLeaseToken!,
-                    new(
-                        source,
-                        DateOnly.FromDateTime(recordedAt),
-                        TimeOnly.FromDateTime(recordedAt),
-                        mileage,
-                        retailValue,
-                        tradeValue,
-                        ParseGuideMonth(guideMonth))),
-                cancellationToken);
+            return parse(text.Trim());
         }
-        catch (StaffAuthorizationException)
+        catch (FormatException exception)
         {
-            return Forbid();
+            throw new InvalidOperationException("A submitted Case field is invalid.", exception);
         }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException)
+        catch (OverflowException exception)
         {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception, "The valuation was not recorded. Retry the operation.");
-            return RedirectToValuation(id);
+            throw new InvalidOperationException("A submitted Case field is invalid.", exception);
         }
-
-        ClearLeaseState();
-        await ReclaimLeaseAsync(id, cancellationToken);
-        TempData["CaseStatus"] = "The valuation was recorded.";
-        return RedirectToValuation(id);
     }
 
+    /// <summary>Whether the caller asked for the figures as JSON: the card's own script does.</summary>
+    private bool AnswersJson =>
+        Request.Headers.Accept.Any(value => value?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true);
+
+    private static JsonResult RefusedJson(int statusCode) =>
+        new(new { status = "refused" }) { StatusCode = statusCode };
+
     /// <summary>
-    /// Get valuation for one guide source (Glass's, Brego, Super CAP): the
-    /// connected provider's figures for the chosen month fill that source's
-    /// card, and the edit session continues; nothing is recorded until the
-    /// card is saved. A source with no connected provider answers with a
-    /// notice.
+    /// Get valuation for one guide source: the connected provider's figures for
+    /// the chosen month, for the card to show in its boxes. Nothing is written
+    /// here and the edit session carries on as it was; the Case save records the
+    /// card. The card's script asks for JSON — the figures, "unavailable" while
+    /// the source has no connected provider, or a refusal and its message — so
+    /// the page is never redrawn and nothing unsaved is put at risk. Any other
+    /// caller is answered on the Valuation section.
     /// </summary>
     public async Task<IActionResult> OnPostGetValuationAsync(
         Guid id,
@@ -451,14 +464,29 @@ public sealed partial class DetailsModel
         ValuationSource source,
         CancellationToken cancellationToken)
     {
+        var json = AnswersJson;
         var guard = await GuardValuationCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
-            return guard;
+            if (!json)
+            {
+                return guard;
+            }
+            var refusal = TempData["CaseError"] as string;
+            TempData.Remove("CaseError");
+            return new JsonResult(new { status = "refused", message = refusal })
+            {
+                StatusCode = guard switch
+                {
+                    ForbidResult => StatusCodes.Status403Forbidden,
+                    NotFoundResult => StatusCodes.Status404NotFound,
+                    _ => StatusCodes.Status409Conflict
+                }
+            };
         }
         if (!TryGetActor(out var actor))
         {
-            return Forbid();
+            return json ? RefusedJson(StatusCodes.Status403Forbidden) : (IActionResult)Forbid();
         }
 
         // Nothing is written here, so the lease stands as it was in every outcome.
@@ -470,27 +498,41 @@ public sealed partial class DetailsModel
             var quote = await fetchGuideValuation.ExecuteAsync(
                 new(id, expectedVersion, actor, operationKey, editLeaseToken!, source, month),
                 cancellationToken);
-            TempData[PrefillKey(source)] = string.Join(
-                '|',
-                quote.RetailValue.ToString(CultureInfo.InvariantCulture),
-                quote.TradeValue.ToString(CultureInfo.InvariantCulture),
-                quote.Mileage.ToString(CultureInfo.InvariantCulture),
-                quote.GuideMonth.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            if (json)
+            {
+                return new JsonResult(new
+                {
+                    status = "ok",
+                    retail = quote.RetailValue.ToString("0.00", CultureInfo.InvariantCulture),
+                    trade = quote.TradeValue.ToString("0.00", CultureInfo.InvariantCulture),
+                    mileage = quote.Mileage.ToString(CultureInfo.InvariantCulture),
+                    guideMonth = quote.GuideMonth.ToString("yyyy-MM", CultureInfo.InvariantCulture)
+                });
+            }
         }
         catch (StaffAuthorizationException)
         {
-            return Forbid();
+            return json ? RefusedJson(StatusCodes.Status403Forbidden) : (IActionResult)Forbid();
         }
         catch (GuideValuationProviderUnavailableException)
         {
-            TempData["CaseError"] = CaseWorkspaceLabels.Valuation.Error;
+            if (json)
+            {
+                return new JsonResult(new { status = "unavailable" });
+            }
+            TempData["CaseError"] = CaseWorkspaceLabels.Valuation.Unavailable(source);
         }
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or KeyNotFoundException)
         {
-            TempData["CaseError"] = MutationRefusalMessage(
+            var message = MutationRefusalMessage(
                 exception, "The valuation was not fetched. Retry the operation.");
+            if (json)
+            {
+                return new JsonResult(new { status = "refused", message });
+            }
+            TempData["CaseError"] = message;
         }
 
         return RedirectToValuation(id);

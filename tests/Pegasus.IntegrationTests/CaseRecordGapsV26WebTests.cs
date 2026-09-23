@@ -66,7 +66,7 @@ public sealed class CaseRecordGapsV26WebTests
         var editing = WebUtility.HtmlDecode(OverviewPanel(await workspace.GetWorkspaceAsync()));
         Assert.Contains("name=\"claimSourceId\" form=\"case-edit-form\" data-claim-source-select", editing, StringComparison.Ordinal);
         Assert.Matches(
-            $"<option value=\"{source.OrganizationId:D}\" data-notes=\"Quote the Acme reference.\" data-contact=\"A Handler · 0113 000 0000 · claims@acme.example\">Acme Claims</option>",
+            $"<option value=\"{source.OrganizationId:D}\" data-notes=\"Quote the Acme reference.\" data-contact-name=\"A Handler\" data-contact-phone=\"0113 000 0000\" data-contact-email=\"claims@acme.example\">Acme Claims</option>",
             editing);
         Assert.Contains("data-record-notes-slot=\"claim-source\" hidden", editing, StringComparison.Ordinal);
 
@@ -276,13 +276,14 @@ public sealed class CaseRecordGapsV26WebTests
     {
         var store = new RecordingCaseDetailsStore();
         var ports = new RecordGapPorts(store);
-        ports.Automation(AssessmentVocabulary.VehicleVin, "WVWZZZ1JZXW000001");
+        ports.Lookup(AssessmentVocabulary.VehicleVin, "WVWZZZ1JZXW000001");
         using var workspace = await EnterEditModeAsync(store, ports.Register);
 
         var vehicle = SectionHtml(await workspace.GetWorkspaceAsync(), "vehicle");
+        // The lookup's tag sits in the cell's label line; the box holds the value.
         Assert.Matches(
             new Regex(
-                $"data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleVin)}\">.*?WVWZZZ1JZXW000001<span class=\"src-tag src-tag--lookup\">",
+                $"data-vehicle-identity=\"{Regex.Escape(AssessmentVocabulary.VehicleVin)}\">\\s*<label[^>]*>[^<]*<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></label>\\s*<div class=\"fv mono\">WVWZZZ1JZXW000001</div>",
                 RegexOptions.Singleline),
             vehicle);
         // The input's later attributes sit on the next source line, so the
@@ -430,6 +431,9 @@ public sealed class CaseRecordGapsV26WebTests
         public void Automation(string path, string value) =>
             Fields.Add(new(path, value, ActorKind.Automation, "pegasus-automation", At, null, null));
 
+        public void Lookup(string path, string value) =>
+            Fields.Add(new(path, value, ActorKind.Automation, Pegasus.Core.Vehicle.VehicleLookupFillPolicy.RecorderId, At, null, null));
+
         public void Staff(string path, string value) =>
             Fields.Add(new(path, value, ActorKind.Staff, "recorded-engineer", At, "recorded-engineer", At));
 
@@ -496,13 +500,13 @@ public sealed class CaseRecordGapsV26WebTests
         // The Principal's default is its own cell only where the Case holds
         // something else; here the Case holds a physical address of its own.
         Assert.Contains("data-inspection-provider-default hidden", panel, StringComparison.Ordinal);
-        // A physical address says something the address itself does not, so
-        // the mode still rides beside it.
+        // The mode reads once, in Inspection type.
         Assert.Contains("Physical address", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("status--navy", AddressCell(panel), StringComparison.Ordinal);
 
         // The Principal's own setting, recorded on the Case unchanged: the
-        // value carries its provenance word, no default cell is shown, and no
-        // mode chip repeats the value.
+        // cell's label line carries its source tag, no default cell is shown,
+        // and no mode chip repeats the value.
         var imageBased = new RecordingCaseDetailsStore();
         imageBased.DataOverride = await InspectionOverrideAsync(imageBased, null);
         var imagePanel = InspectionPanel(await ReadCaseAsync(imageBased));

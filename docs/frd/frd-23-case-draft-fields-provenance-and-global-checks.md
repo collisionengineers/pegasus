@@ -37,8 +37,10 @@ MOT mileage estimate and inspection address by
 Each Case datum keeps its current provenance: staff entry, extraction, AI
 prefill or proposal, provider API, or another external vehicle or estimate
 source, with its identity, version, and time. The UI shows provenance without
-treating it as confirmation. A derived value names its inputs and calculation
-rather than claiming a raw source.
+treating it as confirmation: one word in a source tag beside the value
+(Extracted, AI, E-mail, Lookup, Principal, Automatic, Provider API), and no tag
+on a value staff typed or corrected. A derived value names its inputs and
+calculation rather than claiming a raw source.
 
 Each datum also carries a value kind (Fact, Suggestion, or Confirmed) and a
 source kind (intake evidence, mail route, case acceptance, staff correction,

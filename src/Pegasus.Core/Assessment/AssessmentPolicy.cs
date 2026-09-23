@@ -642,6 +642,14 @@ public static class AssessmentPolicy
                     writer.WriteStringValue(area);
                 }
                 writer.WriteEndArray();
+                if (impact.Disc is { } disc)
+                {
+                    writer.WriteStartObject("disc");
+                    writer.WriteNumber("x", RoundDisc(disc.CentreX));
+                    writer.WriteNumber("y", RoundDisc(disc.CentreY));
+                    writer.WriteNumber("r", RoundDisc(disc.Radius));
+                    writer.WriteEndObject();
+                }
                 writer.WriteString("severity", impact.Severity);
                 writer.WriteString("note", impact.Note);
                 writer.WriteEndObject();
@@ -681,7 +689,9 @@ public static class AssessmentPolicy
         foreach (var element in root.EnumerateArray())
         {
             if (element.ValueKind != JsonValueKind.Object
-                || element.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(["areas", "note", "severity"]) is false
+                || (element.EnumerateObject().Select(property => property.Name).Order().ToArray() is var members
+                    && !members.SequenceEqual(["areas", "note", "severity"])
+                    && !members.SequenceEqual(["areas", "disc", "note", "severity"]))
                 || !element.TryGetProperty("areas", out var areasElement)
                 || !element.TryGetProperty("severity", out var severityElement)
                 || !element.TryGetProperty("note", out var noteElement)
@@ -689,7 +699,7 @@ public static class AssessmentPolicy
                 || severityElement.ValueKind != JsonValueKind.String
                 || noteElement.ValueKind != JsonValueKind.String)
             {
-                throw new ArgumentException("Each damage impact must contain exactly an areas array and string severity and note members.", nameof(root));
+                throw new ArgumentException("Each damage impact must contain exactly an areas array, an optional disc and string severity and note members.", nameof(root));
             }
             var areas = new List<string>();
             foreach (var areaElement in areasElement.EnumerateArray())
@@ -708,16 +718,23 @@ public static class AssessmentPolicy
             {
                 throw new ArgumentException("A damage impact names one or more plan areas, or one other area recorded once.", nameof(root));
             }
-            if (areas.All(AssessmentVocabulary.DamagePlanAreas.Contains))
+            // A drawn damage keeps its disc as drawn (ruled 23 September 2026)
+            // and names exactly the plan areas that disc touches: Core reads
+            // the areas off the disc rather than trusting the posted list.
+            DamageDisc? disc = null;
+            if (element.TryGetProperty("disc", out var discElement))
             {
-                var completed = DamageAreaGeometry.CompletePlanAreas(areas);
-                if (completed.Count != areas.Count
-                    || completed.Any(area => !areas.Contains(area, StringComparer.Ordinal)))
+                if (areas.Any(AssessmentVocabulary.DamageOtherAreas.Contains))
                 {
-                    throw new ArgumentException(
-                        "A damage impact must record every plan area positively covered by its disc.",
-                        nameof(root));
+                    throw new ArgumentException("Underside, Interior and Mechanical are not drawn on the plan.", nameof(root));
                 }
+                disc = ReadDisc(discElement);
+                var touched = DamageAreaGeometry.AreasUnder(disc);
+                if (touched.Count == 0)
+                {
+                    throw new ArgumentException("A drawn damage must touch at least one plan area.", nameof(root));
+                }
+                areas = [.. touched];
             }
             areas.Sort((left, right) => AssessmentVocabulary.DamageAreaOrder(left).CompareTo(AssessmentVocabulary.DamageAreaOrder(right)));
             var severity = severityElement.GetString()!;
@@ -730,10 +747,44 @@ public static class AssessmentPolicy
             {
                 throw new ArgumentException("A damage impact note cannot exceed 200 characters or contain control characters.", nameof(root));
             }
-            result.Add(new(areas, severity, note));
+            result.Add(new(areas, severity, note, disc));
         }
         return result;
     }
+
+    /// <summary>
+    /// A drawn disc in unit-plan terms, rounded as it is stored: the centre
+    /// on the plan and the radius between the smallest and the largest disc
+    /// the plan allows.
+    /// </summary>
+    private static DamageDisc ReadDisc(JsonElement element)
+    {
+        static bool Number(JsonElement disc, string name, out double value)
+        {
+            value = 0;
+            return disc.GetProperty(name).ValueKind == JsonValueKind.Number
+                && disc.GetProperty(name).TryGetDouble(out value);
+        }
+
+        if (element.ValueKind != JsonValueKind.Object
+            || element.EnumerateObject().Select(property => property.Name).Order().SequenceEqual(["r", "x", "y"]) is false
+            || !Number(element, "x", out var x)
+            || !Number(element, "y", out var y)
+            || !Number(element, "r", out var r))
+        {
+            throw new ArgumentException("A damage disc must contain exactly numeric x, y and r members.", nameof(element));
+        }
+        (x, y, r) = (RoundDisc(x), RoundDisc(y), RoundDisc(r));
+        if (!double.IsFinite(x) || !double.IsFinite(y) || !double.IsFinite(r)
+            || x is < 0 or > 1 || y is < 0 or > 1
+            || r < RoundDisc(DamageAreaGeometry.MinRadius) || r > DamageAreaGeometry.MaxRadius)
+        {
+            throw new ArgumentException("A damage disc must lie on the plan and be no smaller or larger than the plan allows.", nameof(element));
+        }
+        return new(x, y, r);
+    }
+
+    private static double RoundDisc(double value) => Math.Round(value, 4, MidpointRounding.AwayFromZero);
 
     private static List<EstimateLineInput> NormalizeLines(
         IReadOnlyList<EstimateLineInput> lines)

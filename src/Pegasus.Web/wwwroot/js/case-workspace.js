@@ -787,6 +787,8 @@
                 throw new Error('The server did not return the Case.');
             }
         }).catch(function (error) {
+            // A failed save runs nothing after it.
+            afterSave = null;
             var failure = isImport
                 ? error.message + ' Import completion was not confirmed. Your unsaved changes are still here; reload the Case before retrying. If the source was already stored, it will be reused.'
                 : error.message + ' Your unsaved changes are still here.';
@@ -1009,6 +1011,16 @@
             form.dataset.inplaceSubmitting = 'true';
             submitInPlace(form, submitter);
         };
+        // A command that reads what the Case records (Apply adopts the saved
+        // guide card) saves the Case's own unsaved changes first and follows
+        // in the same press. Its section renders afresh after the save, so it
+        // reads the card as saved; its choices ride across (again()).
+        var caseForm = document.getElementById('case-edit-form');
+        if (form.hasAttribute('data-case-save-first') && caseForm && dirtyEditors.has('case-edit-form')) {
+            dirtyEditors.delete(form.getAttribute('id'));
+            saveThen(caseForm, again(form, submitter));
+            return;
+        }
         // Cancel is the operator discarding: it needs no second question.
         var isCancel = form.hasAttribute('data-case-cancel-form');
         if (!isSave && dirty && !isCancel) {
@@ -1017,8 +1029,9 @@
                     return;
                 }
                 if (answer === 'save') {
+                    // Saving carries on into what was asked for.
                     var save = activeDirtyForm();
-                    if (save) { save.requestSubmit(); }
+                    if (save) { saveThen(save, again(form, submitter)); }
                     return;
                 }
                 dirtyEditors.clear();
@@ -1055,13 +1068,81 @@
         askUnsaved().then(function (answer) {
             if (answer === 'save') {
                 var form = activeDirtyForm();
-                if (form) { form.requestSubmit(); }
+                if (form) {
+                    saveThen(form, function () { window.location.assign(link.href); });
+                }
             } else if (answer === 'discard') {
                 dirtyEditors.clear();
                 announce(false);
                 window.location.assign(link.href);
             }
         });
+    });
+
+    // ---- save, then carry on: the unsaved-changes question's Save (and Apply
+    //      over unsaved Case changes) runs what was asked for once the save
+    //      has landed, rather than dropping it ------------------------------
+    var afterSave = null;
+    function saveThen(save, next) {
+        afterSave = { editor: save.getAttribute('id'), next: next };
+        save.requestSubmit();
+    }
+    // The action's form is found again after the save's swap, which renders
+    // it afresh with the Case's new version and a new operation key, and the
+    // operator's choices in it are put back before it is sent.
+    function again(form, submitter) {
+        var id = form.getAttribute('id');
+        var action = form.getAttribute('action');
+        var choices = visibleChoices(form);
+        var name = submitter ? submitter.name : '';
+        var value = submitter ? submitter.value : '';
+        var formaction = submitter ? submitter.getAttribute('formaction') : null;
+        return function () {
+            var next = id ? document.getElementById(id) : Array.prototype.find.call(
+                record.querySelectorAll('form[action]'),
+                function (candidate) { return candidate.getAttribute('action') === action; });
+            if (!next) { return; }
+            restoreChoices(next, choices);
+            var button = submitter ? Array.prototype.find.call(next.elements, function (element) {
+                return element.type === 'submit' && element.name === name && element.value === value
+                    && element.getAttribute('formaction') === formaction;
+            }) : null;
+            next.requestSubmit(button || null);
+        };
+    }
+    // The operator's own choices in a form (never its hidden authority
+    // fields), and putting them back into its freshly rendered copy.
+    function visibleChoices(form) {
+        return Array.prototype.filter.call(form.elements, function (element) {
+            return element.name && element.type !== 'hidden' && element.type !== 'submit' && element.type !== 'button';
+        }).map(function (element) {
+            return { name: element.name, type: element.type, value: element.value, checked: element.checked };
+        });
+    }
+    function restoreChoices(form, choices) {
+        var seen = {};
+        Array.prototype.forEach.call(form.elements, function (element) {
+            if (!element.name || element.type === 'hidden' || element.type === 'submit' || element.type === 'button') { return; }
+            var same = choices.filter(function (choice) { return choice.name === element.name; });
+            if (element.type === 'radio' || element.type === 'checkbox') {
+                element.checked = same.some(function (choice) { return choice.value === element.value && choice.checked; });
+                if (element.checked && element.type === 'radio') {
+                    element.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                return;
+            }
+            var at = seen[element.name] || 0;
+            seen[element.name] = at + 1;
+            if (same[at]) { element.value = same[at].value; }
+        });
+    }
+    document.addEventListener('pegasus:case-swapped', function () {
+        var pending = afterSave;
+        afterSave = null;
+        // A save the server refused leaves its editor unsaved: nothing follows.
+        if (!pending || dirtyEditors.has(pending.editor)) { return; }
+        // After the save's own submission has finished.
+        window.setTimeout(pending.next, 0);
     });
 
     // ---- the section-head Edit posts the ribbon's claim and remembers the
@@ -1160,9 +1241,11 @@
 // derived cells are one view of the impacts JSON the Save reads from the
 // hidden input. The page renders all of it server-side; this keeps them in
 // step while the section edits: pressing and dragging on the vehicle sizes a
-// disc, dragging a disc moves it, and the areas under a disc follow Core's
-// bands. Reset returns to the values held when the edit opened. Outside a
-// session nothing is live (D21: absent, not disabled).
+// disc (no smaller or wider than Core allows), dragging a disc moves it, and
+// the areas a disc touches follow Core's bands. A drawn disc is kept as drawn
+// and saved with its areas; Core reads the areas off it again. Reset returns
+// to the values held when the edit opened. Outside a session nothing is live
+// (D21: absent, not disabled).
 (function () {
     'use strict';
 
@@ -1205,23 +1288,32 @@
             var otherAreas = vocabulary.other || [];
             var names = vocabulary.names || {};
             var centres = vocabulary.centres || {};
-            var canonical = vocabulary.canonical || { w: 1, h: 2, margin: 0.08 };
             var box = vocabulary.box || { x: 0, y: 0, w: 1, h: 1 };
             var bands = vocabulary.bands || { front: 0.34, rear: 0.72, left: 0.372, right: 0.628 };
             var baseRadius = vocabulary.radius || 0.12;
+            // Core's disc limits, served in the area table: no second copy here.
+            var margin = vocabulary.margin;
+            var minRadius = vocabulary.minRadius * box.w;
+            var maxRadius = vocabulary.maxRadius * box.w;
             var order = planAreas.concat(otherAreas);
-            var canonicalBox = { x: 0, y: 0, w: canonical.w, h: canonical.h };
 
             // Each recorded damage keeps its disc beside its areas. The disc the
             // page drew is read back, so the opening view is the recorded one
-            // and Reset can return to it.
+            // and Reset can return to it. `unit` is the disc the operator drew,
+            // in the plan's own terms, saved with the damage exactly as it was
+            // recorded until the disc is drawn or moved again; a damage recorded
+            // by area alone has none.
             var marks = impacts.map(function (item, index) {
-                var drawn = layer ? layer.querySelector('[data-mark="' + index + '"] circle.area') : null;
+                var shown = layer ? layer.querySelector('[data-mark="' + index + '"] circle.area') : null;
+                var unit = item.disc && typeof item.disc === 'object'
+                    ? { x: +item.disc.x, y: +item.disc.y, r: +item.disc.r }
+                    : null;
                 return {
                     areas: Array.isArray(item.areas) ? item.areas.slice() : [],
                     severity: item.severity || 'moderate',
                     note: item.note || '',
-                    disc: drawn ? { x: +drawn.getAttribute('cx'), y: +drawn.getAttribute('cy'), r: +drawn.getAttribute('r') } : null
+                    disc: shown ? { x: +shown.getAttribute('cx'), y: +shown.getAttribute('cy'), r: +shown.getAttribute('r') } : null,
+                    unit: unit
                 };
             });
             var opening = JSON.parse(JSON.stringify(marks));
@@ -1252,10 +1344,31 @@
             function persist() {
                 if (input) {
                     input.value = JSON.stringify(marks.map(function (mark) {
-                        return { areas: mark.areas, severity: mark.severity, note: mark.note };
+                        return mark.unit
+                            ? { areas: mark.areas, disc: mark.unit, severity: mark.severity, note: mark.note }
+                            : { areas: mark.areas, severity: mark.severity, note: mark.note };
                     }));
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                 }
+            }
+            // A drawn disc in the plan's own terms, as Core stores it: the centre
+            // as fractions of the body box, the radius as a fraction of its width.
+            function round4(value) {
+                return Math.round(value * 10000) / 10000;
+            }
+            function toUnit(disc) {
+                return { x: round4((disc.x - box.x) / box.w), y: round4((disc.y - box.y) / box.h), r: round4(disc.r / box.w) };
+            }
+            function fromUnit(unit) {
+                return { x: box.x + unit.x * box.w, y: box.y + unit.y * box.h, r: unit.r * box.w };
+            }
+            // A disc's centre stays on the body box and its radius between the
+            // smallest and the largest disc Core accepts.
+            function bound(disc) {
+                disc.x = Math.max(box.x, Math.min(box.x + box.w, disc.x));
+                disc.y = Math.max(box.y, Math.min(box.y + box.h, disc.y));
+                disc.r = Math.max(minRadius, Math.min(maxRadius, disc.r));
+                return disc;
             }
 
             // --- the plan: points, the vehicle and Core's bands
@@ -1302,8 +1415,8 @@
                 // record an area, matching DamageAreaGeometry in Core.
                 return dx * dx + dy * dy < disc.r * disc.r;
             }
-            function areaBounds(area, target) {
-                var plan = target || box;
+            function areaBounds(area) {
+                var plan = box;
                 var left = plan.x;
                 var top = plan.y;
                 var right = plan.x + plan.w;
@@ -1325,44 +1438,18 @@
                     default: return null;
                 }
             }
-            function areasUnder(disc, target) {
+            // The plan areas a disc touches, judged as Core judges them: on the
+            // disc as it is stored, so the page and the save agree at the edges.
+            function areasUnder(disc) {
+                var stored = fromUnit(toUnit(disc));
                 return sortAreas(planAreas.filter(function (area) {
-                    var bounds = areaBounds(area, target);
-                    return bounds && circleIntersectsArea(disc, bounds[0], bounds[1], bounds[2], bounds[3]);
+                    var bounds = areaBounds(area);
+                    return bounds && circleIntersectsArea(stored, bounds[0], bounds[1], bounds[2], bounds[3]);
                 }));
             }
-            function canonicalDisc(areas) {
-                var points = areas.map(function (area) {
-                    var centre = centres[area];
-                    return centre ? { x: centre.x * canonical.w, y: centre.y * canonical.h } : null;
-                }).filter(function (point) { return point !== null; });
-                if (!points.length) {
-                    return null;
-                }
-                var x = points.reduce(function (sum, point) { return sum + point.x; }, 0) / points.length;
-                var y = points.reduce(function (sum, point) { return sum + point.y; }, 0) / points.length;
-                var spread = points.reduce(function (max, point) {
-                    return Math.max(max, Math.hypot(point.x - x, point.y - y));
-                }, 0);
-                return { x: x, y: y, r: Math.max(baseRadius * canonical.w, spread + canonical.margin * canonical.w) };
-            }
-            function completePlanAreas(areas) {
-                var completed = sortAreas(areas);
-                while (true) {
-                    var disc = canonicalDisc(completed);
-                    var found = disc ? areasUnder(disc, canonicalBox) : [];
-                    var changed = false;
-                    found.forEach(function (area) {
-                        if (completed.indexOf(area) < 0) {
-                            completed.push(area);
-                            changed = true;
-                        }
-                    });
-                    if (!changed) {
-                        return sortAreas(completed);
-                    }
-                }
-            }
+            // The disc a damage recorded by area alone is drawn with, as Core
+            // draws it (DamageAreaGeometry.Disc): between its areas, reaching
+            // them, never wider than the vehicle.
             function renderedDisc(areas) {
                 var points = areas.map(function (area) {
                     var centre = centres[area];
@@ -1376,7 +1463,7 @@
                 var spread = points.reduce(function (max, point) {
                     return Math.max(max, Math.hypot(point.x - x, point.y - y));
                 }, 0);
-                return { x: x, y: y, r: Math.max(baseRadius * box.w, spread + canonical.margin * box.w) };
+                return { x: x, y: y, r: Math.min(maxRadius, Math.max(baseRadius * box.w, spread + margin * box.w)) };
             }
 
             // --- painting
@@ -1401,7 +1488,9 @@
                     group.setAttribute('class', 'dm');
                     group.setAttribute('data-mark', String(index));
                     group.setAttribute('data-sev', mark.severity);
-                    group.appendChild(circle('area', mark.disc.x, mark.disc.y, mark.disc.r));
+                    var area = circle('area', mark.disc.x, mark.disc.y, mark.disc.r);
+                    area.setAttribute('clip-path', 'url(#damage-plan-clip)');
+                    group.appendChild(area);
                     group.appendChild(circle('n', mark.disc.x, mark.disc.y, 8));
                     var text = document.createElementNS(SVG_NS, 'text');
                     text.setAttribute('x', format(mark.disc.x));
@@ -1447,7 +1536,7 @@
             }
             function cell(className, contents) {
                 var span = document.createElement('span');
-                span.className = 'fc';
+                span.className = editable ? 'fc' : 'fc ro';
                 var value = document.createElement('div');
                 value.className = className;
                 value.textContent = contents;
@@ -1470,9 +1559,6 @@
                 marks.forEach(function (mark, index) {
                     var row = document.createElement('li');
                     row.className = 'impact-row';
-                    if (editable && mark.areas.some(function (area) { return planAreas.indexOf(area) >= 0; })) {
-                        row.classList.add('impact-row--areas');
-                    }
                     row.setAttribute('data-damage-row', String(index));
 
                     var name = document.createElement('span');
@@ -1483,27 +1569,6 @@
                     name.appendChild(badge);
                     name.appendChild(document.createTextNode(areaNames(mark.areas)));
                     row.appendChild(name);
-
-                    if (row.classList.contains('impact-row--areas')) {
-                        var areaSet = document.createElement('fieldset');
-                        areaSet.className = 'damage-area-set';
-                        areaSet.setAttribute('data-damage-area-set', '');
-                        var legend = document.createElement('legend');
-                        legend.textContent = 'Areas for impact ' + String(index + 1);
-                        areaSet.appendChild(legend);
-                        planAreas.forEach(function (area) {
-                            var label = document.createElement('label');
-                            var choice = document.createElement('input');
-                            choice.type = 'checkbox';
-                            choice.value = area;
-                            choice.checked = mark.areas.indexOf(area) >= 0;
-                            choice.setAttribute('data-damage-area-choice', '');
-                            label.appendChild(choice);
-                            label.appendChild(document.createTextNode(areaName(area)));
-                            areaSet.appendChild(label);
-                        });
-                        row.appendChild(areaSet);
-                    }
 
                     var severityCellRow = cell('fv', severityName(mark.severity));
                     if (editable) {
@@ -1574,16 +1639,18 @@
                 if (existing) {
                     marks.splice(marks.indexOf(existing), 1);
                 } else {
-                    marks.push({ areas: [code], severity: 'moderate', note: '', disc: null });
+                    marks.push({ areas: [code], severity: 'moderate', note: '', disc: null, unit: null });
                 }
                 render();
                 persist();
             }
+            // The keyboard's way onto the plan: the focused area is recorded by
+            // area alone, drawn with the disc its area gives.
             function addPlanArea(code) {
                 if (!editable || planAreas.indexOf(code) < 0) {
                     return;
                 }
-                marks.push({ areas: [code], severity: 'moderate', note: '', disc: renderedDisc([code]) });
+                marks.push({ areas: [code], severity: 'moderate', note: '', disc: renderedDisc([code]), unit: null });
                 render();
                 persist();
             }
@@ -1602,6 +1669,7 @@
 
             // The plan: pressing and dragging sizes a new disc, dragging a
             // disc moves it, and the readout names the area under the pointer.
+            // The disc stays as drawn; it names the areas it touches.
             if (editable && svg && layer) {
                 var drawing = null;
                 svg.addEventListener('pointerdown', function (event) {
@@ -1615,18 +1683,19 @@
                         drawing = {
                             mark: moved,
                             move: true,
+                            changed: false,
                             dx: moved.disc.x - point.x,
                             dy: moved.disc.y - point.y,
-                            was: { disc: JSON.parse(JSON.stringify(moved.disc)), areas: moved.areas.slice() }
+                            was: { disc: JSON.parse(JSON.stringify(moved.disc)), areas: moved.areas.slice(), unit: moved.unit }
                         };
                     } else {
                         var area = areaAt(point.x, point.y);
                         if (!area) {
                             return;
                         }
-                        var mark = { areas: [area], severity: 'moderate', note: '', disc: { x: point.x, y: point.y, r: 12 } };
+                        var mark = { areas: [area], severity: 'moderate', note: '', disc: bound({ x: point.x, y: point.y, r: 12 }), unit: null };
                         marks.push(mark);
-                        drawing = { mark: mark, move: false };
+                        drawing = { mark: mark, move: false, changed: true };
                     }
                     event.preventDefault();
                     svg.setPointerCapture(event.pointerId);
@@ -1641,15 +1710,17 @@
                         }
                         return;
                     }
+                    drawing.changed = true;
                     if (drawing.move) {
                         drawing.mark.disc.x = point.x + drawing.dx;
                         drawing.mark.disc.y = point.y + drawing.dy;
                     } else {
-                        drawing.mark.disc.r = Math.max(10, Math.hypot(point.x - drawing.mark.disc.x, point.y - drawing.mark.disc.y));
+                        drawing.mark.disc.r = Math.hypot(point.x - drawing.mark.disc.x, point.y - drawing.mark.disc.y);
                     }
+                    bound(drawing.mark.disc);
                     var areas = areasUnder(drawing.mark.disc);
                     if (areas.length) {
-                        drawing.mark.areas = completePlanAreas(areas);
+                        drawing.mark.areas = areas;
                     }
                     render();
                 });
@@ -1657,19 +1728,27 @@
                     if (!drawing) {
                         return;
                     }
+                    // A press on a disc that did not move it changes nothing.
+                    if (!drawing.changed) {
+                        drawing = null;
+                        return;
+                    }
                     // A disc dragged off the vehicle names nothing: a moved one
-                    // returns, a new one is not recorded.
+                    // returns, a new one is not recorded. Otherwise the disc is
+                    // kept as drawn, at the precision it is saved at.
                     var areas = areasUnder(drawing.mark.disc);
                     if (!areas.length) {
                         if (drawing.move) {
                             drawing.mark.disc = drawing.was.disc;
                             drawing.mark.areas = drawing.was.areas;
+                            drawing.mark.unit = drawing.was.unit;
                         } else {
                             marks.splice(marks.indexOf(drawing.mark), 1);
                         }
                     } else {
-                        drawing.mark.areas = completePlanAreas(areas);
-                        drawing.mark.disc = renderedDisc(drawing.mark.areas);
+                        drawing.mark.unit = toUnit(drawing.mark.disc);
+                        drawing.mark.disc = fromUnit(drawing.mark.unit);
+                        drawing.mark.areas = areas;
                     }
                     drawing = null;
                     render();
@@ -1697,27 +1776,6 @@
             // away; hover lights its disc.
             if (list) {
                 list.addEventListener('change', function (event) {
-                    var areaChoice = event.target.closest('[data-damage-area-choice]');
-                    if (areaChoice && editable) {
-                        var areaRow = areaChoice.closest('[data-damage-row]');
-                        var areaMark = areaRow && marks[+areaRow.getAttribute('data-damage-row')];
-                        if (!areaMark) { return; }
-                        var selected = Array.prototype.slice.call(areaRow.querySelectorAll('[data-damage-area-choice]:checked'))
-                            .map(function (choice) { return choice.value; });
-                        if (!selected.length) {
-                            areaChoice.checked = true;
-                            return;
-                        }
-                        areaMark.areas = completePlanAreas(selected);
-                        areaMark.disc = renderedDisc(areaMark.areas);
-                        var focusedArea = areaChoice.value;
-                        render();
-                        persist();
-                        var next = list.querySelector('[data-damage-row="' + areaRow.getAttribute('data-damage-row')
-                            + '"] [data-damage-area-choice][value="' + focusedArea + '"]');
-                        if (next) { next.focus(); }
-                        return;
-                    }
                     var select = event.target.closest('[data-damage-row-severity]');
                     if (!select) {
                         return;
@@ -1906,6 +1964,95 @@
             }
         });
 
+        // Get valuation (23 September 2026): the source's figures come back as
+        // JSON and fill the card's boxes, which belong to the Case form, so no
+        // form is submitted, the page is not redrawn and nothing unsaved is put
+        // at risk; the ribbon Save records the card. A source with no working
+        // provider, or a refused request, shows the card's own notice.
+        root.querySelectorAll('[data-valuation-get]').forEach(function (button) {
+            if (button.dataset.valuationGetBound === 'true') {
+                return;
+            }
+            button.dataset.valuationGetBound = 'true';
+            button.addEventListener('click', function (event) {
+                event.preventDefault();
+                var card = button.closest('[data-valuation-entry]');
+                var caseForm = document.getElementById('case-edit-form');
+                var url = button.getAttribute('data-valuation-url');
+                if (!card || !caseForm || !url || button.disabled) {
+                    return;
+                }
+                var notice = card.querySelector('[data-valuation-notice]');
+                var body = new FormData();
+                ['__RequestVerificationToken', 'id', 'expectedVersion', 'operationKey', 'editLeaseToken'].forEach(function (name) {
+                    var field = caseForm.querySelector('[name="' + name + '"]');
+                    if (field) {
+                        body.append(name, field.value);
+                    }
+                });
+                var month = card.querySelector('[data-valuation-entry-month]');
+                if (month) {
+                    body.append('guideMonth', month.value);
+                }
+                showNotice(notice, false);
+                button.disabled = true;
+                fetch(url, {
+                    method: 'POST',
+                    body: body,
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' }
+                }).then(function (response) {
+                    return response.json().catch(function () { return { status: 'refused' }; });
+                }).then(function (answer) {
+                    if (answer && answer.status === 'ok') {
+                        fill(card, '[data-valuation-retail]', answer.retail);
+                        fill(card, '[data-valuation-trade]', answer.trade);
+                        fill(card, '[data-valuation-mileage]', answer.mileage);
+                        fill(card, '[data-valuation-entry-month]', answer.guideMonth);
+                        return;
+                    }
+                    showNotice(notice, true, answer && answer.status === 'refused' ? answer.message : null);
+                }).catch(function () {
+                    showNotice(notice, true, null);
+                }).then(function () {
+                    button.disabled = false;
+                });
+            });
+        });
+    }
+
+    // A fetched figure is typed into its box as if by hand: the input event
+    // marks the Case form as changed, so the ribbon Save records it.
+    function fill(card, selector, value) {
+        var box = card.querySelector(selector);
+        if (!box || value === undefined || value === null) {
+            return;
+        }
+        box.value = String(value);
+        box.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // The card's notice: the approved unavailable sentence, or a refusal's own
+    // words in its place when the server gave some.
+    function showNotice(notice, visible, message) {
+        if (!notice) {
+            return;
+        }
+        var unavailable = notice.querySelector('[data-valuation-unavailable]');
+        var refused = notice.querySelector('[data-valuation-refused]');
+        if (refused) {
+            refused.textContent = message || '';
+            refused.hidden = !message;
+        }
+        if (unavailable) {
+            unavailable.hidden = !!message;
+        }
+        if (visible) {
+            notice.setAttribute('role', 'alert');
+        } else {
+            notice.removeAttribute('role');
+        }
+        notice.hidden = !visible;
     }
 
     bind(document);
@@ -2362,7 +2509,7 @@
 
 // --- report -----------------------------------------------------------------
 // --- overview: the claim source select ----------------------------------------
-// Choosing another claim source while editing shows that record's contact line
+// Choosing another claim source while editing fills the three contact cells
 // and its "Notes on every Case" at once, from the option's own data attributes
 // (no request); Save records the choice and the server renders the same.
 (function () {
@@ -2378,15 +2525,13 @@
             select.addEventListener('change', function () {
                 var option = select.options[select.selectedIndex];
                 var notes = option ? option.getAttribute('data-notes') || '' : '';
-                var contact = option ? option.getAttribute('data-contact') || '' : '';
-                section.querySelectorAll('[data-claim-source-contact-override]').forEach(function (input) {
-                    input.value = '';
+                section.querySelectorAll('[data-claim-source-contact]').forEach(function (cell) {
+                    var contact = option ? option.getAttribute('data-contact-' + cell.getAttribute('data-claim-source-contact')) || '' : '';
+                    var input = cell.querySelector('.fi');
+                    if (input) {
+                        input.value = contact;
+                    }
                 });
-                var contactCell = section.querySelector('[data-claim-source-contact]');
-                if (contactCell) {
-                    contactCell.textContent = contact || '—';
-                    contactCell.classList.toggle('empty', !contact);
-                }
                 var cell = section.querySelector('[data-record-notes="claim-source"], [data-record-notes-slot="claim-source"]');
                 if (cell) {
                     var text = cell.querySelector('[data-record-notes-text]');

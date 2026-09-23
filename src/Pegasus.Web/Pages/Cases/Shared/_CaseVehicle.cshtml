@@ -49,9 +49,13 @@
     // the box whenever the box is editable, because the figure typed into it
     // may be the one it describes; every other provenance resolves itself.
     var mileageSource = Model.AssessmentEditorValue(AssessmentVocabulary.VehicleMileageSource);
-    var mileageSourceWord = mileageSource is { } sourceCode && CaseVehicleMileageSourcePolicy.StaffChoices.Contains(sourceCode)
-        ? VehicleLabels.MileageSource(sourceCode)
-        : mileageValue is not null ? OperatorLabels.Provenance(mileageValue.Source).Word : null;
+    var staffPicked = mileageSource is not null && CaseVehicleMileageSourcePolicy.StaffChoices.Contains(mileageSource);
+    var mileageSourceWord = staffPicked
+        ? VehicleLabels.MileageSource(mileageSource!)
+        : mileageValue is not null ? OperatorLabels.SourceTag(mileageValue.Source)?.Word : null;
+    // The select opens on what the box reads: the staff pick, else the
+    // figure's own source (no staff pick), else the first staff choice.
+    var selectedMileageSource = staffPicked ? mileageSource : mileageSourceWord is null ? CaseVehicleMileageSourcePolicy.StaffChoices[0] : null;
     var condition = Model.AssessmentEditorValue(AssessmentVocabulary.VehicleCondition);
     var conditionCodes = AssessmentVocabulary.Definitions[AssessmentVocabulary.VehicleCondition].Codes ?? [];
     var canEditCondition = Model.CanEditAssessmentField(AssessmentVocabulary.VehicleCondition);
@@ -64,6 +68,8 @@
 
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
+    // A cell without a control is .ro, so its value stays while the record edits.
+    string? Ro(bool editable) => editable ? null : "ro";
 
     (string Path, string Label)[] identityRows =
     [
@@ -72,8 +78,8 @@
         (AssessmentVocabulary.VehicleBody, VehicleLabels.BodyType)
     ];
 
-    // The read-only provenance rows: a lookup's own facts, absent when the
-    // assessment holds nothing for them.
+    // The read-only rows a lookup fills: always drawn, "Not recorded" until a
+    // lookup answers, so an answer never reflows the grid.
     (string Path, string Label)[] provenanceRows =
     [
         (AssessmentVocabulary.VehicleEngineCc, VehicleLabels.EngineCc),
@@ -114,50 +120,50 @@
     </div>
     <div class="panel-body stack">
         <div class="fg g4" data-vehicle-facts>
-            <div class="fc">
-                @{ Lbl(editFields, "edit-registration", VehicleLabels.Registration); }
-                <div class="@ValueClass(registration) mono">@Value(registration)@{ Source(registrationValue?.Source); }</div>
+            <div class="fc @Ro(editFields)">
+                @{ Lbl(editFields, "edit-registration", VehicleLabels.Registration, OperatorLabels.SourceTag(registrationValue?.Source)); }
+                <div class="@ValueClass(registration) mono">@Value(registration)</div>
                 @if (editFields)
                 {
                     <input id="edit-registration" class="fi mono" name="vehicleRegistration" form="case-edit-form" maxlength="20" value="@registrationValue?.Value" />
                 }
             </div>
-            <div class="fc">
-                @{ Lbl(editFields, "edit-make", VehicleLabels.Make); }
-                <div class="@ValueClass(makeValue?.Value)">@Value(makeValue?.Value)@{ Source(makeValue?.Source); }</div>
+            <div class="fc @Ro(editFields)">
+                @{ Lbl(editFields, "edit-make", VehicleLabels.Make, OperatorLabels.SourceTag(makeValue?.Source)); }
+                <div class="@ValueClass(makeValue?.Value)">@Value(makeValue?.Value)</div>
                 @if (editFields)
                 {
                     <input id="edit-make" class="fi" name="vehicleMake" form="case-edit-form" maxlength="100" value="@makeValue?.Value" />
                 }
             </div>
-            <div class="fc">
-                @{ Lbl(editFields, "edit-model", VehicleLabels.Model); }
-                <div class="@ValueClass(modelValue?.Value)">@Value(modelValue?.Value)@{ Source(modelValue?.Source); }</div>
+            <div class="fc @Ro(editFields)">
+                @{ Lbl(editFields, "edit-model", VehicleLabels.Model, OperatorLabels.SourceTag(modelValue?.Source)); }
+                <div class="@ValueClass(modelValue?.Value)">@Value(modelValue?.Value)</div>
                 @if (editFields)
                 {
                     <input id="edit-model" class="fi" name="vehicleModel" form="case-edit-form" maxlength="100" value="@modelValue?.Value" />
                 }
             </div>
-            <div class="fc">
-                @{ Lbl(editFields, "edit-year", VehicleLabels.Year); }
-                <div class="@ValueClass(yearValue?.Value)">@Value(yearValue?.Value)@{ Source(yearValue?.Source); }</div>
+            <div class="fc @Ro(editFields)">
+                @{ Lbl(editFields, "edit-year", VehicleLabels.Year, OperatorLabels.SourceTag(yearValue?.Source)); }
+                <div class="@ValueClass(yearValue?.Value)">@Value(yearValue?.Value)</div>
                 @if (editFields)
                 {
                     <input id="edit-year" class="fi" name="vehicleYear" form="case-edit-form" maxlength="10" inputmode="numeric" value="@yearValue?.Value" />
                 }
             </div>
             @* The vehicle's identity beside the registration: edited wherever the
-               registration is, each value tagged when the Automation actor
-               recorded it. A staff save re-stamps the value as staff's. *@
+               registration is, each value tagged by who recorded it (the lookup
+               reads Lookup). A staff save re-stamps the value as staff's. *@
             @foreach (var (path, label) in identityRows)
             {
                 var recorded = Model.Assessment?.Field(path);
                 var raw = recorded?.Value;
                 var definition = AssessmentVocabulary.Definitions[path];
                 var controlId = "edit-" + path.Replace('.', '-').Replace('_', '-');
-                <div class="fc" data-vehicle-identity="@path">
-                    @{ Lbl(editFields, controlId, label); }
-                    <div class="@ValueClass(raw) @(path == AssessmentVocabulary.VehicleVin ? "mono" : null)">@(string.IsNullOrWhiteSpace(raw) ? OperatorLabels.CaseWorkspace.AbsentValue : VehicleLabels.AssessmentValue(path, raw))@if (recorded?.RecordedByKind == Pegasus.Core.Identity.ActorKind.Automation && !string.IsNullOrWhiteSpace(raw)){<span class="src-tag src-tag--lookup">@VehicleLabels.LookupWord</span>}</div>
+                <div class="fc @Ro(editFields)" data-vehicle-identity="@path">
+                    @{ Lbl(editFields, controlId, label, OperatorLabels.SourceTag(recorded)); }
+                    <div class="@ValueClass(raw) @(path == AssessmentVocabulary.VehicleVin ? "mono" : null)">@(string.IsNullOrWhiteSpace(raw) ? OperatorLabels.CaseWorkspace.AbsentValue : VehicleLabels.AssessmentValue(path, raw))</div>
                     @if (editFields && definition.Type == AssessmentFieldType.Enumerated)
                     {
                         <select id="@controlId" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(path)" form="case-edit-form">
@@ -179,19 +185,10 @@
             @foreach (var row in provenanceRows)
             {
                 var recorded = Model.Assessment?.Field(row.Path);
-                if (recorded is null || string.IsNullOrWhiteSpace(recorded.Value))
-                {
-                    continue;
-                }
+                var raw = recorded?.Value;
                 <div class="fc ro" data-vehicle-provenance-row="@row.Path">
-                    <span class="lbl">@row.Label</span>
-                    <div class="fv @(row.Path == AssessmentVocabulary.VehicleVin ? "mono" : null)">
-                        @VehicleLabels.AssessmentValue(row.Path, recorded.Value)
-                        @if (recorded.RecordedByKind == Pegasus.Core.Identity.ActorKind.Automation)
-                        {
-                            <span class="src-tag src-tag--lookup">@VehicleLabels.LookupWord</span>
-                        }
-                    </div>
+                    @{ Lbl(false, string.Empty, row.Label, OperatorLabels.SourceTag(recorded)); }
+                    <div class="@ValueClass(raw)">@(string.IsNullOrWhiteSpace(raw) ? OperatorLabels.CaseWorkspace.AbsentValue : VehicleLabels.AssessmentValue(row.Path, raw))</div>
                 </div>
             }
         </div>
@@ -201,35 +198,33 @@
                 @* One mileage box, with the provenance the report's source code
                    is read from. The staff pick rides beside the box while it is
                    editable, and is ignored unless staff supplied the figure. *@
-                <div class="fc">
-                    @{ Lbl(editFields, "edit-mileage", VehicleLabels.Mileage); }
-                    <div class="@ValueClass(mileageText) mono" data-vehicle-mileage-read>
-                        @Value(mileageText)
-                        @if (mileageSourceWord is not null)
-                        {
-                            <span class="src-tag @(mileageValue?.Source.Kind == CaseDataSourceKind.VehicleLookup ? "src-tag--lookup" : null)" data-vehicle-mileage-source-read>@mileageSourceWord</span>
-                        }
-                    </div>
+                <div class="fc @Ro(editFields)">
+                    @{ Lbl(editFields, "edit-mileage", VehicleLabels.Mileage, OperatorLabels.SourceTag(mileageValue?.Source)); }
+                    <div class="@ValueClass(mileageText) mono" data-vehicle-mileage-read>@Value(mileageText)</div>
                     @if (editFields)
                     {
                         <input id="edit-mileage" class="fi mono" name="vehicleMileage" type="number" min="0" step="1" inputmode="numeric" form="case-edit-form" value="@mileageValue?.Value" />
                     }
                 </div>
-                <div class="fc">
+                <div class="fc @Ro(editFields)">
                     @{ Lbl(editFields, "edit-mileage-source", VehicleLabels.MileageSourceLabel); }
                     <div class="@ValueClass(mileageSourceWord)">@Value(mileageSourceWord)</div>
                     @if (editFields)
                     {
                         <select id="edit-mileage-source" class="fi" name="vehicleMileageSource" form="case-edit-form">
+                            @if (!staffPicked && mileageSourceWord is not null)
+                            {
+                                <option value="" selected>@mileageSourceWord</option>
+                            }
                             @foreach (var code in CaseVehicleMileageSourcePolicy.StaffChoices)
                             {
-                                <option value="@code" selected="@(string.Equals(code, mileageSource ?? CaseVehicleMileageSourcePolicy.StaffChoices[0], StringComparison.Ordinal) ? "selected" : null)">@VehicleLabels.MileageSource(code)</option>
+                                <option value="@code" selected="@(code == selectedMileageSource ? "selected" : null)">@VehicleLabels.MileageSource(code)</option>
                             }
                         </select>
                     }
                 </div>
-                <div class="fc">
-                    @{ Lbl(canEditCondition, "edit-vehicle-condition", VehicleLabels.PreIncidentCondition); }
+                <div class="fc @Ro(canEditCondition)">
+                    @{ Lbl(canEditCondition, "edit-vehicle-condition", VehicleLabels.PreIncidentCondition, Model.AssessmentSourceTag(AssessmentVocabulary.VehicleCondition)); }
                     <div class="@ValueClass(condition)">@(condition is null ? OperatorLabels.CaseWorkspace.AbsentValue : VehicleLabels.ConditionLabel(condition))</div>
                     @if (canEditCondition)
                     {
@@ -242,7 +237,7 @@
                         </select>
                     }
                 </div>
-                <div class="fc">
+                <div class="fc @Ro(editFields)">
                     @{ Lbl(editFields, "edit-mileage-unit", VehicleLabels.OdometerUnit); }
                     <div class="@ValueClass(unit)">@(unitWord is null ? OperatorLabels.CaseWorkspace.AbsentValue : unitWord == "km" ? VehicleLabels.Kilometres : VehicleLabels.Miles)</div>
                     @if (editFields)
@@ -259,8 +254,8 @@
         @* The history check is prose about the vehicle rather than one of its
            facts, so it reads as its own area under the grid. *@
         <div class="sub-panel vehicle-history @Model.CollapsedClass("case.vehicle.history")" data-collapse="case.vehicle.history" data-vehicle-history><h3>@VehicleLabels.History <span class="rt">@OperatorLabels.CaseWorkspace.ExperianSeamCondition</span> <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.vehicle.history")" /></h3>
-            <div class="fc">
-                @{ Lbl(canEditHistory, "edit-vehicle-history", VehicleLabels.History); }
+            <div class="fc @Ro(canEditHistory)">
+                @{ Lbl(canEditHistory, "edit-vehicle-history", VehicleLabels.History, Model.AssessmentSourceTag(AssessmentVocabulary.HistoryCheck)); }
                 <div class="@ValueClass(Model.AssessmentEditorValue(AssessmentVocabulary.HistoryCheck)) multi">@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</div>
                 @if (canEditHistory)
                 {
@@ -275,36 +270,17 @@
 
 @functions {
     // The cell's label: a real <label> for the control while editing, the
-    // same words as a plain caption while reading.
-    private void Lbl(bool editable, string id, string text)
+    // same words as a plain caption while reading, with the value's source
+    // tag in the label line in both.
+    private void Lbl(bool editable, string id, string text, OperatorLabels.SourceTagWord? tag = null)
     {
         if (editable)
         {
-            <label for="@id">@text</label>
+            <label for="@id">@text@(tag?.Render())</label>
         }
         else
         {
-            <span class="lbl">@text</span>
-        }
-    }
-
-    // Where a value came from, as a word beside it: a lookup's word is the
-    // provider chip; every other source keeps the shared icon tooltip.
-    private void Source(CaseDataSource? source)
-    {
-        if (source is null)
-        {
-            return;
-        }
-        var (word, _) = OperatorLabels.Provenance(source);
-        if (source.Kind == CaseDataSourceKind.VehicleLookup)
-        {
-            <span class="src-tag src-tag--lookup" data-provenance-word="@word">@word</span>
-        }
-        else
-        {
-            var (_, icon) = OperatorLabels.Provenance(source);
-            <span class="prov" tabindex="0" role="img" aria-label="@word" data-word="@word"><svg class="icon" aria-hidden="true"><use href="#@icon" /></svg></span>
+            <span class="lbl">@text@(tag?.Render())</span>
         }
     }
 }

@@ -1,16 +1,18 @@
 @*
-    Valuation (v26, one route since 15 September): the guide cards, the
-    calculator on the Core policy shape (v25 decision 8) and the
-    applied-history row. While editing, Glass's, Brego and Super CAP are each
-    one entry card with month, mileage, retail and trade boxes: Get valuation
-    asks the connected provider and fills the boxes, Save records the card
-    (the same source and month replaces), and a figure typed by hand saves
-    the same way. The Valuation month and AI market research above the cards
-    start the existing research job. Read mode shows values only: the cards,
-    the applied calculation and its increases. The preview lines are Core's
-    own arithmetic, fetched by script from the PreviewValuation handler;
-    without script the Apply posts and the applied calculation is shown after
-    the redirect.
+    Valuation (v26, one route since 15 September; one look and one Save since
+    23 September 2026): the guide cards, the calculator on the Core policy
+    shape (v25 decision 8) and the applied-history row. Read and edit show the
+    same cards and the same calculator: Glass's, Brego, Super CAP, CAP and
+    Cazana are each one card holding that source's latest recorded retail,
+    trade, guide month and mileage, as greyed boxes while reading and as
+    inputs while editing. The card's inputs belong to the record's one Save
+    form, #case-edit-form, so the ribbon Save records a changed card (the
+    same source and month replaces); Get valuation asks the connected
+    provider by script and fills the boxes, or shows the card's notice. The
+    Valuation month and AI market research above the cards start the existing
+    research job. The preview lines are Core's own arithmetic, fetched by
+    script from the PreviewValuation handler; without script the Apply posts
+    and the applied calculation is shown after the redirect.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -28,38 +30,48 @@
     var applied = Model.LatestAppliedValuation;
     var pending = Model.PendingMarketResearch;
     var claimantVat = Model.ClaimantVatRegistered;
-    var calculation = editable ? Model.DefaultCalculation : applied?.Calculation;
     var appliedAdditions = applied?.Calculation.Additions ?? [];
+    // The calculator opens on the selection the latest adoption applied, so
+    // the lines read the same in both modes until the Engineer changes one.
+    var appliedIsBasis = applied is not null && basis is not null && basis.ValuationId == applied.GuideValuationId;
+    var calculation = editable
+        ? (appliedIsBasis ? applied!.Calculation : Model.DefaultCalculation)
+        : applied?.Calculation;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "valuation");
-    // The five guide sources, each an entry card (v28 P8, P13): Cazana is drawn like the rest.
+    // The five guide sources, each one card (v28 P8, P13): Cazana is drawn like the rest.
     var guideSources = new[] { ValuationSource.Glasses, ValuationSource.Brego, ValuationSource.SuperCap, ValuationSource.Cap, ValuationSource.Cazana };
-    // While editing the three guide sources are entry cards; their recorded
-    // cards stand behind the entry (latest first) rather than beside it.
-    var listedGuides = editable
-        ? guides.Where(valuation => !guideSources.Contains(valuation.Details.Source)).ToArray()
-        : guides.ToArray();
+    // Every other recorded card (AI market research) stands after the guide sources.
+    var otherCards = guides.Where(valuation => !guideSources.Contains(valuation.Details.Source)).ToArray();
+    // The card shown as chosen: the calculator's basis while editing, the applied basis while reading.
+    var selectedId = editable ? basis?.ValuationId : applied?.GuideValuationId;
 
     string GetValuationAction(ValuationSource source) =>
         Url.Page("/Cases/Details", "GetValuation", new { id = caseId, source })!;
-    CaseValuation? LatestRecorded(ValuationSource source) => guides
-        .Where(valuation => valuation.Details.Source == source)
-        .OrderByDescending(valuation => valuation.Details.Date)
-        .ThenByDescending(valuation => valuation.Details.Time)
-        .ThenByDescending(valuation => valuation.RecordedAtUtc)
-        .FirstOrDefault();
-    var acceptedMileage = Pegasus.Web.Pages.Cases.DetailsModel.Accepted((section?.Data ?? Model.Case!.Data)?.Vehicle.Mileage)?.Value;
     var basisName = basis is null ? null : ValuationLabels.SourceLabel(basis.Details.Source);
     var appliedBasis = applied is null
         ? null
         : Model.Valuations.FirstOrDefault(valuation => valuation.ValuationId == applied.GuideValuationId);
     var appliedBasisName = appliedBasis is null ? "Guide" : ValuationLabels.SourceLabel(appliedBasis.Details.Source);
     var lineForm = editable ? "case-valuation-form" : null;
+    var absent = OperatorLabels.CaseWorkspace.AbsentValue;
+
+    // The value increases, one list in both modes: every active preset, ticked
+    // where the latest adoption applied it, then any applied increase that is
+    // not an active preset (a custom one, or a preset since withdrawn).
+    var activePresets = Model.ValuationPresets.Where(item => item.Active && item.RemovedAtUtc is null).ToArray();
+    ValuationAddition? AppliedPreset(ValuationPreset preset) =>
+        appliedAdditions.FirstOrDefault(addition => addition.PresetId != Guid.Empty && addition.PresetId == preset.Id);
+    var otherApplied = appliedAdditions
+        .Where(addition => addition.PresetId == Guid.Empty || activePresets.All(preset => preset.Id != addition.PresetId))
+        .ToArray();
+    var hasIncreases = editable || activePresets.Length > 0 || otherApplied.Length > 0;
 
     string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
+    string MoneyOrAbsent(decimal? value) => value is { } amount ? Money(amount) : OperatorLabels.CaseWorkspace.AbsentValue;
 
     string CardMeta(CaseValuation valuation) =>
         (valuation.Details.GuideMonth?.ToString("MMM yyyy", CultureInfo.InvariantCulture) ?? ValuationLabels.AbsentGuideMonth)
-        + " · " + valuation.Details.Mileage.ToString("N0", CultureInfo.InvariantCulture) + " miles · "
+        + (valuation.Details.Mileage is { } metaMileage ? " · " + metaMileage.ToString("N0", CultureInfo.InvariantCulture) + " miles" : string.Empty) + " · "
         + valuation.Details.Date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
 
     string Adjustments(ValuationCalculation recorded)
@@ -72,6 +84,14 @@
         if (recorded.ConditionDeduction > 0m) parts.Add("− condition");
         return parts.Count == 0 ? ValuationLabels.NoAdjustments : string.Join(", ", parts);
     }
+
+    var appliedPtl = applied?.Calculation.PriorTotalLossPercentage is { } appliedPercentage
+        ? (appliedPercentage * 100m).ToString("0", CultureInfo.InvariantCulture)
+        : null;
+    var appliedDeduction = applied is { Calculation.ConditionDeduction: > 0m }
+        ? applied.Calculation.ConditionDeduction.ToString("0.00", CultureInfo.InvariantCulture)
+        : null;
+    var reportEditable = Model.SectionIsEditable("report") && Model.Case!.Data is not null;
 }
 
 <section class="record-section record-section--nested panel @Model.CollapsedClass("case.valuation") @Model.ActiveTabClass("valuation") @(Model.IsEditing && !Model.SectionIsEditable("valuation") ? "is-locked" : null)" id="section-valuation" data-section="valuation" data-section-parent="vehicle" data-collapse="case.valuation" aria-labelledby="section-valuation-title">
@@ -87,7 +107,7 @@
         {
             @* The research form carries the month, the lease, the version and
                the operation key; AI market research runs the existing job for
-               that month. The guide sources are entry cards below. *@
+               that month. The guide sources are the cards below. *@
             <div class="val-tools" data-valuation-tools>
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="StartMarketResearch" asp-route-id="@caseId"
                       id="case-market-research-form" data-valuation-research-form>
@@ -110,67 +130,107 @@
         }
 
         <div class="guides" data-valuation-cards>
-            @if (editable)
+            @for (var index = 0; index < guideSources.Length; index++)
             {
-                @foreach (var source in guideSources)
-                {
-                    var slug = ValuationLabels.SourceSlug(source);
-                    var recorded = LatestRecorded(source);
-                    var prefill = Model.ValuationPrefill(source);
-                    var entrySelected = recorded is not null && basis is not null && basis.ValuationId == recorded.ValuationId;
-                    var retail = prefill?.RetailValue ?? recorded?.Details.RetailValue;
-                    var trade = prefill?.TradeValue ?? recorded?.Details.TradeValue;
-                    var mileage = prefill?.Mileage ?? recorded?.Details.Mileage ?? acceptedMileage;
-                    var month = (prefill?.GuideMonth ?? recorded?.Details.GuideMonth)?.ToString("yyyy-MM", CultureInfo.InvariantCulture) ?? Model.ValuationMonth;
-                    @* One form per source: Save records the boxes, Get valuation
-                       posts the same boxes to GetValuation and comes back with
-                       the provider's figures in them. The Basis radio belongs to
-                       the calculator's form, as on a recorded card. *@
-                    <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveValuation" asp-route-id="@caseId" asp-route-section="valuation"
-                          class="valuation-card entry @(entrySelected ? "sel" : null)"
-                          tabindex="@(recorded is null ? null : "0")"
-                          data-valuation-entry="@slug"
-                          data-valuation-source-card="@source"
-                          data-valuation-card="@(recorded?.ValuationId.ToString("D") ?? slug)"
-                          data-retail="@(recorded?.Details.RetailValue.ToString("0.00", CultureInfo.InvariantCulture))"
-                          data-trade="@(recorded?.Details.TradeValue.ToString("0.00", CultureInfo.InvariantCulture))">
-                        <input type="hidden" name="id" value="@caseId" />
-                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                        <input type="hidden" name="source" value="@source" />
-                        <h3>
-                            <span>@ValuationLabels.SourceLabel(source)</span>
-                            @if (recorded is not null)
+                var source = guideSources[index];
+                var slug = ValuationLabels.SourceSlug(source);
+                var recorded = Model.LatestRecorded(source);
+                var selected = recorded is not null && selectedId == recorded.ValuationId;
+                var retail = recorded?.Details.RetailValue;
+                var trade = recorded?.Details.TradeValue;
+                // A card holds exactly what was recorded, in both modes: any
+                // box may be blank (operator, 23 September 2026).
+                var mileage = recorded?.Details.Mileage;
+                var canBeBasis = recorded is not null && Pegasus.Web.Pages.Cases.DetailsModel.CanBeBasis(recorded);
+                var month = recorded?.Details.GuideMonth;
+                var monthValue = month?.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+                var cellClass = editable ? "fc" : "fc ro";
+                var field = "guideEntries[" + index.ToString(CultureInfo.InvariantCulture) + "].";
+                var idPrefix = "f-valuation-" + slug + "-";
+                @* One card per source in both modes. While editing, its boxes join
+                   the Case form and the ribbon Save records a changed card; Get
+                   valuation fills them by script. The Basis radio belongs to the
+                   calculator's form and is chosen by clicking the card. *@
+                <div class="valuation-card entry @(selected ? "sel" : null)"
+                     tabindex="@(editable && canBeBasis ? "0" : null)"
+                     data-valuation-entry="@slug"
+                     data-valuation-source-card="@source"
+                     data-valuation-card="@(recorded?.ValuationId.ToString("D") ?? slug)"
+                     data-retail="@(recorded?.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture))"
+                     data-trade="@(recorded?.Details.TradeValue?.ToString("0.00", CultureInfo.InvariantCulture))">
+                    @if (editable)
+                    {
+                        <input type="hidden" name="@(field)Source" value="@source" form="case-edit-form" />
+                    }
+                    <h3>
+                        <span>@ValuationLabels.SourceLabel(source)</span>
+                        @if (editable && canBeBasis && recorded is not null)
+                        {
+                            <label class="pick sr-only">
+                                <input type="radio" name="selection.GuideValuationId" value="@recorded.ValuationId"
+                                       form="case-valuation-form" checked="@(selected ? "checked" : null)"
+                                       data-valuation-basis
+                                       data-stamp="@Pegasus.Web.Pages.Cases.DetailsModel.StampOf(recorded).ToString("o", CultureInfo.InvariantCulture)"
+                                       data-source-name="@ValuationLabels.SourceLabel(source)" />
+                                @ValuationLabels.Basis
+                            </label>
+                        }
+                    </h3>
+                    <div class="figs fg g2">
+                        <div class="@cellClass">
+                            @{ CardLabel(editable, idPrefix + "retail", ValuationLabels.Retail); }
+                            <div class="fv mono @(retail is null ? "empty" : null)">@(retail is { } retailShown ? Money(retailShown) : absent)</div>
+                            @if (editable)
                             {
-                                @* The card is chosen by clicking it (v28 P8); the radio
-                                   remains the posted control, and reachable without script. *@
-                                <label class="pick sr-only">
-                                    <input type="radio" name="selection.GuideValuationId" value="@recorded.ValuationId"
-                                           form="case-valuation-form" checked="@(entrySelected ? "checked" : null)"
-                                           data-valuation-basis
-                                           data-stamp="@Pegasus.Web.Pages.Cases.DetailsModel.StampOf(recorded).ToString("o", CultureInfo.InvariantCulture)"
-                                           data-source-name="@ValuationLabels.SourceLabel(source)" />
-                                    @ValuationLabels.Basis
-                                </label>
+                                <input id="@(idPrefix)retail" class="fi mono" type="number" min="0" step="0.01" name="@(field)RetailValue" form="case-edit-form" value="@retail?.ToString("0.00", CultureInfo.InvariantCulture)" data-valuation-retail />
                             }
-                        </h3>
-                        <div class="figs">
-                            <label>@ValuationLabels.Retail<input class="fi mono" type="number" min="0" step="0.01" name="retailValue" required value="@retail?.ToString("0.00", CultureInfo.InvariantCulture)" data-valuation-retail /></label>
-                            <label>@ValuationLabels.Trade<input class="fi mono" type="number" min="0" step="0.01" name="tradeValue" required value="@trade?.ToString("0.00", CultureInfo.InvariantCulture)" data-valuation-trade /></label>
                         </div>
-                        <div class="meta">
-                            <label>@ValuationLabels.GuideMonth<input class="fi" type="month" name="guideMonth" value="@month" data-valuation-entry-month /></label>
-                            <label>@ValuationLabels.Mileage<input class="fi mono" type="number" min="0" name="mileage" required value="@mileage?.ToString(CultureInfo.InvariantCulture)" data-valuation-mileage /></label>
+                        <div class="@cellClass">
+                            @{ CardLabel(editable, idPrefix + "trade", ValuationLabels.Trade); }
+                            <div class="fv mono @(trade is null ? "empty" : null)">@(trade is { } tradeShown ? Money(tradeShown) : absent)</div>
+                            @if (editable)
+                            {
+                                <input id="@(idPrefix)trade" class="fi mono" type="number" min="0" step="0.01" name="@(field)TradeValue" form="case-edit-form" value="@trade?.ToString("0.00", CultureInfo.InvariantCulture)" data-valuation-trade />
+                            }
+                        </div>
+                    </div>
+                    <div class="meta fg g2">
+                        <div class="@cellClass">
+                            @{ CardLabel(editable, idPrefix + "month", ValuationLabels.GuideMonth); }
+                            <div class="fv @(month is null ? "empty" : null)">@(month?.ToString("MMM yyyy", CultureInfo.InvariantCulture) ?? absent)</div>
+                            @if (editable)
+                            {
+                                <input id="@(idPrefix)month" class="fi" type="month" name="@(field)GuideMonth" form="case-edit-form" value="@monthValue" data-valuation-entry-month />
+                            }
+                        </div>
+                        <div class="@cellClass">
+                            @{ CardLabel(editable, idPrefix + "mileage", ValuationLabels.Mileage); }
+                            <div class="fv mono @(mileage is null ? "empty" : null)">@(mileage is { } mileageShown ? mileageShown.ToString("N0", CultureInfo.InvariantCulture) : absent)</div>
+                            @if (editable)
+                            {
+                                <input id="@(idPrefix)mileage" class="fi mono" type="number" min="0" name="@(field)Mileage" form="case-edit-form" value="@mileage?.ToString(CultureInfo.InvariantCulture)" data-valuation-mileage />
+                            }
+                        </div>
+                    </div>
+                    @if (editable)
+                    {
+                        @* The card's own answer to Get valuation (operator-approved
+                           wording, 23 September 2026): shown by script when the
+                           source has no working provider, or with the refusal's
+                           own words when the request was refused. It becomes an
+                           alert only when it shows. *@
+                        <div class="notice notice--danger" data-valuation-notice hidden>
+                            <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
+                            <span data-valuation-refused hidden></span>
                         </div>
                         <div class="entry-actions">
-                            <button type="submit" formaction="@GetValuationAction(source)" formnovalidate class="btn btn--small" data-valuation-source="@slug"><span>@ValuationLabels.GetValuation</span></button>
-                            <button type="submit" class="btn btn--small btn--primary" data-valuation-save="@slug"><span>@Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.Save</span></button>
+                            <button type="button" class="btn btn--small" data-valuation-get data-valuation-source="@slug"
+                                    data-valuation-url="@GetValuationAction(source)"><span>@ValuationLabels.GetValuation</span></button>
                         </div>
-                    </form>
-                }
+                    }
+                </div>
             }
-            @foreach (var valuation in listedGuides)
+            @foreach (var valuation in otherCards)
             {
                 var isAi = valuation.Details.Source == ValuationSource.AiMarketResearch;
                 if (isAi && pending is not null)
@@ -179,13 +239,13 @@
                     // pending card stands where the recorded one would.
                     continue;
                 }
-                var selected = basis is not null && basis.ValuationId == valuation.ValuationId;
+                var selected = selectedId == valuation.ValuationId;
                 <div class="valuation-card @(selected ? "sel" : null)"
                      tabindex="@(editable ? "0" : null)"
                      data-valuation-card="@valuation.ValuationId"
                      data-valuation-source-card="@valuation.Details.Source"
-                     data-retail="@valuation.Details.RetailValue.ToString("0.00", CultureInfo.InvariantCulture)"
-                     data-trade="@valuation.Details.TradeValue.ToString("0.00", CultureInfo.InvariantCulture)">
+                     data-retail="@(valuation.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture))"
+                     data-trade="@(valuation.Details.TradeValue?.ToString("0.00", CultureInfo.InvariantCulture))">
                     <h3>
                         <span>@ValuationLabels.SourceLabel(valuation.Details.Source)</span>
                         @if (isAi)
@@ -208,9 +268,9 @@
                             }
                         }
                     </h3>
-                    <div class="figs">
-                        <div>@ValuationLabels.Retail<b>@Money(valuation.Details.RetailValue)</b></div>
-                        <div>@ValuationLabels.Trade<b>@Money(valuation.Details.TradeValue)</b></div>
+                    <div class="figs fg g2">
+                        <div class="fc ro"><span class="lbl">@ValuationLabels.Retail</span><div class="fv mono">@MoneyOrAbsent(valuation.Details.RetailValue)</div></div>
+                        <div class="fc ro"><span class="lbl">@ValuationLabels.Trade</span><div class="fv mono">@MoneyOrAbsent(valuation.Details.TradeValue)</div></div>
                     </div>
                     <div class="meta">@CardMeta(valuation)</div>
                 </div>
@@ -219,18 +279,11 @@
             {
                 <div class="valuation-card is-pending" data-valuation-pending="@pending.JobId">
                     <h3><span>@ValuationLabels.SourceLabel(ValuationSource.AiMarketResearch)</span> <span class="src-tag src-tag--ai">AI</span></h3>
-                    <div class="figs">
-                        <div>@ValuationLabels.Retail<b class="derived">—</b></div>
-                        <div>@ValuationLabels.Trade<b class="derived">—</b></div>
+                    <div class="figs fg g2">
+                        <div class="fc ro"><span class="lbl">@ValuationLabels.Retail</span><div class="fv mono derived">—</div></div>
+                        <div class="fc ro"><span class="lbl">@ValuationLabels.Trade</span><div class="fv mono derived">—</div></div>
                     </div>
                     <div class="meta">@ValuationLabels.Researching · @Model.PendingMarketResearchMonth</div>
-                </div>
-            }
-            @if (!editable && guides.Count == 0 && pending is null)
-            {
-                <div class="valuation-card" data-valuation-empty>
-                    <h3><span>@ValuationLabels.SectionTitle</span></h3>
-                    <div class="meta">No valuations recorded.</div>
                 </div>
             }
         </div>
@@ -238,7 +291,7 @@
         @if (editable)
         {
             <form method="post" asp-page="/Cases/Details" asp-page-handler="ApplyValuation" asp-route-id="@caseId"
-                  id="case-valuation-form" data-valuation-form
+                  id="case-valuation-form" data-valuation-form data-case-save-first
                   data-preview-url="@Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId })">
                 <input type="hidden" name="id" value="@caseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -251,75 +304,65 @@
 
         <div class="calc" data-valuation-calc>
             @* On the report (v28 P38): the three content switches, decided beside
-               the valuation they describe. A checkbox posts "true" ahead of its
-               hidden "false", so an unticked switch still records No. *@
+               the valuation they describe. One cell, so editing shows the
+               switches in place of the summary. A checkbox posts "true" ahead
+               of its hidden "false", so an unticked switch still records No. *@
             <div class="sub-panel @Model.CollapsedClass("case.valuation.report")" data-collapse="case.valuation.report" data-field="report-content">
                 <h3>@CaseWorkspaceLabels.Frame.OnTheReport <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.valuation.report")" /></h3>
-                <div class="fv" data-report-content>@Model.ReportContentSummary</div>
-                @if (Model.SectionIsEditable("report") && Model.Case!.Data is not null)
-                {
-                    <div class="fi chk switches" data-report-switches>
-                        @foreach (var (path, label) in new[]
-                        {
-                            (AssessmentVocabulary.ReportDiscloseGuideSource, CaseWorkspaceLabels.Report.DiscloseGuideSource),
-                            (AssessmentVocabulary.ReportValuationCommentary, CaseWorkspaceLabels.Report.ValuationCommentary),
-                            (AssessmentVocabulary.ReportIncludeUnrelatedDamage, CaseWorkspaceLabels.Report.UnrelatedDamage)
-                        })
-                        {
-                            var switchName = CaseWorkspaceLabels.Editors.FormName(path);
-                            <label class="choice">
-                                <input type="checkbox" name="@switchName" value="true" form="case-edit-form" checked="@(string.Equals(Model.AssessmentEditorValue(path), "true", StringComparison.OrdinalIgnoreCase) ? "checked" : null)" data-report-switch="@path" />
-                                <input type="hidden" name="@switchName" value="false" form="case-edit-form" />
-                                <span>@label</span>
-                            </label>
-                        }
-                    </div>
-                }
+                <div class="fc @(reportEditable ? null : "ro")">
+                    <div class="fv" data-report-content>@Model.ReportContentSummary</div>
+                    @if (reportEditable)
+                    {
+                        <div class="fi chk switches" data-report-switches>
+                            @foreach (var (path, label) in new[]
+                            {
+                                (AssessmentVocabulary.ReportDiscloseGuideSource, CaseWorkspaceLabels.Report.DiscloseGuideSource),
+                                (AssessmentVocabulary.ReportValuationCommentary, CaseWorkspaceLabels.Report.ValuationCommentary),
+                                (AssessmentVocabulary.ReportIncludeUnrelatedDamage, CaseWorkspaceLabels.Report.UnrelatedDamage)
+                            })
+                            {
+                                var switchName = CaseWorkspaceLabels.Editors.FormName(path);
+                                <label class="choice">
+                                    <input type="checkbox" name="@switchName" value="true" form="case-edit-form" checked="@(string.Equals(Model.AssessmentEditorValue(path), "true", StringComparison.OrdinalIgnoreCase) ? "checked" : null)" data-report-switch="@path" />
+                                    <input type="hidden" name="@switchName" value="false" form="case-edit-form" />
+                                    <span>@label</span>
+                                </label>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
             <div class="sub-panel">
                 <h3>@ValuationLabels.Calculation <span class="rt" data-valuation-basis-name>@(editable ? (basisName is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, ValuationLabels.FromRetail, basisName)) : (applied is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, ValuationLabels.FromRetail, appliedBasisName)))</span></h3>
                 <div class="fg g3">
-                    <div class="fc">
-                        @if (editable)
-                        {
-                            <label for="f-valuation-ptl">@ValuationLabels.PreviousTotalLoss</label>
-                        }
-                        else
-                        {
-                            <span class="lbl">@ValuationLabels.PreviousTotalLoss</span>
-                        }
-                        <div class="fv" data-valuation-ptl-read>@(applied?.Calculation.PriorTotalLossPercentage is { } ptl ? "−" + (ptl * 100m).ToString("0", CultureInfo.InvariantCulture) + " %" : "None")</div>
+                    <div class="fc @(editable ? null : "ro")">
+                        @{ CardLabel(editable, "f-valuation-ptl", ValuationLabels.PreviousTotalLoss); }
+                        <div class="fv" data-valuation-ptl-read>@(appliedPtl is null ? "None" : "−" + appliedPtl + " %")</div>
                         @if (editable)
                         {
                             <select id="f-valuation-ptl" class="fi" name="selection.PriorTotalLossPercentage" form="@lineForm" data-valuation-input>
-                                <option value="">None</option>
-                                <option value="10">−10 %</option>
-                                <option value="20">−20 %</option>
+                                <option value="" selected="@(appliedPtl is null ? "selected" : null)">None</option>
+                                <option value="10" selected="@(appliedPtl == "10" ? "selected" : null)">−10 %</option>
+                                <option value="20" selected="@(appliedPtl == "20" ? "selected" : null)">−20 %</option>
                             </select>
                         }
                     </div>
-                    <div class="fc">
+                    <div class="fc @(editable ? null : "ro")">
+                        @{ CardLabel(editable, "f-valuation-deduction", ValuationLabels.ConditionDeduction); }
+                        <div class="fv mono @(appliedDeduction is null ? "empty" : null)" data-valuation-deduction-read>@(applied is { Calculation.ConditionDeduction: > 0m } ? Money(applied.Calculation.ConditionDeduction) : "—")</div>
                         @if (editable)
                         {
-                            <label for="f-valuation-deduction">@ValuationLabels.ConditionDeduction</label>
-                        }
-                        else
-                        {
-                            <span class="lbl">@ValuationLabels.ConditionDeduction</span>
-                        }
-                        <div class="fv mono @(applied is { Calculation.ConditionDeduction: > 0m } ? null : "empty")" data-valuation-deduction-read>@(applied is { Calculation.ConditionDeduction: > 0m } ? Money(applied.Calculation.ConditionDeduction) : "—")</div>
-                        @if (editable)
-                        {
-                            <input id="f-valuation-deduction" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="selection.ConditionDeduction" form="@lineForm" data-valuation-input />
+                            <input id="f-valuation-deduction" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="selection.ConditionDeduction" form="@lineForm" value="@appliedDeduction" data-valuation-input />
                         }
                     </div>
-                    <div class="fc">
+                    <div class="fc @(editable ? null : "ro")">
                         <span class="lbl">@ValuationLabels.CommercialVat</span>
                         <div class="fv" data-valuation-vat-read>@(applied is { Calculation.CommercialVatApplied: true } ? ValuationLabels.Applied : ValuationLabels.NotApplied)</div>
                         @if (editable)
                         {
                             <label class="fi chk choice" data-valuation-vat-wrap>
                                 <input type="checkbox" name="selection.CommercialVat" value="true" form="@lineForm"
+                                       checked="@(!claimantVat && applied is { Calculation.CommercialVatApplied: true } ? "checked" : null)"
                                        disabled="@(claimantVat ? "disabled" : null)" data-valuation-input />
                                 <span>@ValuationLabels.AddVat</span>
                                 @if (claimantVat)
@@ -330,34 +373,40 @@
                         }
                     </div>
                 </div>
-                <h3 class="adds-head @(editable || appliedAdditions.Count > 0 ? null : "none")" data-valuation-adds-head>@ValuationLabels.ValueIncreases</h3>
+                <h3 class="adds-head @(hasIncreases ? null : "none")" data-valuation-adds-head>@ValuationLabels.ValueIncreases</h3>
                 <div class="adds" data-valuation-adds>
                     @if (editable)
                     {
                         var index = 0;
-                        foreach (var preset in Model.ValuationPresets.Where(item => item.Active && item.RemovedAtUtc is null))
+                        foreach (var preset in activePresets)
                         {
-                            <div class="add" data-valuation-add="@index">
-                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" data-preset-toggle data-valuation-input aria-label="@preset.Label" />
+                            var chosen = AppliedPreset(preset);
+                            <div class="add @(chosen is null ? null : "on")" data-valuation-add="@index">
+                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(chosen is null ? null : "checked")" data-preset-toggle data-valuation-input aria-label="@preset.Label" />
                                 <input type="hidden" name="selection.AdditionPresetId" value="@preset.Id" form="@lineForm" />
                                 <input type="hidden" name="selection.AdditionPresetVersion" value="@preset.Version" form="@lineForm" />
                                 <input type="hidden" name="selection.AdditionLabel" value="" form="@lineForm" />
                                 <label for="f-valuation-add-@index">@preset.Label</label>
                                 <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm"
-                                       value="@preset.SuggestedAmount.ToString("0.##", CultureInfo.InvariantCulture)" placeholder="£"
+                                       value="@((chosen?.Amount ?? preset.SuggestedAmount).ToString("0.##", CultureInfo.InvariantCulture))" placeholder="£"
                                        aria-label="@preset.Label amount" data-valuation-input />
                             </div>
                             index++;
                         }
-                        for (var custom = 0; custom < 2; custom++)
+                        @* The custom rows: an applied increase that is not an
+                           active preset opens in one, so re-applying keeps it. *@
+                        var customRows = Math.Max(2, otherApplied.Length);
+                        for (var custom = 0; custom < customRows; custom++)
                         {
-                            <div class="add add--custom" data-valuation-add="@index">
-                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" data-preset-toggle data-valuation-input aria-label="@ValuationLabels.OtherAddition" />
+                            var carried = custom < otherApplied.Length ? otherApplied[custom] : null;
+                            <div class="add add--custom @(carried is null ? null : "on")" data-valuation-add="@index">
+                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(carried is null ? null : "checked")" data-preset-toggle data-valuation-input aria-label="@ValuationLabels.OtherAddition" />
                                 <input type="hidden" name="selection.AdditionPresetId" value="@Guid.Empty" form="@lineForm" />
                                 <input type="hidden" name="selection.AdditionPresetVersion" value="0" form="@lineForm" />
                                 <input type="text" name="selection.AdditionLabel" form="@lineForm" maxlength="@ValuationCalculationPolicy.MaximumAdditionLabelLength"
-                                       placeholder="@ValuationLabels.OtherAddition" aria-label="@ValuationLabels.OtherAddition" data-valuation-input />
+                                       value="@carried?.Label" placeholder="@ValuationLabels.OtherAddition" aria-label="@ValuationLabels.OtherAddition" data-valuation-input />
                                 <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm" placeholder="£"
+                                       value="@carried?.Amount.ToString("0.##", CultureInfo.InvariantCulture)"
                                        aria-label="@ValuationLabels.OtherAddition amount" data-valuation-input />
                             </div>
                             index++;
@@ -365,11 +414,21 @@
                     }
                     else
                     {
-                        @* Read mode shows only the increases the latest adoption applied (v26). *@
-                        @foreach (var addition in appliedAdditions)
+                        @* Read mode lists the same increases; a tick marks each one
+                           the latest adoption applied (a mark, not a control). *@
+                        foreach (var preset in activePresets)
                         {
-                            <div class="add on" data-valuation-applied-addition>
-                                <span class="add-check" aria-hidden="true"><svg class="icon"><use href="#icon-check" /></svg></span>
+                            var chosen = AppliedPreset(preset);
+                            <div class="add @(chosen is null ? null : "on")" data-valuation-applied-addition="@(chosen is null ? null : "true")">
+                                <span class="add-check" aria-hidden="@(chosen is null ? "true" : null)">@if (chosen is not null) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
+                                <span>@preset.Label</span>
+                                <span class="amt">@Money(chosen?.Amount ?? preset.SuggestedAmount)</span>
+                            </div>
+                        }
+                        foreach (var addition in otherApplied)
+                        {
+                            <div class="add on" data-valuation-applied-addition="true">
+                                <span class="add-check"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
                                 <span>@addition.Label</span>
                                 <span class="amt">@Money(addition.Amount)</span>
                             </div>
@@ -420,3 +479,19 @@
         </div>
     </div>
 </section>
+
+@functions {
+    // The cell's label: a real <label> for the control while editing, the
+    // same words as a plain caption while reading.
+    private void CardLabel(bool editable, string id, string text)
+    {
+        if (editable)
+        {
+            <label for="@id">@text</label>
+        }
+        else
+        {
+            <span class="lbl">@text</span>
+        }
+    }
+}

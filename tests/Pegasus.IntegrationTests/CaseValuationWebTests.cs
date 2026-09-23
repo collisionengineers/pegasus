@@ -1,141 +1,97 @@
-using System.Globalization;
-using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Valuation section's commands on the one Case workspace (B01 port of
-/// PR 670's standalone Valuation page, re-homed as section handlers).
+/// The guide source cards on the one Case save (23 September 2026): a card has
+/// no Save of its own, its boxes belong to the Case form, and the ribbon Save
+/// carries a changed card to the workspace save as a guide entry.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseValuationWebTests
 {
     /// <summary>
-    /// The submitted case version reaches the valuation command unchanged:
-    /// the store enforces it against the live case, and the page never
-    /// rewrites it with a fresher version it read for itself.
+    /// A typed card reaches the one workspace save inside the leased envelope,
+    /// stamped with the moment of the save; a card left blank records nothing.
     /// </summary>
     [Theory]
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public async Task SaveValuationForwardsTheSubmittedVersionAndDetailsUnchanged(StaffRole role)
+    public async Task TheCaseSaveCarriesAChangedGuideCard(StaffRole role)
     {
-        var store = new RecordingCaseDetailsStore();
-        var valuations = new RecordingValuationSaver();
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
         using var workspace = await EnterEngineerEditModeAsync(
             store,
-            services => Substitute<ISaveValuation>(services, valuations),
+            services => Substitute<ISaveCaseWorkspace>(services, store),
             role);
-        const string operationKey = "0f0e0d0c0b0a09080706050403020100";
+        var before = store.CaseVersion;
 
         using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=SaveValuation",
+            $"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(
-                operationKey,
-                "ignored: the handler names its own reason",
-                ("source", nameof(ValuationSource.Glasses)),
-                ("guideMonth", "2031-05"),
-                ("mileage", "42000"),
-                ("retailValue", "12500.00"),
-                ("tradeValue", "10250.00")));
+                DetailsModelOperationKey,
+                "Recorded the Glass's figure",
+                ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
+                ("guideEntries[0].GuideMonth", "2031-05"),
+                ("guideEntries[0].Mileage", "42000"),
+                ("guideEntries[0].RetailValue", "12500.00"),
+                ("guideEntries[0].TradeValue", "10250.00"),
+                ("guideEntries[1].Source", nameof(ValuationSource.Brego)),
+                ("guideEntries[1].GuideMonth", ""),
+                ("guideEntries[1].Mileage", ""),
+                ("guideEntries[1].RetailValue", ""),
+                ("guideEntries[1].TradeValue", "")));
 
-        AssertValuationPrg(response, store.CaseId);
-        var save = Assert.Single(valuations.Saves);
-        Assert.True(save.Actor.IsInRole(role));
-        AssertLeasedMutation(workspace, save, operationKey, "Valuation recorded.");
-        Assert.Equal(store.CaseVersion, save.ExpectedVersion);
-        // v25 decision F: the valuation is an immediate post inside the
-        // session, so the record re-acquires the lease the store's mutation
-        // cleared and the editor stays editing.
-        Assert.Equal(2, store.Claims.Count);
-        Assert.All(store.Claims, claim => Assert.Equal(store.Claims[0].Actor.SubjectId, claim.Actor.SubjectId));
-        Assert.Equal(store.LeaseToken, InputValue(await workspace.GetWorkspaceAsync(), "editLeaseToken"));
-        // The card records the moment it was saved; the boxes carry the rest.
-        Assert.Equal(ValuationSource.Glasses, save.Details.Source);
-        Assert.Equal(42_000, save.Details.Mileage);
-        Assert.Equal(12_500m, save.Details.RetailValue);
-        Assert.Equal(10_250m, save.Details.TradeValue);
-        Assert.Equal(new DateOnly(2031, 5, 1), save.Details.GuideMonth);
+        AssertPrg(response, store.CaseId);
+        var saved = Assert.Single(store.Saves);
+        Assert.True(saved.Actor.IsInRole(role));
+        AssertLeasedMutation(workspace, saved, DetailsModelOperationKey, "Recorded the Glass's figure", before);
+        Assert.Null(saved.Valuation!.DraftInputs);
+        var card = Assert.Single(saved.Valuation.GuideEntries!);
+        Assert.Equal(ValuationSource.Glasses, card.Source);
+        Assert.Equal(42_000, card.Mileage);
+        Assert.Equal(12_500m, card.RetailValue);
+        Assert.Equal(10_250m, card.TradeValue);
+        Assert.Equal(new DateOnly(2031, 5, 1), card.GuideMonth);
         var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
-        Assert.InRange(save.Details.Date, today.AddDays(-1), today.AddDays(1));
+        Assert.InRange(card.Date, today.AddDays(-1), today.AddDays(1));
+        Assert.Contains("data-case-editing=\"true\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// A stale POST — a form rendered against an older case version — is
-    /// forwarded with exactly the version it submitted, so the store's
-    /// concurrency check sees the editor's real premise; it is refused once
-    /// and never retried with the live version. The refusal is reported on
-    /// the section the editor came from.
+    /// A card saves whatever was entered (operator, 23 September 2026): any of
+    /// its boxes may be left blank, and a blank box is recorded as absent.
     /// </summary>
     [Fact]
-    public async Task AStaleValuationPostForwardsTheStaleVersionAndReportsTheRefusal()
+    public async Task APartlyFilledGuideCardSavesWhatWasEntered()
     {
-        var store = new RecordingCaseDetailsStore();
-        var valuations = new RecordingValuationSaver();
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
         using var workspace = await EnterEngineerEditModeAsync(
             store,
-            services => Substitute<ISaveValuation>(services, valuations));
-        var staleVersion = store.CaseVersion - 1;
-        valuations.NextFailure = new CaseVersionConflictException(store.CaseId, staleVersion, store.CaseVersion);
+            services => Substitute<ISaveCaseWorkspace>(services, store));
 
         using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=SaveValuation",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", staleVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", "1f1e1d1c1b1a19181716151413121110"),
-                ("editLeaseToken", store.LeaseToken),
-                ("source", nameof(ValuationSource.Glasses)),
-                ("mileage", "42000"),
-                ("retailValue", "12500.00"),
-                ("tradeValue", "10250.00")));
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey,
+                "Part of a card",
+                ("guideEntries[0].Source", nameof(ValuationSource.SuperCap)),
+                ("guideEntries[0].GuideMonth", ""),
+                ("guideEntries[0].Mileage", ""),
+                ("guideEntries[0].RetailValue", "12500.00"),
+                ("guideEntries[0].TradeValue", "")));
 
-        AssertValuationPrg(response, store.CaseId);
-        var save = Assert.Single(valuations.Saves);
-        Assert.Equal(staleVersion, save.ExpectedVersion);
-        Assert.NotEqual(store.CaseVersion, save.ExpectedVersion);
-        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
-        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// The shared harness claims the same antiforgery-protected edit lease for
-    /// each human staff role before posting the valuation command.
-    /// </summary>
-    private sealed class RecordingValuationSaver : ISaveValuation
-    {
-        public List<SaveValuationRequest> Saves { get; } = [];
-
-        /// <summary>Armed by a test so the next save is refused once, after it is recorded.</summary>
-        public Exception? NextFailure { get; set; }
-
-        public Task<CaseValuation> ExecuteAsync(
-            SaveValuationRequest request,
-            CancellationToken cancellationToken)
-        {
-            Saves.Add(request);
-            if (NextFailure is { } failure)
-            {
-                NextFailure = null;
-                throw failure;
-            }
-
-            return Task.FromResult(new CaseValuation(
-                Guid.NewGuid(),
-                request.CaseId,
-                request.Details,
-                request.Actor.SubjectId,
-                new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero)));
-        }
+        AssertPrg(response, store.CaseId);
+        var card = Assert.Single(Assert.Single(store.Saves).Valuation!.GuideEntries!);
+        Assert.Equal(ValuationSource.SuperCap, card.Source);
+        Assert.Equal(12_500m, card.RetailValue);
+        Assert.Null(card.TradeValue);
+        Assert.Null(card.Mileage);
+        Assert.Null(card.GuideMonth);
     }
 }
