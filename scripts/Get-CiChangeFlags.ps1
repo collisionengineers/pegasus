@@ -8,14 +8,16 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# The standalone local tools under scripts/ belong to no CI lane, so a change
+# confined to them, project and lock files included, starts nothing.
+$ChangedPath = @($ChangedPath | Where-Object { $_ -notmatch '^scripts/(jev-mail-eval|email-eval-desktop)/' })
+
 # Inputs outside src and tests that the build or the tests actually read, so a
 # change to one of them is not "prose": the Architecture tests assert on
 # infra/modules/platform.bicep, Core and integration tests read reference/ data
 # and the scripts/*.sql resets, and Pegasus.Infrastructure embeds the brand logo
-# the report renderer draws. scripts/jev-mail-eval is a standalone harness the
-# unit lane is being extended to test; routing it here covers that from the
-# commit that adds it.
-$buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^infra/|^reference/|^docs/design/brand/logos/|^scripts/[^/]+\.sql$|^scripts/jev-mail-eval/|^scripts/test-shard-durations\.json$|^scripts/(Invoke-TestShard|Update-TestShardDurations|Test-(MainBranchHistory|TestShard)|Get-CiChangeFlags|Get-CiHeavyLaneDecision)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
+# the report renderer draws.
+$buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^infra/|^reference/|^docs/design/brand/logos/|^scripts/[^/]+\.sql$|^scripts/test-shard-durations\.json$|^scripts/(Invoke-TestShard|Update-TestShardDurations|Test-(MainBranchHistory|TestShard)|Get-CiChangeFlags|Get-CiHeavyLaneDecision)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
 # PegasusPlatform.ps1 carries the release manifest validator and the Worker
 # census the release scripts share, so it routes to the infrastructure lane.
 $infrastructurePattern = '^infra/|^azure\.yaml$|^src/Pegasus\.Infrastructure/Persistence/Migrations/|^scripts/(Get-CiChangeFlags|Get-CiHeavyLaneDecision|Test-CiChangeFlags|Test-AzureDeploymentPlan|Test-ReleaseValidation|Test-MigrationGrants|Invoke-ProductionSmoke|Build-ReleaseArtifacts|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap|PegasusPlatform)\.ps1$|^\.github/workflows/ci\.yml$'
