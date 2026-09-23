@@ -597,11 +597,14 @@
         if (!host) {
             return;
         }
-        window.scrollBy({ top: host.getBoundingClientRect().top - saved.top, behavior: 'auto' });
+        // Instant, never 'auto': the page's smooth scroll-behavior would paint
+        // the swapped page at the old offset first and then glide back — the
+        // jump to the top and back on Edit. This lands before the first paint.
+        window.scrollBy({ top: host.getBoundingClientRect().top - saved.top, behavior: 'instant' });
     }
 
     var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
-    function swap(html, command) {
+    function swap(html, command, preferred) {
         var parsed = new DOMParser().parseFromString(html, 'text/html');
         var incoming = parsed.querySelector('[data-case-record]');
         if (!incoming) {
@@ -647,7 +650,9 @@
         // A refusal or unknown outcome must not replace any draft or its original
         // authority. Server notices can still explain the failed command.
         var noticesOnly = dirtyEditors.size > 0 && !confirmed;
-        var saved = anchor();
+        // The section a head Edit was pressed on keeps its place; any other
+        // swap keeps the section at the reading line.
+        var saved = preferred || anchor();
         var collapsed = {};
         sections().forEach(function (host) { collapsed[host.getAttribute('data-section')] = host.classList.contains('is-collapsed'); });
         if (!noticesOnly) {
@@ -745,6 +750,8 @@
         }
     }
     function submitInPlace(form, submitter) {
+        var preferred = form.pegasusKeep || null;
+        form.pegasusKeep = null;
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
         var isImport = form.hasAttribute('data-estimate-import-form');
         var command = editorLabels[form.getAttribute('id')] || isImport ? {
@@ -789,7 +796,7 @@
             if (html === null) {
                 return;
             }
-            if (!swap(html, command)) {
+            if (!swap(html, command, preferred)) {
                 throw new Error('The server did not return the Case.');
             }
         }).catch(function (error) {
@@ -1153,7 +1160,8 @@
     });
 
     // ---- the section-head Edit posts the ribbon's claim and remembers the
-    //      section so the swapped page keeps the reader where they were ------
+    //      section so the swapped page keeps the reader where they were: the
+    //      edited section's head stays exactly where it is on screen ---------
     document.addEventListener('click', function (event) {
         var edit = event.target.closest('[data-section-edit]');
         if (!edit || !record.contains(edit)) {
@@ -1164,6 +1172,10 @@
         var field = form && form.querySelector('input[name="section"]');
         if (field) {
             field.value = key;
+        }
+        var host = sectionFor(key);
+        if (form && host) {
+            form.pegasusKeep = { key: key, top: host.getBoundingClientRect().top };
         }
     });
 
