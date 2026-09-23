@@ -1,16 +1,19 @@
 @*
-    Damage (v28 P5, ruled 20 September 2026): damage by area. The workbench is
-    the top-down plan silhouette. While the section edits, pressing and
-    dragging on the vehicle sizes a disc and dragging a disc moves it; each
-    disc is one recorded damage naming the plan areas under it, with a
-    severity and a note. Underside, Interior and Mechanical are chips, each
-    recorded alone. Impact location and severity derive from the areas. Core
-    keeps the areas only: a disc is drawn from its areas (DamageAreaGeometry),
-    here and on the report. The page reads without script: the discs, the
-    list and the derived cells are rendered here from the recorded impacts,
-    and script keeps them in step while the section edits; Reset returns to
-    the values held when the edit opened. The Case's images live only under
-    Files.
+    Damage (v28 P5): damage by area. The workbench is the top-down plan
+    silhouette. While the section edits, pressing and dragging on the vehicle
+    sizes a disc and dragging a disc moves it; each disc is one recorded
+    damage naming the plan areas it touches, with a severity and a note.
+    Underside, Interior and Mechanical are chips, each recorded alone. Impact
+    location and severity derive from the areas. A drawn disc is kept as drawn
+    (ruled 23 September 2026), no wider than the vehicle and clipped to its
+    body, here and on the report; a damage recorded by area alone is drawn
+    with the disc its areas give (DamageAreaGeometry). The page reads without
+    script: the discs, the list and the derived cells are rendered here from
+    the recorded impacts, and script keeps them in step while the section
+    edits; Reset returns to the values held when the edit opened. Read and
+    edit share one geometry: the list rows, the chips and the cells stand in
+    the same places, greyed where they cannot be edited. The Case's images
+    live only under Files.
 *@
 @using System.Globalization
 @using System.Text.Json
@@ -37,8 +40,8 @@
     var damageFields = CaseWorkspaceLabels.Editors.Damage;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "damage");
     // The vocabulary and the plan the editor works with, handed to script once
-    // so the browser holds no second copy of the areas, the bands or the
-    // severity table.
+    // so the browser holds no second copy of the areas, the bands, the disc
+    // limits or the severity table.
     var areaTable = JsonSerializer.Serialize(new
     {
         plan = AssessmentVocabulary.DamagePlanAreas,
@@ -47,15 +50,12 @@
         centres = DamageAreaGeometry.Centres.ToDictionary(
             entry => entry.Key,
             entry => new { x = entry.Value.X, y = entry.Value.Y }),
-        canonical = new
-        {
-            w = DamageAreaGeometry.CanonicalWidth,
-            h = DamageAreaGeometry.CanonicalHeight,
-            margin = DamageAreaGeometry.Margin
-        },
         box = new { x = DamagePlanGeometry.PlanLeft, y = DamagePlanGeometry.PlanTop, w = DamagePlanGeometry.PlanWidth, h = DamagePlanGeometry.PlanHeight },
         bands = new { front = DamageAreaGeometry.FrontBand, rear = DamageAreaGeometry.RearBand, left = DamageAreaGeometry.LeftBand, right = DamageAreaGeometry.RightBand },
-        radius = DamageAreaGeometry.BaseRadius
+        radius = DamageAreaGeometry.BaseRadius,
+        margin = DamageAreaGeometry.Margin,
+        minRadius = DamageAreaGeometry.MinRadius,
+        maxRadius = DamageAreaGeometry.MaxRadius
     });
     var severityTable = JsonSerializer.Serialize(AssessmentVocabulary.DamageSeverities
         .OrderBy(entry => entry.Value.Rank)
@@ -95,6 +95,7 @@
         }
         return value;
     }
+    string? Recorded(string path) => Model.AssessmentIsAbsent(path) ? null : Model.AssessmentEditorValue(path);
 }
 
 <section class="record-section record-section--nested panel @Model.CollapsedClass("case.damage") @Model.ActiveTabClass("damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-section-parent="vehicle" data-collapse="case.damage" aria-labelledby="section-damage-title"
@@ -156,15 +157,17 @@
                             </g>
                         }
                     }
+                    @* Each disc is clipped to the body, so however wide it is drawn
+                       it never paints (or catches a press) off the vehicle. *@
                     <g class="damage-marks" data-damage-marks aria-hidden="true">
                         @for (var index = 0; index < impacts.Count; index++)
                         {
-                            var disc = DamagePlanGeometry.Disc(impacts[index].Areas);
+                            var disc = DamagePlanGeometry.Disc(impacts[index]);
                             if (disc is null)
                             {
                                 continue;
                             }
-                            <g class="dm" data-mark="@index" data-sev="@impacts[index].Severity"><circle class="area" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" r="@Svg(disc.Radius)" /><circle class="n" r="8" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" /><text x="@Svg(disc.CentreX)" y="@Svg(disc.CentreY + 3.2)" text-anchor="middle">@(index + 1)</text></g>
+                            <g class="dm" data-mark="@index" data-sev="@impacts[index].Severity"><circle class="area" clip-path="url(#damage-plan-clip)" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" r="@Svg(disc.Radius)" /><circle class="n" r="8" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" /><text x="@Svg(disc.CentreX)" y="@Svg(disc.CentreY + 3.2)" text-anchor="middle">@(index + 1)</text></g>
                         }
                     </g>
                     <text class="damage-diagram-label" x="120" y="431" text-anchor="middle">@DamageLabels.Rear</text>
@@ -180,11 +183,20 @@
                         <span><i data-sev="@severity.Key"></i>@severity.Value.Display</span>
                     }
                 </div>
+                @* The chips stand in the same place in both modes: pressable while
+                   the section edits, a greyed reading of what is recorded otherwise. *@
                 <div class="damage-extra" aria-label="@DamageLabels.OtherAreas">
                     @foreach (var extra in AssessmentVocabulary.DamageOtherAreas)
                     {
                         var recorded = impacts.Any(impact => impact.Areas.Contains(extra));
-                        <button type="button" class="btn btn--small @(recorded ? "is-damaged" : null)" data-damage-area="@extra" aria-pressed="@(recorded ? "true" : "false")">@DamageLabels.Location(extra)</button>
+                        if (editable)
+                        {
+                            <button type="button" class="btn btn--small @(recorded ? "is-damaged" : null)" data-damage-area="@extra" aria-pressed="@(recorded ? "true" : "false")">@DamageLabels.Location(extra)</button>
+                        }
+                        else
+                        {
+                            <span class="btn btn--small is-static @(recorded ? "is-damaged" : null)" data-damage-area="@extra">@DamageLabels.Location(extra)</span>
+                        }
                     }
                 </div>
             </div>
@@ -202,19 +214,9 @@
                     @for (var index = 0; index < impacts.Count; index++)
                     {
                         var impact = impacts[index];
-                        <li class="impact-row @(editable && impact.Areas.Any(AssessmentVocabulary.DamagePlanAreas.Contains) ? "impact-row--areas" : null)" data-damage-row="@index">
+                        <li class="impact-row" data-damage-row="@index">
                             <span class="zc"><i class="zn">@(index + 1)</i>@AreaNames(impact.Areas)</span>
-                            @if (editable && impact.Areas.Any(AssessmentVocabulary.DamagePlanAreas.Contains))
-                            {
-                                <fieldset class="damage-area-set" data-damage-area-set>
-                                    <legend>Areas for impact @(index + 1)</legend>
-                                    @foreach (var area in AssessmentVocabulary.DamagePlanAreas)
-                                    {
-                                        <label><input type="checkbox" value="@area" checked="@(impact.Areas.Contains(area))" data-damage-area-choice />@DamageLabels.Location(area)</label>
-                                    }
-                                </fieldset>
-                            }
-                            <span class="fc">
+                            <span class="fc @(editable ? null : "ro")">
                                 @if (editable)
                                 {
                                     <label class="sr-only" for="damage-severity-@index">@DamageLabels.Severity</label>
@@ -230,7 +232,7 @@
                                     </select>
                                 }
                             </span>
-                            <span class="fc">
+                            <span class="fc @(editable ? null : "ro")">
                                 @if (editable)
                                 {
                                     <label class="sr-only" for="damage-note-@index">@DamageLabels.Note</label>
@@ -254,19 +256,12 @@
                         {
                             var definition = AssessmentVocabulary.Definitions[field.Key];
                             var value = Model.AssessmentEditorValue(field.Key);
-                            var recorded = Model.AssessmentValue(field.Key) == OperatorLabels.CaseWorkspace.AbsentValue ? null : Model.AssessmentValue(field.Key);
+                            var recorded = Recorded(field.Key);
                             var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
                             var mayEditField = Model.CanEditAssessmentField(field.Key);
                             var span = field.Key == AssessmentVocabulary.DamageMaterialTransfer ? "span2" : null;
-                            <div class="fc @span">
-                                @if (mayEditField)
-                                {
-                                    <label for="edit-@field.Key">@field.Value</label>
-                                }
-                                else
-                                {
-                                    <span class="lbl">@field.Value</span>
-                                }
+                            <div class="fc @span @(mayEditField ? null : "ro")">
+                                @{ Lbl(mayEditField, "edit-" + field.Key, field.Value); }
                                 <div class="fv @(recorded is null ? "empty" : null)">@DisplayValue(field.Key, recorded)</div>
                                 @if (mayEditField)
                                 {
@@ -294,34 +289,24 @@
                         var unrelated = Model.AssessmentEditorValue(AssessmentVocabulary.DamageUnrelated);
                         var unrelatedRead = Model.AssessmentValue(AssessmentVocabulary.DamageUnrelated);
                         var deduction = Model.AssessmentEditorValue(AssessmentVocabulary.DamageUnrelatedDeduction);
-                        var deductionRead = Model.AssessmentValue(AssessmentVocabulary.DamageUnrelatedDeduction);
+                        var deductionRecorded = Recorded(AssessmentVocabulary.DamageUnrelatedDeduction);
                         var mayEditUnrelated = Model.CanEditAssessmentField(AssessmentVocabulary.DamageUnrelated);
                         var mayEditDeduction = Model.CanEditAssessmentField(AssessmentVocabulary.DamageUnrelatedDeduction);
                     }
-                    <div class="fc span3">
+                    <div class="fc span3 @(mayEditUnrelated ? null : "ro")">
+                        @{ Lbl(mayEditUnrelated, "edit-" + AssessmentVocabulary.DamageUnrelated, damageFields[AssessmentVocabulary.DamageUnrelated]); }
+                        <div class="fv @(unrelatedRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@unrelatedRead</div>
                         @if (mayEditUnrelated)
                         {
-                            <label for="edit-@AssessmentVocabulary.DamageUnrelated">@damageFields[AssessmentVocabulary.DamageUnrelated]</label>
-                            <div class="fv @(unrelatedRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@unrelatedRead</div>
                             <input id="edit-@AssessmentVocabulary.DamageUnrelated" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated)" form="case-edit-form" value="@unrelated" maxlength="@AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageUnrelated].MaximumLength" />
                         }
-                        else
-                        {
-                            <span class="lbl">@damageFields[AssessmentVocabulary.DamageUnrelated]</span>
-                            <div class="fv @(unrelatedRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@unrelatedRead</div>
-                        }
                     </div>
-                    <div class="fc">
+                    <div class="fc @(mayEditDeduction ? null : "ro")">
+                        @{ Lbl(mayEditDeduction, "edit-" + AssessmentVocabulary.DamageUnrelatedDeduction, damageFields[AssessmentVocabulary.DamageUnrelatedDeduction]); }
+                        <div class="fv mono @(deductionRecorded is null ? "empty" : null)">@DisplayValue(AssessmentVocabulary.DamageUnrelatedDeduction, deductionRecorded)</div>
                         @if (mayEditDeduction)
                         {
-                            <label for="edit-@AssessmentVocabulary.DamageUnrelatedDeduction">@damageFields[AssessmentVocabulary.DamageUnrelatedDeduction]</label>
-                            <div class="fv mono @(deductionRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@DisplayValue(AssessmentVocabulary.DamageUnrelatedDeduction, deductionRead == OperatorLabels.CaseWorkspace.AbsentValue ? null : deductionRead)</div>
                             <input id="edit-@AssessmentVocabulary.DamageUnrelatedDeduction" class="fi mono" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelatedDeduction)" form="case-edit-form" type="number" step="0.01" min="0" value="@deduction" />
-                        }
-                        else
-                        {
-                            <span class="lbl">@damageFields[AssessmentVocabulary.DamageUnrelatedDeduction]</span>
-                            <div class="fv mono @(deductionRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@DisplayValue(AssessmentVocabulary.DamageUnrelatedDeduction, deductionRead == OperatorLabels.CaseWorkspace.AbsentValue ? null : deductionRead)</div>
                         }
                     </div>
                     <div class="fc ro span4"><span class="lbl">@EngineerLabels.IncidentNarrative</span><div class="fv derived @(Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident) == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)" data-damage-narrative>@Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident)</div></div>
@@ -330,3 +315,19 @@
         </div>
     </div>
 </section>
+
+@functions {
+    // The cell's label: a real <label> for the control while it edits, the
+    // same words as a plain caption otherwise.
+    private void Lbl(bool editable, string id, string text)
+    {
+        if (editable)
+        {
+            <label for="@id">@text</label>
+        }
+        else
+        {
+            <span class="lbl">@text</span>
+        }
+    }
+}

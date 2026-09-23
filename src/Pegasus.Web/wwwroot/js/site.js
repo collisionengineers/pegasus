@@ -783,41 +783,32 @@
 })();
 
 // Inspect-at choices fill the ordinary form-associated address
-// input. The input remains the no-script editing path.
+// input. The input remains the no-script editing path. The cells stay where
+// they are: reading and editing show the same fields (23 September 2026).
 (function () {
     function bind(root) {
         root.querySelectorAll('[data-inspection-address-choice]').forEach(function (select) {
             if (select.dataset.inspectionAddressBound === 'true') return;
             var input = document.querySelector('[data-inspection-address-input]');
             var mode = document.querySelector('input[name="inspectionMode"]');
-            var field = document.querySelector('[data-inspection-address-field]');
-            var providerDefault = document.querySelector('[data-inspection-provider-default]');
-            if (!input || !mode || !field || !providerDefault) return;
+            if (!input || !mode) return;
 
             select.dataset.inspectionAddressBound = 'true';
-            function showImageBasedAssessment(show) {
-                field.hidden = show;
-                providerDefault.hidden = !show;
-            }
             function choose() {
                 var option = select.options[select.selectedIndex];
                 if (!option) return;
                 if (option.value === 'ManualEntry') {
                     if (input.value.toLowerCase() === 'image based assessment') input.value = '';
                     mode.value = input.value.trim() ? 'PhysicalAddress' : '';
-                    showImageBasedAssessment(false);
                     return;
                 }
                 input.value = option.dataset.address || '';
-                var imageBased = option.value === 'ImageBasedAssessment';
-                mode.value = imageBased ? 'ImageBasedAssessment' : 'PhysicalAddress';
-                showImageBasedAssessment(imageBased);
+                mode.value = option.value === 'ImageBasedAssessment' ? 'ImageBasedAssessment' : 'PhysicalAddress';
             }
             select.addEventListener('change', choose);
             input.addEventListener('input', function () {
                 mode.value = input.value.trim() ? 'PhysicalAddress' : '';
             });
-            showImageBasedAssessment(select.value === 'ImageBasedAssessment');
         });
     }
     bind(document);
@@ -1913,6 +1904,25 @@
         return;
     }
 
+    // Every toast can be put away before it goes: the shared dismiss
+    // control, removed by the [data-dismiss] handler.
+    function dismissable(element) {
+        element.setAttribute('data-dismissable', '');
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'dismiss';
+        close.setAttribute('data-dismiss', '');
+        close.setAttribute('aria-label', 'Dismiss');
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'icon');
+        svg.setAttribute('aria-hidden', 'true');
+        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#icon-x');
+        svg.appendChild(use);
+        close.appendChild(svg);
+        element.appendChild(close);
+    }
+
     function toast(title, tone) {
         var element = document.createElement('div');
         element.className = 'toast' + (tone ? ' toast--' + tone : '');
@@ -1920,6 +1930,7 @@
         var strong = document.createElement('strong');
         strong.textContent = title;
         element.appendChild(strong);
+        dismissable(element);
         region.appendChild(element);
         window.setTimeout(function () { element.remove(); }, 4200);
     }
@@ -1941,6 +1952,7 @@
         undo.addEventListener('click', function () { restore(); element.remove(); });
         element.appendChild(strong);
         element.appendChild(undo);
+        dismissable(element);
         region.appendChild(element);
         window.setTimeout(function () { element.remove(); }, 8000);
     };

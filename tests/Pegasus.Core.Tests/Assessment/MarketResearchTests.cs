@@ -21,7 +21,10 @@ public sealed class MarketResearchTests
         var undated = existing with { ValuationId = Guid.NewGuid(), Details = Details(ValuationSource.Glasses, null) };
 
         Assert.True(ValuationPolicy.Replaces(Details(ValuationSource.Glasses, june), existing.Details));
-        Assert.False(ValuationPolicy.Replaces(Details(ValuationSource.Glasses, null), undated.Details));
+        // A card without a month replaces the source's card without one
+        // (operator, 23 September 2026), and never a dated card.
+        Assert.True(ValuationPolicy.Replaces(Details(ValuationSource.Glasses, null), undated.Details));
+        Assert.False(ValuationPolicy.Replaces(Details(ValuationSource.Glasses, null), existing.Details));
         Assert.Same(
             existing,
             ValuationPolicy.FindReplaced(Details(ValuationSource.Glasses, june), [otherMonth, otherSource, undated, existing]));

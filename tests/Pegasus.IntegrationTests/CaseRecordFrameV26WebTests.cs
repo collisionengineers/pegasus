@@ -274,8 +274,8 @@ public sealed class CaseRecordFrameV26WebTests
             editing,
             StringComparison.Ordinal);
         Assert.Contains("name=\"claimSourceNotes\" form=\"case-edit-form\"", editing, StringComparison.Ordinal);
-        // The record's notes stay a locked identity cell inside the session.
-        Assert.Matches("<div class=\"fc ro idn rec-notes\" data-record-notes=\"principal\">", editing);
+        // The record's notes stay a read-only cell inside the session.
+        Assert.Contains("<div class=\"fc ro\" data-record-notes=\"principal\">", editing, StringComparison.Ordinal);
     }
 
     [Fact]

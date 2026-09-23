@@ -233,13 +233,15 @@ public sealed class CaseVehicleWebTests
 
         var mileage = MileageCell(html);
 
-        // v26: one odometer figure in the mileage cell, its provenance as a
-        // text tag beside it, and the Mileage source cell reading the same word.
+        // One odometer figure in the mileage box, its source tag in the cell's
+        // label line (the one tag system, 23 September 2026), and the Mileage
+        // source cell reading the same word.
         Assert.Equal(1, CountOccurrences(html, "49,089"));
         Assert.Contains("49,089 mi", mileage, StringComparison.Ordinal);
+        Assert.DoesNotContain("src-tag", mileage, StringComparison.Ordinal);
         Assert.Contains(
-            "<span class=\"src-tag src-tag--lookup\" data-vehicle-mileage-source-read>Lookup</span>",
-            mileage,
+            "<span class=\"lbl\">Mileage<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span></span>",
+            html,
             StringComparison.Ordinal);
         Assert.DoesNotContain("MOT mileage", html, StringComparison.Ordinal);
         Assert.DoesNotContain("DVLA suggests", html, StringComparison.Ordinal);
@@ -268,12 +270,16 @@ public sealed class CaseVehicleWebTests
 
         var html = await ReadOnlyVehicleSectionAsync(store);
 
-        // v26: the value cell carries the lookup's text tag rather than an icon.
+        // Each cell's label line carries the lookup's text tag, the value box
+        // only the value (the one tag system, 23 September 2026).
         const string lookupTag = "<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span>";
-        Assert.Matches(">Ford\\s*" + Regex.Escape(lookupTag), html);
-        Assert.Matches(">Transit\\s*" + Regex.Escape(lookupTag), html);
-        Assert.Matches(">2018\\s*" + Regex.Escape(lookupTag), html);
-        Assert.True(CountOccurrences(html, "data-provenance-word=\"Lookup\"") >= 3);
+        foreach (var (label, value) in new[] { ("Make", "Ford"), ("Model", "Transit"), ("Year", "2018") })
+        {
+            Assert.Matches(
+                "<span class=\"lbl\">" + label + Regex.Escape(lookupTag) + "</span>\\s*<div class=\"fv\">" + value + "</div>",
+                html);
+        }
+        Assert.DoesNotContain("class=\"prov\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -14,24 +14,24 @@
     a case. The route carries no "intake" — the operator notes forbid the word
     in the interface — and no identifier, hash or version is printed as text.
 
-    Each read value is a definition row carrying its own provenance glyph:
-    where a value came from is one word on the icon's accessible name, never a
-    sentence, a source label or a third column. The row still reads with the
-    icon ignored, so provenance stays supplementary.
+    Each read value is a definition row carrying its source tag: where a value
+    came from is one word, never a sentence, a source label or a third column,
+    and a value staff typed carries none (the one tag system, 23 September
+    2026). The row still reads with the tag ignored.
 *@
 @{
     void Row(string label, string? value, string fieldName)
     {
-        var word = Model.DraftFields.ProvenanceWord(fieldName);
-        var icon = word == "Extracted" ? "icon-file-text" : "icon-user";
+        var extracted = Model.DraftFields.ProvenanceWord(fieldName) == "Extracted";
         var recorded = !string.IsNullOrWhiteSpace(value);
         <dl class="definition">
             <dt>@label</dt>
             <dd class="@(recorded ? null : "quiet")">
                 @(recorded ? value : "Not recorded")
-                <span class="prov" tabindex="0" role="img" aria-label="@word" data-word="@word">
-                    <svg class="icon" aria-hidden="true"><use href="#@icon" /></svg>
-                </span>
+                @if (extracted)
+                {
+                    @(Pegasus.Web.Presentation.OperatorLabels.SourceTagWord.Extracted.Render())
+                }
             </dd>
         </dl>
     }

@@ -228,6 +228,51 @@ public sealed class ValuationTests
             ValuationPolicy.ValidateAutomationMarketResearch(Details(ValuationSource.Glasses)));
     }
 
+    /// <summary>
+    /// A guide source's card as the Case save records it (23 September 2026):
+    /// any staff role may type a guide figure, the card names its guide month,
+    /// and neither the Engineer's Value nor AI market research is a guide card.
+    /// </summary>
+    [Theory]
+    [InlineData(ValuationSource.Glasses)]
+    [InlineData(ValuationSource.Brego)]
+    [InlineData(ValuationSource.SuperCap)]
+    [InlineData(ValuationSource.Cap)]
+    [InlineData(ValuationSource.Cazana)]
+    public void AGuideCardNamesItsMonthAndIsRecordedByAnyStaffRole(ValuationSource source)
+    {
+        var details = Details(source, guideMonth: new DateOnly(2030, 4, 1));
+
+        Assert.Equal(details, ValuationPolicy.ValidateGuideEntry(User, details));
+        Assert.Equal(details, ValuationPolicy.ValidateGuideEntry(Engineer, details));
+        // Any box of a guide card may be blank (operator, 23 September 2026).
+        var blank = Details(source) with { Mileage = null, RetailValue = null, TradeValue = null };
+        Assert.Equal(blank, ValuationPolicy.ValidateGuideEntry(User, blank));
+        Assert.Throws<ArgumentException>(() =>
+            ValuationPolicy.ValidateGuideEntry(User, Details(source, guideMonth: new DateOnly(2030, 4, 2))));
+    }
+
+    [Theory]
+    [InlineData(ValuationSource.EngineersValue)]
+    [InlineData(ValuationSource.AiMarketResearch)]
+    public void TheEngineersValueAndAiMarketResearchAreNotGuideCards(ValuationSource source)
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            ValuationPolicy.ValidateGuideEntry(Engineer, Details(source, guideMonth: new DateOnly(2030, 4, 1))));
+        // Unlike a guide card, they always carry their figures.
+        Assert.Throws<ArgumentException>(() =>
+            ValuationPolicy.ValidateDetails(Details(source) with { RetailValue = null }));
+    }
+
+    [Fact]
+    public void AGuideCardRequiresAStaffActor()
+    {
+        var details = Details(guideMonth: new DateOnly(2030, 4, 1));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            ValuationPolicy.ValidateGuideEntry(ActionActor.Automation("pegasus-automation"), details));
+    }
+
     [Fact]
     public async Task ListRejectsAnEmptyCaseId()
     {

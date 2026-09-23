@@ -2,11 +2,12 @@
     Overview (v26, trimmed by v28 P4 and P7): outstanding requirements, the
     Lifecycle actions sub-panel, the three fact columns (Case / Principal /
     Claimant), the Notes band (record notes beside this Case's notes) and the
-    accident band. One geometry for read and edit (v25 decision 2): every fact
-    is a .fc cell whose value box and control box share the grid position;
-    the controls belong to the record's one Save form, #case-edit-form, which
-    this section renders because it owns the hidden fields the other sections'
-    controls join.
+    accident band. One look for read and edit (operator, 23 September 2026):
+    every fact is a .fc cell whose greyed value box and control box share the
+    grid position, and the same cells render in both modes; a cell with no
+    control is .ro. The controls belong to the record's one Save form,
+    #case-edit-form, which this section renders because it owns the hidden
+    fields the other sections' controls join.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -30,17 +31,25 @@
 
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
-
+    // A cell renders its control only while Case data edits; without one it
+    // is .ro, so its value stays in place wherever the record is editing.
+    string? Ro() => mayEdit ? null : "ro";
 
     var claimant = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Name)?.Value ?? (data is null ? summary.Claimant : null);
-    var claimNumber = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claim.Number)?.Value ?? (data is null ? summary.ClaimNumber : null);
-    var incidentDate = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.IncidentDate)?.Value;
+    var claimNumberValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claim.Number);
+    var claimNumber = claimNumberValue?.Value ?? (data is null ? summary.ClaimNumber : null);
+    var incidentDateValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.IncidentDate);
+    var incidentDate = incidentDateValue?.Value;
     var dueBy = workflow.DueWork?.DueBy
         ?? Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.Deadline)?.Value;
-    var circumstances = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.Circumstances)?.Value;
-    var contactName = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.Name)?.Value;
-    var contactEmail = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.EmailAddress)?.Value;
-    var contactPhone = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.PhoneNumber)?.Value;
+    var circumstancesValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.Circumstances);
+    var circumstances = circumstancesValue?.Value;
+    var contactNameValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.Name);
+    var contactEmailValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.EmailAddress);
+    var contactPhoneValue = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.PhoneNumber);
+    var contactName = contactNameValue?.Value;
+    var contactEmail = contactEmailValue?.Value;
+    var contactPhone = contactPhoneValue?.Value;
     // The matter line (v28 P12): the nature of the incident, the claimant and
     // the incident date as one derived sentence, following its fields on save.
     var matterLine = string.Join(": ", new[]
@@ -49,15 +58,11 @@
         claimant,
         incidentDate?.ToString("d MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
     }.Where(part => !string.IsNullOrWhiteSpace(part)));
+    // The claim source's contact reads as three cells in both modes: the
+    // Case's own override where one is recorded, otherwise the contact copied
+    // from the Claim source record. Save keeps an override only where the
+    // posted value differs from that copy.
     var claimSource = caseNotes?.ClaimSource;
-    var claimSourceContact = claimSource is null
-        ? null
-        : string.Join(" · ", new[] { claimSource.EffectiveContactName, claimSource.EffectiveContactTelephone, claimSource.EffectiveContactEmailAddress }
-            .Where(part => !string.IsNullOrWhiteSpace(part)));
-    var claimSourceSnapshotContact = claimSource is null
-        ? null
-        : string.Join(" · ", new[] { claimSource.ContactName, claimSource.ContactTelephone, claimSource.ContactEmailAddress }
-            .Where(part => !string.IsNullOrWhiteSpace(part)));
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.overview") @Model.ActiveTabClass("overview") @(Model.IsEditing && !Model.SectionIsEditable("overview") ? "is-locked" : null)" id="section-overview" data-section="overview" data-collapse="case.overview" aria-labelledby="section-overview-title">
@@ -158,16 +163,17 @@
         <div class="overview-grid">
             <div class="sub-panel @Model.CollapsedClass("case.overview.case")" data-collapse="case.overview.case"><h3>Case <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.case")" /></h3>
                 <div class="fg g2">
-                    <div class="fc ro idn"><span class="lbl">@Frame.CaseType<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.CaseTypeName(summary.CaseType)</div></div>
-                    <div class="fc ro idn"><span class="lbl">@Frame.OurRef<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv mono">@workflow.Identity.Reference</div></div>
-                    <div class="fc">@{ Lbl("f-claim-reference", Frame.ClaimReference); }<div class="@ValueClass(claimNumber) mono">@Value(claimNumber)</div>@if (mayEdit){<input id="f-claim-reference" class="fi mono" name="claimNumber" form="case-edit-form" maxlength="200" value="@claimNumber" />}</div>
-                    <div class="fc">@{ Lbl("f-incident-date", Frame.IncidentDate); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
-                    <div class="fc ro idn"><span class="lbl">@Frame.Received<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
-                    <div class="fc">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
+                    <div class="fc ro"><span class="lbl">@Frame.CaseType</span><div class="fv">@OperatorLabels.CaseTypeName(summary.CaseType)</div></div>
+                    <div class="fc ro"><span class="lbl">@Frame.OurRef</span><div class="fv mono">@workflow.Identity.Reference</div></div>
+                    <div class="fc @Ro()">@{ Lbl("f-claim-reference", Frame.ClaimReference, claimNumberValue?.Source); }<div class="@ValueClass(claimNumber) mono">@Value(claimNumber)</div>@if (mayEdit){<input id="f-claim-reference" class="fi mono" name="claimNumber" form="case-edit-form" maxlength="200" value="@claimNumber" />}</div>
+                    <div class="fc @Ro()">@{ Lbl("f-incident-date", Frame.IncidentDate, incidentDateValue?.Source); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(incidentDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
+                    <div class="fc ro"><span class="lbl">@Frame.Received</span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
+                    <div class="fc @Ro()">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(dueBy?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     <div class="fc ro"><span class="lbl">@Frame.MatterLine</span><div class="fv derived @(matterLine.Length == 0 ? "empty" : null)" data-matter-line>@(matterLine.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : matterLine)</div></div>
                     @* The Sign-off Engineer (v28 P38): decided with the Case, not the report. *@
-                    <div class="fc" data-field="signOffEngineerId">
-                        @if (Model.SectionIsEditable("report") && data is not null)
+                    @{ var signOffEditable = Model.SectionIsEditable("report") && data is not null; }
+                    <div class="fc @(signOffEditable ? null : "ro")" data-field="signOffEngineerId">
+                        @if (signOffEditable)
                         {
                             <label for="f-sign-off-engineer">@CaseWorkspaceLabels.Report.SignOffEngineer</label>
                             <div class="fv">@Model.SignOffEngineerDisplayName</div>
@@ -194,42 +200,37 @@
             </div>
             <div class="sub-panel @Model.CollapsedClass("case.overview.principal")" data-collapse="case.overview.principal"><h3>Principal <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.principal")" /></h3>
                 <div class="fg">
-                    <div class="fc ro idn"><span class="lbl">@OperatorLabels.CaseWorkspace.RibbonPrincipal<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@workflow.Identity.PrincipalCode</div></div>
+                    <div class="fc ro"><span class="lbl">@OperatorLabels.CaseWorkspace.RibbonPrincipal</span><div class="fv">@workflow.Identity.PrincipalCode</div></div>
                     @* The claim source is chosen from the active Claim source
                        records while editing; each option carries the record's
-                       notes and contact line so the notes band and the contact
-                       cell follow a change before Save (case-workspace.js). *@
-                    <div class="fc" data-claim-source-cell>@{ Lbl("f-claim-source", Frame.ClaimSource); }<div class="@ValueClass(claimSource?.Name)">@Value(claimSource?.Name)</div>@if (mayEdit)
+                       notes and contact so the notes band and the contact
+                       cells follow a change before Save (case-workspace.js). *@
+                    <div class="fc @Ro()" data-claim-source-cell>@{ Lbl("f-claim-source", Frame.ClaimSource); }<div class="@ValueClass(claimSource?.Name)">@Value(claimSource?.Name)</div>@if (mayEdit)
                         {
                             <select id="f-claim-source" class="fi" name="claimSourceId" form="case-edit-form" data-claim-source-select>
-                                <option value="" data-notes="" data-contact="" selected="@(claimSource?.ClaimSourceId is null)">@Frame.NoClaimSource</option>
+                                <option value="" data-notes="" selected="@(claimSource?.ClaimSourceId is null)">@Frame.NoClaimSource</option>
                                 @if (claimSource?.ClaimSourceId is { } recordedSourceId && Model.ClaimSourceChoices.All(choice => choice.OrganizationId != recordedSourceId))
                                 {
-                                    <option value="@recordedSourceId" data-notes="@notes.ClaimSourceNotes" data-contact="@claimSourceSnapshotContact" selected>@claimSource.Name</option>
+                                    <option value="@recordedSourceId" data-notes="@notes.ClaimSourceNotes" data-contact-name="@claimSource.ContactName" data-contact-phone="@claimSource.ContactTelephone" data-contact-email="@claimSource.ContactEmailAddress" selected>@claimSource.Name</option>
                                 }
                                 @foreach (var choice in Model.ClaimSourceChoices)
                                 {
-                                    var choiceContact = string.Join(" · ", new[] { choice.ContactPerson, choice.Telephone, choice.Email }.Where(part => !string.IsNullOrWhiteSpace(part)));
-                                    <option value="@choice.OrganizationId" data-notes="@choice.NotesOnEveryCase" data-contact="@choiceContact" selected="@(choice.OrganizationId == claimSource?.ClaimSourceId)">@choice.Name</option>
+                                    <option value="@choice.OrganizationId" data-notes="@choice.NotesOnEveryCase" data-contact-name="@choice.ContactPerson" data-contact-phone="@choice.Telephone" data-contact-email="@choice.Email" selected="@(choice.OrganizationId == claimSource?.ClaimSourceId)">@choice.Name</option>
                                 }
                             </select>
                         }</div>
-                    <div class="fc ro"><span class="lbl">@Frame.ClaimSourceContact</span><div class="@ValueClass(claimSourceContact)" data-claim-source-contact>@Value(claimSourceContact)</div></div>
-                    @if (mayEdit)
-                    {
-                        <div class="fc">@{ Lbl("f-claim-source-contact-name", Frame.ContactName); }<div class="@ValueClass(claimSource?.OverrideContactName)">@Value(claimSource?.OverrideContactName)</div><input id="f-claim-source-contact-name" class="fi" name="claimSourceContactName" form="case-edit-form" maxlength="300" value="@claimSource?.OverrideContactName" data-claim-source-contact-override /></div>
-                        <div class="fc">@{ Lbl("f-claim-source-contact-phone", Frame.ContactPhone); }<div class="@ValueClass(claimSource?.OverrideContactTelephone)">@Value(claimSource?.OverrideContactTelephone)</div><input id="f-claim-source-contact-phone" class="fi" name="claimSourceContactTelephone" form="case-edit-form" maxlength="100" value="@claimSource?.OverrideContactTelephone" data-claim-source-contact-override /></div>
-                        <div class="fc">@{ Lbl("f-claim-source-contact-email", Frame.ContactEmail); }<div class="@ValueClass(claimSource?.OverrideContactEmailAddress)">@Value(claimSource?.OverrideContactEmailAddress)</div><input id="f-claim-source-contact-email" class="fi" name="claimSourceContactEmail" form="case-edit-form" type="email" maxlength="300" value="@claimSource?.OverrideContactEmailAddress" data-claim-source-contact-override /></div>
-                    }
+                    <div class="fc @Ro()" data-claim-source-contact="name">@{ Lbl("f-claim-source-contact-name", Frame.ClaimSourceContactName); }<div class="@ValueClass(claimSource?.EffectiveContactName)">@Value(claimSource?.EffectiveContactName)</div>@if (mayEdit){<input id="f-claim-source-contact-name" class="fi" name="claimSourceContactName" form="case-edit-form" maxlength="300" value="@claimSource?.EffectiveContactName" />}</div>
+                    <div class="fc @Ro()" data-claim-source-contact="phone">@{ Lbl("f-claim-source-contact-phone", Frame.ClaimSourceContactPhone); }<div class="@ValueClass(claimSource?.EffectiveContactTelephone)">@Value(claimSource?.EffectiveContactTelephone)</div>@if (mayEdit){<input id="f-claim-source-contact-phone" class="fi" name="claimSourceContactTelephone" form="case-edit-form" maxlength="100" value="@claimSource?.EffectiveContactTelephone" />}</div>
+                    <div class="fc @Ro()" data-claim-source-contact="email">@{ Lbl("f-claim-source-contact-email", Frame.ClaimSourceContactEmail); }<div class="@ValueClass(claimSource?.EffectiveContactEmailAddress)">@Value(claimSource?.EffectiveContactEmailAddress)</div>@if (mayEdit){<input id="f-claim-source-contact-email" class="fi" name="claimSourceContactEmail" form="case-edit-form" type="email" maxlength="300" value="@claimSource?.EffectiveContactEmailAddress" />}</div>
                 </div>
             </div>
         </div>
         @* The Case's own contact: who to speak to, distinct from the claimant. *@
         <div class="sub-panel @Model.CollapsedClass("case.overview.contact")" data-collapse="case.overview.contact"><h3>Case contact <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.contact")" /></h3>
             <div class="fg g3">
-                <div class="fc">@{ Lbl("f-contact-name", Frame.ContactName); }<div class="@ValueClass(contactName)">@Value(contactName)</div>@if (mayEdit){<input id="f-contact-name" class="fi" name="contactName" form="case-edit-form" maxlength="300" value="@contactName" />}</div>
-                <div class="fc">@{ Lbl("f-contact-email", Frame.ContactEmail); }<div class="@ValueClass(contactEmail)">@Value(contactEmail)</div>@if (mayEdit){<input id="f-contact-email" class="fi" name="contactEmailAddress" form="case-edit-form" type="email" maxlength="300" value="@contactEmail" />}</div>
-                <div class="fc">@{ Lbl("f-contact-phone", Frame.ContactPhone); }<div class="@ValueClass(contactPhone)">@Value(contactPhone)</div>@if (mayEdit){<input id="f-contact-phone" class="fi" name="contactPhoneNumber" form="case-edit-form" maxlength="100" value="@contactPhone" />}</div>
+                <div class="fc @Ro()">@{ Lbl("f-contact-name", Frame.ContactName, contactNameValue?.Source); }<div class="@ValueClass(contactName)">@Value(contactName)</div>@if (mayEdit){<input id="f-contact-name" class="fi" name="contactName" form="case-edit-form" maxlength="300" value="@contactName" />}</div>
+                <div class="fc @Ro()">@{ Lbl("f-contact-email", Frame.ContactEmail, contactEmailValue?.Source); }<div class="@ValueClass(contactEmail)">@Value(contactEmail)</div>@if (mayEdit){<input id="f-contact-email" class="fi" name="contactEmailAddress" form="case-edit-form" type="email" maxlength="300" value="@contactEmail" />}</div>
+                <div class="fc @Ro()">@{ Lbl("f-contact-phone", Frame.ContactPhone, contactPhoneValue?.Source); }<div class="@ValueClass(contactPhone)">@Value(contactPhone)</div>@if (mayEdit){<input id="f-contact-phone" class="fi" name="contactPhoneNumber" form="case-edit-form" maxlength="100" value="@contactPhone" />}</div>
             </div>
         </div>
 
@@ -240,26 +241,26 @@
             <div class="fg g2">
                 @if (!string.IsNullOrWhiteSpace(notes.PrincipalNotes))
                 {
-                    <div class="fc ro idn rec-notes" data-record-notes="principal"><span class="lbl">@Frame.PrincipalNotes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi">@notes.PrincipalNotes</div></div>
+                    <div class="fc ro" data-record-notes="principal"><span class="lbl">@Frame.PrincipalNotes</span><div class="fv multi">@notes.PrincipalNotes</div></div>
                 }
-                <div class="fc">@{ Lbl("f-principal-notes", Frame.PrincipalNotesThisCase); }<div class="@ValueClass(caseNotes?.PrincipalNotes) multi">@Value(caseNotes?.PrincipalNotes)</div>@if (mayEdit){<textarea id="f-principal-notes" class="fi" name="principalNotes" form="case-edit-form" maxlength="4000">@caseNotes?.PrincipalNotes</textarea>}</div>
+                <div class="fc @Ro()">@{ Lbl("f-principal-notes", Frame.PrincipalNotesThisCase); }<div class="@ValueClass(caseNotes?.PrincipalNotes) multi">@Value(caseNotes?.PrincipalNotes)</div>@if (mayEdit){<textarea id="f-principal-notes" class="fi" name="principalNotes" form="case-edit-form" maxlength="4000">@caseNotes?.PrincipalNotes</textarea>}</div>
                 @if (!string.IsNullOrWhiteSpace(notes.ClaimSourceNotes))
                 {
-                    <div class="fc ro idn rec-notes" data-record-notes="claim-source"><span class="lbl">@Frame.ClaimSourceNotes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi" data-record-notes-text>@notes.ClaimSourceNotes</div></div>
+                    <div class="fc ro" data-record-notes="claim-source"><span class="lbl">@Frame.ClaimSourceNotes</span><div class="fv multi" data-record-notes-text>@notes.ClaimSourceNotes</div></div>
                 }
                 else if (mayEdit)
                 {
                     @* While editing, an empty slot the claim source select can fill. *@
-                    <div class="fc ro idn rec-notes" data-record-notes-slot="claim-source" hidden><span class="lbl">@Frame.ClaimSourceNotes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi" data-record-notes-text></div></div>
+                    <div class="fc ro" data-record-notes-slot="claim-source" hidden><span class="lbl">@Frame.ClaimSourceNotes</span><div class="fv multi" data-record-notes-text></div></div>
                 }
-                <div class="fc">@{ Lbl("f-claim-source-notes", Frame.ClaimSourceNotesThisCase); }<div class="@ValueClass(caseNotes?.ClaimSourceNotes) multi">@Value(caseNotes?.ClaimSourceNotes)</div>@if (mayEdit){<textarea id="f-claim-source-notes" class="fi" name="claimSourceNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClaimSourceNotes</textarea>}</div>
+                <div class="fc @Ro()">@{ Lbl("f-claim-source-notes", Frame.ClaimSourceNotesThisCase); }<div class="@ValueClass(caseNotes?.ClaimSourceNotes) multi">@Value(caseNotes?.ClaimSourceNotes)</div>@if (mayEdit){<textarea id="f-claim-source-notes" class="fi" name="claimSourceNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClaimSourceNotes</textarea>}</div>
             </div>
         </div>
 
         <div class="accident" data-accident-band>
             <div class="fg g2">
-                <div class="fc">@{ Lbl("f-circumstances", Frame.AccidentCircumstances); }<div class="@ValueClass(circumstances) multi">@Value(circumstances)</div>@if (mayEdit){<textarea id="f-circumstances" class="fi" name="accidentCircumstances" form="case-edit-form" maxlength="2000">@circumstances</textarea>}</div>
-                <div class="fc" data-client-notes>@{ Lbl("f-client-notes", Frame.NotesFromClient); }<div class="@ValueClass(caseNotes?.ClientNotes) multi">@Value(caseNotes?.ClientNotes)</div>@if (mayEdit){<textarea id="f-client-notes" class="fi" name="clientNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClientNotes</textarea>}</div>
+                <div class="fc @Ro()">@{ Lbl("f-circumstances", Frame.AccidentCircumstances, circumstancesValue?.Source); }<div class="@ValueClass(circumstances) multi">@Value(circumstances)</div>@if (mayEdit){<textarea id="f-circumstances" class="fi" name="accidentCircumstances" form="case-edit-form" maxlength="2000">@circumstances</textarea>}</div>
+                <div class="fc @Ro()" data-client-notes>@{ Lbl("f-client-notes", Frame.NotesFromClient); }<div class="@ValueClass(caseNotes?.ClientNotes) multi">@Value(caseNotes?.ClientNotes)</div>@if (mayEdit){<textarea id="f-client-notes" class="fi" name="clientNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClientNotes</textarea>}</div>
             </div>
         </div>
     </div>
@@ -267,16 +268,18 @@
 
 @functions {
     // The cell's label: a real <label> for the control while editing, the
-    // same words as a plain caption while reading.
-    private void Lbl(string id, string text)
+    // same words as a plain caption while reading, with the value's source
+    // tag in the label line in both.
+    private void Lbl(string id, string text, CaseDataSource? source = null)
     {
+        var tag = OperatorLabels.SourceTag(source);
         if (Model.CanEditCaseData && Model.Case!.Data is not null)
         {
-            <label for="@id">@text</label>
+            <label for="@id">@text@(tag?.Render())</label>
         }
         else
         {
-            <span class="lbl">@text</span>
+            <span class="lbl">@text@(tag?.Render())</span>
         }
     }
 }

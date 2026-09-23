@@ -334,6 +334,71 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal("White paint transfer", result.Assessment.Field(AssessmentVocabulary.DamageMaterialTransfer)?.Value);
     }
 
+    /// <summary>
+    /// The guide source cards are recorded by the Case save (23 September
+    /// 2026): one workflow event and one version for the whole save, the same
+    /// source and guide month replaces the earlier card, and a card whose
+    /// figures are already recorded is left untouched, so an Apply pinned to
+    /// its last-written stamp still holds. The save's one history line names
+    /// the cards it recorded.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseSaveRecordsGuideCardsAndLeavesAnUnchangedCardAlone()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var april = new DateOnly(2030, 4, 1);
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-guide-1");
+
+        var first = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "guide-save-1") with
+            {
+                Valuation = new(null, [GuideCard(ValuationSource.Glasses, april, 12_500m), GuideCard(ValuationSource.Brego, april, 11_000m)])
+            },
+            CancellationToken.None);
+
+        Assert.Equal(initial.Version + 1, first.Version);
+        Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+        var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
+        var recorded = await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+        Assert.Equal(2, recorded.Count);
+        var glasses = recorded.Single(card => card.Details.Source == ValuationSource.Glasses);
+        Assert.Null(glasses.LastEditedAtUtc);
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var again = await harness.AcquireLeaseAsync(first.Version, harness.StaffActor, "lease-guide-2");
+        var second = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, first.Version, again.Token, "guide-save-2") with
+            {
+                Valuation = new(null, [GuideCard(ValuationSource.Glasses, april, 12_500m), GuideCard(ValuationSource.Brego, april, 11_750m)])
+            },
+            CancellationToken.None);
+
+        Assert.Equal(first.Version + 1, second.Version);
+        Assert.Equal(2, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+        recorded = await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+        Assert.Equal(2, recorded.Count);
+        var unchanged = recorded.Single(card => card.Details.Source == ValuationSource.Glasses);
+        Assert.Equal(DetailsModelStamp(glasses), DetailsModelStamp(unchanged));
+        var replaced = recorded.Single(card => card.Details.Source == ValuationSource.Brego);
+        Assert.Equal(11_750m, replaced.Details.RetailValue);
+        Assert.NotNull(replaced.LastEditedAtUtc);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var line = await context.CaseHistory.AsNoTracking()
+            .Where(item => item.CaseId == harness.CaseId && item.OperationKey == "guide-save-2")
+            .Select(item => item.Reason)
+            .SingleAsync();
+        Assert.Contains("Valuation: Brego Apr 2030", line, StringComparison.Ordinal);
+        Assert.DoesNotContain("Glasses", line, StringComparison.Ordinal);
+    }
+
+    private static DateTimeOffset DetailsModelStamp(CaseValuation valuation) =>
+        valuation.LastEditedAtUtc ?? valuation.RecordedAtUtc;
+
+    private static ValuationDetails GuideCard(ValuationSource source, DateOnly guideMonth, decimal retail) =>
+        new(source, new DateOnly(2030, 5, 6), new TimeOnly(10, 30), 42_000, retail, retail - 1_000m, guideMonth);
+
     [Fact]
     public async Task SavingUnchangedExtractedOverviewFactsAndANotePreservesReportFreshness()
     {

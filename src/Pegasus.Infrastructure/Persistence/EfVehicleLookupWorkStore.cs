@@ -449,7 +449,7 @@ internal sealed class EfVehicleLookupWorkStore(
                     path,
                     vehicleType,
                     ActorKind.Automation,
-                    "vehicle-lookup",
+                    VehicleLookupFillPolicy.RecorderId,
                     recordedAtUtc,
                     confirmedBy: null);
                 vehicleTypeFilled = true;

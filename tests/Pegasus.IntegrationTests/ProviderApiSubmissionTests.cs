@@ -641,10 +641,8 @@ public sealed class ProviderApiSubmissionTests
         var claimantName = projection.Claimant.Name.Current!;
         Assert.Equal(CaseDataSourceKind.ProviderApi, claimantName.Source.Kind);
         Assert.Equal(
-            (
-                OperatorLabels.ProviderSubmissionApi.Source,
-                OperatorLabels.ProviderSubmissionApi.ProvenanceIcon),
-            OperatorLabels.Provenance(claimantName.Source));
+            new OperatorLabels.SourceTagWord(OperatorLabels.ProviderSubmissionApi.Source, string.Empty),
+            OperatorLabels.SourceTag(claimantName.Source));
     }
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> api) =>

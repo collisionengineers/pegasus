@@ -3024,7 +3024,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<long>("Mileage")
+                    b.Property<long?>("Mileage")
                         .HasColumnType("bigint");
 
                     b.Property<DateTimeOffset>("RecordedAtUtc")
@@ -3035,7 +3035,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<decimal>("RetailValue")
+                    b.Property<decimal?>("RetailValue")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
@@ -3047,7 +3047,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<TimeOnly>("Time")
                         .HasColumnType("time");
 
-                    b.Property<decimal>("TradeValue")
+                    b.Property<decimal?>("TradeValue")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
