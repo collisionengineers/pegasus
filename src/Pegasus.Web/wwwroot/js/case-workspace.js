@@ -2047,6 +2047,11 @@
         if (unavailable) {
             unavailable.hidden = !!message;
         }
+        if (visible) {
+            notice.setAttribute('role', 'alert');
+        } else {
+            notice.removeAttribute('role');
+        }
         notice.hidden = !visible;
     }
 

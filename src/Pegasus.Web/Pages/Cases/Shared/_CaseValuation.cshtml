@@ -214,8 +214,9 @@
                         @* The card's own answer to Get valuation (operator-approved
                            wording, 23 September 2026): shown by script when the
                            source has no working provider, or with the refusal's
-                           own words when the request was refused. *@
-                        <div class="notice notice--danger" role="alert" data-valuation-notice hidden>
+                           own words when the request was refused. It becomes an
+                           alert only when it shows. *@
+                        <div class="notice notice--danger" data-valuation-notice hidden>
                             <span data-valuation-unavailable>@ValuationLabels.UnavailableLead(source)<button type="button" class="link-button" data-dialog-open="problem-dialog">@ValuationLabels.ReportAProblem</button>.</span>
                             <span data-valuation-refused hidden></span>
                         </div>

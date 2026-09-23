@@ -328,7 +328,7 @@ public sealed class CaseValuationV26WebTests
         }
         Assert.Contains(
             ValuationCalculationPolicy.FormatMoney(12_500m),
-            EntryCard(html, "glasses"),
+            WebUtility.HtmlDecode(EntryCard(html, "glasses")),
             StringComparison.Ordinal);
         Assert.Contains(
             Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue,
@@ -589,7 +589,10 @@ public sealed class CaseValuationV26WebTests
         var start = html.LastIndexOf("<div", hook, StringComparison.Ordinal);
         var next = html.IndexOf("class=\"valuation-card", hook, StringComparison.Ordinal);
         var calc = html.IndexOf("data-valuation-calc", hook, StringComparison.Ordinal);
-        var end = new[] { next, calc }.Where(index => index > hook).DefaultIfEmpty(html.Length).Min();
+        // The calculator's Apply form follows the last card while editing.
+        var applyForm = html.IndexOf("id=\"case-valuation-form\"", hook, StringComparison.Ordinal);
+        var apply = applyForm < 0 ? -1 : html.LastIndexOf("<form", applyForm, StringComparison.Ordinal);
+        var end = new[] { next, calc, apply }.Where(index => index > hook).DefaultIfEmpty(html.Length).Min();
         return html[start..end];
     }
 

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -416,10 +417,9 @@ public sealed class CaseDetailsWebTests
             ("email", "Claim source contact e-mail", "case@acme.example")
         })
         {
-            Assert.Contains(
-                $"<div class=\"fc ro\" data-claim-source-contact=\"{part}\"><span class=\"lbl\">{label}</span><div class=\"fv\">{value}</div></div>",
-                reading,
-                StringComparison.Ordinal);
+            Assert.Matches(
+                $"<div class=\"fc ro\" data-claim-source-contact=\"{part}\">\\s*<span class=\"lbl\">{Regex.Escape(label)}</span>\\s*<div class=\"fv\">{Regex.Escape(value)}</div>",
+                reading);
         }
         Assert.DoesNotContain("name=\"claimSourceContactName\"", reading, StringComparison.Ordinal);
 
