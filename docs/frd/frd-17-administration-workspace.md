@@ -176,8 +176,10 @@ A stale save is refused without overwriting the newer draft.
 page, the Case, what the person wrote, its status (Sent with a link to the
 issue, or Not sent with the reason) and **Retry** on a report that was not
 sent. Retry raises the same report again; a sent report is never raised
-twice. Nothing on the page edits a report
-([ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md)).
+  twice. Nothing on the page edits a report
+  ([ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md)).
+  The linked issue contains the reporter's text and captured diagnostics;
+  the list remains the record of reports kept and their delivery status.
 
 ## States and transitions
 

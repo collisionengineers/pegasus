@@ -20,7 +20,7 @@ public sealed class GitHubIssueProblemReportSinkTests
         ProblemReportStatus.NotSent, null, null, null, null, null, null);
 
     [Fact]
-    public async Task PostsOnePublicSafeIssueWithTheTokenAndLabels()
+    public async Task PostsOneActionableIssueWithTheTokenAndLabels()
     {
         var handler = new FakeHandler(HttpStatusCode.Created, "{\"number\":12,\"html_url\":\"https://github.com/collisionengineers/pegasus/issues/12\"}");
         var sink = new GitHubIssueProblemReportSink(
@@ -39,12 +39,13 @@ public sealed class GitHubIssueProblemReportSinkTests
         Assert.Equal("https://api.github.com/repos/collisionengineers/pegasus/issues", request.Uri);
         Assert.Equal("Bearer token-value", request.Authorization);
         using var body = JsonDocument.Parse(request.Body);
-        Assert.Equal($"Pegasus problem report {Report.Id:D}", body.RootElement.GetProperty("title").GetString());
+        Assert.Equal($"Pegasus: The Save button did nothing. [{Report.Id:D}]", body.RootElement.GetProperty("title").GetString());
         var issueBody = body.RootElement.GetProperty("body").GetString()!;
         Assert.Contains(Report.Id.ToString("D"), issueBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("QDOS26001", issueBody, StringComparison.Ordinal);
-        Assert.DoesNotContain(Report.Description, issueBody, StringComparison.Ordinal);
-        Assert.DoesNotContain("/Cases/", issueBody, StringComparison.Ordinal);
+        Assert.Contains("QDOS26001", issueBody, StringComparison.Ordinal);
+        Assert.Contains(Report.Description, issueBody, StringComparison.Ordinal);
+        Assert.Contains("/Cases/", issueBody, StringComparison.Ordinal);
+        Assert.Contains("00-trace", issueBody, StringComparison.Ordinal);
         Assert.Equal(["problem-report", "triage"], body.RootElement.GetProperty("labels").EnumerateArray().Select(label => label.GetString()));
     }
 
@@ -103,7 +104,7 @@ public sealed class GitHubIssueProblemReportSinkTests
     }
 
     [Fact]
-    public async Task PublicRepositoryCanReceiveOnlyTheOpaqueReportReference()
+    public async Task PublicRepositoryReceivesTheCapturedReport()
     {
         var handler = new FakeHandler(HttpStatusCode.Created,
             "{\"number\":12,\"html_url\":\"https://github.com/collisionengineers/pegasus/issues/12\"}",
@@ -115,7 +116,8 @@ public sealed class GitHubIssueProblemReportSinkTests
         await sink.SendAsync(Report, default);
 
         Assert.Equal("POST", handler.Requests[1].Method);
-        Assert.DoesNotContain("QDOS26001", handler.Requests[1].Body, StringComparison.Ordinal);
+        Assert.Contains("QDOS26001", handler.Requests[1].Body, StringComparison.Ordinal);
+        Assert.Contains(Report.Description, handler.Requests[1].Body, StringComparison.Ordinal);
     }
 
     [Fact]

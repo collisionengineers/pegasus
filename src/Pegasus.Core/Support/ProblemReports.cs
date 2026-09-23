@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Identity;
@@ -40,7 +41,8 @@ public sealed record ProblemReportSnapshot(
     string? ExceptionType,
     string? ExceptionMessage,
     IReadOnlyList<ProblemReportAction> RecentActions,
-    ProblemReportClientFacts Client);
+    ProblemReportClientFacts Client,
+    string? ExceptionDetails = null);
 
 public enum ProblemReportStatus
 {
@@ -165,18 +167,65 @@ public static class ProblemReportPolicy
             Errors = request.Client.RecentErrors.Take(RecentErrorCount).ToArray()
         }))));
 
-    /// <summary>The public issue identifies the full report kept in Pegasus.</summary>
+    /// <summary>The issue identifies the full report kept in Pegasus.</summary>
     public static string Title(ProblemReport report)
     {
         ArgumentNullException.ThrowIfNull(report);
-        return $"Pegasus problem report {report.Id:D}";
+        var firstLine = report.Description.Split('\n', 2)[0].Trim();
+        var summary = firstLine.Length > 100 ? firstLine[..100].TrimEnd() + "…" : firstLine;
+        return $"Pegasus: {summary} [{report.Id:D}]";
     }
 
-    /// <summary>The public issue contains no Case, staff or diagnostic content.</summary>
+    /// <summary>The issue carries the reporter's words and the captured diagnostic context.</summary>
     public static string Body(ProblemReport report)
     {
         ArgumentNullException.ThrowIfNull(report);
-        return $"Report ID: {report.Id:D}\n\nFull details are available to authorised staff in Pegasus Administration → Problem reports.";
+        var snapshot = report.Snapshot;
+        var body = new StringBuilder();
+        body.AppendLine("## What happened").AppendLine().AppendLine(report.Description).AppendLine();
+        body.AppendLine("## Pegasus context").AppendLine();
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Report ID: `{report.Id:D}`");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Occurred (UTC): `{snapshot.OccurredAtUtc:O}`");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Page: `{snapshot.Route}`");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Method: `{snapshot.Method}`");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Trace ID: `{snapshot.TraceId}`");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Version: `{snapshot.Version}`");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Source SHA: `{snapshot.SourceSha}`");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Reporter: {snapshot.ActorName} ({snapshot.ActorRole})");
+        if (!string.IsNullOrWhiteSpace(snapshot.CaseReference))
+            body.AppendLine(CultureInfo.InvariantCulture, $"- Case: `{snapshot.CaseReference}`");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Viewport: {snapshot.Client.Viewport ?? "Unknown"}");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Browser: {snapshot.Client.UserAgent ?? "Unknown"}");
+        body.AppendLine(CultureInfo.InvariantCulture, $"- Editing: {(snapshot.Client.Editing ? "Yes" : "No")}");
+
+        body.AppendLine().AppendLine("## Server exception").AppendLine();
+        if (!string.IsNullOrWhiteSpace(snapshot.ExceptionDetails))
+            AppendIndented(body, snapshot.ExceptionDetails);
+        else if (!string.IsNullOrWhiteSpace(snapshot.ExceptionType))
+            AppendIndented(body, $"{snapshot.ExceptionType}: {snapshot.ExceptionMessage}");
+        else
+            body.AppendLine("No server exception was captured for this report.");
+
+        body.AppendLine().AppendLine("## Recent actions").AppendLine();
+        if (snapshot.RecentActions.Count == 0)
+            body.AppendLine("None captured.");
+        else
+            foreach (var action in snapshot.RecentActions)
+                body.AppendLine(CultureInfo.InvariantCulture, $"- `{action.OccurredAtUtc:O}` {action.Area} · {action.Operation} · {action.Reference} · {action.Result}");
+
+        body.AppendLine().AppendLine("## Browser errors").AppendLine();
+        if (snapshot.Client.RecentErrors.Count == 0)
+            body.AppendLine("None captured.");
+        else
+            foreach (var error in snapshot.Client.RecentErrors)
+                body.AppendLine(CultureInfo.InvariantCulture, $"- {error}");
+        return body.ToString().TrimEnd();
+    }
+
+    private static void AppendIndented(StringBuilder body, string value)
+    {
+        foreach (var line in value.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
+            body.Append("    ").AppendLine(line);
     }
 
     public static Guid RequireStaff(ActionActor actor, StaffAccessRight right)
@@ -207,7 +256,8 @@ public sealed record ProblemReportRequest(
     string? ExceptionType,
     string? ExceptionMessage,
     ProblemReportClientFacts Client,
-    string OperationKey = "");
+    string OperationKey = "",
+    string? ExceptionDetails = null);
 
 /// <summary>
 /// Stores the report, then raises it. A failed raise leaves the row Not sent
@@ -250,7 +300,8 @@ public sealed class ReportProblem(
             request.Client with
             {
                 RecentErrors = request.Client.RecentErrors.Take(ProblemReportPolicy.RecentErrorCount).ToArray()
-            });
+            },
+            request.ExceptionDetails);
         var added = await _store.AddAsync(new NewProblemReport(
             staffId, description, snapshot, now, operationKey, requestHash), cancellationToken);
         if (added.IsReplay)
