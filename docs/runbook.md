@@ -322,9 +322,8 @@ dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --c
 
 Three categories exist. `SqlServer` marks the integration tests that need a
 reachable server; `Corpus` marks the tests that read local corpus or the private
-reference pack, which ordinary CI excludes; `QdosAlphaAcceptance` marks the QDOS
-triage acceptance cohort, which no lane selects automatically. Run that cohort
-when a QDOS triage change needs its acceptance evidence:
+reference pack, which ordinary CI excludes; `QdosAlphaAcceptance` labels a QDOS
+triage cohort that also runs in the ordinary lane. To run that cohort alone:
 
 ```powershell
 dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=QdosAlphaAcceptance"
@@ -344,6 +343,17 @@ Shared test support contains no tests or shared mutable fixtures. Each shard
 retains its enumerated and assigned test lists and results; the partition gate
 checks that every selected test is assigned exactly once. Keep the shard count
 in the workflow matrix, execution and partition verification consistent.
+
+Shards are dealt by recorded class duration from
+`scripts/test-shard-durations.json`, not by test count; a class the table does
+not name costs the median. Every complete CI run reports its per-shard test time
+and uploads a refreshed table as the `test-shard-durations` artifact. When that
+report's longest-over-shortest ratio drifts well above 1, refresh the table:
+
+```powershell
+gh run download <run-id> --name test-shard-durations --dir artifacts
+Copy-Item artifacts/test-shard-durations.json scripts/test-shard-durations.json
+```
 
 Each test-run process migrates one template database once and restores every
 disposable test database from its backup instead of migrating each one. A

@@ -65,9 +65,11 @@ if ($ShardCount -gt 0) {
 $totals = @{}
 $counts = @{}
 $results = 0
+$perShard = [ordered]@{}
 
 foreach ($file in $trxFiles) {
     [xml] $trx = Get-Content -Raw -LiteralPath $file.FullName
+    $shardSeconds = 0.0
 
     # testId -> declaring class, from the definitions the runner wrote.
     $classOf = @{}
@@ -86,7 +88,9 @@ foreach ($file in $trxFiles) {
 
         $seconds = 0.0
         if ($result.duration) {
-            $seconds = ([TimeSpan]::Parse($result.duration)).TotalSeconds
+            # The .trx writes the invariant form; a machine whose culture uses a
+            # decimal comma must not misread it.
+            $seconds = ([TimeSpan]::Parse($result.duration, [Globalization.CultureInfo]::InvariantCulture)).TotalSeconds
         }
 
         if (-not $totals.ContainsKey($class)) {
@@ -96,7 +100,10 @@ foreach ($file in $trxFiles) {
         $totals[$class] += $seconds
         $counts[$class]++
         $results++
+        $shardSeconds += $seconds
     }
+
+    $perShard[$file.Name] = $shardSeconds
 }
 
 if ($totals.Count -eq 0) {
@@ -117,6 +124,17 @@ $slowest = @($table.GetEnumerator() | Sort-Object Value -Descending | Select-Obj
 Write-Host "Recorded $($table.Count) classes from $($trxFiles.Count) .trx file(s), $results results, $([math]::Round(($totals.Values | Measure-Object -Sum).Sum / 60, 1)) minutes total."
 Write-Host "Slowest: $(($slowest | ForEach-Object { "$($_.Key) $([math]::Round($_.Value, 1))s" }) -join '; ')."
 Write-Host "Wrote $Path."
+
+# How balanced the run that produced this evidence actually was. A ratio well
+# above 1 means the committed table has gone stale and this refresh is due.
+if ($perShard.Count -gt 1) {
+    $values = @($perShard.Values)
+    $longest = ($values | Measure-Object -Maximum).Maximum
+    $shortest = ($values | Measure-Object -Minimum).Minimum
+    $spread = ($perShard.GetEnumerator() | ForEach-Object { '{0} {1:N1}m' -f ($_.Key -replace '\.trx$', ''), ($_.Value / 60) }) -join ', '
+    Write-Host "Test time per shard: $spread."
+    Write-Host ('Longest over shortest: {0:N2}.' -f ($longest / [math]::Max($shortest, 1)))
+}
 
 if ($PassThru) {
     [pscustomobject] $table

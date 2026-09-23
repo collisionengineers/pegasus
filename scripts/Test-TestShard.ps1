@@ -301,6 +301,42 @@ try {
         }
     }
 
+    # Update-TestShardDurations.ps1 reads the .trx files a run retains and keys
+    # each result by the declaring class the runner recorded, so theory rows and
+    # methods collapse onto their class exactly as the sharder groups them.
+    $trxRoot = Join-Path $root 'trx'
+    New-Item -ItemType Directory -Path (Join-Path $trxRoot 'test-shard-1'), (Join-Path $trxRoot 'test-shard-2') | Out-Null
+    function New-Trx([string] $Path, [object[]] $Rows) {
+        $definitions = ($Rows | ForEach-Object { "<UnitTest id=`"$($_[0])`"><TestMethod className=`"$($_[1])`" name=`"m`" /></UnitTest>" }) -join ''
+        $results = ($Rows | ForEach-Object { "<UnitTestResult testId=`"$($_[0])`" duration=`"$($_[2])`" />" }) -join ''
+        Set-Content -LiteralPath $Path -Value "<TestRun><TestDefinitions>$definitions</TestDefinitions><Results>$results</Results></TestRun>"
+    }
+    New-Trx (Join-Path $trxRoot 'test-shard-1/shard-1.trx') @(
+        @('a1', 'Example.Slow', '00:01:30.5000000'),
+        @('a2', 'Example.Slow', '00:00:29.5000000'),
+        @('a3', 'Example.Quick', '00:00:00.2500000'))
+    # The leading comma keeps a single row an array of one row, not three strings.
+    New-Trx (Join-Path $trxRoot 'test-shard-2/shard-2.trx') @(
+        , @('b1', 'Example.Quick', '00:00:00.7500000'))
+
+    $table = Join-Path $root 'durations.json'
+    & (Join-Path $PSScriptRoot 'Update-TestShardDurations.ps1') -ArtifactRoot $trxRoot -Path $table -ShardCount 2 | Out-Null
+    $recorded = Get-Content -Raw -LiteralPath $table | ConvertFrom-Json
+    if ($recorded.'Example.Slow' -ne 120 -or $recorded.'Example.Quick' -ne 1) {
+        throw "Durations were not summed per declaring class across shards: $(Get-Content -Raw $table)"
+    }
+
+    $refused = $false
+    try {
+        & (Join-Path $PSScriptRoot 'Update-TestShardDurations.ps1') -ArtifactRoot $trxRoot -Path $table -ShardCount 3 | Out-Null
+    }
+    catch {
+        $refused = $true
+    }
+    if (-not $refused) {
+        throw 'A table built from two of three shards must be refused: the missing shard''s classes would be under-recorded.'
+    }
+
     $validSix = Join-Path $root 'first-6'
 
     $inconsistent = Join-Path $root 'negative-inconsistent-inventories'
