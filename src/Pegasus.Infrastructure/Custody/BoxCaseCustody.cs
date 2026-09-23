@@ -274,7 +274,6 @@ internal sealed class BoxContentClient(
     HttpClient httpClient,
     IBoxAuthorizationHeaderProvider authorizationHeaderProvider)
 {
-    internal string HoldingFolderId => options.HoldingFolderId;
     internal sealed record BoxItem(
         string Id,
         string Name,

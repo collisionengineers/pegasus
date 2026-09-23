@@ -2,10 +2,12 @@ using System.IO.Compression;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ImageIntake;
 using Pegasus.IntegrationTests.DocumentExtraction;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 
@@ -32,6 +34,15 @@ public sealed partial class MultiFormatIntakeWebTests
         var pdf = CreateImagePdf(placements);
         var result = await UploadAsync(factory, client, "photo-evidence.pdf", "application/pdf", pdf);
         var receiptId = ReceiptId(result);
+        if (registration is not null)
+        {
+            // A registered Vehicle images record files its photographs in its
+            // own folder instead of the holding folder; they serve once that
+            // folder's custody has run.
+            Assert.All(InstructionEvidenceImages.Select((await GetReceiptAsync(factory, receiptId)).AssetRecords),
+                photo => Assert.NotEqual(IncomingArtifactCustodyState.Confirmed, photo.CustodyState));
+            await ProcessImageCaseCustodyAsync(factory);
+        }
         var receipt = await GetReceiptAsync(factory, receiptId);
         var photos = InstructionEvidenceImages.Select(receipt.AssetRecords);
 
@@ -78,6 +89,25 @@ public sealed partial class MultiFormatIntakeWebTests
             var pixels = new byte[width * height * 3];
             new Random(seed).NextBytes(pixels);
             return pixels;
+        }
+    }
+
+    private static async Task ProcessImageCaseCustodyAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        Guid[] workIds;
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            workIds = await context.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.Kind == ExternalWorkKinds.CreateImageCaseCustody)
+                .Select(item => item.Id)
+                .ToArrayAsync();
+        }
+        Assert.NotEmpty(workIds);
+        foreach (var workId in workIds)
+        {
+            await scope.ServiceProvider.GetRequiredService<IProcessQueuedCustody>()
+                .ExecuteAsync(workId, CancellationToken.None);
         }
     }
 

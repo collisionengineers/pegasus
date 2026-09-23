@@ -443,6 +443,31 @@ public sealed class ProcessIntakeTests
         Assert.Single(receiptStore.Drafts);
     }
 
+    [Theory]
+    [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.NotApplicable, true)]
+    [InlineData(false, IntakeDecision.CaseCreated, AutomaticCaseEvidencePromotionOutcome.NotApplicable, true)]
+    [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.Failed, true)]
+    [InlineData(true, IntakeDecision.CaseCreated, AutomaticCaseEvidencePromotionOutcome.NotApplicable, false)]
+    [InlineData(false, IntakeDecision.ImageIntakeRegistered, AutomaticCaseEvidencePromotionOutcome.NotApplicable, false)]
+    [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.Confirmed, false)]
+    [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.Pending, false)]
+    public async Task OnlyIntakeNoAutomaticDestinationFilesIsHeld(
+        bool allocated,
+        IntakeDecision decision,
+        AutomaticCaseEvidencePromotionOutcome promotion,
+        bool held)
+    {
+        var receipt = await CreateSut(new StubReader(Readable()), new RecordingStore())
+            .ExecuteAsync(CreateSource());
+        var settled = receipt with
+        {
+            Decision = decision,
+            AcceptedCaseId = allocated ? Guid.NewGuid() : null
+        };
+
+        Assert.Equal(held, ProcessIntake.RequiresHolding(settled, promotion));
+    }
+
     [Fact]
     public async Task ConfirmedHoldingCustodyDoesNotReadStagingAgainDuringRepair()
     {
