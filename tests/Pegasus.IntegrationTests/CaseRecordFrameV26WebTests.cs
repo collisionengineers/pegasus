@@ -291,7 +291,7 @@ public sealed class CaseRecordFrameV26WebTests
 
     private static void AssertOverviewBands(string overview)
     {
-        Assert.Equal(Occurrences(overview, "<div"), Occurrences(overview, "</div>"));
+        AssertBalancedMarkup(overview);
         Assert.DoesNotContain("}", overview, StringComparison.Ordinal);
         Assert.Contains("data-collapse=\"case.overview.contact\"", overview, StringComparison.Ordinal);
         Assert.Contains("data-notes-band", overview, StringComparison.Ordinal);
