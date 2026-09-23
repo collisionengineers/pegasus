@@ -27,17 +27,37 @@ public sealed partial class DetailsModel
         AssessmentVocabulary.LegalStatus
     ];
 
-    /// <summary>Whether the recorded value at <paramref name="path"/> is absent.</summary>
+    /// <summary>
+    /// The recorded value a field's box and its control both show, reading and
+    /// editing alike (operator, 23 September 2026): the value as recorded, with
+    /// its source tag — a staff Save of it is how an Engineer confirms it —
+    /// except an AI proposal on a decision field still awaiting review, which
+    /// is not yet the decision: it shows in the Decisions strip's Proposed
+    /// column with its Accept instead.
+    /// </summary>
+    public AssessmentFieldValue? ShownAssessment(string path) =>
+        Assessment?.Field(path) is { } field && !AwaitsReview(field) ? field : null;
+
+    /// <summary>A decision's AI proposal still awaiting review: not yet the decision.</summary>
+    public static bool AwaitsReview(AssessmentFieldValue field) =>
+        field is { RecordedByKind: ActorKind.Automation, IsConfirmed: false }
+        && CaseFieldProposalPolicy.DecisionPaths.Contains(field.Path);
+
+    /// <summary>Whether the value shown at <paramref name="path"/> is absent.</summary>
     public bool AssessmentIsAbsent(string path) =>
-        string.IsNullOrWhiteSpace(Assessment?.Field(path)?.Value);
+        string.IsNullOrWhiteSpace(ShownAssessment(path)?.Value);
 
     /// <summary>
-    /// The recorded value as an operator reads it: money as pounds, a flag as
+    /// The shown value as an operator reads it: money as pounds, a flag as
     /// Yes/No, a date as "14 Jul 2026", a code as words, else the text; the
     /// record's absent word when nothing is held.
     /// </summary>
     public string AssessmentDisplay(string path) =>
-        DisplayAssessmentValue(path, Assessment?.Field(path)?.Value);
+        DisplayAssessmentValue(path, ShownAssessment(path)?.Value);
+
+    /// <summary>The source tag of the value shown at <paramref name="path"/>; none for a staff value.</summary>
+    public OperatorLabels.SourceTagWord? AssessmentSourceTag(string path) =>
+        OperatorLabels.SourceTag(ShownAssessment(path));
 
     /// <summary>The same reading over any raw value the vocabulary defines at <paramref name="path"/>.</summary>
     public static string DisplayAssessmentValue(string path, string? raw)

@@ -16,6 +16,12 @@ public static class VehicleLookupFillPolicy
     public const int PolicyVersion = 1;
 
     /// <summary>
+    /// The Automation actor a lookup answer records vehicle findings as, so a
+    /// reader can tell a looked-up value from any other automation's.
+    /// </summary>
+    public const string RecorderId = "vehicle-lookup";
+
+    /// <summary>
     /// A lookup fills a vehicle field only where the Case holds neither an
     /// extracted fact nor a staff-confirmed value.
     /// </summary>

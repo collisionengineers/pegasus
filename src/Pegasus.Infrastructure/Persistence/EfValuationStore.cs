@@ -455,7 +455,10 @@ public sealed class EfValuationStore(
         return new(
             guide.ValuationId,
             StampOf(guide),
-            guide.Details.RetailValue,
+            // The calculation starts from retail; a card recorded without one
+            // is never offered as the basis, so this refuses only a stale page.
+            guide.Details.RetailValue
+                ?? throw new ArgumentException("The chosen guide valuation has no retail value to calculate from."),
             string.Equals(claimantVatField?.Value, "true", StringComparison.Ordinal),
             [.. presets.Select(EfValuationPresetStore.Map)])
         {
@@ -672,7 +675,7 @@ public sealed class EfValuationStore(
             ? dependencies
             : dependencies with { EngineersValue = change.After };
 
-    private static async Task MarkStaleIfNeededAsync(
+    internal static async Task MarkStaleIfNeededAsync(
         PegasusDbContext context,
         Guid caseId,
         CaseReportValuationDependencies before,
@@ -828,6 +831,90 @@ public sealed class EfValuationStore(
             entity.LastEditedBy,
             entity.LastEditedAtUtc);
     }
+
+    /// <summary>
+    /// The guide source cards a Case save records, written inside the Case
+    /// save's own transaction (23 September 2026: the source cards have no Save
+    /// of their own). Each card replaces the same source's card for the same
+    /// guide month, as <see cref="SaveAsync"/> does. A card whose figures are
+    /// already the recorded ones is left untouched, because rewriting it would
+    /// move its last-written stamp, which an Apply pins itself to. The Case
+    /// save owns the version, the workflow event and the history line, so this
+    /// writes only the rows and their action-history entries.
+    /// </summary>
+    internal static async Task<GuideEntriesRecorded> RecordGuideEntriesAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        string operationKey,
+        IReadOnlyList<ValuationDetails> entries,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var beforeDependencies = await ReadReportDependenciesAsync(context, workflow.CaseId, cancellationToken);
+        var recorded = new List<ValuationDetails>(entries.Count);
+        foreach (var details in entries)
+        {
+            var replaced = await FindReplacedAsync(context, workflow.CaseId, details, cancellationToken);
+            var before = replaced is null ? null : Map(replaced);
+            if (before is not null && ValuationPolicy.IsUnchanged(details, before.Details))
+            {
+                continue;
+            }
+
+            var entity = replaced ?? new CaseValuationEntity
+            {
+                Id = Guid.NewGuid(),
+                CaseId = workflow.CaseId,
+                Case = workflow.Case,
+                Source = details.Source.ToString(),
+                RecordedBy = actor.SubjectId,
+                RecordedAtUtc = now,
+            };
+            Write(entity, details, replaced is null ? null : actor.SubjectId, now);
+            if (replaced is null)
+            {
+                context.CaseValuations.Add(entity);
+            }
+
+            var result = Map(entity);
+            context.ActionHistory.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "case_valuation",
+                AggregateId = result.ValuationId.ToString("D"),
+                EventKind = replaced is null ? "valuation_created" : "valuation_replaced",
+                ActorKind = actor.Kind.ToString(),
+                ActorSubjectId = actor.SubjectId,
+                ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role), SerializerOptions),
+                OccurredAtUtc = now,
+                Outcome = "Succeeded",
+                CorrelationId = operationKey,
+                Reason = "Valuation recorded.",
+                BeforeJson = before is null
+                    ? null
+                    : JsonSerializer.Serialize(new { Valuation = before }, SerializerOptions),
+                AfterJson = JsonSerializer.Serialize(new { Valuation = result }, SerializerOptions),
+                PolicyVersion = $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
+            });
+            recorded.Add(details);
+        }
+
+        return new(
+            recorded,
+            beforeDependencies,
+            beforeDependencies with
+            {
+                UsesGlassesValuationGuide = beforeDependencies.UsesGlassesValuationGuide
+                    || recorded.Any(details => details.Source == ValuationSource.Glasses),
+            });
+    }
+
+    /// <summary>The guide cards a Case save wrote, and the report's valuation dependencies either side of them.</summary>
+    internal sealed record GuideEntriesRecorded(
+        IReadOnlyList<ValuationDetails> Recorded,
+        CaseReportValuationDependencies Before,
+        CaseReportValuationDependencies After);
 
     internal static void AddHistory(
         PegasusDbContext context,

@@ -74,10 +74,16 @@ same evidence only where Report needs that decision.
 
 ## Read/edit geometry
 
-Read and edit share one geometry.
+Read and edit share one geometry and one look (operator, 23 September 2026).
 
 - Do not create a separate edit page or visually unrelated edit panel.
-- Labelled fact cells stay in the same grid position.
+- Labelled fact cells stay in the same grid position, and the same cells render in both modes:
+  never add a field that appears only while editing or only while reading.
+- A value is a greyed box wherever it cannot be edited — every cell while reading — and a white
+  control where it can. A cell rendered without a control carries `ro`. No padlock marks a field;
+  the greyed box is a value, never a disabled control.
+- Where a value came from is one `src-tag` word in the cell's label line, in both modes; a staff
+  value carries none. Do not reintroduce a provenance icon or tooltip.
 - Entering edit must not teleport the operator or substantially reflow the page.
 - Edit from a section head enters the one Case-wide edit session.
 - Save and Cancel act in place.
@@ -120,19 +126,23 @@ Do not surface the same lifecycle action again inside arbitrary section bodies.
 
 One route per guide source.
 
-While editing, Glass's, Brego and Super CAP each own one entry card containing:
+Glass's, Brego, Super CAP, CAP and Cazana each own one card, the same in read and edit, containing:
 
 - guide month;
 - mileage;
 - retail value;
 - trade value;
-- Get valuation;
-- Save.
+- Get valuation (while editing).
 
-Fetched values fill the same editable card. Saving that card is the writer.
+The boxes are greyed while reading and inputs of the Case form while editing. Get valuation fills
+the same card in place, without redrawing the page, or shows the card's notice when the source has
+no working provider. The ribbon Save is the writer (23 September 2026): it records every changed
+card with whatever was entered — any box may be left blank — and an untouched or blank card records
+nothing. A card opens holding only what is recorded, in both modes.
 
 Do not reintroduce:
 
+- a Save on the card;
 - Add valuation;
 - a second generic valuation dialog;
 - a second source-button row;
@@ -153,11 +163,20 @@ contract.
 Toolbar and header controls must remain compact and on one line where the existing design expects
 that. Scope width fixes locally; do not make every select full width.
 
+Read and edit are one layout (operator, 23 September 2026): a spec that cannot be changed renders
+the editor's header cells, grid columns and contract, discount and VAT bars, each value greyed in its
+control's place (`EstimateBody` in `_CaseEstimate.cshtml`). Do not reintroduce a read-mode summary
+line or a separate read table; only tools (add/delete lines, the Target % of value controls, Reset
+to repairer status) are edit-only, and a scaled spec's Target % bar reads with its Scaled state.
+
 ## Damage
 
 Use the approved Plan clicker, not a newly invented Elevations/Dial/alternative presentation.
 
-The recorded-zone model and visual markers must remain aligned.
+The recorded-zone model and visual markers must remain aligned: a drawn disc is saved as drawn and
+names exactly the areas it touches (Core reads them off the disc). Do not snap, regrow or rebuild a
+drawn disc from its areas, and keep every disc capped at half the vehicle's width and clipped to the
+body on the page and the report.
 
 Do not re-add the Files image strip to Damage.
 

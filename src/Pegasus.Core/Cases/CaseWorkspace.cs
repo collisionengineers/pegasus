@@ -149,6 +149,18 @@ public sealed record CaseWorkspaceClaimSource(
 
     public string? EffectiveContactEmailAddress =>
         string.IsNullOrWhiteSpace(OverrideContactEmailAddress) ? ContactEmailAddress : OverrideContactEmailAddress;
+
+    /// <summary>
+    /// A submitted override as the Case keeps it. The contact boxes show the
+    /// effective contact in both modes (operator, 23 September 2026), so an
+    /// override equal to the contact copied from the record is no override of
+    /// the Case's own and clears one; null means not submitted.
+    /// </summary>
+    public static string? SubmittedOverride(string? submitted, string? copied) =>
+        submitted is not null
+        && string.Equals(submitted.Trim(), copied?.Trim() ?? string.Empty, StringComparison.Ordinal)
+            ? string.Empty
+            : submitted;
 }
 
 public sealed record CaseWorkspaceOdometer(
@@ -217,11 +229,16 @@ public sealed record CaseWorkspaceImagePreparation(
     IReadOnlyList<CaseAssetPreparationEdit>? Edits);
 
 /// <summary>
-/// The valuation working inputs the Case save may retain. Adopting a value is
-/// the separate Apply command's act, so a finding path here fails closed.
+/// The valuation working inputs the Case save may retain, and the guide
+/// source cards it records (23 September 2026: a source card has no Save of
+/// its own; the Case save is its writer, and the same source and guide month
+/// replaces the earlier card). Adopting a value is the separate Apply
+/// command's act, so a finding path here fails closed.
 /// </summary>
 public sealed record CaseWorkspaceValuationDraft(
-    IReadOnlyDictionary<string, string?>? DraftInputs);
+    IReadOnlyDictionary<string, string?>? DraftInputs,
+    // Appended, never inserted: this record is constructed positionally.
+    IReadOnlyList<ValuationDetails>? GuideEntries = null);
 
 public sealed record CaseWorkspaceEstimate(
     Guid? EstimateId,
@@ -394,7 +411,8 @@ public static class CaseWorkspaceChangeSummary
         bool estimateChanged,
         int imagesPrepared,
         string? reason,
-        bool wordingChanged = false)
+        bool wordingChanged = false,
+        IReadOnlyList<ValuationDetails>? valuationsRecorded = null)
     {
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(after);
@@ -449,6 +467,13 @@ public static class CaseWorkspaceChangeSummary
         if (wordingChanged)
         {
             parts.Add("Report wording");
+        }
+
+        // A guide card the save recorded names its source and guide month
+        // (ValuationPolicy.ValidateGuideEntry requires the month).
+        foreach (var valuation in valuationsRecorded ?? [])
+        {
+            parts.Add($"Valuation: {ValuationPolicy.SourceName(valuation.Source)} {valuation.GuideMonth?.ToString("MMM yyyy", CultureInfo.InvariantCulture)}");
         }
 
         var summary = parts.Count == 0 ? "No field changed" : string.Join(", ", parts);
@@ -558,9 +583,42 @@ public static class CaseWorkspacePolicy
             ? request with { ReportWording = new(ValidateWording(wording.Blocks ?? [])) }
             : request;
 
+        if (validated.Valuation is { GuideEntries: { } guideEntries } valuation)
+        {
+            validated = validated with
+            {
+                Valuation = valuation with { GuideEntries = ValidateGuideEntries(guideEntries, validated.Actor) }
+            };
+        }
+
         return validated.Estimate is { } estimate
             ? validated with { Estimate = ValidateEstimate(estimate, validated.Actor) }
             : validated;
+    }
+
+    /// <summary>
+    /// The guide source cards this save records, each checked by the
+    /// valuation policy that owns a card. One source's card for one guide
+    /// month is one answer, so the same source and month submitted twice
+    /// fails closed instead of letting the submission order decide.
+    /// </summary>
+    private static List<ValuationDetails> ValidateGuideEntries(
+        IReadOnlyList<ValuationDetails> entries,
+        ActionActor actor)
+    {
+        var seen = new HashSet<(ValuationSource, DateOnly?)>();
+        var validated = new List<ValuationDetails>(entries.Count);
+        foreach (var entry in entries)
+        {
+            var normalized = ValuationPolicy.ValidateGuideEntry(actor, entry);
+            if (!seen.Add((normalized.Source, normalized.GuideMonth)))
+            {
+                throw new InvalidOperationException(
+                    $"The {normalized.Source} valuation for one guide month was submitted more than once.");
+            }
+            validated.Add(normalized);
+        }
+        return validated;
     }
 
     /// <summary>
@@ -728,13 +786,16 @@ public static class CaseWorkspacePolicy
                 DueBy = overview.DueBy,
                 ClaimSourceOverrideContactName = claimSourceChanged
                     ? null
-                    : overview.ClaimSource?.OverrideContactName ?? persisted.ClaimSourceOverrideContactName,
+                    : CaseWorkspaceClaimSource.SubmittedOverride(overview.ClaimSource?.OverrideContactName, overview.ClaimSource?.ContactName)
+                        ?? persisted.ClaimSourceOverrideContactName,
                 ClaimSourceOverrideContactTelephone = claimSourceChanged
                     ? null
-                    : overview.ClaimSource?.OverrideContactTelephone ?? persisted.ClaimSourceOverrideContactTelephone,
+                    : CaseWorkspaceClaimSource.SubmittedOverride(overview.ClaimSource?.OverrideContactTelephone, overview.ClaimSource?.ContactTelephone)
+                        ?? persisted.ClaimSourceOverrideContactTelephone,
                 ClaimSourceOverrideContactEmailAddress = claimSourceChanged
                     ? null
-                    : overview.ClaimSource?.OverrideContactEmailAddress ?? persisted.ClaimSourceOverrideContactEmailAddress
+                    : CaseWorkspaceClaimSource.SubmittedOverride(overview.ClaimSource?.OverrideContactEmailAddress, overview.ClaimSource?.ContactEmailAddress)
+                        ?? persisted.ClaimSourceOverrideContactEmailAddress
             };
         }
 

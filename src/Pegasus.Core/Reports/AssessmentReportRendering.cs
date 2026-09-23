@@ -99,12 +99,11 @@ public sealed record ReportVehicle(
     decimal? TemporaryRepairCost);
 
 /// <summary>
-/// A printed impact retains its canonical zone alongside the operator-facing
-/// label. The code lets the report draw the same selected regions as the Case
-/// workspace without reverse-mapping display text.
+/// One recorded damage as the report prints it: the area names, the severity
+/// and note, the area codes, and the disc the operator drew (unit-plan terms;
+/// null for a damage recorded by area alone, drawn from its codes).
 /// </summary>
-/// <summary>One recorded damage as the report prints it: the area names, the severity and note, and the area codes the diagram draws from.</summary>
-public sealed record ReportImpact(string Areas, string Severity, string Note, IReadOnlyList<string> Codes);
+public sealed record ReportImpact(string Areas, string Severity, string Note, IReadOnlyList<string> Codes, DamageDisc? Disc = null);
 
 public sealed record ReportDamage(
     IReadOnlyList<ReportImpact> Impacts,

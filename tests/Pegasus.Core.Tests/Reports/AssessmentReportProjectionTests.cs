@@ -43,6 +43,8 @@ public sealed class AssessmentReportProjectionTests
         var impact = Assert.Single(snapshot.Damage.Impacts);
         Assert.Equal(("RH Rear", "Moderate", "Quarter panel"), (impact.Areas, impact.Severity, impact.Note));
         Assert.Equal(["right_rear"], impact.Codes);
+        // The disc the operator drew travels to the report as drawn.
+        Assert.Equal(new DamageDisc(0.86, 0.86, 0.1), impact.Disc);
         Assert.Equal("OK", snapshot.Damage.RightFrontTyre);
         Assert.Equal("Worn", snapshot.Damage.LeftFrontTyre);
         Assert.Equal("Damaged", snapshot.Damage.RightRearTyre);
@@ -646,7 +648,7 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.IncidentAssessed, "2026-08-03"),
             Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
             Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
-            Field(AssessmentVocabulary.DamageImpacts, "[{\"areas\":[\"right_rear\"],\"severity\":\"moderate\",\"note\":\"Quarter panel\"}]"),
+            Field(AssessmentVocabulary.DamageImpacts, "[{\"areas\":[\"right_rear\"],\"disc\":{\"x\":0.86,\"y\":0.86,\"r\":0.1},\"severity\":\"moderate\",\"note\":\"Quarter panel\"}]"),
             Field(AssessmentVocabulary.DamageTyreRightFront, "ok"),
             Field(AssessmentVocabulary.DamageTyreLeftFront, "worn"),
             Field(AssessmentVocabulary.DamageTyreRightRear, "damaged"),

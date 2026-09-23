@@ -86,7 +86,6 @@ public sealed partial class DetailsModel(
     IImageIntakeQueries imageIntakeQueries,
     IReadImageTagVocabulary readImageTagVocabulary,
     IListCaseValuations listCaseValuations,
-    ISaveValuation saveValuation,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IStaffAccountQueries staffAccountQueries,
     IEvaSubmissionModeStore evaModeStore,
@@ -514,7 +513,7 @@ public sealed partial class DetailsModel(
             : null;
 
     public string AssessmentValue(string path) =>
-        Assessment?.Field(path)?.Value is { } value && !string.IsNullOrWhiteSpace(value)
+        ShownAssessment(path)?.Value is { } value && !string.IsNullOrWhiteSpace(value)
             ? value
             : Labels.CaseWorkspace.AbsentValue;
 
@@ -529,8 +528,8 @@ public sealed partial class DetailsModel(
 
     public bool CanEditAssessmentField(string path) => CanEditEngineering;
 
-    public string? AssessmentEditorValue(string path) =>
-        Assessment?.Field(path) is { IsConfirmed: true } field ? field.Value : null;
+    /// <summary>The value a field's control opens with: the same value its box shows.</summary>
+    public string? AssessmentEditorValue(string path) => ShownAssessment(path)?.Value;
 
     public ReportSettlement? Settlement => Assessment is null ? null
         : AssessmentReportProjection.BuildSettlement(Assessment, AcceptedSpecification);
@@ -1459,6 +1458,7 @@ public sealed partial class DetailsModel(
         string? claimSourceContactName,
         string? claimSourceContactTelephone,
         string? claimSourceContactEmail,
+        GuideEntryForm[]? guideEntries,
         string? section,
         CancellationToken cancellationToken)
     {
@@ -1518,7 +1518,7 @@ public sealed partial class DetailsModel(
                 var engineeringSubmitted = assessmentFields.Count > vehicleIdentityFields.Count
                     || Posted(nameof(storagePerDay)) || Posted(nameof(recoveryCharge))
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
-                    || damageSubmitted || wordingSubmitted;
+                    || damageSubmitted || wordingSubmitted || guideEntries is { Length: > 0 };
                 var current = await getCase.ExecuteAsync(new(id, actor), cancellationToken)
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
                 var data = current.Data
@@ -1568,13 +1568,15 @@ public sealed partial class DetailsModel(
                 originalUnit = mileageValue is null ? null : originalUnit ?? CaseOdometerUnit.Miles;
                 var reportFields = assessmentFields.Where(field => EditorLabels.Report.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
-                // An AI proposal awaiting review leaves its control empty (the
-                // control shows confirmed values only). Posting that empty
-                // control is "not decided yet", never a clear of the proposal.
+                // A decision's AI proposal awaiting review leaves its control
+                // empty (it shows in the Proposed column, ShownAssessment), so
+                // posting that empty control is "not decided yet", never a
+                // clear of the proposal. Every other control opens holding its
+                // value, so emptying it clears it.
                 var settlementFields = assessmentFields
                     .Where(field => (EditorLabels.Settlement.ContainsKey(field.Key) || EditorLabels.OriginalReport.ContainsKey(field.Key))
                         && !(string.IsNullOrWhiteSpace(field.Value)
-                            && assessment?.Field(field.Key) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false }))
+                            && assessment?.Field(field.Key) is { } recorded && AwaitsReview(recorded)))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 AssessmentPolicy.RequireOriginalReportScope(
                     settlementFields.Keys,
@@ -1611,6 +1613,9 @@ public sealed partial class DetailsModel(
                             chosen.ContactPerson, chosen.Telephone, chosen.Email);
                     }
                 }
+                // The contact boxes show the effective contact; Core keeps an
+                // override only where the posted value differs from the copy
+                // (CaseWorkspaceClaimSource.SubmittedOverride).
                 if (claimSource is not null && !claimSourceChanged)
                 {
                     claimSource = claimSource with
@@ -1671,8 +1676,14 @@ public sealed partial class DetailsModel(
                     : AssessmentPolicy.ParseImpacts(damageImpacts);
                 var recordedDate = DateOnly.TryParseExact(Recorded(AssessmentVocabulary.ReportDate), "yyyy-MM-dd",
                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : (DateOnly?)null;
+                // The guide source cards have no Save of their own (23 September
+                // 2026): this save records the ones whose boxes were changed.
+                List<ValuationDetails> guideValuations = guideEntries is { Length: > 0 }
+                    ? GuideEntriesToRecord(guideEntries, await listCaseValuations.ExecuteAsync(id, cancellationToken))
+                    : [];
                 await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
                 {
+                    Valuation = guideValuations.Count == 0 ? null : new(null, guideValuations),
                     Overview = !overviewSubmitted ? null : new(
                         Submitted(nameof(claimantName), claimantName, Accepted(data.Claimant.Name)?.Value),
                         Submitted(nameof(claimantContactNumber), claimantContactNumber, Accepted(data.Claimant.ContactNumber)?.Value),
