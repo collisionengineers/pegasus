@@ -609,7 +609,9 @@ public sealed class TriageQueuesWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.DoesNotContain("refused-file.msg", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(registered.Item.Reference, html, StringComparison.Ordinal);
+        // The reference as text on the page; a short reference such as "U1"
+        // can occur by chance inside the random antiforgery token.
+        Assert.DoesNotMatch($">\\s*{Regex.Escape(registered.Item.Reference)}\\s*<", html);
         Assert.DoesNotContain("Open received item", html, StringComparison.Ordinal);
 
         // Zero open Unidentified items: the scope count reads zero.
