@@ -33,7 +33,16 @@ param(
     # When given, every shard from 1..ShardCount must have contributed a .trx.
     [int] $ShardCount = 0,
 
-    [switch] $PassThru
+    [switch] $PassThru,
+
+    # Per-run tables to combine into the committed one by per-class median. A
+    # single run is a poor table: a class's time depends on what shared its
+    # shard's LocalDB, so across ten runs a class's time ranged from under half
+    # to over twice its median, and a deal fitted to one run was fitted to that
+    # run's noise. Leave-one-out over those ten runs: dealing by a single run's
+    # table left the longest shard 1.32x the shortest, by the median of the
+    # others 1.15x, and by test count 1.58x.
+    [string[]] $Combine = @()
 )
 
 Set-StrictMode -Version Latest
@@ -41,6 +50,36 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $Path) {
     $Path = Join-Path $PSScriptRoot 'test-shard-durations.json'
+}
+
+if ($Combine.Count -gt 0) {
+    if ($Combine.Count -lt 3) {
+        throw 'Combine at least three runs: a median of two is their mean, and one run is the noise this mode exists to remove.'
+    }
+
+    $samples = @{}
+    foreach ($source in $Combine) {
+        $run = Get-Content -Raw -LiteralPath $source | ConvertFrom-Json
+        foreach ($entry in $run.PSObject.Properties) {
+            if (-not $samples.ContainsKey($entry.Name)) {
+                $samples[$entry.Name] = [Collections.Generic.List[double]]::new()
+            }
+            $samples[$entry.Name].Add([double] $entry.Value)
+        }
+    }
+
+    $combined = [ordered]@{}
+    foreach ($class in @($samples.Keys | Sort-Object -CaseSensitive)) {
+        $values = @($samples[$class] | Sort-Object)
+        $middle = [math]::Floor($values.Count / 2)
+        $median = if ($values.Count % 2) { $values[$middle] } else { ($values[$middle - 1] + $values[$middle]) / 2 }
+        $combined[$class] = [math]::Round($median, 2)
+    }
+
+    Set-Content -LiteralPath $Path -Value (($combined | ConvertTo-Json -Depth 2) + [Environment]::NewLine) -NoNewline -Encoding utf8NoBOM
+    Write-Host "Combined $($Combine.Count) runs into $($combined.Count) classes by per-class median. Wrote $Path."
+    if ($PassThru) { [pscustomobject] $combined }
+    return
 }
 
 if (-not (Test-Path -LiteralPath $ArtifactRoot)) {
