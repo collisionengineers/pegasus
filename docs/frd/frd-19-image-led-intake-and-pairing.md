@@ -64,11 +64,14 @@ all stay intact.
 
 ### Pairing and merge
 
-An Image-initiated Case stays Awaiting instruction until its evidence can
-associate with exactly one eligible, pre-report, instructed Case. Automatic
-association needs an unambiguous normalised registration match and no
-contradictory identity evidence. Otherwise an authorised staff member makes
-the decision. A Case that has delivered its report is not eligible.
+An Image-initiated Case stays Awaiting instruction until it is associated
+with a Case. Automatic association needs exactly one eligible, pre-report,
+instructed Case, an unambiguous normalised registration match and no
+contradictory identity evidence; a Case that has delivered its report is not
+eligible for it. Otherwise an authorised staff member makes the decision.
+Staff "Link to case" reaches every Case in any state and every Triage Case,
+refusing only an archived Case (operator, 24 September 2026), and the merge
+completes there.
 
 Association keeps both permanent identities and both source histories. The
 instructed Case/PO is the only formal Case identity; the Image reference is
@@ -99,8 +102,8 @@ pairings.
 
 Every current image member must be associated before a group merges, and a
 group merges once. Automatic writes recheck current identity and uniqueness
-in their transaction. Merge rechecks every current association, destination
-eligibility, and the active Case edit lease
+in their transaction. Merge rechecks every current association, an automatic
+destination's eligibility, and the active Case edit lease
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). A deliberate
 staff unlink or reassignment is never undone by recovery. A still-current
 reasoned staff association keeps its authority, including an intentional

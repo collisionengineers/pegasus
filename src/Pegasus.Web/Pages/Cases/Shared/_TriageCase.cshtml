@@ -563,8 +563,9 @@
         }
 
         @* Files (v29 p7): the Triage Case's standard Case files — its custody
-           folder, Add evidence to /Upload, and its documents — before Notes,
-           drawn as the Case Files section draws them. *@
+           folder, Add evidence to /Upload, the Case Files head's More menu
+           (Operations holds a failed custody job's retry) and its documents —
+           before Notes, drawn as the Case Files section draws them. *@
         <section class="panel section-gap" id="section-files" aria-labelledby="section-files-title">
             <div class="panel-head">
                 <h2 id="section-files-title">@OperatorLabels.CaseWorkspace.FilesPanel</h2>
@@ -581,6 +582,22 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                         <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
                     </a>
+                    <details class="menu" data-menu data-files-menu>
+                        <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                        <div class="menu-body">
+                            @if (custodyConfirmed)
+                            {
+                                <a class="btn" href="https://app.box.com/folder/@custodyFolderRemoteId" target="_blank" rel="noopener" data-open-in-box>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                                    <span>@FilesLabels.OpenInBox</span>
+                                </a>
+                            }
+                            <a class="btn" asp-page="/Operations/Index">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-activity" /></svg>
+                                <span>@OperatorLabels.CaseWorkspace.OpenOperations</span>
+                            </a>
+                        </div>
+                    </details>
                 </div>
             </div>
             <div class="panel-body stack">

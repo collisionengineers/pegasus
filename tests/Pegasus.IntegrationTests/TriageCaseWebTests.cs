@@ -8,25 +8,28 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// A Triage is a Case (decision R): it answers on <c>/Cases/{id}</c> and on
 /// none of the Case workflow's sub-routes, takes the shared Case sequence, gets
-/// standard Case custody and is a staff link destination in any state. Proved
-/// against the real database and the real Web host.
+/// standard Case custody (retried like any Case's) and is a staff link
+/// destination in any state. Proved against the real database and the real
+/// Web host.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class TriageCaseWebTests
 {
     private static readonly string[] CaseWorkflowSubRoutes =
     [
-        "Custody",
         "Tasks",
         "Vehicle",
         "Workflow",
@@ -225,6 +228,101 @@ public sealed class TriageCaseWebTests
         Assert.Equal(TriageState.Open, detail.Record.State);
     }
 
+    /// <summary>
+    /// A Triage Case keeps standard Case custody, so its failed custody is
+    /// retried on the Custody page like any Case's. The version and token the
+    /// Triage page renders in its edit session are the authority; the retry
+    /// re-arms the job, and the Triage page shows the outcome.
+    /// </summary>
+    [Fact]
+    public async Task AFailedTriageCaseCustodyIsRetriedOnTheCustodyPage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "custody-page-triage");
+        var workId = await PoisonCustodyAsync(factory.Services, triage.CaseId);
+
+        var record = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
+        using var edit = await client.PostAsync(
+            $"/Cases/{triage.CaseId:D}?handler=TriageEdit",
+            ExpectedVersionForm(AntiforgeryValue(record), 0));
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+        var editing = await edit.Content.ReadAsStringAsync();
+
+        using var retried = await client.PostAsync(
+            $"/Cases/{triage.CaseId:D}/Custody?handler=RetryCustody",
+            Form(
+                AntiforgeryValue(editing),
+                ("expectedVersion", InputValue(editing, "expectedVersion")),
+                ("editLeaseToken", InputValue(editing, "editLeaseToken")),
+                ("operationKey", "custody-page-triage-retry"),
+                ("reason", "Box is available again"),
+                ("targetKind", nameof(CustodyTargetKind.CaseSource))));
+
+        AssertPrg(retried, triage.CaseId, "?section=files");
+        var files = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}?section=files");
+        Assert.Contains("Custody retry is pending.", files, StringComparison.Ordinal);
+
+        await using var context = await factory.Services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        Assert.Equal(
+            ExternalWorkStatePersistence.Pending,
+            await context.ExternalWorkItems
+                .Where(item => item.Id == workId)
+                .Select(item => item.State)
+                .SingleAsync());
+        // A staff write through the Triage authority: the Triage version moves
+        // and its edit scope ends, as every Triage mutation's does.
+        Assert.Equal(
+            1,
+            await context.Triage
+                .Where(item => item.CaseId == triage.CaseId)
+                .Select(item => item.Version)
+                .SingleAsync());
+        Assert.False(await context.CaseWorkflows.AnyAsync(item => item.CaseId == triage.CaseId));
+    }
+
+    /// <summary>
+    /// The Triage Case's Files header carries the Case Files header's Open
+    /// Operations, and Operations lists its failed custody job with the retry
+    /// any Case's failed job has.
+    /// </summary>
+    [Fact]
+    public async Task AFailedTriageCaseCustodyIsListedAndRetriedOnOperations()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "operations-triage");
+        var workId = await PoisonCustodyAsync(factory.Services, triage.CaseId);
+
+        var files = FilesSection(await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}"));
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.OpenOperations,
+            files,
+            StringComparison.Ordinal);
+        Assert.Contains("href=\"/Operations\"", files, StringComparison.OrdinalIgnoreCase);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var operations = await services.GetRequiredService<IRequestOperationsProjectionStore>().GetAsync(
+            100,
+            services.GetRequiredService<TimeProvider>().GetUtcNow(),
+            CancellationToken.None);
+        var listed = Assert.Single(operations.Items, item => item.Id == workId);
+        Assert.Equal(triage.CaseId, listed.CaseId);
+        Assert.Equal(triage.Reference, listed.CaseReference);
+        Assert.True(listed.CanRetry);
+
+        var retried = await services.GetRequiredService<RetryExternalWork>().ExecuteAsync(
+            new(
+                workId,
+                listed.AttemptCount ?? 0,
+                ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                "operations-triage-retry"),
+            CancellationToken.None);
+        Assert.False(retried.IsReplay);
+    }
+
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task AnIntakeTriageCaseRetainsItsSourceInStandardCaseCustody()
@@ -391,6 +489,28 @@ public sealed class TriageCaseWebTests
             .Where(item => item.CaseId == caseId && item.Kind == ExternalWorkKinds.CreateCaseCustody)
             .Select(item => item.Id)
             .SingleAsync();
+    }
+
+    /// <summary>The queue gives the Case's custody job up: the job and the Case's custody read failed.</summary>
+    private static async Task<Guid> PoisonCustodyAsync(IServiceProvider services, Guid caseId)
+    {
+        var workId = await CustodyWorkIdAsync(services, caseId);
+        await using var scope = services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IExternalWorkStore>().MarkPoisonedAsync(
+            workId,
+            scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+            CancellationToken.None);
+        return workId;
+    }
+
+    /// <summary>The Triage Case page's Files section, from its head to its end.</summary>
+    private static string FilesSection(string html)
+    {
+        var start = html.IndexOf("id=\"section-files\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Files section is not rendered.");
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Files section is not closed.");
+        return html[start..end];
     }
 
     private static async Task<IntakeReceipt> GetReceiptAsync(IServiceProvider services, Guid receiptId)

@@ -78,16 +78,38 @@ internal sealed class CaseMutationAuthority
     }
 
     /// <summary>
-    /// The archive and open-state guard of a Case workflow. A Triage Case has
-    /// no archive and keeps its own lifecycle, so nothing refuses it here.
+    /// The archive and open-state guard of a Case workflow. With
+    /// <paramref name="anyLifecycleState"/> a Case in a terminal state is
+    /// accepted too (the image merge that completes a staff link); an archived
+    /// Case is always refused. A Triage Case has no archive and keeps its own
+    /// lifecycle, so nothing refuses it here.
     /// </summary>
-    public void RequireMutable()
+    public void RequireMutable(bool anyLifecycleState = false)
     {
-        if (Workflow is not null)
+        if (Workflow is null)
+        {
+            return;
+        }
+
+        if (anyLifecycleState)
+        {
+            ArchivedCaseGuard.RequireNotArchived(Workflow);
+        }
+        else
         {
             ArchivedCaseGuard.RequireMutable(Workflow);
         }
     }
+
+    /// <summary>
+    /// Whether system work (an image merge, an automatic link) yields to a
+    /// member of staff editing the Case: a held workflow edit lease, whose
+    /// version a system completion advances. A system completion leaves a
+    /// Triage Case's version alone, so it never disturbs a Triage edit scope
+    /// and nothing yields to one.
+    /// </summary>
+    public bool SystemWorkYields(DateTimeOffset nowUtc) =>
+        Workflow is not null && CaseEditAuthority.IsHeld(Workflow.EditLeaseExpiresAtUtc, nowUtc);
 
     /// <summary>
     /// A system completion (custody) advances the workflow version. It leaves a

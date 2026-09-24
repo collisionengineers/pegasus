@@ -8,14 +8,14 @@ namespace Pegasus.Web.Pages.Cases;
 /// <summary>
 /// The Case sub-routes below are surfaces of the Case workflow, which a Triage
 /// Case does not have, so they are not found for a Triage Case identity. The
-/// document download stays open: a Triage Case keeps standard Case files.
+/// document download and Custody stay open: a Triage Case keeps standard Case
+/// files and Case custody, so its failed custody is retried like any Case's.
 /// </summary>
 public sealed class TriageCaseRouteFilter(IGetCaseKind getCaseKind) : IAsyncPageFilter
 {
     /// <summary>The Case sub-route pages the filter guards, by view-engine path.</summary>
     public static readonly IReadOnlySet<string> GuardedPages = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "/Cases/Custody",
         "/Cases/Tasks",
         "/Cases/Vehicle",
         "/Cases/Workflow",
