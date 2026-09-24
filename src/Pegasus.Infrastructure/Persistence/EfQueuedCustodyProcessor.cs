@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
@@ -1139,11 +1140,19 @@ internal sealed class EfQueuedCustodyProcessor(
         {
             intake.CustodyState = ImageCustodyStates.Merged;
             intake.CustodyMergedAtUtc ??= now;
-            var workflow = await context.CaseWorkflows
-                .SingleAsync(value => value.CaseId == caseId, cancellationToken);
-            ArchivedCaseGuard.RequireMutable(workflow);
-            var beforeVersion = workflow.Version;
-            CaseMutationGuard.Complete(workflow);
+            // A Triage Case has no workflow: its Triage is the authority, and
+            // the fold leaves its version alone. A staff link reaches a Case in
+            // any lifecycle state (operator, 24 September 2026), so the fold
+            // that completes it does too; the recorded association decides.
+            var authority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
+                ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
+            var staffDecision = await context.IntakeManualAssociations.AsNoTracking().AnyAsync(
+                association => association.IntakeReceiptId == intake.OriginReceiptId
+                    && association.ActorKind == nameof(ActorKind.Staff),
+                cancellationToken);
+            authority.RequireMutable(anyLifecycleState: staffDecision);
+            var beforeVersion = authority.Version;
+            authority.CompleteSystemMutation();
             context.CaseHistory.Add(new()
             {
                 Id = Guid.NewGuid(),
@@ -1154,7 +1163,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 OccurredAtUtc = now,
                 OperationKey = $"{work.OperationKey}:confirmed",
                 BeforeVersion = beforeVersion,
-                AfterVersion = workflow.Version
+                AfterVersion = authority.Version
             });
         }
         CompleteWork(work, now, intake.CustodyRootRemoteId);

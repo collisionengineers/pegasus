@@ -242,18 +242,19 @@ internal sealed class EfOperationsStore(
         var sourceLimit = checked(maximumItems + 1);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
+        // Every Case's work, a Triage Case's included: it has no workflow row
+        // but keeps standard Case custody, so its failed job is retried here too.
         var workRows = await (
                 from item in context.ExternalWorkItems.AsNoTracking()
-                join workflow in context.CaseWorkflows.AsNoTracking()
-                    on item.CaseId equals (Guid?)workflow.CaseId
-                where item.State == "failed"
+                where item.CaseId != null
+                    && item.State == "failed"
                     && ((item.LeaseToken == null && item.LeaseExpiresAtUtc == null)
                         || (item.LeaseToken != null && item.LeaseExpiresAtUtc <= nowUtc))
                 orderby item.DueAtUtc descending, item.Id
                 select new ExternalWorkRow(
                     item.Id,
                     item.State,
-                    workflow.CaseId,
+                    item.CaseId!.Value,
                     item.Case!.Reference,
                     item.Case!.Principal.Code,
                     item.Kind,
