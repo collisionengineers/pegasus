@@ -404,7 +404,7 @@ public sealed class CaseCustodyWebTests
             var dialogId = $"case-message-{id:N}";
             Assert.Contains($"data-dialog-open=\"{dialogId}\"", queries, StringComparison.Ordinal);
             Assert.Contains($"data-dialog=\"{dialogId}\" data-case-message-dialog", html, StringComparison.Ordinal);
-            Assert.Contains($"data-case-message-url=\"/Inbox/{id:D}?handler=Content\"", html, StringComparison.Ordinal);
+            Assert.Contains($"data-case-message-url=\"/Inbox/{id:D}?correspondenceCaseReference=QDOS3100042&amp;handler=Content\"", html, StringComparison.Ordinal);
             Assert.Contains($"id=\"{dialogId}-title\" class=\"wrap\" tabindex=\"-1\">{subject}</h2>", html, StringComparison.Ordinal);
         }
         Assert.DoesNotContain("<form", queries, StringComparison.OrdinalIgnoreCase);

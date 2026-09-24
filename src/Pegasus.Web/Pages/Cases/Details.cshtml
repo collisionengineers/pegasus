@@ -233,7 +233,7 @@
                         <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                         <button type="submit" class="btn btn--small">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
                             <span>@Frame.RenewEditing</span>
                         </button>
                     </form>
@@ -405,17 +405,15 @@
             </nav>
             <div class="section-tools">
                 @* Refresh reruns this query on the section the operator is
-                   looking at, not the Overview. *@
-                <form method="get" data-refresh-form data-case-refresh>
-                    <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
-                    @if (Model.IsInspectionView)
+                    looking at, not the Overview, and on the view it shows. *@
+                @{
+                    ViewData["RefreshFields"] = new Dictionary<string, string?>
                     {
-                        <input type="hidden" name="view" value="@DetailsModel.InspectionViewKey" />
-                    }
-                    <button type="submit" class="btn btn--icon btn--small" title="@Frame.Refresh" aria-label="@Frame.Refresh">
-                        <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                    </button>
-                </form>
+                        ["section"] = Model.Section,
+                        ["view"] = Model.IsInspectionView ? DetailsModel.InspectionViewKey : null
+                    };
+                }
+                <partial name="Shared/_RefreshButton" />
                 <div class="layout-switch" role="group" aria-label="Case layout" data-case-layout-switch hidden>
                     <button type="button" data-case-layout="scroll" aria-pressed="true">@Frame.Scroll</button>
                     <button type="button" data-case-layout="tabs" aria-pressed="false">@Frame.Tabs</button>

@@ -353,8 +353,11 @@ public sealed class MessageModel(
 
     /// <summary>
     /// The message's head, text and attachment names as a fragment, for the
-    /// Case's Correspondence dialog. The same actor and read as the record,
-    /// and like the Inbox preview it changes nothing.
+    /// Case's Correspondence dialog, with the record's Reply, Reply all and
+    /// Forward where the record offers them. Each opens the record's composer
+    /// with the dialog's Case (<see cref="CorrespondenceCaseReference"/>)
+    /// chosen. The same actor and read as the record, and like the Inbox
+    /// preview it changes nothing.
     /// </summary>
     public async Task<IActionResult> OnGetContentAsync(
         Guid id,
@@ -379,7 +382,21 @@ public sealed class MessageModel(
             return NotFound();
         }
 
-        return detail is null ? NotFound() : Partial("Shared/_MessageContent", detail);
+        if (detail is null)
+        {
+            return NotFound();
+        }
+
+        Detail = detail;
+        CorrespondenceCaseReference = TryNormalizeCaseReference(CorrespondenceCaseReference, out var reference)
+            ? reference
+            : null;
+        if (StaffMailAvailable)
+        {
+            await LoadRetainedOperationAsync(actor, cancellationToken);
+            CorrespondenceMailbox = await ResolveCorrespondenceMailboxAsync(cancellationToken);
+        }
+        return Partial("Shared/_MessageContent", this);
     }
 
     /// <summary>The route line under a message's subject: its forwarder and its To and Cc recipients.</summary>
@@ -1287,19 +1304,20 @@ public sealed class MessageModel(
         });
     }
 
-    private async Task<bool> LoadCorrespondenceContextAsync(
-        ActionActor actor,
-        bool initializeForm,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// The send-ready approved mailbox that holds this message, which Reply
+    /// and Forward send as; none where the message or its mailbox cannot send.
+    /// </summary>
+    private async Task<ApprovedMailbox?> ResolveCorrespondenceMailboxAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(Detail.ImmutableMessageId)
             || Detail.Summary.Id == Guid.Empty
             || Detail.Summary.MailboxId == Guid.Empty)
         {
-            return false;
+            return null;
         }
         var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
-        CorrespondenceMailbox = mailboxes.SingleOrDefault(item =>
+        return mailboxes.SingleOrDefault(item =>
             item.Id == Detail.Summary.MailboxId
             && item.State == ApprovedMailboxState.Approved
             && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
@@ -1309,6 +1327,14 @@ public sealed class MessageModel(
             && !string.IsNullOrWhiteSpace(item.SentFolderIdentity)
             && item.Generation > 0
             && item.VerifiedEncodedMessageSizeLimit is > 0);
+    }
+
+    private async Task<bool> LoadCorrespondenceContextAsync(
+        ActionActor actor,
+        bool initializeForm,
+        CancellationToken cancellationToken)
+    {
+        CorrespondenceMailbox = await ResolveCorrespondenceMailboxAsync(cancellationToken);
         if (CorrespondenceMailbox is null)
             return false;
 

@@ -466,7 +466,10 @@ public sealed class CaseDetailsWebTests
         Assert.DoesNotContain("presence-strip", html, StringComparison.Ordinal);
         var refresh = RefreshForm(html);
         Assert.Contains("name=\"section\"", refresh, StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Refresh\"", refresh, StringComparison.Ordinal);
+        // The shared refresh button: the label the "Refreshing" rewrite
+        // targets is the button's accessible name (issue 831).
+        Assert.Contains("title=\"Refresh\"", refresh, StringComparison.Ordinal);
+        Assert.Contains("data-refresh-label", refresh, StringComparison.Ordinal);
 
         // The ribbon's actions: Cancel and Save beside the Editing badge and
         // the one Actions menu; no reason dialog stands between Save and the

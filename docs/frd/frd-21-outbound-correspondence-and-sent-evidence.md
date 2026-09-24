@@ -118,8 +118,9 @@ and cannot send. It never silently picks the first mailbox.
 
 **What the composer carries.** To, Subject, Message, Case and From
 (read-only). Reply and Forward keep the retained message's reply chain and
-conversation identity. Case defaults to the message's current association
-and may be changed before sending.
+conversation identity. Case defaults to the Case whose correspondence the
+Reply or Forward started from, otherwise to the message's current
+association, and may be changed before sending.
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is
