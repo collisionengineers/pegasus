@@ -198,7 +198,7 @@ internal sealed class EfIntakeLogQueries(
             item.FailureReason ?? item.DecisionReason,
             item.InstructionDraft == null ? null : item.InstructionDraft.SuggestedPrincipalCode,
             item.Assets.Where(asset => asset.Kind == "source" && asset.Disposition == "source").Select(asset => (Guid?)asset.Id).FirstOrDefault(),
-            context.Triage.Where(triage => triage.OriginReceiptId == item.Id).Select(triage => new Produced(triage.Id, triage.Reference)).FirstOrDefault(),
+            context.Triage.Where(triage => triage.OriginReceiptId == item.Id).Select(triage => new Produced(triage.CaseId, triage.Case.Reference)).FirstOrDefault(),
             context.Set<ImageIntakeEntity>().Where(intake => intake.OriginReceiptId == item.Id).Select(intake => new Produced(intake.Id, intake.ImageIntakeReference)).FirstOrDefault(),
             context.Set<UnidentifiedItemEntity>().Where(unidentified => unidentified.OriginId == item.Id)
                 .Select(unidentified => new ProducedUnidentified(unidentified.Id, unidentified.Reference, unidentified.State, unidentified.ResolutionTargetKind)).FirstOrDefault(),

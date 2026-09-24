@@ -27,7 +27,7 @@ public sealed class EfEmailEvidenceStore(
         var subject = request.Subject.Trim();
         var mimeSha256 = request.MimeSha256.ToLowerInvariant();
         var requestHash = Hash(
-            $"sent|{request.TriageId:N}|{request.ExpectedTriageVersion}|{messageIdentity}|{subject}|{mimeSha256}|{request.SentAtUtc:O}|{request.ChaseDueAtUtc:O}|{request.Actor.Trim()}|{string.Join('\n', recipients)}");
+            $"sent|{request.CaseId:N}|{request.ExpectedTriageVersion}|{messageIdentity}|{subject}|{mimeSha256}|{request.SentAtUtc:O}|{request.ChaseDueAtUtc:O}|{request.Actor.Trim()}|{string.Join('\n', recipients)}");
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -46,16 +46,16 @@ public sealed class EfEmailEvidenceStore(
                 item => item.OperationKey == request.OperationKey.Trim(),
                 cancellationToken))
         {
-            throw new TriageOperationConflictException(request.TriageId, request.OperationKey.Trim());
+            throw new TriageOperationConflictException(request.CaseId, request.OperationKey.Trim());
         }
 
 
         var triage = await context.Triage
-            .SingleOrDefaultAsync(item => item.Id == request.TriageId, cancellationToken)
-            ?? throw new InvalidOperationException($"Triage '{request.TriageId}' does not exist.");
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+            ?? throw new InvalidOperationException($"Triage '{request.CaseId}' does not exist.");
         if (triage.Version != request.ExpectedTriageVersion)
         {
-            throw new TriageVersionConflictException(triage.Id, request.ExpectedTriageVersion, triage.Version);
+            throw new TriageVersionConflictException(triage.CaseId, request.ExpectedTriageVersion, triage.Version);
         }
 
 
@@ -70,7 +70,7 @@ public sealed class EfEmailEvidenceStore(
         var entity = new SentEmailEvidenceEntity
         {
             Id = Guid.NewGuid(),
-            TriageId = triage.Id,
+            TriageCaseId = triage.CaseId,
             Triage = triage,
             MessageIdentity = messageIdentity,
             Subject = subject,
@@ -156,7 +156,7 @@ public sealed class EfEmailEvidenceStore(
         if (conflictingHistory is not null)
         {
             throw new TriageOperationConflictException(
-                conflictingHistory.TriageId,
+                conflictingHistory.TriageCaseId,
                 operationKey);
         }
 
@@ -199,10 +199,10 @@ public sealed class EfEmailEvidenceStore(
         }
 
         if (await context.TriageResponseEvidenceLinks.AnyAsync(
-                item => item.TriageId == sentEvidence.TriageId,
+                item => item.TriageCaseId == sentEvidence.TriageCaseId,
                 cancellationToken))
         {
-            throw new TriageResponseEvidenceAlreadyLinkedException(sentEvidence.TriageId);
+            throw new TriageResponseEvidenceAlreadyLinkedException(sentEvidence.TriageCaseId);
         }
         if (sentEvidence.Response is not null)
         {
@@ -274,7 +274,7 @@ public sealed class EfEmailEvidenceStore(
         var linkedAtUtc = UtcNow();
         context.TriageResponseEvidenceLinks.Add(new()
         {
-            TriageId = sentEvidence.TriageId,
+            TriageCaseId = sentEvidence.TriageCaseId,
             Triage = sentEvidence.Triage,
             SentEvidenceId = sentEvidence.Id,
             SentEvidence = sentEvidence,
@@ -318,17 +318,17 @@ public sealed class EfEmailEvidenceStore(
                     CancellationToken.None))
             {
                 throw new TriageOperationConflictException(
-                    sentEvidence.TriageId,
+                    sentEvidence.TriageCaseId,
                     operationKey);
             }
 
 
             if (await verification.TriageResponseEvidenceLinks.AsNoTracking().AnyAsync(
-                    item => item.TriageId == sentEvidence.TriageId,
+                    item => item.TriageCaseId == sentEvidence.TriageCaseId,
                     CancellationToken.None))
             {
                 throw new TriageResponseEvidenceAlreadyLinkedException(
-                    sentEvidence.TriageId,
+                    sentEvidence.TriageCaseId,
                     exception);
             }
 
@@ -381,7 +381,7 @@ public sealed class EfEmailEvidenceStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(request.MimeSha256);
         ValidateActorAndOperation(request.Actor, request.OperationKey);
 
-        if (request.TriageId == Guid.Empty || request.ExpectedTriageVersion < 0)
+        if (request.CaseId == Guid.Empty || request.ExpectedTriageVersion < 0)
         {
             throw new ArgumentException("A valid Triage identity and expected version are required.", nameof(request));
         }
@@ -517,7 +517,7 @@ public sealed class EfEmailEvidenceStore(
 
     private static SentEmailEvidence Map(SentEmailEvidenceEntity entity) => new(
         entity.Id,
-        entity.TriageId,
+        entity.TriageCaseId,
         entity.MessageIdentity,
         entity.Subject,
         DeserializeRecipients(entity.RecipientsJson),
@@ -546,7 +546,7 @@ public sealed class EfEmailEvidenceStore(
         context.TriageHistory.Add(new()
         {
             Id = Guid.NewGuid(),
-            TriageId = triage.Id,
+            TriageCaseId = triage.CaseId,
             Triage = triage,
             EventType = "triage_response_linked",
             Actor = actor.SubjectId,
@@ -559,7 +559,7 @@ public sealed class EfEmailEvidenceStore(
             AfterVersion = triage.Version,
             AfterState = triage.State,
             AfterAssigneeId = triage.AssigneeId,
-            AfterLinkedCaseId = triage.LinkedCaseId
+            AfterLinkedInstructionCaseId = triage.LinkedInstructionCaseId
         });
     }
 

@@ -172,10 +172,10 @@ internal sealed class EfV1ActivityReportQueries(
 
         // Triage's three non-terminal persisted states are its current queue;
         // CreatedAtUtc is the durable age anchor, never inferred from history.
+        // A Triage Case's Principal is its Case's.
         var triage = await db.Set<TriageEntity>().AsNoTracking()
-            .Where(x => x.PrincipalId != null
-                && x.State != "completed" && x.State != "cancelled")
-            .Select(x => new TriageRow(x.PrincipalId!.Value, x.CreatedAtUtc))
+            .Where(x => x.State != "completed" && x.State != "cancelled")
+            .Select(x => new TriageRow(x.Case.PrincipalId, x.CreatedAtUtc))
             .ToListAsync(cancellationToken);
         var held = await (
             from workflow in db.CaseWorkflows.AsNoTracking()

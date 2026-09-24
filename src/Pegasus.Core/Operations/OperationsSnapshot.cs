@@ -73,8 +73,13 @@ public sealed record NeedsAttentionPage(
     public int TotalPages => TotalCount == 0 ? 1 : (int)Math.Ceiling((double)TotalCount / PageSize);
 }
 
-/// <summary>The metric strip of four (Work Centre D7): Not ready, Review, Held, Unidentified.</summary>
-public sealed record WorkCentreMetrics(int NotReady, int Review, int Held, int Unidentified);
+/// <summary>
+/// The Work Centre metric strip (D7): Not ready, Review, Held, Unidentified and,
+/// last, Triages — the active Triage Cases (Open, Awaiting information and
+/// Finding recorded), counted apart from the ordinary Case stages because a
+/// Triage Case has its own lifecycle.
+/// </summary>
+public sealed record WorkCentreMetrics(int NotReady, int Review, int Held, int Unidentified, int Triages);
 
 /// <summary>
 /// What the Work Centre shows.
@@ -101,7 +106,7 @@ public sealed record OperationsSnapshot(
 
     public NeedsAttentionScope Scope { get; init; } = NeedsAttentionScope.Office;
 
-    public WorkCentreMetrics Metrics { get; init; } = new(CaseStages.NotReady, CaseStages.Review, CaseStages.Held, UnidentifiedCount);
+    public WorkCentreMetrics Metrics { get; init; } = new(CaseStages.NotReady, CaseStages.Review, CaseStages.Held, UnidentifiedCount, TriageCount);
 }
 
 public interface IGetOperationsSnapshot
@@ -278,10 +283,16 @@ public sealed class GetOperationsSnapshot(
         var intakeRead = intakeQueries.GetCountsAsync(cancellationToken);
         var attentionRead = FetchAttentionInputsAsync(query.Actor, asOfUtc, cancellationToken);
         var stagesRead = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
-        await Task.WhenAll(intakeRead, attentionRead, stagesRead);
+        // The Triages metric counts every active Triage Case; the attention
+        // inputs already hold the two no-finding states, so only the Finding
+        // recorded total is read here.
+        var findingRecordedRead = listTriage.CountAsync(
+            query.Actor, TriageState.FindingRecorded, cancellationToken);
+        await Task.WhenAll(intakeRead, attentionRead, stagesRead, findingRecordedRead);
         var intake = await intakeRead;
         var inputs = await attentionRead;
         var caseStages = await stagesRead;
+        var findingRecordedTriageCount = await findingRecordedRead;
         var all = await ComposeNeedsAttentionAsync(asOfUtc, inputs, cancellationToken);
         var page = Page(all, query, asOfUtc);
 
@@ -296,7 +307,8 @@ public sealed class GetOperationsSnapshot(
         {
             Attention = page,
             Scope = query.Scope,
-            Metrics = new(caseStages.NotReady, caseStages.Review, caseStages.Held, inputs.Unidentified.Count)
+            Metrics = new(caseStages.NotReady, caseStages.Review, caseStages.Held, inputs.Unidentified.Count,
+                inputs.TriageTotalCount + findingRecordedTriageCount)
         };
     }
 
@@ -614,8 +626,8 @@ public sealed class GetOperationsSnapshot(
             var due = WorkTargets.DueAt(record.CreatedAtUtc, targets.TriageTargetDays);
             items.Add(new(
                 NeedsAttentionKind.Triage,
-                record.Id,
-                record.Reference ?? record.NormalizedVehicleRegistration,
+                record.CaseId,
+                record.Reference,
                 record.NormalizedVehicleRegistration,
                 Detail: null,
                 record.State.ToString(),
@@ -628,7 +640,7 @@ public sealed class GetOperationsSnapshot(
                 Received: record.CreatedAtUtc)
             {
                 OwnerStaffId = record.AssigneeId,
-                Route = $"/Triage/{record.Id:D}"
+                Route = $"/Cases/{record.CaseId:D}"
             });
         }
 

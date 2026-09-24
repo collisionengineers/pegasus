@@ -60,7 +60,7 @@
                         <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" required />
                         <span asp-validation-for="PrincipalCode" class="field-error"></span>
                     </div>
-                    <div class="field">
+                    <div class="field" data-triage-hidden>
                         <label asp-for="ClaimSourceId">Claim Source</label>
                         <select asp-for="ClaimSourceId">
                             <option value="">Not recorded</option>
@@ -73,18 +73,22 @@
                     </div>
                     <div class="field">
                         <label asp-for="CaseType">Case type</label>
-                        <select asp-for="CaseType">
+                        @* A Triage Case asks only for the Principal and the
+                           registration: choosing it hides and un-requires
+                           every other field (v29 p11). *@
+                        <select asp-for="CaseType" data-manual-case-type="@CaseType.Triage">
                             <option value="@CaseType.Inspection">Inspection</option>
                             <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
+                            <option value="@CaseType.Triage">Triage</option>
                         </select>
                         <span asp-validation-for="CaseType" class="field-error"></span>
                     </div>
-                    <div class="field">
+                    <div class="field" data-triage-hidden>
                         <label class="req" asp-for="ClaimantName">Claimant</label>
                         <input asp-for="ClaimantName" maxlength="300" required />
                         <span asp-validation-for="ClaimantName" class="field-error"></span>
                     </div>
-                    <div class="field">
+                    <div class="field" data-triage-hidden>
                         <label class="req" asp-for="ClaimNumber">Claim number</label>
                         <input asp-for="ClaimNumber" maxlength="100" required />
                         <span asp-validation-for="ClaimNumber" class="field-error"></span>
@@ -94,7 +98,7 @@
                         <input asp-for="VehicleRegistration" maxlength="20" required />
                         <span asp-validation-for="VehicleRegistration" class="field-error"></span>
                     </div>
-                    <div class="field">
+                    <div class="field" data-triage-hidden>
                         <label asp-for="InstructionDate">Instruction date</label>
                         <input asp-for="InstructionDate" type="date" />
                         <span asp-validation-for="InstructionDate" class="field-error"></span>
@@ -107,18 +111,18 @@
             <div class="panel-head"><h2 id="vehicle-title">Vehicle and inspection</h2></div>
             <div class="panel-body stack">
                 <div class="grid grid-2">
-                    <div class="field"><label asp-for="VehicleMake">Make</label><input asp-for="VehicleMake" maxlength="100" /></div>
-                    <div class="field"><label asp-for="VehicleModel">Model</label><input asp-for="VehicleModel" maxlength="100" /></div>
-                    <div class="field"><label asp-for="VehicleMileage">Mileage</label><input asp-for="VehicleMileage" type="number" min="0" /></div>
-                    <div class="field">
+                    <div class="field" data-triage-hidden><label asp-for="VehicleMake">Make</label><input asp-for="VehicleMake" maxlength="100" /></div>
+                    <div class="field" data-triage-hidden><label asp-for="VehicleModel">Model</label><input asp-for="VehicleModel" maxlength="100" /></div>
+                    <div class="field" data-triage-hidden><label asp-for="VehicleMileage">Mileage</label><input asp-for="VehicleMileage" type="number" min="0" /></div>
+                    <div class="field" data-triage-hidden>
                         <label asp-for="VehicleMileageUnit">Mileage unit</label>
                         <select asp-for="VehicleMileageUnit"><option value="">Not recorded</option><option value="miles">Miles</option><option value="kilometres">Kilometres</option></select>
                     </div>
-                    <div class="field"><label asp-for="DateOfIncident">Incident date</label><input asp-for="DateOfIncident" type="date" /></div>
-                    <div class="field"><label asp-for="InspectionDate">Inspection date</label><input asp-for="InspectionDate" type="date" /></div>
+                    <div class="field" data-triage-hidden><label asp-for="DateOfIncident">Incident date</label><input asp-for="DateOfIncident" type="date" /></div>
+                    <div class="field" data-triage-hidden><label asp-for="InspectionDate">Inspection date</label><input asp-for="InspectionDate" type="date" /></div>
                 </div>
-                <div class="field"><label asp-for="InspectionAddress">Inspection address</label><textarea asp-for="InspectionAddress" maxlength="1000" rows="3"></textarea></div>
-                <div class="field"><label asp-for="AccidentCircumstances">Accident circumstances</label><textarea asp-for="AccidentCircumstances" maxlength="2000" rows="4"></textarea></div>
+                <div class="field" data-triage-hidden><label asp-for="InspectionAddress">Inspection address</label><textarea asp-for="InspectionAddress" maxlength="1000" rows="3"></textarea></div>
+                <div class="field" data-triage-hidden><label asp-for="AccidentCircumstances">Accident circumstances</label><textarea asp-for="AccidentCircumstances" maxlength="2000" rows="4"></textarea></div>
             </div>
         </section>
 

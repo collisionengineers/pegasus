@@ -87,7 +87,7 @@ else
     var metrics = Model.Metrics;
     <section class="metric-section" aria-label="Work requiring attention">
         <span class="meta wc-freshness" data-wc-freshness data-wc-freshness-state="current">@(Model.LoadedAtUtc is { } attentionLoaded ? Labels.Updated(attentionLoaded) : "Current")</span>
-        <div class="metric-strip metric-strip--4 wc-metrics">
+        <div class="metric-strip metric-strip--5 wc-metrics">
             @* Every metric opens the exact Cases tab behind it; 0 renders as 0.
                Blocked is not an operator concept any more (D7). *@
             <a class="metric" data-value="not_ready" asp-page="/Cases/Index" asp-route-tab="not_ready">
@@ -105,6 +105,10 @@ else
             <a class="metric" data-value="unidentified" asp-page="/Cases/Index" asp-route-tab="unidentified">
                 <span class="metric-label"><span>Unidentified</span></span>
                 <span class="metric-value">@metrics.Unidentified</span>
+            </a>
+            <a class="metric" data-value="triage" asp-page="/Cases/Index" asp-route-tab="triage">
+                <span class="metric-label"><span>@Labels.Triages</span></span>
+                <span class="metric-value">@metrics.Triages</span>
             </a>
         </div>
     </section>

@@ -178,15 +178,22 @@ internal sealed class EfCaseArtifactCustody(
             }
         }
 
-        var workflow = await db.CaseWorkflows
-            .Include(value => value.Case)
-            .SingleOrDefaultAsync(value => value.CaseId == caseId, cancellationToken)
+        // A Triage Case keeps standard Case files but has no workflow; its
+        // Triage is the authority. Automatic evidence promotion never targets
+        // it: automatic association only ever reaches an instructed Case.
+        var authority = await CaseMutationAuthority.LoadAsync(db, caseId, cancellationToken)
             ?? throw new InvalidOperationException("The artifact Case is unavailable.");
         if (request.IsAutomaticIntakeEvidencePromotion)
         {
-            await RequireAutomaticPromotionTargetAsync(db, workflow, request, cancellationToken);
+            if (authority.Workflow is not { } promotionWorkflow)
+            {
+                throw new IntakeDependencyUnavailableException(
+                    "The automatically associated Case is no longer safe for evidence filing.");
+            }
+
+            await RequireAutomaticPromotionTargetAsync(db, promotionWorkflow, request, cancellationToken);
         }
-        var caseEntity = workflow.Case;
+        var caseEntity = authority.Case;
         var lastOrdinal = await db.Set<CaseDocumentEntity>()
             .Where(value => value.CaseId == caseId)
             .Select(value => (int?)value.Ordinal)

@@ -24,7 +24,8 @@ public sealed record CaseSearchFilters(
     DateOnly? FromDate = null,
     DateOnly? ToDate = null,
     string? Origin = null,
-    string? Query = null);
+    string? Query = null,
+    bool IncludeTriage = false);
 
 /// <summary>
 /// The sort a case list renders in. Newest received first is the default
@@ -100,6 +101,15 @@ public sealed record CaseSearchItem(
 
     /// <summary>When the Case entered its current state, so Review ageing counts from the transition.</summary>
     public DateTimeOffset? StateEnteredAtUtc { get; init; }
+
+    /// <summary>
+    /// The Triage state of a Triage Case row (<see cref="CaseType"/> is
+    /// <see cref="CaseType.Triage"/>), which has no Case workflow: the
+    /// positional <see cref="State"/> is unused for such a row. Null for
+    /// every other Case. Rows of Triage Cases appear only when the search asks
+    /// for them (<see cref="CaseSearchFilters.IncludeTriage"/>).
+    /// </summary>
+    public Pegasus.Core.Triage.TriageState? TriageState { get; init; }
 }
 
 public sealed record SearchCasesResult(

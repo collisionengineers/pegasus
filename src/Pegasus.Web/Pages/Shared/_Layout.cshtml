@@ -86,7 +86,7 @@
                         <span>@OperatorLabels.Nav.Upload</span>
                     </a>
                 }
-                <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Triage", "/Unidentified", "/ImageIntake", "/Intake")">
+                <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Unidentified", "/ImageIntake", "/Intake")">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list-checks" /></svg>
                     <span>@OperatorLabels.Nav.Cases</span>
                     @if (CountFor("Cases") is { } casesCount)
