@@ -73,15 +73,24 @@ public static class AdministrationReportTables
             [
                 new("Principal", WorkbookColumnKind.Text),
                 new("Reports produced", WorkbookColumnKind.Count),
+                new(InspectionColumn("Reports produced"), WorkbookColumnKind.Count),
+                new(AuditColumn("Reports produced"), WorkbookColumnKind.Count),
                 new("Reports sent", WorkbookColumnKind.Count),
+                new(InspectionColumn("Reports sent"), WorkbookColumnKind.Count),
+                new(AuditColumn("Reports sent"), WorkbookColumnKind.Count),
                 new("Agreed fees", WorkbookColumnKind.Money),
+                new(InspectionColumn("Agreed fees"), WorkbookColumnKind.Money),
+                new(AuditColumn("Agreed fees"), WorkbookColumnKind.Money),
                 new("Report types", WorkbookColumnKind.Text)
             ],
             principalReport.Rows
                 .Where(row => row.ReportsProduced > 0 || row.Sent > 0)
                 .Select(row => (IReadOnlyList<object?>)
                 [
-                    row.PrincipalCode, row.ReportsProduced, row.Sent, row.AgreedFeeTotal,
+                    row.PrincipalCode,
+                    row.ReportsProduced, row.InspectionReportsProduced, row.AuditReportsProduced,
+                    row.Sent, row.InspectionSent, row.AuditSent,
+                    row.AgreedFeeTotal, row.InspectionAgreedFeeTotal, row.AuditAgreedFeeTotal,
                     string.Join("; ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{type.Kind} {type.Generated}"))
                 ]).ToArray(),
             Totals: true));
@@ -113,17 +122,33 @@ public static class AdministrationReportTables
                 new("Month", WorkbookColumnKind.Text),
                 new("Principal", WorkbookColumnKind.Text),
                 new("Reports produced", WorkbookColumnKind.Count),
+                new(InspectionColumn("Reports produced"), WorkbookColumnKind.Count),
+                new(AuditColumn("Reports produced"), WorkbookColumnKind.Count),
                 new("Fee notes produced", WorkbookColumnKind.Count),
                 new("Reports sent", WorkbookColumnKind.Count),
-                new("Agreed fees", WorkbookColumnKind.Money)
+                new(InspectionColumn("Reports sent"), WorkbookColumnKind.Count),
+                new(AuditColumn("Reports sent"), WorkbookColumnKind.Count),
+                new("Agreed fees", WorkbookColumnKind.Money),
+                new(InspectionColumn("Agreed fees"), WorkbookColumnKind.Money),
+                new(AuditColumn("Agreed fees"), WorkbookColumnKind.Money)
             ],
             monthly.Select(row => (IReadOnlyList<object?>)
             [
-                row.MonthLabel, row.PrincipalCode, row.ReportsGenerated, row.FeeNotesGenerated, row.Sent, row.AgreedFeeTotal
+                row.MonthLabel, row.PrincipalCode,
+                row.ReportsGenerated, row.InspectionReportsGenerated, row.AuditReportsGenerated,
+                row.FeeNotesGenerated,
+                row.Sent, row.InspectionSent, row.AuditSent,
+                row.AgreedFeeTotal, row.InspectionAgreedFeeTotal, row.AuditAgreedFeeTotal
             ]).ToArray(),
             Totals: true));
         return sheets;
     }
+
+    /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Reports produced · Inspection".</summary>
+    private static string InspectionColumn(string measure) => measure + " · Inspection";
+
+    /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Agreed fees · Audit".</summary>
+    private static string AuditColumn(string measure) => measure + " · Audit";
 }
 
 /// <summary>
@@ -199,7 +224,14 @@ public sealed class GetMonthlyReportActivity(IMonthlyReportActivityQueries queri
         || row.ReportsGenerated < 0
         || row.FeeNotesGenerated < 0
         || row.Sent < 0
-        || row.AgreedFeeTotal < 0;
+        || row.AgreedFeeTotal < 0
+        // MI-02's Audit share is part of each total.
+        || row.AuditReportsGenerated < 0
+        || row.AuditReportsGenerated > row.ReportsGenerated
+        || row.AuditSent < 0
+        || row.AuditSent > row.Sent
+        || row.AuditAgreedFeeTotal < 0
+        || row.AuditAgreedFeeTotal > row.AgreedFeeTotal;
 }
 
 /// <summary>The one export: every Administration report for the period as one workbook.</summary>
