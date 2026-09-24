@@ -133,6 +133,7 @@ h1{font-size:20px;line-height:1.25;letter-spacing:-.01em;margin:0;font-weight:65
 .freshness{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:7px;white-space:nowrap}
 .freshness .health-dot{box-shadow:none;width:7px;height:7px}
 .freshness--actions-first{flex-direction:row-reverse;justify-content:flex-end}
+.refresh-button{display:inline-flex}
 h2{font-size:15px;line-height:1.25;margin:0;font-weight:650;letter-spacing:-.01em}
 h3{font-size:13px;line-height:1.25;margin:0;font-weight:650}
 p,dl,dd{margin:0}
@@ -1728,28 +1729,6 @@ label.choice input { flex: 0 0 auto; margin: 0; }
   color: var(--ce-red-dark);
 }
 
-.freshness-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-5);
-  padding: var(--sp-2) var(--sp-4);
-  border: 1px solid var(--state-line);
-  border-radius: var(--radius);
-  background: var(--panel);
-}
-
-.freshness-banner .updated { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
-/* The only animation in the product. It decorates refresh feedback that is
-   already carried by the button label, so reduced motion loses nothing. */
-@keyframes pegasus-spin { to { transform: rotate(360deg); } }
-.freshness-banner.is-refreshing { --state-line: var(--navy-line); background: var(--navy-bg); }
-.freshness-banner.is-refreshing .icon--spin { animation: pegasus-spin 900ms linear infinite; }
-.freshness-banner--loading { --state-line: var(--navy-line); background: var(--navy-bg); }
-.freshness-banner--stale { --state-line: var(--amber-line); background: var(--amber-bg); }
-.freshness-banner--failed { --state-line: var(--ce-red); background: var(--ce-red-tint); }
-
 .reason-dialog-backdrop {
   position: fixed;
   z-index: 90;
@@ -2114,7 +2093,7 @@ table tfoot th {
 }
 
 @media (forced-colors: active) {
-  .queue-card, .metric-tile, .acceptance-boundary, .status-card, .status-chip, .freshness-banner { border: 1px solid CanvasText; }
+  .queue-card, .metric-tile, .acceptance-boundary, .status-card, .status-chip { border: 1px solid CanvasText; }
   .queue-icon, .metric-tile > span { forced-color-adjust: none; background: Canvas; color: CanvasText; }
 }
 .validation-summary__heading {
@@ -2316,6 +2295,8 @@ table tfoot th {
 .refresh .icon { width: .875rem; height: .875rem; }
 .is-refreshing .icon--spin { animation: pegasus-spin 1s linear infinite; }
 
+/* The only animation in the product. It decorates refresh feedback that is
+   already carried by the button label, so reduced motion loses nothing. */
 @keyframes pegasus-spin { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) {

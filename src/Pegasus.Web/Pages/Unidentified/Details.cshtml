@@ -24,12 +24,7 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to Cases</span>
         </a>
-        <form method="get">
-            <button type="submit" class="btn btn--small">
-                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                <span>Refresh</span>
-            </button>
-        </form>
+        <partial name="Shared/_RefreshButton" />
     </div>
 </header>
 
@@ -246,7 +241,7 @@
                         }
                         <div class="button-row">
                             <a class="btn btn--primary" href="?dialog=@Record.ReopenDialog" data-dialog-open="unidentified-reopen-dialog" data-unidentified-action="reopen">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Reopen</span>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>Reopen</span>
                             </a>
                         </div>
                     </div>

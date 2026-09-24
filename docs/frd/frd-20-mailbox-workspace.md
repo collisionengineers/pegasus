@@ -150,8 +150,11 @@ the exact message and the list context it came from.
 Each Case workspace shows its linked received and Sent items as one
 chronological history, newest first by default with an oldest-first option.
 A row opens its message over the Case, read-only like the quick preview: no
-classification, association, read-state, Case-state or custody change. The
-full message record is one link away for every action
+classification, association, read-state, Case-state or custody change. Reply,
+Reply all and Forward appear there where the record offers them and open the
+record's composer with that Case chosen
+([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
+The full message record is one link away for every other action
 ([FRD-16](frd-16-case-record-workspace.md#files)). Cross-mailbox browsing and
 reconciliation stay in this mailbox workspace.
 

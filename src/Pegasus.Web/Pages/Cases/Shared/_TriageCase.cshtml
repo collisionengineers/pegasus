@@ -52,12 +52,7 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to Cases</span>
         </a>
-        <form method="get" data-refresh-form>
-            <button type="submit" class="btn btn--small" title="Refresh">
-                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                <span>Refresh</span>
-            </button>
-        </form>
+        <partial name="Shared/_RefreshButton" />
     </div>
 </header>
 
@@ -495,7 +490,7 @@
                                 <input type="hidden" name="operationId" value="@chaserOp.Id" />
                                 <input type="hidden" name="expectedOperationVersion" value="@chaserOp.Version" />
                                 <button type="submit" class="btn btn--small">
-                                    <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
                                     <span>Reconcile chaser status</span>
                                 </button>
                             </form>

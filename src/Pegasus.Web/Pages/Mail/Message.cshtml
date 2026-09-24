@@ -24,16 +24,16 @@
                 <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply">Reply</a>
+                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply">@OperatorLabels.StaffMail.Reply</a>
                 <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply-all">Reply all</a>
+                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply-all">@OperatorLabels.StaffMail.ReplyAll</a>
             }
             <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-               asp-route-queue="@Model.QueueFilter"                asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="forward">Forward</a>
+               asp-route-queue="@Model.QueueFilter"                asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="forward">@OperatorLabels.StaffMail.Forward</a>
         }
         <form method="post" asp-page-handler="@(Model.IsDismissed ? "Restore" : "Dismiss")" asp-route-id="@summary.Id"
               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
@@ -220,7 +220,7 @@
                             <input type="hidden" name="mailOperationId" value="@mailOperation.Id" />
                             <input type="hidden" name="expectedOperationVersion" value="@mailOperation.Version" />
                             <button type="submit" class="btn">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
                                 <span>@OperatorLabels.StaffMail.Reconcile</span>
                             </button>
                         </form>
@@ -241,7 +241,7 @@
             if (handler is not null)
             {
                 <form method="post" asp-page-handler="@handler" asp-route-id="@summary.Id" class="panel section-gap">
-                    <div class="panel-head"><h2>@(correspondenceMode == "forward" ? "Forward" : correspondenceMode == "reply-all" ? "Reply all" : "Reply")</h2></div>
+                    <div class="panel-head"><h2>@(correspondenceMode == "forward" ? OperatorLabels.StaffMail.Forward : correspondenceMode == "reply-all" ? OperatorLabels.StaffMail.ReplyAll : OperatorLabels.StaffMail.Reply)</h2></div>
                     <div class="panel-body stack">
                         <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
                         <input type="hidden" name="folder" value="@Model.FolderRouteValue" />

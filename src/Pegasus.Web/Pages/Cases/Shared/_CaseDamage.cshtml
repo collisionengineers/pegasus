@@ -175,7 +175,7 @@
                 <div class="dv-readout" data-damage-readout aria-live="polite"></div>
                 @if (editable)
                 {
-                    <button type="button" class="btn btn--small" data-damage-reset><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>@DamageLabels.Reset</span></button>
+                        <button type="button" class="btn btn--small" data-damage-reset><svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>@DamageLabels.Reset</span></button>
                 }
                 <div class="dv-legend" aria-label="@DamageLabels.Severity">
                     @foreach (var severity in AssessmentVocabulary.DamageSeverities.OrderBy(entry => entry.Value.Rank))

@@ -394,10 +394,11 @@ associated with it later and uploaded `.eml` files, newest first
 ([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)). Each row's
 **Open message** shows that message in a dialog over the Case: sender,
 received time, recipients, its text and attachment names. The dialog changes
-nothing. Its **Open full message** leads to the Inbox message record, which
-keeps classification, the Case link, Reply and Forward; without script the
-row opens that record. Compose sits above the list where staff mail is
-available
+nothing. Where the record offers **Reply**, **Reply all** and **Forward**, the
+dialog does too; each opens the record's composer with this Case chosen. Its
+**Open full message** leads to the Inbox message record, which keeps
+classification and the Case link; without script the row opens that record.
+Compose sits above the list where staff mail is available
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 A file whose bytes are one of these emails is read here and is not repeated
 on Documents.
