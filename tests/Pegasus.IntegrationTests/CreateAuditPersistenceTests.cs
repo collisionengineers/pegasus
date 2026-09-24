@@ -201,8 +201,11 @@ public sealed class CreateAuditPersistenceTests
 
         var later = DateTimeOffset.UtcNow;
         var newer = await retain.ExecuteAsync(Evidence("newer", later, later), default);
+        // The refusal left the lease held at the same version, so the second
+        // link reuses it: a fresh take-over writes its event at the version
+        // Create audit already occupies (#826).
         var linked = await harness.Workflows.LinkReportEvidenceAsync(
-            await harness.LinkRequestAsync("link-newer", newer.EvidenceId),
+            olderLink with { OperationKey = "link-newer", EvidenceId = newer.EvidenceId },
             default);
 
         Assert.Equal(CaseLifecycleState.PostReport, linked.State);
@@ -224,6 +227,7 @@ public sealed class CreateAuditPersistenceTests
         var result = await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-replace"), default);
         await harness.ExecuteSqlAsync(
             $"UPDATE CaseDataFields SET Value = 'Audit Claimant' WHERE WorkId = '{result.AuditWorkId:D}' AND FieldName = '{CaseDataFieldNames.ClaimantName}'");
+        await harness.SeedPrincipalAsync("AUDR");
         var (version, token) = await harness.ClaimAsync("replace-after-audit");
         var replace = new CreateLinkedReplacement(
             harness.Services.GetRequiredService<ILinkedCaseReplacementStore>(),
@@ -237,7 +241,7 @@ public sealed class CreateAuditPersistenceTests
                 "replace-after-audit",
                 "The case was allocated to the wrong principal",
                 token,
-                "QDOS"),
+                "AUDR"),
             default);
 
         await using var context = await harness.ContextAsync();
@@ -525,6 +529,19 @@ public sealed class CreateAuditPersistenceTests
         public Task<PegasusDbContext> ContextAsync() => database.CreateContextAsync();
 
         public Task ExecuteSqlAsync(string sql) => database.ExecuteAsync(sql);
+
+        /// <summary>A second active Principal, so Correct principal has somewhere to go.</summary>
+        public async Task SeedPrincipalAsync(string code)
+        {
+            var organizationId = Guid.NewGuid();
+            var lineageId = Guid.NewGuid();
+            await ExecuteSqlAsync(
+                $"INSERT INTO Organizations (Id, Name, Version) VALUES ('{organizationId:D}', N'{code} provider', 0)");
+            await ExecuteSqlAsync(
+                $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ('{lineageId:D}', '2026-01-01 00:00:00 +00:00')");
+            await ExecuteSqlAsync(
+                $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, PredecessorId, SuccessorId, IsActive, Version) VALUES ('{Guid.NewGuid():D}', '{organizationId:D}', N'{code}', '{lineageId:D}', NULL, NULL, 1, 0)");
+        }
 
         public async Task<CreateAuditRequest> RequestAsync(string operationKey)
         {

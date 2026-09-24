@@ -62,7 +62,8 @@ public sealed class CaseViewsWebTests
         var html = await host.ReadAsync($"/Cases/{store.CaseId:D}?view=inspection");
 
         Assert.DoesNotContain("data-case-views", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-case-view=\"", html, StringComparison.Ordinal);
+        // Razor keeps a data- attribute whose value is null, empty: no view is named.
+        Assert.DoesNotMatch("data-case-view=\"[^\"]", html);
         Assert.DoesNotContain(Frame.ReadOnlyAuditCreated, html, StringComparison.Ordinal);
         Assert.Contains("data-section-edit=", html, StringComparison.Ordinal);
         Assert.Contains("data-case-edit-form", RecordBar(html), StringComparison.Ordinal);
@@ -119,7 +120,8 @@ public sealed class CaseViewsWebTests
         Assert.Contains(RibbonStateChip(html), audit, StringComparison.Ordinal);
 
         Assert.Equal(CaseWorkSelector.Current, Assert.Single(store.PageFrameQueries).Work);
-        Assert.DoesNotContain("data-case-view=\"", html, StringComparison.Ordinal);
+        // Razor keeps a data- attribute whose value is null, empty: no view is named.
+        Assert.DoesNotMatch("data-case-view=\"[^\"]", html);
         Assert.DoesNotContain(Frame.ReadOnlyAuditCreated, html, StringComparison.Ordinal);
         Assert.Contains("data-section-edit=", html, StringComparison.Ordinal);
     }

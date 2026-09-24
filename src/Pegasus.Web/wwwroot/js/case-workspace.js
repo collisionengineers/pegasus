@@ -385,7 +385,8 @@
         selectTab(all[nextIndex].getAttribute('data-section-link'));
     });
     document.addEventListener('click', function (event) {
-        var jump = event.target.closest('[data-section-jump]');
+        // An empty jump (the Inspection view's Next action) is an ordinary link.
+        var jump = event.target.closest('[data-section-jump]:not([data-section-jump=""])');
         if (!jump || !record.contains(jump)) {
             return;
         }
@@ -998,7 +999,9 @@
         }
         // A write lands on the default view (v29), so one posted from the
         // Inspection view navigates rather than swapping that view in place.
-        if (record.hasAttribute('data-case-view') && (form.getAttribute('method') || 'get').toLowerCase() === 'post') {
+        // Razor renders the attribute empty on every other Case, so its value
+        // decides, not its presence.
+        if (record.getAttribute('data-case-view') && (form.getAttribute('method') || 'get').toLowerCase() === 'post') {
             return false;
         }
         var dialogs = document.querySelector('[data-case-dialogs]');
@@ -1079,7 +1082,7 @@
         var link = event.target.closest('a[href]');
         if (!dirty || !link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey
             || link.hasAttribute('target') || link.hasAttribute('download') || link.hasAttribute('data-section-link')
-            || link.hasAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
+            || link.getAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
             || link.getAttribute('href').startsWith('#')) { return; }
         event.preventDefault();
         if (submitting || confirmResolve) { return; }
