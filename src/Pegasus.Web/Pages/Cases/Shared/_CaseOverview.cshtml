@@ -191,7 +191,7 @@
                             <div class="fv">@Model.SignOffEngineerDisplayName</div>
                         }
                     </div>
-                    @if (workflow.ReportSentEvidence is { } sentEvidence)
+                    @if (Model.ShownReportSentEvidence is { } sentEvidence)
                     {
                         @* Inherited scope: the mailbox address and the authoritative time, never the retained identifiers. *@
                         <div class="fc ro"><span class="lbl">@Frame.ReportSent</span><div class="fv">@sentEvidence.MailboxIdentity · @OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</div></div>

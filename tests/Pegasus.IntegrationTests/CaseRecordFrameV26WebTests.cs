@@ -165,126 +165,51 @@ public sealed class CaseRecordFrameV26WebTests
     }
 
     /// <summary>
-    /// Create audit is offered only where Core's rule accepts it: an
-    /// Inspection + Audit Case whose report is sent, with its Engineer and no
-    /// Audit yet.
+    /// Create audit (v29 P5) is offered, inside the edit session and after
+    /// Correct principal, exactly where Core's Audit policy finds no refusal:
+    /// an Inspection + Audit Case whose report is sent (Post-report, Complete
+    /// or Query, never Held), with its Engineer and no Audit yet. The dialog
+    /// and the post are covered by <see cref="CaseViewsWebTests"/>.
     /// </summary>
     [Theory]
-    [InlineData(CaseType.InspectionAndAudit, true, false, true)]
-    [InlineData(CaseType.InspectionAndAudit, false, false, false)]
-    [InlineData(CaseType.Inspection, true, false, false)]
-    [InlineData(CaseType.InspectionAndAudit, true, true, false)]
-    public async Task CreateAuditIsOfferedOnlyWhereTheUseCaseWouldAccept(
-        CaseType caseType, bool reportSent, bool auditExists, bool offered)
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReport, false, true)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReportComplete, false, true)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Query, false, true)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.ReportPreparation, false, false)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.Held, false, false)]
+    [InlineData(CaseType.Inspection, CaseLifecycleState.PostReport, false, false)]
+    [InlineData(CaseType.InspectionAndAudit, CaseLifecycleState.PostReport, true, false)]
+    public async Task CreateAuditIsOfferedOnlyWhereTheAuditPolicyAccepts(
+        CaseType caseType, CaseLifecycleState state, bool auditExists, bool offered)
     {
         var store = new RecordingCaseDetailsStore
         {
-            State = CaseLifecycleState.PostReport,
+            State = state,
             SummaryCaseType = caseType,
             AssignedEngineerId = Guid.NewGuid(),
-            ReportSentEvidence = reportSent ? SentEvidence() : null
+            ReportSentEvidence = SentEvidence(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero))
         };
         if (auditExists)
         {
-            store.Works = WithAudit(store.CaseId);
+            store.GiveAudit(new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
         }
-
-        var audit = new RecordingCreateAudit();
-        using var workspace = await EnterEditModeAsync(store, audit.Register);
+        using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await workspace.GetWorkspaceAsync();
         var bar = RecordBar(html);
 
         Assert.Equal(offered, bar.Contains("data-create-audit", StringComparison.Ordinal));
         Assert.Equal(offered, html.Contains("data-dialog=\"case-create-audit-dialog\"", StringComparison.Ordinal));
+        if (offered && bar.Contains("data-dialog-open=\"case-correct-principal-dialog\"", StringComparison.Ordinal))
+        {
+            Assert.True(
+                bar.IndexOf("data-dialog-open=\"case-correct-principal-dialog\"", StringComparison.Ordinal)
+                    < bar.IndexOf("data-create-audit", StringComparison.Ordinal),
+                "Create audit stays after Correct principal.");
+        }
         Assert.Equal(
             caseType == CaseType.InspectionAndAudit,
             WebUtility.HtmlDecode(html).Contains("data-case-type-chip>Inspection + Audit<", StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    /// The dialog's one primary posts the session's envelope to the use case;
-    /// success returns to this Case with no notice, and a refusal stays on it
-    /// with Core's reason.
-    /// </summary>
-    [Fact]
-    public async Task CreateAuditReturnsToTheCaseOrStatesTheRefusal()
-    {
-        var store = new RecordingCaseDetailsStore
-        {
-            State = CaseLifecycleState.PostReport,
-            SummaryCaseType = CaseType.InspectionAndAudit,
-            AssignedEngineerId = Guid.NewGuid(),
-            ReportSentEvidence = SentEvidence()
-        };
-        var audit = new RecordingCreateAudit();
-        using var workspace = await EnterEditModeAsync(store, audit.Register);
-
-        var html = await workspace.GetWorkspaceAsync();
-        var dialog = Section(html, "case-create-audit-dialog-title");
-        Assert.Contains("handler=CreateAudit", dialog, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"reason\"", dialog, StringComparison.Ordinal);
-
-        const string operationKey = "6a6b6c6d6e6f60616263646566676869";
-        using var created = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=CreateAudit",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", operationKey),
-                ("editLeaseToken", store.LeaseToken)));
-
-        AssertPrg(created, store.CaseId);
-        var request = Assert.Single(audit.Requests);
-        AssertClaimant(workspace, request.Actor);
-        Assert.Equal(store.CaseId, request.CaseId);
-        Assert.Equal(store.CaseVersion, request.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, request.EditLeaseToken);
-        Assert.Equal(operationKey, request.OperationKey);
-        Assert.DoesNotContain("was created", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
-
-        audit.Refusal = AuditRefusal.ReportNotSent;
-        using var refused = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=CreateAudit",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", "7a7b7c7d7e7f70717273747576777879"),
-                ("editLeaseToken", store.LeaseToken)));
-        AssertPrg(refused, store.CaseId);
-        var after = WebUtility.HtmlDecode(await workspace.GetWorkspaceAsync());
-        Assert.Contains(AuditPolicy.Message(AuditRefusal.ReportNotSent), after, StringComparison.Ordinal);
-    }
-
-    private static ApprovedMailboxReportSentEvidence SentEvidence()
-    {
-        var sentAt = new DateTimeOffset(2031, 5, 1, 9, 0, 0, TimeSpan.Zero);
-        return new(
-            Guid.NewGuid(),
-            "reports@example.test",
-            "sent-items",
-            "item-1",
-            "<message-1@example.test>",
-            "conversation-1",
-            "chain-1",
-            "occurrence-1",
-            new string('a', 64),
-            new string('b', 64),
-            sentAt,
-            sentAt,
-            ActionActor.SystemWorker("poller"),
-            sentAt,
-            ActionActor.SystemWorker("poller"));
-    }
-
-    private static CaseWorkSet WithAudit(Guid caseId)
-    {
-        var createdAt = new DateTimeOffset(2031, 5, 2, 9, 0, 0, TimeSpan.Zero);
-        return new(
-            new CaseWork(caseId, caseId, CaseWorkKind.Primary, createdAt.AddDays(-10)),
-            new CaseWork(Guid.NewGuid(), caseId, CaseWorkKind.Audit, createdAt));
     }
 
     /// <summary>
@@ -397,34 +322,4 @@ public sealed class CaseRecordFrameV26WebTests
                 PrincipalNotes: principalNotes,
                 ClaimSourceNotes: claimSourceNotes)
         };
-    }
-
-
-
-    /// <summary>
-    /// The Create audit use case, substituted so the command is recorded
-    /// rather than persisted; availability follows the seeded frame.
-    /// </summary>
-    private sealed class RecordingCreateAudit : ICreateAudit
-    {
-        public List<CreateAuditRequest> Requests { get; } = [];
-
-        public AuditRefusal? Refusal { get; set; }
-
-        public void Register(IServiceCollection services) => Substitute<ICreateAudit>(services, this);
-
-        public Task<CreateAuditResult> ExecuteAsync(CreateAuditRequest request, CancellationToken cancellationToken)
-        {
-            if (Refusal is { } refusal)
-            {
-                throw new AuditCreationException(request.CaseId, refusal);
-            }
-            Requests.Add(request);
-            return Task.FromResult(new CreateAuditResult(
-                new CaseIdentity(request.CaseId, "QDOS", 2031, 42, "QDOS3100042", "a.QDOS3100042"),
-                Guid.NewGuid(),
-                "a.QDOS3100042",
-                false));
-        }
-    }
-}
+    }}

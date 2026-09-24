@@ -22,8 +22,13 @@
     var workflow = details.Workflow;
     var caseId = workflow.CaseId;
     var editing = Model.SectionIsEditable("report");
-    var generation = Model.CurrentReportGeneration;
-    var preparation = Model.CurrentDeliveryPreparation;
+    // One report per work (v29 P4): the Inspection view shows the
+    // Inspection's sent report and nothing to generate or deliver; the Audit
+    // view is the current work's, with the sent Inspection report beside it.
+    var inspectionView = Model.IsInspectionView;
+    var auditView = !inspectionView && Model.Works is { HasAudit: true };
+    var generation = inspectionView ? Model.InspectionReportGeneration : Model.CurrentReportGeneration;
+    var preparation = inspectionView ? null : Model.CurrentDeliveryPreparation;
     var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
         ? CaseReportDeliveryPolicy.SuggestedReview(suggestions)
         : new ReportRecipientReview([], []);
@@ -243,19 +248,45 @@
             </div>
         }
 
+        @if (auditView)
+        {
+            @* The Inspection's sent report: one line, and the way to its view. *@
+            <div class="pv" data-inspection-report>
+                <div class="pv-thumb" aria-hidden="true"></div>
+                <div class="pv-meta">
+                    <div class="pt">@(Model.InspectionReportTitle ?? Model.ReportTitle)</div>
+                    <div class="ps"><span>@Model.InspectionSentLine</span></div>
+                </div>
+                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@caseId"
+                   asp-route-section="report" asp-route-view="@DetailsModel.InspectionViewKey"
+                   asp-fragment="section-report">@CaseWorkspaceLabels.Frame.InspectionViewLink</a>
+            </div>
+        }
+
         @* The preview card: what the report is and where its generation stands. *@
         <div class="pv" data-report-preview-card>
             <div class="pv-thumb" aria-hidden="true"></div>
             <div class="pv-meta">
                 <div class="pt" data-report-title>@Model.ReportTitle</div>
                 <div class="ps" data-report-status>
-                    @if (generation is null)
+                    @if (inspectionView)
                     {
-                        <span>@Words.NoGeneration</span>
+                        <span>@Model.InspectionSentLine</span>
                     }
                     else
                     {
-                        <span>@Words.Generated <b>@generatedAt</b> · @ReportLabels.GenerationState @generation.State</span>
+                        @if (auditView)
+                        {
+                            <span class="mono" data-report-reference>@Model.AuditReportReference · </span>
+                        }
+                        @if (generation is null)
+                        {
+                            <span>@Words.NoGeneration</span>
+                        }
+                        else
+                        {
+                            <span>@Words.Generated <b>@generatedAt</b> · @ReportLabels.GenerationState @generation.State</span>
+                        }
                     }
                 </div>
             </div>
@@ -269,7 +300,8 @@
                         {
                             <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
                                asp-route-id="@caseId" asp-route-generationId="@generation.Id"
-                               asp-route-artifactId="@artifact.Id" target="_blank" rel="noopener" data-report-artifact="@artifact.Kind">
+                               asp-route-artifactId="@artifact.Id" asp-route-view="@Model.ViewRoute"
+                               target="_blank" rel="noopener" data-report-artifact="@artifact.Kind">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                                 <span>@(artifact.Kind switch
                                     {
@@ -507,7 +539,8 @@
                 <div class="cluster">
                     <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
                        asp-route-id="@caseId" asp-route-generationId="@generation.Id"
-                       asp-route-artifactId="@confirmedFeeNote.Id" target="_blank" rel="noopener" data-report-fee-artifact>
+                       asp-route-artifactId="@confirmedFeeNote.Id" asp-route-view="@Model.ViewRoute"
+                       target="_blank" rel="noopener" data-report-fee-artifact>
                         <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                         <span>@ReportLabels.DownloadFeeNote</span>
                     </a>
