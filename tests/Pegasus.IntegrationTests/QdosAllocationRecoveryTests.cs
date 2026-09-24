@@ -1571,9 +1571,23 @@ public sealed class QdosAllocationRecoveryTests
                     "Parallel reasoned retry."));
             }
 
-            var results = await Task.WhenAll(
-                RetryAsync($"parallel-a:{Guid.NewGuid():N}"),
-                RetryAsync($"parallel-b:{Guid.NewGuid():N}"));
+            var operationKeys = new[]
+            {
+                $"parallel-a:{Guid.NewGuid():N}",
+                $"parallel-b:{Guid.NewGuid():N}"
+            };
+            var results = await Task.WhenAll(operationKeys.Select(RetryAsync));
+
+            // A suppressed retry can return Pending when its bounded wait ends
+            // before the owner records the outcome. Once both calls have
+            // finished, replay that same operation to observe the final result.
+            for (var index = 0; index < results.Length; index++)
+            {
+                if (results[index].State.Status == IntakeAllocationProjectionStatus.Pending)
+                {
+                    results[index] = await RetryAsync(operationKeys[index]);
+                }
+            }
 
             Assert.All(results, result =>
                 Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result.State.Status));
