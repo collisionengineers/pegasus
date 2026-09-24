@@ -49,17 +49,18 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
         var triage = await context.Triage.AsNoTracking().SingleAsync(item => item.OriginReceiptId == receiptId);
-        Assert.Equal(caseId, triage.LinkedCaseId);
+        Assert.Equal(caseId, triage.LinkedInstructionCaseId);
         Assert.Equal("open", triage.State);
         Assert.Equal(1, triage.Version);
-        Assert.StartsWith("T", triage.Reference, StringComparison.Ordinal);
+        var triageCase = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == triage.CaseId);
+        Assert.StartsWith("t.", triageCase.Reference, StringComparison.Ordinal);
         var history = await context.TriageHistory.AsNoTracking().SingleAsync(item =>
-            item.TriageId == triage.Id && item.EventType == "triage_case_linked");
+            item.TriageCaseId == triage.CaseId && item.EventType == "triage_case_linked");
         Assert.Equal(nameof(ActorKind.SystemWorker), history.ActorKind);
         Assert.Equal(TriageCasePairing.ActorId, history.Actor);
         Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
             item.CaseId == caseId && item.EventType == history.EventType));
-        Assert.Equal(1, await context.Cases.CountAsync());
+        Assert.Equal(1, await context.Cases.CountAsync(item => item.Type != CaseTypeCodes.Triage));
         Assert.Equal(1, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
     }
 
@@ -285,7 +286,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         LabourRateCards
         RetainedInstructionAnalyses
         StaffMailSendOperations
-        TriageSequences
         UserExternalCredentials
         ValuationPresets
         """;
@@ -307,7 +307,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         LabourRateCards:SELECT,INSERT,UPDATE
         RetainedInstructionAnalyses:SELECT
         StaffMailSendOperations:SELECT,INSERT,UPDATE
-        TriageSequences:SELECT,INSERT,UPDATE
         UserExternalCredentials:SELECT,INSERT,UPDATE,DELETE
         ValuationPresets:SELECT,INSERT,UPDATE
         """;
@@ -322,7 +321,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         IntakeSourceCandidates:SELECT,INSERT
         RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
         StaffMailSendOperations:SELECT,INSERT,UPDATE
-        TriageSequences:SELECT,INSERT,UPDATE
         """;
 
     [Fact]
@@ -805,6 +803,52 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Contains("ProblemReports", await ReadDeniedDeleteTablesAsync(database, WebRole));
     }
 
+    // 20260924180000_CaseWorksAndTriageCases: Web and Worker both create Cases
+    // (and so their primary work); only Web updates a work (Create audit moves
+    // the Inspection report's evidence onto it); neither deletes one. Web also
+    // creates Triage Cases.
+    [Fact]
+    public async Task LatestMigrationGivesCaseWorksItsExactRuntimePermissions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            [
+                $"{WebRole}:D:DELETE",
+                $"{WebRole}:G:INSERT",
+                $"{WebRole}:G:SELECT",
+                $"{WebRole}:G:UPDATE",
+                $"{WorkerRole}:D:DELETE",
+                $"{WorkerRole}:G:INSERT",
+                $"{WorkerRole}:G:SELECT"
+            ],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    principal.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE permission.major_id = OBJECT_ID(N'[dbo].[CaseWorks]')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
+                """));
+        Assert.Equal(
+            ["Triage:INSERT", "Triage:SELECT", "Triage:UPDATE"],
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => value.StartsWith("Triage:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Contains("Triage", await ReadDeniedDeleteTablesAsync(database, WebRole));
+    }
+
     [Fact]
     public async Task RetainedMailSearchProjectionUsesExactCallerPermissions()
     {
@@ -1053,9 +1097,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
             UPDATE dbo.AutomaticEvaReviewSubmissions SET State = N'Completed' WHERE Id = '00000000-0000-0000-0000-000000000000';
-            UPDATE [dbo].[TriageSequences]
-            SET [LastAllocatedSequence] = 1
-            WHERE [Id] = 1;
             DELETE FROM [dbo].[DocumentContentCacheEntries]
             WHERE [Id] = '00000000-0000-0000-0000-000000000000';
             REVERT;
@@ -1063,8 +1104,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
         Assert.Equal(1, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM [dbo].[ContactRoles] WHERE [OrganizationId] = '{contactOrganizationId:D}'"));
-        Assert.Equal(1L, await database.ScalarAsync<long>(
-            "SELECT [LastAllocatedSequence] FROM [dbo].[TriageSequences] WHERE [Id] = 1"));
 
         await database.ExecuteAsync(
             $"""
@@ -1464,7 +1503,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
         Assert.False(context.Database.HasPendingModelChanges());
         Assert.Equal(2, await database.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM sys.indexes WHERE name IN ('IX_ValuationPresets_Label', 'IX_AppliedValuationSnapshots_CaseId_AcceptedAtUtc')"));
+            "SELECT COUNT(*) FROM sys.indexes WHERE name IN ('IX_ValuationPresets_Label', 'IX_AppliedValuationSnapshots_WorkId_AcceptedAtUtc')"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.indexes WHERE name = 'IX_ValuationPresets_Label' AND is_unique = 1 AND has_filter = 0"));
     }
