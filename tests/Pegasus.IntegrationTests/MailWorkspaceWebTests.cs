@@ -103,6 +103,69 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// The record's Content handler is the Case Correspondence dialog's body:
+    /// the message's head, text and attachment names as a fragment, read the
+    /// way the record reads it, with nothing to act on and nothing changed.
+    /// </summary>
+    [Fact]
+    public async Task MessageContentIsAReadOnlyFragmentOfTheRecord()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        using var client = CreateClient(factory);
+
+        bool readBefore;
+        int classificationHistoryBefore;
+        int associationHistoryBefore;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            readBefore = await context.RetainedMailboxMessages
+                .Where(item => item.Id == messageId)
+                .Select(item => item.IsRead)
+                .SingleAsync();
+            classificationHistoryBefore = await context.IntakeMailClassificationHistory.CountAsync();
+            associationHistoryBefore = await context.IntakeMutationHistory.CountAsync();
+        }
+
+        using var response = await client.GetAsync($"/Inbox/{messageId:D}?handler=Content");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        var fragment = await response.Content.ReadAsStringAsync();
+        Assert.Contains("data-message-content", fragment, StringComparison.Ordinal);
+        Assert.Contains("From A Sender", fragment, StringComparison.Ordinal);
+        Assert.Contains("To intake@collisionengineers.co.uk", fragment, StringComparison.Ordinal);
+        Assert.Contains("Please inspect the vehicle at the address supplied.", fragment, StringComparison.Ordinal);
+        Assert.Contains("<li>estimate.pdf</li>", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("<html", fragment, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<form", fragment, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<button", fragment, StringComparison.OrdinalIgnoreCase);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Equal(readBefore, await context.RetainedMailboxMessages
+                .Where(item => item.Id == messageId)
+                .Select(item => item.IsRead)
+                .SingleAsync());
+            Assert.Equal(classificationHistoryBefore, await context.IntakeMailClassificationHistory.CountAsync());
+            Assert.Equal(associationHistoryBefore, await context.IntakeMutationHistory.CountAsync());
+        }
+
+        using var unknown = await client.GetAsync($"/Inbox/{Guid.NewGuid():D}?handler=Content");
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        using var rolelessRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Inbox/{messageId:D}?handler=Content");
+        rolelessRequest.Headers.Add("X-Test-Roleless", "1");
+        using var roleless = await client.SendAsync(rolelessRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
+    }
+
+    /// <summary>
     /// C08: the workspace contract says mailbox/folder/search/queue/unread/
     /// sort/page are URL and retained-query state only — opening, previewing,
     /// filtering or changing the unread scope never reaches Outlook or writes

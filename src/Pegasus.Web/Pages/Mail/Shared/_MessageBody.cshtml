@@ -1,0 +1,27 @@
+@model Pegasus.Core.Intake.RetainedMailDetail
+
+@* A message's text: the record's Message tab and the Case's Correspondence
+   dialog both read it here. *@
+@if (string.IsNullOrWhiteSpace(Model.BodyPlainText))
+{
+    <p class="muted">This message has no readable text body.</p>
+}
+else
+{
+    var presented = MailBodyPresentation.Present(Model.BodyPlainText);
+    @if (presented.QuotedHeader.Count > 0)
+    {
+        <div class="mail-body">
+            @foreach (var line in presented.QuotedHeader)
+            {
+                <p class="muted">@line</p>
+            }
+        </div>
+    }
+    <div class="mail-body">
+        @foreach (var paragraph in presented.Paragraphs)
+        {
+            <p>@paragraph.Text</p>
+        }
+    </div>
+}

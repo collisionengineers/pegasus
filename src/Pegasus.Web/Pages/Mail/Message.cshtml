@@ -347,19 +347,7 @@
                     <div class="mail-header">
                         <div class="mail-subject">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</div>
                         @{
-                            var routeParts = new List<string>();
-                            if (Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(summary) is { } forwarder)
-                            {
-                                routeParts.Add($"Forwarded by {forwarder}");
-                            }
-                            if (Model.Detail.ToAddresses.Count > 0)
-                            {
-                                routeParts.Add($"To {string.Join(", ", Model.Detail.ToAddresses)}");
-                            }
-                            if (Model.Detail.CcAddresses.Count > 0)
-                            {
-                                routeParts.Add($"Cc {string.Join(", ", Model.Detail.CcAddresses)}");
-                            }
+                            var routeParts = Pegasus.Web.Pages.Mail.MessageModel.RouteParts(Model.Detail);
                         }
                         @if (routeParts.Count > 0)
                         {
@@ -367,29 +355,7 @@
                         }
                     </div>
 
-                    @if (string.IsNullOrWhiteSpace(Model.Detail.BodyPlainText))
-                    {
-                        <p class="muted">This message has no readable text body.</p>
-                    }
-                    else
-                    {
-                        var presented = MailBodyPresentation.Present(Model.Detail.BodyPlainText);
-                        @if (presented.QuotedHeader.Count > 0)
-                        {
-                            <div class="mail-body">
-                                @foreach (var line in presented.QuotedHeader)
-                                {
-                                    <p class="muted">@line</p>
-                                }
-                            </div>
-                        }
-                        <div class="mail-body">
-                            @foreach (var paragraph in presented.Paragraphs)
-                            {
-                                <p>@paragraph.Text</p>
-                            }
-                        </div>
-                    }
+                    <partial name="Shared/_MessageBody" model="Model.Detail" />
                 </div>
 
                 <aside class="stack">

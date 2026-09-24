@@ -425,8 +425,10 @@ public sealed class IndexModel(
             : item.SenderAddress;
     }
 
-    public static string SubjectLine(RetainedMailSummary item) =>
-        string.IsNullOrWhiteSpace(item.Subject) ? "No subject" : item.Subject;
+    public static string SubjectLine(RetainedMailSummary item) => SubjectLine(item.Subject);
+
+    public static string SubjectLine(string? subject) =>
+        string.IsNullOrWhiteSpace(subject) ? "No subject" : subject;
 
     public string? FolderRouteValue => ListFolderCode(Folder, Dismissed);
 
