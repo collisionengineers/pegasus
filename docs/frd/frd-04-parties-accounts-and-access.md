@@ -172,7 +172,10 @@ and shows it once on the redisplayed page, so the Administrator can pass it
 on. Accounts are not tied to email addresses, so nothing is emailed. The
 existing password policy and hash stay in charge of passwords. The account is
 put into forced-change state, so it must choose a new password at its next
-sign-in. The reset is a permanent history event with actor, time and reason.
+sign-in. That forced screen asks only for the new password and its
+confirmation; the issued password is replaced, not re-entered, and it cannot be
+chosen again. A voluntary change still asks for the current password first.
+The reset is a permanent history event with actor, time and reason.
 The temporary secret is never emailed, logged, stored in raw form or sent to
 analytics.
 
