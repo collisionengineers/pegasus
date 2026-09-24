@@ -74,7 +74,7 @@ public sealed partial class DetailsModel
     public string? ProposedAuditReference =>
         Case is { } details
         && AuditCasePolicy.AssessmentFor(Assessment?.Field(AssessmentVocabulary.Outcome)?.Value) is not null
-            ? AuditIdentity.Create(details.Workflow.Identity.Reference)
+            ? CaseReferenceFormat.AuditReport(details.Workflow.Identity.Reference)
             : null;
 
     /// <summary>The Engineer sections that follow the assessment access rule.</summary>

@@ -2356,9 +2356,9 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(
             allocated.Identity.Reference,
             await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
-        Assert.Equal(
-            allocated.Identity.Reference,
-            await harness.ReadAuditReferenceAsync(allocated.Identity.CaseId));
+        // A standalone Audit's a. prefix is on its own Case/PO; it never
+        // carries an Audit report reference.
+        Assert.Null(await harness.ReadAuditReferenceAsync(allocated.Identity.CaseId));
         Assert.NotEqual(
             await harness.ReadCaseReferenceAsync(harness.CaseId),
             allocated.Identity.Reference);
@@ -2544,11 +2544,15 @@ public sealed class CaseWorkflowPersistenceTests
     public async Task AuditCaseReferenceFilterMatchesPrimaryAndSecondaryReferences()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
-        const string secondaryReference = "a.QDOS26999";
+        string secondaryReference;
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
+            // Only an Inspection + Audit Case carries an Audit report
+            // reference, and it is always a. + its Case/PO.
             var auditCase = await context.Cases.SingleAsync(item => item.Id == harness.CaseId);
-            auditCase.AuditReference = secondaryReference;
+            auditCase.Type = "inspection_and_audit";
+            auditCase.AuditReference = "a." + auditCase.Reference;
+            secondaryReference = auditCase.AuditReference;
             await context.SaveChangesAsync();
         }
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);

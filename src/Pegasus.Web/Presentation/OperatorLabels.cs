@@ -555,6 +555,7 @@ public static class OperatorLabels
         CaseType.Inspection => "Inspection",
         CaseType.Audit => "Audit",
         CaseType.InspectionAndAudit => "Inspection and audit",
+        CaseType.Triage => "Triage",
         _ => Humanise(type.ToString())
     };
 

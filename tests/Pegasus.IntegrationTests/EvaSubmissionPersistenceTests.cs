@@ -356,7 +356,7 @@ public sealed class EvaSubmissionPersistenceTests
                 Year = 2031,
                 Sequence = 3,
                 Reference = reference,
-                Type = "Inspection",
+                Type = "inspection",
                 InitialState = "Review",
                 CustodyState = "Confirmed",
                 OriginIntakeReceiptId = receiptId,

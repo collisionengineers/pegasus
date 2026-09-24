@@ -242,7 +242,7 @@ public sealed class ServiceHealthPersistenceTests
                 Year = 2031,
                 Sequence = 3,
                 Reference = "EVA31003",
-                Type = "Inspection",
+                Type = "inspection",
                 InitialState = "Review",
                 CustodyState = "Confirmed",
                 OriginIntakeReceiptId = receiptId,

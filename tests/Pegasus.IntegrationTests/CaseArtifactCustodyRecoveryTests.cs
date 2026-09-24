@@ -694,7 +694,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 Year = 2031,
                 Sequence = 1,
                 Reference = "QDOS001",
-                Type = "Inspection",
+                Type = "inspection",
                 InitialState = "NotReady",
                 CustodyState = "confirmed",
                 OriginIntakeReceiptId = receiptId,

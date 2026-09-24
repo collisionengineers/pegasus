@@ -2060,7 +2060,7 @@ public sealed class RetainedMailPersistenceTests
         Year = 2031,
         Sequence = sequence,
         Reference = $"QDOS3100{sequence}",
-        Type = "Inspection",
+        Type = "inspection",
         InitialState = "Review",
         CustodyState = "pending",
         OriginIntakeReceiptId = originId,

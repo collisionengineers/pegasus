@@ -425,7 +425,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     Year = 2031,
                     Sequence = 1,
                     Reference = "DVR-31001",
-                    Type = "Inspection",
+                    Type = "inspection",
                     InitialState = "NotReady",
                     CustodyState = "confirmed",
                     OriginIntakeReceiptId = receiptId,

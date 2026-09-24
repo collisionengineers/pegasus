@@ -39,7 +39,7 @@ public sealed class V1ActivityReportPersistenceTests
                     Year = 2031,
                     Sequence = 1,
                     Reference = "QDOS31001",
-                    Type = "Inspection",
+                    Type = "inspection",
                     InitialState = "Review",
                     CustodyState = "Confirmed",
                     OriginIntakeReceiptId = receiptId,

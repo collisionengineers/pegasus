@@ -48,7 +48,7 @@ public sealed class MonthlyReportActivityPersistenceTests
                 Year = 2031,
                 Sequence = 1,
                 Reference = "QDOS31001",
-                Type = "Inspection",
+                Type = "inspection",
                 InitialState = "Review",
                 CustodyState = "Confirmed",
                 InstructionComplete = true,

@@ -194,7 +194,7 @@ public sealed class CreateAuditCase(
                 request with { OperationKey = request.OperationKey.Trim() },
                 identity,
                 assessment,
-                AuditIdentity.Create(identity.Reference),
+                CaseReferenceFormat.AuditReport(identity.Reference),
                 header.Workflow.AssignedEngineerId),
             cancellationToken);
     }

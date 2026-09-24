@@ -61,7 +61,7 @@ internal sealed class EfRecordEngineerFinding(
         }
         RequireLease(workflow, request.Actor, request.EditLeaseToken, recordedAtUtc);
 
-        var caseType = ParseCaseType(workflow.Case.Type);
+        var caseType = CaseTypeCodes.Parse(workflow.Case.Type);
         // The principal was settled when the case was allocated and is
         // immutable after it. Re-asserting which principal it is here refused
         // engineer findings on perfectly valid non-QDOS cases.
@@ -78,7 +78,7 @@ internal sealed class EfRecordEngineerFinding(
         }
 
         var beforeVersion = workflow.Version;
-        var auditReference = AuditIdentity.Create(workflow.Case.Reference);
+        var auditReference = CaseReferenceFormat.AuditReport(workflow.Case.Reference);
         workflow.Case.AuditReference = auditReference;
         workflow.Version = checked(workflow.Version + 1);
         ClearLease(workflow);
@@ -261,14 +261,6 @@ internal sealed class EfRecordEngineerFinding(
         AuditAssessment.Repairable => "repairable",
         AuditAssessment.TotalLoss => "total_loss",
         _ => throw new ArgumentOutOfRangeException(nameof(assessment))
-    };
-
-    private static CaseType ParseCaseType(string value) => value switch
-    {
-        "inspection" => CaseType.Inspection,
-        "audit" => CaseType.Audit,
-        "inspection_and_audit" => CaseType.InspectionAndAudit,
-        _ => throw new InvalidDataException($"Unknown persisted case type '{value}'.")
     };
 
     private static CaseLifecycleState ParseLifecycleState(string value) =>

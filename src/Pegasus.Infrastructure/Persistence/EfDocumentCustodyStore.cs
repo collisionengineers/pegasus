@@ -543,7 +543,7 @@ internal sealed class EfDocumentCustodyStore(
             throw new InvalidOperationException(
                 "The document occurrence is unavailable.");
         }
-        var caseType = EfCaseQueryStore.ParseCaseType(workflow.Case.Type);
+        var caseType = CaseTypeCodes.Parse(workflow.Case.Type);
         var state = Enum.TryParse<CaseLifecycleState>(workflow.State, out var parsedState)
             && Enum.IsDefined(parsedState)
                 ? parsedState
