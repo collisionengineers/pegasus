@@ -508,7 +508,7 @@ public sealed class ProviderApiSubmissionTests
     }
 
     [Fact]
-    public async Task ADeclaredTriageOpensATriageAndAllocatesNoCase()
+    public async Task ADeclaredTriageOpensATriageCaseAndReturnsItsTriageReference()
     {
         using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
         using var api = WithProviderApi(factory);
@@ -526,11 +526,12 @@ public sealed class ProviderApiSubmissionTests
 
         using var complete = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{submissionId:D}", secret);
         var result = await ReadJsonAsync(complete);
-        // Triage is pre-case work: it opens a Triage record and allocates no
-        // Case/PO (FRD-03).
-        Assert.Equal(JsonValueKind.Null, result.GetProperty("caseReference").ValueKind);
+        // A Triage is a Case type: it opens a Triage Case, whose t. Case/PO is
+        // the result's reference, and links no instruction receipt (FRD-03, FRD-09).
+        Assert.StartsWith("t.", result.GetProperty("caseReference").GetString(), StringComparison.Ordinal);
         Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Triage"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Cases"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Cases WHERE Type = N'triage'"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseIntakeLinks"));
         // The Triage is the destination. Without this the same material also
         // sits in the Unidentified queue, which is the two-queues defect
         // already closed for the mail route.
