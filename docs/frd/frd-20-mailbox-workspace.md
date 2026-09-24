@@ -55,8 +55,7 @@ folder, queue and search filters stay visible and are kept when the operator
 returns from a message or a Case. A fresh visit resets to the default
 all-Inboxes view; there is no cross-session preference.
 
-The message record joins the working set. Its Attachments tab states each
-attachment's own outcome
+The message record's Attachments tab states each attachment's own outcome
 ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
 There is no `View in Outlook`. The in-app message, attachment and thread

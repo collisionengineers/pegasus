@@ -108,7 +108,8 @@ stay visible for normal recovery.
   its permanent reference for its Box folder, and keeps its source emails,
   instruction documents, images, correspondence and reports there.
 - If Box fails after the reference is allocated, the Case stays `Not ready`
-  with the failure shown and staff-started retry or recovery recorded. The
+  (a Triage Case keeps its Triage state) with the failure shown and
+  staff-started retry or recovery recorded. The
   reference is not rolled back, reused or reallocated. No background or
   automatic business retry is allowed.
 - Staff may add manually received WhatsApp evidence with its source and
@@ -169,9 +170,9 @@ identities. Receipt, logical access and definitive association are three
 separate claims. A temporary file or a cache hit never establishes an
 accepted Case association.
 
-A secondary Audit folder nests under its original Inspection folder. It is
-never a sibling of that folder. Image-origin references stay distinct from
-formal Case identity while their custody is resolved.
+The `a.` audit folder of an Inspection + Audit Case nests under that Case's
+folder. It is never a sibling of that folder. Image-origin references stay
+distinct from formal Case identity while their custody is resolved.
 
 ### Custody and derived reads
 
@@ -184,13 +185,20 @@ so the current authorisation and exact version checks apply whatever the
 physical source. Staging is not erased before verified handover, and no new
 store is invented for this separation (ADR-0045).
 
-A linked Audit Case created from an Inspection + Audit Case shares the
-original's documents by reference to the same stored bytes; nothing is
-copied. Its custody root is the `a.` subfolder Pegasus creates under the
-original Case's Box folder when the Audit Case is created. Afterwards it is
-found through the stored relationship, never from the reference prefix
-([ADR-0051](../adr/0051-linked-audit-case-identity-and-custody.md),
+An Inspection + Audit Case has one set of documents; its Inspection and its
+Audit share them and nothing is copied. Create audit makes Pegasus create an
+`a.{Case/PO}` subfolder under the Case's Box folder. Each document records
+which folder holds it: the Case folder, or the audit folder for a report of
+the Audit. An Audit report waits as pending custody until the audit folder
+exists, then is filed there; reconciliation retries it. Every other file,
+including images, stays in the Case folder. A document is always found
+through its recorded folder, never from a reference prefix
+([ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md),
 [FRD-01](frd-01-case-identity-and-lifecycle.md)).
+
+A Triage Case has standard Case custody: its own Box case folder, its
+retained request source and staff uploads
+([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
 An inline image preview is served through this same cached content path,
 never as an audited download. Every read re-verifies the source content hash
@@ -283,4 +291,4 @@ test subtree. Deployment and live acceptance are separate evidence tiers
   [ADR-0025](../adr/0025-integrate-renderer-and-extractor-into-the-application.md),
   [ADR-0045](../adr/0045-document-custody-and-derived-caches.md),
   [ADR-0047](../adr/0047-scanned-instruction-ocr-only.md),
-  [ADR-0051](../adr/0051-linked-audit-case-identity-and-custody.md).
+  [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md).
