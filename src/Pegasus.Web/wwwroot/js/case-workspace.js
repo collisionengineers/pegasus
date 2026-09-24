@@ -346,7 +346,9 @@
         updateSectionFields();
     }
     function updateSectionFields() {
-        record.querySelectorAll('[data-case-section-field]').forEach(function (field) { field.value = activeKey; });
+        // The refresh partial's replay input carries the generic hook; the
+        // Case's own forms carry the Case-named one.
+        record.querySelectorAll('[data-case-section-field], [data-refresh-field="section"]').forEach(function (field) { field.value = activeKey; });
     }
     window.pegasusCaseJumpTo = jumpTo;
 

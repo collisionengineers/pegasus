@@ -12,7 +12,6 @@
 .case-record .case-edit-badge{margin-right:2px}
 .case-record .ribbon-actions form{display:contents}
 .case-record .ribbon-actions .menu-body form{display:contents}
-.case-record .section-tools .icon--spin{width:15px;height:15px}
 .stale-bar{position:relative;display:flex;align-items:center;gap:8px;padding:6px 38px 6px 12px;border-top:1px solid var(--line);background:var(--amber-bg);color:var(--amber);font-size:12px;font-weight:600}
 .stale-bar .icon{width:14px;height:14px;flex:none}
 .stale-bar .btn{margin-left:auto}

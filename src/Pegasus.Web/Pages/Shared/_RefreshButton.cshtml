@@ -1,0 +1,33 @@
+@*
+    The one refresh button (issue 831). Every refresh surface renders this
+    partial; no page draws its own. The region wrapper carries the live
+    announcement, so site.js feedback — the label becoming "Refreshing", the
+    disabled button and aria-busy on the region — reads identically on every
+    page, including under reduced motion or with no CSS. The spin decorates
+    the label change; it is never the only signal.
+
+    ViewData["RefreshFields"] — optional IEnumerable<KeyValuePair<string, string?>>
+                                 (a dictionary is one) rendered as hidden GET
+                                 inputs, so a refresh reloads the filter and
+                                 page the operator is on rather than resetting
+                                 the screen. A key may repeat for multi-valued
+                                 filters such as the Work Centre kinds.
+*@
+<div class="refresh-button" data-refresh-region role="status" aria-live="polite">
+    <form method="get" data-refresh-form>
+        @if (ViewData["RefreshFields"] is IEnumerable<KeyValuePair<string, string?>> refreshFields)
+        {
+            @* A bare GET form submits nothing, so refreshing used to drop the
+               active filter and page and drop the operator back on page one of
+               everything. *@
+            foreach (var field in refreshFields.Where(item => !string.IsNullOrWhiteSpace(item.Value)))
+            {
+                <input type="hidden" name="@field.Key" value="@field.Value" data-refresh-field="@field.Key" />
+            }
+        }
+        <button type="submit" class="btn btn--small" title="Refresh">
+            <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+            <span data-refresh-label>Refresh</span>
+        </button>
+    </form>
+</div>

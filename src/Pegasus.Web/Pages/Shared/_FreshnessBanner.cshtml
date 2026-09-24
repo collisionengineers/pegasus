@@ -6,10 +6,9 @@
     Model: the last successful load time, or null when nothing has loaded.
     ViewData["RefreshStatus"] — current | loading | stale | partial |
                                unavailable | failed.
-    ViewData["RefreshFields"] — optional IReadOnlyDictionary<string, string?>
-                                rendered as hidden inputs, so a GET refresh
-                                reloads the filter and page the operator is on
-                                rather than resetting the screen.
+    ViewData["RefreshFields"] — passed through to Shared/_RefreshButton as the
+                                hidden inputs that replay the current filter
+                                and page on a GET refresh.
 
     Times render in Europe/London through OperatorLabels.OfficeClock, the one
     conversion every operator time surface uses.
@@ -36,7 +35,7 @@
         _ => null
     };
 }
-<div class="freshness @(actionsFirst ? "freshness--actions-first" : null)" data-refresh-region role="status" aria-live="polite">
+<div class="freshness @(actionsFirst ? "freshness--actions-first" : null)">
     <span class="freshness-status">
         <span class="health-dot @dotModifier"></span>
         @if (Model is { } lastGoodTime)
@@ -52,20 +51,5 @@
             <span class="status status--@(noticeTone == "notice--danger" ? "red" : "amber")">@statusLabel</span>
         }
     </span>
-    <form method="get" data-refresh-form>
-        @if (ViewData["RefreshFields"] is IReadOnlyDictionary<string, string?> refreshFields)
-        {
-            @* A bare GET form submits nothing, so refreshing used to drop the
-               active filter and page and drop the operator back on page one of
-               everything. *@
-            foreach (var field in refreshFields.Where(item => !string.IsNullOrWhiteSpace(item.Value)))
-            {
-                <input type="hidden" name="@field.Key" value="@field.Value" />
-            }
-        }
-        <button type="submit" class="btn btn--small" title="Refresh">
-            <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-            <span data-refresh-label>Refresh</span>
-        </button>
-    </form>
+    <partial name="Shared/_RefreshButton" />
 </div>

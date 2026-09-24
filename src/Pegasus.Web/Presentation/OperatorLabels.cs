@@ -635,7 +635,6 @@ public static class OperatorLabels
         public const string Eyebrow = "Office-wide work";
         public const string Title = "Work Centre";
         public const string CreateCase = "Create Case";
-        public const string Refresh = "Refresh";
         public const string NeedsAttention = "Needs attention";
         public const string Today = "Today";
         public const string SelectedWork = "Selected work";
@@ -2179,7 +2178,6 @@ public static class OperatorLabels
         public const string Submit = "Upload";
         public const string Clear = "Clear";
         public const string Another = "Upload another file";
-        public const string Refresh = "Refresh";
         public static string AcceptedFiles(long maximumFileBytes, int maximumFileCount) =>
             string.Create(
                 CultureInfo.InvariantCulture,
