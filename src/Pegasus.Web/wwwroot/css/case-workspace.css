@@ -43,6 +43,10 @@
 .next-row+.next-row{margin-top:8px}
 .next-row.ai-next{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
 .next-row .src-tag{margin-right:4px}
+/* Views (v29 option 4): the aside's first card once the Case has its Audit;
+   the current view reads plain and strong, the other is a link. */
+[data-case-views] .next-row{gap:8px}
+[data-case-views] [aria-current="page"]{font-weight:600;color:var(--ink)}
 
 /* Overview */
 /* Nested sections (v28 P26): Damage and Valuation read inside Vehicle, one rule apart. */
@@ -449,6 +453,9 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-report .pv-meta .pt{font-weight:700}
 #section-report .pv-meta .ps{font-size:12px;color:var(--muted);margin-top:2px}
 #section-report .pv .cluster{display:flex;gap:6px;flex-wrap:wrap}
+/* v29 P4: the Inspection's sent report above the Audit's, its view link at the row's end. */
+#section-report [data-inspection-report]{align-items:center}
+#section-report [data-inspection-report]>.btn{margin-left:auto;flex:none}
 #section-report .detail-list{display:grid;gap:4px;margin:0}
 #section-report .detail-list>div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;font-size:12.5px;margin:0}
 #section-report .detail-list dt{color:var(--quiet);font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;align-self:center}

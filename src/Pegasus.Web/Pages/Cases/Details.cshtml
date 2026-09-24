@@ -116,7 +116,7 @@
          data-case-id="@summary.CaseId" data-case-version="@workflow.Version"
          data-editor-commit="@Model.CommittedEditorCommand"
          data-layout="@Pegasus.Web.Presentation.ShellPreferences.CaseLayout(HttpContext.Request)" data-section-current="@Model.Section"
-         data-case-editing="@(editing ? "true" : "false")">
+         data-case-editing="@(editing ? "true" : "false")" data-case-view="@Model.ViewRoute">
     @* The sticky block (v26 frame rule 1): the 56px ribbon and the 40px
        section row, measured by the shared helper into --sticky-h. *@
     <div class="sticky-block" data-sticky-block>
@@ -232,10 +232,12 @@
                         </button>
                     }
                 }
-                else if (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff)
+                else if (!Model.IsInspectionView
+                    && (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff))
                 {
                     @* A staff lease can be taken over by an authorised editor;
-                       the operation rotates its token and records the prior holder. *@
+                       the operation rotates its token and records the prior holder.
+                       The Inspection view offers no Edit (v29 P3). *@
                     <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -371,7 +373,7 @@
                 @foreach (var entry in OperatorLabels.CaseWorkspace.Sections.Where(entry => Model.SectionIsShown(entry.Key)))
                 {
                     <a class="section-link" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
-                       asp-route-section="@entry.Key" asp-fragment="section-@entry.Key" data-section-link="@entry.Key"
+                       asp-route-section="@entry.Key" asp-route-view="@Model.ViewRoute" asp-fragment="section-@entry.Key" data-section-link="@entry.Key"
                        aria-current="@(Model.SectionLinkKey == entry.Key ? "true" : "false")">
                         <svg class="icon" aria-hidden="true"><use href="#@entry.Icon" /></svg>
                         <span>@entry.Label</span>
@@ -383,6 +385,10 @@
                    looking at, not the Overview. *@
                 <form method="get" data-refresh-form data-case-refresh>
                     <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
+                    @if (Model.IsInspectionView)
+                    {
+                        <input type="hidden" name="view" value="@DetailsModel.InspectionViewKey" />
+                    }
                     <button type="submit" class="btn btn--icon btn--small" title="@Frame.Refresh" aria-label="@Frame.Refresh">
                         <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
                     </button>
@@ -399,7 +405,7 @@
             <div class="stale-bar" role="status" data-dismissable data-stale-bar>
                 <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
                 <span>@CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice</span>
-                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="report" asp-fragment="section-report" data-section-jump="report">Open Report</a>
+                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="report" asp-route-view="@Model.ViewRoute" asp-fragment="section-report" data-section-jump="report">Open Report</a>
                 <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
             </div>
         }
@@ -471,6 +477,42 @@
         @* The aside (v25 decision 7): Figures and Next action. Current
            position is gone because the ribbon carries it. *@
         <aside class="workspace-aside" aria-label="Case context" data-case-aside>
+            @* Views (v29 option 4): once the Case has its Audit, its two views,
+               each named by the reference its report carries; the current one
+               plain, the other a link. The Audit row reads the Case's state
+               chip exactly as the ribbon does. *@
+            @if (Model.Works is { HasAudit: true })
+            {
+                var inspectionName = $"{Frame.InspectionView} · {workflow.Identity.Reference}";
+                var auditName = $"{Frame.AuditView} · {Model.AuditReportReference}";
+                <section class="panel context-card" data-case-views>
+                    <div class="panel-head"><h2>@Frame.Views</h2></div>
+                    <div class="panel-body stack">
+                        <div class="next-row" data-case-view-row="inspection">
+                            @if (Model.IsInspectionView)
+                            {
+                                <span aria-current="page">@inspectionName</span>
+                            }
+                            else
+                            {
+                                <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-view="@DetailsModel.InspectionViewKey">@inspectionName</a>
+                            }
+                            <span class="status status--plain status--green">@Frame.Sent</span>
+                        </div>
+                        <div class="next-row" data-case-view-row="audit">
+                            @if (Model.IsInspectionView)
+                            {
+                                <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId">@auditName</a>
+                            }
+                            else
+                            {
+                                <span aria-current="page">@auditName</span>
+                            }
+                            <partial name="Shared/_StatusChip" model="@Model.StateChipText" />
+                        </div>
+                    </div>
+                </section>
+            }
             <section class="panel context-card" data-figures>
                 <div class="panel-head"><h2>@Frame.Figures</h2></div>
                 <div class="panel-body">

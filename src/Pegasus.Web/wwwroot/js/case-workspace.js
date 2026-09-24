@@ -197,7 +197,11 @@
         if (lease) {
             headers['X-Pegasus-Edit-Lease'] = lease;
         }
-        fetch(fragmentPath + '?section=' + encodeURIComponent(key), { credentials: 'same-origin', headers: headers })
+        // The Inspection view's bodies read the Inspection's own work (v29).
+        var view = record.getAttribute('data-case-view');
+        var fragmentUrl = fragmentPath + '?section=' + encodeURIComponent(key)
+            + (view ? '&view=' + encodeURIComponent(view) : '');
+        fetch(fragmentUrl, { credentials: 'same-origin', headers: headers })
             .then(function (response) {
                 if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
                     throw new Error('section ' + key + ': ' + response.status);
@@ -676,7 +680,7 @@
             });
             current.replaceWith(next);
         });
-        (noticesOnly ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current']).forEach(function (name) {
+        (noticesOnly ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current', 'data-case-view']).forEach(function (name) {
             var value = incoming.getAttribute(name);
             if (value === null) { record.removeAttribute(name); } else { record.setAttribute(name, value); }
         });
@@ -974,6 +978,11 @@
             return false;
         }
         if (form.hasAttribute('data-glass-window')) {
+            return false;
+        }
+        // A write lands on the default view (v29), so one posted from the
+        // Inspection view navigates rather than swapping that view in place.
+        if (record.hasAttribute('data-case-view') && (form.getAttribute('method') || 'get').toLowerCase() === 'post') {
             return false;
         }
         var dialogs = document.querySelector('[data-case-dialogs]');

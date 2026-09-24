@@ -956,6 +956,17 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The Audit's <c>a.</c> Box folder state, mirroring
+    /// <see cref="CustodyFolderState"/> for the cases where there is no
+    /// confirmed folder to name.
+    /// </summary>
+    public static string AuditCustodyFolderState(CaseCustodyState state) => state switch
+    {
+        CaseCustodyState.Pending => "Box audit folder: preparing",
+        _ => "Box audit folder: unavailable"
+    };
+
+    /// <summary>
     /// The Service health table's area grouping, in the operator's language.
     /// </summary>
     /// <remarks>

@@ -94,7 +94,7 @@ public sealed partial class DetailsModel(
     IGlassRepairEstimateSessionReader glassSessions,
     ICaseAuditLinkQueries auditLinks,
     ICaseReportGeneratedQueries reportGenerated,
-    ICreateAuditCase createAuditCase,
+    ICreateAudit createAudit, // STAGE2-CONTRACT: ICreateAudit (AUDIT) replaces ICreateAuditCase.
     IAiDraftQueries aiDrafts,
     IMarketResearchQueries marketResearchQueries,
     IStartMarketResearch startMarketResearch,
@@ -362,9 +362,15 @@ public sealed partial class DetailsModel(
     /// follows the shared assessment-writable lifecycle states and is read by
     /// the Engineer forms. The record has no Open Assessment action and no
     /// section visibility gate (D30). An unresolved access answer reads as
-    /// read-only.
+    /// read-only, and so does the Inspection view (v29 P3).
     /// </summary>
-    public bool AssessmentIsReadOnly { get; private set; } = true;
+    public bool AssessmentIsReadOnly
+    {
+        get => assessmentIsReadOnly || IsInspectionView;
+        private set => assessmentIsReadOnly = value;
+    }
+
+    private bool assessmentIsReadOnly = true;
 
     /// <summary>
     /// D11: whether GuardEstimateEditAsync/OnPostImportEstimateAsync will
@@ -522,7 +528,8 @@ public sealed partial class DetailsModel(
 
     public bool CanEditCaseData => !IsPostReportReadOnly
         && !string.IsNullOrWhiteSpace(RenderLeaseToken)
-        && CurrentWorkflow?.Archive is null;
+        && CurrentWorkflow?.Archive is null
+        && !IsInspectionView;
 
     public bool CanEditEngineering => CanEditCaseData && AssessmentCanOpen && !AssessmentIsReadOnly;
 
@@ -707,6 +714,7 @@ public sealed partial class DetailsModel(
     /// that still holds the account except one mid-import, per the policy.
     /// </summary>
     public bool CanCloseGlass => AssessmentCanOpen
+        && !IsInspectionView
         && GlassSession is { } session
         && GlassRepairEstimateSessionPolicy.CanClose(session.State);
 
@@ -840,7 +848,7 @@ public sealed partial class DetailsModel(
         {
             using (DocumentReadTelemetry.Start("web.case.frame"))
             {
-                Case = await getCasePageFrame.ExecuteAsync(new(id, actor), cancellationToken);
+                Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
             }
             if (Case is null)
             {
@@ -869,7 +877,7 @@ public sealed partial class DetailsModel(
             AssessmentWorkspace? workspace;
             using (DocumentReadTelemetry.Start("web.case.workspace"))
             {
-                workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
+                workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor, WorkSelector), cancellationToken);
             }
             using (DocumentReadTelemetry.Start("web.case.direct-sections"))
             {
@@ -888,11 +896,11 @@ public sealed partial class DetailsModel(
                 }
                 if (!SectionIsDeferred("settlement"))
                 {
-                    Proposals = await fieldProposals.ListForCaseAsync(id, CaseWorkSelector.Current, cancellationToken);
+                    Proposals = await fieldProposals.ListForCaseAsync(id, WorkSelector, cancellationToken);
                 }
                 if (!SectionIsDeferred("inspection"))
                 {
-                    var choices = await inspectionAddressChoicesQueries.GetAsync(id, CaseWorkSelector.Current, cancellationToken);
+                    var choices = await inspectionAddressChoicesQueries.GetAsync(id, WorkSelector, cancellationToken);
                     InspectionAddressChoices = choices is null
                         ? []
                         : Pegasus.Core.Address.InspectionAddressChoices.Resolve(choices);
@@ -947,7 +955,7 @@ public sealed partial class DetailsModel(
 
         Assessment = workspace.Assessment;
         AcceptedSpecification = workspace.AcceptedSpecification;
-        Estimates = await listEstimates.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken);
+        Estimates = await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken);
         LabourRateCards = await labourRateCards.ListAsync(actor, cancellationToken);
         ApplyEstimateSelection(estimate);
         if (Case is not null)
@@ -977,6 +985,8 @@ public sealed partial class DetailsModel(
         }
         if (AssessmentCanOpen)
         {
+            // Readiness is the current work's: it drives the Next action. The
+            // wording is the view's own (v29 P3).
             var inputs = await reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, cancellationToken);
             if (inputs is not null)
             {
@@ -984,7 +994,13 @@ public sealed partial class DetailsModel(
                 ReportDraftPreparation = new(readiness.Reasons);
                 EligibleSignOffEngineers = inputs.Readiness.EligibleSignOffEngineers;
                 SelectedSignOffEngineerId = readiness.Signatory?.StaffId;
-                var wording = WordingOf(inputs.Projection);
+            }
+            var wordingInputs = IsInspectionView
+                ? await reportSnapshotSource.GetAsync(id, actor, WorkSelector, cancellationToken)
+                : inputs;
+            if (wordingInputs is not null)
+            {
+                var wording = WordingOf(wordingInputs.Projection);
                 ReportWording = wording.Offered;
                 ReportWordingComposed = wording.Snapshot is { } wordingSnapshot
                     ? ReportWording.Where(block => !block.Manual).ToDictionary(
@@ -996,6 +1012,11 @@ public sealed partial class DetailsModel(
             }
         }
         CurrentReportGeneration = await reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, cancellationToken);
+        if (Works is { HasAudit: true })
+        {
+            InspectionReportGeneration = await reportGenerations.GetCurrentAsync(
+                actor, id, CaseWorkSelector.Primary, cancellationToken);
+        }
         CurrentDeliveryPreparation = CurrentReportGeneration is null
             ? null
             : await deliveryPreparations.GetCurrentAsync(actor, id, cancellationToken);
@@ -1163,7 +1184,8 @@ public sealed partial class DetailsModel(
             switch (key)
             {
                 case "vehicle":
-                    VehicleSection = await getCaseVehicleSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    VehicleSection = await getCaseVehicleSection.ExecuteAsync(
+                        new(id, actor, Work: WorkSelector), cancellationToken);
                     if (VehicleSection is null)
                     {
                         return NotFound();
@@ -1171,7 +1193,8 @@ public sealed partial class DetailsModel(
                     Assessment = VehicleSection.Assessment;
                     break;
                 case "valuation":
-                    ValuationSection = await getCaseValuationSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    ValuationSection = await getCaseValuationSection.ExecuteAsync(
+                        new(id, actor, Work: WorkSelector), cancellationToken);
                     if (ValuationSection is null)
                     {
                         return NotFound();
@@ -1278,7 +1301,8 @@ public sealed partial class DetailsModel(
             HasAssessmentWorkspace: true,
             Data: Case!.Data,
             Documents: Case.Documents,
-            Frame: Case.Frame);
+            Frame: Case.Frame,
+            Work: WorkSelector);
         foreach (var key in LazySectionViews.Keys.Where(key => !SectionIsDeferred(key)))
         {
             switch (key)
@@ -1942,7 +1966,7 @@ public sealed partial class DetailsModel(
             // rather than rendered empty.
             return Request.Headers.ContainsKey("X-Pegasus-Document-Preview")
                 ? EnhancedPreviewRefusal(exception.Message)
-                : RedirectToReport(id);
+                : RedirectToReport(id, RequestedView);
         }
         switch (result.Outcome)
         {
@@ -1957,7 +1981,7 @@ public sealed partial class DetailsModel(
                 {
                     return EnhancedPreviewRefusal(detail);
                 }
-                return RedirectToEstimate(id);
+                return RedirectToEstimate(id, view: RequestedView);
             default:
                 // DOCS-014: an inline preview of the unretained working
                 // draft is a view, never a completed download — recorded
@@ -1993,7 +2017,7 @@ public sealed partial class DetailsModel(
                     return EnhancedPreviewRefusal(reason);
                 }
                 TempData["CaseError"] = reason;
-                return RedirectToEstimate(id, estimateId.ToString("D"));
+                return RedirectToEstimate(id, estimateId.ToString("D"), view: RequestedView);
             case RenderCaseEstimateDocumentOutcome.Rendered:
                 var artifact = result.Artifact!;
                 await estimateDocumentPresentations.RecordPreviewedAsync(
@@ -2409,8 +2433,12 @@ public sealed partial class DetailsModel(
         return null;
     }
 
-    private RedirectToPageResult RedirectToReport(Guid id) =>
-        RedirectToPage("/Cases/Details", new { id, section = "report" });
+    /// <summary>
+    /// Back to the Report section; only a GET handler passes <paramref name="view"/>
+    /// (the Inspection view it was reached from); writes land on the default view.
+    /// </summary>
+    private RedirectToPageResult RedirectToReport(Guid id, string? view = null) =>
+        RedirectToPage("/Cases/Details", new { id, section = "report", view });
 
     private static DateOnly? ParseGuideMonth(string? value)
     {
@@ -3850,10 +3878,11 @@ public sealed partial class DetailsModel(
     private RedirectToPageResult RedirectToEstimate(
         Guid id,
         string? estimate = null,
-        string? dialog = null) =>
+        string? dialog = null,
+        string? view = null) =>
         RedirectToPage(
             "/Cases/Details",
-            new { id, section = "estimate", estimate, dialog });
+            new { id, section = "estimate", estimate, dialog, view });
 
     private async Task DescribeEditAuthorityHolderAsync(
         ActionActor actor,
