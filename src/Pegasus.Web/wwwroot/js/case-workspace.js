@@ -2027,7 +2027,6 @@
                     if (answer && answer.status === 'ok') {
                         fill(card, '[data-valuation-retail]', answer.retail);
                         fill(card, '[data-valuation-trade]', answer.trade);
-                        fill(card, '[data-valuation-mileage]', answer.mileage);
                         fill(card, '[data-valuation-entry-month]', answer.guideMonth);
                         return;
                     }

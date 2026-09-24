@@ -241,12 +241,14 @@ and edit mode, greyed when they cannot be edited. The field set is owned by
 
 ### Valuation
 
-Valuation lists each entry with its source, date, time, mileage, retail and
-trade values, and guide month (`EXT-10`). Sources are Glass's, Brego, Super
+Valuation lists each entry with its source, date, time, retail and trade
+values, and guide month, with the mileage an Engineer's Value or AI market
+research entry carries (`EXT-10`). Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
 (automation only). Read and edit show the same cards: each guide source is
-one card with month, mileage, retail and trade boxes holding that source's
-latest recorded figures, greyed while reading; any box may be blank and is
+one card with month, retail and trade boxes holding that source's
+latest recorded figures (no mileage: the Case's own is used, operator, 24
+September 2026), greyed while reading; any box may be blank and is
 saved as entered. While editing, the boxes are
 inputs that belong to the Case form, and the card has **Get valuation**,
 which asks the connected provider for the Case's accepted registration and

@@ -605,7 +605,6 @@ public static class CaseWorkspaceLabels
         public const string Applied = "Applied";
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
-        public const string Mileage = "Mileage";
         public const string Listings = "listings";
         public const string ChooseBasis = "Choose a basis card to calculate.";
         public const string GuideRetail = "Guide retail";

@@ -450,8 +450,6 @@ public sealed partial class DetailsModel
 
         public string? GuideMonth { get; set; }
 
-        public string? Mileage { get; set; }
-
         public string? RetailValue { get; set; }
 
         public string? TradeValue { get; set; }
@@ -473,7 +471,7 @@ public sealed partial class DetailsModel
         var entries = new List<ValuationDetails>(forms.Length);
         foreach (var form in forms)
         {
-            if (new[] { form.RetailValue, form.TradeValue, form.Mileage, form.GuideMonth }.All(string.IsNullOrWhiteSpace))
+            if (new[] { form.RetailValue, form.TradeValue, form.GuideMonth }.All(string.IsNullOrWhiteSpace))
             {
                 continue;
             }
@@ -482,12 +480,15 @@ public sealed partial class DetailsModel
                 form.Source,
                 DateOnly.FromDateTime(recordedAt),
                 TimeOnly.FromDateTime(recordedAt),
-                Box(form.Mileage, value => long.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture)),
+                // A guide card carries no mileage: the Case's own is used
+                // wherever a valuation needs one (operator, 24 September 2026).
+                null,
                 Box(form.RetailValue, value => decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture)),
                 Box(form.TradeValue, value => decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture)),
                 ParseGuideMonth(form.GuideMonth));
+            // A card carries no mileage, so one a card recorded earlier is no difference.
             if (ValuationPolicy.FindReplaced(details, recorded) is { } replaced
-                && ValuationPolicy.IsUnchanged(details, replaced.Details))
+                && ValuationPolicy.IsUnchanged(details with { Mileage = replaced.Details.Mileage }, replaced.Details))
             {
                 continue;
             }
@@ -585,7 +586,6 @@ public sealed partial class DetailsModel
                     status = "ok",
                     retail = quote.RetailValue.ToString("0.00", CultureInfo.InvariantCulture),
                     trade = quote.TradeValue.ToString("0.00", CultureInfo.InvariantCulture),
-                    mileage = quote.Mileage.ToString(CultureInfo.InvariantCulture),
                     guideMonth = quote.GuideMonth.ToString("yyyy-MM", CultureInfo.InvariantCulture)
                 });
             }

@@ -226,6 +226,7 @@ public sealed class EfValuationStore(
         ValuationCalculationSelection selection,
         IReadOnlyList<CaseValuationEntity> writtenBySave,
         bool claimantVatRegistered,
+        long? caseMileageInMiles,
         long resultingCaseVersion,
         DateTimeOffset now,
         CancellationToken cancellationToken)
@@ -259,7 +260,9 @@ public sealed class EfValuationStore(
             Source = ValuationSource.EngineersValue.ToString(),
             Date = DateOnly.FromDateTime(now.UtcDateTime),
             Time = TimeOnly.FromDateTime(now.UtcDateTime),
-            Mileage = guideEntity.Mileage,
+            // The Case's own mileage (operator, 24 September 2026): a guide
+            // card carries none. The value needs it, as the lookup does.
+            Mileage = caseMileageInMiles,
             RetailValue = accepted,
             TradeValue = 0m,
             RecordedBy = actor.SubjectId,

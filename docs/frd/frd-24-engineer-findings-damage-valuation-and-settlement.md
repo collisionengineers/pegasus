@@ -111,8 +111,11 @@ and while the source has no working provider the card answers `{Source}
 valuation is unavailable. Contact an administrator or report a problem.`
 (23 September 2026). The card has no Save of its own: the Case's single
 workspace Save records every changed card with whatever was entered, and any
-of its month, mileage, retail and trade may be left blank (operator, 23
-September 2026); a card with every box blank, or unchanged, records nothing.
+of its month, retail and trade may be left blank (operator, 23 September
+2026); a card with every box blank, or unchanged, records nothing. A guide
+card carries no mileage (operator, 24 September 2026): the Case's own
+accepted mileage is the one a valuation uses, both for the lookup and for the
+Engineer's Value.
 The basis is chosen by clicking a card (or Enter or Space on it), and only a
 card with a retail value can be the basis, since the calculation starts from
 retail; there is no Basis control beside the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
@@ -120,10 +123,12 @@ market research is automation-only. No guide provider is
 connected today; connecting one needs its own accepted decision
 ([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
 
-Every entry keeps its date and time, and the mileage, retail and trade
-values and guide month it was given; a guide card may hold any of them blank,
-while an Engineer's Value or AI market research entry always carries its
-figures. Glass's valuation and Glass's repair estimating are two systems
+Every entry keeps its date and time, and the retail and trade values and
+guide month it was given; a guide card may hold any of them blank. An
+Engineer's Value or AI market research entry always carries its figures and a
+mileage: an adopted Engineer's Value takes the Case's accepted mileage in
+miles, so a Save that would adopt one while the Case has no mileage is
+refused, as the lookup is. Glass's valuation and Glass's repair estimating are two systems
 and both are used: the valuation source and the estimate import source keep
 separate label entries and are never merged. An AI market research entry is
 the proposal recorded by the `MarketResearch` job

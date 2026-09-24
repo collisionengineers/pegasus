@@ -4,8 +4,9 @@
     shape (v25 decision 8) and the applied-history row. Read and edit show the
     same cards and the same calculator: Glass's, Brego, Super CAP, CAP and
     Cazana are each one card holding that source's latest recorded retail,
-    trade, guide month and mileage, as greyed boxes while reading and as
-    inputs while editing. The card's inputs belong to the record's one Save
+    trade and guide month, as greyed boxes while reading and as inputs while
+    editing. A card carries no mileage: the Case's own is used wherever a
+    valuation needs one (operator, 24 September 2026). The card's inputs belong to the record's one Save
     form, #case-edit-form, so the ribbon Save records a changed card (the
     same source and month replaces); Get valuation asks the connected
     provider by script and fills the boxes, or shows the card's notice. The
@@ -139,7 +140,6 @@
                 var trade = recorded?.Details.TradeValue;
                 // A card holds exactly what was recorded, in both modes: any
                 // box may be blank (operator, 23 September 2026).
-                var mileage = recorded?.Details.Mileage;
                 var canBeBasis = recorded is not null && Pegasus.Web.Pages.Cases.DetailsModel.CanBeBasis(recorded);
                 var month = recorded?.Details.GuideMonth;
                 var monthValue = month?.ToString("yyyy-MM", CultureInfo.InvariantCulture);
@@ -199,14 +199,6 @@
                             @if (editable)
                             {
                                 <input id="@(idPrefix)month" class="fi" type="month" name="@(field)GuideMonth" form="case-edit-form" value="@monthValue" data-valuation-entry-month />
-                            }
-                        </div>
-                        <div class="@cellClass">
-                            @{ CardLabel(editable, idPrefix + "mileage", ValuationLabels.Mileage); }
-                            <div class="fv mono @(mileage is null ? "empty" : null)">@(mileage is { } mileageShown ? mileageShown.ToString("N0", CultureInfo.InvariantCulture) : absent)</div>
-                            @if (editable)
-                            {
-                                <input id="@(idPrefix)mileage" class="fi mono" type="number" min="0" name="@(field)Mileage" form="case-edit-form" value="@mileage?.ToString(CultureInfo.InvariantCulture)" data-valuation-mileage />
                             }
                         </div>
                     </div>

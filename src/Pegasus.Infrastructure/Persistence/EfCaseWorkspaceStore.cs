@@ -242,6 +242,7 @@ public sealed class EfCaseWorkspaceStore(
                     afterAssessment.GetValueOrDefault(AssessmentVocabulary.SettlementClaimantVatRegistered),
                     "true",
                     StringComparison.Ordinal),
+                CaseMileageInMiles(snapshot.Fields),
                 checked(workflow.Version + 1),
                 now,
                 cancellationToken)
@@ -505,6 +506,31 @@ public sealed class EfCaseWorkspaceStore(
                 snapshot.Fields.ToArray()),
             estimate is null ? null : EfRepairSpecificationStore.Map(estimate),
             wasReplay);
+    }
+
+    /// <summary>
+    /// The Case's accepted mileage in miles, as this save leaves it: an
+    /// adopted Engineer's Value carries the Case's own mileage, never a guide
+    /// card's (operator, 24 September 2026). Null while the Case has none.
+    /// </summary>
+    private static long? CaseMileageInMiles(IReadOnlyList<CaseDataFieldEntity> fields)
+    {
+        if (!long.TryParse(
+                CaseDataFieldValues.Accepted(fields, CaseDataFieldNames.VehicleMileage),
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var reading))
+        {
+            return null;
+        }
+        var unit = CaseOdometer.TryParseUnit(
+            CaseDataFieldValues.Accepted(fields, CaseDataFieldNames.VehicleMileageUnit),
+            out var recorded)
+            ? recorded
+            : CaseOdometerUnit.Miles;
+        return (long)Math.Round(
+            CaseOdometer.Display(reading, unit, CaseOdometerUnit.Miles),
+            MidpointRounding.AwayFromZero);
     }
 
     /// <summary>

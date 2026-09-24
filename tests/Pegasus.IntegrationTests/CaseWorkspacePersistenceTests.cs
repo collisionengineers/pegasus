@@ -1304,19 +1304,61 @@ public sealed class CaseWorkspacePersistenceTests
         var second = await harness.WorkspaceStore.SaveAsync(
             Request(harness, first.Version, again.Token, "basis-save-2", engineer) with
             {
+                // The Case's own mileage, in kilometres, recorded by the same save.
+                Vehicle = new(
+                    null,
+                    null,
+                    null,
+                    new(100_000, CaseOdometerUnit.Kilometres, CaseVehicleMileageSourcePolicy.Owner, null),
+                    new Dictionary<string, string?>(StringComparer.Ordinal)),
                 Valuation = new(
                     [GuideCard(ValuationSource.Glasses, may, 13_000m)],
                     new ValuationCalculationSelection(aprilCard.ValuationId, false, null, [], 0m))
             },
             CancellationToken.None);
 
-        var mayCard = (await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None))
-            .Single(card => card.Details.Source == ValuationSource.Glasses && card.Details.GuideMonth == may);
+        var cards = await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+        var mayCard = cards.Single(card => card.Details.Source == ValuationSource.Glasses && card.Details.GuideMonth == may);
         var applied = Assert.Single(await valuations.ListAppliedAsync(harness.CaseId, CancellationToken.None));
         Assert.Equal(mayCard.ValuationId, applied.GuideValuationId);
         Assert.Equal(13_000m, applied.AcceptedEngineerValue);
         Assert.Equal(second.Version, applied.CaseVersion);
         Assert.Equal(2, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
+        // The Engineer's Value carries the Case's mileage in miles, never a
+        // guide card's (operator, 24 September 2026): 100,000 km is 62,137 miles.
+        var engineersValue = Assert.Single(cards, card => card.Details.Source == ValuationSource.EngineersValue);
+        Assert.Equal(62_137, engineersValue.Details.Mileage);
+    }
+
+    [Fact]
+    public async Task AnAdoptionNeedsTheCaseMileage()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var april = new DateOnly(2030, 4, 1);
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-no-mileage-1");
+        var first = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "no-mileage-save-1", engineer) with
+            {
+                Valuation = new([GuideCard(ValuationSource.Glasses, april, 12_500m)])
+            },
+            CancellationToken.None);
+        var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
+        var card = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None));
+
+        var again = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-no-mileage-2");
+        // The value needs the Case's mileage, as the guide lookup does; with
+        // none recorded the whole save is refused and nothing is written.
+        await Assert.ThrowsAsync<ArgumentException>(() => harness.WorkspaceStore.SaveAsync(
+            Request(harness, first.Version, again.Token, "no-mileage-save-2", engineer) with
+            {
+                Valuation = new([], new ValuationCalculationSelection(card.ValuationId, false, 0.10m, [], 0m))
+            },
+            CancellationToken.None));
+
+        Assert.Empty(await valuations.ListAppliedAsync(harness.CaseId, CancellationToken.None));
+        Assert.Equal(first.Version, (await harness.GetRequiredDataAsync()).Version);
     }
 
     [Fact]

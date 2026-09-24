@@ -130,10 +130,12 @@ One route per guide source.
 Glass's, Brego, Super CAP, CAP and Cazana each own one card, the same in read and edit, containing:
 
 - guide month;
-- mileage;
 - retail value;
 - trade value;
 - Get valuation (while editing).
+
+A card has no mileage box (operator, 24 September 2026): the Case's own accepted mileage is used by the
+lookup and carried by the adopted Engineer's Value.
 
 The boxes are greyed while reading and inputs of the Case form while editing. Get valuation fills
 the same card in place, without redrawing the page, or shows the card's notice when the source has
