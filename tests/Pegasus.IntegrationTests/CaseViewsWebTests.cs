@@ -162,7 +162,8 @@ public sealed class CaseViewsWebTests
             $"href=\"/Cases/{store.CaseId:D}?section=claim&view=inspection#section-claim\"",
             html,
             StringComparison.Ordinal);
-        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" />", html, StringComparison.Ordinal);
+        // Refresh replays the view through the shared refresh button's field.
+        Assert.Contains("<input type=\"hidden\" name=\"view\" value=\"inspection\" data-refresh-field=\"view\" />", html, StringComparison.Ordinal);
 
         var files = await host.ReadAsync($"/Cases/{store.CaseId:D}?view=inspection&section=files");
         Assert.DoesNotContain("data-section-availability=\"files\"", files, StringComparison.Ordinal);
