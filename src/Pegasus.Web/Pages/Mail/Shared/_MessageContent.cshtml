@@ -1,12 +1,15 @@
-@model Pegasus.Core.Intake.RetainedMailDetail
+@model Pegasus.Web.Pages.Mail.MessageModel
 @{
-    var summary = Model.Summary;
-    var routeParts = Pegasus.Web.Pages.Mail.MessageModel.RouteParts(Model);
+    var detail = Model.Detail;
+    var summary = detail.Summary;
+    var routeParts = Pegasus.Web.Pages.Mail.MessageModel.RouteParts(detail);
 }
 
 @* The Case's Correspondence dialog body, fetched on open: the Inbox
    preview's head, the record's text and the attachment names. The dialog
-   title carries the subject. *@
+   title carries the subject. Where the record offers Reply, Reply all and
+   Forward, the dialog's foot gets them too: each opens the record's composer
+   with the dialog's Case chosen. *@
 <div data-message-content>
     <div class="mail-header">
         <div class="mail-route">
@@ -18,12 +21,12 @@
             <div class="mail-route">@string.Join(" · ", routeParts)</div>
         }
     </div>
-    <partial name="Shared/_MessageBody" model="Model" />
-    @if (Model.Attachments.Count > 0)
+    <partial name="Shared/_MessageBody" model="detail" />
+    @if (detail.Attachments.Count > 0)
     {
         <div class="section-gap">
             <ul class="accepted-list">
-                @foreach (var attachment in Model.Attachments)
+                @foreach (var attachment in detail.Attachments)
                 {
                     <li>@attachment.FileName</li>
                 }
@@ -31,3 +34,17 @@
         </div>
     }
 </div>
+@if (Model.CanCorrespond)
+{
+    <div class="left" data-message-actions>
+        @if (Model.CanReply)
+        {
+            <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-compose="reply"
+               asp-route-correspondenceCaseReference="@Model.CorrespondenceCaseReference" data-case-message-record>@OperatorLabels.StaffMail.Reply</a>
+            <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-compose="reply-all"
+               asp-route-correspondenceCaseReference="@Model.CorrespondenceCaseReference" data-case-message-record>@OperatorLabels.StaffMail.ReplyAll</a>
+        }
+        <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-compose="forward"
+           asp-route-correspondenceCaseReference="@Model.CorrespondenceCaseReference" data-case-message-record>@OperatorLabels.StaffMail.Forward</a>
+    </div>
+}
