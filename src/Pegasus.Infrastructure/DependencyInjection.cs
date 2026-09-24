@@ -592,12 +592,8 @@ public static class DependencyInjection
         services.AddScoped<ILinkedCaseReplacementStore>(
             provider => provider.GetRequiredService<EfLinkedCaseReplacementStore>());
         services.AddScoped<ICreateLinkedReplacement, CreateLinkedReplacement>();
-        services.AddScoped<EfCreateAuditCaseStore>();
-        services.AddScoped<ICreateAuditCaseStore>(provider => provider.GetRequiredService<EfCreateAuditCaseStore>());
-        services.AddScoped<ICaseAuditLinkQueries>(provider => provider.GetRequiredService<EfCreateAuditCaseStore>());
-        services.AddScoped<ICaseReportGeneratedQueries>(provider => provider.GetRequiredService<EfCreateAuditCaseStore>());
-        services.AddScoped<ICreateAuditCase, CreateAuditCase>();
-        services.AddScoped<IRecordEngineerFinding, EfRecordEngineerFinding>();
+        services.AddScoped<ICreateAuditStore, EfCreateAuditStore>();
+        services.AddScoped<ICreateAudit, CreateAudit>();
         services.AddScoped<IPutCaseOnHold, PutCaseOnHold>();
         services.AddScoped<IReleaseCaseHold, ReleaseCaseHold>();
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();

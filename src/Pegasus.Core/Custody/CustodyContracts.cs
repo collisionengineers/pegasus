@@ -24,9 +24,7 @@ public sealed record CustodyWork(
 public sealed record CaseCustodyRoot(
     Guid CaseId,
     string RemoteId,
-    string Reference,
-    Guid? ParentCaseId = null,
-    string? ParentReference = null);
+    string Reference);
 
 public sealed record IntakeSourceCustodyReference(
     Guid IntakeReceiptId,
@@ -102,37 +100,13 @@ public interface ICaseCustody
     }
 
     /// <summary>
-    /// The root of a linked Audit Case (13 September): the <c>a.</c> subfolder
-    /// under the original Case's folder, created by Pegasus when the Audit Case is
-    /// created. The original's root is resolved by its reference the way every case
-    /// root is; the Audit Case's own root is that subfolder from then on. Default:
-    /// unsupported, for doubles and adapters that keep no folder hierarchy.
-    /// </summary>
-    Task<CaseCustodyRoot> CreateLinkedAuditCaseRootAsync(
-        Guid auditCaseId,
-        string auditReference,
-        Guid originalCaseId,
-        string originalReference,
-        string creationOwnerToken,
-        string operationKey,
-        CustodyEffectLeaseGuard? leaseGuard,
-        CancellationToken cancellationToken) =>
-        Task.FromException<CaseCustodyRoot>(
-            new NotSupportedException("This custody adapter cannot root an Audit Case under its original."));
-
-    /// <summary>
     /// Resolves the immutable custody root already allocated for the case. This read does not
-    /// create or relabel a root and must validate the retained case identity. An Audit Case
-    /// root is resolved through its persisted original Case identity.
-    /// A linked Audit folder is never inferred from its reference prefix because
-    /// its parent is an immutable relationship, not part of the folder name.
+    /// create or relabel a root and must validate the retained case identity.
     /// </summary>
     Task<CaseCustodyRoot> GetExistingCaseRootAsync(
         Guid caseId,
         string caseReference,
-        CancellationToken cancellationToken,
-        Guid? parentCaseId = null,
-        string? parentCaseReference = null);
+        CancellationToken cancellationToken);
 
     Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
         CaseCustodyRoot root,

@@ -1099,7 +1099,6 @@ public static class OperatorLabels
         "merged_into_instruction_case" => "Merged into Instruction-initiated Case",
         "staff_closed" => "Staff-closed",
         "image_initiated_case_merged" => "Image-initiated Case merged in",
-        "engineer_finding_recorded" => "Engineer finding recorded",
         "report_evidence_auto_linked" => "Sent report linked automatically",
         "standalone_audit_evidence_confirmed" => "Audit evidence confirmed",
         "audit_custody_confirmed" => "Audit evidence stored",

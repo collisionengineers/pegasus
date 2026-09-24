@@ -66,7 +66,6 @@ public static class CaseWorkspaceLabels
         public const string ReturnToEngineer = "Return to Engineer";
         public const string ArchiveCase = "Archive case";
         public const string AssignToMe = "Assign to me";
-        public const string AuditCase = "Audit case";
         public const string OriginalCase = "Original case";
         public const string ReplacementCase = "Replacement case";
         public const string LifecycleActions = "Lifecycle actions";
