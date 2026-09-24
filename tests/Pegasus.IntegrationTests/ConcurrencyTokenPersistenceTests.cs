@@ -90,7 +90,7 @@ public sealed class ConcurrencyTokenPersistenceTests
         await AssertTokenLifecycleAsync(
             factory,
             TriageEntityName,
-            triage.Id,
+            triage.CaseId,
             "State",
             "awaiting_information",
             "completed",

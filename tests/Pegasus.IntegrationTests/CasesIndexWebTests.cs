@@ -356,7 +356,7 @@ public sealed class CasesIndexWebTests
 
         Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=inspection\">QDOS3100044</a>", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=audit\">a.QDOS3100044</a>", html, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(html, $"<tr[^>]*data-select-id=\"{search.AuditCaseId:D}\"").Count);
+        Assert.Equal(2, Regex.Count(html, $"<tr[^>]*data-select-id=\"{search.AuditCaseId:D}\""));
         Assert.Contains("<h2>QDOS3100044 &#xB7; AB12CDE</h2>", html, StringComparison.Ordinal);
         Assert.Contains("<h2>a.QDOS3100044 &#xB7; AB12CDE</h2>", html, StringComparison.Ordinal);
         Assert.Contains(">3 results<", html, StringComparison.Ordinal);

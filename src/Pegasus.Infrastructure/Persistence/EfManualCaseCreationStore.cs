@@ -24,6 +24,8 @@ public sealed class EfManualCaseCreationStore(
     VehicleLookupAvailability? vehicleLookupAvailability = null)
     : IManualCaseCreationStore
 {
+    private static readonly JsonSerializerOptions RolesJsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<ManualCaseCreationOutcome> CreateAsync(
         CreateManualCaseRequest request,
         CancellationToken cancellationToken)
@@ -267,7 +269,7 @@ public sealed class EfManualCaseCreationStore(
             ActorSubjectId = request.Actor.SubjectId,
             ActorRolesJson = JsonSerializer.Serialize(
                 request.Actor.Roles.OrderBy(role => role),
-                new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+                RolesJsonOptions),
             OccurredAtUtc = now,
             Outcome = "Succeeded",
             CorrelationId = request.OperationKey,

@@ -407,15 +407,6 @@ internal static partial class CaseWebTestSupport
         /// <summary>The retained standalone Audit evidence, when intake supplied one.</summary>
         public Guid? StandaloneAuditEvidenceId { get; init; }
 
-        /// <summary>The Case's works the frame reports; null reads as the primary work only.</summary>
-        public CaseWorkSet? Works { get; set; }
-
-        /// <summary>The Engineer the workflow names, when a test assigns one.</summary>
-        public Guid? AssignedEngineerId { get; init; }
-
-        /// <summary>The report's sent evidence the workflow carries, when a test says it is sent.</summary>
-        public ApprovedMailboxReportSentEvidence? ReportSentEvidence { get; init; }
-
         /// <summary>The Principal and Claim source records' notes the Case reads live.</summary>
         public CaseRecordNotes RecordNotes { get; init; } = CaseRecordNotes.None;
 

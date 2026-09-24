@@ -1141,6 +1141,7 @@ public sealed class QdosAllocationRecoveryTests
             processIntake,
             services.GetRequiredService<IIntakeReceiptQueries>(),
             services.GetRequiredService<ICreateTriageFromIntake>(),
+            services.GetRequiredService<ITriagePrincipalGate>(),
             providerAssociationStore,
             allocateIntake,
             clock,
