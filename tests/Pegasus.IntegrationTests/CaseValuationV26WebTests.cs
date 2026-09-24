@@ -68,7 +68,9 @@ public sealed class CaseValuationV26WebTests
                 $"name=\"guideEntries[{index}].Source\" value=\"{name}\" form=\"case-edit-form\"",
                 card,
                 StringComparison.Ordinal);
-            foreach (var box in new[] { "RetailValue", "TradeValue", "Mileage", "GuideMonth" })
+            // A guide card carries no mileage: the Case's own is used (operator, 24 September 2026).
+            Assert.DoesNotContain($"guideEntries[{index}].Mileage", card, StringComparison.Ordinal);
+            foreach (var box in new[] { "RetailValue", "TradeValue", "GuideMonth" })
             {
                 var input = Regex.Match(
                     card,
@@ -318,7 +320,6 @@ public sealed class CaseValuationV26WebTests
                 Untouched(
                     ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
                     ("guideEntries[0].GuideMonth", "2031-05"),
-                    ("guideEntries[0].Mileage", "42000"),
                     ("guideEntries[0].RetailValue", "13000.00"),
                     ("guideEntries[0].TradeValue", "10250.00"))));
         AssertPrg(changedCard, store.CaseId);
@@ -430,12 +431,10 @@ public sealed class CaseValuationV26WebTests
                 "Recorded the Brego figure",
                 ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
                 ("guideEntries[0].GuideMonth", "2031-05"),
-                ("guideEntries[0].Mileage", "42000"),
                 ("guideEntries[0].RetailValue", "12500.00"),
                 ("guideEntries[0].TradeValue", "10250.00"),
                 ("guideEntries[1].Source", nameof(ValuationSource.Brego)),
                 ("guideEntries[1].GuideMonth", "2031-05"),
-                ("guideEntries[1].Mileage", "42000"),
                 ("guideEntries[1].RetailValue", "13250.00"),
                 ("guideEntries[1].TradeValue", "11000.00")));
 
@@ -546,7 +545,8 @@ public sealed class CaseValuationV26WebTests
         Assert.Equal("ok", figures.GetProperty("status").GetString());
         Assert.Equal("13250.00", figures.GetProperty("retail").GetString());
         Assert.Equal("11000.00", figures.GetProperty("trade").GetString());
-        Assert.Equal("42000", figures.GetProperty("mileage").GetString());
+        // The card has no mileage box to fill; the lookup asked with the Case's own.
+        Assert.False(figures.TryGetProperty("mileage", out _));
         Assert.Equal("2026-08", figures.GetProperty("guideMonth").GetString());
         var asked = Assert.Single(provider.Requests);
         Assert.Equal("AB12CDE", asked.Registration);

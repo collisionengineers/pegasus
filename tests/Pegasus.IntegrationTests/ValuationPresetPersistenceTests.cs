@@ -458,6 +458,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             null,
             lease.Token)
         {
+            // An adopted Engineer's Value carries the Case's own mileage
+            // (operator, 24 September 2026), recorded by the same save.
+            Vehicle = new(
+                null,
+                null,
+                null,
+                new(42_000, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
+                new Dictionary<string, string?>(StringComparer.Ordinal)),
             Valuation = new([], chosen)
         };
     }

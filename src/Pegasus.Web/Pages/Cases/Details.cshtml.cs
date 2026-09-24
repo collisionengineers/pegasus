@@ -1792,10 +1792,11 @@ public sealed partial class DetailsModel(
                             id, actor, wordingEdits!, cancellationToken)
                     }, cancellationToken);
                 }
-                catch (InvalidOperationException exception)
+                catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
                 {
                     // A refusal names its own reason (a spec line, a valuation
-                    // figure); a lost lease or a changed Case keeps the shared one.
+                    // figure, a value adopted with no Case mileage); a lost lease
+                    // or a changed Case keeps the shared one.
                     saveError = MutationRefusalMessage(exception, string.Empty);
                     throw;
                 }

@@ -804,7 +804,8 @@ approved design:
 a disabled control. The direct Audatex service-launch control is removed on
 that rule. By the operator's 15 September 2026 instruction the
 Valuation section has one route to a guide card: Glass's, Brego, Super CAP,
-CAP and Cazana are each one card with month, mileage, retail and trade boxes
+CAP and Cazana are each one card with month, retail and trade boxes (the
+Case's own mileage is used; a card has none, 24 September 2026)
 — greyed while reading, editable while editing — and, while editing, a Get
 valuation button that looks the figures up and fills the boxes in place
 (answering with the card's notice while that source has no working
@@ -888,7 +889,7 @@ deleted in wave 5.
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its numbered discs, and the aside figures |
 | `damage-diagram`, `dm`, `dm-guides` | The plan silhouette, one disc per recorded damage (kept as drawn, clipped to the body by `damage-plan-clip`), and the dashed band guides shown while editing |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
-| `valuation-card` | One valuation entry: source, date, time, mileage, guide month, retail, trade |
+| `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
 | `derived` | A value derived, never entered: impact location and severity, equity, and a permitted ratio line where one is shown |
 | `report-image`, `cropper` | Image preparation on the Files tiles: designated Close-up and Overview, supporting images in order, non-destructive crop |
