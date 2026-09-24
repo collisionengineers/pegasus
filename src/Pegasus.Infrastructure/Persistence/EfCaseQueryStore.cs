@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -521,11 +522,31 @@ public sealed class EfCaseQueryStore(
         var auditFacts = await context.Cases
             .AsNoTracking()
             .Where(item => item.Id == caseId)
-            .Select(item => new { item.StandaloneAuditEvidenceId, item.AuditOfCaseId })
+            .Select(item => new
+            {
+                item.StandaloneAuditEvidenceId,
+                item.AuditOfCaseId,
+                item.AuditCustodyRemoteId,
+                HasAuditWork = item.Works.Any(work => work.Kind == CaseWorkKinds.Audit),
+                AuditFolderFailed = item.ExternalWork.Any(work =>
+                    work.Kind == ExternalWorkKinds.CreateAuditReferenceCustody
+                    && work.State == ExternalWorkStatePersistence.Failed)
+            })
             .SingleAsync(cancellationToken);
+        // The Audit's a. folder: confirmed once it has a Box root, failed when
+        // its custody work failed, otherwise still being prepared.
+        CaseCustodyState? auditCustodyState = !auditFacts.HasAuditWork
+            ? null
+            : !string.IsNullOrWhiteSpace(auditFacts.AuditCustodyRemoteId)
+                ? CaseCustodyState.Confirmed
+                : auditFacts.AuditFolderFailed
+                    ? CaseCustodyState.Failed
+                    : CaseCustodyState.Pending;
         return new(sectionFrame, documents, sectionFrame.CustodyFolderRemoteId,
             sectionFrame.CustodyState, correspondenceEmails,
-            auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId);
+            auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId,
+            auditCustodyState,
+            auditFacts.HasAuditWork ? auditFacts.AuditCustodyRemoteId : null);
     }
 
     public async Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(

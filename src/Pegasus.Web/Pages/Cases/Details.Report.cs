@@ -172,7 +172,8 @@ public sealed partial class DetailsModel
     /// freezes, so the form states what pressing Prepare delivery will send.
     /// </summary>
     public string ReportDeliveryFileName => CaseReportDeliveryNaming.ReportName(
-        Case?.Summary.Reference ?? "—",
+        // The generation's own reference: a. + the Case/PO for an Audit report.
+        CurrentReportGeneration?.Snapshot.CaseReference ?? Case?.Summary.Reference ?? "—",
         Case?.Summary.Registration,
         RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
         ReportSendHistory.SentCount) + ".pdf";

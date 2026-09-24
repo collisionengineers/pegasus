@@ -71,6 +71,8 @@ internal static class V1FoundationModelConfiguration
         {
             e.ToTable("CaseReportGenerations"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.WorkId, x.SnapshotHash }).IsUnique().HasFilter("[State] <> N'Stale'");
             e.HasOne(x => x.Work).WithMany().HasForeignKey(x => x.WorkId).OnDelete(DeleteBehavior.Restrict);
+            // A generation record names its work's kind.
+            e.Navigation(x => x.Work).AutoInclude();
             e.Property(x => x.SnapshotHash).HasMaxLength(64).IsFixedLength();
         });
         builder.Entity<GeneratedCaseArtifactEntity>(e =>

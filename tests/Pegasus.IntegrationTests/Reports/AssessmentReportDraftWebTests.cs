@@ -713,14 +713,14 @@ public sealed partial class AssessmentReportDraftWebTests
         public CaseReportReadinessInput Readiness { get; set; } = Metadata(input);
 
         public Task<AssessmentReportProjectionInput?> GetAsync(
-            Guid caseId, ActionActor actor, CancellationToken cancellationToken = default)
+            Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken = default)
         {
             PreviewReads++;
             return Task.FromResult<AssessmentReportProjectionInput?>(input);
         }
 
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
-            Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+            Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
         {
             MetadataReads++;
             return Task.FromResult<CaseReportFreezeInputs?>(new(

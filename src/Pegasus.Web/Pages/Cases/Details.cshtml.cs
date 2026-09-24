@@ -977,7 +977,7 @@ public sealed partial class DetailsModel(
         }
         if (AssessmentCanOpen)
         {
-            var inputs = await reportSnapshotSource.GetAsync(id, actor, cancellationToken);
+            var inputs = await reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, cancellationToken);
             if (inputs is not null)
             {
                 var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
@@ -995,7 +995,7 @@ public sealed partial class DetailsModel(
                     : new Dictionary<string, string>(StringComparer.Ordinal);
             }
         }
-        CurrentReportGeneration = await reportGenerations.GetCurrentAsync(actor, id, cancellationToken);
+        CurrentReportGeneration = await reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, cancellationToken);
         CurrentDeliveryPreparation = CurrentReportGeneration is null
             ? null
             : await deliveryPreparations.GetCurrentAsync(actor, id, cancellationToken);
@@ -1831,7 +1831,7 @@ public sealed partial class DetailsModel(
         IReadOnlyList<ReportWordingEditForm> edits,
         CancellationToken cancellationToken)
     {
-        var inputs = await reportSnapshotSource.GetAsync(caseId, actor, cancellationToken);
+        var inputs = await reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, cancellationToken);
         if (inputs is null)
         {
             throw new InvalidOperationException("The report wording is unavailable. Refresh the Case and retry.");

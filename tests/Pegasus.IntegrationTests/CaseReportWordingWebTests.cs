@@ -223,7 +223,7 @@ public sealed class CaseReportWordingWebTests
         : ICaseReportSnapshotSource
     {
         public Task<CaseReportFreezeInputs?> GetAsync(
-            Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+            Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
         {
             var projection = AssessmentReportDraftWebTests.ReadyInput(caseId);
             if (!currentEstimate)

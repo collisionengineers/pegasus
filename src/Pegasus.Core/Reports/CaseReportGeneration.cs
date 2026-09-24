@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -252,6 +253,11 @@ public sealed record CaseReportGenerationRecord(
     Guid? SupersededById,
     IReadOnlyList<CaseReportArtifactRecord> Artifacts)
 {
+    /// <summary>The work the report was made from; always set by the store.</summary>
+    public Guid WorkId { get; init; }
+
+    public CaseWorkKind WorkKind { get; init; }
+
     [JsonIgnore]
     public bool IsFullyConfirmed =>
         Artifacts.Count > 0
@@ -370,11 +376,12 @@ public interface ICaseReportGenerationStore
     Task<CaseReportGenerationRecord?> GetAsync(
         ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken);
 
+    /// <summary>The selected work's current generation.</summary>
     Task<CaseReportGenerationRecord?> GetCurrentAsync(
-        ActionActor actor, Guid caseId, CancellationToken cancellationToken);
+        ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
-        ActionActor actor, Guid caseId, CancellationToken cancellationToken);
+        ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 
     /// <summary>
     /// Marks the Case's current generation stale. Superseded generations are
@@ -412,7 +419,13 @@ public sealed record CaseReportFreezeInputs(
     AssessmentReportProjectionInput Projection,
     CaseReportReadinessInput Readiness,
     string CaseReference,
-    long CaseVersion);
+    long CaseVersion)
+{
+    /// <summary>The work the inputs were read from.</summary>
+    public Guid WorkId { get; init; }
+
+    public CaseWorkKind WorkKind { get; init; }
+}
 
 /// <summary>
 /// The one read model a freeze loads. It is composed from the same accepted
@@ -421,7 +434,7 @@ public sealed record CaseReportFreezeInputs(
 public interface ICaseReportSnapshotSource
 {
     Task<CaseReportFreezeInputs?> GetAsync(
-        Guid caseId, ActionActor actor, CancellationToken cancellationToken);
+        Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -746,7 +759,11 @@ public sealed class GenerateCaseReport(
                 MediaType: "application/pdf",
                 ContentLength: rendered.Pdf.LongLength,
                 Sha256: rendered.Sha256,
-                Content: content),
+                Content: content,
+                // The Audit work's report is filed in the a. folder.
+                Folder: generation.WorkKind == CaseWorkKind.Audit
+                    ? CaseCustodyFolder.Audit
+                    : CaseCustodyFolder.Case),
             cancellationToken).ConfigureAwait(false);
 
         if (retained.Disposition == CaseArtifactCustodyDisposition.Confirmed)

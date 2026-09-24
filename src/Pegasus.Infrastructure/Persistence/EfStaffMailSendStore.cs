@@ -601,9 +601,14 @@ internal sealed class EfStaffMailSendStore(
         Guid? caseId = null;
         if (entity.Purpose == StaffMailPurpose.CaseReport)
         {
+            // A sent report names its Case only while its work is the Case's
+            // current work: the Inspection's report no longer drives the Case
+            // once the Audit exists.
+            var currentWorkIds = CaseWorkScope.CurrentWorkIds(db);
             caseId = await db.Set<CaseReportGenerationEntity>().AsNoTracking()
                 .Where(value => value.Id == entity.ContextId
-                    && (!requireFrozenGenerationVersion || value.Version == entity.ContextVersion))
+                    && (!requireFrozenGenerationVersion || value.Version == entity.ContextVersion)
+                    && currentWorkIds.Contains(value.WorkId))
                 .Select(value => (Guid?)value.CaseId)
                 .SingleOrDefaultAsync(cancellationToken);
             if (caseId is not null)

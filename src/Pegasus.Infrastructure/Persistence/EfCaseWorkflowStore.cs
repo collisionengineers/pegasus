@@ -706,7 +706,7 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> RecordReportApprovalAsync(
         RecordCaseReportApprovalRequest request,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, "case_report_approved", (context, workflow, now) =>
+        MutateAsync(request, "case_report_approved", async (context, workflow, now) =>
         {
             if (workflow.State != nameof(CaseLifecycleState.ReportPreparation))
             {
@@ -715,6 +715,23 @@ public sealed class EfCaseWorkflowStore(
             }
 
             var approval = request.Approval;
+            // A generated report of a work that is no longer current (the
+            // Inspection once the Audit exists) is never approved again.
+            var approvedSha256 = approval.ArtifactSha256.ToLowerInvariant();
+            var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
+            if (await (
+                    from artifact in context.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
+                    join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+                        on artifact.GenerationId equals generation.Id
+                    where generation.CaseId == workflow.CaseId
+                        && artifact.Sha256 == approvedSha256
+                        && generation.WorkId != currentWorkId
+                    select artifact.Id)
+                .AnyAsync(cancellationToken))
+            {
+                throw new InvalidOperationException("The case report generation is unavailable.");
+            }
+
             var entity = new CaseReportApprovalEntity
             {
                 Id = approval.ApprovalId,
@@ -729,7 +746,6 @@ public sealed class EfCaseWorkflowStore(
             context.CaseReportApprovals.Add(entity);
             workflow.ReportApprovalId = approval.ApprovalId;
             workflow.ReportApproval = entity;
-            return Task.CompletedTask;
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
@@ -1303,13 +1319,30 @@ public sealed class EfCaseWorkflowStore(
                 "Retained Sent evidence cannot predate the current report approval.");
         }
 
+        // Create audit is itself a transition into Report preparation, and the
+        // Audit's report is sent after it: evidence older than the Audit work
+        // belongs to the Inspection.
+        var auditCreatedAtUtc = await context.CaseWorks
+            .AsNoTracking()
+            .Where(item => item.CaseId == workflow.CaseId && item.Kind == CaseWorkKinds.Audit)
+            .Select(item => (DateTimeOffset?)item.CreatedAtUtc)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (auditCreatedAtUtc is { } auditCreated && evidence.SentAtUtc < auditCreated)
+        {
+            return new(
+                null,
+                "evidence_predates_audit",
+                "Retained Sent evidence must follow the creation of the Audit.");
+        }
+
         var followsReportPreparation = await context.CaseWorkflowEvents
             .AsNoTracking()
             .AnyAsync(
                 item => item.CaseId == workflow.CaseId
                     && item.OccurredAtUtc <= evidence.SentAtUtc
                     && (item.EventType == "state_ReportPreparation"
-                        || item.EventType == "case_reopened_ReportPreparation"),
+                        || item.EventType == "case_reopened_ReportPreparation"
+                        || item.EventType == "audit_created"),
                 cancellationToken);
         if (!followsReportPreparation)
         {

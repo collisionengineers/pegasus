@@ -19,11 +19,15 @@ internal sealed class EfCaseReportSendHistoryQueries(
     public async Task<CaseReportSendHistory> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // Only sends of the current work's reports count: an Audit report's
+        // re-send suffix never counts the Inspection's sends (decision X).
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken)
+            .ConfigureAwait(false);
         var sends = await (
                 from send in context.Set<StaffMailSendOperationEntity>().AsNoTracking()
                 join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
                     on send.ContextId equals generation.Id
-                where generation.CaseId == caseId
+                where generation.WorkId == workId
                     && send.Purpose == StaffMailPurpose.CaseReport
                     && send.State == StaffMailState.Sent
                 orderby send.ObservedSentAtUtc descending

@@ -67,7 +67,7 @@ internal sealed class LocalLogicalDocumentVersionReader(
         var address = new ManagedDocumentContentAddress(
             resolved.Case.Id,
             resolved.Case.Reference,
-            resolved.Case.CustodyRootRemoteId,
+            CaseCustodyFolders.RootOf(resolved.Case, resolved.Document.CustodyFolder),
             resolved.Occurrence.Id,
             resolved.Occurrence.Ordinal,
             resolved.Document.Id,
