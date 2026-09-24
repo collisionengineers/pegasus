@@ -597,7 +597,7 @@ public sealed class UploadCaseDecision(
         }
 
         var result = await searchCases.ExecuteAsync(
-            new(actor, new(CaseReference: trimmed), Page: 1, PageSize: 2),
+            new(actor, new(CaseReference: trimmed, IncludeTriage: true), Page: 1, PageSize: 2),
             cancellationToken);
         var exact = result.Items
             .Where(item => string.Equals(item.Reference, trimmed, StringComparison.OrdinalIgnoreCase))

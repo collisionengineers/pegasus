@@ -1229,7 +1229,7 @@ internal sealed class EfDocumentCustodyStore(
             Address(
                 command.CaseId,
                 workflow.Case.Reference,
-                workflow.Case.CustodyRootRemoteId,
+                CaseCustodyFolders.RootOf(workflow.Case, document.CustodyFolder),
                 occurrence,
                 version),
             command.Content,

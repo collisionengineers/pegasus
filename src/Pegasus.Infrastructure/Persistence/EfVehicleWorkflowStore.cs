@@ -238,9 +238,12 @@ internal sealed class EfVehicleWorkflowStore(
             .Select(MapHistory)
             .ToArray();
 
+        // Confirmed vehicle facts are the current work's, as the Case data
+        // they are read beside is.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var confirmedFields = await context.CaseDataFields
             .AsNoTracking()
-            .Where(item => item.WorkId == caseId
+            .Where(item => item.WorkId == workId
                 && item.ValueKind == CaseDataCodes.Confirmed
                 && VehicleFieldNames.Contains(item.FieldName))
             .ToDictionaryAsync(item => item.FieldName, StringComparer.Ordinal, cancellationToken);

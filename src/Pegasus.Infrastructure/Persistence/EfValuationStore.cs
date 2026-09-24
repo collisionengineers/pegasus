@@ -576,6 +576,8 @@ public sealed class EfValuationStore(
                 "The applied valuation names a guide valuation that was not copied.");
         }
 
+        // Apply hashed the proposal at its own scale, which the stored
+        // decimal(18,2) column does not keep, so the frozen proposal is hashed.
         var snapshot = source with { GuideValuationId = guideValuationId };
         return (
             JsonSerializer.Serialize(snapshot, SerializerOptions),
@@ -584,7 +586,7 @@ public sealed class EfValuationStore(
                 snapshot.GuideValuationId,
                 snapshot.GuideValuationStampUtc,
                 snapshot.Calculation,
-                entity.AcceptedEngineerValue,
+                snapshot.Calculation.Proposal,
                 entity.Reason));
     }
 

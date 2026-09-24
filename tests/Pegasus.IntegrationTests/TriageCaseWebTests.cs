@@ -188,6 +188,43 @@ public sealed class TriageCaseWebTests
         Assert.False(await context.CaseWorkflows.AnyAsync(item => item.CaseId == triage.CaseId));
     }
 
+    /// <summary>
+    /// A Triage Case has no workflow row, yet a failure of its custody is still
+    /// recorded on the Case, whether the adapter fails or the queue gives the
+    /// work up.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AFailedTriageCaseCustodyReadsFailed(bool poisoned)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var triage = await CreateManualTriageAsync(services, $"failed-triage-custody-{poisoned}");
+        var workId = await CustodyWorkIdAsync(services, triage.CaseId);
+        var workStore = services.GetRequiredService<IExternalWorkStore>();
+        var clock = services.GetRequiredService<TimeProvider>();
+
+        if (poisoned)
+        {
+            await workStore.MarkPoisonedAsync(workId, clock.GetUtcNow(), CancellationToken.None);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<HttpRequestException>(() => new EfQueuedCustodyProcessor(
+                services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                workStore,
+                new FailingCaseCustody(),
+                clock).ExecuteAsync(workId, CancellationToken.None));
+        }
+
+        var detail = Assert.IsType<TriageDetail>(await services.GetRequiredService<ITriageQueries>()
+            .GetAsync(triage.CaseId, CancellationToken.None));
+        Assert.Equal(CaseCustodyState.Failed, detail.CustodyState);
+        Assert.Equal(TriageState.Open, detail.Record.State);
+    }
+
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task AnIntakeTriageCaseRetainsItsSourceInStandardCaseCustody()
@@ -374,5 +411,27 @@ public sealed class TriageCaseWebTests
     {
         public Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken) =>
             Task.FromResult<Guid?>(null);
+    }
+
+    private sealed class FailingCaseCustody : ICaseCustody
+    {
+        private static HttpRequestException Failure() => new("Fixture adapter failure.");
+
+        public Task<CaseCustodyRoot> CreateCaseRootAsync(
+            Guid caseId, string caseReference, string creationOwnerToken, string operationKey,
+            CancellationToken cancellationToken) => throw Failure();
+
+        public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+            Guid caseId,
+            string caseReference,
+            CancellationToken cancellationToken) => throw Failure();
+
+        public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+            CaseCustodyRoot root, IntakeSourceCustodyReference source, string operationKey,
+            CancellationToken cancellationToken) => throw Failure();
+
+        public Task<string> CreateAuditReferenceFolderAsync(
+            CaseCustodyRoot root, string auditReference, string creationOwnerToken, string operationKey,
+            CancellationToken cancellationToken) => throw Failure();
     }
 }

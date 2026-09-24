@@ -190,7 +190,6 @@ public sealed partial class IndexModel(
                         ToDate,
                         Origin,
                         Query,
-                        // STAGE2-CONTRACT: CaseSearchFilters.IncludeTriage (owned by TRIAGE).
                         // Search is the one list that finds Triage Cases (decision W).
                         IncludeTriage: true),
                     PageNumber,
@@ -378,7 +377,6 @@ public sealed partial class IndexModel(
     /// (<see cref="OperatorLabels.TriageState"/>), otherwise the Case stage.
     /// </summary>
     private static string StateLabel(CaseSearchItem item) =>
-        // STAGE2-CONTRACT: CaseSearchItem.TriageState (owned by TRIAGE), set only on Triage rows.
         item.CaseType == CaseType.Triage && item.TriageState is { } triageState
             ? OperatorLabels.TriageState(triageState)
             : OperatorLabels.CaseStage(item.State);

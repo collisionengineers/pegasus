@@ -372,7 +372,15 @@ public sealed class EfTriageStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await ResolveEstablishedPrincipalAsync(context, receiptId, cancellationToken);
+        // A receipt that already opened its Triage Case keeps that Case's
+        // Principal, so a redelivery replays the Triage even after the
+        // Principal is deactivated.
+        var openedPrincipalId = await context.Triage.AsNoTracking()
+            .Where(item => item.OriginReceiptId == receiptId)
+            .Select(item => (Guid?)item.Case.PrincipalId)
+            .SingleOrDefaultAsync(cancellationToken);
+        return openedPrincipalId
+            ?? await ResolveEstablishedPrincipalAsync(context, receiptId, cancellationToken);
     }
 
     /// <summary>

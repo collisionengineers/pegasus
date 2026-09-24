@@ -47,7 +47,6 @@ public sealed partial class DetailsModel
     /// Audit yet and an assigned Engineer). The command carries the edit
     /// lease, so the item is offered inside the edit session.
     /// </summary>
-    // STAGE2-CONTRACT: AuditPolicy.Refusal(CaseType, CaseWorkflowRecord, CaseWorkSet?) (AUDIT, Lifecycle/CreateAudit.cs).
     public bool CanCreateAudit =>
         Case is { } details
         && AuditPolicy.Refusal(details.Summary.CaseType, details.Workflow, Works) is null

@@ -137,6 +137,29 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal("VO75DFJ", resolve.TargetReference);
     }
 
+    // A Triage Case is a staff link destination too: the manual link resolves as a Triage.
+    [Fact]
+    public async Task AReceiptStaffLinkedToATriageCaseResolvesToTheTriage()
+    {
+        var harness = new Harness();
+        var triageCaseId = Guid.NewGuid();
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+            triageCaseId,
+            "t.QDOS26033",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        harness.Triages.TriageCases[triageCaseId] = TriageCase(triageCaseId, "t.QDOS26033");
+
+        await harness.Reconciler.ExecuteAsync(50);
+
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolve.TargetKind);
+        Assert.Equal(triageCaseId.ToString("N"), resolve.TargetId);
+        Assert.Equal("t.QDOS26033", resolve.TargetReference);
+    }
+
     // Statement 4.
     [Fact]
     public async Task StillUnidentifiedReceiptsAreNeverForceClosed()
@@ -642,6 +665,24 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Reference: "t.QDOS26001",
             Provider: "QDOS");
 
+    private static TriageDetail TriageCase(Guid caseId, string reference) =>
+        new(
+            new TriageRecord(
+                caseId,
+                Origin: null,
+                "VO75DFJ",
+                TriageState.Open,
+                AssigneeId: null,
+                LinkedInstructionCaseId: null,
+                Version: 0,
+                reference,
+                Guid.NewGuid()),
+            Now,
+            [],
+            [],
+            [],
+            []);
+
     private static IntakeReceipt ManuallyLinked(
         IntakeReceipt receipt,
         Guid caseId,
@@ -1127,6 +1168,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     {
         public Dictionary<Guid, TriageSummary> SummariesByOriginReceipt { get; } = [];
 
+        public Dictionary<Guid, TriageDetail> TriageCases { get; } = [];
+
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
             TriageState? state,
             CancellationToken cancellationToken) =>
@@ -1136,7 +1179,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Task.FromResult(0);
 
         public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
+            Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail : null);
 
         public Task<TriageSummary?> GetByOriginReceiptAsync(
             Guid originReceiptId,
