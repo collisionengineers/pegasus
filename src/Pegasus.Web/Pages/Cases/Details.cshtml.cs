@@ -105,6 +105,7 @@ public sealed partial class DetailsModel(
     IListAppliedValuations listAppliedValuations,
     ICaseFieldProposalQueries fieldProposals,
     ILogger<DetailsModel> logger,
+    IGetCaseKind getCaseKind,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
     ISubmitCaseToEva? submitCaseToEva = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
@@ -824,6 +825,7 @@ public sealed partial class DetailsModel(
         Guid id,
         string? estimate,
         string? dialog,
+        [FromServices] TriageCasePorts triagePorts,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -833,6 +835,14 @@ public sealed partial class DetailsModel(
         if (id == Guid.Empty)
         {
             return NotFound();
+        }
+        // A Triage Case renders its own workspace (Details.Triage.cs).
+        switch (await getCaseKind.ExecuteAsync(id, cancellationToken))
+        {
+            case null:
+                return NotFound();
+            case CaseType.Triage:
+                return await GetTriageCaseAsync(id, actor, triagePorts, cancellationToken);
         }
 
         using var activity = DocumentReadTelemetry.Start("web.case.main");
@@ -3357,7 +3367,13 @@ public sealed partial class DetailsModel(
         IReadOnlyList<EstimateEditorLine> rows,
         CancellationToken cancellationToken)
     {
-        var result = await OnGetAsync(id, estimateId?.ToString("D"), null, cancellationToken);
+        var result = await OnGetAsync(
+            id,
+            estimateId?.ToString("D"),
+            null,
+            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                .GetRequiredService<TriageCasePorts>(HttpContext.RequestServices),
+            cancellationToken);
         if (Case is null)
         {
             return result;

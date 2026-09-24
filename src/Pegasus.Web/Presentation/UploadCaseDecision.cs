@@ -137,7 +137,8 @@ public sealed class UploadCaseDecision(
     IAcquireCaseEditLease acquireCaseEditLease,
     ILinkIntake linkIntake,
     IIntakeAssociationDestinationQueries destinations,
-    ReconcileUnidentifiedDestinations unidentifiedDestinations) : IUploadCaseDecision
+    ReconcileUnidentifiedDestinations unidentifiedDestinations,
+    IEditScopeLeases editScopes) : IUploadCaseDecision
 {
     public async Task<IReadOnlyList<UploadCaseSuggestion>> SearchForUploadAsync(
         Guid receiptId,
@@ -185,7 +186,7 @@ public sealed class UploadCaseDecision(
                 item.Reference,
                 item.Registration,
                 item.Claimant,
-                OperatorLabels.CaseStage(item.State),
+                OperatorLabels.AssociationDestinationState(item),
                 item.Version))
             .ToArray();
     }
@@ -232,7 +233,7 @@ public sealed class UploadCaseDecision(
                 item.Reference,
                 item.Registration,
                 item.Claimant,
-                OperatorLabels.CaseStage(item.State),
+                OperatorLabels.AssociationDestinationState(item),
                 item.Version))
             .ToArray();
     }
@@ -348,12 +349,14 @@ public sealed class UploadCaseDecision(
 
         try
         {
-            var lease = await acquireCaseEditLease.ExecuteAsync(
-                new(
-                    targetCaseId,
-                    input.ExpectedCaseVersion,
-                    actor,
-                    $"upload-attach-lease:{operationKey}"),
+            // A Triage Case destination is claimed through its Triage edit scope.
+            var lease = await CaseLinkAuthority.ClaimAsync(
+                destination,
+                input.ExpectedCaseVersion,
+                actor,
+                $"upload-attach-lease:{operationKey}",
+                acquireCaseEditLease,
+                editScopes,
                 cancellationToken);
             await linkIntake.ExecuteAsync(
                 new(
@@ -515,12 +518,13 @@ public sealed class UploadCaseDecision(
                 // Each owned link consumes its lease and advances the Case by
                 // one. Carry that known result forward rather than refreshing
                 // and accidentally treating another writer as our own change.
-                var lease = await acquireCaseEditLease.ExecuteAsync(
-                    new(
-                        targetCaseId,
-                        nextCaseVersion,
-                        actor,
-                        $"upload-attach-lease:{operationKey}"),
+                var lease = await CaseLinkAuthority.ClaimAsync(
+                    currentDestination,
+                    nextCaseVersion,
+                    actor,
+                    $"upload-attach-lease:{operationKey}",
+                    acquireCaseEditLease,
+                    editScopes,
                     cancellationToken);
                 await linkIntake.ExecuteAsync(
                     new(

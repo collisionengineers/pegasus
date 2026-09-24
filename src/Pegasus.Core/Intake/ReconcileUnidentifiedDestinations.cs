@@ -390,7 +390,7 @@ public sealed class ReconcileUnidentifiedDestinations(
         {
             return new(
                 UnidentifiedResolutionTargetKind.Triage,
-                triage.Id.ToString("N"),
+                triage.CaseId.ToString("N"),
                 triage.NormalizedVehicleRegistration);
         }
 

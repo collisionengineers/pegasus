@@ -12,7 +12,31 @@
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
-    ViewData["Title"] = Model.Case is null ? "Case" : $"Case {Model.Case.Workflow.Identity.Reference}";
+    ViewData["Title"] = Model.TriageCase is { } titledTriageCase
+        ? $"Triage {titledTriageCase.Reference}"
+        : Model.Case is null ? "Case" : $"Case {Model.Case.Workflow.Identity.Reference}";
+}
+
+@* The sections are defined before any early return below, so every branch
+   of the record — a Triage Case, an unavailable Case, the Case itself —
+   loads its own stylesheet and script. *@
+@section Styles {
+    @if (Model.TriageCase is not null)
+    {
+        <link rel="stylesheet" href="~/css/triage.css" asp-append-version="true" />
+        <link rel="stylesheet" href="~/css/pre-case-images.css" asp-append-version="true" />
+    }
+    else
+    {
+        <link rel="stylesheet" href="~/css/case-workspace.css" asp-append-version="true" />
+    }
+}
+
+@section Scripts {
+    @if (Model.TriageCase is null)
+    {
+        <script src="~/js/case-workspace.js" asp-append-version="true"></script>
+    }
 }
 
 @if (Model.QueryFailed)
@@ -24,6 +48,13 @@
         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
         <span>The case could not be loaded; reload the page to try again.</span>
     </div>
+    return;
+}
+
+@* A Triage Case is a Case with its own lifecycle and workspace. *@
+@if (Model.TriageCase is not null)
+{
+    <partial name="Cases/Shared/_TriageCase" model="Model" />
     return;
 }
 
@@ -510,11 +541,3 @@
 <div data-case-viewer-host><partial name="Cases/Shared/_CaseViewer" model="Model" /></div>
 <partial name="Shared/_EditFinishConfirm" />
 <div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>
-
-@section Styles {
-    <link rel="stylesheet" href="~/css/case-workspace.css" asp-append-version="true" />
-}
-
-@section Scripts {
-    <script src="~/js/case-workspace.js" asp-append-version="true"></script>
-}

@@ -49,17 +49,19 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
         var triage = await context.Triage.AsNoTracking().SingleAsync(item => item.OriginReceiptId == receiptId);
-        Assert.Equal(caseId, triage.LinkedCaseId);
+        Assert.Equal(caseId, triage.LinkedInstructionCaseId);
         Assert.Equal("open", triage.State);
         Assert.Equal(1, triage.Version);
-        Assert.StartsWith("T", triage.Reference, StringComparison.Ordinal);
+        var triageCase = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == triage.CaseId);
+        Assert.StartsWith("t.", triageCase.Reference, StringComparison.Ordinal);
         var history = await context.TriageHistory.AsNoTracking().SingleAsync(item =>
-            item.TriageId == triage.Id && item.EventType == "triage_case_linked");
+            item.TriageCaseId == triage.CaseId && item.EventType == "triage_case_linked");
         Assert.Equal(nameof(ActorKind.SystemWorker), history.ActorKind);
         Assert.Equal(TriageCasePairing.ActorId, history.Actor);
         Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
             item.CaseId == caseId && item.EventType == history.EventType));
-        Assert.Equal(1, await context.Cases.CountAsync());
+        // The instructed Case and the Triage Case, which is a Case too.
+        Assert.Equal(2, await context.Cases.CountAsync());
         Assert.Equal(1, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
     }
 

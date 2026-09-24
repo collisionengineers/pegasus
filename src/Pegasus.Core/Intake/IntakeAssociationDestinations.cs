@@ -1,7 +1,4 @@
-using Pegasus.Core.Cases;
-using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
@@ -11,13 +8,24 @@ namespace Pegasus.Core.Intake;
 /// deliberately separate from the general Case search: a Case that can be
 /// found is not necessarily a destination that may receive this source.
 /// </summary>
+/// <remarks>
+/// A Triage Case is a destination too. It has no Case lifecycle state, so its
+/// <see cref="State"/> is null and <see cref="TriageState"/> carries its Triage
+/// state; <see cref="Version"/> is then its Triage version, the authority a
+/// staff link to it is checked against.
+/// </remarks>
 public sealed record IntakeAssociationDestination(
     Guid CaseId,
     string Reference,
     string? Registration,
     string? Claimant,
-    CaseLifecycleState State,
-    long Version);
+    CaseLifecycleState? State,
+    long Version)
+{
+    public Pegasus.Core.Triage.TriageState? TriageState { get; init; }
+
+    public bool IsTriageCase => TriageState is not null;
+}
 
 public interface IIntakeAssociationDestinationQueries
 {
@@ -52,13 +60,10 @@ public static class IntakeAssociationDestinationPolicy
             || IntakeDecisionPolicy.CanBecomeCase(receipt.Decision)
             || receipt.Decision == IntakeDecision.ImageIntakeRegistered);
 
-    public static bool IsViable(
-        IntakeReceipt receipt,
-        CaseLifecycleState state,
-        bool archived,
-        bool hasReportSentEvidence) =>
-        !archived
-        && !CaseLifecycleRules.IsTerminal(state)
-        && (!ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
-            || ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, hasReportSentEvidence));
+    /// <summary>
+    /// Staff "Link to case" offers every Case and every Triage Case in any
+    /// state (operator, 24 September 2026). Only an archived Case is refused,
+    /// as every write to it is. Automatic association keeps its own rules.
+    /// </summary>
+    public static bool IsViable(bool archived) => !archived;
 }

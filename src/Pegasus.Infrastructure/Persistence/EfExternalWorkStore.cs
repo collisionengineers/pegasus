@@ -44,11 +44,7 @@ internal sealed class EfExternalWorkStore(
             return [];
         }
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var version = await context.CaseWorkflows
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .Select(item => (long?)item.Version)
-            .SingleOrDefaultAsync(cancellationToken);
+        var version = await CaseMutationAuthority.ReadVersionAsync(context, caseId, cancellationToken);
         if (version is null)
         {
             return [];
@@ -109,15 +105,16 @@ internal sealed class EfExternalWorkStore(
                 AuditReferenceExists: true));
         }
 
-        var workflow = await context.CaseWorkflows
-            .Include(item => item.Case)
-            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
-        if (workflow is null)
+        // A Triage Case has no workflow: its Triage version and edit scope are
+        // the authority for the retry.
+        var authority = await CaseMutationAuthority.LoadAsync(context, request.CaseId, cancellationToken);
+        if (authority is null)
         {
             return policy.Decide(new(
                 false, false, null, false, null, false, null, false, null, false, true));
         }
-        ArchivedCaseGuard.RequireMutable(workflow);
+        authority.RequireMutable();
+        var caseEntity = authority.Case;
         var kind = request.TargetKind == CustodyTargetKind.CaseSource
             ? ExternalWorkKinds.CreateCaseCustody
             : ExternalWorkKinds.CreateAuditReferenceCustody;
@@ -126,7 +123,7 @@ internal sealed class EfExternalWorkStore(
         if (work is null)
         {
             return policy.Decide(new(
-                false, false, null, true, workflow.Version, false, null,
+                false, false, null, true, authority.Version, false, null,
                 false, null, false, true));
         }
         if (!string.Equals(work.State, ExternalWorkStatePersistence.Failed, StringComparison.Ordinal))
@@ -138,34 +135,36 @@ internal sealed class EfExternalWorkStore(
                 .OrderByDescending(item => item.OccurredAtUtc)
                 .FirstOrDefaultAsync(cancellationToken);
             return policy.Decide(new(
-                false, false, null, true, workflow.Version, true, work.State,
+                false, false, null, true, authority.Version, true, work.State,
                 winner is not null, winner?.AfterVersion, false, true));
         }
-        CaseMutationGuard.Require(
-            workflow,
+        await authority.RequireStaffAuthorityAsync(
+            context,
             request.Actor,
             request.ExpectedCaseVersion,
             request.EditLeaseToken,
-            timeProvider.GetUtcNow());
+            timeProvider.GetUtcNow(),
+            anyLifecycleState: false,
+            cancellationToken);
         if (request.TargetKind == CustodyTargetKind.CaseSource
-            && string.Equals(workflow.Case.CustodyState, "confirmed", StringComparison.Ordinal)
+            && string.Equals(caseEntity.CustodyState, "confirmed", StringComparison.Ordinal)
             || request.TargetKind == CustodyTargetKind.AuditReference
-                && !string.IsNullOrWhiteSpace(workflow.Case.AuditCustodyRemoteId))
+                && !string.IsNullOrWhiteSpace(caseEntity.AuditCustodyRemoteId))
         {
             return policy.Decide(new(
-                false, false, null, true, workflow.Version, true, work.State,
+                false, false, null, true, authority.Version, true, work.State,
                 false, null, true, true));
         }
         if (request.TargetKind == CustodyTargetKind.AuditReference
-            && string.IsNullOrWhiteSpace(workflow.Case.AuditReference))
+            && string.IsNullOrWhiteSpace(caseEntity.AuditReference))
         {
             return policy.Decide(new(
-                false, false, null, true, workflow.Version, true, work.State,
+                false, false, null, true, authority.Version, true, work.State,
                 false, null, false, false));
         }
 
         var decision = policy.Decide(new(
-            false, false, null, true, workflow.Version, true, work.State,
+            false, false, null, true, authority.Version, true, work.State,
             false, null, false, true));
         if (decision.Outcome != RetryCaseCustodyOutcome.Pending)
         {
@@ -173,7 +172,7 @@ internal sealed class EfExternalWorkStore(
         }
 
         work.CaseRootCreationToken ??= CustodyCreationOwner.Create();
-        if (!string.IsNullOrWhiteSpace(workflow.Case.AuditReference))
+        if (!string.IsNullOrWhiteSpace(caseEntity.AuditReference))
         {
             work.AuditFolderCreationToken ??= CustodyCreationOwner.Create();
         }
@@ -184,42 +183,45 @@ internal sealed class EfExternalWorkStore(
         work.CompletedAtUtc = null;
         work.FailureCode = null;
         work.FailureReason = null;
-        var beforeVersion = workflow.Version;
-        CaseMutationGuard.Complete(workflow);
+        var beforeVersion = authority.Version;
+        authority.CompleteStaffMutation(context);
         var now = timeProvider.GetUtcNow();
-        context.CaseWorkflowEvents.Add(new()
+        if (authority.Workflow is { } workflow)
         {
-            Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
-            Workflow = workflow,
-            EventType = "custody_retry_requested",
-            OperationKey = request.OperationKey,
-            RequestHash = requestHash,
-            ActorKind = request.Actor.Kind.ToString(),
-            ActorSubjectId = request.Actor.SubjectId,
-            ActorRolesJson = RolesJson(request.Actor),
-            Reason = normalizedReason,
-            OccurredAtUtc = now,
-            BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version,
-            ResultJson = JsonSerializer.Serialize(new
+            context.CaseWorkflowEvents.Add(new()
             {
-                target = request.TargetKind.ToString(),
-                state = ExternalWorkStatePersistence.Pending
-            })
-        });
+                Id = Guid.NewGuid(),
+                CaseId = request.CaseId,
+                Workflow = workflow,
+                EventType = "custody_retry_requested",
+                OperationKey = request.OperationKey,
+                RequestHash = requestHash,
+                ActorKind = request.Actor.Kind.ToString(),
+                ActorSubjectId = request.Actor.SubjectId,
+                ActorRolesJson = RolesJson(request.Actor),
+                Reason = normalizedReason,
+                OccurredAtUtc = now,
+                BeforeVersion = beforeVersion,
+                AfterVersion = workflow.Version,
+                ResultJson = JsonSerializer.Serialize(new
+                {
+                    target = request.TargetKind.ToString(),
+                    state = ExternalWorkStatePersistence.Pending
+                })
+            });
+        }
         context.CaseHistory.Add(new()
         {
             Id = Guid.NewGuid(),
             CaseId = request.CaseId,
-            Case = workflow.Case,
+            Case = caseEntity,
             EventType = "custody_retry_requested",
             Actor = request.Actor.SubjectId,
             Reason = normalizedReason,
             OccurredAtUtc = now,
             OperationKey = request.OperationKey,
             BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version
+            AfterVersion = authority.Version
         });
         context.ActionHistory.Add(new()
         {
@@ -237,7 +239,7 @@ internal sealed class EfExternalWorkStore(
             BeforeJson = JsonSerializer.Serialize(new { workflowVersion = beforeVersion }),
             AfterJson = JsonSerializer.Serialize(new
             {
-                workflowVersion = workflow.Version,
+                workflowVersion = authority.Version,
                 state = ExternalWorkStatePersistence.Pending
             }),
             PolicyVersion = "custody-recovery-v1"
@@ -251,7 +253,7 @@ internal sealed class EfExternalWorkStore(
         {
             return await ResolveConcurrentRetryAsync(request, requestHash, cancellationToken);
         }
-        return new(RetryCaseCustodyOutcome.Pending, workflow.Version,
+        return new(RetryCaseCustodyOutcome.Pending, authority.Version,
             "Custody retry is pending.");
     }
 

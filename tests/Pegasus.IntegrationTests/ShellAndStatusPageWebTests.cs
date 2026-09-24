@@ -99,7 +99,7 @@ public sealed class ShellAndStatusPageWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        using var response = await client.GetAsync($"/Triage/{Guid.NewGuid():D}");
+        using var response = await client.GetAsync($"/Cases/{Guid.NewGuid():D}");
 
         // The status code is still the truth of the exchange; only the body
         // changes, from Chrome's default page to a worded one.
