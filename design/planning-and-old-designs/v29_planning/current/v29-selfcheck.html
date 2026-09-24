@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>v29 upload mockup self-check</title></head>
+<body>
+<h1>v29 upload mockup self-check</h1>
+<pre id="result">Running…</pre>
+<iframe id="target" title="Mockup under check" width="1580" height="1000" hidden></iframe>
+<script>
+const variants = ['a','b','c','d','e'];
+const states = ['select','chosen','storing','processing','decision','registered','mixed','single','failed','discarded'];
+const fail = [];
+let okCount = 0;
+const frame = document.getElementById('target');
+function check(name, condition) { if (condition) okCount++; else fail.push(name); }
+function load(url) {
+  return new Promise((resolve,reject) => {
+    const timer = setTimeout(() => reject(new Error('Timed out: ' + url)), 5000);
+    frame.onload = () => { clearTimeout(timer); resolve(frame.contentWindow); };
+    frame.src = url;
+  });
+}
+(async () => {
+  try {
+    for (const variant of variants) {
+      for (const state of states) {
+        const win = await load(`pegasus_upload_${variant}_v29.html?state=${state}`);
+        const doc = win.document;
+        const prefix = `${variant}/${state}`;
+        check(prefix + ' script', win.mockup?.variant === variant && win.mockup?.state === state);
+        check(prefix + ' errors', win.mockupErrors?.length === 0);
+        check(prefix + ' heading', !!doc.querySelector('h1')?.textContent.trim());
+        check(prefix + ' main', !!doc.querySelector('main') && !!doc.querySelector('.decision-panel'));
+        check(prefix + ' files', win.mockup?.files === (state === 'select' ? 0 : state === 'single' ? 1 : 11));
+        check(prefix + ' controls', doc.querySelectorAll('#controls a').length === 15);
+        check(prefix + ' offline', !doc.querySelector('[src^="http"],[href^="http"]'));
+        if (['decision','registered','mixed'].includes(state)) {
+          check(prefix + ' discard', !!doc.querySelector('[data-discard]'));
+          check(prefix + ' case search', !!doc.querySelector('#case-reference'));
+          doc.querySelector('.discard').open = true;
+          doc.querySelector('[data-discard]').click();
+          check(prefix + ' discard confirmation', !!doc.querySelector('[role="dialog"]'));
+          doc.querySelector('[data-close]').click();
+          doc.querySelector('.attach').open = true;
+          doc.querySelector('[data-suggest]').click();
+          check(prefix + ' suggestion', doc.querySelector('#case-reference').value === 'QDOS26010');
+          doc.querySelector('[data-confirm]').click();
+          check(prefix + ' Case confirmation', !!doc.querySelector('[role="dialog"]'));
+          doc.querySelector('[data-close]').click();
+        }
+        if (state === 'decision') {
+          doc.querySelector('[data-register]').click();
+          check(prefix + ' reason required', !doc.querySelector('#reason').validity.valid);
+        }
+        if (state === 'processing') check(prefix + ' pending', doc.body.textContent.includes('processing'));
+        if (state === 'mixed') check(prefix + ' unreadable member', doc.body.textContent.includes('Could not be read'));
+      }
+    }
+  } catch (error) { fail.push(String(error)); }
+  document.getElementById('result').textContent = 'RESULT ' + JSON.stringify({fail,okCount});
+})();
+</script>
+</body>
+</html>
