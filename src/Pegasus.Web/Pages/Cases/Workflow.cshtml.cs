@@ -9,7 +9,7 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Case workspace's workflow actions: hold and release, return to Review, Engineer
-/// handoff and findings, and the linked replacement for a
+/// handoff, and the linked replacement for a
 /// case created in error. Every action redirects back to the workspace.
 /// </summary>
 [Authorize(
@@ -22,7 +22,6 @@ public sealed class WorkflowModel(
     IAssignCaseEngineer assignEngineer,
     IAssignCaseToMe assignToMe,
     ISetCaseSignOffEngineer setSignOffEngineer,
-    IRecordEngineerFinding recordEngineerFinding,
     ICreateLinkedReplacement createLinkedReplacement,
     ILogger<WorkflowModel> logger) : CaseMutationPageModel(logger)
 {
@@ -169,30 +168,6 @@ public sealed class WorkflowModel(
                     signOffEngineerId),
                 cancellationToken),
             "The Sign-off Engineer was set.");
-
-    public Task<IActionResult> OnPostRecordEngineerFindingAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        AuditAssessment assessment,
-        CancellationToken cancellationToken) =>
-        ExecuteCaseCommandAsync(
-            id,
-            editLeaseToken,
-            "record_engineer_finding",
-            actor => recordEngineerFinding.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken,
-                    assessment),
-                cancellationToken),
-            "The Engineer finding was recorded.");
 
     public async Task<IActionResult> OnPostCreateLinkedReplacementAsync(
         Guid id,

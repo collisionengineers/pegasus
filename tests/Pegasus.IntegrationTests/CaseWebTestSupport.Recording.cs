@@ -271,7 +271,7 @@ internal static partial class CaseWebTestSupport
             });
 
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
-            Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+            Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
         {
             MetadataReads++;
             var assessment = EngineeringAssessment();
@@ -407,9 +407,6 @@ internal static partial class CaseWebTestSupport
         /// <summary>The retained standalone Audit evidence, when intake supplied one.</summary>
         public Guid? StandaloneAuditEvidenceId { get; init; }
 
-        /// <summary>The source Case for a linked Audit; null for a standalone Audit.</summary>
-        public Guid? AuditOfCaseId { get; init; }
-
         /// <summary>The Principal and Claim source records' notes the Case reads live.</summary>
         public CaseRecordNotes RecordNotes { get; init; } = CaseRecordNotes.None;
 
@@ -460,12 +457,10 @@ internal static partial class CaseWebTestSupport
     internal sealed partial class RecordingCaseDetailsStore :
         IAssignCaseEngineer,
         ISetCaseSignOffEngineer,
-        IRecordEngineerFinding,
         ICreateLinkedReplacement
     {
         public List<AssignCaseEngineerRequest> EngineerAssignments { get; } = [];
         public List<SetCaseSignOffEngineerRequest> SignOffSelections { get; } = [];
-        public List<RecordEngineerFindingRequest> EngineerFindings { get; } = [];
         public List<CreateLinkedReplacementRequest> LinkedReplacements { get; } = [];
 
         Task<CaseWorkflowRecord> IAssignCaseEngineer.ExecuteAsync(
@@ -491,15 +486,6 @@ internal static partial class CaseWebTestSupport
             {
                 SignOffEngineerId = request.SignOffEngineerId
             });
-        }
-
-        Task<CaseIdentity> IRecordEngineerFinding.ExecuteAsync(
-            RecordEngineerFindingRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            EngineerFindings.Add(request);
-            return Task.FromResult(CreateWorkflow().Identity);
         }
 
         Task<CaseAcceptanceOutcome> ICreateLinkedReplacement.ExecuteAsync(

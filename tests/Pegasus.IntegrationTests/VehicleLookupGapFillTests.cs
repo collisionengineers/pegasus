@@ -32,16 +32,16 @@ public sealed class VehicleLookupGapFillTests
         await RecordLookupAsync(database, caseId);
 
         Assert.Equal("121823", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
         Assert.Equal("Miles", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage_unit' AND ValueKind = 'fact'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage_unit' AND ValueKind = 'fact'"));
         // The working value carries Lookup provenance, which is what the
         // report's mileage-source sentence is derived from.
         Assert.Equal("vehicle_lookup", await database.ScalarAsync<string>(
-            $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+            $"SELECT SourceKind FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
         // Nothing is left at the suggestion tier for anyone to accept.
         Assert.Equal(0, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND ValueKind = 'suggestion'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND ValueKind = 'suggestion'"));
     }
 
     [Fact]
@@ -53,9 +53,9 @@ public sealed class VehicleLookupGapFillTests
         await RecordLookupAsync(database, caseId);
 
         Assert.Equal("2016", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year' AND ValueKind = 'fact'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_year' AND ValueKind = 'fact'"));
         Assert.Equal("vehicle_lookup", await database.ScalarAsync<string>(
-            $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year' AND ValueKind = 'fact'"));
+            $"SELECT SourceKind FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_year' AND ValueKind = 'fact'"));
     }
 
     [Fact]
@@ -67,13 +67,13 @@ public sealed class VehicleLookupGapFillTests
         await RecordLookupAsync(database, caseId);
 
         Assert.Equal("car", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
         Assert.Equal(ActorKind.Automation.ToString(), await database.ScalarAsync<string>(
-            $"SELECT RecordedByKind FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT RecordedByKind FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
         Assert.Equal("vehicle-lookup", await database.ScalarAsync<string>(
-            $"SELECT RecordedBy FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT RecordedBy FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}' AND ConfirmedBy IS NULL AND ConfirmedAtUtc IS NULL"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}' AND ConfirmedBy IS NULL AND ConfirmedAtUtc IS NULL"));
         Assert.Equal("M1", await database.ScalarAsync<string>(
             $"SELECT TypeApproval FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
         Assert.Equal("2 AXLE RIGID BODY", await database.ScalarAsync<string>(
@@ -91,7 +91,7 @@ public sealed class VehicleLookupGapFillTests
         await using (var context = await database.CreateContextAsync())
         {
             var vehicleType = await context.CaseAssessmentFields.SingleAsync(
-                item => item.CaseId == caseId
+                item => item.WorkId == caseId
                         && item.FieldPath == AssessmentVocabulary.VehicleType);
             vehicleType.RecordedByKind = ActorKind.Staff.ToString();
             vehicleType.RecordedBy = "staff";
@@ -108,9 +108,9 @@ public sealed class VehicleLookupGapFillTests
             recordedAtUtc: FixedUtcNow.AddMinutes(1));
 
         Assert.Equal("car", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
         Assert.Equal("staff", await database.ScalarAsync<string>(
-            $"SELECT ConfirmedBy FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT ConfirmedBy FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class VehicleLookupGapFillTests
             recordedAtUtc: FixedUtcNow.AddMinutes(1));
 
         Assert.Equal(FixedUtcNow, await database.ScalarAsync<DateTimeOffset>(
-            $"SELECT RecordedAtUtc FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT RecordedAtUtc FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
 
         var changedAtUtc = FixedUtcNow.AddMinutes(2);
         await RecordLookupAsync(
@@ -137,9 +137,9 @@ public sealed class VehicleLookupGapFillTests
             recordedAtUtc: changedAtUtc);
 
         Assert.Equal("van", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
         Assert.Equal(changedAtUtc, await database.ScalarAsync<DateTimeOffset>(
-            $"SELECT RecordedAtUtc FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT RecordedAtUtc FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public sealed class VehicleLookupGapFillTests
             revenueWeightKg: null);
 
         Assert.Equal(0, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class VehicleLookupGapFillTests
         await using (var context = await database.CreateContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {"vehicle_make"}, {"fact"}, {"text"}, {"MAZDA"}, {"intake_evidence"}, {"instruction.pdf"}, {"page 1"}, {"extraction"}, {1})");
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {"vehicle_make"}, {"fact"}, {"text"}, {"MAZDA"}, {"intake_evidence"}, {"instruction.pdf"}, {"page 1"}, {"extraction"}, {1})");
         }
 
         await RecordLookupAsync(database, caseId);
@@ -175,11 +175,11 @@ public sealed class VehicleLookupGapFillTests
         // The extracted fact is untouched and the lookup wrote no rival row:
         // a field the case already answers is left alone.
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make'"));
         Assert.Equal("MAZDA", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
         Assert.Equal("intake_evidence", await database.ScalarAsync<string>(
-            $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+            $"SELECT SourceKind FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
     }
 
     [Fact]
@@ -190,15 +190,15 @@ public sealed class VehicleLookupGapFillTests
         await using (var context = await database.CreateContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_model"}, {"confirmed"}, {"text"}, {"CLIO"}, {"staff_correction"}, {"staff"}, {"staff case-data correction"}, {"case-data-edit"}, {1}, {"staff"}, {FixedUtcNow})");
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_model"}, {"confirmed"}, {"text"}, {"CLIO"}, {"staff_correction"}, {"staff"}, {"staff case-data correction"}, {"case-data-edit"}, {1}, {"staff"}, {FixedUtcNow})");
         }
 
         await RecordLookupAsync(database, caseId);
 
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_model'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_model'"));
         Assert.Equal("CLIO", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_model' AND ValueKind = 'confirmed'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_model' AND ValueKind = 'confirmed'"));
     }
 
     [Fact]
@@ -211,9 +211,9 @@ public sealed class VehicleLookupGapFillTests
         await RecordLookupAsync(database, caseId, mileage: 999_999);
 
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage'"));
         Assert.Equal("121823", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
     }
 
     [Fact]
@@ -227,15 +227,15 @@ public sealed class VehicleLookupGapFillTests
             // suggestion chip; the migration promotes these, and a re-run must
             // not leave one orphaned behind the value that now outranks it.
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {"vehicle_make"}, {"suggestion"}, {"text"}, {"RENAULT"}, {"vehicle_lookup"}, {Guid.NewGuid().ToString("D")}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {"vehicle_make"}, {"suggestion"}, {"text"}, {"RENAULT"}, {"vehicle_lookup"}, {Guid.NewGuid().ToString("D")}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
         }
 
         await RecordLookupAsync(database, caseId);
 
         Assert.Equal(0, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND ValueKind = 'suggestion'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND ValueKind = 'suggestion'"));
         Assert.Equal("RENAULT", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
     }
 
     /// <summary>
@@ -254,7 +254,7 @@ public sealed class VehicleLookupGapFillTests
         await RecordLookupAsync(database, caseId);
 
         Assert.Equal("RENAULT", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
         Assert.Equal("Stale", await database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
         Assert.Equal("Confirmed", await database.ScalarAsync<string>(
@@ -286,10 +286,10 @@ public sealed class VehicleLookupGapFillTests
                      })
             {
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"intake_evidence"}, {"instruction.pdf"}, {"page 1"}, {"extraction"}, {1})");
+                    $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"intake_evidence"}, {"instruction.pdf"}, {"page 1"}, {"extraction"}, {1})");
             }
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseAssessmentFields (CaseId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
+                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
         }
 
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
@@ -309,7 +309,7 @@ public sealed class VehicleLookupGapFillTests
         await using (var context = await database.CreateContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {"vehicle_make"}, {"suggestion"}, {"text"}, {"RENAULT"}, {"vehicle_lookup"}, {Guid.NewGuid().ToString("D")}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {"vehicle_make"}, {"suggestion"}, {"text"}, {"RENAULT"}, {"vehicle_lookup"}, {Guid.NewGuid().ToString("D")}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
             foreach (var (fieldName, valueType, value) in new[]
                      {
                          ("vehicle_model", "text", "CAPTUR"),
@@ -319,19 +319,19 @@ public sealed class VehicleLookupGapFillTests
                      })
             {
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"vehicle_lookup"}, {"existing-lookup"}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
+                    $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"vehicle_lookup"}, {"existing-lookup"}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
             }
             // The fixture's type approval would otherwise derive a Vehicle type,
             // which is a printed assessment fact and would stale the report.
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseAssessmentFields (CaseId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
+                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
         }
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
 
         await RecordLookupAsync(database, caseId);
 
         Assert.Equal("RENAULT", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
         Assert.Equal("Confirmed", await database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
         Assert.Equal(0, await StaleRowCountAsync(database, caseId));
@@ -349,6 +349,7 @@ public sealed class VehicleLookupGapFillTests
             {
                 Id = supersededId,
                 CaseId = caseId,
+                WorkId = caseId,
                 CaseVersion = 0,
                 SnapshotHash = new string('1', 64),
                 SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "seed-generation-superseded"),
@@ -362,6 +363,7 @@ public sealed class VehicleLookupGapFillTests
             {
                 Id = currentId,
                 CaseId = caseId,
+                WorkId = caseId,
                 CaseVersion = 0,
                 SnapshotHash = new string('2', 64),
                 SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "seed-generation-current"),
@@ -417,9 +419,9 @@ public sealed class VehicleLookupGapFillTests
         }
 
         Assert.Equal("RENAULT", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
         Assert.Equal("van", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
     }
 
     private sealed class ConnectedContextFactory(DbContextOptions<PegasusDbContext> options)
@@ -510,10 +512,11 @@ public sealed class VehicleLookupGapFillTests
             $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"gap-fill.eml"}, {"message/rfc822"}, {1L}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {"manual_upload"}, {receiptId.ToString("D")}, {FixedUtcNow}, {FixedUtcNow}, {"gap-fill-reader"}, {"1"}, {0L}, {"case_created"}, {"Gap fill fixture"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {sequence}, {$"GAP{caseId:N}"[..10].ToUpperInvariant()}, {"inspection"}, {"review"}, {"confirmed"}, {receiptId}, {true}, {true}, {FixedUtcNow}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {CaseLifecycleState.Review.ToString()}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {receiptId}, {"manual_upload"}, {"gap-fill-source"}, {new string('1', 64)}, {FixedUtcNow}, {"gap-fill-reader"}, {"1"}, {"gap-fill-completeness"}, {1}, {true}, {FixedUtcNow})");
+            $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {receiptId}, {"manual_upload"}, {"gap-fill-source"}, {new string('1', 64)}, {FixedUtcNow}, {"gap-fill-reader"}, {"1"}, {"gap-fill-completeness"}, {1}, {true}, {FixedUtcNow})");
         return caseId;
     }
 }

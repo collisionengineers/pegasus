@@ -182,7 +182,7 @@ public sealed class CaseSectionQueryValidationTests
 
     private sealed class EmptyCaseData : ICaseDataQueries
     {
-        public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(null);
     }
 

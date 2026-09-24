@@ -301,7 +301,7 @@ public sealed record SaveCaseRequest(
 
 public interface ICaseDataQueries
 {
-    Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken);
+    Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 }
 
 public interface ICaseDataStore : ICaseDataQueries

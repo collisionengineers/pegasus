@@ -198,7 +198,7 @@ public sealed class DiscardIntakeSubmissionGroupTests
                 new CaseEntity
                 {
                     Id = caseId, PrincipalId = principalId, SequenceLineageId = lineageId,
-                    Year = 2031, Sequence = 1, Reference = "DISC31001", Type = "Audit",
+                    Year = 2031, Sequence = 1, Reference = "DISC31001", Type = "audit",
                     InitialState = "NotReady", CustodyState = "Pending", CreatedAtUtc = DateTimeOffset.UtcNow,
                     Version = 1, ConcurrencyToken = Guid.NewGuid()
                 },

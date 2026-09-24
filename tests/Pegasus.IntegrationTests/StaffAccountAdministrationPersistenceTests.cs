@@ -237,7 +237,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
                 Year = 2031,
                 Sequence = 1,
                 Reference = reference,
-                Type = "Inspection",
+                Type = "inspection",
                 InitialState = "NotReady",
                 CustodyState = "confirmed",
                 OriginIntakeReceiptId = receiptId,

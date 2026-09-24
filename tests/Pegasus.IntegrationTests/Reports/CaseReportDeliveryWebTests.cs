@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -682,7 +683,7 @@ public sealed partial class AssessmentReportDraftWebTests
         public CaseReportGenerationRecord Record => record;
 
         public Task<CaseReportGenerationRecord?> GetCurrentAsync(
-            ActionActor actor, Guid id, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid id, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportGenerationRecord?>(record);
 
         public Task<CaseReportGenerationRecord?> GetAsync(
@@ -690,7 +691,7 @@ public sealed partial class AssessmentReportDraftWebTests
             Task.FromResult<CaseReportGenerationRecord?>(record);
 
         public Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
-            ActionActor actor, Guid id, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid id, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseReportGenerationRecord>>([record]);
 
         public Task<CaseReportFreezeResult> FreezeAsync(
@@ -750,7 +751,7 @@ public sealed partial class AssessmentReportDraftWebTests
         public Task<CaseReportGenerationRecord?> GetCurrentAsync(
             ActionActor actor,
             Guid id,
-            CancellationToken cancellationToken) => Task.FromResult(current);
+            CaseWorkSelector work, CancellationToken cancellationToken) => Task.FromResult(current);
 
         public Task<CaseReportGenerationRecord?> GetAsync(
             ActionActor actor,
@@ -761,7 +762,7 @@ public sealed partial class AssessmentReportDraftWebTests
         public Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
             ActionActor actor,
             Guid id,
-            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<CaseReportGenerationRecord>>(
+            CaseWorkSelector work, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<CaseReportGenerationRecord>>(
                 current is null ? [] : [current]);
 
         public Task<CaseReportFreezeResult> FreezeAsync(
@@ -907,13 +908,14 @@ public sealed partial class AssessmentReportDraftWebTests
         public Task<AssessmentReportProjectionInput?> GetAsync(
             Guid caseId,
             ActionActor actor,
+            CaseWorkSelector work,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<AssessmentReportProjectionInput?>(input);
 
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
             Guid caseId,
             ActionActor actor,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportFreezeInputs?>(null);
     }
 

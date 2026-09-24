@@ -178,7 +178,8 @@
         : Url.Page("/Cases/Details", "EstimateDocument", new
         {
             id = caseId,
-            estimateId = estimate.SpecificationId
+            estimateId = estimate.SpecificationId,
+            view = Model.ViewRoute
         });
 
     // The work-lists sort recorded lines by operation; a type the mapping
@@ -703,7 +704,8 @@
                         {
                             <a class="btn" asp-page="/Cases/Details" asp-route-id="@caseId"
                                asp-route-section="estimate" asp-route-estimate="@estimate.SpecificationId"
-                               asp-route-dialog="versions" data-dialog-open="versions-dialog" data-estimate-versions>
+                               asp-route-dialog="versions" asp-route-view="@Model.ViewRoute"
+                               data-dialog-open="versions-dialog" data-estimate-versions>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
                                 <span>@EstimateLabels.VersionsCount(Model.SelectedEstimateSnapshots.Count)</span>
                             </a>
@@ -712,7 +714,8 @@
                         {
                             <a class="btn" asp-page="/Cases/Details" asp-route-id="@caseId"
                                asp-route-section="estimate" asp-route-estimate="@estimate?.SpecificationId"
-                               asp-route-dialog="compare-estimates" data-dialog-open="compare-estimates-dialog" data-estimate-compare>
+                               asp-route-dialog="compare-estimates" asp-route-view="@Model.ViewRoute"
+                               data-dialog-open="compare-estimates-dialog" data-estimate-compare>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
                                 <span>@EngineerLabels.Compare</span>
                             </a>
@@ -753,7 +756,7 @@
                     var isSelected = estimate?.SpecificationId == version.SpecificationId && !Model.EditingNewEstimate;
                     <a class="estimate-tab" role="tab" asp-page="/Cases/Details"
                        asp-route-id="@caseId" asp-route-section="estimate"
-                       asp-route-estimate="@version.SpecificationId"
+                       asp-route-estimate="@version.SpecificationId" asp-route-view="@Model.ViewRoute"
                        aria-selected="@(isSelected ? "true" : "false")"
                        data-estimate-tab="@version.SpecificationId">
                         <span data-estimate-tab-label>@version.Details.Name</span>
@@ -980,6 +983,10 @@
                     <input type="hidden" name="section" value="estimate" />
                     <input type="hidden" name="estimate" value="@estimate?.SpecificationId" />
                     <input type="hidden" name="dialog" value="compare-estimates" />
+                    @if (Model.IsInspectionView)
+                    {
+                        <input type="hidden" name="view" value="@Pegasus.Web.Pages.Cases.DetailsModel.InspectionViewKey" />
+                    }
                     <label class="dsc">@EstimateLabels.From
                         <select class="fi" name="from" aria-label="@EstimateLabels.From">
                             <option value="">@EstimateLabels.Choose</option>

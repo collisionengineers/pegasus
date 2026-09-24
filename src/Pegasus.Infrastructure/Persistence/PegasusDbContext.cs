@@ -17,6 +17,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<PrincipalEntity> Principals => Set<PrincipalEntity>();
     internal DbSet<CaseSequenceEntity> CaseSequences => Set<CaseSequenceEntity>();
     internal DbSet<CaseEntity> Cases => Set<CaseEntity>();
+    internal DbSet<CaseWorkEntity> CaseWorks => Set<CaseWorkEntity>();
     internal DbSet<CaseIntakeLinkEntity> CaseIntakeLinks => Set<CaseIntakeLinkEntity>();
     internal DbSet<CaseDataSnapshotEntity> CaseDataSnapshots => Set<CaseDataSnapshotEntity>();
     internal DbSet<CaseDataFieldEntity> CaseDataFields => Set<CaseDataFieldEntity>();
@@ -149,6 +150,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        EnsurePrimaryWorks();
         RegenerateConcurrencyTokens();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
@@ -157,8 +159,46 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
     {
+        EnsurePrimaryWorks();
         RegenerateConcurrencyTokens();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    // Every Case has its primary work, whose id is the Case id. The context
+    // supplies it for every Case added without one, so no creator writes it
+    // and none can forget it; the database still fails closed
+    // (CK_CaseWorks_PrimaryId, the unique (CaseId, Kind) index and the
+    // foreign keys from every per-work table).
+    private void EnsurePrimaryWorks()
+    {
+        var added = ChangeTracker.Entries<CaseEntity>()
+            .Where(entry => entry.State == EntityState.Added)
+            .Select(entry => entry.Entity)
+            .ToList();
+        if (added.Count == 0)
+        {
+            return;
+        }
+
+        var tracked = ChangeTracker.Entries<CaseWorkEntity>()
+            .Select(entry => entry.Entity.Id)
+            .ToHashSet();
+        foreach (var caseEntity in added)
+        {
+            if (tracked.Contains(caseEntity.Id))
+            {
+                continue;
+            }
+
+            CaseWorks.Add(new CaseWorkEntity
+            {
+                Id = caseEntity.Id,
+                CaseId = caseEntity.Id,
+                Case = caseEntity,
+                Kind = CaseWorkKinds.Primary,
+                CreatedAtUtc = caseEntity.CreatedAtUtc
+            });
+        }
     }
 
     private void RegenerateConcurrencyTokens()
@@ -192,6 +232,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         EvaHandoffModelConfiguration.Configure(builder);
         EvaSubmissionModelConfiguration.Configure(builder);
         AutomaticEvaReviewSubmissionModelConfiguration.Configure(builder);
+        CaseWorkModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
         CaseFieldProposalModelConfiguration.Configure(builder);
         PrincipalCredentialModelConfiguration.Configure(builder);
@@ -550,12 +591,21 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             {
                 table.HasCheckConstraint("CK_Cases_Sequence", "[Sequence] >= 1");
                 table.HasCheckConstraint("CK_Cases_Version", "[Version] >= 0");
+                // Only an Inspection + Audit Case carries an Audit report
+                // reference, and it is always a. + its Case/PO.
+                table.HasCheckConstraint(
+                    "CK_Cases_AuditReference",
+                    "[AuditReference] IS NULL OR ([Type] = N'inspection_and_audit' AND [AuditReference] = N'a.' + [Reference])");
+                // A Triage Case has no Case workflow, so no initial workflow state.
+                table.HasCheckConstraint(
+                    "CK_Cases_InitialState",
+                    "([Type] = N'triage' AND [InitialState] IS NULL) OR ([Type] <> N'triage' AND [InitialState] IS NOT NULL)");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Reference).HasMaxLength(40).IsRequired();
             entity.Property(item => item.AuditReference).HasMaxLength(43);
             entity.Property(item => item.Type).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.InitialState).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.InitialState).HasMaxLength(40);
             entity.Property(item => item.CustodyState).HasMaxLength(40).IsRequired();
             entity.Property(item => item.StandaloneAuditAssessment).HasMaxLength(40);
             entity.Property(item => item.Version).IsConcurrencyToken();
@@ -567,18 +617,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.Reference).IsUnique();
             entity.HasIndex(item => item.AuditReference).IsUnique();
             entity.HasIndex(item => item.OriginIntakeReceiptId);
-            // An Audit Case shares its original's sequence, so sequence uniqueness ignores
-            // linked Audit Cases; the reference stays unique across every Case.
             entity.HasIndex(item => new { item.SequenceLineageId, item.Year, item.Sequence })
-                .IsUnique()
-                .HasFilter("[AuditOfCaseId] IS NULL");
-            entity.HasIndex(item => item.AuditOfCaseId)
-                .IsUnique()
-                .HasFilter("[AuditOfCaseId] IS NOT NULL");
-            entity.HasOne<CaseEntity>()
-                .WithMany()
-                .HasForeignKey(item => item.AuditOfCaseId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .IsUnique();
             entity.HasOne(item => item.Principal)
                 .WithMany(item => item.Cases)
                 .HasForeignKey(item => item.PrincipalId)
@@ -816,40 +856,48 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // A Triage Case's specialised lifecycle, keyed by its Case. Its identity,
+        // Principal and reference are the Case's; the origin columns are all
+        // present for a Triage Case opened from route evidence and all absent
+        // for one a member of staff created directly.
         builder.Entity<TriageEntity>(entity =>
         {
             entity.ToTable("Triage", table =>
             {
                 table.HasCheckConstraint("CK_Triage_Version", "[Version] >= 0");
-                table.HasCheckConstraint("CK_Triage_Sequence", "[Sequence] > 0");
+                table.HasCheckConstraint(
+                    "CK_Triage_Origin",
+                    "([OriginReceiptId] IS NULL AND [SourceChannel] IS NULL AND [ExternalReceiptToken] IS NULL AND [SourceHash] IS NULL AND [EvaluationRevisionId] IS NULL) OR ([OriginReceiptId] IS NOT NULL AND [SourceChannel] IS NOT NULL AND [ExternalReceiptToken] IS NOT NULL AND [SourceHash] IS NOT NULL AND [EvaluationRevisionId] IS NOT NULL)");
             });
-            entity.HasKey(item => item.Id);
-            entity.Property(item => item.SourceChannel).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200).IsRequired();
-            entity.Property(item => item.SourceHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.HasKey(item => item.CaseId);
+            entity.Property(item => item.CaseId).ValueGeneratedNever();
+            entity.Property(item => item.SourceChannel).HasMaxLength(40);
+            entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200);
+            entity.Property(item => item.SourceHash).HasMaxLength(64).IsFixedLength();
             entity.Property(item => item.NormalizedVehicleRegistration).HasMaxLength(20).IsRequired();
-            entity.Property(item => item.Reference).HasMaxLength(32).IsRequired();
             entity.Property(item => item.State).HasMaxLength(40).IsRequired();
             entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
-            entity.HasIndex(item => item.OriginReceiptId).IsUnique();
-            entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
+            entity.HasIndex(item => item.OriginReceiptId)
+                .IsUnique()
+                .HasFilter("[OriginReceiptId] IS NOT NULL");
+            entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken })
+                .IsUnique()
+                .HasFilter("[SourceChannel] IS NOT NULL AND [ExternalReceiptToken] IS NOT NULL");
             entity.HasIndex(item => item.CreationOperationKey).IsUnique();
-            entity.HasIndex(item => item.Sequence).IsUnique();
-            entity.HasIndex(item => item.Reference).IsUnique();
             entity.HasIndex(item => new { item.State, item.CreatedAtUtc });
+            entity.HasOne(item => item.Case)
+                .WithOne()
+                .HasForeignKey<TriageEntity>(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<IntakeReceiptEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.OriginReceiptId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<CaseEntity>()
                 .WithMany()
-                .HasForeignKey(item => item.LinkedCaseId)
-                .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne<PrincipalEntity>()
-                .WithMany()
-                .HasForeignKey(item => item.PrincipalId)
+                .HasForeignKey(item => item.LinkedInstructionCaseId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -864,10 +912,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.HasIndex(item => item.OperationKey).IsUnique();
             entity.HasIndex(item => item.SupersedesFindingId).IsUnique();
-            entity.HasIndex(item => new { item.TriageId, item.RecordedAtUtc });
+            entity.HasIndex(item => new { item.TriageCaseId, item.RecordedAtUtc });
             entity.HasOne(item => item.Triage)
                 .WithMany(item => item.Findings)
-                .HasForeignKey(item => item.TriageId)
+                .HasForeignKey(item => item.TriageCaseId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<TriageFindingEntity>()
                 .WithMany()
@@ -890,11 +938,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.MessageIdentity).IsUnique();
             entity.HasIndex(item => item.OperationKey).IsUnique();
-            entity.HasIndex(item => new { item.ChaseDueAtUtc, item.TriageId });
+            entity.HasIndex(item => new { item.ChaseDueAtUtc, item.TriageCaseId });
             entity.HasIndex(item => new { item.SentAtUtc, item.Id }).IsDescending(true, false);
             entity.HasOne(item => item.Triage)
                 .WithMany(item => item.SentEmailEvidence)
-                .HasForeignKey(item => item.TriageId)
+                .HasForeignKey(item => item.TriageCaseId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -934,15 +982,15 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         builder.Entity<TriageResponseEvidenceLinkEntity>(entity =>
         {
             entity.ToTable("TriageResponseEvidenceLinks");
-            entity.HasKey(item => new { item.TriageId, item.SentEvidenceId });
+            entity.HasKey(item => new { item.TriageCaseId, item.SentEvidenceId });
             entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.HasIndex(item => item.OperationKey).IsUnique();
-            entity.HasIndex(item => item.TriageId).IsUnique();
+            entity.HasIndex(item => item.TriageCaseId).IsUnique();
             entity.HasOne(item => item.Triage)
                 .WithMany(item => item.ResponseEvidenceLinks)
-                .HasForeignKey(item => item.TriageId)
+                .HasForeignKey(item => item.TriageCaseId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.SentEvidence)
                 .WithMany(item => item.TriageLinks)
@@ -962,10 +1010,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.AfterState).HasMaxLength(40).IsRequired();
             entity.HasIndex(item => item.OperationKey).IsUnique();
-            entity.HasIndex(item => new { item.TriageId, item.OccurredAtUtc });
+            entity.HasIndex(item => new { item.TriageCaseId, item.OccurredAtUtc });
             entity.HasOne(item => item.Triage)
                 .WithMany(item => item.History)
-                .HasForeignKey(item => item.TriageId)
+                .HasForeignKey(item => item.TriageCaseId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -1237,13 +1285,9 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public required string Reference { get; set; }
     public string? AuditReference { get; set; }
     public required string Type { get; set; }
-    public required string InitialState { get; set; }
+    public string? InitialState { get; set; }
     public required string CustodyState { get; set; }
     public Guid? OriginIntakeReceiptId { get; set; }
-    // The Inspection + Audit Case this Audit Case was created from (13 September): the
-    // two share principal, year and sequence, and this Case roots its Box folder under
-    // the original's. Null for every other Case.
-    public Guid? AuditOfCaseId { get; set; }
     public string? StandaloneAuditAssessment { get; set; }
     public Guid? StandaloneAuditEvidenceId { get; set; }
     public DateOnly? AcceptedInspectionDeadline { get; set; }
@@ -1259,7 +1303,7 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public DateTimeOffset? CustodyConfirmedAtUtc { get; set; }
     public string? AuditCustodyRemoteId { get; set; }
     public DateTimeOffset? AuditCustodyConfirmedAtUtc { get; set; }
-    public CaseEngineerFindingEntity? EngineerFinding { get; set; }
+    public List<CaseWorkEntity> Works { get; set; } = [];
     public List<CaseIntakeLinkEntity> IntakeLinks { get; set; } = [];
     public List<CaseHistoryEntity> History { get; set; } = [];
     public List<ExternalWorkItemEntity> ExternalWork { get; set; } = [];
@@ -1371,19 +1415,17 @@ internal sealed class ExternalWorkItemEntity
 
 internal sealed class TriageEntity : IApplicationManagedConcurrencyToken
 {
-    public Guid Id { get; set; }
-    public long Sequence { get; set; }
-    public string Reference { get; set; } = string.Empty;
-    public Guid? PrincipalId { get; set; }
-    public Guid OriginReceiptId { get; set; }
-    public required string SourceChannel { get; set; }
-    public required string ExternalReceiptToken { get; set; }
-    public required string SourceHash { get; set; }
-    public Guid EvaluationRevisionId { get; set; }
+    public Guid CaseId { get; set; }
+    public CaseEntity Case { get; set; } = null!;
+    public Guid? OriginReceiptId { get; set; }
+    public string? SourceChannel { get; set; }
+    public string? ExternalReceiptToken { get; set; }
+    public string? SourceHash { get; set; }
+    public Guid? EvaluationRevisionId { get; set; }
     public required string NormalizedVehicleRegistration { get; set; }
     public required string State { get; set; }
     public Guid? AssigneeId { get; set; }
-    public Guid? LinkedCaseId { get; set; }
+    public Guid? LinkedInstructionCaseId { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public required string CreationOperationKey { get; set; }
     public long Version { get; set; }
@@ -1397,7 +1439,7 @@ internal sealed class TriageEntity : IApplicationManagedConcurrencyToken
 internal sealed class TriageFindingEntity
 {
     public Guid Id { get; set; }
-    public Guid TriageId { get; set; }
+    public Guid TriageCaseId { get; set; }
     public TriageEntity Triage { get; set; } = null!;
     public string? Roadworthiness { get; set; }
     public string? Assessment { get; set; }
@@ -1411,7 +1453,7 @@ internal sealed class TriageFindingEntity
 internal sealed class SentEmailEvidenceEntity
 {
     public Guid Id { get; set; }
-    public Guid TriageId { get; set; }
+    public Guid TriageCaseId { get; set; }
     public TriageEntity Triage { get; set; } = null!;
     public required string MessageIdentity { get; set; }
     public required string Subject { get; set; }
@@ -1453,7 +1495,7 @@ internal sealed class EmailResponseEvidenceEntity
 
 internal sealed class TriageResponseEvidenceLinkEntity
 {
-    public Guid TriageId { get; set; }
+    public Guid TriageCaseId { get; set; }
     public TriageEntity Triage { get; set; } = null!;
     public Guid SentEvidenceId { get; set; }
     public SentEmailEvidenceEntity SentEvidence { get; set; } = null!;
@@ -1466,7 +1508,7 @@ internal sealed class TriageResponseEvidenceLinkEntity
 internal sealed class TriageHistoryEntity
 {
     public Guid Id { get; set; }
-    public Guid TriageId { get; set; }
+    public Guid TriageCaseId { get; set; }
     public TriageEntity Triage { get; set; } = null!;
     public required string EventType { get; set; }
     public required string Actor { get; set; }
@@ -1479,7 +1521,7 @@ internal sealed class TriageHistoryEntity
     public long AfterVersion { get; set; }
     public required string AfterState { get; set; }
     public Guid? AfterAssigneeId { get; set; }
-    public Guid? AfterLinkedCaseId { get; set; }
+    public Guid? AfterLinkedInstructionCaseId { get; set; }
 }
 
 internal sealed class ActionHistoryEntity

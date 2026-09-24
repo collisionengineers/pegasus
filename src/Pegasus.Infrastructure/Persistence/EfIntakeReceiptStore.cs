@@ -778,7 +778,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 ? category.Name
                 : null,
             Subtype = decision.Category?.Subtype,
-            CaseType = decision.CaseType is null ? null : ToCode(decision.CaseType.Value),
+            CaseType = decision.CaseType is null ? null : CaseTypeCodes.ToCode(decision.CaseType.Value),
             IsReplyContext = decision.Category?.IsReplyContext ?? false,
             OtherName = decision.Category?.OtherName,
             OtherReasoning = decision.Category?.OtherReasoning,
@@ -848,7 +848,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.Reason,
             entity.PolicyKey,
             entity.PolicyVersion,
-            entity.CaseType is null ? null : ParseCaseType(entity.CaseType),
+            entity.CaseType is null ? null : CaseTypeCodes.Parse(entity.CaseType),
             hasCompleteAuditReport
                 ? new(
                     entity.StandaloneAuditReportAssetSourceLabel!,
@@ -1318,22 +1318,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "ambiguous" => MailClassificationOutcome.Ambiguous,
         "unclassified" => MailClassificationOutcome.Unclassified,
         _ => throw UnknownCode("mail-classification outcome", value)
-    };
-
-    internal static string ToCode(CaseType value) => value switch
-    {
-        CaseType.Inspection => "inspection",
-        CaseType.Audit => "audit",
-        CaseType.InspectionAndAudit => "inspection_and_audit",
-        _ => throw UnknownEnum(value)
-    };
-
-    private static CaseType ParseCaseType(string value) => value switch
-    {
-        "inspection" => CaseType.Inspection,
-        "audit" => CaseType.Audit,
-        "inspection_and_audit" => CaseType.InspectionAndAudit,
-        _ => throw UnknownCode("case type", value)
     };
 
     internal static string ToCode(AuditAssessment value) => AuditAssessmentCode.ToCode(value);

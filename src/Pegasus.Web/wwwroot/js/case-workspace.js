@@ -5,7 +5,7 @@
 // Blocks, in order:
 //   frame       sticky measure, Scroll/Tabs, lazy section bodies, the
 //               section nav, in-place actions (fetch + swap), the edit
-//               session (dirty guard, heartbeat, expiry), pegasus:dirty
+//               session (dirty guard, heartbeat, expiry)
 //   sections    the section-owned enhancements (damage clicker, valuation
 //               calculator, estimate grid, report images, files, viewer)
 //
@@ -200,7 +200,11 @@
         if (lease) {
             headers['X-Pegasus-Edit-Lease'] = lease;
         }
-        fetch(fragmentPath + '?section=' + encodeURIComponent(key), { credentials: 'same-origin', headers: headers })
+        // The Inspection view's bodies read the Inspection's own work (v29).
+        var view = record.getAttribute('data-case-view');
+        var fragmentUrl = fragmentPath + '?section=' + encodeURIComponent(key)
+            + (view ? '&view=' + encodeURIComponent(view) : '');
+        fetch(fragmentUrl, { credentials: 'same-origin', headers: headers })
             .then(function (response) {
                 if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
                     throw new Error('section ' + key + ': ' + response.status);
@@ -383,7 +387,8 @@
         selectTab(all[nextIndex].getAttribute('data-section-link'));
     });
     document.addEventListener('click', function (event) {
-        var jump = event.target.closest('[data-section-jump]');
+        // An empty jump (the Inspection view's Next action) is an ordinary link.
+        var jump = event.target.closest('[data-section-jump]:not([data-section-jump=""])');
         if (!jump || !record.contains(jump)) {
             return;
         }
@@ -424,7 +429,7 @@
     }
 
     // ---- the edit session: dirty guard, heartbeat, expiry ------------------
-    function announce(isDirty) {
+    function setDirty(isDirty) {
         dirty = isDirty;
         if (!isDirty) { estimateTouched = false; }
         document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: isDirty } }));
@@ -438,7 +443,7 @@
         var id = form.getAttribute('id');
         dirtyEditors.set(id, (dirtyEditors.get(id) || 0) + 1);
         activeEditor = id;
-        announce(true);
+        setDirty(true);
     }
     ['input', 'change'].forEach(function (name) {
         document.addEventListener(name, function (event) {
@@ -691,18 +696,12 @@
             });
             current.replaceWith(next);
         });
-        (noticesOnly ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current']).forEach(function (name) {
+        (noticesOnly ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current', 'data-case-view']).forEach(function (name) {
             var value = incoming.getAttribute(name);
             if (value === null) { record.removeAttribute(name); } else { record.setAttribute(name, value); }
         });
         record.setAttribute('data-layout', layout);
         main = document.getElementById('case-main');
-        var mainAttributes = parsed.querySelector('main[data-record-kind]');
-        var liveMain = document.querySelector('main#main-content');
-        if (mainAttributes && liveMain) {
-            var glyph = mainAttributes.getAttribute('data-record-glyph');
-            if (glyph) { liveMain.setAttribute('data-record-glyph', glyph); } else { liveMain.removeAttribute('data-record-glyph'); }
-        }
         // Dialogs first so the openers in the swapped roots find them.
         ['[data-case-dialogs]', '[data-case-viewer-host]', '[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]'].forEach(function (selector) {
             var root = document.querySelector(selector);
@@ -720,7 +719,7 @@
         updateSectionFields();
         measure();
         keep(saved);
-        announce(dirtyEditors.size > 0);
+        setDirty(dirtyEditors.size > 0);
         if (confirmed && dirtyEditors.size > 0 && !mayAdvance) {
             showActionError('The save completed, but the Case changed again or editing expired. Your other unsaved changes still use their original version.');
         }
@@ -1000,6 +999,13 @@
         if (form.hasAttribute('data-glass-window')) {
             return false;
         }
+        // A write lands on the default view (v29), so one posted from the
+        // Inspection view navigates rather than swapping that view in place.
+        // Razor renders the attribute empty on every other Case, so its value
+        // decides, not its presence.
+        if (record.getAttribute('data-case-view') && (form.getAttribute('method') || 'get').toLowerCase() === 'post') {
+            return false;
+        }
         var dialogs = document.querySelector('[data-case-dialogs]');
         return record.contains(form) || (dialogs && dialogs.contains(form));
     }
@@ -1052,14 +1058,14 @@
                     return;
                 }
                 dirtyEditors.clear();
-                announce(false);
+                setDirty(false);
                 proceed();
             });
             return;
         }
         if (isCancel) {
             dirtyEditors.clear();
-            announce(false);
+            setDirty(false);
         }
         proceed();
     });
@@ -1078,7 +1084,7 @@
         var link = event.target.closest('a[href]');
         if (!dirty || !link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey
             || link.hasAttribute('target') || link.hasAttribute('download') || link.hasAttribute('data-section-link')
-            || link.hasAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
+            || link.getAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
             || link.getAttribute('href').startsWith('#')) { return; }
         event.preventDefault();
         if (submitting || confirmResolve) { return; }
@@ -1090,7 +1096,7 @@
                 }
             } else if (answer === 'discard') {
                 dirtyEditors.clear();
-                announce(false);
+                setDirty(false);
                 window.location.assign(link.href);
             }
         });

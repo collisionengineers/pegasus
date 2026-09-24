@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
@@ -51,20 +52,20 @@ public sealed class EfValuationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
         var beforeDependencies = await ReadReportDependenciesAsync(
             context,
-            request.CaseId,
+            workId,
             cancellationToken);
         // A card for the same source and guide month is replaced in place: the
         // Valuations table does not version rows, so the earlier figures survive
         // only in the history entry written below.
-        var replaced = await FindReplacedAsync(context, request.CaseId, request.Details, cancellationToken);
+        var replaced = await FindReplacedAsync(context, workId, request.Details, cancellationToken);
         var before = replaced is null ? null : Map(replaced);
         var entity = replaced ?? new CaseValuationEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
-            Case = workflow.Case,
+            WorkId = workId,
             Source = request.Details.Source.ToString(),
             RecordedBy = request.Actor.SubjectId,
             RecordedAtUtc = now,
@@ -79,6 +80,7 @@ public sealed class EfValuationStore(
         var engineersValue = await WriteEngineersValueAsync(
             context,
             workflow,
+            workId,
             request.Actor,
             entity,
             previousSource: before?.Details.Source,
@@ -143,12 +145,13 @@ public sealed class EfValuationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
         var beforeDependencies = await ReadReportDependenciesAsync(
             context,
-            request.CaseId,
+            workId,
             cancellationToken);
         var entity = await context.CaseValuations.SingleOrDefaultAsync(
-            item => item.Id == request.ValuationId && item.CaseId == request.CaseId,
+            item => item.Id == request.ValuationId && item.WorkId == workId,
             cancellationToken)
             ?? throw new InvalidOperationException("The valuation was not found on this case.");
         var before = Map(entity);
@@ -165,6 +168,7 @@ public sealed class EfValuationStore(
         var engineersValue = await WriteEngineersValueAsync(
             context,
             workflow,
+            workId,
             request.Actor,
             entity,
             before.Details.Source,
@@ -183,7 +187,7 @@ public sealed class EfValuationStore(
             engineersValue,
             now);
         var anotherGlassesGuideExists = await context.CaseValuations.AsNoTracking().AnyAsync(
-            item => item.CaseId == request.CaseId
+            item => item.WorkId == workId
                 && item.Id != entity.Id
                 && item.Source == nameof(ValuationSource.Glasses),
             cancellationToken);
@@ -231,15 +235,17 @@ public sealed class EfValuationStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        // The adoption belongs to the Case's current work: the Audit once it exists.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
         var posted = await RequiredGuideAsync(
             context,
-            workflow.CaseId,
+            workId,
             selection.GuideValuationId,
             cancellationToken);
         var guideEntity = writtenBySave.LastOrDefault(item => item.Source == posted.Source) ?? posted;
         var basis = await ReadBasisAsync(
             context,
-            workflow.CaseId,
+            workId,
             guideEntity,
             claimantVatRegistered,
             cancellationToken);
@@ -255,8 +261,7 @@ public sealed class EfValuationStore(
         var adopted = new CaseValuationEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Case = workflow.Case,
+            WorkId = workId,
             Source = ValuationSource.EngineersValue.ToString(),
             Date = DateOnly.FromDateTime(now.UtcDateTime),
             Time = TimeOnly.FromDateTime(now.UtcDateTime),
@@ -268,11 +273,12 @@ public sealed class EfValuationStore(
             RecordedBy = actor.SubjectId,
             RecordedAtUtc = now,
         };
-        ValuationPolicy.ValidateDetails(Map(adopted).Details);
         context.CaseValuations.Add(adopted);
+        ValuationPolicy.ValidateDetails(Map(adopted).Details);
         var engineersValue = await WriteEngineersValueAsync(
             context,
             workflow,
+            workId,
             actor,
             adopted,
             previousSource: null,
@@ -290,20 +296,18 @@ public sealed class EfValuationStore(
         // The Case version this adoption produced is part of what it is, so
         // returning to an earlier calculation in a later save is a new
         // adoption rather than a repeat of the first.
-        var snapshotHash = Hash(new
-        {
+        var snapshotHash = AppliedSnapshotHash(
             workflow.CaseId,
             snapshot.CaseVersion,
             snapshot.GuideValuationId,
             snapshot.GuideValuationStampUtc,
             snapshot.Calculation,
-            Accepted = accepted,
-            Reason = reason,
-        });
+            accepted,
+            reason);
         var entity = new AppliedValuationSnapshotEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
+            WorkId = workId,
             SnapshotJson = snapshotJson,
             CalculationPolicyVersion = ValuationCalculationPolicy.PolicyStamp,
             GeneratedByKind = actor.Kind.ToString(),
@@ -316,7 +320,7 @@ public sealed class EfValuationStore(
             PolicyVersion = $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
         };
         context.Set<AppliedValuationSnapshotEntity>().Add(entity);
-        var result = Map(entity, snapshot);
+        var result = Map(entity, snapshot, workflow.CaseId);
         AddActionHistory(
             context,
             actor,
@@ -356,6 +360,7 @@ public sealed class EfValuationStore(
     /// </summary>
     public async Task<IReadOnlyList<AppliedValuation>> ListAppliedAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -364,14 +369,15 @@ public sealed class EfValuationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var entities = await context.Set<AppliedValuationSnapshotEntity>()
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
         return entities
             .OrderByDescending(item => item.AcceptedAtUtc)
             .ThenByDescending(item => item.Id)
-            .Select(item => Map(item, null))
+            .Select(item => Map(item, null, caseId))
             .ToArray();
     }
 
@@ -394,19 +400,20 @@ public sealed class EfValuationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var guide = await RequiredGuideAsync(
             context,
-            caseId,
+            workId,
             guideValuationId,
             cancellationToken);
         var claimantVatField = await context.CaseAssessmentFields.AsNoTracking()
             .SingleOrDefaultAsync(
-                item => item.CaseId == caseId
+                item => item.WorkId == workId
                     && item.FieldPath == AssessmentVocabulary.SettlementClaimantVatRegistered,
                 cancellationToken);
         return await ReadBasisAsync(
             context,
-            caseId,
+            workId,
             guide,
             string.Equals(claimantVatField?.Value, "true", StringComparison.Ordinal),
             cancellationToken);
@@ -414,7 +421,7 @@ public sealed class EfValuationStore(
 
     private static async Task<ValuationCalculationBasis> ReadBasisAsync(
         PegasusDbContext context,
-        Guid caseId,
+        Guid workId,
         CaseValuationEntity guideEntity,
         bool claimantVatRegistered,
         CancellationToken cancellationToken)
@@ -427,7 +434,7 @@ public sealed class EfValuationStore(
             .ToArrayAsync(cancellationToken);
         var snapshots = await context.Set<AppliedValuationSnapshotEntity>()
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
         return new(
             guide.ValuationId,
@@ -442,7 +449,7 @@ public sealed class EfValuationStore(
             RecordedAdditions =
             [
                 .. snapshots
-                    .SelectMany(item => Map(item, null).Calculation.Additions)
+                    .SelectMany(item => ReadSnapshot(item).Calculation.Additions)
                     .Where(addition => addition.PresetId != Guid.Empty)
                     .DistinctBy(addition => (addition.PresetId, addition.PresetVersion))
             ]
@@ -451,12 +458,12 @@ public sealed class EfValuationStore(
 
     private static async Task<CaseValuationEntity> RequiredGuideAsync(
         PegasusDbContext context,
-        Guid caseId,
+        Guid workId,
         Guid guideValuationId,
         CancellationToken cancellationToken)
     {
         var entity = await context.CaseValuations.SingleOrDefaultAsync(
-            item => item.Id == guideValuationId && item.CaseId == caseId,
+            item => item.Id == guideValuationId && item.WorkId == workId,
             cancellationToken)
             ?? throw new InvalidOperationException(
                 "The selected guide valuation was not found on this case.");
@@ -476,18 +483,22 @@ public sealed class EfValuationStore(
     private static DateTimeOffset StampOf(CaseValuation valuation) =>
         valuation.LastEditedAtUtc ?? valuation.RecordedAtUtc;
 
-    private static AppliedValuation Map(
-        AppliedValuationSnapshotEntity entity,
-        AppliedValuationSnapshot? snapshot)
-    {
-        snapshot ??= JsonSerializer.Deserialize<AppliedValuationSnapshot>(
-                entity.SnapshotJson,
-                SerializerOptions)
+    private static AppliedValuationSnapshot ReadSnapshot(AppliedValuationSnapshotEntity entity) =>
+        JsonSerializer.Deserialize<AppliedValuationSnapshot>(entity.SnapshotJson, SerializerOptions)
             ?? throw new InvalidDataException(
                 "The persisted applied valuation snapshot is invalid.");
+
+    // The record's CaseId is the Case (plan 1.3): the caller names it, since
+    // the row keys on its work.
+    private static AppliedValuation Map(
+        AppliedValuationSnapshotEntity entity,
+        AppliedValuationSnapshot? snapshot,
+        Guid caseId)
+    {
+        snapshot ??= ReadSnapshot(entity);
         return new(
             entity.Id,
-            entity.CaseId,
+            caseId,
             snapshot.CaseVersion,
             snapshot.GuideValuationId,
             snapshot.GuideValuationStampUtc,
@@ -505,8 +516,67 @@ public sealed class EfValuationStore(
         DateTimeOffset GuideValuationStampUtc,
         ValuationCalculation Calculation);
 
+    /// <summary>
+    /// The one hash of an applied valuation, including the Case version the
+    /// adoption produced: returning to an earlier calculation in a later save
+    /// is a new adoption rather than a repeat of the first.
+    /// </summary>
+    internal static string AppliedSnapshotHash(
+        Guid caseId,
+        long caseVersion,
+        Guid guideValuationId,
+        DateTimeOffset guideValuationStampUtc,
+        ValuationCalculation calculation,
+        decimal accepted,
+        string reason) =>
+        Hash(new
+        {
+            CaseId = caseId,
+            CaseVersion = caseVersion,
+            GuideValuationId = guideValuationId,
+            GuideValuationStampUtc = guideValuationStampUtc,
+            Calculation = calculation,
+            Accepted = accepted,
+            Reason = reason,
+        });
+
+    /// <summary>
+    /// An applied valuation re-pointed at copied guide cards (Create audit's
+    /// copy, whose guide cards carry new ids): the frozen snapshot with its
+    /// guide id mapped, and the hash recomputed by <see cref="AppliedSnapshotHash"/>.
+    /// </summary>
+    internal static (string SnapshotJson, string SnapshotHash) RepointAppliedSnapshot(
+        AppliedValuationSnapshotEntity entity,
+        Guid caseId,
+        IReadOnlyDictionary<Guid, Guid> guideValuationIds)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        ArgumentNullException.ThrowIfNull(guideValuationIds);
+        var source = ReadSnapshot(entity);
+        if (!guideValuationIds.TryGetValue(source.GuideValuationId, out var guideValuationId))
+        {
+            throw new InvalidDataException(
+                "The applied valuation names a guide valuation that was not copied.");
+        }
+
+        // The adoption hashed the proposal at its own scale, which the stored
+        // decimal(18,2) column does not keep, so the frozen proposal is hashed.
+        var snapshot = source with { GuideValuationId = guideValuationId };
+        return (
+            JsonSerializer.Serialize(snapshot, SerializerOptions),
+            AppliedSnapshotHash(
+                caseId,
+                snapshot.CaseVersion,
+                snapshot.GuideValuationId,
+                snapshot.GuideValuationStampUtc,
+                snapshot.Calculation,
+                snapshot.Calculation.Proposal,
+                entity.Reason));
+    }
+
     public async Task<IReadOnlyList<CaseValuation>> ListForCaseAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -515,9 +585,10 @@ public sealed class EfValuationStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var entities = await context.CaseValuations
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
         return entities.OrderByDescending(OrderKey).Select(Map).ToArray();
     }
@@ -545,6 +616,7 @@ public sealed class EfValuationStore(
     private static async Task<EngineersValueChange?> WriteEngineersValueAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
+        Guid workId,
         ActionActor actor,
         CaseValuationEntity saved,
         ValuationSource? previousSource,
@@ -568,7 +640,7 @@ public sealed class EfValuationStore(
 
         var engineersValue = ValuationSource.EngineersValue.ToString();
         var others = await context.CaseValuations
-            .Where(item => item.CaseId == workflow.CaseId
+            .Where(item => item.WorkId == workId
                 && item.Source == engineersValue
                 && item.Id != saved.Id)
             .ToArrayAsync(cancellationToken);
@@ -576,7 +648,7 @@ public sealed class EfValuationStore(
             .OrderByDescending(OrderKey)
             .FirstOrDefault();
         var existing = await context.CaseAssessmentFields.SingleOrDefaultAsync(
-            item => item.CaseId == workflow.CaseId
+            item => item.WorkId == workId
                 && item.FieldPath == AssessmentVocabulary.ValueEngineer,
             cancellationToken);
         var before = existing?.Value;
@@ -599,8 +671,7 @@ public sealed class EfValuationStore(
         var recordedAtUtc = selected.LastEditedAtUtc ?? selected.RecordedAtUtc;
         var written = AssessmentFieldWriter.Write(
             context,
-            workflow.Case,
-            workflow.CaseId,
+            workId,
             existing,
             AssessmentVocabulary.ValueEngineer,
             value,
@@ -615,20 +686,20 @@ public sealed class EfValuationStore(
 
     private static async Task<CaseReportValuationDependencies> ReadReportDependenciesAsync(
         PegasusDbContext context,
-        Guid caseId,
+        Guid workId,
         CancellationToken cancellationToken)
     {
         var usesGlasses = await context.CaseValuations.AsNoTracking().AnyAsync(
-            item => item.CaseId == caseId
+            item => item.WorkId == workId
                 && item.Source == nameof(ValuationSource.Glasses),
             cancellationToken);
         var engineersValue = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == workId
                 && item.FieldPath == AssessmentVocabulary.ValueEngineer)
             .Select(item => item.Value)
             .SingleOrDefaultAsync(cancellationToken);
         var applied = await context.Set<AppliedValuationSnapshotEntity>().AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderByDescending(item => item.AcceptedAtUtc)
             .ThenByDescending(item => item.Id)
             .Select(item => new
@@ -747,7 +818,7 @@ public sealed class EfValuationStore(
     /// </summary>
     internal static async Task<CaseValuationEntity?> FindReplacedAsync(
         PegasusDbContext context,
-        Guid caseId,
+        Guid workId,
         ValuationDetails details,
         CancellationToken cancellationToken)
     {
@@ -758,7 +829,7 @@ public sealed class EfValuationStore(
 
         var source = details.Source.ToString();
         return await context.CaseValuations
-            .Where(item => item.CaseId == caseId && item.Source == source && item.GuideMonth == guideMonth)
+            .Where(item => item.WorkId == workId && item.Source == source && item.GuideMonth == guideMonth)
             .OrderByDescending(item => item.RecordedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -794,7 +865,7 @@ public sealed class EfValuationStore(
 
         return new(
             entity.Id,
-            entity.CaseId,
+            entity.Work.CaseId,
             new(
                 source,
                 entity.Date,
@@ -822,18 +893,19 @@ public sealed class EfValuationStore(
     internal static async Task<GuideEntriesRecorded> RecordGuideEntriesAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
+        Guid workId,
         ActionActor actor,
         string operationKey,
         IReadOnlyList<ValuationDetails> entries,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var beforeDependencies = await ReadReportDependenciesAsync(context, workflow.CaseId, cancellationToken);
+        var beforeDependencies = await ReadReportDependenciesAsync(context, workId, cancellationToken);
         var recorded = new List<ValuationDetails>(entries.Count);
         var written = new List<CaseValuationEntity>(entries.Count);
         foreach (var details in entries)
         {
-            var replaced = await FindReplacedAsync(context, workflow.CaseId, details, cancellationToken);
+            var replaced = await FindReplacedAsync(context, workId, details, cancellationToken);
             var before = replaced is null ? null : Map(replaced);
             if (before is not null && ValuationPolicy.IsUnchanged(details, before.Details))
             {
@@ -843,8 +915,7 @@ public sealed class EfValuationStore(
             var entity = replaced ?? new CaseValuationEntity
             {
                 Id = Guid.NewGuid(),
-                CaseId = workflow.CaseId,
-                Case = workflow.Case,
+                WorkId = workId,
                 Source = details.Source.ToString(),
                 RecordedBy = actor.SubjectId,
                 RecordedAtUtc = now,

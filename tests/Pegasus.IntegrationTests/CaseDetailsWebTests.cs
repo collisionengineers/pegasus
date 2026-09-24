@@ -771,25 +771,6 @@ public sealed class CaseDetailsWebTests
     }
 
     [Fact]
-    public async Task LinkedAuditDoesNotRenderTheStandaloneOriginalReportRequirementOrAction()
-    {
-        var store = new RecordingCaseDetailsStore
-        {
-            SummaryCaseType = CaseType.Audit,
-            AuditOfCaseId = Guid.NewGuid()
-        };
-        using var workspace = await EnterEditModeAsync(store, _ => { });
-
-        var fullPage = await workspace.GetWorkspaceAsync();
-        var files = await GetHtmlAsync(
-            workspace.Client,
-            $"/Cases/{store.CaseId:D}?section=files");
-
-        Assert.DoesNotContain("Original report missing", fullPage, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.MarkAsOriginalReport, files, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task RemovedOriginalReportRestoresTheRequirementAndReplacementAction()
     {
         var report = Document(

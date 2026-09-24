@@ -385,13 +385,14 @@ public sealed class CaseDamageAndViewerWebTests
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
             Guid caseId,
+            CaseWorkSelector work,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>([]);
 
         public Task<CaseReportFreezeInputs?> GetAsync(
             Guid caseId,
             ActionActor actor,
-            CancellationToken cancellationToken)
+            CaseWorkSelector work, CancellationToken cancellationToken)
         {
             var assessment = Assessment();
             return Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(

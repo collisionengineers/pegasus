@@ -27,8 +27,11 @@ internal sealed class EfEngineerActivityQueries(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // A report send's context is its generation, which names the Case: the
-        // Case's type gives the Audit count and its origin receipt the turnaround.
+        // A report send's context is its generation, which names its Case and
+        // work: the Case type and work kind decide an Audit report
+        // (CaseWorkPolicy.IsAuditReport); the turnaround runs from the Case's
+        // origin receipt for the primary work and from the Audit work's
+        // creation for an Inspection + Audit Case's Audit.
         var sentOperations = await context.Set<StaffMailSendOperationEntity>()
             .AsNoTracking()
             .Where(item => item.Purpose == StaffMailPurpose.CaseReport
@@ -39,20 +42,31 @@ internal sealed class EfEngineerActivityQueries(
             .ToListAsync(cancellationToken);
         var generationIds = sentOperations.Select(item => item.ContextId).Distinct().ToArray();
         var sentCases = generationIds.Length == 0
-            ? new Dictionary<Guid, (string Type, DateTimeOffset? ReceivedAtUtc)>()
-            : await context.Set<CaseReportGenerationEntity>().AsNoTracking()
-                .Where(generation => generationIds.Contains(generation.Id))
-                .Join(context.Cases.AsNoTracking(), generation => generation.CaseId, @case => @case.Id,
-                    (generation, @case) => new
-                    {
-                        GenerationId = generation.Id,
-                        @case.Type,
-                        ReceivedAtUtc = context.IntakeReceipts
-                            .Where(receipt => receipt.Id == @case.OriginIntakeReceiptId)
-                            .Select(receipt => (DateTimeOffset?)receipt.ReceivedAtUtc)
-                            .FirstOrDefault()
-                    })
-                .ToDictionaryAsync(item => item.GenerationId, item => (item.Type, item.ReceivedAtUtc), cancellationToken);
+            ? new Dictionary<Guid, SentReport>()
+            : (await (
+                from generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+                join @case in context.Cases.AsNoTracking() on generation.CaseId equals @case.Id
+                join work in context.CaseWorks.AsNoTracking() on generation.WorkId equals work.Id
+                where generationIds.Contains(generation.Id)
+                select new
+                {
+                    GenerationId = generation.Id,
+                    @case.Type,
+                    WorkKind = work.Kind,
+                    WorkCreatedAtUtc = work.CreatedAtUtc,
+                    ReceivedAtUtc = context.IntakeReceipts
+                        .Where(receipt => receipt.Id == @case.OriginIntakeReceiptId)
+                        .Select(receipt => (DateTimeOffset?)receipt.ReceivedAtUtc)
+                        .FirstOrDefault()
+                })
+                .ToListAsync(cancellationToken))
+                .ToDictionary(
+                    item => item.GenerationId,
+                    item => new SentReport(
+                        CaseWorkKinds.IsAuditReport(item.Type, item.WorkKind),
+                        item.WorkKind == CaseWorkKinds.Audit
+                            ? item.WorkCreatedAtUtc
+                            : item.ReceivedAtUtc));
         var reports = sentOperations
             .Select(item => new
             {
@@ -67,10 +81,10 @@ internal sealed class EfEngineerActivityQueries(
                 EngineerId = group.Key,
                 Count = group.Count(),
                 Audit = group.Count(item => sentCases.TryGetValue(item.ContextId, out var sentCase)
-                    && sentCase.Type == "audit"),
+                    && sentCase.IsAudit),
                 Turnaround = Average(group
-                    .Where(item => sentCases.TryGetValue(item.ContextId, out var sentCase) && sentCase.ReceivedAtUtc is not null)
-                    .Select(item => item.SentAtUtc - sentCases[item.ContextId].ReceivedAtUtc!.Value))
+                    .Where(item => sentCases.TryGetValue(item.ContextId, out var sentCase) && sentCase.StartedAtUtc is not null)
+                    .Select(item => item.SentAtUtc - sentCases[item.ContextId].StartedAtUtc!.Value))
             })
             .ToList();
 
@@ -140,4 +154,7 @@ internal sealed class EfEngineerActivityQueries(
         var list = durations.ToList();
         return list.Count == 0 ? null : TimeSpan.FromTicks((long)list.Average(duration => duration.Ticks));
     }
+
+    /// <summary>A sent report's MI-01 facts: whether it is an Audit report and when its work started.</summary>
+    private sealed record SentReport(bool IsAudit, DateTimeOffset? StartedAtUtc);
 }

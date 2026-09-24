@@ -435,7 +435,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             new CaseWorkflowEntity { CaseId = id, State = "NotReady", Version = 0, ConcurrencyToken = Guid.NewGuid() },
             new CaseDataSnapshotEntity
             {
-                CaseId = id, CompletenessPolicyKey = "case_completeness", CompletenessPolicyVersion = 1,
+                WorkId = id, CompletenessPolicyKey = "case_completeness", CompletenessPolicyVersion = 1,
                 CompletenessPolicySatisfied = false, AcceptedAtUtc = now
             },
             new CaseMatchIndexEntity

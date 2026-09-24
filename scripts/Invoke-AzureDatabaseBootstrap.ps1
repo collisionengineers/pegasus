@@ -58,7 +58,8 @@ function Get-MigrationPermissionMatrix {
         '20260730203833_RemoveDormantOpenIddict.cs',
         '20260814094632_DropBoxFileRequests.cs',
         '20260824123336_DropEvaHandoffTables.cs',
-        '20260917161519_RemovePublicUploadLinks.cs'
+        '20260917161519_RemovePublicUploadLinks.cs',
+        '20260924180000_CaseWorksAndTriageCases.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -430,7 +431,7 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|AutomaticEvaReviewSubmissions')
     # 20260906054658_V1PlatformFoundation: v1 schema owners and holding custody.
-    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','TriageSequences','DocumentContentCacheEntries')
+    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','DocumentContentCacheEntries')
     foreach ($table in $v1Tables) {
         $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
         if ($table -ne 'DocumentContentCacheEntries') {
@@ -569,6 +570,12 @@ function Get-MigrationPermissionMatrix {
         [void]$expected.RemoveAll([Predicate[string]] { param($row) $row -ceq $denied })
         $expected.Add("pegasus_web_runtime_role|G|DELETE|$table")
     }
+    # 20260924180000_CaseWorksAndTriageCases: per-work data under one Case; Triage Cases.
+    foreach ($permission in @('SELECT','INSERT','UPDATE')) { $expected.Add("pegasus_web_runtime_role|G|$permission|CaseWorks") }
+    foreach ($permission in @('SELECT','INSERT')) { $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseWorks") }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseWorks')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseWorks')
+    $expected.Add('pegasus_web_runtime_role|G|INSERT|Triage')
     return @($expected | Sort-Object -Unique)
 }
 

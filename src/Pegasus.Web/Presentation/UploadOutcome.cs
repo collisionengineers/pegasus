@@ -400,7 +400,7 @@ public sealed class UploadOutcomeQueries(
                 item.Reference,
                 item.Registration,
                 item.Claimant,
-                OperatorLabels.CaseStage(item.State),
+                OperatorLabels.AssociationDestinationState(item),
                 item.Version))
             .ToArray();
 }

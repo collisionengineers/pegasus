@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
@@ -216,8 +217,8 @@ public sealed partial class DetailsModel
     /// </summary>
     private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
     {
-        Valuations = await listCaseValuations.ExecuteAsync(caseId, cancellationToken);
-        AppliedValuations = await listAppliedValuations.ExecuteAsync(caseId, cancellationToken);
+        Valuations = await listCaseValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
+        AppliedValuations = await listAppliedValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
         PendingMarketResearch = await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
         if (LatestAppliedValuation is { } applied)
         {

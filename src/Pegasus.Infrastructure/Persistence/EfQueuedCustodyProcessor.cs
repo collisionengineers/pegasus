@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
@@ -139,34 +140,19 @@ internal sealed class EfQueuedCustodyProcessor(
                 casePayload.WorkKind,
                 ExternalWorkKinds.CreateAuditReferenceCustody,
                 StringComparison.Ordinal);
-            // A linked Audit Case is located through its persisted original
-            // Case relationship; its a. reference names only that child.
-            var rootReference = casePayload.CaseReference;
+            // The Audit's a. folder is created inside the Case's existing folder.
             var root = isAuditCustody
                 ? await caseCustody.GetExistingCaseRootAsync(
                     casePayload.CaseId,
                     casePayload.CaseReference,
-                    cancellationToken,
-                    casePayload.OriginalCaseId,
-                    casePayload.OriginalCaseReference)
-                : casePayload is { OriginalCaseId: { } originalCaseId, OriginalCaseReference: { } originalCaseReference }
-                    // A linked Audit Case roots under its original's folder (13 September).
-                    ? await caseCustody.CreateLinkedAuditCaseRootAsync(
-                        casePayload.CaseId,
-                        rootReference,
-                        originalCaseId,
-                        originalCaseReference,
-                        RequireCreationOwner(casePayload.CaseRootCreationToken),
-                        $"{casePayload.OperationKey}:root",
-                        leaseGuard,
-                        cancellationToken)
-                    : await caseCustody.CreateCaseRootAsync(
-                        casePayload.CaseId,
-                        rootReference,
-                        RequireCreationOwner(casePayload.CaseRootCreationToken),
-                        $"{casePayload.OperationKey}:root",
-                        leaseGuard,
-                        cancellationToken);
+                    cancellationToken)
+                : await caseCustody.CreateCaseRootAsync(
+                    casePayload.CaseId,
+                    casePayload.CaseReference,
+                    RequireCreationOwner(casePayload.CaseRootCreationToken),
+                    $"{casePayload.OperationKey}:root",
+                    leaseGuard,
+                    cancellationToken);
             await leaseGuard.RequireCurrentAsync(cancellationToken);
             if (isAuditCustody)
             {
@@ -517,12 +503,6 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .AsNoTracking()
             .SingleAsync(value => value.Id == caseId, cancellationToken);
-        var originalReference = caseEntity.AuditOfCaseId is { } originalId
-            ? await context.Cases.AsNoTracking()
-                .Where(value => value.Id == originalId)
-                .Select(value => value.Reference)
-                .SingleAsync(cancellationToken)
-            : null;
         if (caseEntity.OriginIntakeReceiptId is null)
         {
             return new(
@@ -540,9 +520,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 null,
                 operationKey,
                 caseRootCreationToken,
-                auditFolderCreationToken,
-                caseEntity.AuditOfCaseId,
-                originalReference);
+                auditFolderCreationToken);
         }
         var receipt = await context.IntakeReceipts
             .AsNoTracking()
@@ -595,9 +573,7 @@ internal sealed class EfQueuedCustodyProcessor(
             source.IntakeAssetId,
             operationKey,
             caseRootCreationToken,
-            auditFolderCreationToken,
-            caseEntity.AuditOfCaseId,
-            originalReference);
+            auditFolderCreationToken);
     }
 
     private static void EnsureSourceMatchesReceipt(
@@ -652,14 +628,17 @@ internal sealed class EfQueuedCustodyProcessor(
             return;
         }
 
-        var caseEntity = await context.Cases
-            .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
-        var workflow = await context.CaseWorkflows
-            .Include(value => value.Case).ThenInclude(value => value.Principal)
-            .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
-        ArchivedCaseGuard.RequireMutable(workflow);
+        // A Triage Case has no workflow: its Triage is the authority, and
+        // custody completing neither moves its state nor its version.
+        var authority = await CaseMutationAuthority.LoadAsync(
+            context,
+            work.CaseId ?? throw new InvalidDataException("The case custody work item has no owning case."),
+            cancellationToken)
+            ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
+        authority.RequireMutable();
+        var caseEntity = authority.Case;
 
-        var beforeVersion = workflow.Version;
+        var beforeVersion = authority.Version;
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.CustodySourceRemoteId = version.RemoteId;
         caseEntity.CustodySourceContentHash = version.ContentHash;
@@ -675,7 +654,8 @@ internal sealed class EfQueuedCustodyProcessor(
         var completeness = new CaseCompleteness(
             caseEntity.InstructionComplete,
             caseEntity.ImagesComplete);
-        if (workflow.State == CaseLifecycleState.NotReady.ToString()
+        if (authority.Workflow is { } workflow
+            && workflow.State == CaseLifecycleState.NotReady.ToString()
             && completeness.IsReadyForReview())
         {
             workflow.State = CaseLifecycleState.Review.ToString();
@@ -684,7 +664,7 @@ internal sealed class EfQueuedCustodyProcessor(
         }
         await RecordRetainedCaseFilesAsync(
             context, caseEntity.Id, root.RemoteId, retainedFiles, now, cancellationToken);
-        CaseMutationGuard.Complete(workflow);
+        authority.CompleteSystemMutation();
         CompleteWork(work, now, version.RemoteId);
         context.Set<CaseHistoryEntity>().Add(new()
         {
@@ -696,7 +676,7 @@ internal sealed class EfQueuedCustodyProcessor(
             OccurredAtUtc = now,
             OperationKey = $"{work.OperationKey}:confirmed",
             BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version
+            AfterVersion = authority.Version
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -717,22 +697,23 @@ internal sealed class EfQueuedCustodyProcessor(
             return;
         }
 
-        var caseEntity = await context.Cases
-            .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
+        var authority = await CaseMutationAuthority.LoadAsync(
+            context,
+            work.CaseId ?? throw new InvalidDataException("The case custody work item has no owning case."),
+            cancellationToken)
+            ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
+        var caseEntity = authority.Case;
         if (caseEntity.OriginIntakeReceiptId is not null)
         {
             throw new InvalidDataException("Manual custody completion requires a receiptless Case.");
         }
-        var workflow = await context.CaseWorkflows
-            .Include(value => value.Case).ThenInclude(value => value.Principal)
-            .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
-        ArchivedCaseGuard.RequireMutable(workflow);
+        authority.RequireMutable();
 
-        var beforeVersion = workflow.Version;
+        var beforeVersion = authority.Version;
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.CustodyConfirmedAtUtc = now;
         caseEntity.CustodyState = "confirmed";
-        CaseMutationGuard.Complete(workflow);
+        authority.CompleteSystemMutation();
         CompleteWork(work, now, root.RemoteId);
         context.CaseHistory.Add(new()
         {
@@ -744,7 +725,7 @@ internal sealed class EfQueuedCustodyProcessor(
             OccurredAtUtc = now,
             OperationKey = $"{work.OperationKey}:confirmed",
             BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version
+            AfterVersion = authority.Version
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -791,11 +772,11 @@ internal sealed class EfQueuedCustodyProcessor(
                 "The later Audit custody operation has no immutable Audit identity.");
         }
 
-        var beforeVersion = workflow.Version;
+        // The folder is not a workflow fact: whoever is editing the Audit keeps
+        // their lease and version, as a Case note leaves them.
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
         caseEntity.AuditCustodyConfirmedAtUtc = now;
-        CaseMutationGuard.Complete(workflow);
         CompleteWork(work, now, auditFolderRemoteId);
         context.CaseHistory.Add(new()
         {
@@ -806,7 +787,7 @@ internal sealed class EfQueuedCustodyProcessor(
             Reason = "Later Audit reference custody confirmed.",
             OccurredAtUtc = now,
             OperationKey = $"{work.OperationKey}:confirmed",
-            BeforeVersion = beforeVersion,
+            BeforeVersion = workflow.Version,
             AfterVersion = workflow.Version
         });
         await context.SaveChangesAsync(cancellationToken);
@@ -904,29 +885,16 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .AsNoTracking()
             .SingleAsync(value => value.Id == mergedIntoCaseId, cancellationToken);
-        var originalReference = caseEntity.AuditOfCaseId is { } originalId
-            ? await context.Cases.AsNoTracking()
-                .Where(value => value.Id == originalId)
-                .Select(value => value.Reference)
-                .SingleAsync(cancellationToken)
-            : null;
-        // The case root folder is named for the same reference the create path
-        // used: the Audit reference for an Audit-type case, otherwise the Case
-        // reference.
-        var caseRootReference = string.Equals(caseEntity.Type, "audit", StringComparison.Ordinal)
-            ? caseEntity.AuditReference ?? throw new InvalidDataException(
-                "The Audit case has no allocated Audit reference for custody.")
-            : caseEntity.Reference;
+        // The case root folder is named for the reference the create path
+        // used: the Case/PO of every Case, a standalone Audit's included.
         return new(
             intake.Id,
             intake.ImageIntakeReference,
             intake.CustodyState,
             intake.CustodyRootRemoteId,
             caseEntity.Id,
-            caseRootReference,
+            caseEntity.Reference,
             caseEntity.CustodyRootRemoteId,
-            caseEntity.AuditOfCaseId,
-            originalReference,
             operationKey);
     }
 
@@ -1109,9 +1077,7 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseRoot = await caseCustody.GetExistingCaseRootAsync(
             payload.CaseId,
             payload.CaseRootReference,
-            cancellationToken,
-            payload.OriginalCaseId,
-            payload.OriginalCaseReference);
+            cancellationToken);
         await caseCustody.MergeImageCaseContentsAsync(
             imageRoot,
             caseRoot,
@@ -1210,11 +1176,19 @@ internal sealed class EfQueuedCustodyProcessor(
         {
             intake.CustodyState = ImageCustodyStates.Merged;
             intake.CustodyMergedAtUtc ??= now;
-            var workflow = await context.CaseWorkflows
-                .SingleAsync(value => value.CaseId == caseId, cancellationToken);
-            ArchivedCaseGuard.RequireMutable(workflow);
-            var beforeVersion = workflow.Version;
-            CaseMutationGuard.Complete(workflow);
+            // A Triage Case has no workflow: its Triage is the authority, and
+            // the fold leaves its version alone. A staff link reaches a Case in
+            // any lifecycle state (operator, 24 September 2026), so the fold
+            // that completes it does too; the recorded association decides.
+            var authority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
+                ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
+            var staffDecision = await context.IntakeManualAssociations.AsNoTracking().AnyAsync(
+                association => association.IntakeReceiptId == intake.OriginReceiptId
+                    && association.ActorKind == nameof(ActorKind.Staff),
+                cancellationToken);
+            authority.RequireMutable(anyLifecycleState: staffDecision);
+            var beforeVersion = authority.Version;
+            authority.CompleteSystemMutation();
             context.CaseHistory.Add(new()
             {
                 Id = Guid.NewGuid(),
@@ -1225,7 +1199,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 OccurredAtUtc = now,
                 OperationKey = $"{work.OperationKey}:confirmed",
                 BeforeVersion = beforeVersion,
-                AfterVersion = workflow.Version
+                AfterVersion = authority.Version
             });
         }
         CompleteWork(work, now, intake.CustodyRootRemoteId);
@@ -1312,8 +1286,6 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid CaseId,
         string CaseRootReference,
         string? CaseCustodyRootRemoteId,
-        Guid? OriginalCaseId,
-        string? OriginalCaseReference,
         string OperationKey) : CustodyWorkPayload;
 
     private sealed record WorkPayload(
@@ -1331,11 +1303,7 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid? SourceAssetId,
         string OperationKey,
         string? CaseRootCreationToken,
-        string? AuditFolderCreationToken,
-        // A linked Audit Case names its original, so its root is created under the
-        // original's folder rather than beside it.
-        Guid? OriginalCaseId = null,
-        string? OriginalCaseReference = null) : CustodyWorkPayload;
+        string? AuditFolderCreationToken) : CustodyWorkPayload;
 
     private sealed record SourcePayload(
         Guid IntakeAssetId,

@@ -15,9 +15,9 @@ namespace Pegasus.Core.Assessment;
 /// enforced against the merged state; and the actor rules implement the
 /// operator-decided direct-write model: staff saves record confirmed values,
 /// Automation saves record unconfirmed values, and a professional-finding
-/// field is confirmable only by an authenticated staff actor (the EngineerFindingPolicy
-/// precedent). Estimate derivation (totals, worklists) is deliberately absent
-/// until its formulas hold accepted authority (EXT-09, open decision D2).
+/// field is confirmable only by an authenticated staff actor. Estimate
+/// derivation (totals, worklists) is deliberately absent until its formulas
+/// hold accepted authority (EXT-09, open decision D2).
 /// </summary>
 public static class AssessmentPolicy
 {

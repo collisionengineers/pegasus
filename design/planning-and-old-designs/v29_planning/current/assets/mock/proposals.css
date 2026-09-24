@@ -1,0 +1,27 @@
+/* v29 proposals layer. Loaded by shim.js with proposals.js; nothing here
+   applies with ?proposals=off. Every rule reuses the live design-system
+   tokens; each names the proposal it serves.
+
+   P1's view tabs are the live working-set tab markup (.workspace-tabs,
+   .workspace-tab) and need no rule of their own. */
+
+/* P4 · The Inspection's sent report line in the Audit view: the live report
+   card, with its one link at the end. */
+[data-v29-inspection-report] { align-items: center; }
+[data-v29-inspection-report] > .btn { margin-left: auto; flex: none; }
+
+/* P1 options 2 and 3 (item AA) · a view switch in the ribbon or the section
+   row reuses the Scroll/Tabs control's look. The live rule styles its
+   buttons; the views are links, so the same values apply to a. */
+.layout-switch a { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 2px; font-size: 11.5px; color: var(--muted); text-decoration: none; }
+.layout-switch a:hover { color: var(--ink); }
+.layout-switch a[aria-current="page"], .layout-switch a[aria-current="page"]:hover { background: var(--nav-2); color: var(--nav-text); }
+.section-tools [data-v29-view-switch] { margin-right: 6px; }
+
+/* P1 option 4 · the views card: the current view reads as the heading of its row. */
+[data-v29-views-card] .next-row { gap: 8px; }
+[data-v29-views-card] .v29-view-current { font-weight: 600; color: var(--ink); }
+
+/* P1 option 5 · the Inspection's value under a value the Audit changed. */
+.v29-was { display: flex; gap: 6px; align-items: baseline; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.v29-was .lbl { margin: 0; }

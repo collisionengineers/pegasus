@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
@@ -110,7 +111,7 @@ public sealed class EfCaseReportGenerationStore(
         if (request.Kind == CaseReportArtifactKind.AssessmentReport)
         {
             inputs = await snapshotSource
-                .GetAsync(request.CaseId, request.Actor, cancellationToken)
+                .GetAsync(request.CaseId, request.Actor, CaseWorkSelector.Current, cancellationToken)
                 .ConfigureAwait(false);
             if (inputs is null)
             {
@@ -147,6 +148,15 @@ public sealed class EfCaseReportGenerationStore(
         var reportInputs = inputs
             ?? throw new ArgumentOutOfRangeException(nameof(request), request.Kind, "Unsupported report artifact kind.");
         CaseMutationGuard.RequireVersion(workflow, reportInputs.CaseVersion);
+        // A report is made from the current work. Create audit bumps the
+        // version, so inputs read for another work are refused as stale.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken)
+            .ConfigureAwait(false);
+        if (workId != reportInputs.WorkId)
+        {
+            throw new CaseVersionConflictException(
+                request.CaseId, reportInputs.CaseVersion, workflow.Version);
+        }
 
         // Automatic custody does not consume a staff edit lease or advance its
         // Case version. Recheck all source membership/metadata under this same
@@ -193,7 +203,7 @@ public sealed class EfCaseReportGenerationStore(
         var snapshot = BuildSnapshot(request, reportInputs, readiness, projected.Snapshot, reportDate, overridden, now, operationKey);
         // v28 P40: a report generated without an overridden date is dated
         // today, and the record says so rather than leaving the cell empty.
-        await StampReportDateAsync(context, request, reportDate, now, cancellationToken).ConfigureAwait(false);
+        await StampReportDateAsync(context, workId, request, reportDate, now, cancellationToken).ConfigureAwait(false);
         var profiles = await new EfStaffAccountQueries(context)
             .ListSignOffEngineersAsync(cancellationToken).ConfigureAwait(false);
         if (!SignatoryMatches(snapshot, CaseSignOffEngineerResolver.Resolve(
@@ -204,13 +214,13 @@ public sealed class EfCaseReportGenerationStore(
         }
         var snapshotHash = HashOf(MaterialOf(snapshot));
 
-        // Reuse only the Case's current, un-staled generation: a stale or
+        // Reuse only the work's current, un-staled generation: a stale or
         // superseded generation with the same material hash is history, not
         // a deliverable snapshot — reusing it would wedge the report journey
         // on an undeliverable current forever (B09 review, lifecycle).
         var generation = await context.Set<CaseReportGenerationEntity>()
             .SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId
+                item => item.WorkId == workId
                     && item.SnapshotHash == snapshotHash
                     && item.SupersededById == null
                     && item.State != nameof(CaseReportGenerationState.Stale),
@@ -222,6 +232,7 @@ public sealed class EfCaseReportGenerationStore(
             {
                 Id = Guid.NewGuid(),
                 CaseId = request.CaseId,
+                WorkId = workId,
                 CaseVersion = workflow.Version,
                 SnapshotHash = snapshotHash,
                 SnapshotJson = JsonSerializer.Serialize(snapshot, SnapshotJsonOptions),
@@ -231,7 +242,7 @@ public sealed class EfCaseReportGenerationStore(
                 GeneratedAtUtc = now,
                 Version = 1,
             };
-            await SupersedeCurrentAsync(context, request.CaseId, generation.Id, cancellationToken)
+            await SupersedeCurrentAsync(context, workId, generation.Id, cancellationToken)
                 .ConfigureAwait(false);
             context.Set<CaseReportGenerationEntity>().Add(generation);
         }
@@ -306,10 +317,13 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken)
+            .ConfigureAwait(false);
         var generation = await context.Set<CaseReportGenerationEntity>()
             .SingleOrDefaultAsync(
                 item => item.Id == request.TargetGenerationId
                     && item.CaseId == request.CaseId
+                    && item.WorkId == workId
                     && item.SupersededById == null,
                 cancellationToken)
             .ConfigureAwait(false)
@@ -604,13 +618,15 @@ public sealed class EfCaseReportGenerationStore(
     }
 
     public async Task<CaseReportGenerationRecord?> GetCurrentAsync(
-        ActionActor actor, Guid caseId, CancellationToken cancellationToken)
+        ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken)
+            .ConfigureAwait(false);
         var current = await context.Set<CaseReportGenerationEntity>()
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId && item.SupersededById == null)
+            .Where(item => item.WorkId == workId && item.SupersededById == null)
             .OrderByDescending(item => item.GeneratedAtUtc)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -625,13 +641,15 @@ public sealed class EfCaseReportGenerationStore(
     }
 
     public async Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
-        ActionActor actor, Guid caseId, CancellationToken cancellationToken)
+        ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken)
+            .ConfigureAwait(false);
         var generations = await context.Set<CaseReportGenerationEntity>()
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderByDescending(item => item.GeneratedAtUtc)
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -730,8 +748,12 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
+        // Only the current work's report moves: once an Audit exists the
+        // Inspection's issued report stays exactly as it was sent.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken)
+            .ConfigureAwait(false);
         var current = await context.Set<CaseReportGenerationEntity>()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == workId
                 && item.SupersededById == null
                 && item.State != nameof(CaseReportGenerationState.Stale))
             .ToArrayAsync(cancellationToken)
@@ -790,11 +812,13 @@ public sealed class EfCaseReportGenerationStore(
     {
         var profiles = await new EfStaffAccountQueries(context)
             .ListSignOffEngineersAsync(cancellationToken);
+        var currentWorkIds = CaseWorkScope.CurrentWorkIds(context);
         var current = await (
             from generation in context.Set<CaseReportGenerationEntity>()
             join workflow in context.CaseWorkflows on generation.CaseId equals workflow.CaseId
             where generation.SupersededById == null
                 && generation.State != nameof(CaseReportGenerationState.Stale)
+                && currentWorkIds.Contains(generation.WorkId)
             select new { Generation = generation, workflow.SignOffEngineerId, workflow.AssignedEngineerId })
             .ToArrayAsync(cancellationToken);
         foreach (var row in current)
@@ -816,6 +840,7 @@ public sealed class EfCaseReportGenerationStore(
     /// </summary>
     private static async Task StampReportDateAsync(
         PegasusDbContext context,
+        Guid workId,
         FreezeCaseReportGenerationRequest request,
         DateOnly reportDate,
         DateTimeOffset now,
@@ -823,7 +848,7 @@ public sealed class EfCaseReportGenerationStore(
     {
         var existing = await context.CaseAssessmentFields
             .SingleOrDefaultAsync(
-                field => field.CaseId == request.CaseId
+                field => field.WorkId == workId
                     && field.FieldPath == AssessmentVocabulary.ReportDate,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -836,7 +861,7 @@ public sealed class EfCaseReportGenerationStore(
         {
             context.CaseAssessmentFields.Add(new()
             {
-                CaseId = request.CaseId,
+                WorkId = workId,
                 FieldPath = AssessmentVocabulary.ReportDate,
                 Value = value,
                 RecordedByKind = request.Actor.Kind.ToString(),
@@ -1139,10 +1164,10 @@ public sealed class EfCaseReportGenerationStore(
             Encoding.UTF8.GetBytes(JsonSerializer.Serialize(snapshot, SnapshotJsonOptions))));
 
     private static async Task SupersedeCurrentAsync(
-        PegasusDbContext context, Guid caseId, Guid supersededById, CancellationToken cancellationToken)
+        PegasusDbContext context, Guid workId, Guid supersededById, CancellationToken cancellationToken)
     {
         var current = await context.Set<CaseReportGenerationEntity>()
-            .Where(item => item.CaseId == caseId && item.SupersededById == null)
+            .Where(item => item.WorkId == workId && item.SupersededById == null)
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);
         foreach (var generation in current)
@@ -1260,7 +1285,11 @@ public sealed class EfCaseReportGenerationStore(
             Enum.Parse<CaseReportGenerationState>(generation.State),
             generation.GeneratedAtUtc,
             generation.SupersededById,
-            artifacts[generation.Id].OrderBy(item => item.Kind).ToArray());
+            artifacts[generation.Id].OrderBy(item => item.Kind).ToArray())
+        {
+            WorkId = generation.WorkId,
+            WorkKind = CaseWorkKinds.Parse(generation.Work.Kind),
+        };
 
     private static CaseReportGenerationSnapshot DeserializeSnapshot(CaseReportGenerationEntity generation) =>
         JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(

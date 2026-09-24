@@ -1695,7 +1695,7 @@ public sealed class CustodyOutboxIntegrationTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
             var addressRows = await addressContext.Set<CaseDataFieldEntity>()
-                .Where(item => item.CaseId == outcome.Identity.CaseId
+                .Where(item => item.WorkId == outcome.Identity.CaseId
                     && item.FieldName == CaseDataFieldNames.ClaimantAddress)
                 .ToListAsync();
             addressContext.RemoveRange(addressRows);
@@ -1713,7 +1713,7 @@ public sealed class CustodyOutboxIntegrationTests
                 }
                 addressContext.Add(new CaseDataFieldEntity
                 {
-                    CaseId = outcome.Identity.CaseId,
+                    WorkId = outcome.Identity.CaseId,
                     FieldName = CaseDataFieldNames.ClaimantAddress,
                     ValueKind = kind,
                     ValueType = CaseDataCodes.Text,
@@ -2420,6 +2420,7 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ProcessIntake>(),
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 services.GetRequiredService<ICreateTriageFromIntake>(),
+                services.GetRequiredService<ITriagePrincipalGate>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
                 services.GetRequiredService<TimeProvider>(),
@@ -2703,6 +2704,7 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ProcessIntake>(),
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 services.GetRequiredService<ICreateTriageFromIntake>(),
+                services.GetRequiredService<ITriagePrincipalGate>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
                 services.GetRequiredService<TimeProvider>(),
@@ -3103,13 +3105,10 @@ public sealed class CustodyOutboxIntegrationTests
         public virtual async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
             Guid caseId,
             string caseReference,
-            CancellationToken cancellationToken,
-            Guid? parentCaseId = null,
-            string? parentCaseReference = null)
+            CancellationToken cancellationToken)
         {
             EffectCalls++;
-            return await inner.GetExistingCaseRootAsync(
-                caseId, caseReference, cancellationToken, parentCaseId, parentCaseReference);
+            return await inner.GetExistingCaseRootAsync(caseId, caseReference, cancellationToken);
         }
 
         public virtual async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
@@ -3202,9 +3201,7 @@ public sealed class CustodyOutboxIntegrationTests
         public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
             Guid caseId,
             string caseReference,
-            CancellationToken cancellationToken,
-            Guid? parentCaseId = null,
-            string? parentCaseReference = null) => throw Failure();
+            CancellationToken cancellationToken) => throw Failure();
 
         public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
             CaseCustodyRoot root, IntakeSourceCustodyReference source, string operationKey,

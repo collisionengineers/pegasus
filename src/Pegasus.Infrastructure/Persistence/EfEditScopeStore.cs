@@ -255,7 +255,7 @@ public sealed class EfEditScopeStore(
         CancellationToken cancellationToken) => scopeKind switch
     {
         EditScopeKind.Triage => await context.Triage.AsNoTracking()
-            .Where(item => item.Id == recordId).Select(item => (long?)item.Version)
+            .Where(item => item.CaseId == recordId).Select(item => (long?)item.Version)
             .SingleOrDefaultAsync(cancellationToken),
         EditScopeKind.ImageIntake => await context.ImageIntakes.AsNoTracking()
             .Where(item => item.Id == recordId).Select(item => (long?)item.LifecycleVersion)
@@ -380,11 +380,11 @@ public sealed class EfEditScopeStore(
         if (request.ScopeKind == EditScopeKind.Triage)
         {
             var triage = await context.Triage.SingleAsync(
-                item => item.Id == request.RecordId, cancellationToken);
+                item => item.CaseId == request.RecordId, cancellationToken);
             context.TriageHistory.Add(new TriageHistoryEntity
             {
                 Id = Guid.NewGuid(),
-                TriageId = triage.Id,
+                TriageCaseId = triage.CaseId,
                 EventType = "edit_lease_taken_over",
                 Actor = request.Actor.SubjectId,
                 ActorKind = request.Actor.Kind.ToString(),
@@ -396,7 +396,7 @@ public sealed class EfEditScopeStore(
                 AfterVersion = triage.Version,
                 AfterState = triage.State,
                 AfterAssigneeId = triage.AssigneeId,
-                AfterLinkedCaseId = triage.LinkedCaseId
+                AfterLinkedInstructionCaseId = triage.LinkedInstructionCaseId
             });
         }
         else

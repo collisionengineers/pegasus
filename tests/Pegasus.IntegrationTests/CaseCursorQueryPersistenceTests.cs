@@ -408,7 +408,7 @@ public sealed class CaseCursorQueryPersistenceTests
                 context.Add(new CaseRepairSpecificationEntity
                 {
                     Id = Guid.NewGuid(),
-                    CaseId = caseId,
+                    WorkId = caseId,
                     Version = version,
                     State = nameof(RepairSpecificationState.Draft),
                     SourceRoute = nameof(RepairSpecificationSourceRoute.Manual),
@@ -620,7 +620,7 @@ public sealed class CaseCursorQueryPersistenceTests
                 Year = 2031,
                 Sequence = sequence,
                 Reference = reference,
-                Type = "Audit",
+                Type = "audit",
                 InitialState = "NotReady",
                 CustodyState = "Pending",
                 OriginIntakeReceiptId = receiptId,

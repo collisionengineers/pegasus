@@ -17,7 +17,7 @@ public sealed partial class QdosTriageIntegrationTests
         _ = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         var initial = await GetOnlyTriageAsync(factory.Services);
-        var triageId = initial.Record.Id;
+        var triageId = initial.Record.CaseId;
         var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
         var staffActor = ActionActor.Staff(
             DevelopmentOfflineIdentity.AdministratorId,
@@ -207,7 +207,7 @@ public sealed partial class QdosTriageIntegrationTests
                     EditLeaseToken = completeEditLeaseToken
                 },
                 CancellationToken.None));
-        Assert.Equal(triageId, secondSelection.TriageId);
+        Assert.Equal(triageId, secondSelection.CaseId);
         Assert.Equal(
             sentEvidence.Id,
             await factory.Database.ScalarAsync<Guid>(
@@ -223,7 +223,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageId = '{triageId:D}'"));
+                $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageCaseId = '{triageId:D}'"));
 
         var completeRequest = new TriageMutationRequest(
             triageId,
@@ -310,14 +310,14 @@ public sealed partial class QdosTriageIntegrationTests
                 final.History,
                 history => history.OperationKey == operationKey));
 
-        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, final.Record.Origin.ReceiptId);
+        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, final.Record.Origin!.ReceiptId);
         var pairing = services.GetRequiredService<ITriageCasePairing>();
         Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
         var paired = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(TriageState.Completed, paired.Record.State);
         Assert.Equal(final.Record.Reference, paired.Record.Reference);
         Assert.Equal(final.Findings, paired.Findings);
-        Assert.Equal(caseId, paired.Record.LinkedCaseId);
+        Assert.Equal(caseId, paired.Record.LinkedInstructionCaseId);
         Assert.Equal(9, paired.Record.Version);
         Assert.Equal(completed, await complete.ExecuteAsync(completeRequest, CancellationToken.None));
         Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));

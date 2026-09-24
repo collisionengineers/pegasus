@@ -198,10 +198,11 @@ public sealed class CaseTaskArchivePersistenceTests
     }
 
     [Fact]
-    public async Task ArchiveRequiresConfirmedAuditCustodyAndCompletedAuditCustodyWork()
+    public async Task ArchiveOfACaseWithAnAuditRequiresItsConfirmedAuditFolderAndCompletedAuditCustodyWork()
     {
         await using var harness = await Harness.CreateAsync();
-        await harness.SetCaseTypeAsync(harness.TaskCaseId, "audit");
+        await harness.SetCaseTypeAsync(harness.TaskCaseId, "inspection_and_audit");
+        await harness.AddAuditWorkAsync(harness.TaskCaseId);
         var request = await PrepareArchiveRequestAsync(harness, "audit-custody");
         await harness.SetAuditCustodyAsync(harness.TaskCaseId, confirmed: false);
         var auditCustodyWorkId = await harness.AddExternalWorkAsync(
@@ -224,6 +225,22 @@ public sealed class CaseTaskArchivePersistenceTests
             "failed",
             ExternalWorkKinds.VehicleLookup);
         var archived = await harness.ArchiveCase.ExecuteAsync(request, default);
+        Assert.NotNull(archived.Archive);
+    }
+
+    /// <summary>
+    /// A standalone Audit keeps its files in its own Case folder: it has no
+    /// Audit work, so archiving it asks for no a. folder.
+    /// </summary>
+    [Fact]
+    public async Task ArchiveOfAStandaloneAuditNeedsNoAuditFolder()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.SetCaseTypeAsync(harness.TaskCaseId, "audit");
+        var request = await PrepareArchiveRequestAsync(harness, "standalone-audit");
+
+        var archived = await harness.ArchiveCase.ExecuteAsync(request, default);
+
         Assert.NotNull(archived.Archive);
     }
 
@@ -557,119 +574,6 @@ public sealed class CaseTaskArchivePersistenceTests
         Assert.Equal(1L, await harness.CountCaseAsync(harness.TaskCaseId));
     }
 
-    [Fact]
-    public async Task EngineerFindingRequiresReportPreparationButExactReplayBypassesThePostStateGate()
-    {
-        await using var harness = await Harness.CreateAsync();
-        await harness.SetCaseVersionAsync(harness.FindingCaseId, 37);
-        var reviewLease = await harness.AcquireLease.ExecuteAsync(
-            new(harness.FindingCaseId, 0, harness.EngineerActor, "claim-finding-review"),
-            default);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => harness.RecordEngineerFinding.ExecuteAsync(
-            new(
-                harness.FindingCaseId,
-                0,
-                harness.EngineerActor,
-                "finding-denied-in-review",
-                "The finding must not allocate an Audit identity in Review",
-                reviewLease.Token,
-                AuditAssessment.Repairable),
-            default));
-
-        var reportPreparation = await harness.TransitionCase.ExecuteAsync(
-            new(
-                harness.FindingCaseId,
-                0,
-                harness.EngineerActor,
-                "finding-transition-to-report-preparation",
-                "Inspection work is starting",
-                reviewLease.Token,
-                CaseTransitionDestination.ReportPreparation),
-            default);
-        var findingLease = await harness.AcquireLease.ExecuteAsync(
-            new(
-                harness.FindingCaseId,
-                reportPreparation.Version,
-                harness.EngineerActor,
-                "claim-finding-report-preparation"),
-            default);
-        var request = new RecordEngineerFindingRequest(
-            harness.FindingCaseId,
-            reportPreparation.Version,
-            harness.EngineerActor,
-            "finding-record",
-            "The inspection and audit assessment is complete",
-            findingLease.Token,
-            AuditAssessment.Repairable);
-        var identity = await harness.RecordEngineerFinding.ExecuteAsync(request, default);
-
-        Assert.NotNull(identity.AuditReference);
-        Assert.Equal(1L, await harness.CountFindingAsync(harness.FindingCaseId));
-        Assert.Equal(1L, await harness.CountHistoryAsync("case", "engineer_finding_recorded"));
-        Assert.Equal(37L, await harness.ReadCaseVersionAsync(harness.FindingCaseId));
-        Assert.Equal(2L, await harness.ReadWorkflowVersionAsync(harness.FindingCaseId));
-
-        await harness.SetWorkflowStateAsync(harness.FindingCaseId, CaseLifecycleState.Review);
-        var replay = await harness.RecordEngineerFinding.ExecuteAsync(request, default);
-
-        Assert.Equal(identity, replay);
-        Assert.Equal(1L, await harness.CountFindingAsync(harness.FindingCaseId));
-        Assert.Equal(1L, await harness.CountHistoryAsync("case", "engineer_finding_recorded"));
-    }
-
-    [Fact]
-    public async Task EngineerFindingKeepsTheLaterAuditBoxFolderManualAcrossReplayAndConcurrency()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var custody = harness.Services.GetRequiredService<ICaseCustody>();
-        var root = await custody.CreateCaseRootAsync(
-            harness.FindingCaseId,
-            "QDOS26002",
-            CustodyCreationOwner.Create(),
-            "finding-case-root",
-            default);
-        await harness.ExecuteSqlAsync(
-            $"UPDATE Cases SET CustodyState = 'confirmed', CustodyRootRemoteId = '{root.RemoteId}', CustodyConfirmedAtUtc = '{harness.TimeProvider.GetUtcNow():O}' WHERE Id = '{harness.FindingCaseId:D}'");
-
-        var reviewLease = await harness.AcquireLease.ExecuteAsync(
-            new(harness.FindingCaseId, 0, harness.EngineerActor, "finding-audit-transition-lease"), default);
-        var reportPreparation = await harness.TransitionCase.ExecuteAsync(new(
-            harness.FindingCaseId,
-            0,
-            harness.EngineerActor,
-            "finding-audit-transition",
-            "Inspection work is starting.",
-            reviewLease.Token,
-            CaseTransitionDestination.ReportPreparation), default);
-        var findingLease = await harness.AcquireLease.ExecuteAsync(new(
-            harness.FindingCaseId,
-            reportPreparation.Version,
-            harness.EngineerActor,
-            "finding-audit-record-lease"), default);
-        var request = new RecordEngineerFindingRequest(
-            harness.FindingCaseId,
-            reportPreparation.Version,
-            harness.EngineerActor,
-            "finding-audit-record",
-            "The attributable inspection and Audit finding is complete.",
-            findingLease.Token,
-            AuditAssessment.Repairable);
-
-        var results = await Task.WhenAll(
-            harness.RecordEngineerFinding.ExecuteAsync(request, default),
-            harness.RecordEngineerFinding.ExecuteAsync(request, default));
-
-        Assert.Equal(results[0], results[1]);
-        Assert.NotNull(results[0].AuditReference);
-        Assert.Equal(0L, await harness.ScalarAsync<long>(
-            $"SELECT COUNT_BIG(*) FROM ExternalWorkItems WHERE CaseId = '{harness.FindingCaseId:D}' AND Kind = '{ExternalWorkKinds.CreateAuditReferenceCustody}'"));
-        Assert.Equal(0L, await harness.ScalarAsync<long>(
-            $"SELECT COUNT_BIG(*) FROM CaseHistory WHERE CaseId = '{harness.FindingCaseId:D}' AND EventType = 'audit_custody_confirmed'"));
-        Assert.True(string.IsNullOrWhiteSpace(await harness.ScalarAsync<string>(
-            $"SELECT AuditCustodyRemoteId FROM Cases WHERE Id = '{harness.FindingCaseId:D}'")));
-    }
-
     private static async Task<ArchiveCaseRequest> PrepareArchiveRequestAsync(
         Harness harness,
         string operationSuffix)
@@ -767,7 +671,6 @@ public sealed class CaseTaskArchivePersistenceTests
             TransitionCase = services.GetRequiredService<ITransitionCase>();
             CloseCase = services.GetRequiredService<ICloseCase>();
             ArchiveCase = services.GetRequiredService<IArchiveCase>();
-            RecordEngineerFinding = services.GetRequiredService<IRecordEngineerFinding>();
         }
 
         public MutableCaseTimeProvider TimeProvider { get; }
@@ -790,7 +693,6 @@ public sealed class CaseTaskArchivePersistenceTests
         public ITransitionCase TransitionCase { get; }
         public ICloseCase CloseCase { get; }
         public IArchiveCase ArchiveCase { get; }
-        public IRecordEngineerFinding RecordEngineerFinding { get; }
 
         public Task ExecuteSqlAsync(string sql) => database.ExecuteAsync(sql);
         public Task<T> ScalarAsync<T>(string sql) => database.ScalarAsync<T>(sql);
@@ -898,9 +800,6 @@ public sealed class CaseTaskArchivePersistenceTests
         public Task<long> CountCaseAsync(Guid caseId) => database.ScalarAsync<long>(
             $"SELECT COUNT_BIG(*) FROM Cases WHERE Id = '{caseId:D}'");
 
-        public Task<long> CountFindingAsync(Guid caseId) => database.ScalarAsync<long>(
-            $"SELECT COUNT_BIG(*) FROM CaseEngineerFindings WHERE CaseId = '{caseId:D}'");
-
         public Task SetCaseVersionAsync(Guid caseId, long version) => database.ExecuteAsync(
             $"UPDATE Cases SET Version = {version} WHERE Id = '{caseId:D}'");
 
@@ -929,8 +828,12 @@ public sealed class CaseTaskArchivePersistenceTests
 
         public Task SetAuditCustodyAsync(Guid caseId, bool confirmed) =>
             database.ExecuteAsync(confirmed
-                ? $"UPDATE Cases SET AuditReference = 'Audit QDOS/26/100001', AuditCustodyRemoteId = 'audit-custody-remote-id', AuditCustodyConfirmedAtUtc = '2026-07-30T09:01:00+00:00' WHERE Id = '{caseId:D}'"
-                : $"UPDATE Cases SET AuditReference = 'Audit QDOS/26/100001', AuditCustodyRemoteId = NULL, AuditCustodyConfirmedAtUtc = NULL WHERE Id = '{caseId:D}'");
+                ? $"UPDATE Cases SET AuditReference = N'a.' + Reference, AuditCustodyRemoteId = 'audit-custody-remote-id', AuditCustodyConfirmedAtUtc = '2026-07-30T09:01:00+00:00' WHERE Id = '{caseId:D}'"
+                : $"UPDATE Cases SET AuditReference = N'a.' + Reference, AuditCustodyRemoteId = NULL, AuditCustodyConfirmedAtUtc = NULL WHERE Id = '{caseId:D}'");
+
+        /// <summary>The Case's Audit work, as Create audit adds it.</summary>
+        public Task AddAuditWorkAsync(Guid caseId) => database.ExecuteAsync(
+            $"INSERT INTO CaseWorks (Id, CaseId, Kind, CreatedAtUtc) VALUES ('{Guid.NewGuid():D}', '{caseId:D}', 'audit', '2026-07-30T09:00:00+00:00')");
 
         public Task SetExternalWorkStateAsync(Guid workId, string state) => database.ExecuteAsync(
             $"UPDATE ExternalWorkItems SET State = '{state}', CompletedAtUtc = '2026-07-30T09:01:00+00:00' WHERE Id = '{workId:D}'");
@@ -967,9 +870,7 @@ public sealed class CaseTaskArchivePersistenceTests
             public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
                 Guid caseId,
                 string caseReference,
-                CancellationToken cancellationToken,
-                Guid? parentCaseId = null,
-                string? parentCaseReference = null) => Task.FromResult(
+                CancellationToken cancellationToken) => Task.FromResult(
                     new CaseCustodyRoot(caseId, $"case-{caseReference}", caseReference));
 
             public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
@@ -982,7 +883,7 @@ public sealed class CaseTaskArchivePersistenceTests
                 CancellationToken cancellationToken) => Task.FromResult($"{root.RemoteId}/{auditReference}");
         }
 
-        private static Task<int> InsertCaseAsync(
+        private static async Task InsertCaseAsync(
             PegasusDbContext context,
             Guid caseId,
             Guid principalId,
@@ -990,9 +891,12 @@ public sealed class CaseTaskArchivePersistenceTests
             Guid receiptId,
             string reference,
             string caseType,
-            int sequence) =>
-            context.Database.ExecuteSqlInterpolatedAsync(
+            int sequence)
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {sequence}, {reference}, {caseType}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {StartUtc}, {0L}, {Guid.NewGuid()})");
+            await CaseWorkFixture.InsertPrimaryWorksAsync(context);
+        }
 
         private static async Task InsertReceiptAsync(
             PegasusDbContext context,

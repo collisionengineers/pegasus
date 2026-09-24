@@ -1237,7 +1237,7 @@ public sealed class GlassRepairEstimatePersistenceTests
                     Year = 2031,
                     Sequence = sequence,
                     Reference = reference,
-                    Type = "Inspection",
+                    Type = "inspection",
                     InitialState = "NotReady",
                     CustodyState = "confirmed",
                     OriginIntakeReceiptId = receiptId,

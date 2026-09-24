@@ -357,7 +357,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(version, saved.Version);
 
         var applied = Assert.Single(await new ListAppliedValuations(harness.Valuations)
-            .ExecuteAsync(caseId, CancellationToken.None));
+            .ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None));
         Assert.Equal(3176m, applied.AcceptedEngineerValue);
         Assert.Equal(guide.ValuationId, applied.GuideValuationId);
         Assert.Equal(guideStamp, applied.GuideValuationStampUtc);
@@ -383,7 +383,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var snapshot = await context.Set<AppliedValuationSnapshotEntity>()
-                .SingleAsync(item => item.CaseId == caseId);
+                .SingleAsync(item => item.WorkId == caseId);
             Assert.Equal(applied.Id, snapshot.Id);
             Assert.Equal(3176m, snapshot.AcceptedEngineerValue);
             Assert.Equal(engineer.SubjectId, snapshot.AcceptedBy);
@@ -441,7 +441,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 (item.PresetId, item.PresetVersion, item.Label)));
 
         var history = await new ListAppliedValuations(harness.Valuations)
-            .ExecuteAsync(caseId, CancellationToken.None);
+            .ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(
             [3176m, 3250m, 3176m],
             history.Select(item => item.AcceptedEngineerValue));

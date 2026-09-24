@@ -37,8 +37,8 @@ public interface IEngineerActivityQueries
 
 /// <param name="Disputes">Post-report mail classified as a dispute; part of <paramref name="QueriesReceived"/>.</param>
 /// <param name="AmendmentRequests">Post-report mail classified as an amendment request; part of <paramref name="QueriesReceived"/>.</param>
-/// <param name="AuditReportsSent">Reports sent on Audit Cases; part of <paramref name="ReportsSent"/> (MI-01's Audit uplift).</param>
-/// <param name="AverageReceivedToSent">Instruction received to report sent, averaged over the sends with a known origin.</param>
+/// <param name="AuditReportsSent">Audit reports sent (<c>CaseWorkPolicy.IsAuditReport</c>: a standalone Audit Case's or an Inspection + Audit Case's Audit); part of <paramref name="ReportsSent"/> (MI-01's Audit uplift).</param>
+/// <param name="AverageReceivedToSent">Instruction received to report sent, averaged over the sends with a known origin; an Audit work's report counts from the Audit's creation.</param>
 public sealed record EngineerActivityRow(
     Guid EngineerId,
     string DisplayName,

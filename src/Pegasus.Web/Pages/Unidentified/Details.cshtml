@@ -236,7 +236,7 @@
                         @if (Model.Context.Triage is { } triage)
                         {
                             <div class="button-row">
-                                <a class="btn" asp-page="/Triage/Details" asp-route-id="@triage.Id">Open the Triage</a>
+                                <a class="btn" asp-page="/Cases/Details" asp-route-id="@triage.CaseId">Open the Triage</a>
                             </div>
                         }
                         <div class="button-row">
@@ -343,7 +343,7 @@
                                     <td class="mono">@candidate.Reference</td>
                                     <td class="mono">@(candidate.Registration ?? "—")</td>
                                     <td>@(candidate.Claimant ?? "—")</td>
-                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(candidate.State)" /></td>
+                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.AssociationDestinationState(candidate)" /></td>
                                     <td>
                                         <form method="post" asp-page-handler="LinkCase" asp-route-id="@Model.Item.Id">
                                             <input type="hidden" name="caseId" value="@candidate.CaseId" />

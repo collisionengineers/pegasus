@@ -29,6 +29,9 @@ $preserve = @(
     'CaseSequences', 'ImageIntakeSequences', 'TriageSequences', 'UnidentifiedSequences',
     'ValuationPresets'
 )
+# Preserved only where the schema still has it: 20260924180000_CaseWorksAndTriageCases
+# drops TriageSequences (a Triage Case takes its reference from CaseSequences).
+$optionalPreserve = @('TriageSequences')
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="
 $blobsJson = az storage blob list --account-name $storageAccount --container-name $container --auth-mode login --output json
@@ -63,6 +66,8 @@ JOIN sys.partitions p ON p.object_id = t.object_id AND p.index_id IN (0,1)
 GROUP BY s.name, t.name ORDER BY t.name"
 
 $all = @($tables | ForEach-Object { $_.TableName })
+$preserve = @($preserve | Where-Object { $_ -notin $optionalPreserve -or $_ -in $all })
+$hasTriageSequences = 'TriageSequences' -in $all
 $preserveEffective = @($all | Where-Object { $_ -in $preserve -or $_ -like 'ApprovedMailbox*' })
 $missing = @($preserve | Where-Object { $_ -notin $all })
 $wipe = @($tables | Where-Object { $_.TableName -notin $preserveEffective })
@@ -75,7 +80,9 @@ $wipe | Where-Object { $_.Rows -gt 0 } | Format-Table TableName, Rows -AutoSize 
 
 if ($missing.Count -gt 0) { $connection.Close(); throw 'Preserve list has missing tables; refusing.' }
 
-$sequences = Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT MAX(LastAllocatedSequence) FROM TriageSequences) AS TriageSeq, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
+$triageSequenceCount = if ($hasTriageSequences) { ' (SELECT MAX(LastAllocatedSequence) FROM TriageSequences) AS TriageSeq,' } else { '' }
+$sequenceCountsSql = "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows,$triageSequenceCount (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
+$sequences = Invoke-Query $sequenceCountsSql
 $sequences | Format-Table | Out-String | Write-Output
 
 $removedUserIds = @()
@@ -145,6 +152,12 @@ WHERE principal.Code = N'QDOS';")
     Write-Output ("Next QDOS reference after reset: QDOS{0:00}001" -f ($qdosSequence.Year % 100))
 }
 
+$triageSequenceSnapshotSql = if ($hasTriageSequences) { @"
+SELECT N'TriageSequences', CONVERT(nvarchar(11), Id),
+    CONVERT(nvarchar(20), LastAllocatedSequence)
+FROM dbo.TriageSequences
+UNION ALL
+"@ } else { '' }
 $sequenceSnapshotSql = @"
 SELECT N'CaseSequences' AS SequenceTable,
     CONVERT(nvarchar(36), SequenceLineageId) + N'/' + CONVERT(nvarchar(4), [Year]) AS SequenceKey,
@@ -155,10 +168,7 @@ SELECT N'ImageIntakeSequences', NormalizedVehicleRegistration,
     CONVERT(nvarchar(20), LastAllocatedSequence)
 FROM dbo.ImageIntakeSequences
 UNION ALL
-SELECT N'TriageSequences', CONVERT(nvarchar(11), Id),
-    CONVERT(nvarchar(20), LastAllocatedSequence)
-FROM dbo.TriageSequences
-UNION ALL
+$triageSequenceSnapshotSql
 SELECT N'UnidentifiedSequences', CONVERT(nvarchar(11), Id),
     CONVERT(nvarchar(20), LastAllocatedSequence)
 FROM dbo.UnidentifiedSequences
@@ -236,7 +246,7 @@ $stillHasRows = @($after | Where-Object { $_.TableName -notin $preserveEffective
 Write-Output ("Wiped tables still holding rows: {0}" -f $stillHasRows.Count)
 $stillHasRows | Format-Table TableName, Rows | Out-String | Write-Output
 Write-Output ("Preserved rows after: {0}" -f (($after | Where-Object { $_.TableName -in $preserveEffective }) | Measure-Object -Property Rows -Sum).Sum)
-$sequencesAfter = Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT MAX(LastAllocatedSequence) FROM TriageSequences) AS TriageSeq, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
+$sequencesAfter = Invoke-Query $sequenceCountsSql
 $sequencesAfter | Format-Table | Out-String | Write-Output
 $sequencesAfterSnapshot = Invoke-Query $sequenceSnapshotSql
 $sequenceAfterValues = @($sequencesAfterSnapshot | Where-Object {

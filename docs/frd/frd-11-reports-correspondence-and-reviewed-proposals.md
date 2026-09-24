@@ -73,7 +73,8 @@ A block tracks the Case's own facts until the Engineer writes wording in its
 place. The Engineer may rename a block, move it, take it off the report, put
 it back, and add a paragraph of their own. Wording that reads the same as the
 composed sentence is no change, so the block keeps tracking its fields. The
-Engineer's changes are held per Case and written by the one Case save.
+Engineer's changes are held per Case, separately for the Inspection and the
+Audit once an Audit exists, and written by the one Case save.
 
 The composed sentences remain the accepted report wording and nothing else:
 the mileage statement by its recorded source, the salvage paragraph by the
@@ -100,8 +101,9 @@ reference:
 
 - A standalone Audit Case's Case/PO is the `a.` reference itself, for
   example `a.QDOS26002`.
-- For Inspection + Audit, the Inspection Case keeps `QDOS26001` and its
-  linked Audit Case is `a.QDOS26001`.
+- For Inspection + Audit, the Inspection report carries the Case/PO
+  `QDOS26001` and the Audit report, once Create audit has run, the Audit
+  reference `a.QDOS26001`.
 
 The assessment outcome never changes the reference. The assessment is a
 separate Case fact
@@ -109,11 +111,19 @@ separate Case fact
 Those identity facts travel through the shared Core report contract; they do
 not create a separate report family.
 
-For Inspection + Audit, the Inspection report is produced on the Inspection
-Case and the Audit report on the linked Audit Case that Create audit makes.
-Each Case generates, approves and sends its own report under its own
-reference. The Audit report never overwrites or reissues the Inspection
-report.
+**A report per work.** An Inspection + Audit Case produces the Inspection
+report from the Inspection's values and, after Create audit, the Audit report
+from the Audit's values, on the same Case. Each report is generated,
+approved and sent on its own: current, superseded and stale are decided for
+each separately, and an Audit edit never makes the Inspection report stale.
+The Audit report's reference is its Our Ref, its file name (for example
+`A_QDOS26001_assessment.pdf`) and its email subject, and its re-sends are
+counted among Audit sends only. It has its own fee note and fee, counted
+separately. Report image choices are shared, because they belong to the
+Case's files. Once the Audit exists, the Inspection report can be opened and
+downloaded but never generated again or sent again; a delivery prepared for
+it before Create audit is refused at send. The Audit report never overwrites
+or reissues the Inspection report.
 
 Audit outcome or reference evidence that is missing, conflicting, ambiguous,
 stale or from another Case fails before rendering. Audit adds no second

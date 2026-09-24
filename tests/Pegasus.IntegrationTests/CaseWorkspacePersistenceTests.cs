@@ -360,7 +360,7 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(initial.Version + 1, first.Version);
         Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
         var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
-        var recorded = await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+        var recorded = await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(2, recorded.Count);
         var glasses = recorded.Single(card => card.Details.Source == ValuationSource.Glasses);
         Assert.Null(glasses.LastEditedAtUtc);
@@ -376,7 +376,7 @@ public sealed class CaseWorkspacePersistenceTests
 
         Assert.Equal(first.Version + 1, second.Version);
         Assert.Equal(2, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
-        recorded = await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+        recorded = await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(2, recorded.Count);
         var unchanged = recorded.Single(card => card.Details.Source == ValuationSource.Glasses);
         Assert.Equal(DetailsModelStamp(glasses), DetailsModelStamp(unchanged));
@@ -501,7 +501,7 @@ public sealed class CaseWorkspacePersistenceTests
             expectedReason: CaseReportStaleReasons.ReportContentChanged);
         await using var context = await harness.Factory.CreateDbContextAsync();
         var persisted = Assert.Single(await context.Set<CaseReportWordingEntity>()
-            .Where(item => item.CaseId == harness.CaseId)
+            .Where(item => item.WorkId == harness.CaseId)
             .ToArrayAsync());
         Assert.Equal(wording.Key, persisted.BlockKey);
         Assert.Equal(wording.Title, persisted.Title);
@@ -847,6 +847,7 @@ public sealed class CaseWorkspacePersistenceTests
             {
                 Id = generationId,
                 CaseId = harness.CaseId,
+                WorkId = harness.CaseId,
                 CaseVersion = 0,
                 SnapshotHash = new string('2', 64),
                 SnapshotJson = ReportGenerationSnapshotFixture.Json(harness.CaseId, "seed-generation-current"),
@@ -959,11 +960,11 @@ public sealed class CaseWorkspacePersistenceTests
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var source = await context.CaseDataFields.AsNoTracking().SingleAsync(row =>
-                row.CaseId == harness.CaseId && row.FieldName == CaseDataFieldNames.InspectionAddress
+                row.WorkId == harness.CaseId && row.FieldName == CaseDataFieldNames.InspectionAddress
                 && row.ValueKind == CaseDataCodes.Fact);
             context.CaseDataFields.Add(new CaseDataFieldEntity
             {
-                CaseId = harness.CaseId,
+                WorkId = harness.CaseId,
                 FieldName = CaseDataFieldNames.ClaimantAddress,
                 ValueKind = CaseDataCodes.Suggestion,
                 ValueType = source.ValueType,
@@ -1297,7 +1298,7 @@ public sealed class CaseWorkspacePersistenceTests
             },
             CancellationToken.None);
         var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
-        var aprilCard = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None));
+        var aprilCard = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
 
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
         var again = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-basis-2");
@@ -1317,9 +1318,9 @@ public sealed class CaseWorkspacePersistenceTests
             },
             CancellationToken.None);
 
-        var cards = await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+        var cards = await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         var mayCard = cards.Single(card => card.Details.Source == ValuationSource.Glasses && card.Details.GuideMonth == may);
-        var applied = Assert.Single(await valuations.ListAppliedAsync(harness.CaseId, CancellationToken.None));
+        var applied = Assert.Single(await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
         Assert.Equal(mayCard.ValuationId, applied.GuideValuationId);
         Assert.Equal(13_000m, applied.AcceptedEngineerValue);
         Assert.Equal(second.Version, applied.CaseVersion);
@@ -1345,7 +1346,7 @@ public sealed class CaseWorkspacePersistenceTests
             },
             CancellationToken.None);
         var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
-        var card = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None));
+        var card = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
 
         var again = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-no-mileage-2");
         // The value needs the Case's mileage, as the guide lookup does; with
@@ -1357,7 +1358,7 @@ public sealed class CaseWorkspacePersistenceTests
             },
             CancellationToken.None));
 
-        Assert.Empty(await valuations.ListAppliedAsync(harness.CaseId, CancellationToken.None));
+        Assert.Empty(await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
         Assert.Equal(first.Version, (await harness.GetRequiredDataAsync()).Version);
     }
 
@@ -1447,7 +1448,7 @@ public sealed class CaseWorkspacePersistenceTests
 
         var queries = new EfCaseFieldProposalQueries(harness.Factory);
         Assert.All(
-            await queries.ListForCaseAsync(harness.CaseId, default),
+            await queries.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, default),
             proposal => Assert.Equal(CaseFieldProposalStatus.Awaiting, proposal.Status));
 
         var afterAi = await harness.GetRequiredDataAsync();
@@ -1463,7 +1464,7 @@ public sealed class CaseWorkspacePersistenceTests
             })
         }, default);
 
-        var proposals = (await queries.ListForCaseAsync(harness.CaseId, default)).ToDictionary(item => item.FieldPath);
+        var proposals = (await queries.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, default)).ToDictionary(item => item.FieldPath);
         Assert.Equal(2, proposals.Count);
         Assert.Equal(CaseFieldProposalStatus.Accepted, proposals[AssessmentVocabulary.Outcome].Status);
         Assert.Equal(CaseFieldProposalStatus.Corrected, proposals[AssessmentVocabulary.LegalStatus].Status);
@@ -1738,61 +1739,10 @@ public sealed class CaseWorkspacePersistenceTests
             }, default);
         Assert.Null(none.Data.Workspace!.ClaimSource);
         await using var finalContext = await harness.Factory.CreateDbContextAsync();
-        var snapshot = await finalContext.CaseDataSnapshots.SingleAsync(item => item.CaseId == harness.CaseId);
+        var snapshot = await finalContext.CaseDataSnapshots.SingleAsync(item => item.WorkId == harness.CaseId);
         Assert.Null(snapshot.ClaimSourceOverrideContactName);
         Assert.Null(snapshot.ClaimSourceOverrideContactTelephone);
         Assert.Null(snapshot.ClaimSourceOverrideContactEmailAddress);
-    }
-
-    [Fact]
-    public async Task AuditCaseInheritsClaimSourceContactOverrides()
-    {
-        await using var harness = await Harness.CreateAsync();
-        CaseIdentity source;
-        await using (var context = await harness.Factory.CreateDbContextAsync())
-        {
-            var snapshot = await context.CaseDataSnapshots.SingleAsync(
-                item => item.CaseId == harness.CaseId);
-            snapshot.ClaimSourceOverrideContactName = "Audit contact";
-            snapshot.ClaimSourceOverrideContactTelephone = "0113 999 0014";
-            snapshot.ClaimSourceOverrideContactEmailAddress = "audit-contact@example.test";
-            var sourceCase = await context.Cases.Include(item => item.Principal)
-                .SingleAsync(item => item.Id == harness.CaseId);
-            source = new(
-                sourceCase.Id,
-                sourceCase.Principal.Code,
-                sourceCase.Year,
-                sourceCase.Sequence,
-                sourceCase.Reference,
-                sourceCase.AuditReference);
-            await context.SaveChangesAsync();
-        }
-
-        var before = await harness.GetRequiredDataAsync();
-        var lease = await harness.AcquireLeaseAsync(
-            before.Version,
-            harness.StaffActor,
-            "audit-contact-overrides-lease");
-        var audit = await new EfCreateAuditCaseStore(harness.Factory, harness.TimeProvider).CreateAsync(
-            new(
-                new(
-                    harness.CaseId,
-                    before.Version,
-                    harness.StaffActor,
-                    "audit-contact-overrides-save",
-                    lease.Token),
-                source,
-                AuditAssessment.Repairable,
-                $"a.{source.Reference}",
-                null),
-            default);
-
-        await using var verification = await harness.Factory.CreateDbContextAsync();
-        var inherited = await verification.CaseDataSnapshots.SingleAsync(
-            item => item.CaseId == audit.AuditCase.CaseId);
-        Assert.Equal("Audit contact", inherited.ClaimSourceOverrideContactName);
-        Assert.Equal("0113 999 0014", inherited.ClaimSourceOverrideContactTelephone);
-        Assert.Equal("audit-contact@example.test", inherited.ClaimSourceOverrideContactEmailAddress);
     }
 
     private static ActionActor Engineer(Harness harness, StaffRole role = StaffRole.Engineer) => ActionActor.Staff(
@@ -1806,7 +1756,7 @@ public sealed class CaseWorkspacePersistenceTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"""
             INSERT INTO CaseRepairSpecifications
-                (Id, CaseId, Version, State, SourceRoute, CreatedBy, CreationOperationKey,
+                (Id, WorkId, Version, State, SourceRoute, CreatedBy, CreationOperationKey,
                  CreatedAtUtc, Name, VatPercent, RepairerVatStatus, IsCurrent, AcceptedBy, AcceptedAtUtc)
             VALUES
                 ({id}, {harness.CaseId}, {1}, {"Accepted"}, {"LegacyUnresolved"},
@@ -1825,6 +1775,7 @@ public sealed class CaseWorkspacePersistenceTests
         {
             Id = generationId,
             CaseId = harness.CaseId,
+            WorkId = harness.CaseId,
             CaseVersion = caseVersion,
             SnapshotHash = new string('6', 64),
             SnapshotJson = ReportGenerationSnapshotFixture.Json(harness.CaseId, "workspace-mileage-source-generation"),
@@ -1842,7 +1793,7 @@ public sealed class CaseWorkspacePersistenceTests
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleAsync(item => item.CaseId == harness.CaseId);
+            .SingleAsync(item => item.WorkId == harness.CaseId);
         return CaseDataFieldWriter.ReadEditable(snapshot);
     }
 
@@ -1918,7 +1869,7 @@ public sealed class CaseWorkspacePersistenceTests
     {
         await using var context = await harness.Factory.CreateDbContextAsync();
         return await context.CaseAssessmentFields.AsNoTracking()
-            .LongCountAsync(item => item.CaseId == harness.CaseId);
+            .LongCountAsync(item => item.WorkId == harness.CaseId);
     }
 
     private sealed class RejectingQueryReadInterceptor(params string[] forbiddenCommandTexts) : DbCommandInterceptor

@@ -351,8 +351,9 @@
 
 @if (Model.CanCreateAudit)
 {
-    @* Create audit (13 September): the facts, the derived reference and one
-       primary. No reason is asked; the action is its own record. *@
+    @* Create audit (v29 P5): the Case, the Audit reference it gains and the
+       Engineer the Audit goes to, and one primary. No reason is asked; the
+       action is its own record. *@
     <div id="case-create-audit-dialog" class="dialog-backdrop" data-dialog="case-create-audit-dialog" hidden>
         <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-create-audit-dialog-title">
             <div class="dialog-head">
@@ -368,12 +369,9 @@
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <div class="dialog-body stack">
                     <dl class="audit-facts">
-                        <dt>@Frame.OriginalCase</dt><dd class="mono">@workflow.Identity.Reference</dd>
-                        <dt>@OperatorLabels.CaseWorkspace.EngineerSections.Outcome</dt><dd>@Model.AssessmentValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome).Replace('_', ' ')</dd>
-                        @if (Model.ProposedAuditReference is { } auditReference)
-                        {
-                            <dt>Audit reference</dt><dd class="mono" data-audit-reference>@auditReference</dd>
-                        }
+                        <dt>@Frame.AuditDialogCase</dt><dd class="mono">@workflow.Identity.Reference</dd>
+                        <dt>@Frame.AuditReference</dt><dd class="mono" data-audit-reference>@Model.ProposedAuditReference</dd>
+                        <dt>@OperatorLabels.CaseWorkspace.RibbonEngineer</dt><dd data-audit-engineer>@(Model.EngineerDisplayName ?? OperatorLabels.CaseWorkspace.Unassigned)</dd>
                     </dl>
                 </div>
                 <div class="dialog-foot">

@@ -901,6 +901,7 @@ internal static partial class CaseWebTestSupport
             GetCaseSectionQuery query,
             CancellationToken cancellationToken)
         {
+            PageFrameQueries.Add(query);
             if (query.CaseId != CaseId)
             {
                 return Task.FromResult<CasePageFrame?>(null);
@@ -911,8 +912,7 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments,
                 AvailableReportSentEvidence,
                 RecordNotes,
-                DataOverride ?? CreateData(),
-                AuditOfCaseId));
+                DataOverride ?? CreateData()));
         }
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
@@ -973,7 +973,8 @@ internal static partial class CaseWebTestSupport
                     CaseCustodyState.Pending,
                     CorrespondenceEmails,
                     StandaloneAuditEvidenceId,
-                    AuditOfCaseId)
+                    AuditCustodyState: AuditCustodyState,
+                    AuditCustodyFolderRemoteId: AuditCustodyFolderRemoteId)
                 : null);
         }
 
@@ -1008,14 +1009,14 @@ internal static partial class CaseWebTestSupport
         private CaseSectionFrame FocusedFrame()
         {
             var workflow = CreateWorkflow();
-            return new(CreateSummary(workflow), workflow, ActiveLease());
+            return new(CreateSummary(workflow), workflow, ActiveLease(), Works: Works);
         }
 
         /// <summary>
         /// The same case the details surface serves, through the port the data-reading
         /// case pages (the EVA send page) use.
         /// </summary>
-        public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(caseId == CaseId ? DataOverride ?? CreateData() : null);
 
         Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(
@@ -1030,7 +1031,7 @@ internal static partial class CaseWebTestSupport
 
         Task<InspectionAddressChoicesData?> IInspectionAddressChoicesQueries.GetAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<InspectionAddressChoicesData?>(
                 caseId == CaseId ? InspectionChoices : null);
 
@@ -1180,14 +1181,19 @@ internal static partial class CaseWebTestSupport
                 CaseId,
                 new(CaseId, "QDOS", 2031, 42, "QDOS3100042"),
                 State,
+                AssignedEngineerId,
                 null,
-                null,
-                null,
+                ReportSentEvidence,
                 _dueWork,
                 null,
                 null,
                 null,
-                CaseVersion) with { HoldReviewOn = HoldReviewOn };
+                CaseVersion) with
+            {
+                HoldReviewOn = HoldReviewOn,
+                AssignedEngineerId = AssignedEngineerId,
+                ReportSentEvidence = ReportSentEvidence
+            };
 
         Task<CaseDueWork> IRecordManualCaseChase.ExecuteAsync(
             ManualChaseRecord request,
