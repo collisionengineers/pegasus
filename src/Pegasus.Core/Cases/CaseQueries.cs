@@ -247,8 +247,7 @@ public sealed record CasePageFrame(
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
-    CaseDataProjection Data,
-    Guid? AuditOfCaseId = null)
+    CaseDataProjection Data)
 {
     public CaseSearchItem Summary => Frame.Summary;
     public CaseWorkflowRecord Workflow => Frame.Workflow;
@@ -260,8 +259,7 @@ public sealed record CasePageFrameData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
-    CaseRecordNotes RecordNotes,
-    Guid? AuditOfCaseId = null);
+    CaseRecordNotes RecordNotes);
 
 public sealed record CaseVehicleSection(
     CaseSectionFrame Frame,
@@ -289,7 +287,6 @@ public sealed record CaseFilesSection(
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
-    Guid? AuditOfCaseId = null,
     CaseCustodyState? AuditCustodyState = null,
     string? AuditCustodyFolderRemoteId = null);
 
@@ -461,7 +458,6 @@ public sealed record CaseFilesSectionData(
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
-    Guid? AuditOfCaseId = null,
     CaseCustodyState? AuditCustodyState = null,
     string? AuditCustodyFolderRemoteId = null);
 
@@ -512,8 +508,7 @@ public sealed class GetCasePageFrame(
             frame.Documents,
             frame.AvailableReportSentEvidence,
             frame.RecordNotes,
-            data,
-            frame.AuditOfCaseId);
+            data);
     }
 }
 
@@ -606,7 +601,7 @@ public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSe
 
         return new(body.Frame, query.Documents ?? body.Documents, body.CustodyFolderRemoteId,
             body.CustodyState, body.CorrespondenceEmails,
-            body.StandaloneAuditEvidenceId, body.AuditOfCaseId,
+            body.StandaloneAuditEvidenceId,
             body.AuditCustodyState, body.AuditCustodyFolderRemoteId);
     }
 }

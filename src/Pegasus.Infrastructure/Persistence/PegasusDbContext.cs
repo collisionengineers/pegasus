@@ -590,6 +590,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             {
                 table.HasCheckConstraint("CK_Cases_Sequence", "[Sequence] >= 1");
                 table.HasCheckConstraint("CK_Cases_Version", "[Version] >= 0");
+                // Only an Inspection + Audit Case carries an Audit report
+                // reference, and it is always a. + its Case/PO.
+                table.HasCheckConstraint(
+                    "CK_Cases_AuditReference",
+                    "[AuditReference] IS NULL OR ([Type] = N'inspection_and_audit' AND [AuditReference] = N'a.' + [Reference])");
             });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Reference).HasMaxLength(40).IsRequired();
@@ -607,18 +612,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.Reference).IsUnique();
             entity.HasIndex(item => item.AuditReference).IsUnique();
             entity.HasIndex(item => item.OriginIntakeReceiptId);
-            // An Audit Case shares its original's sequence, so sequence uniqueness ignores
-            // linked Audit Cases; the reference stays unique across every Case.
             entity.HasIndex(item => new { item.SequenceLineageId, item.Year, item.Sequence })
-                .IsUnique()
-                .HasFilter("[AuditOfCaseId] IS NULL");
-            entity.HasIndex(item => item.AuditOfCaseId)
-                .IsUnique()
-                .HasFilter("[AuditOfCaseId] IS NOT NULL");
-            entity.HasOne<CaseEntity>()
-                .WithMany()
-                .HasForeignKey(item => item.AuditOfCaseId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .IsUnique();
             entity.HasOne(item => item.Principal)
                 .WithMany(item => item.Cases)
                 .HasForeignKey(item => item.PrincipalId)
@@ -1280,10 +1275,6 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public required string InitialState { get; set; }
     public required string CustodyState { get; set; }
     public Guid? OriginIntakeReceiptId { get; set; }
-    // The Inspection + Audit Case this Audit Case was created from (13 September): the
-    // two share principal, year and sequence, and this Case roots its Box folder under
-    // the original's. Null for every other Case.
-    public Guid? AuditOfCaseId { get; set; }
     public string? StandaloneAuditAssessment { get; set; }
     public Guid? StandaloneAuditEvidenceId { get; set; }
     public DateOnly? AcceptedInspectionDeadline { get; set; }
@@ -1299,7 +1290,6 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public DateTimeOffset? CustodyConfirmedAtUtc { get; set; }
     public string? AuditCustodyRemoteId { get; set; }
     public DateTimeOffset? AuditCustodyConfirmedAtUtc { get; set; }
-    public CaseEngineerFindingEntity? EngineerFinding { get; set; }
     public List<CaseWorkEntity> Works { get; set; } = [];
     public List<CaseIntakeLinkEntity> IntakeLinks { get; set; } = [];
     public List<CaseHistoryEntity> History { get; set; } = [];

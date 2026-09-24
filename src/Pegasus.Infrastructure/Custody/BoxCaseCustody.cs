@@ -1096,50 +1096,13 @@ internal sealed class BoxCaseCustody(
         return new(caseId, folder.Id, caseReference);
     }
 
-    public async Task<CaseCustodyRoot> CreateLinkedAuditCaseRootAsync(
-        Guid auditCaseId,
-        string auditReference,
-        Guid originalCaseId,
-        string originalReference,
-        string creationOwnerToken,
-        string operationKey,
-        CustodyEffectLeaseGuard? leaseGuard,
-        CancellationToken cancellationToken)
-    {
-        ValidateCase(auditCaseId, auditReference);
-        ValidateOperation(operationKey);
-        // The original's folder is resolved the way every case root is; the Audit
-        // Case's folder is its a. child, owned by this creation like any root.
-        var original = await GetExistingCaseRootAsync(originalCaseId, originalReference, cancellationToken);
-        var folder = await GetOrCreateOwnedFolderAsync(
-            original.RemoteId,
-            CaseFolderName(auditReference),
-            creationOwnerToken,
-            leaseGuard,
-            cancellationToken);
-        return new(auditCaseId, folder.Id, auditReference, originalCaseId, originalReference);
-    }
-
     public async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
         Guid caseId,
         string caseReference,
-        CancellationToken cancellationToken,
-        Guid? parentCaseId = null,
-        string? parentCaseReference = null)
+        CancellationToken cancellationToken)
     {
         ValidateCase(caseId, caseReference);
-        if (parentCaseId is null && parentCaseReference is not null
-            || parentCaseId is not null && string.IsNullOrWhiteSpace(parentCaseReference))
-        {
-            throw new ArgumentException("A linked Audit Case root requires its complete original Case identity.");
-        }
         var parentId = client.RootFolderId;
-        if (parentCaseId is { } originalCaseId)
-        {
-            var original = await GetExistingCaseRootAsync(
-                originalCaseId, parentCaseReference!, cancellationToken);
-            parentId = original.RemoteId;
-        }
         var folder = await client.FindChildAsync(
             parentId,
             CaseFolderName(caseReference),
@@ -1147,7 +1110,7 @@ internal sealed class BoxCaseCustody(
             cancellationToken)
             ?? throw new InvalidOperationException("The case custody root has not been created.");
         await VerifyFolderIdentityAsync(folder, parentId, folder.Name, cancellationToken);
-        return new(caseId, folder.Id, caseReference, parentCaseId, parentCaseReference);
+        return new(caseId, folder.Id, caseReference);
     }
 
     public async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
@@ -1431,9 +1394,7 @@ internal sealed class BoxCaseCustody(
         var expected = await GetExistingCaseRootAsync(
             root.CaseId,
             root.Reference,
-            cancellationToken,
-            root.ParentCaseId,
-            root.ParentReference);
+            cancellationToken);
         if (!expected.RemoteId.Equals(root.RemoteId, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
