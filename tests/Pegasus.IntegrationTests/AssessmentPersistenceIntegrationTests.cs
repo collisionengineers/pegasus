@@ -90,7 +90,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         var input = await source.GetAsync(
             outcome.Identity.CaseId,
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), CaseWorkSelector.Current);
 
         Assert.NotNull(input);
         Assert.Null(input.Signatory);
@@ -109,7 +109,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await SeedReportReadyAssessmentAsync(harness.Factory, outcome.Identity.CaseId);
         input = await source.GetAsync(
             outcome.Identity.CaseId,
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), CaseWorkSelector.Current);
         Assert.NotNull(input);
         await using (var verificationContext = await harness.Factory.CreateDbContextAsync())
         {

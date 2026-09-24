@@ -139,8 +139,18 @@ public sealed record MonthlyReportActivity(
     int ReportsGenerated,
     int FeeNotesGenerated,
     int Sent,
-    decimal AgreedFeeTotal)
+    decimal AgreedFeeTotal,
+    int AuditReportsGenerated = 0,
+    int AuditSent = 0,
+    decimal AuditAgreedFeeTotal = 0)
 {
+    // MI-02: each total splits into Inspection and Audit reports.
+    public int InspectionReportsGenerated => ReportsGenerated - AuditReportsGenerated;
+
+    public int InspectionSent => Sent - AuditSent;
+
+    public decimal InspectionAgreedFeeTotal => AgreedFeeTotal - AuditAgreedFeeTotal;
+
     public string MonthLabel => new DateOnly(Year, Month, 1).ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
 }
 

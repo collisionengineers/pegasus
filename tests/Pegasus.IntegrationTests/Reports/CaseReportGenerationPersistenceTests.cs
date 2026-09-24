@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
@@ -698,7 +699,7 @@ public sealed class CaseReportGenerationPersistenceTests
         // The unresolved outcome stays exactly as recorded until something
         // asks again; nothing retries it in the background.
         var current = await harness.Store.GetCurrentAsync(
-            harness.StaffActor, harness.CaseId, CancellationToken.None);
+            harness.StaffActor, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(
             CaseReportArtifactStatus.Unknown, Assert.Single(current!.Artifacts).Status);
         Assert.Equal(0, await harness.ActionHistoryCountAsync("case_report_generation_ready"));
@@ -1081,7 +1082,7 @@ public sealed class CaseReportGenerationPersistenceTests
         // Reloaded from the persisted snapshot JSON, not from the caller's
         // request: an issued report renders the same way again.
         var reloaded = await harness.Store.GetCurrentAsync(
-            harness.StaffActor, harness.CaseId, CancellationToken.None);
+            harness.StaffActor, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.True(reloaded!.Snapshot.Report.IncludeFeeNote);
         Assert.Single(reloaded.Artifacts);
 
@@ -1133,10 +1134,10 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(CaseReportArtifactStatus.Confirmed, priorArtifact.Status);
 
         var current = await harness.Store.GetCurrentAsync(
-            harness.StaffActor, harness.CaseId, CancellationToken.None);
+            harness.StaffActor, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(second.Generation.Id, current!.Id);
         Assert.Equal(2, (await harness.Store.ListAsync(
-            harness.StaffActor, harness.CaseId, CancellationToken.None)).Count);
+            harness.StaffActor, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None)).Count);
         Assert.Equal(2, (await harness.ReadyEventsAsync()).Count);
     }
 
@@ -1468,7 +1469,7 @@ public sealed class CaseReportGenerationPersistenceTests
                 services.GetRequiredService<IStaffAccountQueries>(),
                 services.GetRequiredService<ICaseAssetPreparationQueries>(),
                 services.GetRequiredService<IListAppliedValuations>());
-            return await source.GetAsync(CaseId, StaffActor, default);
+            return await source.GetAsync(CaseId, StaffActor, CaseWorkSelector.Current, default);
         }
 
         public async Task AddSourceAsync()
@@ -1766,7 +1767,7 @@ public sealed class CaseReportGenerationPersistenceTests
         }
 
         public async Task<IReadOnlyList<CaseReportGenerationRecord>> GenerationRowsAsync() =>
-            await Store.ListAsync(StaffActor, CaseId, CancellationToken.None);
+            await Store.ListAsync(StaffActor, CaseId, CaseWorkSelector.Current, CancellationToken.None);
 
         public async Task<IReadOnlyList<ActionHistoryEntity>> ReadyEventsAsync()
         {
@@ -2034,7 +2035,7 @@ public sealed class CaseReportGenerationPersistenceTests
         public void AcceptEngineerValue(decimal value) => engineerValue = value;
 
         public Task<CaseReportFreezeInputs?> GetAsync(
-            Guid requestedCaseId, ActionActor actor, CancellationToken cancellationToken) =>
+            Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportFreezeInputs?>(
                 requestedCaseId == caseId
                     ? new(projection, Readiness(), "RPT31001", 1)
@@ -2124,12 +2125,12 @@ public sealed class CaseReportGenerationPersistenceTests
             inner.GetAsync(actor, caseId, generationId, cancellationToken);
 
         public Task<CaseReportGenerationRecord?> GetCurrentAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
-            inner.GetCurrentAsync(actor, caseId, cancellationToken);
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            inner.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
 
         public Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
-            inner.ListAsync(actor, caseId, cancellationToken);
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            inner.ListAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
 
         public Task<int> MarkStaleAsync(
             Guid caseId, string reasonCode, CancellationToken cancellationToken) =>

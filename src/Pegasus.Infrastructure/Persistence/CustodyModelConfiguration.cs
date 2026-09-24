@@ -8,8 +8,14 @@ internal static class CustodyModelConfiguration
     {
         modelBuilder.Entity<CaseDocumentEntity>(entity =>
         {
-            entity.ToTable("CaseDocuments");
+            entity.ToTable("CaseDocuments", table => table.HasCheckConstraint(
+                "CK_CaseDocuments_CustodyFolder",
+                "[CustodyFolder] IN (N'case', N'audit')"));
             entity.HasKey(value => value.Id);
+            entity.Property(value => value.CustodyFolder)
+                .HasMaxLength(20)
+                .IsRequired()
+                .HasDefaultValue(CaseCustodyFolders.Case);
             entity.Property(value => value.SourceOccurrenceIdentity).HasMaxLength(512).IsRequired();
             entity.Property(value => value.Ordinal).IsRequired();
             entity.HasIndex(value => new { value.CaseId, value.SourceOccurrenceIdentity }).IsUnique();

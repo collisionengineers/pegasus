@@ -289,7 +289,9 @@ public sealed record CaseFilesSection(
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
-    Guid? AuditOfCaseId = null);
+    Guid? AuditOfCaseId = null,
+    CaseCustodyState? AuditCustodyState = null,
+    string? AuditCustodyFolderRemoteId = null);
 
 /// <summary>
 /// Persistence material used only to prove a fragment's render-only lease
@@ -448,6 +450,10 @@ public interface IGetCasePageFrame
 /// The persistence half of <see cref="CaseFilesSection"/>. It contains only
 /// Files-owned rows; the page frame supplies the already-rendered documents.
 /// </summary>
+/// <remarks>
+/// <see cref="AuditCustodyState"/> is the Audit's <c>a.</c> folder, present
+/// only once the Case has an Audit work.
+/// </remarks>
 public sealed record CaseFilesSectionData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
@@ -455,7 +461,9 @@ public sealed record CaseFilesSectionData(
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
-    Guid? AuditOfCaseId = null);
+    Guid? AuditOfCaseId = null,
+    CaseCustodyState? AuditCustodyState = null,
+    string? AuditCustodyFolderRemoteId = null);
 
 public interface IGetCaseVehicleSection
 {
@@ -598,7 +606,8 @@ public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSe
 
         return new(body.Frame, query.Documents ?? body.Documents, body.CustodyFolderRemoteId,
             body.CustodyState, body.CorrespondenceEmails,
-            body.StandaloneAuditEvidenceId, body.AuditOfCaseId);
+            body.StandaloneAuditEvidenceId, body.AuditOfCaseId,
+            body.AuditCustodyState, body.AuditCustodyFolderRemoteId);
     }
 }
 

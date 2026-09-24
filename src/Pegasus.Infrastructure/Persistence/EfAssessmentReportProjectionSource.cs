@@ -34,8 +34,8 @@ internal sealed class EfAssessmentReportProjectionSource(
 {
     /// <summary>The preview path: the same facts, with image bytes read.</summary>
     public async Task<AssessmentReportProjectionInput?> GetAsync(
-        Guid caseId, ActionActor actor, CancellationToken cancellationToken = default) =>
-        (await LoadAsync(caseId, actor, withImageContent: true, cancellationToken))?.Projection;
+        Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken = default) =>
+        (await LoadAsync(caseId, actor, work, withImageContent: true, cancellationToken))?.Projection;
 
     /// <summary>
     /// The freeze path: identical facts with image bytes omitted, plus the
@@ -43,11 +43,15 @@ internal sealed class EfAssessmentReportProjectionSource(
     /// decides readiness from anything but persisted state.
     /// </summary>
     async Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
-        Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
-        await LoadAsync(caseId, actor, withImageContent: false, cancellationToken);
+        Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
+        await LoadAsync(caseId, actor, work, withImageContent: false, cancellationToken);
 
     private async Task<CaseReportFreezeInputs?> LoadAsync(
-        Guid caseId, ActionActor actor, bool withImageContent, CancellationToken cancellationToken)
+        Guid caseId,
+        ActionActor actor,
+        CaseWorkSelector work,
+        bool withImageContent,
+        CancellationToken cancellationToken)
     {
         // Capture the version before any component read. A later workflow read
         // must not relabel an older workspace as if it contained newer facts.
@@ -55,15 +59,41 @@ internal sealed class EfAssessmentReportProjectionSource(
         var workflow = await context.CaseWorkflows
             .AsNoTracking()
             .Where(item => item.CaseId == caseId)
-            .Select(item => new { item.AssignedEngineerId, item.SignOffEngineerId, item.Version })
+            .Select(item => new
+            {
+                item.AssignedEngineerId,
+                item.SignOffEngineerId,
+                item.Version,
+                PrincipalCode = item.Case.Principal.Code,
+                item.Case.Year,
+                item.Case.Sequence,
+                item.Case.Reference,
+                item.Case.AuditReference,
+                item.Case.CustodyRootRemoteId,
+                item.Case.AuditCustodyRemoteId,
+            })
             .SingleOrDefaultAsync(cancellationToken);
         if (workflow is null)
         {
             return null;
         }
 
+        // The report is made from one work, and is referenced as that work's
+        // report: a. + the Case/PO for the Audit work (Our Ref, file name,
+        // email subject), the Case/PO itself otherwise.
+        var selectedWork = (await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken)).Select(work);
+        var reportReference = CaseReferenceFormat.ReportReference(
+            new CaseIdentity(
+                caseId,
+                workflow.PrincipalCode,
+                workflow.Year,
+                workflow.Sequence,
+                workflow.Reference,
+                workflow.AuditReference),
+            selectedWork.Kind);
+
         var workspace = await getAssessmentWorkspace.ExecuteAsync(
-            new(caseId, actor),
+            new(caseId, actor, work),
             cancellationToken);
         if (workspace is null)
         {
@@ -93,7 +123,8 @@ internal sealed class EfAssessmentReportProjectionSource(
                 new ManagedDocumentContentAddress(
                     caseId,
                     workspace.Header.Reference,
-                    workspace.Header.CaseRootRemoteId,
+                    CaseCustodyFolders.RootOf(
+                        pair.Row.Folder, workflow.CustodyRootRemoteId, workflow.AuditCustodyRemoteId),
                     pair.Row.OccurrenceId,
                     pair.Row.Ordinal,
                     pair.Row.DocumentId,
@@ -125,13 +156,13 @@ internal sealed class EfAssessmentReportProjectionSource(
                 pair.Image.FullPage))
             .ToArray();
 
-        var applied = await listAppliedValuations.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
+        var applied = await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
         var latestApplied = applied
             .OrderByDescending(valuation => valuation.AcceptedAtUtc)
             .FirstOrDefault();
-        var guides = await GuidesOfAsync(context, caseId, cancellationToken);
+        var guides = await GuidesOfAsync(context, selectedWork.Id, cancellationToken);
         var wording = await context.CaseReportWordings.AsNoTracking()
-            .Where(item => item.WorkId == caseId)
+            .Where(item => item.WorkId == selectedWork.Id)
             .OrderBy(item => item.BlockKey)
             .Select(item => new CaseReportWording(
                 item.BlockKey, item.Title, item.Text, item.Order, item.Included, item.Manual))
@@ -143,7 +174,7 @@ internal sealed class EfAssessmentReportProjectionSource(
         var projection = new AssessmentReportProjectionInput(
             workspace.Assessment,
             workspace.Data.Claimant.Name.Current?.Value,
-            workspace.Header.Reference,
+            reportReference,
             workspace.Data.Claim.Number.Current?.Value,
             [workspace.Header.Principal],
             ReportDate: null,
@@ -178,7 +209,11 @@ internal sealed class EfAssessmentReportProjectionSource(
             .SingleAsync(cancellationToken);
         CaseEditAuthority.RequireVersion(caseId, currentVersion, workflow.Version);
         return new CaseReportFreezeInputs(
-            projection, readiness, workspace.Header.Reference, workflow.Version);
+            projection, readiness, reportReference, workflow.Version)
+        {
+            WorkId = selectedWork.Id,
+            WorkKind = selectedWork.Kind,
+        };
     }
 
     /// <summary>
@@ -186,11 +221,11 @@ internal sealed class EfAssessmentReportProjectionSource(
     /// these decide the report's source-aware guide wording.
     /// </summary>
     private static async Task<ReportGuideSources> GuidesOfAsync(
-        PegasusDbContext context, Guid caseId, CancellationToken cancellationToken)
+        PegasusDbContext context, Guid workId, CancellationToken cancellationToken)
     {
         var names = await context.CaseValuations
             .AsNoTracking()
-            .Where(item => item.WorkId == caseId)
+            .Where(item => item.WorkId == workId)
             .Select(item => item.Source)
             .Distinct()
             .ToArrayAsync(cancellationToken);
@@ -213,6 +248,8 @@ internal sealed class EfAssessmentReportProjectionSource(
         (from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
          join version in context.Set<DocumentVersionEntity>().AsNoTracking()
              on occurrence.VersionId equals version.Id
+         join document in context.Set<CaseDocumentEntity>().AsNoTracking()
+             on occurrence.DocumentId equals document.Id
          where occurrence.CaseId == caseId
                && version.DocumentId == occurrence.DocumentId
                && version.IsCurrent
@@ -224,7 +261,8 @@ internal sealed class EfAssessmentReportProjectionSource(
          select new ConfirmedDocumentRow(
              occurrence.Id, occurrence.Ordinal, occurrence.DocumentId, occurrence.SemanticRole,
              version.Id, version.Version, version.FileName, version.MediaType,
-             version.ContentLength, version.Sha256, version.BoxFileId, version.BoxVersionId))
+             version.ContentLength, version.Sha256, version.BoxFileId, version.BoxVersionId,
+             document.CustodyFolder))
         .ToArrayAsync(cancellationToken);
 
     internal static AcceptedReportSource[] ReportSources(IEnumerable<ConfirmedDocumentRow> confirmed) =>
@@ -251,5 +289,6 @@ internal sealed class EfAssessmentReportProjectionSource(
         long ContentLength,
         string Sha256,
         string? BoxFileId,
-        string? BoxVersionId);
+        string? BoxVersionId,
+        string Folder);
 }

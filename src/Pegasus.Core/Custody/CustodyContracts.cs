@@ -738,6 +738,13 @@ public interface IProcessQueuedCustody
 }
 
 public enum CaseArtifactCustodyDisposition { Confirmed, Pending, Failed, Unknown }
+
+/// <summary>
+/// Which of a Case's Box folders a retained artifact is filed in: the Case
+/// folder, or the <c>a.</c> folder of an Inspection + Audit Case's Audit.
+/// </summary>
+public enum CaseCustodyFolder { Case, Audit }
+
 public sealed record CaseArtifactCustodyRequest(
     ActionActor Actor, Guid? CaseId, Guid? IntakeReceiptId, string OccurrenceIdentity,
     string OperationKey, string FileName, string MediaType, long ContentLength,
@@ -745,7 +752,8 @@ public sealed record CaseArtifactCustodyRequest(
     DocumentSemanticRole SemanticRole = DocumentSemanticRole.OriginalSource,
     DocumentSource Source = DocumentSource.Generated,
     long? ExpectedCaseVersion = null,
-    bool IsAutomaticIntakeEvidencePromotion = false);
+    bool IsAutomaticIntakeEvidencePromotion = false,
+    CaseCustodyFolder Folder = CaseCustodyFolder.Case);
 public sealed record CaseArtifactCustodyResult(
     CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId, Guid? OccurrenceId,
     string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,

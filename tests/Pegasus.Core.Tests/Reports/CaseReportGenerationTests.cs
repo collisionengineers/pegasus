@@ -4,6 +4,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Tests.Reports;
@@ -739,11 +740,11 @@ public sealed class CaseReportGenerationTests
             Task.FromResult<CaseReportGenerationRecord?>(Record(CaseReportArtifactKind.AssessmentReport));
 
         public Task<CaseReportGenerationRecord?> GetCurrentAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportGenerationRecord?>(Record(CaseReportArtifactKind.AssessmentReport));
 
         public Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseReportGenerationRecord>>(
                 [Record(CaseReportArtifactKind.AssessmentReport)]);
 

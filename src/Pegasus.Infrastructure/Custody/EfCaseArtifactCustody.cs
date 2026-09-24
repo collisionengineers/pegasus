@@ -196,7 +196,8 @@ internal sealed class EfCaseArtifactCustody(
             Id = Guid.NewGuid(),
             CaseId = caseId,
             Ordinal = checked(lastOrdinal + 1),
-            SourceOccurrenceIdentity = request.OccurrenceIdentity
+            SourceOccurrenceIdentity = request.OccurrenceIdentity,
+            CustodyFolder = CaseCustodyFolders.ToCode(request.Folder)
         } : await db.Set<CaseDocumentEntity>().SingleAsync(
             value => value.Id == existing.Version.DocumentId, cancellationToken);
         var version = existing?.Version ?? new DocumentVersionEntity
@@ -243,9 +244,13 @@ internal sealed class EfCaseArtifactCustody(
         }
         if (initialWriteTransaction is not null)
             await initialWriteTransaction.CommitAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(caseEntity.CustodyRootRemoteId))
+        // A document is filed in its own folder; the Audit's a. folder may
+        // not exist yet, and reconciliation files the document once it does.
+        var auditFolder = string.Equals(document.CustodyFolder, CaseCustodyFolders.Audit, StringComparison.Ordinal);
+        var folderRoot = CaseCustodyFolders.RootOf(caseEntity, document.CustodyFolder);
+        if (string.IsNullOrWhiteSpace(folderRoot))
         {
-            return Pending(version, occurrence.Id, "case_custody_pending");
+            return Pending(version, occurrence.Id, auditFolder ? "audit_custody_pending" : "case_custody_pending");
         }
 
         if (request.IsAutomaticIntakeEvidencePromotion
@@ -260,7 +265,7 @@ internal sealed class EfCaseArtifactCustody(
         var address = new ManagedDocumentContentAddress(
             caseId,
             caseEntity.Reference,
-            caseEntity.CustodyRootRemoteId,
+            folderRoot,
             occurrence.Id,
             occurrence.Ordinal,
             document.Id,
@@ -289,7 +294,9 @@ internal sealed class EfCaseArtifactCustody(
                 && value.CustodyStatus == DocumentCustodyStatus.Pending
                 && value.PendingContentStorageKey == pendingContentStorageKey
                 && db.Cases.Any(caseValue => caseValue.Id == caseId
-                    && caseValue.CustodyRootRemoteId == capturedRoot)
+                    && (auditFolder
+                        ? caseValue.AuditCustodyRemoteId == capturedRoot
+                        : caseValue.CustodyRootRemoteId == capturedRoot))
                 && (!request.IsAutomaticIntakeEvidencePromotion || db.CaseWorkflows.Any(workflow =>
                     workflow.CaseId == caseId
                     && workflow.Version == request.ExpectedCaseVersion!.Value
@@ -891,7 +898,10 @@ public sealed class ReconcilePendingArtifactCustody
         var confirmed = 0; var retained = 0; var failures = 0;
         foreach (var candidate in candidates)
         {
-            if (string.IsNullOrWhiteSpace(candidate.Case.CustodyRootRemoteId))
+            var auditFolder = string.Equals(
+                candidate.Document.CustodyFolder, CaseCustodyFolders.Audit, StringComparison.Ordinal);
+            var folderRoot = CaseCustodyFolders.RootOf(candidate.Case, candidate.Document.CustodyFolder);
+            if (string.IsNullOrWhiteSpace(folderRoot))
             {
                 await RecordAttemptAsync(candidate.Version.Id, "Retained", "CaseRootUnavailable");
                 retained++;
@@ -915,7 +925,7 @@ public sealed class ReconcilePendingArtifactCustody
                 var address = new ManagedDocumentContentAddress(
                     candidate.Case.Id,
                     candidate.Case.Reference,
-                    candidate.Case.CustodyRootRemoteId,
+                    folderRoot,
                     candidate.Occurrence.Id,
                     candidate.Occurrence.Ordinal,
                     candidate.Document.Id,
@@ -951,7 +961,9 @@ public sealed class ReconcilePendingArtifactCustody
                         && value.CustodyStatus == DocumentCustodyStatus.Pending
                         && value.PendingContentStorageKey == candidate.Version.PendingContentStorageKey
                         && update.Cases.Any(caseValue => caseValue.Id == candidate.Case.Id
-                            && caseValue.CustodyRootRemoteId == candidate.Case.CustodyRootRemoteId))
+                            && (auditFolder
+                                ? caseValue.AuditCustodyRemoteId == folderRoot
+                                : caseValue.CustodyRootRemoteId == folderRoot)))
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(value => value.BoxFileId, write.RemoteId)
                         .SetProperty(value => value.BoxVersionId, write.BoxVersionId)
