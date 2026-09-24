@@ -1155,10 +1155,13 @@
 
             // A hidden input (the antiforgery token) matches the selector but
             // cannot take focus; focusing it leaves focus on the invoking control,
-            // which is about to become inert and lose it to body.
+            // which is about to become inert and lose it to body. Links are
+            // a[href]: a bare [href] also matched an icon's SVG <use>, which
+            // then stood as the last control, so Tab from a last icon button
+            // left the dialog instead of wrapping.
             function focusable() {
                 return Array.prototype.filter.call(
-                    dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                    dialog.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
                     function (element) {
                         return !element.disabled && !element.hidden && element.type !== 'hidden' && element.getClientRects().length > 0;
                     });

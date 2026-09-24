@@ -1597,6 +1597,9 @@ public static class OperatorLabels
     public static class StaffMail
     {
         public const string Reconcile = "Reconcile";
+        public const string Reply = "Reply";
+        public const string ReplyAll = "Reply all";
+        public const string Forward = "Forward";
 
         public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
         {
