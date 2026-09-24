@@ -171,5 +171,12 @@ public sealed class GetV1ActivityReport(IV1ActivityReportQueries queries)
         || row.AgreedFeeTotal < 0
         || row.ArtifactTypes is null
         || row.ArtifactTypes.Any(x => string.IsNullOrWhiteSpace(x.Kind)
-            || x.Generated < 0 || x.PendingOrFailed < 0);
+            || x.Generated < 0 || x.PendingOrFailed < 0)
+        // MI-02's Audit share is part of each total.
+        || row.AuditReportsProduced < 0
+        || row.AuditReportsProduced > row.ReportsProduced
+        || row.AuditSent < 0
+        || row.AuditSent > row.Sent
+        || row.AuditAgreedFeeTotal < 0
+        || row.AuditAgreedFeeTotal > row.AgreedFeeTotal;
 }

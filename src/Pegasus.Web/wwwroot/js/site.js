@@ -2452,6 +2452,14 @@ window.pegasusPreferences = (function () {
         target.replaceChildren(template.content.cloneNode(true));
         var url = new URL(window.location.href);
         url.searchParams.set('selected', row.getAttribute('data-select-id') || row.getAttribute('data-select-href'));
+        // Two rows of one record (an Inspection + Audit Case's two Search
+        // entries) are told apart by data-select-view.
+        var view = row.getAttribute('data-select-view');
+        if (view) {
+            url.searchParams.set('selectedView', view);
+        } else {
+            url.searchParams.delete('selectedView');
+        }
         window.history.replaceState(null, '', url.toString());
         if (moveFocus) {
             row.focus();

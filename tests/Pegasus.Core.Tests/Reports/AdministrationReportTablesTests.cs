@@ -21,9 +21,15 @@ public sealed class AdministrationReportTablesTests
                 TimeSpan.FromHours(20), TimeSpan.FromHours(21), TimeSpan.FromHours(22), TimeSpan.FromHours(40),
                 0, null, 1, From, 0,
                 [new("AssessmentReport", 2, 0), new("FeeNote", 1, 0)],
-                AgreedFeeTotal: 250m)
+                AgreedFeeTotal: 250m,
+                AuditReportsProduced: 1,
+                AuditSent: 1,
+                AuditAgreedFeeTotal: 100m)
         ]);
-        var monthly = new List<MonthlyReportActivity> { new(Guid.NewGuid(), "QDOS", 2026, 8, 2, 1, 2, 250m) };
+        var monthly = new List<MonthlyReportActivity>
+        {
+            new(Guid.NewGuid(), "QDOS", 2026, 8, 2, 1, 2, 250m, AuditReportsGenerated: 1, AuditSent: 1, AuditAgreedFeeTotal: 100m)
+        };
 
         var sheets = AdministrationReportTables.Build(engineer, principal, monthly);
 
@@ -35,11 +41,30 @@ public sealed class AdministrationReportTablesTests
         Assert.True(engineerSheet.Totals);
         Assert.Equal(["alex", 3, 1, 1, 4, 2, TimeSpan.FromHours(30)], engineerSheet.Rows.Single());
 
+        // MI-02: each total sits beside its Inspection and Audit split.
         var byPrincipal = sheets[1];
-        Assert.Equal(WorkbookColumnKind.Money, byPrincipal.Columns[3].Kind);
-        Assert.Equal(["QDOS", 2, 2, 250m, "AssessmentReport 2; FeeNote 1"], byPrincipal.Rows.Single());
+        Assert.Equal(
+            [
+                "Principal",
+                "Reports produced", "Reports produced · Inspection", "Reports produced · Audit",
+                "Reports sent", "Reports sent · Inspection", "Reports sent · Audit",
+                "Agreed fees", "Agreed fees · Inspection", "Agreed fees · Audit",
+                "Report types"
+            ],
+            byPrincipal.Columns.Select(column => column.Title));
+        Assert.All(byPrincipal.Columns.Skip(7).Take(3), column => Assert.Equal(WorkbookColumnKind.Money, column.Kind));
+        Assert.Equal(["QDOS", 2, 1, 1, 2, 1, 1, 250m, 150m, 100m, "AssessmentReport 2; FeeNote 1"], byPrincipal.Rows.Single());
         Assert.False(sheets[2].Totals); // Averages and dates do not sum.
-        Assert.Equal(["Aug 2026", "QDOS", 2, 1, 2, 250m], sheets[3].Rows.Single());
+        Assert.Equal(
+            [
+                "Month", "Principal",
+                "Reports produced", "Reports produced · Inspection", "Reports produced · Audit",
+                "Fee notes produced",
+                "Reports sent", "Reports sent · Inspection", "Reports sent · Audit",
+                "Agreed fees", "Agreed fees · Inspection", "Agreed fees · Audit"
+            ],
+            sheets[3].Columns.Select(column => column.Title));
+        Assert.Equal(["Aug 2026", "QDOS", 2, 1, 1, 1, 2, 1, 1, 250m, 150m, 100m], sheets[3].Rows.Single());
         Assert.All(sheets, sheet => Assert.All(sheet.Rows, row => Assert.Equal(sheet.Columns.Count, row.Count)));
     }
 
@@ -91,7 +116,12 @@ public sealed class AdministrationReportTablesTests
             [new(Guid.Empty, "QDOS", 2026, 8, 0, 0, 0, 0)],
             [new(id, "QDOS", 2026, 8, -1, 0, 0, 0)],
             [new(id, "QDOS", 2026, 8, 0, 0, 0, -1)],
-            [new(id, "QDOS", 2026, 8, 0, 0, 0, 0), new(id, "QDOS", 2026, 8, 1, 0, 0, 0)]
+            [new(id, "QDOS", 2026, 8, 0, 0, 0, 0), new(id, "QDOS", 2026, 8, 1, 0, 0, 0)],
+            // MI-02's Audit share is part of each total.
+            [new(id, "QDOS", 2026, 8, 1, 0, 1, 10m, AuditReportsGenerated: 2)],
+            [new(id, "QDOS", 2026, 8, 1, 0, 1, 10m, AuditSent: 2)],
+            [new(id, "QDOS", 2026, 8, 1, 0, 1, 10m, AuditAgreedFeeTotal: 11m)],
+            [new(id, "QDOS", 2026, 8, 1, 0, 1, 10m, AuditReportsGenerated: -1)]
         ];
         var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 

@@ -197,10 +197,13 @@ else if (listingImages)
                             <tbody>
                                 @foreach (var row in Model.Rows)
                                 {
-                                    <tr data-select-href="@row.SelectHref" data-select-id="@row.Item.CaseId"
-                                        aria-selected="@(Model.SelectedId == row.Item.CaseId ? "true" : "false")">
+                                    @* An Inspection + Audit Case with its Audit is two
+                                       entries of the same Case; data-select-view tells
+                                       them apart. *@
+                                    <tr data-select-href="@row.SelectHref" data-select-id="@row.Item.CaseId" data-select-view="@row.View"
+                                        aria-selected="@(Model.SelectedId == row.Item.CaseId && Model.SelectedView == row.View ? "true" : "false")">
                                         <td>
-                                            <a class="table-row-link" href="@row.DetailHref">@row.Item.Reference</a>
+                                            <a class="table-row-link" href="@row.DetailHref">@row.Reference</a>
                                             @if (row.Item.ClaimNumber is { } providerReference)
                                             {
                                                 <span class="secondary">@providerReference</span>
