@@ -369,7 +369,7 @@ public static class OperatorLabels
         };
     }
 
-    /// <summary>The shell's own words (v26 shell): the rail foot, the bell and the working set.</summary>
+    /// <summary>The shell's own words (v26 shell): the rail foot and the bell.</summary>
     public static class Shell
     {
         public const string Collapse = "Collapse";
@@ -381,7 +381,6 @@ public static class OperatorLabels
         public const string NoNotifications = "No notifications";
         public const string MarkAllRead = "Mark all read";
         public const string Unread = "Unread";
-        public const string OpenRecords = "Open records";
         public const string AccessDenied = "Access denied";
         public const string AccessDeniedSentence = "Your account does not have access to this page.";
         public const string AdministrationDenied = "Administration is available to Administrators only.";

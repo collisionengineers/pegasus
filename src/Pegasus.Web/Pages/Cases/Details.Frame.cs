@@ -12,7 +12,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// <summary>
 /// The v26 frame of the Case record: the ribbon's facts and chips, the
 /// Actions menu's state-dependent items, per-section availability, the aside
-/// (Figures and Next action), the Audit link, and the working-set glyph. The
+/// (Figures and Next action) and the Audit link. The
 /// section-owned members live in their own partial files beside this one; the
 /// original <c>Details.cshtml.cs</c> keeps the handlers it already had.
 /// </summary>
@@ -155,14 +155,6 @@ public sealed partial class DetailsModel
         CaseType.InspectionAndAudit => "Inspection + Audit",
         _ => null
     };
-
-    /// <summary>The working-set glyph the record announces (v26 § Working set).</summary>
-    public string? WorkingSetGlyph =>
-        ColleagueIsEditing
-            ? WorkingSetRecord.Glyphs.LeaseColleague
-            : GlassSession is { } session && GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State)
-                ? WorkingSetRecord.Glyphs.GlassOpen
-                : null;
 
     /// <summary>
     /// The frame's extra reads: the Audit link, whether a report was ever

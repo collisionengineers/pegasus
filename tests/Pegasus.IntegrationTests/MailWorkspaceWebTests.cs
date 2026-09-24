@@ -1956,12 +1956,12 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
-    /// The message record carries Dismiss (Restore once dismissed), announces itself
-    /// to the working set as a message, and its Attachments tab states an outcome per
-    /// attachment in operator words with nothing linking to a receipt.
+    /// The message record carries Dismiss (Restore once dismissed), and its
+    /// Attachments tab states an outcome per attachment in operator words with
+    /// nothing linking to a receipt.
     /// </summary>
     [Fact]
-    public async Task TheMessageRecordDismissesAnnouncesItselfAndStatesAttachmentOutcomes()
+    public async Task TheMessageRecordDismissesAndStatesAttachmentOutcomes()
     {
         using var factory = new IntakeWebApplicationFactory();
         var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
@@ -1969,8 +1969,7 @@ public sealed class MailWorkspaceWebTests
 
         var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
         Assert.Contains("data-message-dismissal=\"dismiss\"", record, StringComparison.Ordinal);
-        Assert.Contains("data-record-kind=\"message\"", record, StringComparison.Ordinal);
-        Assert.Contains($"data-record-href=\"/Inbox/{messageId:D}\"", record, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-record-kind", record, StringComparison.Ordinal);
 
         var attachments = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=attachments");
         var table = Between(attachments, "data-message-attachments", "</table>");

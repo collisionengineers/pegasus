@@ -4,11 +4,6 @@
 @{
     var summary = Model.Detail.Summary;
     ViewData["Title"] = Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary);
-    // A message joins the working set with its subject as the tab reference and no registration.
-    ViewData["WorkingSetRecord"] = new WorkingSetRecord(
-        $"/Inbox/{summary.Id:D}",
-        WorkingSetRecord.Kinds.Message,
-        Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary));
     var dossier = Model.Detail.Classification;
     var isClassified = Model.Detail.ClassificationOutcome == Pegasus.Core.Intake.MailClassificationOutcome.Classified;
 }

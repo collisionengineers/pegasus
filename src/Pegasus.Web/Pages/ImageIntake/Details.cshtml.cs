@@ -173,11 +173,6 @@ public sealed class DetailsModel(
                 cancellationToken))?.Summary.Id;
         }
 
-        ViewData["WorkingSetRecord"] = new Pegasus.Web.Presentation.WorkingSetRecord(
-            $"/VehicleImages/{id:D}",
-            Pegasus.Web.Presentation.WorkingSetRecord.Kinds.Image,
-            detail.Record.ImageIntakeReference,
-            detail.Record.NormalizedVehicleRegistration);
         return Page();
     }
 

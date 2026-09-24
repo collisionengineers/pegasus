@@ -20,7 +20,7 @@
 
 /* Sections are panels; the head carries the title, an optional meta and the
    actions cluster (primary, menu, Edit, availability, collapse). */
-.record-section.panel{scroll-margin-top:calc(var(--utility-h) + var(--tabs-h) + var(--sticky-h,97px) + 8px)}
+.record-section.panel{scroll-margin-top:calc(var(--utility-h) + var(--sticky-h,97px) + 8px)}
 .record-section>.panel-head>.meta{font-size:12px;color:var(--quiet);font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .record-section .panel-actions form{display:contents}
 .record-section .panel-actions .btn--small .icon{width:13px;height:13px}
@@ -401,7 +401,7 @@
 /* Full-screen presentation (v25 C4): the section covers the viewport and the
    shell's fixed rows hide behind it; Escape restores. */
 body.has-expanded{overflow:hidden}
-body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded .workspace-tabs,body.has-expanded .app-rail{visibility:hidden}
+body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded .app-rail{visibility:hidden}
 #section-estimate.is-expanded{background:var(--surface)}
 #section-estimate.is-expanded>.panel-head{background:var(--surface-2)}
 #section-estimate.is-expanded .grid table{min-width:0}

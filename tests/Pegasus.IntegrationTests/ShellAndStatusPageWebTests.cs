@@ -45,14 +45,15 @@ public sealed class ShellAndStatusPageWebTests
         Assert.DoesNotContain("Intake unavailable", html, StringComparison.Ordinal);
         Assert.DoesNotContain("nav-link--unavailable", html, StringComparison.Ordinal);
 
-        // v26 shell: the Collapse control at the rail's foot, the working-set
-        // strip rendered empty for site.js (no Work Centre tab, no "+ Open"),
-        // and the bell in the utility bar.
+        // v26 shell: the Collapse control at the rail's foot and the bell in
+        // the utility bar. The working-set strip is removed from every page
+        // (v29): no strip, no tabs and no record announcement on main.
         Assert.Contains("data-rail-toggle", html, StringComparison.Ordinal);
         Assert.Contains(">Collapse<", html, StringComparison.Ordinal);
-        Assert.Contains("data-working-set hidden", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-working-set", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-workspace-open", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("class=\"workspace-tab\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("workspace-tab", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-record-kind", html, StringComparison.Ordinal);
         Assert.Contains("data-dialog-open=\"notifications-dialog\"", html, StringComparison.Ordinal);
         Assert.Contains("data-dialog=\"notifications-dialog\"", html, StringComparison.Ordinal);
     }
@@ -90,28 +91,6 @@ public sealed class ShellAndStatusPageWebTests
             var bytes = await imageResponse.Content.ReadAsByteArrayAsync();
             Assert.Equal(frame.Hash, Convert.ToHexString(SHA256.HashData(bytes)));
         }
-    }
-
-    [Fact]
-    public async Task ARecordPageAnnouncesItselfToTheWorkingSetAndOtherPagesDoNot()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        var workCentre = await client.GetStringAsync("/");
-        Assert.DoesNotContain("data-record-kind", workCentre, StringComparison.Ordinal);
-        Assert.Contains("<main id=\"main-content\" class=\"app-main\"", workCentre, StringComparison.Ordinal);
-
-        // The Case record joins the working set with its reference in bold and
-        // its registration in mono; site.js reads exactly these attributes.
-        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
-        using var record = await client.GetAsync($"/Cases/{caseId:D}");
-        record.EnsureSuccessStatusCode();
-        var html = await record.Content.ReadAsStringAsync();
-        Assert.Contains($"data-record-href=\"/Cases/{caseId:D}\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-record-kind=\"case\"", html, StringComparison.Ordinal);
-        Assert.Matches("data-record-ref=\"[^\"]+\"", html);
-        Assert.DoesNotContain("data-record-ref=\"\"", html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -87,7 +87,7 @@ public sealed class ImageIntakeWebTests
         Assert.DoesNotContain("Open in Box", imageIntakePage, StringComparison.Ordinal);
         // This receipt never opened a Triage, so the record has nothing to link to.
         Assert.DoesNotContain("Open Triage", imageIntakePage, StringComparison.Ordinal);
-        Assert.Contains("data-record-kind=\"image\"", imageIntakePage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-record-kind", imageIntakePage, StringComparison.Ordinal);
     }
 
     [Fact]
