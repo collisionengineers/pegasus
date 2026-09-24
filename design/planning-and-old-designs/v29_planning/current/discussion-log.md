@@ -114,3 +114,17 @@ edit session's, where it shortens the claimant and Engineer (p24).
 
 **Items raised:** AA, the choice among the five, with the new labels the
 chosen one brings.
+
+## 24 September 2026: option 4 chosen, Stage 2 to proceed
+
+**What the operator said.**
+
+> option 4 in the aside seems most suitable - proceed with this.
+>
+> note that this doesnt need to show unless there are "sub cases" like the
+> audit already existing, therefore the container itself doesn't need to show
+> until the audit has actually been created for the case.
+
+**What changed.** AA is settled: the Views card in the aside, rendered only
+once the Case's Audit exists. Stage 2 proceeds. Any item still open takes the
+default this list proposed, and the Stage 2 report names each one.

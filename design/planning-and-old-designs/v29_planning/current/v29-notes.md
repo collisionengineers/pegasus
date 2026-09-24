@@ -212,17 +212,14 @@ unless the item names a variant. Settled items keep their letter.
 - **Y. The Cases list's Triage quick detail** keeps its "Open Triage" button,
   which now opens `/Cases/{id}` (p16). Confirm.
 - *Z (first pass, "Our ref" on the Triage page) is withdrawn under P.*
-- **AA. How the views are shown.** Choose one of the five options in
-  [section 1a](#1a-five-ways-to-show-the-audit-and-inspection-views-item-aa):
-  1. view tabs in the strip (the default);
-  2. a ribbon switch;
-  3. a section-row switch;
-  4. a Views card in the aside;
-  5. compare in place.
-
-  Options 2 to 5 add labels: "View" (2), "Views" (4), and "Changed from
-  Inspection" plus the "Inspection" value line (5). Confirm the wording of the
-  one you choose.
+- **AA.** *Settled 24 September:* option 4, the **Views** card at the head of
+  the aside (p27, p28).
+  - The card, and so any way to switch, exists only once a Case has more than
+    one view, that is once its Audit has been created. Before that the Case
+    shows no card.
+  - No strip replaces the working set.
+  - The "View" and "Changed from Inspection" wording belonged to options 2 and 5
+    and is not used.
 
 ## 7. Self-check
 
@@ -293,3 +290,5 @@ found these differences between live and the FRDs:
   and P are settled.
 - 24 September 2026, third pass: four other ways to show the views, set out
   beside the strip tabs as item AA (section 1a).
+- 24 September 2026: the operator chose option 4 (AA settled) and asked Stage 2
+  to proceed.
