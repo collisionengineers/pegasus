@@ -493,8 +493,6 @@ internal sealed class EfIntakeMutationStore(
                         "The intake receipt already has an active manual case association.");
                 }
 
-                await EnforceImageIntakeEligibilityAsync(context, receipt.Id, @case.Id, token);
-
                 if (receipt.ManualAssociation is null)
                 {
                     receipt.ManualAssociation = new IntakeManualAssociationEntity
@@ -845,44 +843,6 @@ internal sealed class EfIntakeMutationStore(
         }
     }
 
-    /// <summary>
-    /// Once a receipt carries a registered Image intake, every new case
-    /// association must satisfy the Image-intake eligibility rule (editable
-    /// pre-report state, no report-sent evidence). Reversal stays available.
-    /// </summary>
-    private static async Task EnforceImageIntakeEligibilityAsync(
-        PegasusDbContext context,
-        Guid receiptId,
-        Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        var hasImageIntake = await context.ImageIntakes
-            .AsNoTracking()
-            .AnyAsync(item => item.OriginReceiptId == receiptId, cancellationToken);
-        if (!hasImageIntake)
-        {
-            return;
-        }
-
-        var workflow = await context.CaseWorkflows
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .Select(item => new { item.State, item.ReportSentEvidenceId })
-            .SingleOrDefaultAsync(cancellationToken)
-            ?? throw new KeyNotFoundException("The case does not exist.");
-        if (!Enum.TryParse<CaseLifecycleState>(workflow.State, ignoreCase: false, out var state))
-        {
-            throw new InvalidDataException($"Case '{caseId}' has an unrecognized lifecycle state.");
-        }
-
-        if (!ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(
-                state,
-                workflow.ReportSentEvidenceId is not null))
-        {
-            throw new ImageIntakeCaseNotEligibleException(caseId);
-        }
-    }
-
     private async Task<IntakeReceipt> ExecuteAsync(
         Guid receiptId,
         long expectedVersion,
@@ -962,40 +922,40 @@ internal sealed class EfIntakeMutationStore(
         }
 
         CaseEntity? @case = null;
-        CaseWorkflowEntity? caseWorkflow = null;
+        CaseMutationAuthority? caseAuthority = null;
         long? beforeCaseVersion = null;
         if (expectedCaseId is { } caseId)
         {
-            caseWorkflow = await context.CaseWorkflows
-                .Include(item => item.Case)
-                .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            // A staff link reaches every Case in any lifecycle state and every
+            // Triage Case (operator, 24 September 2026); a Triage Case answers
+            // through its Triage version and edit scope.
+            caseAuthority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
                 ?? throw new KeyNotFoundException("The case does not exist.");
-            CaseMutationGuard.Require(
-                caseWorkflow,
+            await caseAuthority.RequireStaffAuthorityAsync(
+                context,
                 actor,
                 expectedCaseVersion
                     ?? throw new InvalidOperationException("An expected case version is required."),
                 editLeaseToken
                     ?? throw new InvalidOperationException("A case edit lease token is required."),
-                occurredAtUtc);
+                occurredAtUtc,
+                anyLifecycleState: eventType == "intake_case_linked",
+                cancellationToken);
             if (eventType == "intake_case_linked")
             {
                 var sourceReceipt = EfIntakeReceiptStore.Map(receipt, false, acceptedCaseId);
-                if (!Enum.TryParse<CaseLifecycleState>(caseWorkflow.State, false, out var state)
-                    || !IntakeAssociationDestinationPolicy.CanOffer(sourceReceipt)
-                    || !IntakeAssociationDestinationPolicy.IsViable(
-                        sourceReceipt,
-                        state,
-                        caseWorkflow.ArchivedAtUtc is not null,
-                        caseWorkflow.ReportSentEvidenceId is not null))
+                if (!IntakeAssociationDestinationPolicy.CanOffer(sourceReceipt)
+                    || (caseAuthority.Workflow is { } linkWorkflow
+                        && !IntakeAssociationDestinationPolicy.IsViable(linkWorkflow.ArchivedAtUtc is not null)))
                 {
                     throw new IntakeAssociationConflictException(
                         "The selected case is not currently available for this retained source.");
                 }
             }
-            @case = caseWorkflow.Case;
-            beforeCaseVersion = caseWorkflow.Version;
+            @case = caseAuthority.Case;
+            beforeCaseVersion = caseAuthority.Version;
         }
+        var caseWorkflow = caseAuthority?.Workflow;
 
 
         var beforeVersion = receipt.Version;
@@ -1022,8 +982,8 @@ internal sealed class EfIntakeMutationStore(
                     ? null
                     : nameof(CaseClosureOutcome.PostReportComplete);
             }
-            CaseMutationGuard.Complete(caseWorkflow);
         }
+        caseAuthority?.CompleteStaffMutation(context);
         if (caseWorkflow is not null && beforeCaseVersion is not null)
         {
             if (observedReply is not null)
@@ -1072,7 +1032,7 @@ internal sealed class EfIntakeMutationStore(
             AfterIntakeVersion = receipt.Version,
             ExpectedCaseVersion = expectedCaseVersion,
             BeforeCaseVersion = beforeCaseVersion,
-            AfterCaseVersion = caseWorkflow?.Version,
+            AfterCaseVersion = caseAuthority?.Version,
             BeforeJson = beforeJson,
             AfterJson = Snapshot(receipt)
         });

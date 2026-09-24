@@ -29,7 +29,7 @@ public sealed class TriageFromIntakeIntegrationTests
         var services = scope.ServiceProvider;
         var queries = services.GetRequiredService<IIntakeReceiptQueries>();
         var original = Assert.IsType<IntakeReceipt>(await queries.GetAsync(receiptId, CancellationToken.None));
-        var first = Assert.Single(await services.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
+        Assert.Single(await services.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
         var store = services.GetRequiredService<ITriageStore>();
         var copies = new List<TriageRecord>();
         // Persisted-state probes reuse the original's evidence and typed values;
@@ -48,24 +48,30 @@ public sealed class TriageFromIntakeIntegrationTests
                 "VO75DFJ", Assert.Single(copy.Evidence, item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch),
                 ActionActor.SystemWorker("triage-recovery-fixture"), $"triage-recovery-create:{index}"), CancellationToken.None));
         }
-        var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(services, copies[1].Origin.ReceiptId);
+        var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(services, copies[1].Origin!.ReceiptId);
         await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
-        var originalPrincipal = (await context.Triage.AsNoTracking().SingleAsync(item => item.Id == first.Id)).PrincipalId;
-        await context.Triage.Where(item => item.Id == first.Id)
-            .ExecuteUpdateAsync(update => update.SetProperty(item => item.PrincipalId, (Guid?)null));
-        await context.InstructionDrafts.Where(item => item.IntakeReceiptId == copies[0].Origin.ReceiptId)
+        // A Triage Case always has its Principal; what can be unknown is the
+        // origin's own Principal statement, which the match reads again.
+        var firstReceiptId = receiptId;
+        var originalPrincipalCode = (await context.InstructionDrafts.AsNoTracking()
+            .SingleAsync(item => item.IntakeReceiptId == firstReceiptId)).SuggestedPrincipalCode;
+        await context.InstructionDrafts.Where(item => item.IntakeReceiptId == firstReceiptId)
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.SuggestedPrincipalCode, (string?)null));
+        await context.InstructionDrafts.Where(item => item.IntakeReceiptId == copies[0].Origin!.ReceiptId)
             .ExecuteUpdateAsync(update => update.SetProperty(item => item.VehicleRegistration, "PG18BTY"));
         var eligible = Assert.Single(await store.ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
-        Assert.Equal(copies[1].Id, eligible.TriageId);
-        Assert.Equal(caseId, eligible.CaseId);
+        Assert.Equal(copies[1].CaseId, eligible.CaseId);
+        Assert.Equal(caseId, eligible.InstructionCaseId);
         var pairing = services.GetRequiredService<ITriageCasePairing>();
         Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
         Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
-        await context.Triage.Where(item => item.Id == first.Id)
-            .ExecuteUpdateAsync(update => update.SetProperty(item => item.PrincipalId, originalPrincipal));
+        await context.InstructionDrafts.Where(item => item.IntakeReceiptId == firstReceiptId)
+            .ExecuteUpdateAsync(update => update.SetProperty(item => item.SuggestedPrincipalCode, originalPrincipalCode));
         Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
-        Assert.Null((await context.Triage.AsNoTracking().SingleAsync(item => item.Id == copies[0].Id)).LinkedCaseId);
-        Assert.Equal(1, await context.Cases.CountAsync());
+        Assert.Null((await context.Triage.AsNoTracking().SingleAsync(item => item.CaseId == copies[0].CaseId)).LinkedInstructionCaseId);
+        // One instructed Case; the three Triage Cases are Cases too.
+        Assert.Equal(1, await context.Cases.CountAsync(item => item.Type != CaseTypeCodes.Triage));
+        Assert.Equal(3, await context.Cases.CountAsync(item => item.Type == CaseTypeCodes.Triage));
     }
 
     [Fact]
@@ -95,9 +101,9 @@ public sealed class TriageFromIntakeIntegrationTests
                 .ListAsync(null, CancellationToken.None));
         var detail = Assert.IsType<TriageDetail>(
             await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
-                .GetAsync(triage.Id, CancellationToken.None));
+                .GetAsync(triage.CaseId, CancellationToken.None));
 
-        Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
+        Assert.Equal(receiptId, detail.Record.Origin?.ReceiptId);
         Assert.Equal("VO75DFJ", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
         var created = Assert.Single(detail.History, item => item.EventType == "triage_created");
@@ -272,9 +278,9 @@ public sealed class TriageFromIntakeIntegrationTests
                 .ListAsync(null, CancellationToken.None));
         var detail = Assert.IsType<TriageDetail>(
             await after.ServiceProvider.GetRequiredService<ITriageQueries>()
-                .GetAsync(triage.Id, CancellationToken.None));
+                .GetAsync(triage.CaseId, CancellationToken.None));
 
-        Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
+        Assert.Equal(receiptId, detail.Record.Origin?.ReceiptId);
         Assert.Equal("VN64WNG", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
 
@@ -286,7 +292,7 @@ public sealed class TriageFromIntakeIntegrationTests
                 UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
         Assert.Equal(UnidentifiedState.Resolved, resolved.State);
         Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolved.ResolutionTargetKind);
-        Assert.Equal(triage.Id.ToString("N"), resolved.ResolutionTargetId);
+        Assert.Equal(triage.CaseId.ToString("N"), resolved.ResolutionTargetId);
         Assert.Equal("VN64WNG", resolved.ResolutionTargetReference);
         Assert.Contains(
             await unidentifiedStore.HistoryAsync(resolved.Id, CancellationToken.None),

@@ -386,7 +386,7 @@ public sealed class TriageQueuesWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         // The provider's claim number, which used to be what the row called
-        // the reference. The row's reference is now the Triage's own.
+        // the reference. The row's reference is now the Triage Case's Case/PO.
         const string claimNumber = "TRIAGE-032";
         const string registration = "TR32AGE";
         const string provider = "QDOS";
@@ -431,11 +431,11 @@ public sealed class TriageQueuesWebTests
             CancellationToken.None);
         var actor = StaffActor();
         var triageEditLeaseToken = (await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.Triage, triage.Id, triage.Version, actor,
+            new(EditScopeKind.Triage, triage.CaseId, triage.Version, actor,
                 $"triage-assign-edit:{Guid.NewGuid():N}"), CancellationToken.None)).Token;
         await services.GetRequiredService<IAssignTriage>().ExecuteAsync(
             new(
-                triage.Id,
+                triage.CaseId,
                 triage.Version,
                 DevelopmentOfflineIdentity.AdministratorId,
                 actor,
@@ -450,9 +450,11 @@ public sealed class TriageQueuesWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        const string triageReference = "T-00001";
+        // The factory clock is in 2031: the first QDOS Case/PO of the year.
+        const string triageReference = "t.QDOS31001";
         Assert.Equal(triageReference, triage.Reference);
         Assert.Contains(triageReference, html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{triage.CaseId:D}", html, StringComparison.Ordinal);
         Assert.Contains(registration, html, StringComparison.Ordinal);
         Assert.Contains(provider, html, StringComparison.Ordinal);
         // The table gives Provider and Assignee their own cells.

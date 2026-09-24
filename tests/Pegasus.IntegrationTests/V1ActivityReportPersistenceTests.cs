@@ -24,6 +24,7 @@ public sealed class V1ActivityReportPersistenceTests
             var principal = await SeededPrincipals.QdosAsync(context);
             var receiptId = Guid.NewGuid();
             var caseId = Guid.NewGuid();
+            var triageCaseId = Guid.NewGuid();
             var generationId = Guid.NewGuid();
             var priorGenerationId = Guid.NewGuid();
             var documentId = Guid.NewGuid();
@@ -70,12 +71,27 @@ public sealed class V1ActivityReportPersistenceTests
                     BeforeVersion = 0,
                     AfterVersion = 1
                 },
+                // A Triage is a Case of the same Principal: its Case row
+                // carries the Principal and the t. Case/PO.
+                new CaseEntity
+                {
+                    Id = triageCaseId,
+                    PrincipalId = principal.Id,
+                    SequenceLineageId = principal.SequenceLineageId,
+                    Year = 2031,
+                    Sequence = 2,
+                    Reference = "t.QDOS31002",
+                    Type = "triage",
+                    InitialState = null,
+                    CustodyState = "pending",
+                    OriginIntakeReceiptId = receiptId,
+                    CreatedAtUtc = From.AddDays(1),
+                    Version = 0,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
                 new TriageEntity
                 {
-                    Id = Guid.NewGuid(),
-                    Sequence = 1,
-                    Reference = "T-00001",
-                    PrincipalId = principal.Id,
+                    CaseId = triageCaseId,
                     OriginReceiptId = receiptId,
                     SourceChannel = "manual_upload",
                     ExternalReceiptToken = "triage:report-test",

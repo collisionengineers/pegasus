@@ -559,7 +559,7 @@ public sealed class EfCaseAcceptanceStore(
         _ => throw new InvalidOperationException($"Unknown CaseInitialState value '{(int)value}'.")
     };
 
-    private static CaseInitialState ParseInitialState(string value) => value switch
+    private static CaseInitialState ParseInitialState(string? value) => value switch
     {
         "not_ready" => CaseInitialState.NotReady,
         "review" => CaseInitialState.Review,

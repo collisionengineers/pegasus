@@ -41,16 +41,18 @@ public sealed partial class QdosTriageIntegrationTests
         var summary = Assert.Single(
             await triageQueries.ListAsync(null, CancellationToken.None));
         var detail = Assert.IsType<TriageDetail>(
-            await triageQueries.GetAsync(summary.Id, CancellationToken.None));
+            await triageQueries.GetAsync(summary.CaseId, CancellationToken.None));
         var evaluation = Assert.Single(
             await GetEvaluationRevisionsAsync(factory.Database, receiptId));
 
         Assert.Equal(1, evaluation.Revision);
-        Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
-        Assert.Equal(evaluation.Id, detail.Record.Origin.EvaluationRevisionId);
+        Assert.Equal(receiptId, detail.Record.Origin?.ReceiptId);
+        Assert.Equal(evaluation.Id, detail.Record.Origin?.EvaluationRevisionId);
         Assert.Equal("VO75DFJ", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
-        Assert.Null(detail.Record.LinkedCaseId);
+        Assert.Null(detail.Record.LinkedInstructionCaseId);
+        // The Triage Case takes the first QDOS Case/PO of the factory's year.
+        Assert.Equal("t.QDOS31001", detail.Record.Reference);
         Assert.Empty(detail.Findings);
         Assert.Empty(detail.ResponseEvidence);
         var created = Assert.Single(detail.History);
@@ -150,15 +152,21 @@ public sealed partial class QdosTriageIntegrationTests
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-lifecycle.eml");
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var triage = await GetOnlyTriageAsync(factory.Services);
-        var triageId = triage.Record.Id;
+        var triageId = triage.Record.CaseId;
         var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
 
-        using var detailResponse = await client.GetAsync($"/Triage/{triageId:D}");
+        using var detailResponse = await client.GetAsync($"/Cases/{triageId:D}");
         var detailHtml = await detailResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
         // The record is one container now: its registration and state are the
         // header, not a "Triage record" panel among stacked panels.
         Assert.Contains("class=\"record triage-record\"", detailHtml, StringComparison.Ordinal);
+        // A Triage Case has the Files every Case has, before its Notes.
+        var filesAt = detailHtml.IndexOf("id=\"section-files\"", StringComparison.Ordinal);
+        Assert.True(filesAt >= 0, "The Triage Case renders no Files panel.");
+        Assert.True(
+            filesAt < detailHtml.IndexOf(">Notes</h2>", StringComparison.Ordinal),
+            "The Files panel must come before Notes.");
         Assert.DoesNotContain(
             "name=\"caseEditLeaseToken\"",
             detailHtml,
@@ -169,7 +177,7 @@ public sealed partial class QdosTriageIntegrationTests
         // them is printed any more.
         Assert.DoesNotContain("Source SHA-256", detailHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Evaluation revision", detailHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(triage.Record.Origin.SourceHash, detailHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(triage.Record.Origin!.SourceHash, detailHtml, StringComparison.Ordinal);
 
         // Completion keeps its place with its condition named, rather than
         // disappearing until it happens to work.
@@ -391,7 +399,7 @@ public sealed partial class QdosTriageIntegrationTests
             unavailableCaseHtml,
             StringComparison.Ordinal);
         triage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Null(triage.Record.LinkedCaseId);
+        Assert.Null(triage.Record.LinkedInstructionCaseId);
         Assert.Equal(6, triage.Record.Version);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -413,7 +421,7 @@ public sealed partial class QdosTriageIntegrationTests
             "Associated later instruction",
             KeyValuePair.Create("caseId", caseId.ToString("D")));
         triage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Equal(caseId, triage.Record.LinkedCaseId);
+        Assert.Equal(caseId, triage.Record.LinkedInstructionCaseId);
         Assert.Equal(7, triage.Record.Version);
         _ = await PostActionAsync(
             client,
@@ -424,7 +432,7 @@ public sealed partial class QdosTriageIntegrationTests
             "Association corrected",
             KeyValuePair.Create("caseId", caseId.ToString("D")));
         triage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Null(triage.Record.LinkedCaseId);
+        Assert.Null(triage.Record.LinkedInstructionCaseId);
         Assert.Equal(8, triage.Record.Version);
         Assert.Equal(TriageState.Cancelled, triage.Record.State);
 
@@ -461,7 +469,7 @@ public sealed partial class QdosTriageIntegrationTests
             nameof(Pegasus.Core.Identity.ActorKind.SystemWorker),
             triage.History[0].ActorKind);
 
-        using var finalResponse = await client.GetAsync($"/Triage/{triageId:D}");
+        using var finalResponse = await client.GetAsync($"/Cases/{triageId:D}");
         var finalHtml = await finalResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, finalResponse.StatusCode);
         // The panel is named "Notes"; its entries are still the one permanent,
@@ -474,72 +482,40 @@ public sealed partial class QdosTriageIntegrationTests
     }
 
     /// <summary>
-    /// Triage gets the same optional-Principal correction Image
-    /// Intake already has (<c>ImageIntakeStore.SetPrincipalAsync</c>) — a
-    /// compact dialog, no reason, set/replace/clear through
-    /// <c>ISetTriagePrincipal</c> — with one deliberate difference: Triage's
-    /// write appends a <c>triage_principal_set</c> history entry, because
-    /// unlike Image Intake, the Triage timeline is the one place staff read
-    /// who acted and when.
+    /// A Triage Case's Principal is the Case's own, fixed when the Case is
+    /// created from the receipt that established it (decision T): the record
+    /// shows it and offers no Set principal correction.
     /// </summary>
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
-    public async Task StaffCanSetAndClearTheTriagePrincipalThroughTheDetailsDialog()
+    public async Task ATriageCaseCarriesItsCasePrincipalAndOffersNoPrincipalCorrection()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var alpha = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "ALPHA");
 
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-principal.eml");
         await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var triage = await GetOnlyTriageAsync(factory.Services);
-        var triageId = triage.Record.Id;
-        // The mailbox route already names the instructing Principal, so the
-        // dialog starts from that value rather than from `Not known`.
+        var triageId = triage.Record.CaseId;
 
-        using var detailResponse = await client.GetAsync($"/Triage/{triageId:D}");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+            var triageCase = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == triageId);
+            Assert.Equal(triageCase.PrincipalId, triage.Record.PrincipalId);
+            Assert.Equal(triageCase.Reference, triage.Record.Reference);
+            Assert.Equal(CaseTypeCodes.Triage, triageCase.Type);
+            Assert.Null(triageCase.InitialState);
+        }
+        Assert.Equal("QDOS", triage.PrincipalCode);
+
+        using var detailResponse = await client.GetAsync($"/Cases/{triageId:D}");
         var detailHtml = await detailResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
-        Assert.Contains(
-            "data-dialog-open=\"triage-principal-dialog\"",
-            detailHtml,
-            StringComparison.Ordinal);
-        Assert.Contains("id=\"triage-principal\"", detailHtml, StringComparison.Ordinal);
-
-        var antiforgeryToken = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-        _ = await PostActionAsync(
-            client,
-            triageId,
-            antiforgeryToken,
-            0,
-            "set_principal",
-            reason: string.Empty,
-            KeyValuePair.Create("principalId", alpha.ToString("D")));
-
-        triage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Equal(alpha, triage.Record.PrincipalId);
-        Assert.Equal(1, triage.Record.Version);
-        Assert.Equal("ALPHA", triage.PrincipalCode);
-        Assert.Equal(
-            "triage_principal_set",
-            Assert.Single(
-                triage.History,
-                item => item.EventType == "triage_principal_set").EventType);
-
-        // Clearing goes through the same dialog and handler: the empty option
-        // is a real, selectable `Not known` state, not a disabled placeholder.
-        _ = await PostActionAsync(
-            client,
-            triageId,
-            antiforgeryToken,
-            1,
-            "set_principal",
-            reason: string.Empty);
-
-        triage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Null(triage.Record.PrincipalId);
-        Assert.Equal(2, triage.Record.Version);
-        Assert.Equal(2, triage.History.Count(item => item.EventType == "triage_principal_set"));
+        Assert.DoesNotContain("triage-principal-dialog", detailHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"triage-principal\"", detailHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Set principal", detailHtml, StringComparison.Ordinal);
     }
 
     private static async Task<TriageDetail> GetOnlyTriageAsync(IServiceProvider services)
@@ -548,7 +524,7 @@ public sealed partial class QdosTriageIntegrationTests
         var queries = scope.ServiceProvider.GetRequiredService<ITriageQueries>();
         var summary = Assert.Single(await queries.ListAsync(null, CancellationToken.None));
         return Assert.IsType<TriageDetail>(
-            await queries.GetAsync(summary.Id, CancellationToken.None));
+            await queries.GetAsync(summary.CaseId, CancellationToken.None));
     }
 
     private static async Task<TriageDetail> GetTriageAsync(
@@ -591,13 +567,13 @@ public sealed partial class QdosTriageIntegrationTests
         fields.AddRange(additionalFields);
 
         using var response = await client.PostAsync(
-            $"/Triage/{triageId:D}?handler=Action",
+            $"/Cases/{triageId:D}?handler=TriageAction",
             new FormUrlEncodedContent(fields));
         if (actionName is "link_case" or "unlink_case")
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
             Assert.Equal(
-                $"/Triage/{triageId:D}",
+                $"/Cases/{triageId:D}",
                 response.Headers.Location?.OriginalString);
             using var redirected = await client.GetAsync(response.Headers.Location!);
             var redirectedHtml = await redirected.Content.ReadAsStringAsync();
@@ -617,7 +593,7 @@ public sealed partial class QdosTriageIntegrationTests
         string antiforgeryToken)
     {
         using var response = await client.PostAsync(
-            $"/Triage/{triageId:D}?handler=Edit",
+            $"/Cases/{triageId:D}?handler=TriageEdit",
             new FormUrlEncodedContent(
             [
                 KeyValuePair.Create("__RequestVerificationToken", antiforgeryToken),

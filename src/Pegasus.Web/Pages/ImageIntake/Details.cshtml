@@ -72,7 +72,7 @@
         }
         @if (Model.Triage is { } triage)
         {
-            <a class="btn" asp-page="/Triage/Details" asp-route-id="@triage.Id">
+            <a class="btn" asp-page="/Cases/Details" asp-route-id="@triage.CaseId">
                 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg><span>Open Triage</span>
             </a>
         }

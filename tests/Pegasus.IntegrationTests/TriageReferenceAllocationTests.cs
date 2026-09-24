@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
@@ -9,23 +11,23 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The global Triage reference allocator, proved against the real database.
+/// A Triage Case takes its <c>t.</c> Case/PO from the same Principal-lineage
+/// and year sequence every Case uses, proved against the real database.
 /// </summary>
 /// <remarks>
 /// Every case here creates its Triage through the production
 /// <c>ICreateTriageFromIntake</c>/<c>ITriageStore</c> path over real SQL, with
-/// its receipt and evaluation prepared beforehand. The full web ingest is used
-/// once, to show the allocated reference reaching the operator's page; driving
-/// eight of those concurrently would contend on the intake work dispatch claim
-/// — a single-sweeper path by design — and prove nothing about this allocator.
-/// The receipt and evaluation fixtures are <c>TriageQueuesWebTests</c>' own,
-/// reused rather than copied.
+/// its receipt and evaluation prepared beforehand. The receipt and evaluation
+/// fixtures are <c>TriageQueuesWebTests</c>' own, reused rather than copied.
+/// The host clock is fixed in 2031, so the QDOS sequence is <c>QDOS31NNN</c>.
 /// </remarks>
 [Trait("Category", "SqlServer")]
 public sealed class TriageReferenceAllocationTests
 {
+    private const string QdosTriagePrefix = "t.QDOS31";
+
     [Fact]
-    public async Task TheFirstTwoTriagesTakeTheFirstTwoGlobalReferences()
+    public async Task TheFirstTwoTriageCasesTakeTheFirstTwoNumbersOfTheSharedSequence()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -34,18 +36,18 @@ public sealed class TriageReferenceAllocationTests
         var first = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-ALLOC-A");
         var second = await OpenTriageAsync(services, "XY12ZZZ", "TRIAGE-ALLOC-B");
 
-        Assert.Equal("T-00001", first.Reference);
-        Assert.Equal("T-00002", second.Reference);
+        Assert.Equal("t.QDOS31001", first.Reference);
+        Assert.Equal("t.QDOS31002", second.Reference);
 
         var summaries = await ListTriageAsync(services);
-        var firstSummary = Assert.Single(summaries, item => item.Id == first.Id);
+        var firstSummary = Assert.Single(summaries, item => item.CaseId == first.CaseId);
         // The provider claim number is a fact about the sender and keeps its
-        // own member: it is no longer what the queue calls the reference.
-        Assert.Equal("T-00001", firstSummary.Reference);
+        // own member: it is not what the queue calls the reference.
+        Assert.Equal("t.QDOS31001", firstSummary.Reference);
         Assert.Equal("TRIAGE-ALLOC-A", firstSummary.ClaimNumber);
         Assert.Equal(
-            "T-00002",
-            Assert.Single(summaries, item => item.Id == second.Id).Reference);
+            "t.QDOS31002",
+            Assert.Single(summaries, item => item.CaseId == second.CaseId).Reference);
     }
 
     [Fact]
@@ -60,85 +62,92 @@ public sealed class TriageReferenceAllocationTests
         var created = await CreateAsync(services, prepared, operationKey);
         var replayed = await CreateAsync(services, prepared, operationKey);
 
-        Assert.Equal("T-00001", created.Reference);
+        Assert.Equal("t.QDOS31001", created.Reference);
         Assert.Equal(created.Reference, replayed.Reference);
-        Assert.Equal(created.Id, replayed.Id);
+        Assert.Equal(created.CaseId, replayed.CaseId);
         Assert.Single(await ListTriageAsync(services));
 
         // The replay consumed nothing, so the next genuine creation takes the
         // very next number.
         var next = await OpenTriageAsync(services, "XY12ZZZ", "TRIAGE-ALLOC-NEXT");
-        Assert.Equal("T-00002", next.Reference);
+        Assert.Equal("t.QDOS31002", next.Reference);
     }
 
+    /// <summary>
+    /// Triage Cases and manually created Cases racing on one Principal's
+    /// sequence: the locked allocation queues them, so none deadlocks, none
+    /// shares a number, and no number is skipped.
+    /// </summary>
     [Fact]
-    public async Task ConcurrentCreationsAllocateDistinctReferencesAndToleratesGaps()
+    public async Task ConcurrentTriageAndManualCreationsShareTheSequenceWithoutDeadlockOrGap()
     {
-        const int concurrentCreations = 8;
+        const int triageCreations = 4;
+        const int manualCreations = 4;
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
-        // Receipts and evaluations are prepared sequentially; only the eight
-        // allocations race, so the one global counter row is the only thing
-        // under contention.
+        // Receipts and evaluations are prepared sequentially; only the
+        // allocations race, so the one sequence row is what is contended.
         var prepared = new List<PreparedTriage>();
-        for (var index = 0; index < concurrentCreations; index++)
+        for (var index = 0; index < triageCreations; index++)
         {
             prepared.Add(await PrepareAsync(services, $"AL{index:00}CAT", $"TRIAGE-ALLOC-{index:00}"));
         }
 
-        var created = await Task.WhenAll(prepared.Select(item => Task.Run(
-            () => CreateAsync(
+        var triageTasks = prepared.Select(item => Task.Run(async () =>
+            (await CreateAsync(
                 factory.Services,
                 item,
-                $"triage-alloc-concurrent:{item.ReceiptId:N}"))));
-
-        Assert.Equal(concurrentCreations, created.Length);
-        var sequences = new List<long>();
-        foreach (var record in created)
+                $"triage-alloc-concurrent:{item.ReceiptId:N}")).Reference));
+        var manualTasks = Enumerable.Range(0, manualCreations).Select(index => Task.Run(async () =>
         {
-            Assert.True(
-                TriageReferenceFormat.TryParse(record.Reference, out var sequence),
-                $"'{record.Reference}' is not a Triage reference.");
-            // A sequence of zero could not have been persisted at all — the
-            // Triage table's CK_Triage_Sequence check constraint refuses it —
-            // so a created row proves the allocator never handed one out.
-            Assert.True(sequence > 0);
-            sequences.Add(sequence);
-        }
+            await using var manualScope = factory.Services.CreateAsyncScope();
+            var identity = await manualScope.ServiceProvider.GetRequiredService<ICreateManualCase>().ExecuteAsync(
+                new(
+                    ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                    $"triage-alloc-manual:{Guid.NewGuid():N}",
+                    "QDOS",
+                    CaseType.Inspection,
+                    new(
+                        ClaimantName: "Jane Doe",
+                        ClaimNumber: $"C-{index}",
+                        VehicleRegistration: $"MN{index:00}CAT")),
+                CancellationToken.None);
+            return identity.Reference;
+        }));
 
-        // Distinct is the invariant, and no reference is ever handed out
-        // twice. The numbers need not be contiguous: one taken by a creation
-        // that then rolled back is never reissued, so gaps are expected.
-        Assert.Equal(concurrentCreations, sequences.Distinct().Count());
+        var references = await Task.WhenAll(triageTasks.Concat(manualTasks));
+
+        var sequences = references
+            .Select(reference => int.Parse(
+                reference.StartsWith(QdosTriagePrefix, StringComparison.Ordinal)
+                    ? reference[QdosTriagePrefix.Length..]
+                    : reference["QDOS31".Length..],
+                NumberStyles.None,
+                CultureInfo.InvariantCulture))
+            .Order()
+            .ToArray();
+        Assert.Equal(Enumerable.Range(1, triageCreations + manualCreations).ToArray(), sequences);
         Assert.Equal(
-            concurrentCreations,
-            created.Select(record => record.Reference).Distinct(StringComparer.Ordinal).Count());
+            triageCreations,
+            references.Count(reference => reference.StartsWith(QdosTriagePrefix, StringComparison.Ordinal)));
 
-        // Every allocation is also durable and unique on the read side.
+        // Each Triage Case's reference is the one persisted against it.
         var listed = await ListTriageAsync(services);
-        Assert.Equal(concurrentCreations, listed.Count);
-        Assert.Equal(
-            concurrentCreations,
-            listed.Select(item => item.Reference).Distinct(StringComparer.Ordinal).Count());
-
-        // Each creator's reference is the one persisted against its own
-        // Triage. Distinctness alone would still hold if two concurrent
-        // allocations were recorded against each other's rows, so the
-        // id-to-reference correspondence is asserted per creation.
+        Assert.Equal(triageCreations, listed.Count);
         var queries = services.GetRequiredService<ITriageQueries>();
-        foreach (var record in created)
+        foreach (var summary in listed)
         {
-            var detail = await queries.GetAsync(record.Id, CancellationToken.None);
+            var detail = await queries.GetAsync(summary.CaseId, CancellationToken.None);
             Assert.Equal(
-                record.Reference,
+                summary.Reference,
                 Assert.IsType<TriageDetail>(detail).Record.Reference);
         }
     }
 
     [Fact]
-    public async Task TheAllocatedReferenceReachesTheOperatorsPage()
+    public async Task TheAllocatedReferenceReachesTheCaseRecord()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -146,13 +155,13 @@ public sealed class TriageReferenceAllocationTests
         var services = scope.ServiceProvider;
         var triage = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-ALLOC-PAGE");
 
-        Assert.Equal("T-00001", triage.Reference);
+        Assert.Equal("t.QDOS31001", triage.Reference);
 
-        using var response = await client.GetAsync($"/Triage/{triage.Id:D}");
+        using var response = await client.GetAsync($"/Cases/{triage.CaseId:D}");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("T-00001", html, StringComparison.Ordinal);
+        Assert.Contains("t.QDOS31001", html, StringComparison.Ordinal);
         Assert.Contains("Triage reference", html, StringComparison.Ordinal);
     }
 
@@ -168,12 +177,12 @@ public sealed class TriageReferenceAllocationTests
             DevelopmentOfflineIdentity.AdministratorId,
             [StaffRole.Administrator]);
         var lease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.Triage, created.Id, created.Version, actor,
+            new(EditScopeKind.Triage, created.CaseId, created.Version, actor,
                 $"alloc-immutable-await-edit:{Guid.NewGuid():N}"),
             CancellationToken.None);
         var awaited = await services.GetRequiredService<IAwaitTriageInformation>().ExecuteAsync(
             new TriageMutationRequest(
-                created.Id,
+                created.CaseId,
                 created.Version,
                 actor,
                 $"alloc-immutable-await:{Guid.NewGuid():N}",
@@ -183,11 +192,11 @@ public sealed class TriageReferenceAllocationTests
             },
             CancellationToken.None);
 
-        Assert.Equal("T-00001", created.Reference);
+        Assert.Equal("t.QDOS31001", created.Reference);
         Assert.Equal(created.Reference, awaited.Reference);
         var reread = Assert.IsType<TriageDetail>(
             await services.GetRequiredService<ITriageQueries>()
-                .GetAsync(created.Id, CancellationToken.None));
+                .GetAsync(created.CaseId, CancellationToken.None));
         Assert.Equal(created.Reference, reread.Record.Reference);
     }
 
@@ -203,22 +212,22 @@ public sealed class TriageReferenceAllocationTests
             DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
         var second = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
         var held = await leases.ClaimAsync(
-            new(EditScopeKind.Triage, created.Id, created.Version, first, "triage-first"),
+            new(EditScopeKind.Triage, created.CaseId, created.Version, first, "triage-first"),
             CancellationToken.None);
 
         var taken = await leases.ClaimAsync(
             new ClaimEditScopeRequest(
-                EditScopeKind.Triage, created.Id, created.Version, second, "triage-takeover")
+                EditScopeKind.Triage, created.CaseId, created.Version, second, "triage-takeover")
             {
                 TakeOver = true
             }, CancellationToken.None);
 
         Assert.NotEqual(held.Token, taken.Token);
         await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.HeartbeatAsync(
-            new(EditScopeKind.Triage, created.Id, first, held.Token), CancellationToken.None));
+            new(EditScopeKind.Triage, created.CaseId, first, held.Token), CancellationToken.None));
         var detail = Assert.IsType<TriageDetail>(
             await services.GetRequiredService<ITriageQueries>()
-                .GetAsync(created.Id, CancellationToken.None));
+                .GetAsync(created.CaseId, CancellationToken.None));
         Assert.Contains(detail.History,
             entry => entry.EventType == "edit_lease_taken_over");
     }

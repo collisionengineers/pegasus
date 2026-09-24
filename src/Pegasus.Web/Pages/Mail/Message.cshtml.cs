@@ -649,10 +649,11 @@ public sealed class MessageModel(
             }
 
             var selectedCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
+            // Staff linking reaches a Case in any lifecycle state (operator,
+            // 24 September 2026); only an archived Case is refused.
             if (selectedCase is null
                 || selectedCase.Workflow.Version != expectedCaseVersion
-                || selectedCase.Workflow.Archive is not null
-                || CaseLifecycleRules.IsTerminal(selectedCase.Workflow.State))
+                || selectedCase.Workflow.Archive is not null)
             {
                 throw new IntakeVersionConflictException();
             }
@@ -1535,8 +1536,7 @@ public sealed class MessageModel(
         {
             var target = await getCase.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
             if (target is not null
-                && target.Workflow.Archive is null
-                && !CaseLifecycleRules.IsTerminal(target.Workflow.State))
+                && target.Workflow.Archive is null)
             {
                 TargetCase = target;
             }

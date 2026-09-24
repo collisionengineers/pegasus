@@ -453,7 +453,7 @@ public sealed class EfLinkedCaseReplacementStore(
         nameof(CaseLifecycleState.CollisionEngineersRejected) or
         nameof(CaseLifecycleState.CreatedInError);
 
-    private static CaseInitialState ParseInitialState(string value) => value switch
+    private static CaseInitialState ParseInitialState(string? value) => value switch
     {
         "not_ready" => CaseInitialState.NotReady,
         "review" => CaseInitialState.Review,
