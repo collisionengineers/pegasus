@@ -20,7 +20,7 @@ never renumbered or reused.
 | ID | Title | Status | Superseded-by | Owner capability |
 | --- | --- | --- | --- | --- |
 | [ADR-0001](0001-hybrid-pdf-extraction.md) | Hybrid PDF extraction | superseded | ADR-0040 | — |
-| [ADR-0002](0002-dotnet-modular-monolith-on-azure.md) | .NET modular monolith on Azure App Service | accepted | ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032, ADR-0043, ADR-0049, ADR-0051 | — |
+| [ADR-0002](0002-dotnet-modular-monolith-on-azure.md) | .NET modular monolith on Azure App Service | accepted | ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032, ADR-0043, ADR-0049, ADR-0051, ADR-0056 | — |
 | [ADR-0003](0003-pdfpig-for-first-qdos-slice.md) | PdfPig for the first QDOS embedded-text slice | accepted | — | — |
 | [ADR-0004](0004-provider-api-and-staff-mcp-authentication.md) | Provider API and staff MCP authentication | accepted | ADR-0011 | — |
 | [ADR-0005](0005-multiformat-intake-assets.md) | Multi-format intake and review assets | accepted | ADR-0040 | — |
@@ -68,11 +68,12 @@ never renumbered or reused.
 | [ADR-0048](0048-principal-report-generation-policies.md) | Principal report-generation policies | accepted | — | EXT-04 |
 | [ADR-0049](0049-host-web-on-app-service-code-deploy.md) | Host Pegasus Web on an App Service Web App by code deployment | accepted | — | EXT-08 |
 | [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02 |
-| [ADR-0051](0051-linked-audit-case-identity-and-custody.md) | Linked Audit Case identity and custody | accepted | — | — |
+| [ADR-0051](0051-linked-audit-case-identity-and-custody.md) | Linked Audit Case identity and custody | superseded | ADR-0056 | — |
 | [ADR-0052](0052-dismiss-by-logical-folder.md) | Dismiss a retained message by logical folder; no Flag or Delete | accepted | — | — |
 | [ADR-0053](0053-personal-staff-notification-store.md) | Personal staff notification store | accepted | — | — |
 | [ADR-0054](0054-release-notes-authored-in-the-application.md) | Release notes are authored in the application by an Administrator | accepted | — | — |
 | [ADR-0055](0055-github-issues-as-the-problem-report-sink.md) | GitHub issues as the problem-report sink | accepted | — | — |
+| [ADR-0056](0056-one-case-per-work-data-and-triage-case-type.md) | One Case with per-work data; Triage as a Case type | accepted | — | CASE-04, TRI-01 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.

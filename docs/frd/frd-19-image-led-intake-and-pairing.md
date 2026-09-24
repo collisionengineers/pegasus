@@ -245,8 +245,8 @@ complete membership, and fail-closed source-identity rules apply to both.
 ### Operator surfaces
 
 **Awaiting instruction queue.** On Cases, Awaiting instruction lists the
-Image-initiated Cases still waiting for an instruction. It is Pre-Case work
-beside Triage, never a workflow queue. Rows show reference, registration,
+Image-initiated Cases still waiting for an instruction. It is Pre-Case work,
+never a workflow queue. Rows show reference, registration,
 image count, custody, received, source, and chase facts; `?tab=` selects
 the queue. Not ready holds only formal instructed Cases. Selecting a row
 shows a quick detail with the definition list, the open action, and **Add
@@ -255,7 +255,7 @@ to an existing case**.
 **Image record page.** The Image-initiated record shows its image gallery
 with the preserved filenames and group evidence, its custody, and its
 chronological merge and closure history. It shows **Open Triage** when a
-Triage record shares the same origin receipt. There is no "Open in Box"
+Triage Case shares the same origin receipt. There is no "Open in Box"
 action, because this UI exposes no Box destination for Image-initiated
 material; that is a known limitation. Staff closure is a reasoned action.
 Terminal records are read-only. There is no generic Close control. Editing
@@ -266,8 +266,8 @@ the record takes a record-scoped edit lease
 registration and use the named states Awaiting instruction, Merged into
 Instruction-initiated Case, and Staff-closed.
 
-**Crop and tag.** Pre-Case images (on an image record, a Triage, or an
-Unidentified item) carry the same stored crop, rotation, and tags as Case
+**Crop and tag.** Images on an image record, a Triage Case or an
+Unidentified item carry the same stored crop, rotation, and tags as Case
 images, editable there with the casework right and the image's own version.
 The viewer offers Crop (Apply, Clear, Cancel) and the Tag select; the tile
 shows the cropped region with a Cropped badge and its tag chips; the viewer

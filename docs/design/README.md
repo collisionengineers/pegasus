@@ -56,13 +56,14 @@ This order supersedes the 2026-08-04 order (`Dashboard → Inbox → Upload →
 Queues → Cases → Administration`): the Dashboard becomes the Work Centre,
 Queues becomes Cases, the former Cases search becomes Search, and Operations
 returns as a routed workspace. `Triage`, `Unidentified`, `Audit`,
-`Not ready`, `Review` and `Held` keep their settled meanings; Triage and
-Unidentified are pre-Case records reached through the Cases rail, never Case
-states.
+`Not ready`, `Review` and `Held` keep their settled meanings. Triage is a Case
+type with its own states, reached through the Cases rail's Workflow group;
+Unidentified is a pre-Case record reached through the Cases rail. Neither is
+a Case state.
 
 The common hierarchy of every authenticated page is:
 
-1. shell — rail, utility bar, working-set strip;
+1. shell — rail and utility bar;
 2. page header — eyebrow, title, freshness and the safe primary action;
 3. operational panes, table, workbench or record;
 4. named workflow, evidence, lease or exception state and consequential action;
@@ -130,64 +131,63 @@ or the Unidentified item), working without script. **Mark all read** sits at the
 head. With none the dialog says `No notifications`; a failed read says
 `Notifications unavailable.` Notifications older than 30 days drop off.
 
-The **working-set strip** sits under the utility bar and holds open records
-only: Cases and the pre-Case records (Triage, Unidentified, image record, a
-message) join it when opened and leave when closed. There is no Work Centre
-tab and no "+ Open" tab; records open from Cases, Search, the Inbox or Ctrl K,
-and with nothing open the strip is absent. The strip is fused with the record:
-it sits on the page background over one hairline, and the active tab is white
-with the red accent once and runs into the record card, which loses its top
-edge. Each tab shows the kind's glyph, the reference in bold and the
-registration in mono (a message shows its subject). State glyphs sit on the
-tab: an amber dot for unsaved edits, a lightning glyph while a Glass's session
-is open, a lock while a colleague holds the record. × shows on the active tab
-and on hover, and middle-click closes; closing the current record lands on the
-Work Centre. Six tabs are shown and the rest sit in an "N more" menu. The set
-is kept per browser, at most twelve records, and another window's change
-re-renders the strip.
-
-A page that is a record announces itself: it sets
-`ViewData["WorkingSetRecord"]` (`Presentation/WorkingSetRecord.cs`) and the
-layout writes `main[data-record-href][data-record-kind][data-record-ref]
-[data-record-reg][data-record-glyph]`, with no attribute on a page that is not
-a record. A `pegasus:dirty` event marks the current tab as having unsaved
-edits.
+There is no **working-set strip** (operator, 24 September 2026): open records
+no longer collect as tabs under the utility bar on any page, and no page
+announces itself as a record. Nothing replaces the strip's list of recently
+opened records; Search and the Ctrl K palette remain. A record's own state
+stays on the record, such as the ribbon's Editing badge and "{name} is
+editing".
 
 ### Case record frame
 
 The Case record (`/Cases/{id}`) has no page header. A sticky block sits under
-the utility bar and working-set strip: the 56px **ribbon** — the reference as
-the page's heading under "Case workspace · registration", Claimant, Principal
-and Engineer; chips for state ("Held · review on 24 Sep"), Case type (Audit,
-Inspection + Audit) and a colleague editing; links between an Audit Case and
-its original; then Edit Case, or while editing the Editing badge, Cancel and
-Save, and one **Actions** menu — and the 40px **section row** of section links,
-Refresh and the Scroll/Tabs switch. Scroll is the default in every state; a
-Tabs choice lasts for the browser session. The section row links Case details,
-Claim, Original report on Audit Cases, Inspection details, Vehicle (with
-Damage and Valuation inside), Repair Spec, Decisions, Report, Files and Notes.
-Each is a foldable panel whose head carries its own Edit (entering the one
-page-wide edit session), one availability label when the state does not allow
-editing, and the fold chevron. The aside holds Figures and Next action and
-folds into a two-up strip above the sections below 1441px.
+the utility bar: the 56px **ribbon** — the reference as the page's heading
+under "Case workspace · registration", Claimant, Principal and Engineer; chips
+for state ("Held · review on 24 Sep"), Case type (Audit, Inspection + Audit)
+and a colleague editing; then Edit Case, or while editing the Editing badge,
+Cancel and Save, and one **Actions** menu — and the 40px **section row** of
+section links, Refresh and the Scroll/Tabs switch. Scroll is the default in
+every state; a Tabs choice lasts for the browser session. The section row
+links Case details, Claim, Original report on Audit Cases, Inspection details,
+Vehicle (with Damage and Valuation inside), Repair Spec, Decisions, Report,
+Files and Notes. Each is a foldable panel whose head carries its own Edit
+(entering the one page-wide edit session), one availability label when the
+state does not allow editing, and the fold chevron. The aside holds Figures
+and Next action and folds into a two-up strip above the sections below 1441px.
 
-The **Actions** menu holds exactly the progressions the state permits — Hand to
-Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review or
-Engineer, Archive, Place on Hold or Release Hold, Correct
-principal, Create audit — then, after a separator and in red, Close case.
-Outside an edit session the menu appears only when Send to EVA is available.
-Damage uses the **plan** only: a top-down silhouette drawn as the panels,
-one numbered disc per recorded damage sized and placed by dragging and kept
-as drawn (no wider than half the vehicle, clipped to its body), five
-graded severity fills with a legend, and a recorded-areas list numbered like
-the discs. Images open in a full-screen **viewer** (title,
-tag, position, Rotate, Zoom, Download, In report while editing, and a filmstrip
-with excluded images greyed); crop happens on the viewer stage itself (drag,
-handles, move, Aspect, Rotate left and right, Full frame, Reset, Save crop). A
-crop is a stored rectangle: tiles and the report show the cropped region and
-Download returns the original. Pre-Case records keep the simpler viewer with
-Crop (Apply, Clear, Cancel) and the Tag select, and their tiles show the
-cropped region the same way.
+Once an Inspection + Audit Case has its Audit, a **Views** card heads the
+aside, above Figures, in the context-card pattern: two rows, "Inspection ·
+{Case/PO}" with a plain green "Sent" chip and "Audit · a.{Case/PO}" with the
+Case's state chip as the ribbon draws it. The current view reads plain
+(`aria-current="page"`) and the other is a link; the Audit view is the
+default. Before the Audit exists, and on a standalone Audit or a Triage Case,
+there is no card. The ribbon keeps the Case/PO and gains no Audit reference.
+In the Inspection view no section head offers Edit; each editable head shows
+the one availability label **Read-only · Audit created** instead. In Files,
+an Audit folder chip follows the Case folder chip in the same tones: **Box
+audit · confirmed**, **Box audit folder: preparing** or **Box audit folder:
+unavailable**. Report shows the Inspection's sent report as one `.pv` line
+above the Audit report card, with an **Inspection view** link. A Triage Case
+at `/Cases/{id}` keeps the Triage page's own layout, with the Case's Files
+panel before Notes.
+
+The **Actions** menu holds exactly the progressions the state permits — Hand
+to Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
+or Engineer, Archive, Place on Hold or Release Hold, Correct principal, Create
+audit — then, after a separator and in red, Close case. Outside an edit
+session the menu appears only when Send to EVA is available. Damage uses the
+**plan** only: a top-down silhouette drawn as the panels, one numbered disc
+per recorded damage sized and placed by dragging and kept as drawn (no wider
+than half the vehicle, clipped to its body), five graded severity fills with a
+legend, and a recorded-areas list numbered like the discs. Images open in a
+full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, In
+report while editing, and a filmstrip with excluded images greyed); crop
+happens on the viewer stage itself (drag, handles, move, Aspect, Rotate left
+and right, Full frame, Reset, Save crop). A crop is a stored rectangle: tiles
+and the report show the cropped region and Download returns the original.
+Pre-Case records and the Triage Case page keep the simpler viewer with Crop
+(Apply, Clear, Cancel) and the Tag select, and their tiles show the cropped
+region the same way.
 
 `main.app-main` holds `.content`, capped at 1580px and centred with the 18px
 page padding, so a wide monitor shows equal margins either side rather than
@@ -665,12 +665,12 @@ glyph the v26 mockups reference that no current page draws.
 | — | `key-round` | `5E7E3CD234E740B048195FBEF0B1C66E7CA85500AE1C7ACA7F35117496576E83` | No caller |
 | — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | No caller |
 | — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records) |
-| — | `zap` | `998D4DC807CBE0CE4AF837D6282BCB925F8B169A1CE6DF4B1A2B06D6210474A0` | Working-set tab: Glass's session open |
+| — | `zap` | `998D4DC807CBE0CE4AF837D6282BCB925F8B169A1CE6DF4B1A2B06D6210474A0` | No caller |
 | — | `grip-vertical` | `93D0BBD15AB6203E42D45A911F90B3BAB3D287E56AD4140804311B15FA062074` | No caller |
 | — | `shield-check` | `1A0678C6E00913D6FFAB22299D518EC906BA4FB8AE3F17E8C5801C212FE21DBA` | No caller |
 | — | `building` | `F8C777CE38931ABE01FAE9E46B1DC5527989F3152D9730EA941C7DA9D4DC9EFE` | No caller |
 | — | `sliders` | `BC19EF5E6751EAE7634C7CA956BB16A0C0A6AB9ECCB8935811B63849FF7D9BFF` | No caller |
-| — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Working-set tab: Triage; Open the Triage |
+| — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Open the Triage |
 | — | `zoom-in` | `F32744E452483FCC60A24618A5C05630138A6C07806F647D510CE82726F0E8B2` | Case viewer Zoom |
 | — | `corner-up-left` | `B7FDDB91FDBC7FDF2A1BFB36864024219751277B9C9AD0F4630306925778E08F` | No caller |
 | — | `bar-chart` | `DB920FF9B7CE38B0D2703AE4B696B0682A3DCFE46B9BADE4260DFCF685BABB42` | Administration nav: Reports |
@@ -691,9 +691,7 @@ glyph the v26 mockups reference that no current page draws.
 The v26 rail no longer draws the prototype's rail glyphs for three routes:
 Cases uses `list-checks`, Operations `activity` and Administration `settings`
 (`list`, `loader` and `layout-grid` remain in the sprite for their other
-uses). A working-set tab draws its kind's glyph: `folder` (Case),
-`clipboard-list` (Triage), `alert-circle` (Unidentified), `image` (image
-record) and `mail` (message); `home` no longer has a Work Centre tab.
+uses).
 
 ### Imagery and evidence
 
@@ -845,7 +843,6 @@ deleted in wave 5.
 | `utility-bar`, `utility-freshness`, `utility-search` | Dark bar |
 | `rail-collapsed` (on `app-shell`), `[data-rail-toggle]` | Collapsed 64px rail and its Collapse/Expand control |
 | `bell-wrap`, `bell-count`, `row-list`, `row-form`, `row-button`, `row-button--unread` | The bell with its unread count, and the Notifications dialog's one-button rows |
-| `workspace-tabs` (`[data-working-set]`), `workspace-tab`, `workspace-tab-link`, `tab-close`, `tabs-more` | Working-set strip of open records: six tabs, the rest in "N more"; `body.has-working-set` while anything is open |
 | `external-shell`, `auth-card`, `auth-brand` | Navless frames |
 | `skip-link`, `sr-only` | Accessibility |
 
@@ -855,7 +852,7 @@ deleted in wave 5.
 | --- | --- |
 | `page-header`, `page-title`, `eyebrow`, `page-actions` | Header row |
 | `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (Refresh, dismiss, section fold) |
-| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric` | Count buttons linking to `/Cases?tab=` (the Work Centre's four) |
+| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=` (the Work Centre's five, Triages last) |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |
@@ -874,15 +871,16 @@ deleted in wave 5.
 | Class | Role |
 | --- | --- |
 | `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container |
-| `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar and working-set strip, measured at runtime into `--sticky-h` |
+| `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar, measured at runtime into `--sticky-h` |
 | `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace · registration", Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
 | `section-row`, `section-nav`, `section-link`, `section-tools`, `layout-switch` | The 40px section row: section links (the one in view carries `aria-current`), Refresh and the Scroll/Tabs switch |
-| `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (Figures, Next action) that folds above the sections below 1441px |
+| `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (the Views card once an Audit exists, Figures, Next action) that folds above the sections below 1441px |
+| `context-card` (`[data-case-views]`), `next-row` | The Views card: one row per view, the current one plain with `aria-current="page"`, the other a link |
 | `record-section`, `panel[data-collapse]`, `panel-collapse`, `is-collapsed`, `is-editing`, `is-locked` | One section panel, foldable and remembered per browser; the record's edit and read-only states |
 | `fg`, `fc`, `fv`, `fi`, `ro` | One-look cells: the same cells in both modes; the value (`fv`) is a greyed box that becomes its white control (`fi`) while editing; `ro` marks a cell rendered without a control, whose greyed value stays while the rest edits; no padlock |
 | `src-tag` and its `--lookup`, `--ai`, `--warn` tones | The source tag: one word in the cell's label line saying where a value came from ([source tags](README.md#source-tags)); the same pill names other short origins (AI, Manual, Amended) |
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
-| `gated`, `avail` | The dashed availability label, stated once per section head |
+| `gated`, `avail` | The dashed availability label, stated once per section head; in the Inspection view it reads "Read-only · Audit created" |
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its numbered discs, and the aside figures |
 | `damage-diagram`, `dm`, `dm-guides` | The plan silhouette, one disc per recorded damage (kept as drawn, clipped to the body by `damage-plan-clip`), and the dashed band guides shown while editing |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
@@ -1023,7 +1021,7 @@ this section holds the cross-cutting rules every page is held to.
 
 ### Shared shell and hierarchy
 
-1. Shell: rail, utility bar with the bell, working-set strip, account dialog.
+1. Shell: rail, utility bar with the bell, account dialog.
 2. Page header: eyebrow, title, freshness and a safe primary action.
 3. Operational panes, table, workbench or record.
 4. Named workflow/evidence/lease/exception state and consequential action.

@@ -5,7 +5,8 @@
 ## Short version
 
 - Every repair estimate is an immutable version. Each Case has exactly one
-  current accepted version.
+  current accepted version, and once an Inspection + Audit Case has its
+  Audit, the Inspection and the Audit each have one.
 - Imported or AI material stays a Draft until an enabled human staff member accepts it with
   **Use estimate**. Importing never changes Current.
 - An import is keyed by Case plus source hash. The same hash replays the same
@@ -35,7 +36,14 @@ leases are owned by
 
 **One current version.** Every accepted repair specification is an
 immutable, versioned Core aggregate. Each Case has exactly one current
-accepted version, shared by all of the Case's report projections.
+accepted version, shared by all of the Case's report projections. Create
+audit copies every live estimate, with its lines and its Current choice,
+into the Audit; discarded estimates and revision snapshots are not copied
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+From then on the Inspection and the Audit each have their own current
+version, feeding their own report. Every estimate edit, import, Glass's
+return and Use estimate acts on the Audit's estimates; the Inspection's stay
+as its report was sent.
 
 Each version keeps its stable identity, ordered technical lines, source
 route, source artifact identity, version and hash, mapping evidence, raw
