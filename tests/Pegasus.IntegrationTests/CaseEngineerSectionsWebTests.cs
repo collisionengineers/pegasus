@@ -235,11 +235,12 @@ public sealed class CaseEngineerSectionsWebTests
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
             Guid caseId,
+            CaseWorkSelector work,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
                 caseId == CaseId ? [estimate] : []);
 
-        public Task<CaseReportFreezeInputs?> GetAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+        public Task<CaseReportFreezeInputs?> GetAsync(Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
                 new(workspace.Assessment, details.Summary.Claimant, workspace.Assessment.Reference,
                     "P-100", [], null, [], [], estimate),

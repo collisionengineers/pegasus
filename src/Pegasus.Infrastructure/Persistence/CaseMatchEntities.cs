@@ -95,10 +95,9 @@ internal static class CaseMatchIndexProjector
         IEnumerable<IProviderCaseMatchPolicy> policies,
         DateTimeOffset updatedAtUtc)
     {
-        // A linked Audit Case is never an intake match target: its material is the
-        // original's, and indexing it would make every match for that vehicle
-        // ambiguous between the two.
-        if (caseEntity.AuditOfCaseId is not null)
+        // A Triage Case is never an intake match target: it is not a definitive
+        // instruction, and a later instruction is a Case of its own.
+        if (string.Equals(caseEntity.Type, CaseTypeCodes.Triage, StringComparison.Ordinal))
         {
             return null;
         }

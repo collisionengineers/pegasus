@@ -6,7 +6,7 @@ namespace Pegasus.Core.Triage;
 
 public sealed record SentEmailEvidence(
     Guid Id,
-    Guid TriageId,
+    Guid CaseId,
     string MessageIdentity,
     string Subject,
     IReadOnlyList<string> Recipients,
@@ -16,7 +16,7 @@ public sealed record SentEmailEvidence(
     long Version);
 
 public sealed record RecordSentEmailEvidenceRequest(
-    Guid TriageId,
+    Guid CaseId,
     long ExpectedTriageVersion,
     string MessageIdentity,
     string Subject,
@@ -61,7 +61,7 @@ public sealed record ExactEmailResponseEvidenceCandidate(
 
 public sealed record SentEmailEvidenceReplay(
     string ReplayId,
-    Guid TriageId,
+    Guid CaseId,
     long ExpectedTriageVersion,
     string MessageIdentity,
     string Subject,
@@ -120,7 +120,7 @@ public sealed class ReplaySentEmailEvidence(IRecordSentEmailEvidence recordSentE
 
         return recordSentEmailEvidence.ExecuteAsync(
             new(
-                replay.TriageId,
+                replay.CaseId,
                 replay.ExpectedTriageVersion,
                 replay.MessageIdentity.Trim(),
                 replay.Subject.Trim(),
@@ -140,7 +140,7 @@ public sealed class ReplaySentEmailEvidence(IRecordSentEmailEvidence recordSentE
         ArgumentException.ThrowIfNullOrWhiteSpace(replay.Subject);
         ArgumentNullException.ThrowIfNull(replay.Recipients);
         ArgumentException.ThrowIfNullOrWhiteSpace(replay.MimeSha256);
-        if (replay.TriageId == Guid.Empty)
+        if (replay.CaseId == Guid.Empty)
         {
             throw new ArgumentException("Sent email evidence must identify a triage record.", nameof(replay));
         }

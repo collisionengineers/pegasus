@@ -115,7 +115,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using (var db = await harness.Factory.CreateDbContextAsync())
         {
             EfRepairSpecificationSnapshotStore.Freeze(
-                db, accepted, engineer, RepairSpecificationSnapshotKind.Imported,
+                db, accepted.CaseId, accepted, engineer, RepairSpecificationSnapshotKind.Imported,
                 "Accepted calculation", harness.Clock.GetUtcNow());
             await db.SaveChangesAsync();
         }

@@ -2,7 +2,6 @@ using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -25,30 +24,20 @@ public sealed class EfManualCaseCreationStore(
     VehicleLookupAvailability? vehicleLookupAvailability = null)
     : IManualCaseCreationStore
 {
+    private static readonly JsonSerializerOptions RolesJsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<ManualCaseCreationOutcome> CreateAsync(
         CreateManualCaseRequest request,
         CancellationToken cancellationToken)
     {
         var fingerprint = Fingerprint(request);
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                return await CreateOnceAsync(request, fingerprint, cancellationToken);
-            }
-            catch (Exception exception) when (IsRetryable(exception) && attempt < 3)
-            {
-                var replay = await FindReplayAsync(request.OperationKey, fingerprint, cancellationToken);
-                if (replay is not null)
-                {
-                    return new(replay, null);
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
-            }
-        }
-
-        return await CreateOnceAsync(request, fingerprint, cancellationToken);
+        return await CaseAllocationRetry.ExecuteAsync(
+            token => CreateOnceAsync(request, fingerprint, token),
+            async token => await FindReplayAsync(request.OperationKey, fingerprint, token) is { } replay
+                ? new ManualCaseCreationOutcome(replay, null)
+                : null,
+            exception => exception,
+            cancellationToken);
     }
 
     private async Task<ManualCaseCreationOutcome> CreateOnceAsync(
@@ -60,6 +49,19 @@ public sealed class EfManualCaseCreationStore(
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
+
+        // The Case number is allocated first, so the sequence row is this
+        // transaction's first lock; a replay or refusal below releases it.
+        var principal = await context.Principals
+            .Include(item => item.Organization)
+            .SingleOrDefaultAsync(
+                item => item.Code == request.PrincipalCode && item.IsActive,
+                cancellationToken);
+        var now = UtcNow();
+        var allocated = principal is null
+            ? null
+            : await CaseIdentityAllocator.AllocateAsync(
+                context, principal, request.CaseType, now, cancellationToken);
 
         var existing = await context.ActionHistory
             .AsNoTracking()
@@ -81,15 +83,15 @@ public sealed class EfManualCaseCreationStore(
             return new(replay, null);
         }
 
-        var principal = await context.Principals
-            .Include(item => item.Organization)
-            .SingleOrDefaultAsync(
-                item => item.Code == request.PrincipalCode && item.IsActive,
-                cancellationToken)
-            ?? throw new PrincipalUnavailableException(request.PrincipalCode);
-        var now = UtcNow();
-        var allocated = await CaseIdentityAllocator.AllocateAsync(
-            context, principal, now, cancellationToken);
+        if (principal is null || allocated is null)
+        {
+            throw new PrincipalUnavailableException(request.PrincipalCode);
+        }
+        if (request.CaseType == CaseType.Triage)
+        {
+            return await CreateTriageAsync(
+                context, transaction, request, principal, allocated, fingerprint, now, cancellationToken);
+        }
         var completeness = new CaseCompleteness(
             InstructionComplete: IsInstructionComplete(request.Data),
             ImagesComplete: false);
@@ -108,7 +110,7 @@ public sealed class EfManualCaseCreationStore(
             Year = allocated.Year,
             Sequence = allocated.Sequence,
             Reference = allocated.Reference,
-            Type = ToCode(request.CaseType),
+            Type = CaseTypeCodes.ToCode(request.CaseType),
             InitialState = ToCode(initialState),
             CustodyState = ToCode(CaseCustodyState.Pending),
             InstructionComplete = completeness.InstructionComplete,
@@ -227,6 +229,65 @@ public sealed class EfManualCaseCreationStore(
         return new(Identity(caseEntity), vehicleLookupWorkId);
     }
 
+    /// <summary>
+    /// A Triage Case entered by staff: its Principal and registration only. It
+    /// has no Case workflow, data snapshot, match index entry, due work or
+    /// vehicle lookup; it gets standard Case custody. With no workflow to write
+    /// the Case history triple, the replay row is written directly.
+    /// </summary>
+    private static async Task<ManualCaseCreationOutcome> CreateTriageAsync(
+        PegasusDbContext context,
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction,
+        CreateManualCaseRequest request,
+        PrincipalEntity principal,
+        AllocatedCaseIdentity allocated,
+        string fingerprint,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        const string reason = "Case created directly by staff.";
+        var registration = request.Data.VehicleRegistration
+            ?? throw new InvalidOperationException("A manual case needs Vehicle registration.");
+        var triage = TriageCaseRows.Add(
+            context,
+            principal,
+            allocated,
+            null,
+            registration,
+            request.Actor,
+            request.OperationKey,
+            reason,
+            fingerprint,
+            now);
+        context.ActionHistory.Add(new ActionHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "case",
+            AggregateId = triage.CaseId.ToString("D"),
+            EventKind = "manual_case_created",
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(
+                request.Actor.Roles.OrderBy(role => role),
+                RolesJsonOptions),
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = request.OperationKey,
+            Reason = reason,
+            BeforeJson = "null",
+            AfterJson = JsonSerializer.Serialize(new
+            {
+                CommandFingerprint = fingerprint,
+                Identity = Identity(triage.Case)
+            }),
+            PolicyVersion = $"{CaseDataPolicy.EditPolicyKey}/v{CaseDataPolicy.EditPolicyVersion}"
+        });
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(Identity(triage.Case), null);
+    }
+
     private async Task<CaseIdentity?> FindReplayAsync(
         string operationKey,
         string fingerprint,
@@ -308,13 +369,6 @@ public sealed class EfManualCaseCreationStore(
         return now.Offset == TimeSpan.Zero ? now : now.ToUniversalTime();
     }
 
-    private static string ToCode(CaseType value) => value switch
-    {
-        CaseType.Inspection => "inspection",
-        CaseType.InspectionAndAudit => "inspection_and_audit",
-        _ => throw new ArgumentOutOfRangeException(nameof(value))
-    };
-
     private static string ToCode(CaseInitialState value) => value switch
     {
         CaseInitialState.NotReady => "not_ready",
@@ -326,14 +380,6 @@ public sealed class EfManualCaseCreationStore(
     {
         CaseCustodyState.Pending => "pending",
         _ => throw new ArgumentOutOfRangeException(nameof(value))
-    };
-
-    private static bool IsRetryable(Exception exception) => exception switch
-    {
-        DbUpdateConcurrencyException => true,
-        SqlException { Number: 1205 or 2601 or 2627 } => true,
-        _ when exception.InnerException is not null => IsRetryable(exception.InnerException),
-        _ => false
     };
 
     private sealed record ManualCreationReplay(string CommandFingerprint, CaseIdentity Identity);

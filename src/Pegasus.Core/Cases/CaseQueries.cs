@@ -24,7 +24,8 @@ public sealed record CaseSearchFilters(
     DateOnly? FromDate = null,
     DateOnly? ToDate = null,
     string? Origin = null,
-    string? Query = null);
+    string? Query = null,
+    bool IncludeTriage = false);
 
 /// <summary>
 /// The sort a case list renders in. Newest received first is the default
@@ -100,6 +101,15 @@ public sealed record CaseSearchItem(
 
     /// <summary>When the Case entered its current state, so Review ageing counts from the transition.</summary>
     public DateTimeOffset? StateEnteredAtUtc { get; init; }
+
+    /// <summary>
+    /// The Triage state of a Triage Case row (<see cref="CaseType"/> is
+    /// <see cref="CaseType.Triage"/>), which has no Case workflow: the
+    /// positional <see cref="State"/> is unused for such a row. Null for
+    /// every other Case. Rows of Triage Cases appear only when the search asks
+    /// for them (<see cref="CaseSearchFilters.IncludeTriage"/>).
+    /// </summary>
+    public Pegasus.Core.Triage.TriageState? TriageState { get; init; }
 }
 
 public sealed record SearchCasesResult(
@@ -218,7 +228,8 @@ public sealed record CaseSectionFrame(
     CaseWorkflowRecord Workflow,
     CaseEditLeaseSnapshot? ActiveEditLease,
     string? CustodyFolderRemoteId = null,
-    CaseCustodyState CustodyState = CaseCustodyState.Pending);
+    CaseCustodyState CustodyState = CaseCustodyState.Pending,
+    CaseWorkSet? Works = null);
 
 /// <summary>
 /// The already-authorized page inputs a directly rendered body may reuse. A
@@ -233,7 +244,8 @@ public sealed record GetCaseSectionQuery(
     bool HasAssessmentWorkspace = false,
     CaseDataProjection? Data = null,
     IReadOnlyList<CaseDocument>? Documents = null,
-    CaseSectionFrame? Frame = null);
+    CaseSectionFrame? Frame = null,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 
 /// <summary>
 /// The Case page's first-response frame. It keeps the identity, workflow,
@@ -245,8 +257,7 @@ public sealed record CasePageFrame(
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
-    CaseDataProjection Data,
-    Guid? AuditOfCaseId = null)
+    CaseDataProjection Data)
 {
     public CaseSearchItem Summary => Frame.Summary;
     public CaseWorkflowRecord Workflow => Frame.Workflow;
@@ -258,8 +269,7 @@ public sealed record CasePageFrameData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
-    CaseRecordNotes RecordNotes,
-    Guid? AuditOfCaseId = null);
+    CaseRecordNotes RecordNotes);
 
 public sealed record CaseVehicleSection(
     CaseSectionFrame Frame,
@@ -287,7 +297,8 @@ public sealed record CaseFilesSection(
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
-    Guid? AuditOfCaseId = null);
+    CaseCustodyState? AuditCustodyState = null,
+    string? AuditCustodyFolderRemoteId = null);
 
 /// <summary>
 /// Persistence material used only to prove a fragment's render-only lease
@@ -308,7 +319,8 @@ public sealed record CaseHeader(
     CaseEditLeaseSnapshot? ActiveEditLease,
     int DocumentCount,
     int HistoryCount,
-    int OpenTaskCount);
+    int OpenTaskCount,
+    CaseWorkSet? Works = null);
 
 public interface ICaseQueryStore
 {
@@ -445,6 +457,10 @@ public interface IGetCasePageFrame
 /// The persistence half of <see cref="CaseFilesSection"/>. It contains only
 /// Files-owned rows; the page frame supplies the already-rendered documents.
 /// </summary>
+/// <remarks>
+/// <see cref="AuditCustodyState"/> is the Audit's <c>a.</c> folder, present
+/// only once the Case has an Audit work.
+/// </remarks>
 public sealed record CaseFilesSectionData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
@@ -452,7 +468,8 @@ public sealed record CaseFilesSectionData(
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
-    Guid? AuditOfCaseId = null);
+    CaseCustodyState? AuditCustodyState = null,
+    string? AuditCustodyFolderRemoteId = null);
 
 public interface IGetCaseVehicleSection
 {
@@ -494,15 +511,14 @@ public sealed class GetCasePageFrame(
             return null;
         }
 
-        var data = await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(
             frame.Frame,
             frame.Documents,
             frame.AvailableReportSentEvidence,
             frame.RecordNotes,
-            data,
-            frame.AuditOfCaseId);
+            data);
     }
 }
 
@@ -522,7 +538,7 @@ public sealed class GetCaseVehicleSection(
         }
 
         var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
-        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         var evidence = workspace?.LatestVehicleObservation
             ?? (await vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken))?.LatestObservation;
@@ -545,7 +561,7 @@ public sealed class GetCaseValuationSection(
         }
 
         var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
-        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(frame, data, workspace?.Assessment);
     }
@@ -595,7 +611,8 @@ public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSe
 
         return new(body.Frame, query.Documents ?? body.Documents, body.CustodyFolderRemoteId,
             body.CustodyState, body.CorrespondenceEmails,
-            body.StandaloneAuditEvidenceId, body.AuditOfCaseId);
+            body.StandaloneAuditEvidenceId,
+            body.AuditCustodyState, body.AuditCustodyFolderRemoteId);
     }
 }
 
@@ -706,7 +723,7 @@ internal static class CaseSectionQueries
         CancellationToken cancellationToken) =>
         query.HasAssessmentWorkspace
             ? Task.FromResult(query.AssessmentWorkspace)
-            : workspaces.ExecuteAsync(new(query.CaseId, query.Actor), cancellationToken);
+            : workspaces.ExecuteAsync(new(query.CaseId, query.Actor, query.Work), cancellationToken);
 
 }
 
@@ -890,7 +907,7 @@ public sealed class GetCase(
             return null;
         }
 
-        var data = await _caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = await _caseDataQueries.GetAsync(query.CaseId, CaseWorkSelector.Current, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         var vehicleEvidence = await _vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken);
         var custody = await _caseCustodyQueries.GetPreparationsAsync(query.CaseId, cancellationToken);

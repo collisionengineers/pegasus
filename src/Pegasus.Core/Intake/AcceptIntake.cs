@@ -47,7 +47,7 @@ public sealed class AcceptIntake(
             throw new ArgumentOutOfRangeException(nameof(request), "The expected intake version cannot be negative.");
         }
 
-        if (!Enum.IsDefined(request.CaseType))
+        if (!Enum.IsDefined(request.CaseType) || request.CaseType == CaseType.Triage)
         {
             throw new ArgumentOutOfRangeException(nameof(request), "The case type is invalid.");
         }

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.SqlTypes;
 using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,39 +17,50 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfTriageStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     IEnumerable<IProviderCaseMatchPolicy> caseMatchPolicies,
-    TimeProvider? timeProvider = null) : ITriageStore
+    TimeProvider? timeProvider = null) : ITriageStore, ITriagePrincipalGate
 {
     private readonly IReadOnlyList<IProviderCaseMatchPolicy> _caseMatchPolicies = caseMatchPolicies.ToArray();
     private const string AutomaticLinkEvent = "triage_case_linked";
 
     public async Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
-        Guid? triageId, Guid? caseId, int maximumItems, CancellationToken cancellationToken)
+        Guid? triageCaseId, Guid? instructionCaseId, int maximumItems, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var result = new List<TriageCaseLinkCandidate>();
-        long afterSequence = 0;
+        DateTimeOffset? afterCreatedAtUtc = null;
+        var afterCaseId = Guid.Empty;
         while (result.Count < maximumItems)
         {
             // The output cap follows dynamic matching. An old unknown/nonmatch
-            // must not occupy a recovery slot forever.
-            var page = await context.Triage.AsNoTracking()
-                .Where(item => item.Sequence > afterSequence && item.LinkedCaseId == null
-                    && item.PrincipalId != null && item.State != "cancelled"
-                    && (triageId == null || item.Id == triageId)
-                    && !context.TriageHistory.Any(history => history.TriageId == item.Id
+            // must not occupy a recovery slot forever. Pages run oldest first
+            // by (CreatedAtUtc, CaseId).
+            var pageQuery = context.Triage.AsNoTracking()
+                .Where(item => item.LinkedInstructionCaseId == null
+                    && item.OriginReceiptId != null && item.State != "cancelled"
+                    && (triageCaseId == null || item.CaseId == triageCaseId)
+                    && !context.TriageHistory.Any(history => history.TriageCaseId == item.CaseId
                         && (history.EventType == "triage_case_unlinked"
-                            || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker"))))
-                .OrderBy(item => item.Sequence).Take(50).ToListAsync(cancellationToken);
+                            || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker"))));
+            if (afterCreatedAtUtc is { } afterCreated)
+            {
+                var afterId = afterCaseId;
+                pageQuery = pageQuery.Where(item => item.CreatedAtUtc > afterCreated
+                    || (item.CreatedAtUtc == afterCreated && item.CaseId > afterId));
+            }
+            var page = await pageQuery
+                .OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.CaseId)
+                .Take(50).ToListAsync(cancellationToken);
             if (page.Count == 0)
             {
                 break;
             }
             foreach (var triage in page)
             {
-                afterSequence = triage.Sequence;
+                afterCreatedAtUtc = triage.CreatedAtUtc;
+                afterCaseId = triage.CaseId;
                 var candidate = await FindAutomaticLinkCandidateAsync(context, triage, cancellationToken);
-                if (candidate is not null && (caseId is null || candidate.CaseId == caseId))
+                if (candidate is not null && (instructionCaseId is null || candidate.InstructionCaseId == instructionCaseId))
                 {
                     result.Add(candidate);
                     if (result.Count == maximumItems)
@@ -66,34 +78,34 @@ public sealed class EfTriageStore(
     {
         ArgumentNullException.ThrowIfNull(candidate);
         StaffAuthorization.Require(actor, StaffAccessRight.ExecuteSystemWork);
-        var operationKey = $"triage-auto-link:{candidate.TriageId:N}:{candidate.TriageVersion}";
-        var requestHash = Hash($"{AutomaticLinkEvent}|{candidate.TriageId:N}|{candidate.TriageVersion}|{candidate.CaseId:N}|{candidate.CaseVersion}|{candidate.MatchPolicyKey}|{candidate.MatchPolicyVersion}|{actor.Kind}|{actor.SubjectId}");
+        var operationKey = $"triage-auto-link:{candidate.CaseId:N}:{candidate.TriageVersion}";
+        var requestHash = Hash($"{AutomaticLinkEvent}|{candidate.CaseId:N}|{candidate.TriageVersion}|{candidate.InstructionCaseId:N}|{candidate.InstructionCaseVersion}|{candidate.MatchPolicyKey}|{candidate.MatchPolicyVersion}|{actor.Kind}|{actor.SubjectId}");
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
         if (await FindReplayAsync(context, operationKey, cancellationToken) is { } replay)
         {
-            EnsureReplay(replay, AutomaticLinkEvent, requestHash, candidate.TriageId);
+            EnsureReplay(replay, AutomaticLinkEvent, requestHash, candidate.CaseId);
             return false;
         }
 
-        var triage = await LoadForMutationAsync(context, candidate.TriageId, candidate.TriageVersion, cancellationToken);
+        var triage = await LoadForMutationAsync(context, candidate.CaseId, candidate.TriageVersion, cancellationToken);
         // Every origin, principal, competing candidate and replacement lookup
         // below uses this transaction's context, not a preflight connection.
         var current = await FindAutomaticLinkCandidateAsync(context, triage, cancellationToken);
-        if (current is null || current.CaseId != candidate.CaseId
+        if (current is null || current.InstructionCaseId != candidate.InstructionCaseId
             || current.MatchPolicyKey != candidate.MatchPolicyKey
             || current.MatchPolicyVersion != candidate.MatchPolicyVersion)
         {
             return false;
         }
         var workflow = await context.CaseWorkflows.SingleAsync(
-            item => item.CaseId == candidate.CaseId, cancellationToken);
-        CaseMutationGuard.RequireVersion(workflow, candidate.CaseVersion);
+            item => item.CaseId == candidate.InstructionCaseId, cancellationToken);
+        CaseMutationGuard.RequireVersion(workflow, candidate.InstructionCaseVersion);
 
         var reason = $"Automatically linked by accepted principal and current typed Case identity ({current.MatchPolicyKey} v{current.MatchPolicyVersion}).";
         var beforeCaseVersion = workflow.Version;
-        triage.LinkedCaseId = candidate.CaseId;
+        triage.LinkedInstructionCaseId = candidate.InstructionCaseId;
         CaseMutationGuard.Complete(workflow);
         context.CaseWorkflowEvents.Add(new()
         {
@@ -112,16 +124,22 @@ public sealed class EfTriageStore(
     private async Task<TriageCaseLinkCandidate?> FindAutomaticLinkCandidateAsync(
         PegasusDbContext context, TriageEntity triage, CancellationToken cancellationToken)
     {
-        if (triage.LinkedCaseId is not null || triage.PrincipalId is null
+        // Automatic association matches the route evidence the Triage Case was
+        // opened from; a Triage Case created directly by staff has none.
+        if (triage.LinkedInstructionCaseId is not null || triage.OriginReceiptId is null
             || ParseState(triage.State) == TriageState.Cancelled
-            || await context.TriageHistory.AnyAsync(history => history.TriageId == triage.Id
+            || await context.TriageHistory.AnyAsync(history => history.TriageCaseId == triage.CaseId
                 && (history.EventType == "triage_case_unlinked"
                     || (history.EventType == "triage_case_linked" && history.ActorKind != "SystemWorker")), cancellationToken))
         {
             return null;
         }
+        var principalId = await context.Cases.AsNoTracking()
+            .Where(item => item.Id == triage.CaseId)
+            .Select(item => item.PrincipalId)
+            .SingleAsync(cancellationToken);
         var principal = await context.Principals.AsNoTracking().SingleOrDefaultAsync(
-            item => item.Id == triage.PrincipalId && item.IsActive, cancellationToken);
+            item => item.Id == principalId && item.IsActive, cancellationToken);
         var receipt = await context.IntakeReceipts.AsNoTracking().Include(item => item.InstructionDraft)
             .SingleOrDefaultAsync(item => item.Id == triage.OriginReceiptId, cancellationToken);
         var evaluation = await context.IntakeEvaluations.AsNoTracking().SingleOrDefaultAsync(
@@ -156,22 +174,20 @@ public sealed class EfTriageStore(
             item => item.CaseId == targetId, cancellationToken);
         // A Created-in-error redirect cannot replace the known customer with
         // the replacement's customer, even if its typed keys also match.
-        return target is not null && target.PrincipalId == triage.PrincipalId && workflow is not null
+        return target is not null && target.PrincipalId == principalId && workflow is not null
             && TriageCasePairing.CanLinkTarget(Enum.Parse<CaseLifecycleState>(workflow.State),
                 workflow.ArchivedAtUtc is not null, CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
                 workflow.EditLeaseExpiresAtUtc, UtcNow())
-            ? new(triage.Id, triage.Version, target.Id, workflow.Version, policy.PolicyKey, policy.PolicyVersion)
+            ? new(triage.CaseId, triage.Version, target.Id, workflow.Version, policy.PolicyKey, policy.PolicyVersion)
             : null;
     }
 
     /// <summary>
-    /// The single seeded <c>TriageSequences</c> row. The Triage reference
-    /// sequence is global, so there is exactly one counter and it is never
-    /// partitioned by principal, vehicle or year.
+    /// Opens a Triage Case from accepted route evidence. The Case number comes
+    /// from the same Principal-lineage and year sequence every Case uses, and a
+    /// creation that loses a concurrency race first looks for its own committed
+    /// replay, then tries again.
     /// </summary>
-    private const int TriageSequenceRowId = 1;
-
-
     public async Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,
         CancellationToken cancellationToken)
@@ -191,42 +207,94 @@ public sealed class EfTriageStore(
 
         // The replay probe runs before the transaction, holding nothing: a
         // retry of a committed creation returns its original reference without
-        // ever reaching the counter, so a replay can never consume a number.
-        await using (var probeContext = await contextFactory.CreateDbContextAsync(cancellationToken))
+        // ever reaching the sequence, so a replay can never consume a number.
+        var committed = await FindCommittedCreationAsync(operationKey, requestHash, cancellationToken);
+        if (committed is not null)
         {
-            var committed = await FindReplayAsync(probeContext, operationKey, cancellationToken);
-            if (committed is not null)
-            {
-                EnsureReplay(committed, "triage_created", requestHash);
-                return await MapReplayAsync(probeContext, committed, cancellationToken);
-            }
+            return committed;
         }
 
+        var origin = new TriageCaseOrigin(
+            request.Origin.ReceiptId,
+            sourceChannel,
+            sourceToken,
+            sourceHash,
+            request.Origin.EvaluationRevisionId);
+        return await CaseAllocationRetry.ExecuteAsync(
+            token => CreateOnceAsync(
+                request, origin, vrm, operationKey, requestHash,
+                $"Created from accepted Triage matcher {matcherKey} v{acceptedMatch.MatcherVersion} ({matchSignal})",
+                token),
+            token => FindCommittedCreationAsync(operationKey, requestHash, token),
+            exception => exception,
+            cancellationToken);
+    }
+
+    private async Task<TriageRecord?> FindCommittedCreationAsync(
+        string operationKey,
+        string requestHash,
+        CancellationToken cancellationToken)
+    {
+        await using var probeContext = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var committed = await FindReplayAsync(probeContext, operationKey, cancellationToken);
+        if (committed is null)
+        {
+            return null;
+        }
+
+        EnsureReplay(committed, TriageCaseRows.CreatedEventType, requestHash);
+        return await MapReplayAsync(probeContext, committed, cancellationToken);
+    }
+
+    private async Task<TriageRecord> CreateOnceAsync(
+        CreateTriageFromIntakeRequest request,
+        TriageCaseOrigin origin,
+        string vrm,
+        string operationKey,
+        string requestHash,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        var actor = request.Actor;
+        var acceptedMatch = request.AcceptedMatchEvidence;
+        var sourceChannel = origin.SourceChannel;
+        var sourceToken = origin.ExternalReceiptToken;
+        var sourceHash = origin.SourceHash;
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
-        // The counter is the FIRST lock this transaction takes, before any
-        // read or write of a Triage row. Every creator therefore queues on the
-        // one counter row while holding nothing else, so two creators can
-        // never each hold Triage locks while waiting for the counter — which
-        // is the cycle that deadlocked when the counter was taken last.
-        var allocatedSequence = await AllocateSequenceAsync(context, cancellationToken);
+        // The Triage Case takes the receipt's established Principal, and its
+        // number is allocated first, so the Case sequence row is this
+        // transaction's first lock; a replay or refusal below releases it.
+        var principalId = await ResolveEstablishedPrincipalAsync(
+            context,
+            request.Origin.ReceiptId,
+            cancellationToken);
+        var principal = principalId is { } establishedPrincipalId
+            ? await context.Principals.SingleAsync(item => item.Id == establishedPrincipalId, cancellationToken)
+            : null;
+        var now = UtcNow();
+        var allocated = principal is null
+            ? null
+            : await CaseIdentityAllocator.AllocateAsync(
+                context, principal, CaseType.Triage, now, cancellationToken);
 
-        // Re-probed under the counter, because a creation with this operation
-        // key may have committed between the probe above and this lock. The
-        // number just taken is discarded with the transaction, so this costs
-        // nothing.
+        // Re-probed under the sequence lock, because a creation with this
+        // operation key may have committed between the probe above and this
+        // lock. The number just taken is discarded with the transaction.
         var replay = await FindReplayAsync(context, operationKey, cancellationToken);
         if (replay is not null)
         {
-            EnsureReplay(replay, "triage_created", requestHash);
+            EnsureReplay(replay, TriageCaseRows.CreatedEventType, requestHash);
             return await MapReplayAsync(context, replay, cancellationToken);
         }
 
-        var existing = await context.Triage.AsNoTracking().SingleOrDefaultAsync(
-            item => item.OriginReceiptId == request.Origin.ReceiptId
-                || (item.SourceChannel == sourceChannel && item.ExternalReceiptToken == sourceToken),
-            cancellationToken);
+        var existing = await context.Triage.AsNoTracking()
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(
+                item => item.OriginReceiptId == request.Origin.ReceiptId
+                    || (item.SourceChannel == sourceChannel && item.ExternalReceiptToken == sourceToken),
+                cancellationToken);
         if (existing is not null)
         {
             if (existing.OriginReceiptId != request.Origin.ReceiptId
@@ -269,82 +337,50 @@ public sealed class EfTriageStore(
             throw new InvalidOperationException("The creating intake evaluation revision does not exist for the receipt.");
         }
 
-        var now = UtcNow();
-        var principalId = await ResolveEstablishedPrincipalAsync(
-            context,
-            request.Origin.ReceiptId,
-            cancellationToken);
-        var entity = new TriageEntity
+        // The backstop of the Principal gate: a request whose Principal is not
+        // established is never classified into a Triage Case.
+        if (principal is null || allocated is null)
         {
-            Id = Guid.NewGuid(),
-            Sequence = allocatedSequence,
-            Reference = TriageReferenceFormat.Format(allocatedSequence),
-            PrincipalId = principalId,
-            OriginReceiptId = request.Origin.ReceiptId,
-            SourceChannel = sourceChannel,
-            ExternalReceiptToken = sourceToken,
-            SourceHash = sourceHash,
-            EvaluationRevisionId = request.Origin.EvaluationRevisionId,
-            NormalizedVehicleRegistration = vrm,
-            State = ToCode(TriageState.Open),
-            CreatedAtUtc = now,
-            CreationOperationKey = operationKey,
-            Version = 0
-        };
-        context.Triage.Add(entity);
-        AppendHistory(
+            throw new InvalidOperationException(
+                "The originating intake receipt has no established Principal.");
+        }
+
+        var entity = TriageCaseRows.Add(
             context,
-            entity,
-            "triage_created",
+            principal,
+            allocated,
+            origin,
+            vrm,
             actor,
             operationKey,
-            $"Created from accepted Triage matcher {matcherKey} v{acceptedMatch.MatcherVersion} ({matchSignal})",
+            reason,
             requestHash,
-            -1);
+            now);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
     }
 
-    /// <summary>
-    /// Takes the next global Triage sequence from the one <c>TriageSequences</c>
-    /// row.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This must be the first statement of the enclosing transaction. The row
-    /// is read under an update lock held to commit, so it is the single point
-    /// every creator serializes on; taking it while already holding Triage
-    /// locks is what produced a deadlock cycle, and taking it first is what
-    /// removes the cycle rather than merely making it rarer.
-    /// </para>
-    /// <para>
-    /// The increment is pending until the caller saves, so a transaction that
-    /// returns early or fails releases the number rather than burning it. A
-    /// number lost to a committed-then-failed sequence of events simply leaves
-    /// a gap: the counter only moves forward and a reference is never reused.
-    /// The unique indexes on <c>Triage.Sequence</c> and <c>Triage.Reference</c>
-    /// remain the backstop — a duplicate would surface as a violation, never
-    /// as a silently reused reference.
-    /// </para>
-    /// </remarks>
-    private static async Task<long> AllocateSequenceAsync(
-        PegasusDbContext context,
+    /// <inheritdoc />
+    public async Task<Guid?> GetEstablishedPrincipalIdAsync(
+        Guid receiptId,
         CancellationToken cancellationToken)
     {
-        var sequences = context.Set<TriageSequenceEntity>();
-        var sequence = context.Database.IsSqlServer()
-            ? await sequences
-                .FromSqlInterpolated($"""
-                    SELECT *
-                    FROM [TriageSequences] WITH (UPDLOCK, HOLDLOCK)
-                    WHERE [Id] = {TriageSequenceRowId}
-                """)
-                .SingleAsync(cancellationToken)
-            : await sequences.SingleAsync(
-                item => item.Id == TriageSequenceRowId,
-                cancellationToken);
-        return checked(++sequence.LastAllocatedSequence);
+        if (receiptId == Guid.Empty)
+        {
+            return null;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // A receipt that already opened its Triage Case keeps that Case's
+        // Principal, so a redelivery replays the Triage even after the
+        // Principal is deactivated.
+        var openedPrincipalId = await context.Triage.AsNoTracking()
+            .Where(item => item.OriginReceiptId == receiptId)
+            .Select(item => (Guid?)item.Case.PrincipalId)
+            .SingleOrDefaultAsync(cancellationToken);
+        return openedPrincipalId
+            ?? await ResolveEstablishedPrincipalAsync(context, receiptId, cancellationToken);
     }
 
     /// <summary>
@@ -352,8 +388,9 @@ public sealed class EfTriageStore(
     /// originating instruction draft's suggested principal code and accepted
     /// only when it resolves to exactly one active principal. Anything else —
     /// no draft, no code, an unknown code, a deactivated principal — leaves the
-    /// Triage without one, which the operator sees as `Not known`. Nothing is
-    /// inferred from the vehicle registration or from a later linked Case.
+    /// receipt without one, and it is not classified into a Triage Case.
+    /// Nothing is inferred from the vehicle registration or from a later
+    /// linked Case.
     /// </summary>
     private static async Task<Guid?> ResolveEstablishedPrincipalAsync(
         PegasusDbContext context,
@@ -381,21 +418,21 @@ public sealed class EfTriageStore(
     public async Task<TriageRecord> AssignAsync(AssignTriageRequest request, CancellationToken cancellationToken)
     {
         const string assignmentReason = "Engineer assignment updated.";
-        ValidateMutation(request.TriageId, request.ExpectedVersion, request.Actor, request.OperationKey, assignmentReason);
+        ValidateMutation(request.CaseId, request.ExpectedVersion, request.Actor, request.OperationKey, assignmentReason);
         if (request.AssigneeId == Guid.Empty)
         {
             throw new ArgumentException("A valid assignee is required.", nameof(request));
         }
 
         return await MutateAsync(
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey,
             assignmentReason,
             request.EditLeaseToken,
             "triage_assigned",
-            Hash($"assign|{request.TriageId:N}|{request.ExpectedVersion}|{request.AssigneeId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}"),
+            Hash($"assign|{request.CaseId:N}|{request.ExpectedVersion}|{request.AssigneeId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}"),
             item =>
             {
                 if (item.AssigneeId == request.AssigneeId)
@@ -435,14 +472,14 @@ public sealed class EfTriageStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateMutation(
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey,
             request.Reason);
         ValidateState(targetState);
         return await ProbeReplayAsync(
-            request.TriageId,
+            request.CaseId,
             request.OperationKey,
             StateEventType(targetState),
             StateRequestHash(request, targetState),
@@ -455,7 +492,7 @@ public sealed class EfTriageStore(
     {
         ValidateResponseEvidenceMutation(request);
         return ProbeReplayAsync(
-            request.TriageId,
+            request.CaseId,
             request.OperationKey,
             "triage_response_linked",
             LinkResponseRequestHash(request),
@@ -468,7 +505,7 @@ public sealed class EfTriageStore(
     {
         ValidateResponseEvidenceMutation(request);
         return ProbeReplayAsync(
-            request.TriageId,
+            request.CaseId,
             request.OperationKey,
             "triage_response_unlinked",
             UnlinkResponseRequestHash(request),
@@ -482,7 +519,7 @@ public sealed class EfTriageStore(
     {
         TriageLifecycleRules.ValidateNote(request);
         return ProbeReplayAsync(
-            request.TriageId,
+            request.CaseId,
             request.OperationKey,
             TriageNotes.EventType,
             NoteRequestHash(request),
@@ -507,7 +544,7 @@ public sealed class EfTriageStore(
     {
         TriageLifecycleRules.ValidateNote(request);
         return MutateAsync(
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey,
@@ -520,79 +557,7 @@ public sealed class EfTriageStore(
     }
 
     private static string NoteRequestHash(AddTriageNoteRequest request) =>
-        Hash($"note|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Note.Trim()}");
-
-    /// <summary>
-    /// Records, replaces or clears the optional known principal. Mirrors
-    /// <c>EfImageIntakeStore.SetPrincipalAsync</c>'s replace/clear/no-op shape,
-    /// with one deliberate difference: this writes a history entry
-    /// (<c>triage_principal_set</c>) under a freshly minted operation key
-    /// rather than none, because unlike Image Intake, Triage's timeline is the
-    /// one place staff read who acted and when. There is still no caller
-    /// operation key to replay against — the value is replaceable and
-    /// clearable at will, so <see cref="SetTriagePrincipalRequest.ExpectedVersion"/>
-    /// alone guards the write, exactly as it does for Image Intake.
-    /// </summary>
-    public async Task<TriageRecord> SetPrincipalAsync(
-        SetTriagePrincipalRequest request,
-        CancellationToken cancellationToken)
-    {
-        TriageLifecycleRules.ValidateSetPrincipal(request);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var triage = await LoadForMutationAsync(
-            context,
-            request.TriageId,
-            request.ExpectedVersion,
-            cancellationToken);
-        await RequireEditScopeAsync(
-            context, triage, request.ExpectedVersion, request.Actor, request.EditLeaseToken, cancellationToken);
-
-        if (triage.PrincipalId == request.PrincipalId)
-        {
-            EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return Map(triage);
-        }
-
-        if (request.PrincipalId is { } principalId
-            && !await context.Principals.AsNoTracking().AnyAsync(
-                principal => principal.Id == principalId && principal.IsActive,
-                cancellationToken))
-        {
-            throw new InvalidOperationException("The selected principal is not active.");
-        }
-
-        triage.PrincipalId = request.PrincipalId;
-        var operationKey = $"triage-principal-set:{Guid.NewGuid():N}";
-        const string principalReason = "Principal recorded.";
-        AppendHistory(
-            context,
-            triage,
-            "triage_principal_set",
-            request.Actor,
-            operationKey,
-            principalReason,
-            Hash($"principal|{triage.Id:N}|{request.ExpectedVersion}|{request.PrincipalId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}"));
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return Map(triage);
-    }
-
-    public async Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var principals = await context.Principals.AsNoTracking()
-            .Where(principal => principal.IsActive)
-            .OrderBy(principal => principal.Code)
-            .ToArrayAsync(cancellationToken);
-        return principals.Select(EfOrganizationAdministration.ToPrincipal).ToArray();
-    }
+        Hash($"note|{request.CaseId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Note.Trim()}");
 
     public async Task LinkResponseEvidenceAsync(
         TriageResponseEvidenceLinkRequest request,
@@ -608,13 +573,13 @@ public sealed class EfTriageStore(
         var replay = await FindReplayAsync(context, operationKey, cancellationToken);
         if (replay is not null)
         {
-            EnsureReplay(replay, "triage_response_linked", requestHash, request.TriageId);
+            EnsureReplay(replay, "triage_response_linked", requestHash, request.CaseId);
             return;
         }
 
         var triage = await LoadForMutationAsync(
             context,
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             cancellationToken);
         await RequireEditScopeAsync(context, triage, request.ExpectedVersion, request.Actor,
@@ -623,16 +588,16 @@ public sealed class EfTriageStore(
             .Include(item => item.Response)
             .SingleOrDefaultAsync(item => item.Id == request.SentEvidenceId, cancellationToken)
             ?? throw new InvalidOperationException("The Sent evidence does not exist.");
-        if (sent.TriageId != triage.Id)
+        if (sent.TriageCaseId != triage.CaseId)
         {
             throw new InvalidOperationException(
                 "The selected Sent evidence does not belong to this Triage.");
         }
         if (await context.TriageResponseEvidenceLinks.AnyAsync(
-                item => item.TriageId == triage.Id,
+                item => item.TriageCaseId == triage.CaseId,
                 cancellationToken))
         {
-            throw new TriageResponseEvidenceAlreadyLinkedException(triage.Id);
+            throw new TriageResponseEvidenceAlreadyLinkedException(triage.CaseId);
         }
 
         var outcome = await context.ApprovedSentPollOutcomes.SingleOrDefaultAsync(
@@ -700,7 +665,7 @@ public sealed class EfTriageStore(
 
         context.TriageResponseEvidenceLinks.Add(new()
         {
-            TriageId = triage.Id,
+            TriageCaseId = triage.CaseId,
             Triage = triage,
             SentEvidenceId = sent.Id,
             SentEvidence = sent,
@@ -717,7 +682,7 @@ public sealed class EfTriageStore(
             operationKey,
             request.Reason.Trim(),
             requestHash);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -738,16 +703,16 @@ public sealed class EfTriageStore(
                     committedReplay,
                     "triage_response_linked",
                     requestHash,
-                    request.TriageId);
+                    request.CaseId);
                 return;
             }
 
             if (await verification.TriageResponseEvidenceLinks.AsNoTracking().AnyAsync(
-                    item => item.TriageId == request.TriageId,
+                    item => item.TriageCaseId == request.CaseId,
                     CancellationToken.None))
             {
                 throw new TriageResponseEvidenceAlreadyLinkedException(
-                    request.TriageId,
+                    request.CaseId,
                     exception);
             }
 
@@ -769,19 +734,19 @@ public sealed class EfTriageStore(
         var replay = await FindReplayAsync(context, operationKey, cancellationToken);
         if (replay is not null)
         {
-            EnsureReplay(replay, "triage_response_unlinked", requestHash, request.TriageId);
+            EnsureReplay(replay, "triage_response_unlinked", requestHash, request.CaseId);
             return;
         }
 
         var triage = await LoadForMutationAsync(
             context,
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             cancellationToken);
         await RequireEditScopeAsync(context, triage, request.ExpectedVersion, request.Actor,
             request.EditLeaseToken, cancellationToken);
         var link = await context.TriageResponseEvidenceLinks.SingleOrDefaultAsync(
-            item => item.TriageId == triage.Id && item.SentEvidenceId == request.SentEvidenceId,
+            item => item.TriageCaseId == triage.CaseId && item.SentEvidenceId == request.SentEvidenceId,
             cancellationToken) ?? throw new InvalidOperationException("The response evidence is not linked.");
         context.TriageResponseEvidenceLinks.Remove(link);
         AppendHistory(
@@ -792,7 +757,7 @@ public sealed class EfTriageStore(
             operationKey,
             request.Reason.Trim(),
             requestHash);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -804,7 +769,7 @@ public sealed class EfTriageStore(
     {
         ValidateState(targetState);
         return MutateAsync(
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey,
@@ -848,7 +813,7 @@ public sealed class EfTriageStore(
         // The same newest-first order the keyset page uses, so the two read
         // paths cannot disagree about what "the next row" is.
         return rows.OrderByDescending(row => row.Item.CreatedAtUtc)
-            .ThenByDescending(row => row.Item.Sequence)
+            .ThenByDescending(row => new SqlGuid(row.Item.CaseId))
             .Select(ToSummary)
             .ToArray();
     }
@@ -876,13 +841,12 @@ public sealed class EfTriageStore(
     /// </summary>
     /// <remarks>
     /// The position the caller carries is the pair the order is defined by —
-    /// the instant and the Triage identity — but the tie-break is applied on
-    /// the row's allocation <c>Sequence</c>, which is unique, ordered and
-    /// unambiguous in SQL, where <c>uniqueidentifier</c> ordering is not the
-    /// ordering <see cref="Guid.CompareTo(Guid)"/> defines. Resolving the
-    /// cursor's identity to its sequence costs one primary-key read per
-    /// continuation page and rejects a cursor naming a Triage that is not
-    /// there.
+    /// the instant and the Triage Case identity. The database orders and
+    /// bounds <c>uniqueidentifier</c> by its own rule, which is not the one
+    /// <see cref="Guid.CompareTo(Guid)"/> defines, so every in-memory
+    /// re-ordering uses <see cref="SqlGuid"/>, which compares the same way the
+    /// database does. A cursor naming a Triage Case that is not there is
+    /// rejected.
     /// </remarks>
     public async Task<TriageListSlice> ListPageAsync(
         TriageState? state,
@@ -895,7 +859,7 @@ public sealed class EfTriageStore(
             throw new ArgumentOutOfRangeException(nameof(state));
         }
         ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
-        if (after is { } position && position.Id == Guid.Empty)
+        if (after is { } position && position.CaseId == Guid.Empty)
         {
             throw new ArgumentException(
                 "A keyset position requires a Triage identity.",
@@ -915,23 +879,24 @@ public sealed class EfTriageStore(
         }
         if (after is { } cursor)
         {
-            var afterSequence = await context.Triage.AsNoTracking()
-                .Where(item => item.Id == cursor.Id)
-                .Select(item => (long?)item.Sequence)
-                .SingleOrDefaultAsync(cancellationToken)
-                ?? throw new CursorRejectedException(
+            var afterCaseId = cursor.CaseId;
+            if (!await context.Triage.AsNoTracking().AnyAsync(
+                    item => item.CaseId == afterCaseId, cancellationToken))
+            {
+                throw new CursorRejectedException(
                     "The cursor names a Triage that is no longer listed.");
+            }
             var afterCreatedAtUtc = cursor.CreatedAtUtc;
             // Strictly after the position in the newest-first order: an older
-            // row, or the same instant with an earlier allocation.
+            // row, or the same instant with a lower Case identity.
             triage = triage.Where(item =>
                 item.CreatedAtUtc < afterCreatedAtUtc
-                || (item.CreatedAtUtc == afterCreatedAtUtc && item.Sequence < afterSequence));
+                || (item.CreatedAtUtc == afterCreatedAtUtc && item.CaseId < afterCaseId));
         }
 
         var bounded = triage
             .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenByDescending(item => item.Sequence)
+            .ThenByDescending(item => item.CaseId)
             .Take(limit + 1);
         var rows = await ProjectWithDraft(context, bounded).ToListAsync(cancellationToken);
         var hasMore = rows.Count > limit;
@@ -940,21 +905,21 @@ public sealed class EfTriageStore(
         // database has already chosen which ones they are.
         var page = rows
             .OrderByDescending(row => row.Item.CreatedAtUtc)
-            .ThenByDescending(row => row.Item.Sequence)
+            .ThenByDescending(row => new SqlGuid(row.Item.CaseId))
             .Take(limit)
             .Select(ToSummary)
             .ToArray();
         var next = hasMore && page.Length > 0
-            ? new TriageListPosition(page[^1].CreatedAtUtc, page[^1].Id)
+            ? new TriageListPosition(page[^1].CreatedAtUtc, page[^1].CaseId)
             : null;
         return new(page, next);
     }
 
     /// <summary>
-    /// The one query behind both Triage read paths: Triage left-joined with
-    /// its originating <c>InstructionDraft</c> (a Triage need not carry one)
-    /// so the row already carries the reference and provider the queue rows
-    /// need — no per-row lookup. <paramref name="triagePredicate"/> filters
+    /// The one query behind both Triage read paths: Triage joined with its
+    /// Case (reference and Principal) and left-joined with its originating
+    /// <c>InstructionDraft</c> (a Triage Case need not carry one) so the row
+    /// already carries what the queue rows need — no per-row lookup. <paramref name="triagePredicate"/> filters
     /// the Triage side before the join/projection: EF Core cannot translate
     /// a filter applied after a <c>Select</c> into a named record type (only
     /// into an anonymous type), so filtering happens here, not by the caller
@@ -983,75 +948,85 @@ public sealed class EfTriageStore(
         PegasusDbContext context,
         IQueryable<TriageEntity> triage) =>
         from item in triage
+        join caseRow in context.Cases.AsNoTracking()
+            on item.CaseId equals caseRow.Id
+        join principal in context.Principals.AsNoTracking()
+            on caseRow.PrincipalId equals principal.Id
         join draft in context.InstructionDrafts.AsNoTracking()
-            on item.OriginReceiptId equals draft.IntakeReceiptId into drafts
+            on item.OriginReceiptId equals (Guid?)draft.IntakeReceiptId into drafts
         from draft in drafts.DefaultIfEmpty()
-        select new TriageWithDraftRow(item, draft == null ? null : draft.ClaimNumber, draft == null ? null : draft.SuggestedPrincipalCode);
+        select new TriageWithDraftRow(
+            item,
+            caseRow.Reference,
+            caseRow.PrincipalId,
+            principal.Code,
+            draft == null ? null : draft.ClaimNumber);
 
     private static TriageSummary ToSummary(TriageWithDraftRow row) => new(
-        row.Item.Id,
+        row.Item.CaseId,
         row.Item.NormalizedVehicleRegistration,
         ParseState(row.Item.State),
         row.Item.AssigneeId,
-        row.Item.LinkedCaseId,
+        row.Item.LinkedInstructionCaseId,
         row.Item.CreatedAtUtc,
         row.Item.Version,
-        row.Item.Reference,
+        row.Reference,
         row.Provider,
         row.ClaimNumber,
-        row.Item.PrincipalId);
+        row.PrincipalId);
 
-    private sealed record TriageWithDraftRow(TriageEntity Item, string? ClaimNumber, string? Provider);
+    private sealed record TriageWithDraftRow(
+        TriageEntity Item,
+        string Reference,
+        Guid PrincipalId,
+        string Provider,
+        string? ClaimNumber);
 
-    public async Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty)
+        if (caseId == Guid.Empty)
         {
-            throw new ArgumentException("A Triage identity is required.", nameof(id));
+            throw new ArgumentException("A Triage identity is required.", nameof(caseId));
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // The principal code comes out of this one read as a LEFT JOIN through
-        // the foreign key rather than a follow-up lookup, so the detail read
-        // stays a single round trip whether or not a principal is recorded.
-        var row = await context.Triage.AsNoTracking()
+        var entity = await context.Triage.AsNoTracking()
+            .Include(item => item.Case).ThenInclude(item => item.Principal)
             .Include(item => item.Findings)
             .Include(item => item.ResponseEvidenceLinks)
             .Include(item => item.History)
-            .Where(item => item.Id == id)
-            .Select(item => new
-            {
-                Item = item,
-                PrincipalCode = context.Principals
-                    .Where(principal => principal.Id == item.PrincipalId)
-                    .Select(principal => principal.Code)
-                    .FirstOrDefault()
-            })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (row is null)
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        if (entity is null)
         {
             return null;
         }
 
-        var entity = row.Item;
-        return new(
+        // The Triage Case's files are its standard Case documents, read by the
+        // same projection the Case record's Files section uses.
+        var documents = await EfCaseQueryStore.ReadDocumentsAsync(context, caseId, cancellationToken);
+        return new TriageDetail(
             Map(entity),
             entity.CreatedAtUtc,
             entity.Findings.OrderBy(item => item.RecordedAtUtc).ThenBy(item => item.Id).Select(Map).ToArray(),
             entity.ResponseEvidenceLinks.OrderBy(item => item.LinkedAtUtc).ThenBy(item => item.SentEvidenceId).Select(Map).ToArray(),
             entity.History.OrderBy(item => item.AfterVersion).ThenBy(item => item.Id).Select(Map).ToArray(),
             Array.Empty<TriageResponseEvidenceCandidate>(),
-            row.PrincipalCode);
+            entity.Case.Principal.Code)
+        {
+            Documents = documents,
+            CustodyState = EfCaseQueryStore.ParseCustodyState(entity.Case.CustodyState),
+            CustodyFolderRemoteId = entity.Case.CustodyRootRemoteId
+        };
     }
 
     public async Task<IReadOnlyList<TriageSentEvidenceReference>> ListSentEvidenceReferencesAsync(
-        Guid triageId,
+        Guid caseId,
         int maximumResults,
         CancellationToken cancellationToken)
     {
-        if (triageId == Guid.Empty)
+        if (caseId == Guid.Empty)
         {
-            throw new ArgumentException("A Triage identity is required.", nameof(triageId));
+            throw new ArgumentException("A Triage identity is required.", nameof(caseId));
         }
         if (maximumResults is < 1 or > 100)
         {
@@ -1063,7 +1038,7 @@ public sealed class EfTriageStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         return await context.SentEmailEvidence
             .AsNoTracking()
-            .Where(item => item.TriageId == triageId)
+            .Where(item => item.TriageCaseId == caseId)
             .OrderByDescending(item => item.SentAtUtc)
             .ThenBy(item => item.Id)
             .Take(maximumResults)
@@ -1079,7 +1054,7 @@ public sealed class EfTriageStore(
         ValidateFindingMutation(request, superseding);
         var eventType = FindingEventType(superseding);
         return await ProbeReplayAsync(
-            request.TriageId,
+            request.CaseId,
             request.OperationKey,
             eventType,
             FindingRequestHash(request, eventType),
@@ -1099,13 +1074,13 @@ public sealed class EfTriageStore(
         var replay = await FindReplayAsync(context, request.OperationKey.Trim(), cancellationToken);
         if (replay is not null)
         {
-            EnsureReplay(replay, eventType, requestHash, request.TriageId);
+            EnsureReplay(replay, eventType, requestHash, request.CaseId);
             return await MapReplayAsync(context, replay, cancellationToken);
         }
 
         var triage = await LoadForMutationAsync(
             context,
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             cancellationToken);
         await RequireEditScopeAsync(context, triage, request.ExpectedVersion, request.Actor,
@@ -1113,7 +1088,7 @@ public sealed class EfTriageStore(
         if (superseding)
         {
             var priorExists = await context.TriageFindings.AnyAsync(
-                item => item.Id == request.SupersedesFindingId && item.TriageId == triage.Id,
+                item => item.Id == request.SupersedesFindingId && item.TriageCaseId == triage.CaseId,
                 cancellationToken);
             var alreadySuperseded = await context.TriageFindings.AnyAsync(
                 item => item.SupersedesFindingId == request.SupersedesFindingId,
@@ -1126,7 +1101,7 @@ public sealed class EfTriageStore(
         if (superseding)
         {
             var responseLinks = await context.TriageResponseEvidenceLinks
-                .Where(item => item.TriageId == triage.Id)
+                .Where(item => item.TriageCaseId == triage.CaseId)
                 .ToListAsync(cancellationToken);
             context.TriageResponseEvidenceLinks.RemoveRange(responseLinks);
         }
@@ -1134,7 +1109,7 @@ public sealed class EfTriageStore(
         context.TriageFindings.Add(new()
         {
             Id = Guid.NewGuid(),
-            TriageId = triage.Id,
+            TriageCaseId = triage.CaseId,
             Triage = triage,
             Roadworthiness = request.Roadworthiness is null ? null : ToCode(request.Roadworthiness.Value),
             Assessment = request.Assessment is null ? null : ToCode(request.Assessment.Value),
@@ -1146,7 +1121,7 @@ public sealed class EfTriageStore(
         });
         triage.State = ToCode(TriageState.FindingRecorded);
         AppendHistory(context, triage, eventType, request.Actor, request.OperationKey.Trim(), request.Reason.Trim(), requestHash);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(triage);
@@ -1158,16 +1133,16 @@ public sealed class EfTriageStore(
         Action<TriageEntity> mutation,
         CancellationToken cancellationToken)
     {
-        ValidateMutation(request.TriageId, request.ExpectedVersion, request.Actor, request.OperationKey, request.Reason);
+        ValidateMutation(request.CaseId, request.ExpectedVersion, request.Actor, request.OperationKey, request.Reason);
         return await MutateAsync(
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey,
             request.Reason,
             request.EditLeaseToken,
             eventType,
-            Hash($"{eventType}|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}"),
+            Hash($"{eventType}|{request.CaseId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}"),
             mutation,
             cancellationToken);
     }
@@ -1207,7 +1182,7 @@ public sealed class EfTriageStore(
         }
         if (eventType == "triage_state_completed"
             && await context.TriageResponseEvidenceLinks.CountAsync(
-                item => item.TriageId == triage.Id,
+                item => item.TriageCaseId == triage.CaseId,
                 cancellationToken) != 1)
         {
             throw new InvalidOperationException(
@@ -1215,7 +1190,7 @@ public sealed class EfTriageStore(
         }
         mutation(triage);
         AppendHistory(context, triage, eventType, actor, operationKey, reason.Trim(), requestHash);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(triage);
@@ -1228,13 +1203,13 @@ public sealed class EfTriageStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateMutation(
-            request.TriageId,
+            request.CaseId,
             request.ExpectedTriageVersion,
             request.Actor,
             request.OperationKey,
             request.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.CaseEditLeaseToken);
-        if (request.CaseId == Guid.Empty || request.ExpectedCaseVersion < 0)
+        if (request.InstructionCaseId == Guid.Empty || request.ExpectedCaseVersion < 0)
         {
             throw new ArgumentException(
                 "A valid case and expected case workflow version are required.",
@@ -1244,7 +1219,7 @@ public sealed class EfTriageStore(
         var eventType = linking ? "triage_case_linked" : "triage_case_unlinked";
         var actorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role));
         var requestHash = Hash(
-            $"{eventType}|{request.TriageId:N}|{request.ExpectedTriageVersion}|{request.CaseId:N}|{request.ExpectedCaseVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{actorRolesJson}|{request.Reason.Trim()}");
+            $"{eventType}|{request.CaseId:N}|{request.ExpectedTriageVersion}|{request.InstructionCaseId:N}|{request.ExpectedCaseVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{actorRolesJson}|{request.Reason.Trim()}");
         var operationKey = request.OperationKey.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -1254,7 +1229,7 @@ public sealed class EfTriageStore(
         var replay = await FindReplayAsync(context, operationKey, cancellationToken);
         if (replay is not null)
         {
-            EnsureReplay(replay, eventType, requestHash, request.TriageId);
+            EnsureReplay(replay, eventType, requestHash, request.CaseId);
             return;
         }
 
@@ -1265,18 +1240,18 @@ public sealed class EfTriageStore(
                 item => item.OperationKey == operationKey,
                 cancellationToken))
         {
-            throw new TriageOperationConflictException(request.TriageId, operationKey);
+            throw new TriageOperationConflictException(request.CaseId, operationKey);
         }
 
         var triage = await LoadForMutationAsync(
             context,
-            request.TriageId,
+            request.CaseId,
             request.ExpectedTriageVersion,
             cancellationToken);
         await RequireEditScopeAsync(context, triage, request.ExpectedTriageVersion, request.Actor,
             request.EditLeaseToken, cancellationToken);
         var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
-            item => item.CaseId == request.CaseId,
+            item => item.CaseId == request.InstructionCaseId,
             cancellationToken)
             ?? throw new InvalidOperationException("The case workflow does not exist.");
         var now = UtcNow();
@@ -1289,22 +1264,22 @@ public sealed class EfTriageStore(
 
         if (linking)
         {
-            if (triage.LinkedCaseId is not null)
+            if (triage.LinkedInstructionCaseId is not null)
             {
                 throw new InvalidOperationException("The Triage record is already linked to a case.");
             }
 
-            triage.LinkedCaseId = workflow.CaseId;
+            triage.LinkedInstructionCaseId = workflow.CaseId;
         }
         else
         {
-            if (triage.LinkedCaseId != workflow.CaseId)
+            if (triage.LinkedInstructionCaseId != workflow.CaseId)
             {
                 throw new InvalidOperationException(
                     "The Triage record is not linked to the specified case.");
             }
 
-            triage.LinkedCaseId = null;
+            triage.LinkedInstructionCaseId = null;
         }
 
         var beforeCaseVersion = workflow.Version;
@@ -1333,7 +1308,7 @@ public sealed class EfTriageStore(
             operationKey,
             request.Reason.Trim(),
             requestHash);
-        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -1344,7 +1319,9 @@ public sealed class EfTriageStore(
         long expectedVersion,
         CancellationToken cancellationToken)
     {
-        var triage = await context.Triage.SingleOrDefaultAsync(item => item.Id == id, cancellationToken)
+        var triage = await context.Triage
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == id, cancellationToken)
             ?? throw new KeyNotFoundException($"Triage '{id}' does not exist.");
         EnsureVersion(triage, expectedVersion);
         return triage;
@@ -1360,7 +1337,7 @@ public sealed class EfTriageStore(
         await EfEditScopeStore.RequireAsync(
             context,
             EditScopeKind.Triage,
-            triage.Id,
+            triage.CaseId,
             triage.Version,
             expectedVersion,
             actor,
@@ -1392,7 +1369,7 @@ public sealed class EfTriageStore(
     private static string FindingRequestHash(
         RecordTriageFindingRequest request,
         string eventType) =>
-        Hash($"{eventType}|{request.TriageId:N}|{request.ExpectedVersion}|{request.Roadworthiness}|{request.Assessment}|{request.SupersedesFindingId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
+        Hash($"{eventType}|{request.CaseId:N}|{request.ExpectedVersion}|{request.Roadworthiness}|{request.Assessment}|{request.SupersedesFindingId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
     private static string StateEventType(TriageState targetState) =>
         $"triage_state_{ToCode(targetState)}";
@@ -1400,7 +1377,7 @@ public sealed class EfTriageStore(
     private static string StateRequestHash(
         TriageMutationRequest request,
         TriageState targetState) =>
-        Hash($"state|{request.TriageId:N}|{request.ExpectedVersion}|{ToCode(targetState)}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
+        Hash($"state|{request.CaseId:N}|{request.ExpectedVersion}|{ToCode(targetState)}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
     private static Task<TriageHistoryEntity?> FindReplayAsync(
         PegasusDbContext context,
@@ -1413,13 +1390,13 @@ public sealed class EfTriageStore(
         TriageHistoryEntity replay,
         string eventType,
         string requestHash,
-        Guid? requestedTriageId = null)
+        Guid? requestedCaseId = null)
     {
         if (replay.EventType != eventType
             || replay.RequestHash != requestHash
-            || (requestedTriageId is not null && replay.TriageId != requestedTriageId))
+            || (requestedCaseId is not null && replay.TriageCaseId != requestedCaseId))
         {
-            throw new TriageOperationConflictException(replay.TriageId, replay.OperationKey);
+            throw new TriageOperationConflictException(replay.TriageCaseId, replay.OperationKey);
         }
     }
 
@@ -1428,12 +1405,14 @@ public sealed class EfTriageStore(
         TriageHistoryEntity replay,
         CancellationToken cancellationToken)
     {
-        var entity = await context.Triage.AsNoTracking().SingleAsync(item => item.Id == replay.TriageId, cancellationToken);
+        var entity = await context.Triage.AsNoTracking()
+            .Include(item => item.Case)
+            .SingleAsync(item => item.CaseId == replay.TriageCaseId, cancellationToken);
         return Map(entity) with
         {
             State = ParseState(replay.AfterState),
             AssigneeId = replay.AfterAssigneeId,
-            LinkedCaseId = replay.AfterLinkedCaseId,
+            LinkedInstructionCaseId = replay.AfterLinkedInstructionCaseId,
             Version = replay.AfterVersion
         };
     }
@@ -1456,7 +1435,7 @@ public sealed class EfTriageStore(
         context.TriageHistory.Add(new()
         {
             Id = Guid.NewGuid(),
-            TriageId = triage.Id,
+            TriageCaseId = triage.CaseId,
             Triage = triage,
             EventType = eventType,
             Actor = actor.SubjectId,
@@ -1469,7 +1448,7 @@ public sealed class EfTriageStore(
             AfterVersion = triage.Version,
             AfterState = triage.State,
             AfterAssigneeId = triage.AssigneeId,
-            AfterLinkedCaseId = triage.LinkedCaseId
+            AfterLinkedInstructionCaseId = triage.LinkedInstructionCaseId
         });
     }
 
@@ -1478,7 +1457,7 @@ public sealed class EfTriageStore(
     {
         if (triage.Version != expectedVersion)
         {
-            throw new TriageVersionConflictException(triage.Id, expectedVersion, triage.Version);
+            throw new TriageVersionConflictException(triage.CaseId, expectedVersion, triage.Version);
         }
     }
 
@@ -1509,7 +1488,7 @@ public sealed class EfTriageStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateMutation(
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey,
@@ -1548,7 +1527,7 @@ public sealed class EfTriageStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateMutation(
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey,
@@ -1566,7 +1545,7 @@ public sealed class EfTriageStore(
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateMutation(
-            request.TriageId,
+            request.CaseId,
             request.ExpectedVersion,
             request.Actor,
             request.OperationKey,
@@ -1582,12 +1561,12 @@ public sealed class EfTriageStore(
     private static string LinkResponseRequestHash(
         TriageResponseEvidenceLinkRequest request) =>
         Hash(
-            $"link_response|{request.TriageId:N}|{request.ExpectedVersion}|{request.PollOutcomeId:N}|{request.SentEvidenceId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
+            $"link_response|{request.CaseId:N}|{request.ExpectedVersion}|{request.PollOutcomeId:N}|{request.SentEvidenceId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
     private static string UnlinkResponseRequestHash(
         TriageResponseEvidenceUnlinkRequest request) =>
         Hash(
-            $"unlink_response|{request.TriageId:N}|{request.ExpectedVersion}|{request.SentEvidenceId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
+            $"unlink_response|{request.CaseId:N}|{request.ExpectedVersion}|{request.SentEvidenceId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Reason.Trim()}");
 
     private static string[] DeserializeInReplyToIdentities(
         ApprovedSentPollOutcomeEntity outcome)
@@ -1778,24 +1757,38 @@ public sealed class EfTriageStore(
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
+    /// <summary>
+    /// The Triage Case as a record; <paramref name="entity"/> carries its
+    /// Case, which owns the reference and the Principal.
+    /// </summary>
     private static TriageRecord Map(TriageEntity entity) => new(
-        entity.Id,
-        new(
-            entity.OriginReceiptId,
-            new(ParseSourceChannel(entity.SourceChannel), entity.ExternalReceiptToken),
-            entity.SourceHash,
-            entity.EvaluationRevisionId),
+        entity.CaseId,
+        MapOrigin(entity),
         entity.NormalizedVehicleRegistration,
         ParseState(entity.State),
         entity.AssigneeId,
-        entity.LinkedCaseId,
+        entity.LinkedInstructionCaseId,
         entity.Version,
-        entity.Reference,
-        entity.PrincipalId);
+        entity.Case.Reference,
+        entity.Case.PrincipalId);
+
+    private static TriageOrigin? MapOrigin(TriageEntity entity) =>
+        entity.OriginReceiptId is { } receiptId
+            ? new(
+                receiptId,
+                new(
+                    ParseSourceChannel(entity.SourceChannel
+                        ?? throw new InvalidDataException("A Triage origin has no source channel.")),
+                    entity.ExternalReceiptToken
+                        ?? throw new InvalidDataException("A Triage origin has no source receipt token.")),
+                entity.SourceHash ?? throw new InvalidDataException("A Triage origin has no source hash."),
+                entity.EvaluationRevisionId
+                    ?? throw new InvalidDataException("A Triage origin has no evaluation revision."))
+            : null;
 
     private static TriageFinding Map(TriageFindingEntity entity) => new(
         entity.Id,
-        entity.TriageId,
+        entity.TriageCaseId,
         entity.Roadworthiness is null ? null : ParseRoadworthiness(entity.Roadworthiness),
         entity.Assessment is null ? null : ParseAssessment(entity.Assessment),
         entity.SupersedesFindingId,
@@ -1805,7 +1798,7 @@ public sealed class EfTriageStore(
         entity.RecordedAtUtc);
 
     private static TriageResponseEvidenceLink Map(TriageResponseEvidenceLinkEntity entity) => new(
-        entity.TriageId,
+        entity.TriageCaseId,
         entity.SentEvidenceId,
         entity.Actor,
         entity.OperationKey,
@@ -1814,7 +1807,7 @@ public sealed class EfTriageStore(
 
     private static TriageHistoryEntry Map(TriageHistoryEntity entity) => new(
         entity.Id,
-        entity.TriageId,
+        entity.TriageCaseId,
         entity.EventType,
         entity.Actor,
         entity.ActorKind,
@@ -1825,9 +1818,9 @@ public sealed class EfTriageStore(
         entity.AfterVersion,
         ParseState(entity.AfterState),
         entity.AfterAssigneeId,
-        entity.AfterLinkedCaseId);
+        entity.AfterLinkedInstructionCaseId);
 
-    private static string ToCode(IntakeSourceChannel value) => value switch
+    internal static string ToCode(IntakeSourceChannel value) => value switch
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",
@@ -1845,7 +1838,7 @@ public sealed class EfTriageStore(
         _ => throw new InvalidDataException($"Unknown persisted intake source channel '{value}'.")
     };
 
-    private static string ToCode(TriageState value) => value switch
+    internal static string ToCode(TriageState value) => value switch
     {
         TriageState.Open => "open",
         TriageState.AwaitingInformation => "awaiting_information",
@@ -1855,7 +1848,7 @@ public sealed class EfTriageStore(
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
 
-    private static TriageState ParseState(string value) => value switch
+    internal static TriageState ParseState(string value) => value switch
     {
         "open" => TriageState.Open,
         "awaiting_information" => TriageState.AwaitingInformation,

@@ -48,6 +48,50 @@ public sealed class ManualCaseCreationTests
     }
 
     /// <summary>
+    /// A Triage Case asks only for its Principal and the vehicle registration
+    /// (decision R): nothing else is required.
+    /// </summary>
+    [Fact]
+    public async Task ATriageCaseNeedsOnlyThePrincipalAndTheRegistration()
+    {
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
+
+        await useCase.ExecuteAsync(new(
+            Staff,
+            "manual-triage-1",
+            " ce ",
+            CaseType.Triage,
+            new(VehicleRegistration: " ab 12 cde ")),
+            CancellationToken.None);
+
+        Assert.NotNull(store.Request);
+        Assert.Equal(CaseType.Triage, store.Request!.CaseType);
+        Assert.Equal("CE", store.Request.PrincipalCode);
+        Assert.Equal("AB12CDE", store.Request.Data.VehicleRegistration);
+        Assert.Null(store.Request.Data.ClaimantName);
+        Assert.Null(store.Request.Data.ClaimNumber);
+    }
+
+    [Fact]
+    public async Task ATriageCaseWithoutARegistrationIsRefused()
+    {
+        var store = new RecordingStore();
+        var useCase = new CreateManualCase(store, new CommittedWorkPublisherDouble());
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => useCase.ExecuteAsync(new(
+            Staff,
+            "manual-triage-2",
+            "CE",
+            CaseType.Triage,
+            new(ClaimantName: "Jane Doe", ClaimNumber: "C-1")),
+            CancellationToken.None));
+
+        Assert.Equal("A manual case needs Vehicle registration.", exception.Message);
+        Assert.Null(store.Request);
+    }
+
+    /// <summary>
     /// The vehicle lookup the creation transaction enqueued is published as
     /// soon as it commits, so DVLA/MOT evidence arrives with the new Case
     /// instead of on the Worker's next reconciliation sweep (FRD-06 D34).

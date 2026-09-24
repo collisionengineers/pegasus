@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -12,15 +13,26 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseQueryStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseQueryStore
+    TimeProvider timeProvider) : ICaseQueryStore, ICaseKindQueries
 {
+    /// <inheritdoc />
+    async Task<CaseType?> ICaseKindQueries.GetAsync(Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var code = await context.Cases.AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => item.Type)
+            .SingleOrDefaultAsync(cancellationToken);
+        return code is null ? null : CaseTypeCodes.Parse(code);
+    }
+
     public async Task<SearchCasesResult> SearchAsync(
         SearchCasesQuery query,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = ApplySearchFilters(SearchRows(context), query.Filters);
+        var rows = ApplySearchFilters(SearchRows(context, query.Filters.IncludeTriage), query.Filters);
 
         var skip = checked((query.Page - 1) * query.PageSize);
         var ordered = OrderRows(rows, query.Order);
@@ -68,7 +80,7 @@ public sealed class EfCaseQueryStore(
     {
         ArgumentNullException.ThrowIfNull(filters);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = ApplySearchFilters(SearchRows(context), filters);
+        var rows = ApplySearchFilters(SearchRows(context, filters.IncludeTriage), filters);
         if (afterId is { } id)
         {
             rows = ApplyCursorPredicate(rows, order, afterReceivedAtUtc, afterSortText, id);
@@ -351,7 +363,8 @@ public sealed class EfCaseQueryStore(
             ResolveActiveLease(workflow, timeProvider.GetUtcNow()),
             documentCount,
             historyCount,
-            openTaskCount);
+            openTaskCount,
+            await CaseWorkScope.LoadSetAsync(context, query.CaseId, cancellationToken));
     }
 
     public async Task<CaseSectionFrame?> GetSectionFrameAsync(
@@ -374,7 +387,8 @@ public sealed class EfCaseQueryStore(
 
         var summary = MapSearchItem(await SearchRows(context)
             .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
-        return CreateSectionFrame(summary, workflow);
+        return CreateSectionFrame(
+            summary, workflow, await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken));
     }
 
     /// <summary>
@@ -410,13 +424,13 @@ public sealed class EfCaseQueryStore(
             .Take(100)
             .ToArrayAsync(cancellationToken);
         var recordNotes = await ReadRecordNotesAsync(context, workflow, caseId, cancellationToken);
-        var frame = CreateSectionFrame(summary, workflow);
+        var frame = CreateSectionFrame(
+            summary, workflow, await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken));
         return new(
             frame,
             documents,
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
-            recordNotes,
-            workflow.Case.AuditOfCaseId);
+            recordNotes);
     }
 
     /// <summary>
@@ -503,7 +517,8 @@ public sealed class EfCaseQueryStore(
 
             var summary = MapSearchItem(await SearchRows(context)
                 .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
-            frame = CreateSectionFrame(summary, workflow);
+            frame = CreateSectionFrame(
+                summary, workflow, await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken));
         }
 
         ArgumentNullException.ThrowIfNull(frame);
@@ -512,16 +527,35 @@ public sealed class EfCaseQueryStore(
             ? await ReadDocumentsAsync(context, caseId, cancellationToken)
             : [];
         var correspondenceEmails = await ReadCorrespondenceEmailsAsync(context, caseId, cancellationToken);
-        // The two Audit facts the Files section needs are not on the section
+        // The Audit facts the Files section needs are not on the section
         // frame a caller may hand in, so read them in one narrow projection.
         var auditFacts = await context.Cases
             .AsNoTracking()
             .Where(item => item.Id == caseId)
-            .Select(item => new { item.StandaloneAuditEvidenceId, item.AuditOfCaseId })
+            .Select(item => new
+            {
+                item.StandaloneAuditEvidenceId,
+                item.AuditCustodyRemoteId,
+                HasAuditWork = item.Works.Any(work => work.Kind == CaseWorkKinds.Audit),
+                AuditFolderFailed = item.ExternalWork.Any(work =>
+                    work.Kind == ExternalWorkKinds.CreateAuditReferenceCustody
+                    && work.State == ExternalWorkStatePersistence.Failed)
+            })
             .SingleAsync(cancellationToken);
+        // The Audit's a. folder: confirmed once it has a Box root, failed when
+        // its custody work failed, otherwise still being prepared.
+        CaseCustodyState? auditCustodyState = !auditFacts.HasAuditWork
+            ? null
+            : !string.IsNullOrWhiteSpace(auditFacts.AuditCustodyRemoteId)
+                ? CaseCustodyState.Confirmed
+                : auditFacts.AuditFolderFailed
+                    ? CaseCustodyState.Failed
+                    : CaseCustodyState.Pending;
         return new(sectionFrame, documents, sectionFrame.CustodyFolderRemoteId,
             sectionFrame.CustodyState, correspondenceEmails,
-            auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId);
+            auditFacts.StandaloneAuditEvidenceId,
+            auditCustodyState,
+            auditFacts.HasAuditWork ? auditFacts.AuditCustodyRemoteId : null);
     }
 
     public async Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(
@@ -564,7 +598,7 @@ public sealed class EfCaseQueryStore(
                     workflow.EditLeaseGeneration)
                 : null;
 
-    private static CaseCustodyState ParseCustodyState(string value) => value switch
+    internal static CaseCustodyState ParseCustodyState(string value) => value switch
     {
         "pending" => CaseCustodyState.Pending,
         "confirmed" => CaseCustodyState.Confirmed,
@@ -573,13 +607,17 @@ public sealed class EfCaseQueryStore(
             $"Unknown persisted case custody state '{value}'.")
     };
 
-    private CaseSectionFrame CreateSectionFrame(CaseSearchItem summary, CaseWorkflowEntity workflow) =>
+    private CaseSectionFrame CreateSectionFrame(
+        CaseSearchItem summary,
+        CaseWorkflowEntity workflow,
+        CaseWorkSet works) =>
         new(
             summary,
             MapWorkflow(workflow),
             ResolveActiveLease(workflow, timeProvider.GetUtcNow()),
             workflow.Case.CustodyRootRemoteId,
-            ParseCustodyState(workflow.Case.CustodyState));
+            ParseCustodyState(workflow.Case.CustodyState),
+            works);
 
     private static async Task<CaseRecordNotes> ReadRecordNotesAsync(
         PegasusDbContext context,
@@ -587,8 +625,10 @@ public sealed class EfCaseQueryStore(
         Guid caseId,
         CancellationToken cancellationToken)
     {
+        // The claim source is read from the work being edited.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var claimSourceId = await context.CaseDataFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == workId
                 && item.FieldName == CaseDataFieldNames.ClaimSourceId
                 && item.ValueKind == CaseDataCodes.Confirmed)
             .Select(item => item.Value)
@@ -673,6 +713,99 @@ public sealed class EfCaseQueryStore(
             .ToArray();
     }
 
+    /// <summary>
+    /// The search rows, with Triage Cases only when the caller asks for them.
+    /// </summary>
+    private static IQueryable<SearchRow> SearchRows(PegasusDbContext context, bool includeTriage) =>
+        includeTriage ? SearchRowsIncludingTriage(context) : SearchRows(context);
+
+    /// <summary>
+    /// Every Case with a Case workflow and every Triage Case: the Case left
+    /// joined to its workflow and to its Triage subtype. A Triage Case row takes
+    /// its registration from the Triage and its state from the Triage state
+    /// code; it has no workflow, so the workflow-only columns are empty.
+    /// </summary>
+    private static IQueryable<SearchRow> SearchRowsIncludingTriage(PegasusDbContext context) =>
+        from caseEntity in context.Set<CaseEntity>().AsNoTracking()
+        join workflowCandidate in context.CaseWorkflows.AsNoTracking()
+            on caseEntity.Id equals workflowCandidate.CaseId into workflows
+        from workflow in workflows.DefaultIfEmpty()
+        join triageCandidate in context.Triage.AsNoTracking()
+            on caseEntity.Id equals triageCandidate.CaseId into triages
+        from triage in triages.DefaultIfEmpty()
+        where workflow != null || triage != null
+        join principal in context.Set<PrincipalEntity>().AsNoTracking()
+            on caseEntity.PrincipalId equals principal.Id
+        join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
+            on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
+        from receipt in receipts.DefaultIfEmpty()
+        join draftCandidate in context.Set<InstructionDraftEntity>().AsNoTracking()
+            on receipt.Id equals draftCandidate.IntakeReceiptId into drafts
+        from draft in drafts.DefaultIfEmpty()
+        join confirmedClaimantCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.ClaimantName
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedClaimantCandidate.WorkId into confirmedClaimants
+        from confirmedClaimant in confirmedClaimants.DefaultIfEmpty()
+        join confirmedClaimNumberCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.ClaimNumber
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedClaimNumberCandidate.WorkId into confirmedClaimNumbers
+        from confirmedClaimNumber in confirmedClaimNumbers.DefaultIfEmpty()
+        join confirmedRegistrationCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedRegistrationCandidate.WorkId into confirmedRegistrations
+        from confirmedRegistration in confirmedRegistrations.DefaultIfEmpty()
+        join confirmedMakeCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedMakeCandidate.WorkId into confirmedMakes
+        from confirmedMake in confirmedMakes.DefaultIfEmpty()
+        join confirmedModelCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedModelCandidate.WorkId into confirmedModels
+        from confirmedModel in confirmedModels.DefaultIfEmpty()
+        join confirmedCircumstancesCandidate in context.CaseDataFields.AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
+                    && item.ValueKind == CaseDataCodes.Confirmed)
+            on caseEntity.Id equals confirmedCircumstancesCandidate.WorkId into confirmedCircumstanceRows
+        from confirmedCircumstances in confirmedCircumstanceRows.DefaultIfEmpty()
+        select new SearchRow
+        {
+            CaseId = caseEntity.Id,
+            Reference = caseEntity.Reference,
+            AuditReference = caseEntity.AuditReference,
+            CaseType = caseEntity.Type,
+            Principal = principal.Code,
+            State = workflow != null ? workflow.State : triage!.State,
+            EngineerId = workflow == null ? null : workflow.AssignedEngineerId,
+            Registration = triage != null
+                ? triage.NormalizedVehicleRegistration
+                : draft == null ? confirmedRegistration!.Value : draft.VehicleRegistration,
+            Claimant = draft == null ? confirmedClaimant!.Value : draft.ClaimantName,
+            ClaimNumber = draft == null ? confirmedClaimNumber!.Value : draft.ClaimNumber,
+            VehicleMake = draft == null ? confirmedMake!.Value : draft.VehicleMake,
+            VehicleModel = draft == null ? confirmedModel!.Value : draft.VehicleModel,
+            AccidentCircumstances = draft == null
+                ? confirmedCircumstances!.Value
+                : draft.AccidentCircumstances,
+            ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
+            InstructionDate = draft == null ? null : draft.InstructionDate,
+            Origin = receipt == null ? "manual" : receipt.SourceChannel,
+            CreatedAtUtc = caseEntity.CreatedAtUtc,
+            NextChaseAtUtc = workflow == null || workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
+            InstructionComplete = caseEntity.InstructionComplete,
+            ImagesComplete = caseEntity.ImagesComplete,
+            HoldReviewOn = workflow == null ? null : workflow.HoldReviewOn,
+            HeldAtUtc = workflow == null ? null : workflow.HeldAtUtc,
+            StateEnteredAtUtc = workflow == null ? null : workflow.StateEnteredAtUtc,
+            EditLeaseHolder = workflow == null ? null : workflow.EditLeaseHolder,
+            EditLeaseHolderKind = workflow == null ? null : workflow.EditLeaseHolderKind,
+            EditLeaseExpiresAtUtc = workflow == null ? null : workflow.EditLeaseExpiresAtUtc
+        };
+
     private static IQueryable<SearchRow> SearchRows(PegasusDbContext context) =>
         from workflow in context.CaseWorkflows.AsNoTracking()
         join caseEntity in context.Set<CaseEntity>().AsNoTracking()
@@ -688,32 +821,32 @@ public sealed class EfCaseQueryStore(
         join confirmedClaimantCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.ClaimantName
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedClaimantCandidate.CaseId into confirmedClaimants
+            on caseEntity.Id equals confirmedClaimantCandidate.WorkId into confirmedClaimants
         from confirmedClaimant in confirmedClaimants.DefaultIfEmpty()
         join confirmedClaimNumberCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.ClaimNumber
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedClaimNumberCandidate.CaseId into confirmedClaimNumbers
+            on caseEntity.Id equals confirmedClaimNumberCandidate.WorkId into confirmedClaimNumbers
         from confirmedClaimNumber in confirmedClaimNumbers.DefaultIfEmpty()
         join confirmedRegistrationCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedRegistrationCandidate.CaseId into confirmedRegistrations
+            on caseEntity.Id equals confirmedRegistrationCandidate.WorkId into confirmedRegistrations
         from confirmedRegistration in confirmedRegistrations.DefaultIfEmpty()
         join confirmedMakeCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedMakeCandidate.CaseId into confirmedMakes
+            on caseEntity.Id equals confirmedMakeCandidate.WorkId into confirmedMakes
         from confirmedMake in confirmedMakes.DefaultIfEmpty()
         join confirmedModelCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedModelCandidate.CaseId into confirmedModels
+            on caseEntity.Id equals confirmedModelCandidate.WorkId into confirmedModels
         from confirmedModel in confirmedModels.DefaultIfEmpty()
         join confirmedCircumstancesCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedCircumstancesCandidate.CaseId into confirmedCircumstanceRows
+            on caseEntity.Id equals confirmedCircumstancesCandidate.WorkId into confirmedCircumstanceRows
         from confirmedCircumstances in confirmedCircumstanceRows.DefaultIfEmpty()
         select new SearchRow
         {
@@ -747,7 +880,7 @@ public sealed class EfCaseQueryStore(
             EditLeaseExpiresAtUtc = workflow.EditLeaseExpiresAtUtc
         };
 
-    private static async Task<IReadOnlyList<CaseDocument>> ReadDocumentsAsync(
+    internal static async Task<IReadOnlyList<CaseDocument>> ReadDocumentsAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
@@ -1007,9 +1140,11 @@ public sealed class EfCaseQueryStore(
         item.CaseId,
         item.Reference,
         item.AuditReference,
-        ParseCaseType(item.CaseType),
+        CaseTypeCodes.Parse(item.CaseType),
         item.Principal,
-        Enum.Parse<CaseLifecycleState>(item.State),
+        // A Triage Case has no Case lifecycle state; its row carries the
+        // Triage state instead (TriageState below).
+        item.CaseType == CaseTypeCodes.Triage ? default : Enum.Parse<CaseLifecycleState>(item.State),
         item.EngineerId,
         item.Registration,
         item.Claimant,
@@ -1028,7 +1163,10 @@ public sealed class EfCaseQueryStore(
         HoldReviewOn = item.HoldReviewOn,
         HeldAtUtc = item.HeldAtUtc,
         StateEnteredAtUtc = item.StateEnteredAtUtc,
-        EditingStaffId = EditingStaffId(item, now)
+        EditingStaffId = EditingStaffId(item, now),
+        TriageState = item.CaseType == CaseTypeCodes.Triage
+            ? (Pegasus.Core.Triage.TriageState?)EfTriageStore.ParseState(item.State)
+            : null
     };
 
     /// <summary>
@@ -1043,28 +1181,6 @@ public sealed class EfCaseQueryStore(
             && Guid.TryParse(holder, out var staffId)
                 ? staffId
                 : null;
-
-    internal static CaseType ParseCaseType(string value)
-    {
-        if (string.Equals(value, "inspection", StringComparison.OrdinalIgnoreCase))
-        {
-            return CaseType.Inspection;
-        }
-        if (string.Equals(value, "audit", StringComparison.OrdinalIgnoreCase))
-        {
-            return CaseType.Audit;
-        }
-        if (string.Equals(
-                value,
-                "inspection_and_audit",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return CaseType.InspectionAndAudit;
-        }
-
-        throw new InvalidDataException(
-            $"Case data contains unsupported type code '{value}'.");
-    }
 
     private static CaseWorkflowRecord MapWorkflow(CaseWorkflowEntity entity)
     {

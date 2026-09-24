@@ -519,7 +519,7 @@ public sealed class CaseMatchIntegrationTests
             CancellationToken.None);
 
         public async Task<CaseDataProjection> GetRequiredDataAsync(Guid caseId) =>
-            await dataStore.GetAsync(caseId, CancellationToken.None)
+            await dataStore.GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The case-data fixture was not persisted.");
 
         public async Task<CaseMatchIndexEntity> SingleIndexRowAsync(Guid caseId)

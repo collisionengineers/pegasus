@@ -6,14 +6,14 @@ namespace Pegasus.Core.Tests.Triage;
 
 public sealed class AddTriageNoteTests
 {
-    private static readonly Guid TriageId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid TriageCaseId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     private static ActionActor StaffActor() => ActionActor.Staff(
         Guid.Parse("44444444-4444-4444-4444-444444444444"),
         [StaffRole.Engineer]);
 
     private static AddTriageNoteRequest Request(string note = "The repairer confirmed the vehicle is on site.") =>
-        new(TriageId, 3, StaffActor(), "note-op-1", note);
+        new(TriageCaseId, 3, StaffActor(), "note-op-1", note);
 
     [Fact]
     public async Task ANoteIsAppendedThroughTheOneReplayProbedHistory()
@@ -23,7 +23,7 @@ public sealed class AddTriageNoteTests
 
         Assert.Equal(1, store.Probes);
         Assert.Equal(1, store.Writes);
-        Assert.Equal(TriageId, record.Id);
+        Assert.Equal(TriageCaseId, record.CaseId);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class AddTriageNoteTests
     }
 
     private static TriageRecord Record(long version, TriageState state = TriageState.Open) => new(
-        TriageId,
+        TriageCaseId,
         new(
             Guid.NewGuid(),
             new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, "token"),
@@ -84,9 +84,10 @@ public sealed class AddTriageNoteTests
         "AB12CDE",
         state,
         AssigneeId: null,
-        LinkedCaseId: null,
+        LinkedInstructionCaseId: null,
         version,
-        "T-00001");
+        "t.QDOS26001",
+        Guid.Parse("22222222-2222-2222-2222-222222222222"));
 
     private sealed class NoteStore(TriageRecord current) : ITriageStore
     {
@@ -94,7 +95,7 @@ public sealed class AddTriageNoteTests
             throw new NotSupportedException("Not used by these tests.");
 
         public Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
-            Guid? triageId, Guid? caseId, int maximumItems, CancellationToken cancellationToken) =>
+            Guid? triageCaseId, Guid? instructionCaseId, int maximumItems, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<bool> LinkAutomaticallyAsync(
             TriageCaseLinkCandidate candidate, ActionActor actor, CancellationToken cancellationToken) =>
@@ -124,7 +125,7 @@ public sealed class AddTriageNoteTests
             return Task.FromResult(current with { Version = current.Version + 1 });
         }
 
-        public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
+        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
         {
             Reads++;
             return Task.FromResult<TriageDetail?>(new(current, DateTimeOffset.UnixEpoch, [], [], [], []));
@@ -139,7 +140,7 @@ public sealed class AddTriageNoteTests
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<TriageSentEvidenceReference>> ListSentEvidenceReferencesAsync(
-            Guid triageId,
+            Guid caseId,
             int maximumResults,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 

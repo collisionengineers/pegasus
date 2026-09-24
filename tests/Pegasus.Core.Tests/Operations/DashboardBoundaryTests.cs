@@ -358,6 +358,38 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(2, snapshot.Attention.KindCounts[NeedsAttentionKind.Unidentified]);
     }
 
+    /// <summary>
+    /// The Triages metric (last in the strip) counts every active Triage Case:
+    /// Open, Awaiting information and Finding recorded; Completed and
+    /// Cancelled are not work.
+    /// </summary>
+    [Fact]
+    public async Task TriagesMetricCountsTheThreeActiveTriageStates()
+    {
+        var snapshot = await ExecuteAsync(
+            new RecordingDashboardQueries(),
+            NowUtc,
+            triage: new StubListTriage
+            {
+                Items =
+                [
+                    NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open),
+                    NewTriage(Guid.NewGuid(), "AB12CDF", TriageState.AwaitingInformation),
+                    NewTriage(Guid.NewGuid(), "AB12CDG", TriageState.FindingRecorded),
+                    NewTriage(Guid.NewGuid(), "AB12CDH", TriageState.Completed),
+                    NewTriage(Guid.NewGuid(), "AB12CDI", TriageState.Cancelled)
+                ]
+            });
+
+        Assert.Equal(3, snapshot.Metrics.Triages);
+        var triageRoutes = snapshot.NeedsAttention
+            .Where(item => item.Kind == NeedsAttentionKind.Triage)
+            .Select(item => item.Route)
+            .ToArray();
+        Assert.Equal(2, triageRoutes.Length);
+        Assert.All(triageRoutes, route => Assert.StartsWith("/Cases/", route, StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task NeedsAttentionIsBoundedAtFiftyRows()
     {
@@ -541,11 +573,11 @@ public sealed class DashboardBoundaryTests
         registration,
         state,
         AssigneeId: null,
-        LinkedCaseId: null,
+        LinkedInstructionCaseId: null,
         CreatedAtUtc: NowUtc,
         Version: 1,
-        Reference: null,
-        Provider: null);
+        Reference: "t.QDOS26001",
+        Provider: "QDOS");
 
     private static UnidentifiedQueueRow NewUnidentified(Guid id, string reference) => new(
         id,

@@ -24,13 +24,13 @@ public sealed class TriageReplayTests
     public async Task CreationReplayAttemptsPairingAndStillReturnsItsHistoricalCreationResult()
     {
         var created = CreateRecord(TriageState.Open, 0);
-        var candidate = new TriageCaseLinkCandidate(created.Id, 0, Guid.NewGuid(), 0, "fixture-match", 1);
+        var candidate = new TriageCaseLinkCandidate(created.CaseId, 0, Guid.NewGuid(), 0, "fixture-match", 1);
         var store = new ReplayStore { CreationResult = created, PairingCandidates = [candidate], FailFirstPairingWrite = true };
         var command = new CreateTriageFromIntake(store, new TriageCasePairing(store));
         var evidence = new IntakeEvidence(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Strong,
             IntakeEvidenceFinding.AcceptedTriageMatch, created.NormalizedVehicleRegistration,
             "Accepted creation replay fixture.", "fixture-match", 1);
-        var request = new CreateTriageFromIntakeRequest(created.Origin, created.NormalizedVehicleRegistration,
+        var request = new CreateTriageFromIntakeRequest(created.Origin!, created.NormalizedVehicleRegistration,
             evidence, ActionActor.SystemWorker("creation-replay"), "creation-replay");
         Assert.Equal(created, await command.ExecuteAsync(request, CancellationToken.None));
         Assert.Single(store.PairingCandidates);
@@ -49,9 +49,9 @@ public sealed class TriageReplayTests
         Assert.Equal(new TriageCasePairingResult(2, 1, 1, nameof(InvalidOperationException)),
             await pairing.ReconcileAsync(2, CancellationToken.None));
         Assert.Equal(new TriageCasePairingResult(1, 1, 0),
-            await pairing.PairTriageAsync(first.TriageId, CancellationToken.None));
+            await pairing.PairTriageAsync(first.CaseId, CancellationToken.None));
         Assert.Equal(new TriageCasePairingResult(0, 0, 0),
-            await pairing.PairAcceptedCaseAsync(first.CaseId, CancellationToken.None));
+            await pairing.PairAcceptedCaseAsync(first.InstructionCaseId, CancellationToken.None));
         Assert.All(store.PairingActors, actor =>
         {
             Assert.Equal(ActorKind.SystemWorker, actor.Kind);
@@ -59,7 +59,8 @@ public sealed class TriageReplayTests
         });
     }
 
-    private static readonly Guid TriageId = Guid.NewGuid();
+    private static readonly Guid TriageCaseId = Guid.NewGuid();
+    private static readonly Guid PrincipalId = Guid.NewGuid();
     private static readonly Guid SupersededFindingId = Guid.NewGuid();
     private static readonly ActionActor Actor =
         ActionActor.Automation("triage-replay-test");
@@ -99,7 +100,7 @@ public sealed class TriageReplayTests
     public async Task AlteredReplayConflictIsReturnedBeforeCurrentStateRules(
         ReplayCommand command)
     {
-        var conflict = new TriageOperationConflictException(TriageId, OperationKey(command));
+        var conflict = new TriageOperationConflictException(TriageCaseId, OperationKey(command));
         var store = new ReplayStore
         {
             ProbeFailure = conflict
@@ -166,7 +167,7 @@ public sealed class TriageReplayTests
     private static RecordTriageFindingRequest FindingRequest(
         ReplayCommand command,
         bool superseding) => new(
-        TriageId,
+        TriageCaseId,
         3,
         Actor,
         OperationKey(command),
@@ -176,7 +177,7 @@ public sealed class TriageReplayTests
         superseding ? SupersededFindingId : null);
 
     private static TriageMutationRequest MutationRequest(ReplayCommand command) => new(
-        TriageId,
+        TriageCaseId,
         3,
         Actor,
         OperationKey(command),
@@ -216,7 +217,7 @@ public sealed class TriageReplayTests
         []);
 
     private static TriageRecord CreateRecord(TriageState state, long version) => new(
-        TriageId,
+        TriageCaseId,
         new(
             Guid.NewGuid(),
             new(IntakeSourceChannel.ManualUpload, "triage-replay-receipt"),
@@ -226,7 +227,9 @@ public sealed class TriageReplayTests
         state,
         null,
         null,
-        version);
+        version,
+        "t.QDOS26001",
+        PrincipalId);
 
     public enum ReplayCommand
     {
@@ -248,10 +251,10 @@ public sealed class TriageReplayTests
         public List<ActionActor> PairingActors { get; } = [];
         public bool FailFirstPairingWrite { get; set; }
         public Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
-            Guid? triageId, Guid? caseId, int maximumItems, CancellationToken cancellationToken) =>
+            Guid? triageCaseId, Guid? instructionCaseId, int maximumItems, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<TriageCaseLinkCandidate>>(PairingCandidates
-                .Where(item => (triageId is null || item.TriageId == triageId)
-                    && (caseId is null || item.CaseId == caseId)).Take(maximumItems).ToArray());
+                .Where(item => (triageCaseId is null || item.CaseId == triageCaseId)
+                    && (instructionCaseId is null || item.InstructionCaseId == instructionCaseId)).Take(maximumItems).ToArray());
         public Task<bool> LinkAutomaticallyAsync(
             TriageCaseLinkCandidate candidate, ActionActor actor, CancellationToken cancellationToken)
         {
@@ -313,7 +316,7 @@ public sealed class TriageReplayTests
             CancellationToken cancellationToken) =>
             Task.FromResult<TriageOperationReplay?>(null);
 
-        public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken)
+        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             QueryCount++;
@@ -331,7 +334,7 @@ public sealed class TriageReplayTests
             Task.FromResult<IReadOnlyList<TriageSummary>>([]);
 
         public Task<IReadOnlyList<TriageSentEvidenceReference>> ListSentEvidenceReferencesAsync(
-            Guid triageId,
+            Guid caseId,
             int maximumResults,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<TriageSentEvidenceReference>>([]);

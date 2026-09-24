@@ -111,7 +111,7 @@
                     <span class="lbl">@SettlementLabels.EngineersValue</span>
                     <div class="fv mono" data-decision-engineer-value data-engineer-value="@(engineerValue?.ToString("0.##", CultureInfo.InvariantCulture))">
                         <span>@Money(engineerValue)</span>
-                        <a class="src-tag" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ValuationLink</a>
+                        <a class="src-tag" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-route-view="@Model.ViewRoute" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ValuationLink</a>
                     </div>
                 </div>
             </div>

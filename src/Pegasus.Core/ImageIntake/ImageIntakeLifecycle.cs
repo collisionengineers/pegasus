@@ -108,11 +108,13 @@ public static class ImageIntakeLifecycleRules
         }
     }
     /// <summary>
-    /// A Case is eligible for Image-intake association only before report
-    /// delivery: an editable pre-report workflow state and no retained
+    /// A Case is eligible for automatic Image-intake association only before
+    /// report delivery: an editable pre-report workflow state and no retained
     /// report-sent evidence. Terminal and post-report states are never
-    /// eligible. This governs making an association (staff or automatic);
-    /// reasoned reversal of an existing association remains available.
+    /// eligible. A staff link, and the merge that completes it, reaches every
+    /// Case in any lifecycle state and every Triage Case (operator,
+    /// 24 September 2026); reasoned reversal of an association remains
+    /// available.
     /// </summary>
     public static bool IsCaseEligibleForAssociation(
         CaseLifecycleState state,

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -14,6 +15,7 @@ internal sealed class EfAssessmentWorkspaceSource(
 {
     public async Task<AssessmentWorkspace?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -30,16 +32,20 @@ internal sealed class EfAssessmentWorkspaceSource(
             return null;
         }
 
+        // The selected work is resolved inside the snapshot read, and the rest
+        // of the workspace reads the work that snapshot belongs to.
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => selectedWorkIds.Contains(item.WorkId), cancellationToken)
             ?? throw new InvalidDataException(
                 "The accepted case is missing its typed data projection.");
+        var workId = snapshot.WorkId;
         var assessmentFields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var specificationEntities = await context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == workId
                 && (item.State == RepairSpecificationState.Draft.ToString()
                     || item.State == RepairSpecificationState.Accepted.ToString()))
             .Include(item => item.Lines)
@@ -79,7 +85,7 @@ internal sealed class EfAssessmentWorkspaceSource(
                 workflow.Case.Reference,
                 workflow.Case.Principal.Code,
                 data.Vehicle.Registration.Current?.Value,
-                EfCaseQueryStore.ParseCaseType(workflow.Case.Type),
+                CaseTypeCodes.Parse(workflow.Case.Type),
                 Enum.Parse<CaseLifecycleState>(workflow.State),
                 workflow.Version,
                 workflow.DueWork?.DueBy,

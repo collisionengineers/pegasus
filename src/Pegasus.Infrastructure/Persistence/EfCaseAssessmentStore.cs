@@ -47,18 +47,19 @@ public sealed class EfCaseAssessmentStore(
             return null;
         }
 
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var fields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var specificationId = await CurrentSpecificationIdAsync(caseId, cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == workId
                 && item.RepairSpecificationId == specificationId)
             .OrderBy(item => item.Position)
             .ToArrayAsync(cancellationToken);
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
         return Map(workflow, fields, lines, caseDataFields);
     }
@@ -90,7 +91,7 @@ public sealed class EfCaseAssessmentStore(
         RequireVersion(workflow, request.ExpectedVersion);
         AssessmentPolicy.RequireOriginalReportScope(
             request.Fields.Keys,
-            EfCaseQueryStore.ParseCaseType(workflow.Case.Type));
+            CaseTypeCodes.Parse(workflow.Case.Type));
         var now = UtcNow();
         RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
         ArchivedCaseGuard.RequireMutable(workflow);
@@ -101,6 +102,8 @@ public sealed class EfCaseAssessmentStore(
                 "The assessment cannot be saved in its current state.");
         }
 
+        // The save writes the current work, resolved after the guards.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
         if (request.AiWorkRequestId is { } workRequestId)
         {
             var workRequest = await context.AiWorkRequests.AsNoTracking()
@@ -115,23 +118,23 @@ public sealed class EfCaseAssessmentStore(
         }
 
         var fields = await context.CaseAssessmentFields
-            .Where(item => item.CaseId == request.CaseId)
+            .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
         var beforeAssessment = fields.ToDictionary(
             item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
         var mileageField = CaseDataFieldValues.CurrentField(
             await context.CaseDataFields.AsNoTracking()
-                .Where(item => item.CaseId == request.CaseId)
+                .Where(item => item.WorkId == workId)
                 .ToArrayAsync(cancellationToken),
             CaseDataFieldNames.VehicleMileage);
         CaseDataSourceKind? mileageProvenance = mileageField is null
             ? null
             : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind);
-        var specification = await EfRepairSpecificationStore.DraftQuery(context, request.CaseId)
+        var specification = await EfRepairSpecificationStore.DraftQuery(context, workId)
             .SingleOrDefaultAsync(cancellationToken);
         if (specification is null && request.EstimateLines is not null)
         {
-            var acceptedExists = await EfRepairSpecificationStore.AcceptedQuery(context, request.CaseId)
+            var acceptedExists = await EfRepairSpecificationStore.AcceptedQuery(context, workId)
                 .AnyAsync(cancellationToken);
             if (acceptedExists)
             {
@@ -139,14 +142,14 @@ public sealed class EfCaseAssessmentStore(
                     "An accepted repair specification is immutable; start a reasoned correction draft before editing its lines.");
             }
             var version = await EfRepairSpecificationStore.NextVersionAsync(
-                context, request.CaseId, cancellationToken);
+                context, workId, cancellationToken);
             specification = EfRepairSpecificationStore.NewLegacyDraft(
-                request.CaseId, workflow.Case, version, request.Actor.SubjectId, request.OperationKey, now);
+                workId, version, request.Actor.SubjectId, request.OperationKey, now);
             context.CaseRepairSpecifications.Add(specification);
         }
         var specificationId = specification?.Id;
         var lines = await context.CaseEstimateLines
-            .Where(item => item.CaseId == request.CaseId
+            .Where(item => item.WorkId == workId
                 && item.RepairSpecificationId == specificationId)
             .OrderBy(item => item.Position)
             .ToListAsync(cancellationToken);
@@ -156,8 +159,7 @@ public sealed class EfCaseAssessmentStore(
         var confirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null;
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
-            workflow.Case,
-            request.CaseId,
+            workId,
             fields,
             fieldsToWrite,
             request.Actor,
@@ -169,8 +171,7 @@ public sealed class EfCaseAssessmentStore(
         {
             (beforeLines, afterLines) = EstimateLineWriter.Replace(
                 context,
-                request.CaseId,
-                workflow.Case,
+                workId,
                 specification,
                 lines,
                 replacementLines,
@@ -251,18 +252,19 @@ public sealed class EfCaseAssessmentStore(
             .Include(item => item.Case)
             .ThenInclude(item => item.Principal)
             .SingleAsync(item => item.CaseId == caseId, cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var fields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var specificationId = await CurrentSpecificationIdAsync(caseId, cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == workId
                 && item.RepairSpecificationId == specificationId)
             .OrderBy(item => item.Position)
             .ToArrayAsync(cancellationToken);
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
         return Map(workflow, fields, lines, caseDataFields);
     }

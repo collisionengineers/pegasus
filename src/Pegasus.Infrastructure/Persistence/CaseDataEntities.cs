@@ -2,8 +2,8 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class CaseDataSnapshotEntity
 {
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
+    public Guid WorkId { get; set; }
+    public CaseWorkEntity Work { get; set; } = null!;
     public Guid? OriginIntakeReceiptId { get; set; }
     public string? OriginSourceChannel { get; set; }
     public string? OriginExternalReceiptToken { get; set; }
@@ -25,7 +25,7 @@ internal sealed class CaseDataSnapshotEntity
 
 internal sealed class CaseDataFieldEntity
 {
-    public Guid CaseId { get; set; }
+    public Guid WorkId { get; set; }
     public CaseDataSnapshotEntity Snapshot { get; set; } = null!;
     public required string FieldName { get; set; }
     public required string ValueKind { get; set; }

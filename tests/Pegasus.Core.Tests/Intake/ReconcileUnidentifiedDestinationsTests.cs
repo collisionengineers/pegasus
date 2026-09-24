@@ -137,6 +137,29 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal("VO75DFJ", resolve.TargetReference);
     }
 
+    // A Triage Case is a staff link destination too: the manual link resolves as a Triage.
+    [Fact]
+    public async Task AReceiptStaffLinkedToATriageCaseResolvesToTheTriage()
+    {
+        var harness = new Harness();
+        var triageCaseId = Guid.NewGuid();
+        var receipt = ManuallyLinked(
+            Receipt(Guid.NewGuid(), IntakeDecision.NeedsSorting),
+            triageCaseId,
+            "t.QDOS26033",
+            associationVersion: 1);
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        harness.Triages.TriageCases[triageCaseId] = TriageCase(triageCaseId, "t.QDOS26033");
+
+        await harness.Reconciler.ExecuteAsync(50);
+
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolve.TargetKind);
+        Assert.Equal(triageCaseId.ToString("N"), resolve.TargetId);
+        Assert.Equal("t.QDOS26033", resolve.TargetReference);
+    }
+
     // Statement 4.
     [Fact]
     public async Task StillUnidentifiedReceiptsAreNeverForceClosed()
@@ -557,17 +580,108 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal(UnidentifiedState.Resolved, Assert.Single(harness.Store.Items).State);
     }
 
+    /// <summary>
+    /// Open the Triage opens a Triage Case, which takes the receipt's
+    /// Principal, so it is offered only once the receipt established one
+    /// (decision S).
+    /// </summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task OpenTheTriageIsOfferedOnlyWhenTheReceiptEstablishedItsPrincipal(
+        bool established,
+        bool expected)
+    {
+        var harness = new Harness();
+        var receipt = TriageRequestReceipt(Guid.NewGuid()) with
+        {
+            Evidence =
+            [
+                new IntakeEvidence(
+                    IntakeEvidenceSource.SystemDefault,
+                    IntakeEvidenceStrength.Strong,
+                    IntakeEvidenceFinding.AcceptedTriageMatch,
+                    "AB12CDE",
+                    "Accepted Triage fixture.",
+                    "fixture-match",
+                    1)
+            ]
+        };
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        var context = new GetUnidentifiedItemContext(
+            harness.Store,
+            harness.Receipts,
+            new UnusedVrmSuggestions(),
+            harness.ImageIntakes,
+            harness.Triages,
+            new FixedPrincipalGate(established ? Guid.NewGuid() : null));
+
+        var result = await context.ExecuteAsync(
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            item.Id,
+            CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal(expected, result.CanOpenTriage);
+    }
+
+    private sealed class FixedPrincipalGate(Guid? principalId) : ITriagePrincipalGate
+    {
+        public Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken) =>
+            Task.FromResult(principalId);
+    }
+
+    private sealed class UnusedVrmSuggestions : IVrmSuggestionStore
+    {
+        public Task<ImageVrmSuggestion> RecordAsync(
+            ImageVrmSuggestionDraft draft,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<IReadOnlyList<ImageVrmSuggestion>> ListForReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ImageVrmSuggestion>>([]);
+
+        public Task<ImageVrmSuggestion?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<ImageVrmSuggestion> SetDispositionAsync(
+            ImageVrmSuggestionDispositionRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+    }
+
     private static TriageSummary Triage(Guid id, string registration) =>
         new(
             id,
             registration,
             TriageState.Open,
             AssigneeId: null,
-            LinkedCaseId: null,
+            LinkedInstructionCaseId: null,
             Now,
             Version: 0,
-            Reference: null,
-            Provider: null);
+            Reference: "t.QDOS26001",
+            Provider: "QDOS");
+
+    private static TriageDetail TriageCase(Guid caseId, string reference) =>
+        new(
+            new TriageRecord(
+                caseId,
+                Origin: null,
+                "VO75DFJ",
+                TriageState.Open,
+                AssigneeId: null,
+                LinkedInstructionCaseId: null,
+                Version: 0,
+                reference,
+                Guid.NewGuid()),
+            Now,
+            [],
+            [],
+            [],
+            []);
 
     private static IntakeReceipt ManuallyLinked(
         IntakeReceipt receipt,
@@ -1054,6 +1168,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
     {
         public Dictionary<Guid, TriageSummary> SummariesByOriginReceipt { get; } = [];
 
+        public Dictionary<Guid, TriageDetail> TriageCases { get; } = [];
+
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
             TriageState? state,
             CancellationToken cancellationToken) =>
@@ -1062,8 +1178,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
             Task.FromResult(0);
 
-        public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
+        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult(TriageCases.TryGetValue(caseId, out var detail) ? detail : null);
 
         public Task<TriageSummary?> GetByOriginReceiptAsync(
             Guid originReceiptId,

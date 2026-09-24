@@ -90,7 +90,7 @@ The decision table, judged against the current retained material:
    ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
    Once merged, the surface reports the destination Case instead.
 3. **A manual non-image file that could become a Case.** Staff must either
-   confirm one viable existing Case or open the extracted new-Case proposal.
+   confirm one existing Case or open the extracted new-Case proposal.
    A unique match is one suggestion, not a selection. The proposal is
    editable. Reject or cancel changes nothing and leaves the source
    unallocated. Accepting runs the existing allocation path and may allocate
@@ -108,21 +108,24 @@ reason Could not be read.
 
 Where the decision is genuinely open (rows 2 and 3) the surface carries it:
 
-- **Add to an existing case.** The retained match candidates are shown
-  first, including a sole candidate. Typed, receipt-scoped search adds only
-  current viable Cases, showing reference, registration, claimant, and
-  stage, never an internal identifier. A unique candidate is never
-  auto-selected. Selecting a Case and confirming takes that Case's edit
-  lease and links through the existing staff link path, which also runs the
-  Image-initiated merge where one is registered. The route and group
-  membership are loaded server-side; a posted receipt id is not authority.
-  The page operation id, the reviewed receipt version, and the reviewed
-  target Case version bind the decision. A typed reference first renders
-  its exact target for confirmation before any write. A replay succeeds
-  only for the identical committed decision (actor, target, reviewed
-  input), not merely the same target. A stale version, a changed decision,
-  a competing lease, an unavailable destination, or an incomplete group
-  reports an honest conflict and changes nothing.
+- **Add to an existing case.** The retained match candidates are shown first,
+  including a sole candidate. Typed, receipt-scoped search adds every Case and
+  every Triage Case, in any state, showing reference, registration, claimant,
+  and stage, never an internal identifier. Staff linking is not limited by the
+  Case's state; automatic association keeps its own rules
+  ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
+  A unique candidate is never auto-selected. Selecting a Case and confirming
+  takes that Case's edit lease, or a Triage Case's edit scope, and links
+  through the existing staff link path, which also runs the Image-initiated
+  merge where one is registered. The route and group membership are loaded
+  server-side; a posted receipt id is not authority. The page operation id,
+  the reviewed receipt version, and the reviewed target Case version (a Triage
+  Case's Triage version) bind the decision. A typed reference first renders
+  its exact target for confirmation before any write. A replay succeeds only
+  for the identical committed decision (actor, target, reviewed input), not
+  merely the same target. A stale version, a changed decision, a competing
+  lease, an unavailable destination, or an incomplete group reports an honest
+  conflict and changes nothing.
 - **Cancel.** Returns to Upload and changes nothing. The material stays
   kept and its state stays honestly reported.
 

@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
@@ -365,6 +366,7 @@ public interface IRepairSpecificationStore
 
     Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 
     /// <summary>

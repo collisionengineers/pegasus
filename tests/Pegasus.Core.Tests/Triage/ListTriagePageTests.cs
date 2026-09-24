@@ -18,7 +18,7 @@ public sealed class ListTriagePageTests
     {
         var queries = new RecordingQueries(
             new(
-                [Summary("T-00001", Now), Summary("T-00002", Now.AddMinutes(-1))],
+                [Summary("t.QDOS26001", Now), Summary("t.QDOS26002", Now.AddMinutes(-1))],
                 new(Now.AddMinutes(-1), Guid.Parse("22222222-2222-2222-2222-222222222222"))));
         var protector = new FakeCursorProtector();
         var page = await new ListTriagePage(queries, protector).ExecuteAsync(
@@ -36,12 +36,12 @@ public sealed class ListTriagePageTests
     {
         var id = Guid.Parse("22222222-2222-2222-2222-222222222222");
         var position = new TriageListPosition(Now.AddMinutes(-1), id);
-        var queries = new RecordingQueries(new([Summary("T-00001", Now)], position));
+        var queries = new RecordingQueries(new([Summary("t.QDOS26001", Now)], position));
         var protector = new FakeCursorProtector();
         var useCase = new ListTriagePage(queries, protector);
         var first = await useCase.ExecuteAsync(new(StaffActor(), null, null, 1));
 
-        queries.Next = new([Summary("T-00002", Now.AddMinutes(-1))], null);
+        queries.Next = new([Summary("t.QDOS26002", Now.AddMinutes(-1))], null);
         var second = await useCase.ExecuteAsync(new(StaffActor(), null, first.NextCursor, 1));
 
         Assert.Equal(position, queries.LastPosition);
@@ -53,7 +53,7 @@ public sealed class ListTriagePageTests
     {
         var queries = new RecordingQueries(
             new(
-                [Summary("T-00001", Now)],
+                [Summary("t.QDOS26001", Now)],
                 new(Now, Guid.Parse("22222222-2222-2222-2222-222222222222"))));
         var protector = new FakeCursorProtector();
         var useCase = new ListTriagePage(queries, protector);
@@ -93,7 +93,7 @@ public sealed class ListTriagePageTests
         "AB12CDE",
         TriageState.Open,
         AssigneeId: null,
-        LinkedCaseId: null,
+        LinkedInstructionCaseId: null,
         createdAtUtc,
         Version: 0,
         Reference: reference,
@@ -132,7 +132,7 @@ public sealed class ListTriagePageTests
         public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
             Task.FromResult(0);
 
-        public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<TriageSummary?> GetByOriginReceiptAsync(

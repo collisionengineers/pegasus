@@ -211,7 +211,7 @@ internal sealed class EfDocumentCustodyStore(
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var caseIdentity = await context.Set<CaseEntity>()
             .Where(value => value.Id == query.CaseId)
-            .Select(value => new { value.Reference, value.CustodyRootRemoteId })
+            .Select(value => new { value.Reference, value.CustodyRootRemoteId, value.AuditCustodyRemoteId })
             .SingleOrDefaultAsync(cancellationToken);
         if (caseIdentity is null)
         {
@@ -229,7 +229,15 @@ internal sealed class EfDocumentCustodyStore(
                 && version.DocumentId == occurrence.DocumentId
                 && version.CustodyStatus == DocumentCustodyStatus.Confirmed
                 && !version.IsLogicallyRemoved
-            select new { Occurrence = occurrence, Version = version })
+            select new
+            {
+                Occurrence = occurrence,
+                Version = version,
+                Folder = context.Set<CaseDocumentEntity>()
+                    .Where(document => document.Id == occurrence.DocumentId)
+                    .Select(document => document.CustodyFolder)
+                    .First()
+            })
             .SingleOrDefaultAsync(cancellationToken);
         if (item is null)
         {
@@ -263,7 +271,8 @@ internal sealed class EfDocumentCustodyStore(
             Address(
                 query.CaseId,
                 caseIdentity.Reference,
-                caseIdentity.CustodyRootRemoteId,
+                CaseCustodyFolders.RootOf(
+                    item.Folder, caseIdentity.CustodyRootRemoteId, caseIdentity.AuditCustodyRemoteId),
                 item.Occurrence,
                 item.Version),
             item.Version.Sha256,
@@ -316,7 +325,7 @@ internal sealed class EfDocumentCustodyStore(
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         var caseIdentity = await context.Set<CaseEntity>()
             .Where(value => value.Id == command.CaseId)
-            .Select(value => new { value.Reference, value.CustodyRootRemoteId })
+            .Select(value => new { value.Reference, value.CustodyRootRemoteId, value.AuditCustodyRemoteId })
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("The case is unavailable.");
         var caseRootRemoteId = caseIdentity.CustodyRootRemoteId;
@@ -354,7 +363,13 @@ internal sealed class EfDocumentCustodyStore(
                     && version.Id == selection.VersionId
                     && version.CustodyStatus == DocumentCustodyStatus.Confirmed
                     && !version.IsLogicallyRemoved
-                select new ExportItem(occurrence, version))
+                select new ExportItem(
+                    occurrence,
+                    version,
+                    context.Set<CaseDocumentEntity>()
+                        .Where(document => document.Id == occurrence.DocumentId)
+                        .Select(document => document.CustodyFolder)
+                        .First()))
                 .SingleOrDefaultAsync(cancellationToken)
                 ?? throw new InvalidOperationException("A selected document version is unavailable.");
             if (item.Version.ContentLength < 0)
@@ -394,6 +409,7 @@ internal sealed class EfDocumentCustodyStore(
             command.CaseId,
             caseIdentity.Reference,
             caseRootRemoteId,
+            caseIdentity.AuditCustodyRemoteId,
             items,
             command.MaximumArchiveBytes,
             cancellationToken);
@@ -543,7 +559,7 @@ internal sealed class EfDocumentCustodyStore(
             throw new InvalidOperationException(
                 "The document occurrence is unavailable.");
         }
-        var caseType = EfCaseQueryStore.ParseCaseType(workflow.Case.Type);
+        var caseType = CaseTypeCodes.Parse(workflow.Case.Type);
         var state = Enum.TryParse<CaseLifecycleState>(workflow.State, out var parsedState)
             && Enum.IsDefined(parsedState)
                 ? parsedState
@@ -919,6 +935,7 @@ internal sealed class EfDocumentCustodyStore(
         Guid caseId,
         string caseReference,
         string? caseRootRemoteId,
+        string? auditRootRemoteId,
         IReadOnlyList<ExportItem> items,
         long maximumArchiveBytes,
         CancellationToken cancellationToken)
@@ -953,7 +970,7 @@ internal sealed class EfDocumentCustodyStore(
                         Address(
                             caseId,
                             caseReference,
-                            caseRootRemoteId,
+                            CaseCustodyFolders.RootOf(item.Folder, caseRootRemoteId, auditRootRemoteId),
                             item.Occurrence,
                             item.Version),
                         item.Version.Sha256,
@@ -1212,7 +1229,7 @@ internal sealed class EfDocumentCustodyStore(
             Address(
                 command.CaseId,
                 workflow.Case.Reference,
-                workflow.Case.CustodyRootRemoteId,
+                CaseCustodyFolders.RootOf(workflow.Case, document.CustodyFolder),
                 occurrence,
                 version),
             command.Content,
@@ -1362,5 +1379,6 @@ internal sealed class EfDocumentCustodyStore(
 
     private sealed record ExportItem(
         DocumentOccurrenceEntity Occurrence,
-        DocumentVersionEntity Version);
+        DocumentVersionEntity Version,
+        string Folder);
 }

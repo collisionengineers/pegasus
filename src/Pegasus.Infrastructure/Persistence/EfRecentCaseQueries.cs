@@ -36,7 +36,10 @@ internal sealed class EfRecentCaseQueries(
             join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
                 on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
             from receipt in receipts.DefaultIfEmpty()
+            // New cases are definitive instructions; a Triage Case is counted
+            // by its own Work Centre metric.
             where caseEntity.CreatedAtUtc >= sinceUtc
+                && caseEntity.Type != CaseTypeCodes.Triage
             select new Row(
                 RecentCaseRowKind.NewCase,
                 caseEntity.Id,
@@ -81,11 +84,11 @@ internal sealed class EfRecentCaseQueries(
         var pageRows = rows.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
         var caseIds = pageRows.Select(row => row.CaseId).Distinct().ToArray();
         var facts = await context.CaseDataFields.AsNoTracking()
-            .Where(item => caseIds.Contains(item.CaseId)
+            .Where(item => caseIds.Contains(item.WorkId)
                 && item.ValueKind == CaseDataCodes.Confirmed
                 && (item.FieldName == CaseDataFieldNames.VehicleRegistration
                     || item.FieldName == CaseDataFieldNames.ClaimantName))
-            .Select(item => new { item.CaseId, item.FieldName, item.Value })
+            .Select(item => new { CaseId = item.WorkId, item.FieldName, item.Value })
             .ToListAsync(cancellationToken);
         var drafts = await (
             from caseEntity in context.Set<CaseEntity>().AsNoTracking()
@@ -127,8 +130,7 @@ internal sealed class EfRecentCaseQueries(
         events.Where(item => item.BeforeVersion == 0
             && item.AfterVersion == 0
             && (item.EventType == "manual_case_created"
-                || item.EventType == "case_created_as_replacement"
-                || item.EventType == "audit_case_created"));
+                || item.EventType == "case_created_as_replacement"));
 
     private sealed record Row(
         RecentCaseRowKind Kind,

@@ -255,7 +255,7 @@ public sealed class InspectionAddressSuggestionTests
         await using var verificationScope = factory.Services.CreateAsyncScope();
         var services = verificationScope.ServiceProvider;
         var projection = await services.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         var choices = await services.GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "Ash"), CancellationToken.None);
 
@@ -313,14 +313,14 @@ public sealed class InspectionAddressSuggestionTests
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         var originIntakeReceiptId = await context.CaseDataSnapshots.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .Select(item => item.OriginIntakeReceiptId)
             .SingleAsync();
         var receiptSourceIdentity = originIntakeReceiptId?.ToString("D")
             ?? throw new InvalidOperationException("The seeded Case has no origin receipt.");
         context.Set<CaseDataFieldEntity>().Add(new()
         {
-            CaseId = caseId,
+            WorkId = caseId,
             FieldName = CaseDataFieldNames.InspectionAddress,
             ValueKind = CaseDataCodes.Confirmed,
             ValueType = CaseDataCodes.Text,
@@ -344,7 +344,7 @@ public sealed class InspectionAddressSuggestionTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var current = await services.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None)
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The accepted case was not found.");
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await services.GetRequiredService<IAcquireCaseEditLease>()
@@ -375,7 +375,7 @@ public sealed class InspectionAddressSuggestionTests
         var sourceCase = await context.Cases.AsNoTracking()
             .SingleAsync(item => item.Id == sourceCaseId);
         var sourceSnapshot = await context.CaseDataSnapshots.AsNoTracking()
-            .SingleAsync(item => item.CaseId == sourceCaseId);
+            .SingleAsync(item => item.WorkId == sourceCaseId);
         var ids = new Guid[count];
         for (var index = 0; index < count; index++)
         {
@@ -401,8 +401,7 @@ public sealed class InspectionAddressSuggestionTests
             context.Cases.Add(clone);
             context.CaseDataSnapshots.Add(new()
             {
-                CaseId = caseId,
-                Case = clone,
+                WorkId = caseId,
                 OriginIntakeReceiptId = sourceSnapshot.OriginIntakeReceiptId,
                 OriginSourceChannel = sourceSnapshot.OriginSourceChannel,
                 OriginExternalReceiptToken = sourceSnapshot.OriginExternalReceiptToken,

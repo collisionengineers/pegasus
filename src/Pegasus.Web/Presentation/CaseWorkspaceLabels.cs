@@ -39,6 +39,18 @@ public static class CaseWorkspaceLabels
         public const string Editing = "Editing";
         public const string Archived = "Archived";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
+        /// <summary>The Inspection view's section heads once the Case has its Audit (v29 P3).</summary>
+        public const string ReadOnlyAuditCreated = "Read-only · Audit created";
+        /// <summary>The aside's Views card and its two rows, present once the Case has its Audit (v29 option 4).</summary>
+        public const string Views = "Views";
+        public const string InspectionView = "Inspection";
+        public const string AuditView = "Audit";
+        public const string Sent = "Sent";
+        /// <summary>The Audit view's sent Inspection report line links to its own view (v29 P4).</summary>
+        public const string InspectionViewLink = "Inspection view";
+        /// <summary>The Create audit dialog's facts (v29 P5).</summary>
+        public const string AuditDialogCase = "Case";
+        public const string AuditReference = "Audit reference";
         public const string Figures = "Figures";
         public const string MatterLine = "Matter line";
         public const string Claim = "Claim";
@@ -65,7 +77,6 @@ public static class CaseWorkspaceLabels
         public const string ReturnToEngineer = "Return to Engineer";
         public const string ArchiveCase = "Archive case";
         public const string AssignToMe = "Assign to me";
-        public const string AuditCase = "Audit case";
         public const string OriginalCase = "Original case";
         public const string ReplacementCase = "Replacement case";
         public const string LifecycleActions = "Lifecycle actions";
@@ -972,6 +983,7 @@ public static class CaseWorkspaceLabels
     {
         public const string CorrespondenceTab = "Correspondence";
         public const string BoxConfirmed = "Box · confirmed";
+        public const string BoxAuditConfirmed = "Box audit · confirmed";
         public const string OpenInBox = "Open in Box";
         public const string View = "View";
         public const string Remove = "Remove";

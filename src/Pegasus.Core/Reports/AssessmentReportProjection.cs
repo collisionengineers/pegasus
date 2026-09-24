@@ -1,5 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Reports;
@@ -465,7 +466,7 @@ public static class AssessmentReportProjection
 public interface IAssessmentReportProjectionSource
 {
     Task<AssessmentReportProjectionInput?> GetAsync(
-        Guid caseId, ActionActor actor, CancellationToken cancellationToken = default);
+        Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -529,7 +530,7 @@ public sealed class GenerateCaseAssessmentReportDraft(
             return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);
         }
 
-        var input = await source.GetAsync(caseId, actor, cancellationToken);
+        var input = await source.GetAsync(caseId, actor, CaseWorkSelector.Current, cancellationToken);
         if (input is null)
         {
             return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);

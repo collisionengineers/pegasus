@@ -15,6 +15,8 @@
   reason.
 - Automatic mail association never writes the Case row, so it never breaks
   a staff edit. Other automatic association yields to a live edit lease.
+- Staff may link material to any Case or Triage Case, in any state.
+  Automatic association keeps its own, narrower rules.
 
 ## Purpose
 
@@ -57,6 +59,11 @@ extraction alone never allocates or reserves a Case/PO. Missing ordinary
 detail, images, or external checks keep the Case at `Not ready`; they are not
 another pre-Case gate.
 
+A Triage Case is allocated only once the Principal is established, before
+the request is classified as a Triage, and the registration is known. A
+Triage request missing either becomes Unidentified and allocates nothing
+([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
+
 For a standalone Audit, a missing original report is a Case requirement, not
 a pre-Case gate. Once the Principal and identity-critical gates pass, the
 instruction creates the `a.` Case/PO. The Case shows **Original report
@@ -85,7 +92,8 @@ party identity, and operator confirmation may all contribute. A weak,
 ambiguous, or contradictory signal never silently attaches material to a
 Case. Automatic routes send competing candidate Cases and unresolved
 source-identity conflicts to Unidentified with the matching reason. Manual
-upload offers the current viable destinations to staff instead
+upload offers staff its match candidates and every other Case and Triage
+Case instead
 ([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)).
 Unsafe material or an unresolved source-integrity problem still fails closed;
 choosing a destination cannot override that.
@@ -107,7 +115,9 @@ conflicting, or non-unique source attribution still prevents allocation. A
 different label never justifies invented evidence or staff confirmation.
 
 A registration match is a suggestion until accepted evidence or an
-authorised operator confirms it. Deduplication is occurrence-aware: exact
+authorised operator confirms it. Matching reads an Inspection + Audit Case's
+Inspection values, also once its Audit exists
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)). Deduplication is occurrence-aware: exact
 bytes and transport identifiers support correlation, while each visible
 placement and chronology entry stays auditable.
 
@@ -153,7 +163,16 @@ and history records, never the Case row or its version, so an editor's
 pending save still validates against the version they loaded
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). It yields to an
 archived Case. The staff "Add to an existing case" decision is a Case
-mutation and takes the edit lease like any other. Automatic Image-initiated
+mutation and takes the edit lease like any other; on a Triage Case it takes
+the Triage edit scope.
+
+**Staff linking reaches any Case.** Staff linking of received or uploaded
+material (Add to an existing case on Upload, Link to Case on an Unidentified
+item, and the Inbox's link) offers every Case and every Triage Case,
+whatever its state (operator, 24 September 2026). Only staff linking is
+widened. The automatic rules are unchanged: automatic association never
+links new material to an archived Case, and the matcher's withholding rules
+still apply. Automatic Image-initiated
 association checks the current Case version and yields to an active staff
 lease; the later image merge also yields to a live lease and rechecks the
 current associations in its own transaction. Filing the associated mail's
@@ -172,7 +191,8 @@ files.
 - A new instructed Case starts in `Not ready`
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A
   route may move it to `Review` only where its policy explicitly allows
-  that.
+  that. A new Triage Case starts `Open`
+  ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 - A source occurrence is unlinked or has one current Case association.
   Unlink and reassociate need a reason and keep the prior relationship in
   history.
@@ -195,8 +215,10 @@ files.
 ## Acceptance evidence
 
 Acceptance proves, through the real Worker and Web callers: one Case per
-definitive instruction; and that no edit lease is bypassed by automatic
-association. Deployment and live evidence are separate tiers
+definitive instruction; that no edit lease is bypassed by automatic
+association; that a Triage request without an established Principal becomes
+Unidentified; and that staff link material to a Case and to a Triage Case in
+any state. Deployment and live evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
@@ -212,3 +234,6 @@ association. Deployment and live evidence are separate tiers
   [FRD-18](frd-18-manual-upload.md),
   [FRD-19](frd-19-image-led-intake-and-pairing.md),
   [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md).
+- Technical constraints:
+  [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md)
+  (staff linking to any Case; Triage as a Case type).

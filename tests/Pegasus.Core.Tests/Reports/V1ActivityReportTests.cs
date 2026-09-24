@@ -75,6 +75,32 @@ public sealed class V1ActivityReportTests
     }
 
     [Fact]
+    public async Task ReportRejectsAnAuditShareOutsideItsTotal()
+    {
+        var id = Guid.NewGuid();
+        IReadOnlyList<PrincipalReportArtifactTypeActivity> oneReport = [new(nameof(CaseReportArtifactKind.AssessmentReport), 1, 0)];
+        IReadOnlyList<PrincipalReportActivity> invalidRows =
+        [
+            new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, AuditReportsProduced: 2),
+            new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, AuditSent: 2),
+            new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, AuditAgreedFeeTotal: 11m),
+            new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, AuditSent: -1)
+        ];
+
+        foreach (var row in invalidRows)
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => new GetV1ActivityReport(new Queries([row]))
+                .ExecuteAsync(Administrator(), From, To, CancellationToken.None));
+        }
+
+        var valid = await new GetV1ActivityReport(new Queries(
+            [new(id, "QDOS", 1, 1, 1, 0, 0, 0, 0, 0, null, null, null, null, 0, null, 0, null, 0, oneReport, 10m, 1, 1, 10m)]))
+            .ExecuteAsync(Administrator(), From, To, CancellationToken.None);
+        var only = Assert.Single(valid.Rows);
+        Assert.Equal((0, 0, 0m), (only.InspectionReportsProduced, only.InspectionSent, only.InspectionAgreedFeeTotal));
+    }
+
+    [Fact]
     public void CsvUsesTheSharedFormulaSafeEscaping()
     {
         var csv = PrincipalReportActivityCsv.ToCsv(
@@ -82,7 +108,8 @@ public sealed class V1ActivityReportTests
                 [new(nameof(CaseReportArtifactKind.AssessmentReport), 1, 0)])]);
 
         Assert.StartsWith(PrincipalReportActivityCsv.Header + "\r\n", csv, StringComparison.Ordinal);
-        Assert.Contains("'=QDOS,1,1,0,1,1,0,0,0,0,01:00:00,02:00:00,01:00:00", csv, StringComparison.Ordinal);
+        // Reports produced and Sent each sit beside their Inspection and Audit split (MI-02).
+        Assert.Contains("'=QDOS,1,1,1,0,0,1,1,0,1,0,0,0,0,01:00:00,02:00:00,01:00:00", csv, StringComparison.Ordinal);
         Assert.Contains("AssessmentReport: 1 generated", csv, StringComparison.Ordinal);
     }
 

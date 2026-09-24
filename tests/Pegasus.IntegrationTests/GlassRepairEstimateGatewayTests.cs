@@ -199,7 +199,7 @@ public sealed class GlassRepairEstimateGatewayTests
             workflow.EditLeaseExpiresAtUtc = StartUtc.AddMinutes(15);
             db.Add(new CaseDataSnapshotEntity
             {
-                CaseId = database.CaseId, OriginIntakeReceiptId = workflow.Case.OriginIntakeReceiptId,
+                WorkId = database.CaseId, OriginIntakeReceiptId = workflow.Case.OriginIntakeReceiptId,
                 OriginSourceChannel = "manual_upload", OriginExternalReceiptToken = "glass-authority",
                 OriginSourceHash = new string('0', 64), OriginReceivedAtUtc = StartUtc,
                 SourceReaderKey = "glass-test", SourceReaderVersion = "1", CompletenessPolicyKey = "glass-test",
@@ -258,7 +258,7 @@ public sealed class GlassRepairEstimateGatewayTests
 
         CaseDataFieldEntity Field(string name, string type, string value) => new()
         {
-            CaseId = database.CaseId, FieldName = name, ValueKind = CaseDataCodes.Confirmed,
+            WorkId = database.CaseId, FieldName = name, ValueKind = CaseDataCodes.Confirmed,
             ValueType = type, Value = value, SourceKind = CaseDataCodes.StaffCorrection,
             SourceIdentity = before.Engineer.SubjectId, SourceLabel = "Glass's authority fixture",
             PolicyKey = CaseDataPolicy.EditPolicyKey, PolicyVersion = CaseDataPolicy.EditPolicyVersion,

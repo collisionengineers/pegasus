@@ -671,7 +671,7 @@ public sealed partial class OperationsWebTests
     {
         public Guid CaseId { get; } = Guid.NewGuid();
         public Guid IntakeId { get; } = Guid.NewGuid();
-        public Guid TriageId { get; } = Guid.NewGuid();
+        public Guid TriageCaseId { get; } = Guid.NewGuid();
         public Guid ExternalWorkId { get; } = Guid.NewGuid();
         public string ReceivedMailboxId { get; } = "approved-inbox";
         public string MailboxFailureCode { get; } = "source_unavailable";
@@ -697,7 +697,7 @@ public sealed partial class OperationsWebTests
                     Email("received-unknown", EmailOperationDirection.Received, EmailOperationState.Unknown)),
                 ImmutableArray.Create(
                     Email("sent-failed", EmailOperationDirection.Sent, EmailOperationState.Failed, "sent_source_unavailable", "approved-sent", FixedUtcNow.AddMinutes(10)),
-                    Email("sent-triage", EmailOperationDirection.Sent, EmailOperationState.Succeeded, triageId: TriageId),
+                    Email("sent-triage", EmailOperationDirection.Sent, EmailOperationState.Succeeded, triageCaseId: TriageCaseId),
                     Email("sent-case", EmailOperationDirection.Sent, EmailOperationState.Succeeded, caseId: CaseId, caseReference: "QD31001", principalCode: "QD")),
                 ReceivedLimitReached: false,
                 SentLimitReached: false));
@@ -738,7 +738,7 @@ public sealed partial class OperationsWebTests
             string? retryMailboxId = null,
             DateTimeOffset? retryDueAtUtc = null,
             Guid? intakeId = null,
-            Guid? triageId = null,
+            Guid? triageCaseId = null,
             Guid? caseId = null,
             string? caseReference = null,
             string? principalCode = null) => new(
@@ -748,7 +748,7 @@ public sealed partial class OperationsWebTests
                 "operations@example.invalid",
                 FixedUtcNow,
                 intakeId,
-                triageId,
+                triageCaseId,
                 caseId,
                 caseReference,
                 principalCode,

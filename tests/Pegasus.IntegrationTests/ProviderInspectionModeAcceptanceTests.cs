@@ -307,7 +307,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
             CancellationToken.None);
 
         public async Task<CaseDataProjection> GetRequiredDataAsync(Guid caseId) =>
-            await DataStore.GetAsync(caseId, CancellationToken.None)
+            await DataStore.GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The case-data fixture was not persisted.");
 
         public async Task<long> CaseHistoryCountAsync(Guid caseId, string eventType)

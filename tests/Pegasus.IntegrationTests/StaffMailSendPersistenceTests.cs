@@ -108,7 +108,7 @@ public sealed class StaffMailSendPersistenceTests
                 });
             db.Set<CaseReportGenerationEntity>().Add(new()
             {
-                Id = generationId, CaseId = fixture.CaseId, CaseVersion = 0,
+                Id = generationId, CaseId = fixture.CaseId, WorkId = fixture.CaseId, CaseVersion = 0,
                 SnapshotHash = new string('C', 64), SnapshotJson = JsonSerializer.Serialize(
                     frozenGeneration, ReportSnapshotJson),
                 TemplateVersion = "test", RendererVersion = "test",
@@ -118,7 +118,7 @@ public sealed class StaffMailSendPersistenceTests
             db.CaseRepairSpecifications.Add(new()
             {
                 Id = estimate.SpecificationId,
-                CaseId = fixture.CaseId,
+                WorkId = fixture.CaseId,
                 Version = estimate.Version,
                 State = nameof(RepairSpecificationState.Draft),
                 SourceRoute = nameof(RepairSpecificationSourceRoute.Manual),
@@ -930,6 +930,7 @@ public sealed class StaffMailSendPersistenceTests
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {"QRY"}, {lineageId}, {true}, {0L})");
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {1}, {"QRY260001"}, {"inspection"}, {"review"}, {"pending"}, {true}, {true}, {nowUtc}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(db);
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.Query)}, {0L}, {Guid.NewGuid()})");
         var receipt = new IntakeReceiptEntity

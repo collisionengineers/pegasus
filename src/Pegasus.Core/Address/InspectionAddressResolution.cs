@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -211,6 +212,7 @@ public interface IInspectionAddressChoicesQueries
 {
     Task<InspectionAddressChoicesData?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 

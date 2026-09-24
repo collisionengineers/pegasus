@@ -65,7 +65,7 @@ public sealed class EvaHandoffStore(
         }
 
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        var caseData = await caseDataQueries.GetAsync(request.CaseId, cancellationToken);
+        var caseData = await caseDataQueries.GetAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken);
         if (caseData is null)
         {
             return null;

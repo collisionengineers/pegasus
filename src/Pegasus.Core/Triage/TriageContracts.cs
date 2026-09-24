@@ -1,9 +1,8 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 
 namespace Pegasus.Core.Triage;
 
@@ -29,108 +28,65 @@ public enum AssessmentFinding
 }
 
 /// <summary>
-/// The permanent Triage reference: `T-` followed by the global allocation
-/// sequence zero-padded to five digits, expanding past `T-99999` without
-/// reuse. The sequence is global — not per principal, per vehicle or per year
-/// — so a reference identifies exactly one Triage for the life of the system.
-/// It is allocated once at creation, is never reset and is never reused, so a
-/// number consumed by a failed creation simply leaves a gap.
+/// The accepted route evidence a Triage Case was opened from. A Triage Case a
+/// member of staff created directly has none.
 /// </summary>
-public static class TriageReferenceFormat
-{
-    public const string Prefix = "T-";
-
-    private static readonly Regex Canonical = new(
-        "^T-[0-9]{5,}$",
-        RegexOptions.CultureInvariant);
-
-    public static string Format(long sequence)
-    {
-        if (sequence <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(sequence),
-                "A Triage reference sequence starts at 1.");
-        }
-
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{Prefix}{sequence:00000}");
-    }
-
-    public static bool TryParse(string? value, out long sequence)
-    {
-        sequence = 0;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        var candidate = value.Trim();
-        if (!Canonical.IsMatch(candidate)
-            || !long.TryParse(
-                candidate.AsSpan(Prefix.Length),
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out sequence)
-            || sequence <= 0)
-        {
-            sequence = 0;
-            return false;
-        }
-
-        return true;
-    }
-}
-
 public sealed record TriageOrigin(
     Guid ReceiptId,
     IntakeSourceIdentity SourceIdentity,
     string SourceHash,
     Guid EvaluationRevisionId);
 
+/// <summary>
+/// A Triage Case: a Case of type <see cref="CaseType.Triage"/> whose
+/// specialised lifecycle lives in its Triage subtype. <see cref="CaseId"/> is
+/// the Case identity, <see cref="Reference"/> its <c>t.</c> Case/PO and
+/// <see cref="PrincipalId"/> its established Principal.
+/// <see cref="LinkedInstructionCaseId"/> is the later definitive instructed
+/// Case it is associated with, if any.
+/// </summary>
 public sealed record TriageRecord(
-    Guid Id,
-    TriageOrigin Origin,
+    Guid CaseId,
+    TriageOrigin? Origin,
     string NormalizedVehicleRegistration,
     TriageState State,
     Guid? AssigneeId,
-    Guid? LinkedCaseId,
+    Guid? LinkedInstructionCaseId,
     long Version,
-    string? Reference = null,
-    Guid? PrincipalId = null);
+    string Reference,
+    Guid PrincipalId);
 
 
 public sealed class TriageVersionConflictException(
-    Guid triageId,
+    Guid caseId,
     long expectedVersion,
     long actualVersion)
     : InvalidOperationException(
-        $"Triage '{triageId}' is at version {actualVersion}, not expected version {expectedVersion}.")
+        $"Triage '{caseId}' is at version {actualVersion}, not expected version {expectedVersion}.")
 {
-    public Guid TriageId { get; } = triageId;
+    public Guid CaseId { get; } = caseId;
 
     public long ExpectedVersion { get; } = expectedVersion;
 
     public long ActualVersion { get; } = actualVersion;
 }
 
-public sealed class TriageOperationConflictException(Guid triageId, string operationKey)
+public sealed class TriageOperationConflictException(Guid caseId, string operationKey)
     : InvalidOperationException(
-        $"Operation '{operationKey}' was already applied to triage '{triageId}' with different inputs.")
+        $"Operation '{operationKey}' was already applied to triage '{caseId}' with different inputs.")
 {
-    public Guid TriageId { get; } = triageId;
+    public Guid CaseId { get; } = caseId;
 
     public string OperationKey { get; } = operationKey;
 }
 public sealed class TriageResponseEvidenceAlreadyLinkedException(
-    Guid triageId,
+    Guid caseId,
     Exception? innerException = null)
     : InvalidOperationException(
-        $"Triage '{triageId}' already has current response evidence.",
+        $"Triage '{caseId}' already has current response evidence.",
         innerException)
 {
-    public Guid TriageId { get; } = triageId;
+    public Guid CaseId { get; } = caseId;
 }
 
 
@@ -144,7 +100,7 @@ public sealed record CreateTriageFromIntakeRequest(
     string OperationKey);
 
 public sealed record TriageMutationRequest(
-    Guid TriageId,
+    Guid CaseId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
@@ -154,7 +110,7 @@ public sealed record TriageMutationRequest(
 }
 
 public sealed record AssignTriageRequest(
-    Guid TriageId,
+    Guid CaseId,
     long ExpectedVersion,
     Guid AssigneeId,
     ActionActor Actor,
@@ -162,29 +118,6 @@ public sealed record AssignTriageRequest(
     string Reason)
 {
     public string EditLeaseToken { get; init; } = string.Empty;
-}
-
-/// <summary>
-/// Records, replaces or clears the optional known principal on a Triage.
-/// Mirrors <see cref="Pegasus.Core.ImageIntake.SetImageIntakePrincipalRequest"/>:
-/// a null <see cref="PrincipalId"/> is the `Not known` state — a legitimate
-/// value staff may return to, not an error — so there is no operation key and
-/// no reason; <see cref="ExpectedVersion"/> alone guards the write.
-/// </summary>
-public sealed record SetTriagePrincipalRequest(
-    Guid TriageId,
-    Guid? PrincipalId,
-    ActionActor Actor,
-    long ExpectedVersion)
-{
-    public string EditLeaseToken { get; init; } = string.Empty;
-}
-
-public interface ISetTriagePrincipal
-{
-    Task<TriageRecord> ExecuteAsync(
-        SetTriagePrincipalRequest request,
-        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -197,7 +130,7 @@ public interface ISetTriagePrincipal
 /// appended — never edited and never replaced.
 /// </remarks>
 public sealed record AddTriageNoteRequest(
-    Guid TriageId,
+    Guid CaseId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
@@ -234,7 +167,7 @@ public interface IAddTriageNote
 }
 
 public sealed record RecordTriageFindingRequest(
-    Guid TriageId,
+    Guid CaseId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
@@ -246,9 +179,15 @@ public sealed record RecordTriageFindingRequest(
     public string EditLeaseToken { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// Associates a Triage Case (<see cref="CaseId"/>) with, or removes its
+/// association from, a later definitive instructed Case
+/// (<see cref="InstructionCaseId"/>). <see cref="ExpectedCaseVersion"/> and
+/// <see cref="CaseEditLeaseToken"/> are the instructed Case's.
+/// </summary>
 public sealed record TriageCaseLinkRequest(
-    Guid TriageId,
     Guid CaseId,
+    Guid InstructionCaseId,
     long ExpectedTriageVersion,
     long ExpectedCaseVersion,
     ActionActor Actor,
@@ -260,7 +199,7 @@ public sealed record TriageCaseLinkRequest(
 }
 
 public sealed record TriageResponseEvidenceLinkRequest(
-    Guid TriageId,
+    Guid CaseId,
     Guid PollOutcomeId,
     Guid SentEvidenceId,
     long ExpectedVersion,
@@ -272,7 +211,7 @@ public sealed record TriageResponseEvidenceLinkRequest(
 }
 
 public sealed record TriageResponseEvidenceUnlinkRequest(
-    Guid TriageId,
+    Guid CaseId,
     Guid SentEvidenceId,
     long ExpectedVersion,
     ActionActor Actor,
@@ -287,6 +226,21 @@ public interface ICreateTriageFromIntake
     Task<TriageRecord> ExecuteAsync(
         CreateTriageFromIntakeRequest request,
         CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Whether a receipt's Principal is established, and which it is. A request
+/// is classified into a Triage Case only once its Principal is established, so
+/// intake asks this before it opens one: without an established Principal the
+/// request does not qualify and is held as Unidentified.
+/// </summary>
+public interface ITriagePrincipalGate
+{
+    /// <summary>
+    /// The one active Principal the receipt's instruction established, or null
+    /// when the receipt established none.
+    /// </summary>
+    Task<Guid?> GetEstablishedPrincipalIdAsync(Guid receiptId, CancellationToken cancellationToken);
 }
 
 public interface IAssignTriage
@@ -359,7 +313,7 @@ public interface IUnlinkTriageCase
 
 public sealed record TriageFinding(
     Guid Id,
-    Guid TriageId,
+    Guid CaseId,
     RoadworthinessFinding? Roadworthiness,
     AssessmentFinding? Assessment,
     Guid? SupersedesFindingId,
@@ -369,7 +323,7 @@ public sealed record TriageFinding(
     DateTimeOffset RecordedAtUtc);
 
 public sealed record TriageResponseEvidenceLink(
-    Guid TriageId,
+    Guid CaseId,
     Guid SentEvidenceId,
     string Actor,
     string OperationKey,
@@ -394,7 +348,7 @@ public sealed record TriageSentEvidenceReference(
 
 public sealed record TriageHistoryEntry(
     Guid Id,
-    Guid TriageId,
+    Guid CaseId,
     string EventType,
     string Actor,
     string ActorKind,
@@ -405,7 +359,7 @@ public sealed record TriageHistoryEntry(
     long AfterVersion,
     TriageState AfterState,
     Guid? AfterAssigneeId,
-    Guid? AfterLinkedCaseId)
+    Guid? AfterLinkedInstructionCaseId)
 {
     /// <summary>
     /// The operator-facing name for <see cref="Actor"/> — a raw staff subject id
@@ -417,27 +371,20 @@ public sealed record TriageHistoryEntry(
 }
 
 /// <summary>
-/// A Triage queue row. <see cref="Reference"/> is the Triage's own permanent
-/// T reference; <see cref="ClaimNumber"/> is the originating instruction
+/// A Triage queue row. <see cref="Reference"/> is the Triage Case's own
+/// <c>t.</c> Case/PO; <see cref="ClaimNumber"/> is the originating instruction
 /// draft's provider claim number, which is a fact about the sender and not an
-/// identifier of this Triage. The two were the same field before the T
-/// reference existed.
+/// identifier of this Triage Case.
 /// </summary>
-/// <remarks>
-/// Every persisted Triage carries a reference, so <see cref="Reference"/> is
-/// only nullable to keep the two out-of-stream in-memory test fixtures that
-/// still pass <c>Reference: null</c> compiling; tightening it to a required
-/// member is a follow-up on those fixtures' owner.
-/// </remarks>
 public sealed record TriageSummary(
-    Guid Id,
+    Guid CaseId,
     string NormalizedVehicleRegistration,
     TriageState State,
     Guid? AssigneeId,
-    Guid? LinkedCaseId,
+    Guid? LinkedInstructionCaseId,
     DateTimeOffset CreatedAtUtc,
     long Version,
-    string? Reference,
+    string Reference,
     string? Provider,
     string? ClaimNumber = null,
     Guid? PrincipalId = null);
@@ -450,20 +397,29 @@ public sealed record TriageDetail(
     IReadOnlyList<TriageHistoryEntry> History,
     IReadOnlyList<TriageResponseEvidenceCandidate> ResponseEvidenceCandidates,
     /// <summary>
-    /// The code of the principal the originating receipt established, read in
-    /// the same round trip as the record. Null is the operator-visible
-    /// `Not known` state.
+    /// The code of the Triage Case's Principal, read in the same round trip as
+    /// the record.
     /// </summary>
-    string? PrincipalCode = null);
+    string? PrincipalCode = null)
+{
+    /// <summary>The Triage Case's files: its standard Case documents.</summary>
+    public IReadOnlyList<CaseDocument> Documents { get; init; } = [];
+
+    /// <summary>The Triage Case's Box folder custody, as every Case has one.</summary>
+    public CaseCustodyState CustodyState { get; init; } = CaseCustodyState.Pending;
+
+    /// <summary>The Box folder of the Triage Case once custody confirmed it.</summary>
+    public string? CustodyFolderRemoteId { get; init; }
+}
 
 /// <summary>
 /// A decoded keyset position in the Triage list: the newest-first order is
-/// <c>CreatedAtUtc</c> descending with the identity as the tie-break, so a
+/// <c>CreatedAtUtc</c> descending with the Case identity as the tie-break, so a
 /// position is exactly that pair. Both are absent on the first page. This is
 /// the store's own currency — the opaque cursor that carries it between
 /// requests is minted above the store, by <see cref="ListTriagePage"/>.
 /// </summary>
-public sealed record TriageListPosition(DateTimeOffset CreatedAtUtc, Guid Id);
+public sealed record TriageListPosition(DateTimeOffset CreatedAtUtc, Guid CaseId);
 
 /// <summary>
 /// One keyset page and the position the next page continues from. A null
@@ -497,34 +453,22 @@ public interface ITriageQueries
         Task.FromException<TriageListSlice>(
             new NotSupportedException("Triage keyset continuation is not available."));
 
-    Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The Triage this receipt opened, if it opened one. Mirrors
+    /// The Triage Case this receipt opened, if it opened one. Mirrors
     /// <c>IImageIntakeQueries.GetByOriginReceiptAsync</c>: an origin receipt
     /// has at most one, and the Unidentified supersession rule needs to ask.
     /// </summary>
     Task<TriageSummary?> GetByOriginReceiptAsync(
         Guid originReceiptId,
         CancellationToken cancellationToken);
-
-    /// <summary>
-    /// The active principals a staff member may record against a Triage,
-    /// ordered by code. Mirrors <c>IImageIntakeQueries.ListActivePrincipalsAsync</c>.
-    /// The default fails closed rather than returning an empty option list that
-    /// would silently look like `no principals exist` when an implementation is
-    /// missing.
-    /// </summary>
-    Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(
-        CancellationToken cancellationToken) =>
-        Task.FromException<IReadOnlyList<Principal>>(
-            new NotSupportedException("Active principal options are not available."));
 }
 
 public interface ITriageResponseEvidenceCandidateQueries
 {
     Task<IReadOnlyList<TriageSentEvidenceReference>> ListSentEvidenceReferencesAsync(
-        Guid triageId,
+        Guid caseId,
         int maximumResults,
         CancellationToken cancellationToken);
 }
@@ -538,13 +482,13 @@ public interface ITriageResponseEvidenceCandidateQueries
 public sealed record TriageOperationReplay(TriageRecord Result);
 
 /// <summary>
-/// Persists triage lifecycle mutations. Implementations must enforce the supplied version
-/// and operation key atomically, because the aggregate is read for transition validation
-/// before each mutation. Replay probes must verify the complete request fingerprint and
-/// return the historical post-operation result.
+/// An automatic association candidate: the Triage Case (<see cref="CaseId"/>
+/// at <see cref="TriageVersion"/>) and the one definitive instructed Case
+/// (<see cref="InstructionCaseId"/> at <see cref="InstructionCaseVersion"/>)
+/// the Principal's match policy identifies.
 /// </summary>
 public sealed record TriageCaseLinkCandidate(
-    Guid TriageId, long TriageVersion, Guid CaseId, long CaseVersion,
+    Guid CaseId, long TriageVersion, Guid InstructionCaseId, long InstructionCaseVersion,
     string MatchPolicyKey, int MatchPolicyVersion);
 
 public sealed record TriageCasePairingResult(
@@ -552,15 +496,21 @@ public sealed record TriageCasePairingResult(
 
 public interface ITriageCasePairing
 {
-    Task<TriageCasePairingResult> PairTriageAsync(Guid triageId, CancellationToken cancellationToken);
+    Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken);
     Task<TriageCasePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken);
     Task<TriageCasePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Persists triage lifecycle mutations. Implementations must enforce the supplied version
+/// and operation key atomically, because the aggregate is read for transition validation
+/// before each mutation. Replay probes must verify the complete request fingerprint and
+/// return the historical post-operation result.
+/// </summary>
 public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidateQueries
 {
     Task<IReadOnlyList<TriageCaseLinkCandidate>> ListAutomaticLinkCandidatesAsync(
-        Guid? triageId, Guid? caseId, int maximumItems, CancellationToken cancellationToken);
+        Guid? triageCaseId, Guid? instructionCaseId, int maximumItems, CancellationToken cancellationToken);
 
     Task<bool> LinkAutomaticallyAsync(
         TriageCaseLinkCandidate candidate, ActionActor actor, CancellationToken cancellationToken);
@@ -601,19 +551,6 @@ public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidate
         CancellationToken cancellationToken) =>
         Task.FromException<TriageRecord>(
             new NotSupportedException("Triage notes are not available."));
-
-    /// <summary>
-    /// Records, replaces or clears the optional known principal. Mirrors
-    /// <c>IImageIntakeStore.SetPrincipalAsync</c>: this writes no lifecycle
-    /// transition of its own — <see cref="TriageState"/> is untouched — but,
-    /// unlike Image Intake, it does append a history entry, so the Triage
-    /// timeline shows who recorded or corrected it and when.
-    /// </summary>
-    Task<TriageRecord> SetPrincipalAsync(
-        SetTriagePrincipalRequest request,
-        CancellationToken cancellationToken) =>
-        Task.FromException<TriageRecord>(
-            new NotSupportedException("Triage principal assignment is not available."));
 
     Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,
@@ -659,7 +596,7 @@ public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidate
 /// key; the reason is fixed because the action is its own record.
 /// </summary>
 public sealed record AssignTriageToMeRequest(
-    Guid TriageId,
+    Guid CaseId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey)

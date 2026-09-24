@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
@@ -633,11 +634,11 @@ public sealed class ImageIntakePersistenceTests
             ExpectedStaffOriginAssociationVersion = 2 };
         await ClaimLeaseAsync(services, secondCase, StaffActor(), "edit-during-image-merge");
         await Assert.ThrowsAsync<IntakeAssociationConflictException>(() => store.MergeAsync(currentMerge, CancellationToken.None));
+        // A staff decision reaches a Case in any lifecycle state (operator,
+        // 24 September 2026): the Case moving past its report does not strand
+        // the images staff linked to it.
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE CaseWorkflows SET EditLeaseExpiresAtUtc = {DateTimeOffset.UtcNow.AddMinutes(-1)}, State = {nameof(CaseLifecycleState.PostReport)} WHERE CaseId = {secondCase}");
-        await Assert.ThrowsAsync<ImageIntakeCaseNotEligibleException>(() => store.MergeAsync(currentMerge, CancellationToken.None));
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.Review)} WHERE CaseId = {secondCase}");
 
         // The timer is a SystemWorker, but the CURRENT recorded decision is
         // Staff's: its intentional VRM/principal override remains authoritative.
@@ -678,7 +679,7 @@ public sealed class ImageIntakePersistenceTests
     }
 
     [Fact]
-    public async Task ReceiptLinkEnforcesEligibilityOnceAnImageIntakeExists()
+    public async Task ReceiptLinkMergesTheImageIntakeAndReversalKeepsItsRegistration()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -694,13 +695,6 @@ public sealed class ImageIntakePersistenceTests
             "IMG26001",
             nameof(CaseLifecycleState.Review),
             "AB12CDE");
-        var postReportReceiptId = await UploadCaseOriginAsync(factory, client, "CASE-LINK-02");
-        var postReportCaseId = await SeedCaseAsync(
-            factory.Services,
-            postReportReceiptId,
-            "IMG26002",
-            nameof(CaseLifecycleState.PostReport),
-            "AB12CDE");
         var actor = StaffActor();
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -712,35 +706,12 @@ public sealed class ImageIntakePersistenceTests
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
         var queries = services.GetRequiredService<IImageIntakeQueries>();
 
-        var ineligibleLease = await ClaimLeaseAsync(
-            factory.Services,
-            postReportCaseId,
-            actor,
-            "claim-post-report-lease");
-        var receipt = await receipts.GetAsync(imageReceiptId, CancellationToken.None);
-        await Assert.ThrowsAsync<IntakeAssociationConflictException>(
-            () => link.ExecuteAsync(
-                new(
-                    imageReceiptId,
-                    postReportCaseId,
-                    receipt!.Version,
-                    0,
-                    ineligibleLease.Token,
-                    actor,
-                    "link-post-report-case",
-                    "A post-report case must be rejected."),
-                CancellationToken.None));
-        var rejected = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
-        Assert.Null(rejected!.AssociatedCaseId);
-        Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, rejected.State);
-        Assert.Null(rejected.MergedIntoCaseId);
-
         var lease = await ClaimLeaseAsync(
             factory.Services,
             eligibleCaseId,
             actor,
             "claim-eligible-lease");
-        receipt = await receipts.GetAsync(imageReceiptId, CancellationToken.None);
+        var receipt = await receipts.GetAsync(imageReceiptId, CancellationToken.None);
         await link.ExecuteAsync(
             new(
                 imageReceiptId,
@@ -787,6 +758,162 @@ public sealed class ImageIntakePersistenceTests
         Assert.Null(afterUnlink!.AssociatedCaseId);
         Assert.Equal("AB12CDE-01", afterUnlink.Record.ImageIntakeReference);
         Assert.Empty(await queries.ListForCaseAsync(eligibleCaseId, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Staff "Link to case" reaches every Case in any lifecycle state
+    /// (operator, 24 September 2026): the Vehicle images record it links is
+    /// merged into a post-report or closed Case and its evidence folded into
+    /// that Case's folder, not left awaiting instruction.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(CaseLifecycleState.PostReport))]
+    [InlineData(nameof(CaseLifecycleState.ProviderCancelled))]
+    public async Task StaffLinkMergesVehicleImagesIntoACaseInAnyState(string workflowState)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceiptId = await UploadImageAsync(factory, client);
+        var caseOriginReceiptId = await UploadCaseOriginAsync(factory, client, "CASE-LINK-02");
+        var caseId = await SeedCaseAsync(
+            factory.Services,
+            caseOriginReceiptId,
+            "IMG26002",
+            workflowState,
+            "AB12CDE");
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceiptId, "AB12CDE", "link-any-state-register");
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var registered = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        await ProcessCustodyWorkAsync(
+            services, ExternalWorkKinds.CreateImageCaseCustody, imageIntakeId: registered!.Record.Id);
+        var caseRoot = await services.GetRequiredService<ICaseCustody>().CreateCaseRootAsync(
+            caseId, "IMG26002", $"img-case-root:{caseId:N}", CancellationToken.None);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE Cases SET CustodyRootRemoteId = {caseRoot.RemoteId}, CustodyState = {"confirmed"} WHERE Id = {caseId}");
+        }
+
+        var lease = await ClaimLeaseAsync(services, caseId, StaffActor(), "link-any-state-lease");
+        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(imageReceiptId, CancellationToken.None);
+        await services.GetRequiredService<ILinkIntake>().ExecuteAsync(
+            new(
+                imageReceiptId,
+                caseId,
+                receipt!.Version,
+                lease.Version,
+                lease.Token,
+                StaffActor(),
+                "link-any-state",
+                "Staff confirmed these images belong with this Case."),
+            CancellationToken.None);
+
+        var merged = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        Assert.Equal(ImageInitiatedCaseState.MergedIntoInstructionCase, merged!.State);
+        Assert.Equal(caseId, merged.MergedIntoCaseId);
+        Assert.Equal("IMG26002", merged.MergedIntoCaseReference);
+
+        await ProcessCustodyWorkAsync(
+            services, ExternalWorkKinds.MergeImageCaseCustody, imageIntakeId: merged.Record.Id);
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            Assert.Equal("merged", await context.ImageIntakes.AsNoTracking()
+                .Where(item => item.Id == merged.Record.Id)
+                .Select(item => item.CustodyState)
+                .SingleAsync());
+            Assert.Equal(1, await context.CaseHistory.CountAsync(item =>
+                item.CaseId == caseId && item.EventType == "image_custody_merged"));
+            // The link and the fold leave the Case in the state it was in.
+            Assert.Equal(workflowState, await context.CaseWorkflows.AsNoTracking()
+                .Where(item => item.CaseId == caseId)
+                .Select(item => item.State)
+                .SingleAsync());
+        }
+    }
+
+    /// <summary>
+    /// A Triage Case is a staff link destination too (operator, 24 September
+    /// 2026). It has no Case workflow: the link answers through its Triage
+    /// version and edit scope, the Vehicle images record is merged into it and
+    /// its evidence folded into the Triage Case's folder, and neither system
+    /// step moves the Triage version.
+    /// </summary>
+    [Fact]
+    public async Task StaffLinkMergesVehicleImagesIntoATriageCase()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceiptId = await UploadImageAsync(factory, client);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceiptId, "AB12CDE", "link-triage-register");
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var registered = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        await ProcessCustodyWorkAsync(
+            services, ExternalWorkKinds.CreateImageCaseCustody, imageIntakeId: registered!.Record.Id);
+        var triage = await services.GetRequiredService<ICreateManualCase>().ExecuteAsync(
+            new(
+                StaffActor(),
+                "manual-triage-for-images",
+                "QDOS",
+                CaseType.Triage,
+                new(VehicleRegistration: "AB12CDE")),
+            CancellationToken.None);
+        await ProcessCustodyWorkAsync(services, ExternalWorkKinds.CreateCaseCustody, caseId: triage.CaseId);
+
+        var triageScope = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(EditScopeKind.Triage, triage.CaseId, 0, StaffActor(), "link-images-triage-edit"),
+            CancellationToken.None);
+        var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(imageReceiptId, CancellationToken.None);
+        await services.GetRequiredService<ILinkIntake>().ExecuteAsync(
+            new(
+                imageReceiptId,
+                triage.CaseId,
+                receipt!.Version,
+                0,
+                triageScope.Token,
+                StaffActor(),
+                "link-images-triage",
+                "Staff confirmed these images belong with the Triage."),
+            CancellationToken.None);
+
+        var merged = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        Assert.Equal(ImageInitiatedCaseState.MergedIntoInstructionCase, merged!.State);
+        Assert.Equal(triage.CaseId, merged.MergedIntoCaseId);
+        Assert.Equal(triage.Reference, merged.MergedIntoCaseReference);
+        Assert.Equal(triage.CaseId, merged.AssociatedCaseId);
+        Assert.Equal(triage.Reference, merged.AssociatedCaseReference);
+        // The staff link advanced the Triage version; the merge did not.
+        Assert.Equal(1, merged.AssociatedCaseVersion);
+
+        await ProcessCustodyWorkAsync(
+            services, ExternalWorkKinds.MergeImageCaseCustody, imageIntakeId: merged.Record.Id);
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        Assert.Equal("merged", await context.ImageIntakes.AsNoTracking()
+            .Where(item => item.Id == merged.Record.Id)
+            .Select(item => item.CustodyState)
+            .SingleAsync());
+        Assert.Equal(1, await context.CaseHistory.CountAsync(item =>
+            item.CaseId == triage.CaseId && item.EventType == "image_custody_merged"));
+        Assert.Equal(1, await context.Triage.AsNoTracking()
+            .Where(item => item.CaseId == triage.CaseId)
+            .Select(item => item.Version)
+            .SingleAsync());
+        Assert.False(await context.CaseWorkflows.AnyAsync(item => item.CaseId == triage.CaseId));
     }
 
     [Fact]
@@ -1180,6 +1307,31 @@ public sealed class ImageIntakePersistenceTests
             CancellationToken.None);
     }
 
+    /// <summary>
+    /// Runs one queued custody operation as the Worker would: the test host
+    /// discards the queue publication.
+    /// </summary>
+    private static async Task ProcessCustodyWorkAsync(
+        IServiceProvider services,
+        string kind,
+        Guid? imageIntakeId = null,
+        Guid? caseId = null)
+    {
+        Guid workId;
+        await using (var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            workId = await context.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.Kind == kind
+                    && (imageIntakeId == null || item.ImageIntakeId == imageIntakeId)
+                    && (caseId == null || item.CaseId == caseId))
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+
+        await services.GetRequiredService<IProcessQueuedCustody>().ExecuteAsync(workId, CancellationToken.None);
+    }
+
     private static async Task<string> ClaimImageEditLeaseAsync(
         IServiceProvider services,
         Guid imageIntakeId,
@@ -1218,10 +1370,11 @@ public sealed class ImageIntakePersistenceTests
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {"not_ready"}, {"pending"}, {originReceiptId}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {workflowState}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"image-intake-test-reader"}, {"1"}, {"image-intake-fixture"}, {1}, {reference}, {1}, {true}, {now})");
+            $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"image-intake-test-reader"}, {"1"}, {"image-intake-fixture"}, {1}, {reference}, {1}, {true}, {now})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseMatchIndex (CaseId, WorkProviderCode, NormalizedVrm, MatchPolicyKey, MatchPolicyVersion, UpdatedAtUtc) VALUES ({caseId}, {reference}, {draftRegistration}, {"image-intake-fixture"}, {1}, {now})");
         return caseId;

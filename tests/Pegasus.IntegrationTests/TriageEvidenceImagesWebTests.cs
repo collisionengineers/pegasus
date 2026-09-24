@@ -35,13 +35,13 @@ public sealed partial class QdosTriageIntegrationTests
             var triage = Assert.Single(
                 await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
                     .ListAsync(null, CancellationToken.None));
-            triageId = triage.Id;
+            triageId = triage.CaseId;
             receiptId = Assert.IsType<TriageDetail>(
                 await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
-                    .GetAsync(triage.Id, CancellationToken.None)).Record.Origin.ReceiptId;
+                    .GetAsync(triage.CaseId, CancellationToken.None)).Record.Origin!.ReceiptId;
         }
 
-        using var response = await client.GetAsync($"/Triage/{triageId}");
+        using var response = await client.GetAsync($"/Cases/{triageId}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
@@ -71,10 +71,10 @@ public sealed partial class QdosTriageIntegrationTests
         {
             triageId = Assert.Single(
                 await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
-                    .ListAsync(null, CancellationToken.None)).Id;
+                    .ListAsync(null, CancellationToken.None)).CaseId;
         }
 
-        using var response = await client.GetAsync($"/Triage/{triageId}");
+        using var response = await client.GetAsync($"/Cases/{triageId}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 

@@ -14,6 +14,8 @@
   undone. A Case is never permanently closed.
 - **Close case** records a cancellation or a rejection with a reason.
   **Archive** hides a closed Case from queues. Nothing is ever deleted.
+- **Create audit** adds the Audit to an Inspection + Audit Case once its
+  report is sent, and returns the Case to With Engineer for the Audit.
 
 ## Purpose
 
@@ -21,7 +23,8 @@ This document owns how a Case moves through work: its states, what unlocks
 each step, the actions staff can take, chasing for missing material, and what
 happens after the report. Identity and Case types are in
 [FRD-01](frd-01-case-identity-and-lifecycle.md). Edit leases are in
-[FRD-14](frd-14-record-edit-leases.md).
+[FRD-14](frd-14-record-edit-leases.md). A Triage Case does not use these
+states; its own are in [FRD-03](frd-03-triage.md).
 
 ## Behaviour
 
@@ -120,9 +123,14 @@ received or assigned anything.
   ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
   A generated file, an export, a draft, a queue result or a manual statement
   is not enough. Report sent moves the Case into its post-report phase,
-  which screens still show as With Engineer.
+  which screens still show as With Engineer. Sent evidence belongs to the
+  report it proves: after Create audit it must be of the Audit report and
+  sent after the Audit was created, and the Inspection's Sent evidence stays
+  with the Inspection.
 - **Mark completed** records that the current work is complete. It is a
-  reversible work state, not a closure.
+  reversible work state, not a closure. It needs no Audit.
+- **Create audit** adds the Audit to an Inspection + Audit Case
+  ([Create audit](#create-audit)).
 - **Return to Engineer** records a reason and applies the destination gates
   when more engineering changes are needed. It is not needed to receive,
   attach or answer a query.
@@ -167,6 +175,44 @@ query and the actual reply as Case correspondence. Neither transition erases
 earlier completion or query history. Further engineering edits go through
 Return to Engineer.
 
+### Create audit
+
+**When it is offered.** Create audit is offered only on an Inspection +
+Audit Case, in the Actions menu inside an edit session, once its Inspection
+report is sent: in With Engineer after the report, Completed or Query. It is
+never offered on a Held Case, a Case with a closed disposition (Created in
+error included), an archived Case, or a Case that already has its Audit. A
+Case held after its report was sent is offered it again after Release Hold.
+It uses the same staff authorisation as the other Actions-menu progressions.
+With no assigned Engineer it is refused with Return to Engineer's refusal,
+"Report preparation requires an assigned Engineer.", and the assigned
+Engineer must still be eligible, as for Return to Engineer. It asks for no
+reason and no outcome.
+
+**What it does.** In one operation, under the Case edit lease and version,
+Create audit:
+
+- adds the Audit to the Case under the Audit reference `a.{Case/PO}` and
+  copies the Inspection's values into it
+  ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity));
+- moves the Case to With Engineer before the report, keeping the assigned
+  Engineer and the Sign-off Engineer;
+- keeps the Inspection's report approval and Sent evidence with the
+  Inspection;
+- starts the creation of the `a.` Box subfolder
+  ([FRD-05](frd-05-documents-extraction-and-custody.md#custody-and-derived-reads));
+- records one history line, "Audit {Audit reference} created by {name}".
+
+There is no separate success message. Replaying the same request creates no
+second Audit, and an edit prepared before Create audit is refused as stale.
+
+**After it.** The Audit drives the Case: its state, queues, Actions menu and
+Next action follow the Audit's report, and report generation, approval, Mark
+report sent and Mark completed act on the Audit report. The Inspection's
+values and its sent report stay read-only. While the Audit report is being
+prepared, image intake association and evidence promotion are open again, as
+for any Case before its report is sent.
+
 ### Sign-off Engineer
 
 Sign-off Engineer is a Case field beside Engineer. Only enabled staff accounts
@@ -182,7 +228,8 @@ The Engineer who issues a report is not automatically its signatory.
 ### Due work and chasing
 
 **Due by** comes from the inspection date or the accepted equivalent
-deadline.
+deadline. On an Inspection + Audit Case, Due by and the completeness gate
+follow the Inspection's values; editing the Audit's copy changes neither.
 
 **Chase interval.** One global setting in Workflow configuration, in whole
 calendar days, range 1 to 365, default 7, calculated in Europe/London. When a
@@ -242,6 +289,7 @@ stays in history.
 | Completed | Query | Query received or attached |
 | Query | Completed | Reply sent |
 | Completed, Query | With Engineer | Return to Engineer (reason) |
+| With Engineer after the report, Completed, Query | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
 | pre-report states | Provider cancelled, Collision Engineers rejected | Close case (reason) |
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |
@@ -257,14 +305,19 @@ stays in history.
 - A second archive on an archived Case is refused.
 - A chase already calculated keeps its date when the interval changes.
 - A cancellation message never changes state without a staff action.
+- Create audit before the Inspection report is sent, on a Held, closed or
+  archived Case, without an assigned Engineer, or a second time, is refused.
+- Sent evidence for the Audit report that predates the Audit, or that proves
+  the Inspection report, is refused.
 
 ## Acceptance evidence
 
 Core tests cover every transition in the table above, readiness from stored
-facts, chase scheduling across the Held boundary, and the four dispositions.
-Integration tests cover Hand to Engineer under a lease, Mark report sent
-against retained Sent evidence, and Archive. Deployment and live acceptance
-are separate evidence tiers
+facts, chase scheduling across the Held boundary, the four dispositions, and
+Create audit's offer and refusal in each state. Integration tests cover Hand
+to Engineer under a lease, Mark report sent against retained Sent evidence,
+Create audit with its replay and refusals, and Archive. Deployment and live
+acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
@@ -283,4 +336,5 @@ are separate evidence tiers
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 - Technical constraints:
   [ADR-0020](../adr/0020-accepted-qdos-case-association-predicates.md),
-  [ADR-0048](../adr/0048-principal-report-generation-policies.md).
+  [ADR-0048](../adr/0048-principal-report-generation-policies.md),
+  [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md).

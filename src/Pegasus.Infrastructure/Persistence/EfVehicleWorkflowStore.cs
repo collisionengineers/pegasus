@@ -98,7 +98,7 @@ internal sealed class EfVehicleWorkflowStore(
 
         var confirmedRegistrations = await context.CaseDataFields
             .AsNoTracking()
-            .Where(item => item.CaseId == command.CaseId
+            .Where(item => item.WorkId == command.CaseId
                 && item.FieldName == CaseDataFieldNames.VehicleRegistration
                 && item.ValueKind == CaseDataCodes.Confirmed)
             .OrderBy(item => item.SourceIdentity)
@@ -116,7 +116,7 @@ internal sealed class EfVehicleWorkflowStore(
             ? confirmedRegistrations
             : await context.CaseDataFields
                 .AsNoTracking()
-                .Where(item => item.CaseId == command.CaseId
+                .Where(item => item.WorkId == command.CaseId
                     && item.FieldName == CaseDataFieldNames.VehicleRegistration
                     && item.ValueKind == CaseDataCodes.Fact)
                 .OrderBy(item => item.SourceIdentity)
@@ -238,9 +238,12 @@ internal sealed class EfVehicleWorkflowStore(
             .Select(MapHistory)
             .ToArray();
 
+        // Confirmed vehicle facts are the current work's, as the Case data
+        // they are read beside is.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var confirmedFields = await context.CaseDataFields
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == workId
                 && item.ValueKind == CaseDataCodes.Confirmed
                 && VehicleFieldNames.Contains(item.FieldName))
             .ToDictionaryAsync(item => item.FieldName, StringComparer.Ordinal, cancellationToken);
@@ -422,9 +425,9 @@ internal sealed class EfVehicleWorkflowStore(
                 context.CaseWorkflows.AsNoTracking()
                     .Where(workflow => workflow.ArchivedAtUtc == null
                         && !terminalStates.Contains(workflow.State)),
-                field => field.CaseId,
+                field => field.WorkId,
                 workflow => workflow.CaseId,
-                (field, workflow) => new { field.CaseId, field.ValueKind, field.Value, workflow.Version })
+                (field, workflow) => new { CaseId = field.WorkId, field.ValueKind, field.Value, workflow.Version })
             .ToListAsync(cancellationToken);
         if (candidates.Count == 0)
         {

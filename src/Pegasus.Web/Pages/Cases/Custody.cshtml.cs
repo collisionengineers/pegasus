@@ -25,6 +25,7 @@ public sealed class CustodyModel(
     ICreateImageTag createImageTag,
     IGetCase getCase,
     IAcquireCaseEditLease acquireLease,
+    IGetCaseKind getCaseKind,
     ILogger<CustodyModel> logger) : CaseMutationPageModel(logger)
 {
     /// <summary>
@@ -52,12 +53,22 @@ public sealed class CustodyModel(
             return Forbid();
         }
 
+        // A Triage Case keeps standard Case custody, so its failed custody is
+        // retried here too. Its expected version and token are its Triage
+        // version and Triage edit scope, which the store checks. It holds no
+        // Case edit lease for this page to keep, and its page shows the
+        // outcome as its Triage status.
+        var triageCase = await getCaseKind.ExecuteAsync(id, cancellationToken) == CaseType.Triage;
         try
         {
             var result = await retryCaseCustody.ExecuteAsync(
                 new(id, expectedVersion, actor, operationKey, reason, editLeaseToken, targetKind),
                 cancellationToken);
-            if (result.Outcome is RetryCaseCustodyOutcome.Pending or RetryCaseCustodyOutcome.Replay)
+            if (triageCase)
+            {
+                TempData["TriageStatus"] = result.Message;
+            }
+            else if (result.Outcome is RetryCaseCustodyOutcome.Pending or RetryCaseCustodyOutcome.Replay)
             {
                 ClearLeaseState();
                 TempData["CaseStatus"] = result.Message;
@@ -76,8 +87,11 @@ public sealed class CustodyModel(
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             LogCaseCommandFailed(logger, id, "retry_case_custody", exception);
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] =
+            if (!triageCase)
+            {
+                HandleLeaseFailure(id, editLeaseToken, exception);
+            }
+            TempData[triageCase ? "TriageStatus" : "CaseError"] =
                 "Custody retry was not recorded because the case changed or edit mode was lost.";
         }
 

@@ -114,10 +114,61 @@ public sealed class EngineerActivityReportPersistenceTests
         Assert.Equal(TimeSpan.FromDays(3), row.AverageReceivedToSent);
     }
 
-    private static CaseReportGenerationEntity Generation(Guid id, Guid caseId, DateTimeOffset generatedAtUtc) => new()
+    /// <summary>
+    /// MI-01 per work: once an Inspection + Audit Case has its Audit, the
+    /// Audit work's report is an Audit report and its turnaround runs from the
+    /// Audit's creation; the Inspection report keeps its receipt turnaround.
+    /// </summary>
+    [Fact]
+    public async Task AnAuditWorksReportIsAnAuditReportTimedFromTheAuditsCreation()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var engineer = Guid.NewGuid();
+        var estate = await SeedEstateAsync(database);
+        var caseId = await estate.SeedCaseAsync(engineer, null, 1, "inspection_and_audit");
+        var auditWorkId = Guid.NewGuid();
+        var inspectionGeneration = Guid.NewGuid();
+        var auditGeneration = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.CaseWorks.Add(new CaseWorkEntity
+            {
+                Id = auditWorkId,
+                CaseId = caseId,
+                Kind = CaseWorkKinds.Audit,
+                CreatedAtUtc = From.AddDays(5)
+            });
+            context.AddRange(
+                Generation(inspectionGeneration, caseId, From.AddDays(1)),
+                Generation(auditGeneration, caseId, From.AddDays(6), auditWorkId));
+            var inspectionSend = SentOperation(engineer, From.AddDays(2));
+            inspectionSend.ContextId = inspectionGeneration;
+            var auditSend = SentOperation(engineer, From.AddDays(8));
+            auditSend.ContextId = auditGeneration;
+            context.Set<StaffMailSendOperationEntity>().AddRange(inspectionSend, auditSend);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
+        var row = Assert.Single(await queries.GetAsync(From, To, engineer, CancellationToken.None));
+
+        Assert.Equal(2, row.ReportsSent);
+        Assert.Equal(1, row.AuditReportsSent);
+        // The Inspection report was sent two days after the receipt; the
+        // Audit's three days after the Audit was created.
+        Assert.Equal(TimeSpan.FromHours(60), row.AverageReceivedToSent);
+    }
+
+    private static CaseReportGenerationEntity Generation(
+        Guid id,
+        Guid caseId,
+        DateTimeOffset generatedAtUtc,
+        Guid? workId = null) => new()
     {
         Id = id,
         CaseId = caseId,
+        WorkId = workId ?? caseId,
         SnapshotHash = new string('a', 64),
         SnapshotJson = "{}",
         TemplateVersion = "1",
