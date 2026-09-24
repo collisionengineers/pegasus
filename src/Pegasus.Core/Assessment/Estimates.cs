@@ -1026,7 +1026,10 @@ public interface ISetCurrentEstimate
 
 public interface IListCaseEstimates
 {
-    Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(Guid caseId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -1150,13 +1153,14 @@ public sealed class ListCaseEstimates(IRepairSpecificationStore store) : IListCa
 {
     public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
         {
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
-        return store.ListEstimatesAsync(caseId, cancellationToken);
+        return store.ListEstimatesAsync(caseId, work, cancellationToken);
     }
 }
 

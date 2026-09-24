@@ -888,11 +888,11 @@ public sealed partial class DetailsModel(
                 }
                 if (!SectionIsDeferred("settlement"))
                 {
-                    Proposals = await fieldProposals.ListForCaseAsync(id, cancellationToken);
+                    Proposals = await fieldProposals.ListForCaseAsync(id, CaseWorkSelector.Current, cancellationToken);
                 }
                 if (!SectionIsDeferred("inspection"))
                 {
-                    var choices = await inspectionAddressChoicesQueries.GetAsync(id, cancellationToken);
+                    var choices = await inspectionAddressChoicesQueries.GetAsync(id, CaseWorkSelector.Current, cancellationToken);
                     InspectionAddressChoices = choices is null
                         ? []
                         : Pegasus.Core.Address.InspectionAddressChoices.Resolve(choices);
@@ -947,7 +947,7 @@ public sealed partial class DetailsModel(
 
         Assessment = workspace.Assessment;
         AcceptedSpecification = workspace.AcceptedSpecification;
-        Estimates = await listEstimates.ExecuteAsync(id, cancellationToken);
+        Estimates = await listEstimates.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken);
         LabourRateCards = await labourRateCards.ListAsync(actor, cancellationToken);
         ApplyEstimateSelection(estimate);
         if (Case is not null)
@@ -1680,7 +1680,7 @@ public sealed partial class DetailsModel(
                 // The guide source cards have no Save of their own (23 September
                 // 2026): this save records the ones whose boxes were changed.
                 List<ValuationDetails> guideValuations = guideEntries is { Length: > 0 }
-                    ? GuideEntriesToRecord(guideEntries, await listCaseValuations.ExecuteAsync(id, cancellationToken))
+                    ? GuideEntriesToRecord(guideEntries, await listCaseValuations.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken))
                     : [];
                 await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
                 {
@@ -3774,7 +3774,7 @@ public sealed partial class DetailsModel(
                 return RedirectToEstimate(id);
             }
 
-            var importedBefore = (await listEstimates.ExecuteAsync(id, cancellationToken))
+            var importedBefore = (await listEstimates.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken))
                 .Any(estimate => string.Equals(
                     estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));

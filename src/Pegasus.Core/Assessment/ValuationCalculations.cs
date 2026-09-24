@@ -1,4 +1,5 @@
 using System.Globalization;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -266,6 +267,7 @@ public interface IAppliedValuationStore
 
     Task<IReadOnlyList<AppliedValuation>> ListAppliedAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 
@@ -287,6 +289,7 @@ public interface IListAppliedValuations
 {
     Task<IReadOnlyList<AppliedValuation>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 
@@ -774,6 +777,7 @@ public sealed class ListAppliedValuations(IAppliedValuationStore store) : IListA
 {
     public Task<IReadOnlyList<AppliedValuation>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -781,6 +785,6 @@ public sealed class ListAppliedValuations(IAppliedValuationStore store) : IListA
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
 
-        return store.ListAppliedAsync(caseId, cancellationToken);
+        return store.ListAppliedAsync(caseId, work, cancellationToken);
     }
 }

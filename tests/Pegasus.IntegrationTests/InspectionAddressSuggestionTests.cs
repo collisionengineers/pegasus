@@ -255,7 +255,7 @@ public sealed class InspectionAddressSuggestionTests
         await using var verificationScope = factory.Services.CreateAsyncScope();
         var services = verificationScope.ServiceProvider;
         var projection = await services.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         var choices = await services.GetRequiredService<IInspectionLocationChoices>()
             .SearchAsync(new(Administrator, caseId, "Ash"), CancellationToken.None);
 
@@ -344,7 +344,7 @@ public sealed class InspectionAddressSuggestionTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var current = await services.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None)
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The accepted case was not found.");
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await services.GetRequiredService<IAcquireCaseEditLease>()

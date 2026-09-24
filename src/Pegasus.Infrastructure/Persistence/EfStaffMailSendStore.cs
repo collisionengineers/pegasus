@@ -431,8 +431,9 @@ internal sealed class EfStaffMailSendStore(
             .Where(item => item.SpecificationId == estimate.SpecificationId)
             .OrderByDescending(item => item.Number)
             .FirstOrDefaultAsync(cancellationToken);
+        // The Sent version is frozen in the work the report was made from.
         EfRepairSpecificationSnapshotStore.Freeze(
-            db, estimate, actor, RepairSpecificationSnapshotKind.Sent,
+            db, generation.WorkId, estimate, actor, RepairSpecificationSnapshotKind.Sent,
             origin, observedAtUtc, latest);
     }
 

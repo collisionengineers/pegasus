@@ -618,7 +618,7 @@ public sealed class ProviderApiSubmissionTests
             .SingleAsync();
 
         var projection = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
 
         Assert.NotNull(projection);
         Assert.NotNull(projection.Provider.WorkProviderCode.Current);

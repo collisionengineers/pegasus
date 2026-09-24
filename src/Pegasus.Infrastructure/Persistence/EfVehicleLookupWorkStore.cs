@@ -204,11 +204,13 @@ internal sealed class EfVehicleLookupWorkStore(
             RecordedAtUtc = recordedAtUtc
         });
 
+        // Looked-up values fill the current work's empty fields.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
         var caseDataFields = await context.CaseDataFields
-            .Where(item => item.WorkId == workflow.CaseId)
+            .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
         var selectedMileageSource = await context.CaseAssessmentFields
-            .Where(item => item.WorkId == workflow.CaseId
+            .Where(item => item.WorkId == workId
                 && item.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.VehicleMileageSource
                 && item.ConfirmedAtUtc != null)
             .Select(item => item.Value)
@@ -217,7 +219,7 @@ internal sealed class EfVehicleLookupWorkStore(
         var vehicleTypeFilled = await FillEmptyVehicleFieldsAsync(
             context,
             caseDataFields,
-            workflow.CaseId,
+            workId,
             observationId,
             result,
             outcome.Mileage,
@@ -330,7 +332,7 @@ internal sealed class EfVehicleLookupWorkStore(
     private static async Task<bool> FillEmptyVehicleFieldsAsync(
         PegasusDbContext context,
         List<CaseDataFieldEntity> caseDataFields,
-        Guid caseId,
+        Guid workId,
         Guid observationId,
         VehicleLookupResult result,
         VehicleMileageCalculation? mileage,
@@ -372,7 +374,7 @@ internal sealed class EfVehicleLookupWorkStore(
 
             var field = new CaseDataFieldEntity
             {
-                WorkId = caseId,
+                WorkId = workId,
                 FieldName = fieldName,
                 ValueKind = CaseDataCodes.Fact,
                 ValueType = valueType,
@@ -431,7 +433,7 @@ internal sealed class EfVehicleLookupWorkStore(
             var path = AssessmentVocabulary.VehicleType;
             var existing = await context.CaseAssessmentFields
                 .SingleOrDefaultAsync(
-                    item => item.WorkId == caseId && item.FieldPath == path,
+                    item => item.WorkId == workId && item.FieldPath == path,
                     cancellationToken);
             if (VehicleLookupFillPolicy.Fills(
                     hasFact: false,
@@ -441,7 +443,7 @@ internal sealed class EfVehicleLookupWorkStore(
             {
                 AssessmentFieldWriter.Write(
                     context,
-                    caseId,
+                    workId,
                     existing,
                     path,
                     vehicleType,

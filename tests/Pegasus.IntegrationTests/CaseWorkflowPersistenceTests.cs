@@ -2340,6 +2340,7 @@ public sealed class CaseWorkflowPersistenceTests
             "QDOS");
         var originalDataBefore = await harness.DataStore.GetAsync(
             harness.CaseId,
+            CaseWorkSelector.Current,
             CancellationToken.None);
         Assert.NotNull(originalDataBefore);
         Assert.Equal("Jane Workflow", originalDataBefore.Claimant.Name.Confirmed?.Value);
@@ -2389,9 +2390,11 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Null(unrelated?.ReplacementCaseId);
         var originalDataAfter = await harness.DataStore.GetAsync(
             harness.CaseId,
+            CaseWorkSelector.Current,
             CancellationToken.None);
         var replacementData = await harness.DataStore.GetAsync(
             allocated.Identity.CaseId,
+            CaseWorkSelector.Current,
             CancellationToken.None);
         Assert.NotNull(replacementData);
         Assert.Equal(originalDataBefore.Origin, replacementData.Origin);

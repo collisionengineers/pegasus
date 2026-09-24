@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Text.Json;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
@@ -451,7 +452,7 @@ public sealed class ValuationCalculationTests
                 ApplyRequest(Engineer) with { Selection = Selection(guideValuationId: Guid.Empty) },
                 CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new ListAppliedValuations(store).ExecuteAsync(Guid.Empty, CancellationToken.None));
+            new ListAppliedValuations(store).ExecuteAsync(Guid.Empty, CaseWorkSelector.Current, CancellationToken.None));
     }
 
     /// <summary>
@@ -656,7 +657,7 @@ public sealed class ValuationCalculationTests
 
         public Task<IReadOnlyList<AppliedValuation>> ListAppliedAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AppliedValuation>>([]);
 
         /// <summary>

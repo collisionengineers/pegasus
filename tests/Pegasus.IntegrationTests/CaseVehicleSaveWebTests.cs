@@ -73,7 +73,7 @@ public sealed class CaseVehicleSaveWebTests
         Assert.Equal("AB12CDE", InputValue(editing, "vehicleRegistration"));
         Assert.Equal(string.Empty, InputValue(editing, "vehicleMake"));
         var before = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(before);
         Assert.Equal("Jane Example", before!.Claimant.Name.Fact?.Value);
         Assert.Equal("QDOS-123", before.Claim.Number.Fact?.Value);
@@ -132,7 +132,7 @@ public sealed class CaseVehicleSaveWebTests
         Assert.Contains(caseId.ToString("D"), search, StringComparison.Ordinal);
 
         var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         var evidence = await scope.ServiceProvider.GetRequiredService<IVehicleEvidenceQueries>()
             .GetAsync(caseId, CancellationToken.None);
         Assert.NotNull(data);
@@ -170,7 +170,7 @@ public sealed class CaseVehicleSaveWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(data);
         Assert.Equal(51234L, data!.Vehicle.Mileage.Confirmed?.Value);
         Assert.Equal("miles", data.Vehicle.MileageUnit.Confirmed?.Value);
@@ -198,7 +198,7 @@ public sealed class CaseVehicleSaveWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(data);
         Assert.Equal(42000L, data!.Vehicle.Mileage.Confirmed?.Value);
         Assert.Equal("kilometres", data.Vehicle.MileageUnit.Confirmed?.Value);
@@ -225,7 +225,7 @@ public sealed class CaseVehicleSaveWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(data);
         Assert.Null(data!.Vehicle.Mileage.Confirmed);
         Assert.Null(data.Vehicle.Mileage.Fact);
@@ -363,7 +363,7 @@ public sealed class CaseVehicleSaveWebTests
         }
 
         var beforeFirstSave = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(beforeFirstSave);
         Assert.Null(beforeFirstSave!.Vehicle.Make.Confirmed);
 
@@ -380,7 +380,7 @@ public sealed class CaseVehicleSaveWebTests
         }
 
         var saved = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(saved);
         Assert.Equal("Ford", saved!.Vehicle.Make.Confirmed?.Value);
         Assert.Equal("AB12CDE", saved.Vehicle.Registration.Fact?.Value);

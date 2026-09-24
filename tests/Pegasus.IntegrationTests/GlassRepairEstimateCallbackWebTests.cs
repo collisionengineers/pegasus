@@ -937,7 +937,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             await using var scope = factory.Services.CreateAsyncScope();
             return await scope.ServiceProvider
                 .GetRequiredService<IListCaseEstimates>()
-                .ExecuteAsync(CaseId, CancellationToken.None);
+                .ExecuteAsync(CaseId, CaseWorkSelector.Current, CancellationToken.None);
         }
 
         /// <summary>Every confirmed document the Case now holds, in a stable order.</summary>

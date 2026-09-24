@@ -1699,15 +1699,7 @@ public sealed class EfCaseWorkflowStore(
             entity.Case.AuditReference),
         Enum.Parse<CaseLifecycleState>(entity.State),
         entity.AssignedEngineerId,
-        entity.ReportApproval is null ? null : new ReportApprovalEvidence(
-            entity.ReportApproval.Id,
-            entity.ReportApproval.ArtifactIdentity,
-            entity.ReportApproval.ArtifactSha256,
-            Actor(
-                entity.ReportApproval.ApprovedByKind,
-                entity.ReportApproval.ApprovedBySubjectId,
-                entity.ReportApproval.ApprovedByRolesJson),
-            entity.ReportApproval.ApprovedAtUtc),
+        entity.ReportApproval is null ? null : MapReportApproval(entity.ReportApproval),
         entity.ReportSentEvidence is null
             ? null
             : MapReportSentEvidence(entity.ReportSentEvidence),
@@ -1725,6 +1717,16 @@ public sealed class EfCaseWorkflowStore(
         HoldReviewOn = entity.HoldReviewOn,
         StateEnteredAtUtc = entity.StateEnteredAtUtc
     };
+    internal static ReportApprovalEvidence MapReportApproval(CaseReportApprovalEntity approval) => new(
+        approval.Id,
+        approval.ArtifactIdentity,
+        approval.ArtifactSha256,
+        Actor(
+            approval.ApprovedByKind,
+            approval.ApprovedBySubjectId,
+            approval.ApprovedByRolesJson),
+        approval.ApprovedAtUtc);
+
     private static CaseArchive? MapArchive(CaseWorkflowEntity entity)
     {
         if (entity.ArchivedAtUtc is not { } archivedAtUtc)
@@ -1763,7 +1765,7 @@ public sealed class EfCaseWorkflowStore(
             entity.ArchiveReason,
             entity.Version);
 
-    private static ApprovedMailboxReportSentEvidence? MapReportSentEvidence(
+    internal static ApprovedMailboxReportSentEvidence? MapReportSentEvidence(
         CaseReportSentEvidenceEntity entity)
     {
         if (string.Equals(

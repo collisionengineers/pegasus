@@ -360,7 +360,7 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(initial.Version + 1, first.Version);
         Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
         var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
-        var recorded = await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+        var recorded = await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(2, recorded.Count);
         var glasses = recorded.Single(card => card.Details.Source == ValuationSource.Glasses);
         Assert.Null(glasses.LastEditedAtUtc);
@@ -376,7 +376,7 @@ public sealed class CaseWorkspacePersistenceTests
 
         Assert.Equal(first.Version + 1, second.Version);
         Assert.Equal(2, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
-        recorded = await valuations.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+        recorded = await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(2, recorded.Count);
         var unchanged = recorded.Single(card => card.Details.Source == ValuationSource.Glasses);
         Assert.Equal(DetailsModelStamp(glasses), DetailsModelStamp(unchanged));
@@ -1316,7 +1316,7 @@ public sealed class CaseWorkspacePersistenceTests
 
         var queries = new EfCaseFieldProposalQueries(harness.Factory);
         Assert.All(
-            await queries.ListForCaseAsync(harness.CaseId, default),
+            await queries.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, default),
             proposal => Assert.Equal(CaseFieldProposalStatus.Awaiting, proposal.Status));
 
         var afterAi = await harness.GetRequiredDataAsync();
@@ -1332,7 +1332,7 @@ public sealed class CaseWorkspacePersistenceTests
             })
         }, default);
 
-        var proposals = (await queries.ListForCaseAsync(harness.CaseId, default)).ToDictionary(item => item.FieldPath);
+        var proposals = (await queries.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, default)).ToDictionary(item => item.FieldPath);
         Assert.Equal(2, proposals.Count);
         Assert.Equal(CaseFieldProposalStatus.Accepted, proposals[AssessmentVocabulary.Outcome].Status);
         Assert.Equal(CaseFieldProposalStatus.Corrected, proposals[AssessmentVocabulary.LegalStatus].Status);

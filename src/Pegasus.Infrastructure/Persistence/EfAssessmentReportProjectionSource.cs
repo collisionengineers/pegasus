@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
@@ -124,7 +125,7 @@ internal sealed class EfAssessmentReportProjectionSource(
                 pair.Image.FullPage))
             .ToArray();
 
-        var applied = await listAppliedValuations.ExecuteAsync(caseId, cancellationToken);
+        var applied = await listAppliedValuations.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
         var latestApplied = applied
             .OrderByDescending(valuation => valuation.AcceptedAtUtc)
             .FirstOrDefault();

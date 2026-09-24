@@ -62,9 +62,11 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
         CaseMutationGuard.Require(
             workflow, actor, expectedCaseVersion, editLeaseToken, timeProvider.GetUtcNow());
 
+        // The estimate is made for the current work, from its vehicle facts.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var fields = await context.Set<CaseDataFieldEntity>()
             .AsNoTracking()
-            .Where(item => item.WorkId == caseId)
+            .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
         return new(RequireRegistration(fields), RequireMileageMiles(fields));
     }

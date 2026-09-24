@@ -536,7 +536,7 @@ internal sealed class AssessmentMcpTools(
                     throw new McpException("An active edit lease token is required.");
                 }
 
-                var current = await caseDataQueries.GetAsync(caseId, cancellationToken)
+                var current = await caseDataQueries.GetAsync(caseId, CaseWorkSelector.Current, cancellationToken)
                     ?? throw new McpException("The case was not found.");
                 var merged = new CaseEditableData(
                     claimantName ?? current.Claimant.Name.Confirmed?.Value,

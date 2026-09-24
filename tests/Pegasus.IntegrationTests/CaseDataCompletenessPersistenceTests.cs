@@ -316,6 +316,7 @@ public sealed class CaseDataCompletenessPersistenceTests
 
         var projection = await harness.DataStore.GetAsync(
             harness.CaseId,
+            CaseWorkSelector.Current,
             CancellationToken.None);
 
         Assert.NotNull(projection);
@@ -760,7 +761,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             CancellationToken.None);
 
         public async Task<CaseDataProjection> GetRequiredDataAsync() =>
-            await DataStore.GetAsync(CaseId, CancellationToken.None)
+            await DataStore.GetAsync(CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The case-data fixture was not persisted.");
         public async Task<long> HiddenCaseVersionAsync()
         {

@@ -23,6 +23,7 @@ public sealed class EfCaseDataStore(
 
     public async Task<CaseDataProjection?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -31,8 +32,9 @@ public sealed class EfCaseDataStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var snapshot = await SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken);
         if (snapshot is null)
         {
             return null;
@@ -85,7 +87,7 @@ public sealed class EfCaseDataStore(
                 cancellationToken);
         }
 
-        var (snapshot, workflow) = await GetRequiredForMutationAsync(
+        var workflow = await GetRequiredWorkflowForMutationAsync(
             context,
             request.CaseId,
             cancellationToken);
@@ -101,20 +103,30 @@ public sealed class EfCaseDataStore(
                 "Completeness can be changed only before Engineer assignment on a Not ready or Review case.");
         }
 
+        var snapshot = await GetCurrentSnapshotForMutationAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        // The completeness gate is the Case's, so only the primary work drives it.
+        var isPrimary = snapshot.WorkId == request.CaseId;
+
         var before = new CaseCompleteness(
             snapshot.Work.Case.InstructionComplete,
             snapshot.Work.Case.ImagesComplete);
         evaluation = CaseCompletenessPolicy.Evaluate(request.Completeness,
             await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken));
         var beforeJson = JsonSerializer.Serialize(before, JsonOptions);
-        snapshot.Work.Case.InstructionComplete = request.Completeness.InstructionComplete;
-        snapshot.Work.Case.ImagesComplete = request.Completeness.ImagesComplete;
+        if (isPrimary)
+        {
+            snapshot.Work.Case.InstructionComplete = request.Completeness.InstructionComplete;
+            snapshot.Work.Case.ImagesComplete = request.Completeness.ImagesComplete;
+        }
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
 
         var now = UtcNow();
-        if (evaluation.SatisfiesPolicy)
+        if (isPrimary && evaluation.SatisfiesPolicy)
         {
             var enteringReview = workflow.State != nameof(CaseLifecycleState.Review);
             workflow.State = nameof(CaseLifecycleState.Review);
@@ -126,7 +138,7 @@ public sealed class EfCaseDataStore(
                     context, workflow, checked(workflow.Version + 1), now);
             }
         }
-        else
+        else if (isPrimary)
         {
             if (workflow.State != nameof(CaseLifecycleState.NotReady))
             {
@@ -200,7 +212,7 @@ public sealed class EfCaseDataStore(
                 cancellationToken);
         }
 
-        var (snapshot, workflow) = await GetRequiredForMutationAsync(
+        var workflow = await GetRequiredWorkflowForMutationAsync(
             context,
             request.CaseId,
             cancellationToken);
@@ -215,6 +227,14 @@ public sealed class EfCaseDataStore(
                 "Case data can be saved only before Engineer assignment on a Not ready or Review case.");
         }
 
+        var snapshot = await GetCurrentSnapshotForMutationAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        // Matching, the accepted deadline, due work and the completeness gate
+        // are the Case's: only a primary-work edit moves them (decision M).
+        var isPrimary = snapshot.WorkId == request.CaseId;
+
         var before = CaseDataFieldWriter.ReadEditable(snapshot);
         var completenessBefore = new CaseCompleteness(
             snapshot.Work.Case.InstructionComplete,
@@ -226,26 +246,29 @@ public sealed class EfCaseDataStore(
 
         var now = UtcNow();
         CaseDataFieldWriter.ApplyEditableData(context, snapshot, data, request.Actor, now);
-        CaseMatchIndexProjector.Apply(
-            context,
-            await context.CaseMatchIndex.SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId,
-                cancellationToken),
-            CaseMatchIndexProjector.Project(
-                snapshot.Work.Case,
-                snapshot.Fields,
-                caseMatchPolicies ?? [],
-                now));
-        snapshot.Work.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
-        snapshot.Work.Case.InstructionComplete = false;
         snapshot.CompletenessPolicySatisfied = false;
-        if (workflow.State != nameof(CaseLifecycleState.NotReady))
+        if (isPrimary)
         {
-            workflow.StateEnteredAtUtc = now;
-        }
+            CaseMatchIndexProjector.Apply(
+                context,
+                await context.CaseMatchIndex.SingleOrDefaultAsync(
+                    item => item.CaseId == request.CaseId,
+                    cancellationToken),
+                CaseMatchIndexProjector.Project(
+                    snapshot.Work.Case,
+                    snapshot.Fields,
+                    caseMatchPolicies ?? [],
+                    now));
+            snapshot.Work.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
+            snapshot.Work.Case.InstructionComplete = false;
+            if (workflow.State != nameof(CaseLifecycleState.NotReady))
+            {
+                workflow.StateEnteredAtUtc = now;
+            }
 
-        workflow.State = nameof(CaseLifecycleState.NotReady);
-        await CaseDueWorkScheduler.ScheduleAsync(context, workflow, data.InspectionDeadline, now, cancellationToken);
+            workflow.State = nameof(CaseLifecycleState.NotReady);
+            await CaseDueWorkScheduler.ScheduleAsync(context, workflow, data.InspectionDeadline, now, cancellationToken);
+        }
 
         var beforeVersion = workflow.Version;
         workflow.Version++;
@@ -295,22 +318,28 @@ public sealed class EfCaseDataStore(
         return ApplyConfiguration(Map(snapshot, workflow), await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken));
     }
 
-    private static async Task<(CaseDataSnapshotEntity Snapshot, CaseWorkflowEntity Workflow)>
-        GetRequiredForMutationAsync(
-            PegasusDbContext context,
-            Guid caseId,
-            CancellationToken cancellationToken)
-    {
-        var snapshot = await SnapshotQuery(context, tracking: true)
-            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
-        var workflow = await context.CaseWorkflows
+    private static async Task<CaseWorkflowEntity> GetRequiredWorkflowForMutationAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken) =>
+        await context.CaseWorkflows
             .Include(item => item.Case).ThenInclude(item => item.Principal)
             .Include(item => item.DueWork)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
+
+    // Resolved after the caller's guards: Create audit takes the same workflow
+    // lock and bumps the version, so a stale write never reaches the old work.
+    private static async Task<CaseDataSnapshotEntity> GetCurrentSnapshotForMutationAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        return await SnapshotQuery(context, tracking: true)
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
             ?? throw new InvalidDataException(
-                "The accepted case data snapshot has no workflow record.");
-        return (snapshot, workflow);
+                "The accepted case has no typed data snapshot for its current work.");
     }
 
     private static async Task<CaseDataProjection> GetRequiredProjectionAsync(
@@ -319,8 +348,9 @@ public sealed class EfCaseDataStore(
         bool tracking,
         CancellationToken cancellationToken)
     {
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var snapshot = await SnapshotQuery(context, tracking)
-            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
         var workflowQuery = tracking
             ? context.CaseWorkflows
