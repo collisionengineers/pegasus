@@ -46,7 +46,8 @@ public enum CaseType
 {
     Inspection,
     Audit,
-    InspectionAndAudit
+    InspectionAndAudit,
+    Triage
 }
 
 public enum AuditAssessment
@@ -120,16 +121,6 @@ public static class CasePrincipalCode
         return normalized;
     }
 }
-
-public static class AuditIdentity
-{
-    public static string Create(string caseReference)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
-        return "a." + caseReference;
-    }
-}
-
 
 public enum CaseInitialState
 {

@@ -79,7 +79,7 @@ internal sealed class EfAssessmentWorkspaceSource(
                 workflow.Case.Reference,
                 workflow.Case.Principal.Code,
                 data.Vehicle.Registration.Current?.Value,
-                EfCaseQueryStore.ParseCaseType(workflow.Case.Type),
+                CaseTypeCodes.Parse(workflow.Case.Type),
                 Enum.Parse<CaseLifecycleState>(workflow.State),
                 workflow.Version,
                 workflow.DueWork?.DueBy,

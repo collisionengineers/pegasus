@@ -1007,7 +1007,7 @@ public sealed class EfCaseQueryStore(
         item.CaseId,
         item.Reference,
         item.AuditReference,
-        ParseCaseType(item.CaseType),
+        CaseTypeCodes.Parse(item.CaseType),
         item.Principal,
         Enum.Parse<CaseLifecycleState>(item.State),
         item.EngineerId,
@@ -1043,28 +1043,6 @@ public sealed class EfCaseQueryStore(
             && Guid.TryParse(holder, out var staffId)
                 ? staffId
                 : null;
-
-    internal static CaseType ParseCaseType(string value)
-    {
-        if (string.Equals(value, "inspection", StringComparison.OrdinalIgnoreCase))
-        {
-            return CaseType.Inspection;
-        }
-        if (string.Equals(value, "audit", StringComparison.OrdinalIgnoreCase))
-        {
-            return CaseType.Audit;
-        }
-        if (string.Equals(
-                value,
-                "inspection_and_audit",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return CaseType.InspectionAndAudit;
-        }
-
-        throw new InvalidDataException(
-            $"Case data contains unsupported type code '{value}'.");
-    }
 
     private static CaseWorkflowRecord MapWorkflow(CaseWorkflowEntity entity)
     {

@@ -620,7 +620,7 @@ public sealed class CaseCursorQueryPersistenceTests
                 Year = 2031,
                 Sequence = sequence,
                 Reference = reference,
-                Type = "Audit",
+                Type = "audit",
                 InitialState = "NotReady",
                 CustodyState = "Pending",
                 OriginIntakeReceiptId = receiptId,

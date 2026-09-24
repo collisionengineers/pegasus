@@ -114,7 +114,7 @@ public sealed class EfCreateAuditCaseStore(
             Sequence = source.Sequence,
             Reference = command.AuditReference,
             AuditReference = command.AuditReference,
-            Type = "audit",
+            Type = CaseTypeCodes.Audit,
             InitialState = "review",
             CustodyState = "pending",
             AuditOfCaseId = source.Id,

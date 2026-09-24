@@ -1,9 +1,7 @@
 using System.Data;
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -26,25 +24,11 @@ public sealed class EfLinkedCaseReplacementStore(
         ArgumentNullException.ThrowIfNull(request);
         var requestHash = RequestHash(request);
 
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                return await CreateOnceAsync(request, requestHash, cancellationToken);
-            }
-            catch (Exception exception) when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
-            {
-                var replay = await FindReplayAsync(request, requestHash, cancellationToken);
-                if (replay is not null)
-                {
-                    return replay;
-                }
-
-                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
-            }
-        }
-
-        throw new UnreachableException();
+        return await CaseAllocationRetry.ExecuteAsync(
+            token => CreateOnceAsync(request, requestHash, token),
+            token => FindReplayAsync(request, requestHash, token),
+            exception => exception,
+            cancellationToken);
     }
 
     private async Task<CaseAcceptanceOutcome> CreateOnceAsync(
@@ -105,23 +89,21 @@ public sealed class EfLinkedCaseReplacementStore(
             throw new InvalidOperationException(
                 "A wrong-principal replacement must use a different corrected principal.");
         }
+        // The replacement keeps the original's type, so its Case/PO takes the
+        // same prefix; it never carries an Audit report reference of its own.
+        var now = timeProvider.GetUtcNow();
+        var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
+            context,
+            replacementPrincipal,
+            CaseTypeCodes.Parse(original.Case.Type),
+            now,
+            cancellationToken);
         var originalCaseData = await context.CaseDataSnapshots
             .Include(item => item.Fields)
             .SingleOrDefaultAsync(item => item.CaseId == original.CaseId, cancellationToken)
             ?? throw new InvalidDataException(
                 "The original case has no immutable typed case-data snapshot.");
 
-
-        var now = timeProvider.GetUtcNow();
-        var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
-            context,
-            replacementPrincipal,
-            now,
-            cancellationToken);
-        var year = allocatedIdentity.Year;
-        var allocatedSequence = allocatedIdentity.Sequence;
-        var reference = allocatedIdentity.Reference;
-        var auditReference = CreateStandaloneAuditReference(original.Case, reference);
         var initialState = ParseInitialState(original.Case.InitialState);
         var replacementCaseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
@@ -131,10 +113,10 @@ public sealed class EfLinkedCaseReplacementStore(
             PrincipalId = replacementPrincipal.Id,
             Principal = replacementPrincipal,
             SequenceLineageId = replacementPrincipal.SequenceLineageId,
-            Year = year,
-            Sequence = allocatedSequence,
-            Reference = auditReference ?? reference,
-            AuditReference = auditReference,
+            Year = allocatedIdentity.Year,
+            Sequence = allocatedIdentity.Sequence,
+            Reference = allocatedIdentity.Reference,
+            AuditReference = null,
             Type = original.Case.Type,
             InitialState = original.Case.InitialState,
             CustodyState = "pending",
@@ -472,17 +454,6 @@ public sealed class EfLinkedCaseReplacementStore(
         nameof(CaseLifecycleState.CollisionEngineersRejected) or
         nameof(CaseLifecycleState.CreatedInError);
 
-    private static string? CreateStandaloneAuditReference(
-        CaseEntity original,
-        string replacementReference)
-    {
-        if (!string.Equals(original.Type, "audit", StringComparison.Ordinal))
-        {
-            return null;
-        }
-        return AuditIdentity.Create(replacementReference);
-    }
-
     private static CaseInitialState ParseInitialState(string value) => value switch
     {
         "not_ready" => CaseInitialState.NotReady,
@@ -542,13 +513,4 @@ public sealed class EfLinkedCaseReplacementStore(
 
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
-
-    private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
-    {
-        DbUpdateConcurrencyException => true,
-        SqlException { Number: 1205 or 2601 or 2627 } => true,
-        DbUpdateException { InnerException: { } innerException } =>
-            IsRetryableConcurrencyFailure(innerException),
-        _ => false
-    };
 }

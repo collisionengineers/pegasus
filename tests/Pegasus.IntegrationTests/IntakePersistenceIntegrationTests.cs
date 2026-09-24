@@ -665,7 +665,7 @@ public sealed class IntakePersistenceIntegrationTests
                 Year = 2031,
                 Sequence = 1,
                 Reference = "EVID31001",
-                Type = "Inspection",
+                Type = "inspection",
                 InitialState = "NotReady",
                 CustodyState = "confirmed",
                 OriginIntakeReceiptId = receiptId,

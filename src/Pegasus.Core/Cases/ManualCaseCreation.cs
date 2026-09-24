@@ -69,7 +69,7 @@ public sealed class CreateManualCase(
             throw new InvalidOperationException(
                 $"A manual case needs {string.Join(", ", missingIdentity)}.");
         }
-        if (request.CaseType == CaseType.Audit)
+        if (request.CaseType is CaseType.Audit or CaseType.Triage)
         {
             throw new InvalidOperationException("The case type is invalid.");
         }

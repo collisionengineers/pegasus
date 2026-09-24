@@ -100,7 +100,7 @@ public static class ProviderInstructionKinds
 /// <summary>
 /// The wire vocabulary for the original report's outcome. The operator ruled on
 /// 2026-08-28 that a declared verdict decides the reference prefix, so this is
-/// the value <see cref="AuditIdentity.Create"/> is given.
+/// the value <see cref="CaseReferenceFormat.CasePo"/> is given.
 /// </summary>
 public static class ProviderReportVerdicts
 {

@@ -1127,7 +1127,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     Year = 2031,
                     Sequence = 1,
                     Reference = reference,
-                    Type = "Inspection",
+                    Type = "inspection",
                     InitialState = "not_ready",
                     CustodyState = "confirmed",
                     CustodyRootRemoteId = reference,

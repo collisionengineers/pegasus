@@ -24,7 +24,7 @@ public sealed class DocumentCustodyDurabilityTests
         {
             await using var database = await LocalDbTestDatabase.CreateAsync(
                 localArtifactRootFactory: _ => root);
-            var caseId = await SeedCaseAsync(database, "Audit");
+            var caseId = await SeedCaseAsync(database, "audit");
             var firstOccurrenceId = await SeedCurrentDocumentAsync(database, caseId, 0, "audit-report.pdf");
             var secondOccurrenceId = await SeedCurrentDocumentAsync(database, caseId, 1, "other-report.pdf");
             var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
@@ -114,7 +114,7 @@ public sealed class DocumentCustodyDurabilityTests
         {
             await using var database = await LocalDbTestDatabase.CreateAsync(
                 localArtifactRootFactory: _ => root);
-            var caseId = await SeedCaseAsync(database, "Audit");
+            var caseId = await SeedCaseAsync(database, "audit");
             var removedOccurrenceId = await SeedCurrentDocumentAsync(
                 database, caseId, 0, "removed-original-report.pdf");
             var replacementOccurrenceId = await SeedCurrentDocumentAsync(
@@ -724,7 +724,7 @@ public sealed class DocumentCustodyDurabilityTests
 
     private static async Task<Guid> SeedCaseAsync(
         LocalDbTestDatabase database,
-        string caseType = "Inspection")
+        string caseType = "inspection")
     {
         await using var context = await database.CreateContextAsync();
         var seeded = await SeededPrincipals.QdosAsync(context);
@@ -759,7 +759,7 @@ public sealed class DocumentCustodyDurabilityTests
                 SequenceLineageId = seeded.SequenceLineageId,
                 Year = 2031,
                 Sequence = 1,
-                Reference = caseType == "Audit" ? "a.QDOS001" : "QDOS001",
+                Reference = caseType == "audit" ? "a.QDOS001" : "QDOS001",
                 Type = caseType,
                 InitialState = "NotReady",
                 // Lowercase, as ToCode writes it in production. The seed said

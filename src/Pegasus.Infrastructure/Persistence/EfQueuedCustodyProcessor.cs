@@ -912,7 +912,7 @@ internal sealed class EfQueuedCustodyProcessor(
         // The case root folder is named for the same reference the create path
         // used: the Audit reference for an Audit-type case, otherwise the Case
         // reference.
-        var caseRootReference = string.Equals(caseEntity.Type, "audit", StringComparison.Ordinal)
+        var caseRootReference = string.Equals(caseEntity.Type, CaseTypeCodes.Audit, StringComparison.Ordinal)
             ? caseEntity.AuditReference ?? throw new InvalidDataException(
                 "The Audit case has no allocated Audit reference for custody.")
             : caseEntity.Reference;
