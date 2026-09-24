@@ -59,7 +59,7 @@ public sealed class MonthlyReportActivityPersistenceTests
             });
             context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
             {
-                CaseId = caseId,
+                WorkId = caseId,
                 FieldPath = AssessmentVocabulary.AgreedFee,
                 Value = "999.99",
                 RecordedByKind = "Staff",

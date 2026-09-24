@@ -1237,6 +1237,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             VALUES ('{caseId:D}', '{principalId:D}', '{lineageId:D}', 2031, 1, N'QDOS31001',
                 N'inspection', N'review', N'pending', '{caseReceiptId:D}', 1, 1,
                 '2031-05-06T10:30:00+00:00', 0, '{Guid.NewGuid():D}');
+            INSERT INTO [dbo].[CaseWorks] ([Id], [CaseId], [Kind], [CreatedAtUtc])
+            VALUES ('{caseId:D}', '{caseId:D}', N'primary', '2031-05-06T10:30:00+00:00');
             INSERT INTO [dbo].[CaseWorkflows] ([CaseId], [State], [Version], [ConcurrencyToken])
             VALUES ('{caseId:D}', N'{nameof(CaseLifecycleState.Review)}', 0, '{Guid.NewGuid():D}');
             INSERT INTO [dbo].[CaseMatchIndex] (

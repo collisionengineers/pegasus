@@ -36,7 +36,7 @@ public sealed class InspectionAddressChoicesQueries(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var current = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken);
         if (current is null)
         {
             return null;
@@ -45,13 +45,14 @@ public sealed class InspectionAddressChoicesQueries(
         var workflow = await context.CaseWorkflows.AsNoTracking()
             .SingleAsync(item => item.CaseId == caseId, cancellationToken);
         var projection = EfCaseDataStore.Map(current, workflow);
-        var principalId = current.Case.PrincipalId;
+        var principalId = current.Work.Case.PrincipalId;
 
         var candidates = await context.CaseDataFields.AsNoTracking()
             .Where(field => field.FieldName == CaseDataFieldNames.InspectionAddress
                 && field.ValueKind == CaseDataCodes.Confirmed
-                && field.CaseId != caseId
-                && field.Snapshot.Case.PrincipalId == principalId
+                && field.Snapshot.Work.Kind == CaseWorkKinds.Primary
+                && field.Snapshot.Work.CaseId != caseId
+                && field.Snapshot.Work.Case.PrincipalId == principalId
                 && field.Value != Ext18InspectionAddressPolicy.ImageBasedAssessment)
             .Select(field => new
             {
@@ -99,7 +100,7 @@ public sealed class InspectionAddressChoicesQueries(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var current = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.CaseId == query.CaseId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == query.CaseId, cancellationToken);
         if (current is null)
         {
             return [];
@@ -108,7 +109,7 @@ public sealed class InspectionAddressChoicesQueries(
         var workflow = await context.CaseWorkflows.AsNoTracking()
             .SingleAsync(item => item.CaseId == query.CaseId, cancellationToken);
         var projection = EfCaseDataStore.Map(current, workflow);
-        var principalId = current.Case.PrincipalId;
+        var principalId = current.Work.Case.PrincipalId;
 
         var candidates = new List<InspectionLocationChoice>();
         AddIfMatches(
@@ -156,8 +157,9 @@ public sealed class InspectionAddressChoicesQueries(
             var priorRows = await context.CaseDataFields.AsNoTracking()
                 .Where(field => field.FieldName == CaseDataFieldNames.InspectionAddress
                     && field.ValueKind == CaseDataCodes.Confirmed
-                    && field.CaseId != query.CaseId
-                    && field.Snapshot.Case.PrincipalId == principalId
+                    && field.Snapshot.Work.Kind == CaseWorkKinds.Primary
+                    && field.Snapshot.Work.CaseId != query.CaseId
+                    && field.Snapshot.Work.Case.PrincipalId == principalId
                     && field.Value != Ext18InspectionAddressPolicy.ImageBasedAssessment
                     && field.Value
                         .Replace("\t", " ").Replace("\r", " ").Replace("\n", " ")
@@ -167,7 +169,7 @@ public sealed class InspectionAddressChoicesQueries(
                 .OrderByDescending(field => field.ConfirmedAtUtc)
                 .Select(field => new
                 {
-                    field.CaseId,
+                    field.Snapshot.Work.CaseId,
                     field.Value,
                     ConfirmedAtUtc = field.ConfirmedAtUtc!.Value
                 })

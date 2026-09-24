@@ -264,7 +264,7 @@ public sealed class AutomationAssessmentIngressTests
         using var document = await ReadJsonRpcAsync(response);
         Assert.Contains("derived from damage.impacts", document.RootElement.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}'"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
 
         using var estimateResponse = await PostMcpAsync(client, token, ToolCallPayload(42,
             "pegasus_assessment_update", new
@@ -641,7 +641,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
-            WHERE CaseId = '{caseId:D}'
+            WHERE WorkId = '{caseId:D}'
               AND FieldName = N'contact_name'
               AND ValueKind = N'confirmed'
               AND Value = N'Automation QA Contact'
@@ -705,7 +705,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
-            WHERE CaseId = '{caseId:D}' AND FieldName = N'contact_name'
+            WHERE WorkId = '{caseId:D}' AND FieldName = N'contact_name'
             """));
     }
 
@@ -922,7 +922,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
-            WHERE CaseId = '{caseId:D}' AND FieldName = N'contact_name' AND ValueKind = N'confirmed'
+            WHERE WorkId = '{caseId:D}' AND FieldName = N'contact_name' AND ValueKind = N'confirmed'
             """));
     }
 
@@ -1002,7 +1002,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Contains("The cited AI job was not found.", document.RootElement.ToString(), StringComparison.Ordinal);
         }
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE CaseId = '{caseId:D}'"));
+            $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE WorkId = '{caseId:D}'"));
 
         Guid estimateId;
         using (var response = await PostMcpAsync(
@@ -1075,7 +1075,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseRepairSpecifications
-            WHERE Id = '{estimateId:D}' AND CaseId = '{caseId:D}' AND State = N'Draft'
+            WHERE Id = '{estimateId:D}' AND WorkId = '{caseId:D}' AND State = N'Draft'
               AND SourceRoute = N'AiDraft' AND IsCurrent = 0 AND AiJobId = '{jobId:D}'
               AND Name = N'Claude draft' AND VatPercent = 20
             """));

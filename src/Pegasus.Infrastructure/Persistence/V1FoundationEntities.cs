@@ -93,7 +93,7 @@ internal sealed class LabourRateCardEntity : IApplicationManagedConcurrencyToken
 internal sealed class AppliedValuationSnapshotEntity
 {
     public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
+    public Guid WorkId { get; set; }
     public required string SnapshotJson { get; set; }
     public required string CalculationPolicyVersion { get; set; }
     public required string GeneratedByKind { get; set; }
@@ -134,6 +134,10 @@ internal sealed class CaseReportGenerationEntity
 {
     public Guid Id { get; set; }
     public Guid CaseId { get; set; }
+    // The work the report was made from; its snapshot, currency and
+    // staleness are per work.
+    public Guid WorkId { get; set; }
+    public CaseWorkEntity Work { get; set; } = null!;
     public long CaseVersion { get; set; }
     public required string SnapshotHash { get; set; }
     public required string SnapshotJson { get; set; }

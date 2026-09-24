@@ -28,7 +28,7 @@ public sealed class EfRepairSpecificationSnapshotStore(
         }
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.CaseRepairSpecifications.Include(item => item.Lines).AsNoTracking()
-            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId && item.Id == request.SpecificationId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == request.CaseId && item.Id == request.SpecificationId, cancellationToken)
             ?? throw new KeyNotFoundException("The repair specification was not found.");
         var frozen = Freeze(
             context, EfRepairSpecificationStore.Map(entity), request.Actor, request.Kind, request.Origin,
@@ -79,7 +79,7 @@ public sealed class EfRepairSpecificationSnapshotStore(
         var entity = new CaseRepairSpecificationSnapshotEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = specification.CaseId,
+            WorkId = specification.CaseId,
             SpecificationId = specification.SpecificationId,
             Number = (latest?.Number ?? 0) + 1,
             Kind = kind.ToString(),
@@ -102,7 +102,7 @@ public sealed class EfRepairSpecificationSnapshotStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await context.CaseRepairSpecificationSnapshots.AsNoTracking()
-            .Where(item => item.CaseId == caseId && item.SpecificationId == specificationId)
+            .Where(item => item.WorkId == caseId && item.SpecificationId == specificationId)
             .OrderBy(item => item.Number)
             .ToListAsync(cancellationToken);
         return rows.Select(Map).ToArray();
@@ -113,12 +113,12 @@ public sealed class EfRepairSpecificationSnapshotStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var row = await context.CaseRepairSpecificationSnapshots.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.CaseId == caseId && item.Id == snapshotId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == caseId && item.Id == snapshotId, cancellationToken);
         return row is null ? null : Map(row);
     }
 
     internal static RepairSpecificationSnapshot Map(CaseRepairSpecificationSnapshotEntity entity) => new(
-        entity.Id, entity.CaseId, entity.SpecificationId, entity.Number,
+        entity.Id, entity.WorkId, entity.SpecificationId, entity.Number,
         Enum.Parse<RepairSpecificationSnapshotKind>(entity.Kind), entity.Origin,
         entity.CreatedBy, entity.CreatedAtUtc,
         JsonSerializer.Deserialize<EstimateDetails>(entity.DetailsJson, Json)

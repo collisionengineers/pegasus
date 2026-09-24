@@ -205,10 +205,10 @@ internal sealed class EfVehicleLookupWorkStore(
         });
 
         var caseDataFields = await context.CaseDataFields
-            .Where(item => item.CaseId == workflow.CaseId)
+            .Where(item => item.WorkId == workflow.CaseId)
             .ToListAsync(cancellationToken);
         var selectedMileageSource = await context.CaseAssessmentFields
-            .Where(item => item.CaseId == workflow.CaseId
+            .Where(item => item.WorkId == workflow.CaseId
                 && item.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.VehicleMileageSource
                 && item.ConfirmedAtUtc != null)
             .Select(item => item.Value)
@@ -372,7 +372,7 @@ internal sealed class EfVehicleLookupWorkStore(
 
             var field = new CaseDataFieldEntity
             {
-                CaseId = caseId,
+                WorkId = caseId,
                 FieldName = fieldName,
                 ValueKind = CaseDataCodes.Fact,
                 ValueType = valueType,
@@ -431,7 +431,7 @@ internal sealed class EfVehicleLookupWorkStore(
             var path = AssessmentVocabulary.VehicleType;
             var existing = await context.CaseAssessmentFields
                 .SingleOrDefaultAsync(
-                    item => item.CaseId == caseId && item.FieldPath == path,
+                    item => item.WorkId == caseId && item.FieldPath == path,
                     cancellationToken);
             if (VehicleLookupFillPolicy.Fills(
                     hasFact: false,
@@ -439,11 +439,8 @@ internal sealed class EfVehicleLookupWorkStore(
                 && (existing is null
                     || !string.Equals(existing.Value, vehicleType, StringComparison.Ordinal)))
             {
-                var owningCase = await context.Cases
-                    .SingleAsync(item => item.Id == caseId, cancellationToken);
                 AssessmentFieldWriter.Write(
                     context,
-                    owningCase,
                     caseId,
                     existing,
                     path,

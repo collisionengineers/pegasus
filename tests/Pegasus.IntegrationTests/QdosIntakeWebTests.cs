@@ -315,7 +315,7 @@ public sealed class QdosIntakeWebTests
         var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
         var snapshot = await context.CaseDataSnapshots
             .Include(item => item.Fields)
-            .SingleAsync(item => item.CaseId == caseId);
+            .SingleAsync(item => item.WorkId == caseId);
 
         AssertCaseField(snapshot.Fields, CaseDataFieldNames.ClaimantAddress,
             "9 Walsingham Gardens, Southampton, SO18 2QD", "PdfContent:");

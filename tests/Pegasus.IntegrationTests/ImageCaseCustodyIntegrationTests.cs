@@ -662,6 +662,7 @@ public sealed class ImageCaseCustodyIntegrationTests
         var auditReference = auditOfCaseId is null ? null : reference;
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, AuditReference, Type, InitialState, CustodyState, OriginIntakeReceiptId, AuditOfCaseId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {auditReference}, {caseType}, {"not_ready"}, {"pending"}, {originReceiptId}, {auditOfCaseId}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         return caseId;

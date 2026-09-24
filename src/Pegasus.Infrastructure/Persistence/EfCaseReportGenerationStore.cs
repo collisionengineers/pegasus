@@ -222,6 +222,7 @@ public sealed class EfCaseReportGenerationStore(
             {
                 Id = Guid.NewGuid(),
                 CaseId = request.CaseId,
+                WorkId = request.CaseId,
                 CaseVersion = workflow.Version,
                 SnapshotHash = snapshotHash,
                 SnapshotJson = JsonSerializer.Serialize(snapshot, SnapshotJsonOptions),
@@ -823,7 +824,7 @@ public sealed class EfCaseReportGenerationStore(
     {
         var existing = await context.CaseAssessmentFields
             .SingleOrDefaultAsync(
-                field => field.CaseId == request.CaseId
+                field => field.WorkId == request.CaseId
                     && field.FieldPath == AssessmentVocabulary.ReportDate,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -836,7 +837,7 @@ public sealed class EfCaseReportGenerationStore(
         {
             context.CaseAssessmentFields.Add(new()
             {
-                CaseId = request.CaseId,
+                WorkId = request.CaseId,
                 FieldPath = AssessmentVocabulary.ReportDate,
                 Value = value,
                 RecordedByKind = request.Actor.Kind.ToString(),

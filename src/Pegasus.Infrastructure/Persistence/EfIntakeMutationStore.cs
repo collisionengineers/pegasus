@@ -1556,8 +1556,8 @@ internal sealed class EfIntakeMutationStore(
                 .AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
                     && context.CaseWorkflows.Any(workflow =>
-                        workflow.CaseId == item.CaseId && workflow.ArchivedAtUtc == null))
-                .Select(item => new { item.CaseId, item.Value })
+                        workflow.CaseId == item.WorkId && workflow.ArchivedAtUtc == null))
+                .Select(item => new { CaseId = item.WorkId, item.Value })
                 .ToListAsync(cancellationToken);
             registrationCaseIds = registrations
                 .Where(item => string.Equals(

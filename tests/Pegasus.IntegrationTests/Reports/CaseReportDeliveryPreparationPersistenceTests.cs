@@ -504,6 +504,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                 {
                     Id = generationId,
                     CaseId = caseId,
+                    WorkId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('1', 64),
                     SnapshotJson = JsonSerializer.Serialize(snapshot, SnapshotJsonOptions),

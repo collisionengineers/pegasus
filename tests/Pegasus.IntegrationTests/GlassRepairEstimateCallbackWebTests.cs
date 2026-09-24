@@ -854,7 +854,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
             var fields = await context.Set<CaseDataFieldEntity>()
-                .Where(item => item.CaseId == CaseId && item.FieldName == fieldName)
+                .Where(item => item.WorkId == CaseId && item.FieldName == fieldName)
                 .ToArrayAsync();
             Assert.NotEmpty(fields);
             context.RemoveRange(fields);
@@ -1147,7 +1147,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 },
                 new CaseDataSnapshotEntity
                 {
-                    CaseId = caseId,
+                    WorkId = caseId,
                     OriginIntakeReceiptId = receiptId,
                     OriginSourceChannel = "manual_upload",
                     OriginExternalReceiptToken = $"glass:{receiptId:N}",
@@ -1187,7 +1187,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             {
                 context.Add(new CaseDataFieldEntity
                 {
-                    CaseId = caseId,
+                    WorkId = caseId,
                     FieldName = name,
                     ValueKind = CaseDataCodes.Confirmed,
                     ValueType = type,

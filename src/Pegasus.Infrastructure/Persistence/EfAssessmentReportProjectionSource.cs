@@ -130,7 +130,7 @@ internal sealed class EfAssessmentReportProjectionSource(
             .FirstOrDefault();
         var guides = await GuidesOfAsync(context, caseId, cancellationToken);
         var wording = await context.CaseReportWordings.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .OrderBy(item => item.BlockKey)
             .Select(item => new CaseReportWording(
                 item.BlockKey, item.Title, item.Text, item.Order, item.Included, item.Manual))
@@ -189,7 +189,7 @@ internal sealed class EfAssessmentReportProjectionSource(
     {
         var names = await context.CaseValuations
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .Select(item => item.Source)
             .Distinct()
             .ToArrayAsync(cancellationToken);

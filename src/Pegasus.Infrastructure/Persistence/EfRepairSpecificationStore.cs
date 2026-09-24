@@ -69,7 +69,7 @@ public sealed class EfRepairSpecificationStore(
             predecessor = await context.CaseRepairSpecifications
                 .Include(item => item.Lines)
                 .SingleOrDefaultAsync(
-                    item => item.Id == predecessorId && item.CaseId == request.CaseId,
+                    item => item.Id == predecessorId && item.WorkId == request.CaseId,
                     cancellationToken)
                 ?? throw new InvalidOperationException("The repair specification being corrected was not found.");
             if (predecessor.State != RepairSpecificationState.Accepted.ToString())
@@ -88,8 +88,7 @@ public sealed class EfRepairSpecificationStore(
         var entity = new CaseRepairSpecificationEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
-            Case = workflow.Case,
+            WorkId = request.CaseId,
             Version = nextVersion,
             State = RepairSpecificationState.Draft.ToString(),
             SourceRoute = source.Route.ToString(),
@@ -161,7 +160,7 @@ public sealed class EfRepairSpecificationStore(
         var candidate = Map(entity) with { Source = source, CalculationBasis = basis };
         RepairSpecificationPolicy.ValidateAcceptance(candidate, request.Actor);
         if (await context.CaseRepairSpecifications.AnyAsync(
-                item => item.CaseId == request.CaseId && item.Id != entity.Id
+                item => item.WorkId == request.CaseId && item.Id != entity.Id
                     && item.IsCurrent
                     && item.Id != entity.SupersedesSpecificationId,
                 cancellationToken))
@@ -459,7 +458,7 @@ public sealed class EfRepairSpecificationStore(
         EstimatePolicy.ValidateEditable(specification, request.Actor);
         var versionRow = await context.CaseRepairSpecificationSnapshots
             .SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId && item.Id == request.SnapshotId,
+                item => item.WorkId == request.CaseId && item.Id == request.SnapshotId,
                 cancellationToken)
             ?? throw new KeyNotFoundException("The version was not found.");
         if (versionRow.SpecificationId != request.SpecificationId)
@@ -631,7 +630,7 @@ public sealed class EfRepairSpecificationStore(
             // The workflow lock and source census share this transaction: two
             // concurrent completions cannot create two Drafts for one Case/hash.
             var existingImport = await context.CaseRepairSpecifications.Include(item => item.Lines)
-                .FirstOrDefaultAsync(item => item.CaseId == request.CaseId
+                .FirstOrDefaultAsync(item => item.WorkId == request.CaseId
                     && item.SourceSha256 == request.Source.Sha256, cancellationToken);
             if (existingImport is not null)
             {
@@ -662,8 +661,7 @@ public sealed class EfRepairSpecificationStore(
             entity = new CaseRepairSpecificationEntity
             {
                 Id = Guid.NewGuid(),
-                CaseId = request.CaseId,
-                Case = workflow.Case,
+                WorkId = request.CaseId,
                 Version = await NextVersionAsync(context, request.CaseId, cancellationToken),
                 State = RepairSpecificationState.Draft.ToString(),
                 SourceRoute = request.Source.Route.ToString(),
@@ -764,8 +762,7 @@ public sealed class EfRepairSpecificationStore(
         var entity = new CaseRepairSpecificationEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
-            Case = workflow.Case,
+            WorkId = request.CaseId,
             Version = await NextVersionAsync(context, request.CaseId, cancellationToken),
             State = RepairSpecificationState.Draft.ToString(),
             SourceRoute = RepairSpecificationSourceRoute.Manual.ToString(),
@@ -883,7 +880,7 @@ public sealed class EfRepairSpecificationStore(
         // The previous Current is cleared in the same transaction; the
         // filtered unique index refuses two Current rows on one case.
         var previous = await context.CaseRepairSpecifications
-            .Where(item => item.CaseId == request.CaseId && item.IsCurrent && item.Id != entity.Id)
+            .Where(item => item.WorkId == request.CaseId && item.IsCurrent && item.Id != entity.Id)
             .ToListAsync(cancellationToken);
         foreach (var item in previous)
         {
@@ -916,7 +913,7 @@ public sealed class EfRepairSpecificationStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entities = await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .OrderBy(item => item.Version)
             .ToArrayAsync(cancellationToken);
         return entities.Select(Map).ToArray();
@@ -939,7 +936,7 @@ public sealed class EfRepairSpecificationStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.CaseId == caseId);
+            .Where(item => item.WorkId == caseId);
         if (afterId is { } id)
         {
             var afterValue = afterVersion!.Value;
@@ -961,7 +958,7 @@ public sealed class EfRepairSpecificationStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId && item.Id == specificationId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == caseId && item.Id == specificationId, cancellationToken);
         return entity is null ? null : Map(entity);
     }
 
@@ -994,19 +991,19 @@ public sealed class EfRepairSpecificationStore(
     /// </summary>
     internal static IQueryable<CaseRepairSpecificationEntity> DraftQuery(
         PegasusDbContext context, Guid caseId) => context.CaseRepairSpecifications
-        .Where(item => item.CaseId == caseId
+        .Where(item => item.WorkId == caseId
             && item.State == RepairSpecificationState.Draft.ToString())
         .OrderByDescending(item => item.Version)
         .Take(1);
 
     internal static IQueryable<CaseRepairSpecificationEntity> AcceptedQuery(
         PegasusDbContext context, Guid caseId) => context.CaseRepairSpecifications
-        .Where(item => item.CaseId == caseId && item.IsCurrent);
+        .Where(item => item.WorkId == caseId && item.IsCurrent);
 
     internal static async Task<int> NextVersionAsync(
         PegasusDbContext context, Guid caseId, CancellationToken cancellationToken) =>
         (await context.CaseRepairSpecifications
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .MaxAsync(item => (int?)item.Version, cancellationToken) ?? 0) + 1;
 
     /// <summary>
@@ -1020,8 +1017,7 @@ public sealed class EfRepairSpecificationStore(
         Guid caseId, CaseEntity @case, int version, string createdBy, string operationKey, DateTimeOffset now) => new()
     {
         Id = Guid.NewGuid(),
-        CaseId = caseId,
-        Case = @case,
+        WorkId = caseId,
         Version = version,
         State = RepairSpecificationState.Draft.ToString(),
         SourceRoute = RepairSpecificationSourceRoute.LegacyUnresolved.ToString(),
@@ -1215,7 +1211,7 @@ public sealed class EfRepairSpecificationStore(
             ?? throw new InvalidOperationException("The estimate operation has no recorded result identity."));
         var estimateId = result.RootElement.GetProperty("id").GetGuid();
         return Map(await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .SingleAsync(item => item.CaseId == caseId && item.Id == estimateId, cancellationToken));
+            .SingleAsync(item => item.WorkId == caseId && item.Id == estimateId, cancellationToken));
     }
 
     private static async Task<EstimateImportResult> ReadSourceHashReplayAsync(
@@ -1253,7 +1249,7 @@ public sealed class EfRepairSpecificationStore(
 
         var estimate = await context.CaseRepairSpecifications.AsNoTracking()
             .SingleOrDefaultAsync(
-                item => item.CaseId == caseId && item.Id == snapshot.EstimateId,
+                item => item.WorkId == caseId && item.Id == snapshot.EstimateId,
                 cancellationToken);
         if (estimate is null)
         {
@@ -1281,7 +1277,7 @@ public sealed class EfRepairSpecificationStore(
     private static async Task<CaseRepairSpecificationEntity> RequiredEstimateAsync(
         PegasusDbContext context, Guid caseId, Guid estimateId, CancellationToken cancellationToken) =>
         await context.CaseRepairSpecifications.Include(item => item.Lines)
-            .SingleOrDefaultAsync(item => item.Id == estimateId && item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.Id == estimateId && item.WorkId == caseId, cancellationToken)
         ?? throw new InvalidOperationException("The estimate was not found on this case.");
 
     private static async Task<CaseReportEstimateDependencies> ReadReportEstimateDependenciesAsync(
@@ -1290,7 +1286,7 @@ public sealed class EfRepairSpecificationStore(
         CancellationToken cancellationToken)
     {
         var current = await context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.CaseId == caseId && item.IsCurrent)
+            .Where(item => item.WorkId == caseId && item.IsCurrent)
             .Select(item => new { item.Id, item.Version })
             .SingleOrDefaultAsync(cancellationToken);
         return current is null
@@ -1413,14 +1409,14 @@ public sealed class EfRepairSpecificationStore(
     private static CaseEstimateLineEntity NewLine(
         EstimateLineInput line, int position, CaseRepairSpecificationEntity target,
         ActionActor actor, DateTimeOffset now) =>
-        EstimateLineWriter.NewLine(line, position, target.CaseId, target.Case, target, actor, now);
+        EstimateLineWriter.NewLine(line, position, target.WorkId, target, actor, now);
 
     internal static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity)
     {
         var details = ReadDetails(entity);
         var breakdown = ReadBreakdown(entity);
         return new(
-            entity.Id, entity.CaseId, entity.Version,
+            entity.Id, entity.WorkId, entity.Version,
             Enum.Parse<RepairSpecificationState>(entity.State),
             new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
                 entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),
@@ -1480,7 +1476,7 @@ public sealed class EfRepairSpecificationStore(
     /// <c>entity.Lines</c> ever being included.
     /// </summary>
     internal static CaseEstimatePageItem MapPageItem(CaseRepairSpecificationEntity entity) => new(
-        entity.Id, entity.CaseId, entity.Version,
+        entity.Id, entity.WorkId, entity.Version,
         Enum.Parse<RepairSpecificationState>(entity.State),
         new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
             entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),
@@ -1534,8 +1530,7 @@ internal static class EstimateLineWriter
     public static CaseEstimateLineEntity NewLine(
         EstimateLineInput line,
         int position,
-        Guid caseId,
-        CaseEntity owningCase,
+        Guid workId,
         CaseRepairSpecificationEntity? specification,
         ActionActor actor,
         DateTimeOffset now)
@@ -1546,8 +1541,7 @@ internal static class EstimateLineWriter
         return new()
         {
             Id = Guid.NewGuid(),
-            CaseId = caseId,
-            Case = owningCase,
+            WorkId = workId,
             RepairSpecificationId = specification?.Id,
             RepairSpecification = specification,
             Position = position,
@@ -1594,8 +1588,7 @@ internal static class EstimateLineWriter
     /// </summary>
     public static (object Before, object After) Replace(
         PegasusDbContext context,
-        Guid caseId,
-        CaseEntity owningCase,
+        Guid workId,
         CaseRepairSpecificationEntity? specification,
         List<CaseEstimateLineEntity> tracked,
         IReadOnlyList<EstimateLineInput> replacement,
@@ -1612,7 +1605,7 @@ internal static class EstimateLineWriter
         foreach (var line in replacement)
         {
             position++;
-            var entity = NewLine(line, position, caseId, owningCase, specification, actor, now);
+            var entity = NewLine(line, position, workId, specification, actor, now);
             context.CaseEstimateLines.Add(entity);
             tracked.Add(entity);
         }

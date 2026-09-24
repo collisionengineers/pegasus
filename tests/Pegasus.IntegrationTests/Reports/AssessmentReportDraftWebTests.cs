@@ -265,7 +265,7 @@ public sealed partial class AssessmentReportDraftWebTests
             // not pretend that a workspace save can adopt an Engineer's Value.
             context.CaseAssessmentFields.AddRange(existing.Assessment.Fields.Select(field => new CaseAssessmentFieldEntity
             {
-                CaseId = harness.CaseId,
+                WorkId = harness.CaseId,
                 FieldPath = field.Path,
                 Value = field.Value,
                 RecordedByKind = nameof(ActorKind.Staff),

@@ -588,7 +588,7 @@ public sealed class EfCaseQueryStore(
         CancellationToken cancellationToken)
     {
         var claimSourceId = await context.CaseDataFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == caseId
                 && item.FieldName == CaseDataFieldNames.ClaimSourceId
                 && item.ValueKind == CaseDataCodes.Confirmed)
             .Select(item => item.Value)
@@ -688,32 +688,32 @@ public sealed class EfCaseQueryStore(
         join confirmedClaimantCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.ClaimantName
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedClaimantCandidate.CaseId into confirmedClaimants
+            on caseEntity.Id equals confirmedClaimantCandidate.WorkId into confirmedClaimants
         from confirmedClaimant in confirmedClaimants.DefaultIfEmpty()
         join confirmedClaimNumberCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.ClaimNumber
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedClaimNumberCandidate.CaseId into confirmedClaimNumbers
+            on caseEntity.Id equals confirmedClaimNumberCandidate.WorkId into confirmedClaimNumbers
         from confirmedClaimNumber in confirmedClaimNumbers.DefaultIfEmpty()
         join confirmedRegistrationCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedRegistrationCandidate.CaseId into confirmedRegistrations
+            on caseEntity.Id equals confirmedRegistrationCandidate.WorkId into confirmedRegistrations
         from confirmedRegistration in confirmedRegistrations.DefaultIfEmpty()
         join confirmedMakeCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleMake
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedMakeCandidate.CaseId into confirmedMakes
+            on caseEntity.Id equals confirmedMakeCandidate.WorkId into confirmedMakes
         from confirmedMake in confirmedMakes.DefaultIfEmpty()
         join confirmedModelCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.VehicleModel
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedModelCandidate.CaseId into confirmedModels
+            on caseEntity.Id equals confirmedModelCandidate.WorkId into confirmedModels
         from confirmedModel in confirmedModels.DefaultIfEmpty()
         join confirmedCircumstancesCandidate in context.CaseDataFields.AsNoTracking()
                 .Where(item => item.FieldName == CaseDataFieldNames.AccidentCircumstances
                     && item.ValueKind == CaseDataCodes.Confirmed)
-            on caseEntity.Id equals confirmedCircumstancesCandidate.CaseId into confirmedCircumstanceRows
+            on caseEntity.Id equals confirmedCircumstancesCandidate.WorkId into confirmedCircumstanceRows
         from confirmedCircumstances in confirmedCircumstanceRows.DefaultIfEmpty()
         select new SearchRow
         {

@@ -961,6 +961,7 @@ public sealed class AdministrationSearchAccountWebTests
                 {
                     Id = generationId,
                     CaseId = caseId,
+                    WorkId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
                     SnapshotJson = "{\"agreedFee\":0.00}",
@@ -1134,6 +1135,7 @@ public sealed class AdministrationSearchAccountWebTests
                 {
                     Id = generationId,
                     CaseId = caseId,
+                    WorkId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
                     SnapshotJson = "{\"agreedFee\":0.00}",

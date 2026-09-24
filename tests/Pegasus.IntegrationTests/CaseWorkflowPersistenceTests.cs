@@ -2451,7 +2451,7 @@ public sealed class CaseWorkflowPersistenceTests
                 item => item.CaseId == harness.CaseId);
             originalWorkflow.State = nameof(CaseLifecycleState.NotReady);
             var snapshot = await context.CaseDataSnapshots.SingleAsync(
-                item => item.CaseId == harness.CaseId);
+                item => item.WorkId == harness.CaseId);
             snapshot.ClaimSourceOverrideContactName = "Replacement contact";
             snapshot.ClaimSourceOverrideContactTelephone = "0113 999 0028";
             snapshot.ClaimSourceOverrideContactEmailAddress = "replacement-contact@example.test";
@@ -2489,7 +2489,7 @@ public sealed class CaseWorkflowPersistenceTests
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var snapshot = await context.CaseDataSnapshots.SingleAsync(
-                item => item.CaseId == replacement.Identity.CaseId);
+                item => item.WorkId == replacement.Identity.CaseId);
             var dueWork = await context.CaseDueWork.SingleAsync(
                 item => item.CaseId == replacement.Identity.CaseId);
             Assert.Equal("Replacement contact", snapshot.ClaimSourceOverrideContactName);
@@ -3000,16 +3000,19 @@ public sealed class CaseWorkflowPersistenceTests
             }
         }
 
-        private static Task<int> InsertCaseAsync(
+        private static async Task InsertCaseAsync(
             PegasusDbContext context,
             Guid caseId,
             Guid principalId,
             Guid sequenceLineageId,
             Guid receiptId,
             string reference,
-            int sequence) =>
-            context.Database.ExecuteSqlInterpolatedAsync(
+            int sequence)
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {sequenceLineageId}, {2026}, {sequence}, {reference}, {"inspection"}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {StartUtc}, {0L}, {Guid.NewGuid()})");
+            await CaseWorkFixture.InsertPrimaryWorksAsync(context);
+        }
 
         private static async Task InsertCaseDataSnapshotAsync(
             PegasusDbContext context,
@@ -3017,9 +3020,9 @@ public sealed class CaseWorkflowPersistenceTests
             Guid receiptId)
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {receiptId}, {"manual_upload"}, {"workflow-1"}, {1.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {StartUtc}, {"workflow-test-reader"}, {"1"}, {"workflow-fixture"}, {1}, {"case-workflow"}, {1}, {true}, {StartUtc})");
+                $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {receiptId}, {"manual_upload"}, {"workflow-1"}, {1.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {StartUtc}, {"workflow-test-reader"}, {"1"}, {"workflow-fixture"}, {1}, {"case-workflow"}, {1}, {true}, {StartUtc})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"claimant_name"}, {"confirmed"}, {"text"}, {"Jane Workflow"}, {"intake_evidence"}, {receiptId.ToString("D")}, {"workflow fixture evidence"}, {"workflow-fixture"}, {1}, {"workflow-staff"}, {StartUtc})");
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"claimant_name"}, {"confirmed"}, {"text"}, {"Jane Workflow"}, {"intake_evidence"}, {receiptId.ToString("D")}, {"workflow fixture evidence"}, {"workflow-fixture"}, {1}, {"workflow-staff"}, {StartUtc})");
         }
 
         private static Task<int> InsertReceiptAsync(

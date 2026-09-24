@@ -1668,7 +1668,7 @@ public sealed class CustodyOutboxIntegrationTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
             var addressRows = await addressContext.Set<CaseDataFieldEntity>()
-                .Where(item => item.CaseId == outcome.Identity.CaseId
+                .Where(item => item.WorkId == outcome.Identity.CaseId
                     && item.FieldName == CaseDataFieldNames.ClaimantAddress)
                 .ToListAsync();
             addressContext.RemoveRange(addressRows);
@@ -1686,7 +1686,7 @@ public sealed class CustodyOutboxIntegrationTests
                 }
                 addressContext.Add(new CaseDataFieldEntity
                 {
-                    CaseId = outcome.Identity.CaseId,
+                    WorkId = outcome.Identity.CaseId,
                     FieldName = CaseDataFieldNames.ClaimantAddress,
                     ValueKind = kind,
                     ValueType = CaseDataCodes.Text,
