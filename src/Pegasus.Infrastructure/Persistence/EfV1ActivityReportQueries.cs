@@ -30,6 +30,7 @@ internal sealed class EfV1ActivityReportQueries(
                 on artifact.VersionId equals (Guid?)documentVersion.Id into documentVersions
             from documentVersion in documentVersions.DefaultIfEmpty()
             join @case in db.Cases.AsNoTracking() on generation.CaseId equals @case.Id
+            join work in db.CaseWorks.AsNoTracking() on generation.WorkId equals work.Id
             where generation.GeneratedAtUtc >= fromUtc && generation.GeneratedAtUtc < toUtc
             select new ArtifactRow(
                 @case.PrincipalId,
@@ -43,7 +44,10 @@ internal sealed class EfV1ActivityReportQueries(
                 artifact.VersionId,
                 artifact.Sha256,
                 documentVersion == null ? null : documentVersion.Sha256,
-                documentVersion == null ? null : documentVersion.CustodyStatus))
+                documentVersion == null ? null : documentVersion.CustodyStatus,
+                generation.WorkId,
+                @case.Type,
+                work.Kind))
             .ToListAsync(cancellationToken);
 
         var readyEvents = (await db.ActionHistory.AsNoTracking()
@@ -103,24 +107,29 @@ internal sealed class EfV1ActivityReportQueries(
                 operation => operation.ContextId,
                 generation => generation.Id,
                 (operation, generation) => new { operation, generation })
+            .Join(db.CaseWorks.AsNoTracking(), x => x.generation.WorkId, work => work.Id,
+                (x, work) => new { x.operation, x.generation, WorkKind = work.Kind })
             .Join(db.Cases.AsNoTracking(), x => x.generation.CaseId, @case => @case.Id,
                 (x, @case) => new SentRow(
                     @case.PrincipalId,
                     @case.Principal.Code,
                     @case.OriginIntakeReceiptId,
                     x.operation.ObservedSentAtUtc!.Value,
-                    x.operation.ActorSubjectId))
+                    x.operation.ActorSubjectId,
+                    @case.Type,
+                    x.WorkKind))
             .ToListAsync(cancellationToken);
 
-        // MI-02: the agreed fee is frozen in each Case's first confirmed
-        // AssessmentReport generation globally, and attributed only to the
-        // exact selected period containing that first report.
-        var confirmedCaseIds = artifacts
+        // MI-02: the agreed fee is frozen in each work's first confirmed
+        // AssessmentReport generation globally (an Inspection + Audit Case's
+        // Audit carries its own fee), and attributed only to the exact
+        // selected period containing that first report.
+        var confirmedWorkIds = artifacts
             .Where(IsConfirmed)
-            .Select(x => x.CaseId)
+            .Select(x => x.WorkId)
             .Distinct()
             .ToArray();
-        var firstReports = confirmedCaseIds.Length == 0
+        var firstReports = confirmedWorkIds.Length == 0
             ? []
             : await (
                 from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
@@ -129,7 +138,8 @@ internal sealed class EfV1ActivityReportQueries(
                 join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
                     on artifact.VersionId equals (Guid?)documentVersion.Id
                 join @case in db.Cases.AsNoTracking() on generation.CaseId equals @case.Id
-                where confirmedCaseIds.Contains(generation.CaseId)
+                join work in db.CaseWorks.AsNoTracking() on generation.WorkId equals work.Id
+                where confirmedWorkIds.Contains(generation.WorkId)
                     && artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
                     && artifact.Sha256 != null
                     && artifact.Sha256 == documentVersion.Sha256
@@ -146,16 +156,19 @@ internal sealed class EfV1ActivityReportQueries(
                     artifact.VersionId,
                     artifact.Sha256,
                     documentVersion.Sha256,
-                    documentVersion.CustodyStatus))
+                    documentVersion.CustodyStatus,
+                    generation.WorkId,
+                    @case.Type,
+                    work.Kind))
             .ToListAsync(cancellationToken);
         var agreedFees = firstReports
-            .GroupBy(x => x.CaseId)
+            .GroupBy(x => x.WorkId)
             .Select(group => group
                 .OrderBy(x => x.GeneratedAtUtc)
                 .ThenBy(x => x.GenerationId)
                 .First())
             .Where(first => FirstReportFeeAttribution.InPeriod(first.GeneratedAtUtc, fromUtc, toUtc))
-            .ToDictionary(first => first.CaseId, first => FrozenFeeOf(first));
+            .ToDictionary(first => first.WorkId, first => FrozenFeeOf(first));
 
         var receiptIds = artifacts.Select(x => x.OriginIntakeReceiptId)
             .Concat(readyTransitions.Select(x => x.OriginIntakeReceiptId))
@@ -264,6 +277,13 @@ internal sealed class EfV1ActivityReportQueries(
                 x.Count(IsConfirmed),
                 x.Count() - x.Count(IsConfirmed)))
             .ToArray();
+        // Each work with a confirmed report whose first report falls in the
+        // period contributes its frozen fee once.
+        var feeWorks = confirmed
+            .GroupBy(x => x.WorkId)
+            .Select(group => group.First())
+            .Where(x => agreedFees.ContainsKey(x.WorkId))
+            .ToList();
         return new(
             key.PrincipalId,
             key.Code,
@@ -285,9 +305,10 @@ internal sealed class EfV1ActivityReportQueries(
             held.Select(x => x.HeldAtUtc).Min(),
             held.Count(x => x.HeldAtUtc is null),
             types,
-            confirmed.Select(x => x.CaseId).Distinct()
-                .Where(agreedFees.ContainsKey)
-                .Sum(caseId => agreedFees[caseId]));
+            feeWorks.Sum(x => agreedFees[x.WorkId]),
+            confirmed.Count(x => x.Kind == nameof(CaseReportArtifactKind.AssessmentReport) && x.IsAudit),
+            sent.Count(x => x.IsAudit),
+            feeWorks.Where(x => x.IsAudit).Sum(x => agreedFees[x.WorkId]));
     }
 
     private static decimal FrozenFeeOf(ArtifactRow report)
@@ -368,7 +389,14 @@ internal sealed class EfV1ActivityReportQueries(
         Guid? VersionId,
         string? ArtifactSha256,
         string? VersionSha256,
-        DocumentCustodyStatus? CustodyStatus);
+        DocumentCustodyStatus? CustodyStatus,
+        Guid WorkId,
+        string CaseType,
+        string WorkKind)
+    {
+        /// <summary>MI-02's split: an Audit report (<see cref="CaseWorkKinds.IsAuditReport"/>) or an Inspection report.</summary>
+        public bool IsAudit => CaseWorkKinds.IsAuditReport(CaseType, WorkKind);
+    }
     private sealed record ReadyEventRow(
         string AggregateId,
         DateTimeOffset OccurredAtUtc,
@@ -393,7 +421,12 @@ internal sealed class EfV1ActivityReportQueries(
         string Code,
         Guid? OriginIntakeReceiptId,
         DateTimeOffset ObservedSentAtUtc,
-        string ActorSubjectId);
+        string ActorSubjectId,
+        string CaseType,
+        string WorkKind)
+    {
+        public bool IsAudit => CaseWorkKinds.IsAuditReport(CaseType, WorkKind);
+    }
     private sealed record TriageRow(Guid PrincipalId, DateTimeOffset CreatedAtUtc);
     private sealed record HeldRow(Guid PrincipalId, DateTimeOffset? HeldAtUtc);
 }

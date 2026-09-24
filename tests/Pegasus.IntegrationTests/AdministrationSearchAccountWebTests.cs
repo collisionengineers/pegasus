@@ -1046,8 +1046,14 @@ public sealed class AdministrationSearchAccountWebTests
         csvResponse.EnsureSuccessStatusCode();
         Assert.StartsWith("text/csv", csvResponse.Content.Headers.ContentType?.MediaType, StringComparison.Ordinal);
         var csv = await csvResponse.Content.ReadAsStringAsync();
-        Assert.Contains("Principal,Reports produced,Reports sent,Agreed fees,Report types", csv, StringComparison.Ordinal);
-        Assert.Contains("QDOS,1,1,0.00,Report 1", csv, StringComparison.Ordinal);
+        Assert.Contains(
+            "Principal,Reports produced,Reports produced · Inspection,Reports produced · Audit,"
+            + "Reports sent,Reports sent · Inspection,Reports sent · Audit,"
+            + "Agreed fees,Agreed fees · Inspection,Agreed fees · Audit,Report types",
+            csv,
+            StringComparison.Ordinal);
+        // An Inspection Case's report, send and fee are all Inspection.
+        Assert.Contains("QDOS,1,1,0,1,1,0,0.00,0.00,0.00,Report 1", csv, StringComparison.Ordinal);
     }
 
     [Fact]

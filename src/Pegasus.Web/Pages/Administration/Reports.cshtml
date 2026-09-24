@@ -96,7 +96,7 @@
                 </div>
                 <div class="table-wrap section-gap">
                     <table class="table table--compact">
-                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">Agreed fees</th><th scope="col">Report types</th></tr></thead>
+                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports produced")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports produced")</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports sent")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports sent")</th><th scope="col" class="num">Agreed fees</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Agreed fees")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Agreed fees")</th><th scope="col">Report types</th></tr></thead>
                         <tbody>
                         @if (Model.PrincipalActivity is { } mi02)
                         {
@@ -106,16 +106,22 @@
                                 <tr>
                                     <td class="mono">@row.PrincipalCode</td>
                                     <td class="num tabular">@row.ReportsProduced</td>
+                                    <td class="num tabular">@row.InspectionReportsProduced</td>
+                                    <td class="num tabular">@row.AuditReportsProduced</td>
                                     <td class="num tabular">@row.Sent</td>
+                                    <td class="num tabular">@row.InspectionSent</td>
+                                    <td class="num tabular">@row.AuditSent</td>
                                     <td class="num tabular">@Money(row.AgreedFeeTotal)</td>
+                                    <td class="num tabular">@Money(row.InspectionAgreedFeeTotal)</td>
+                                    <td class="num tabular">@Money(row.AuditAgreedFeeTotal)</td>
                                     <td>@string.Join(", ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{OperatorLabels.ReportKind(type.Kind)} {type.Generated}"))</td>
                                 </tr>
                             }
-                            @if (mi02Rows.Length == 0) { <tr><td colspan="5" class="muted">No reports were recorded for this period.</td></tr> }
+                            @if (mi02Rows.Length == 0) { <tr><td colspan="11" class="muted">No reports were recorded for this period.</td></tr> }
                         }
                         else
                         {
-                            <tr><td colspan="5" class="muted">Unavailable</td></tr>
+                            <tr><td colspan="11" class="muted">Unavailable</td></tr>
                         }
                         </tbody>
                     </table>
@@ -123,7 +129,7 @@
                 <h3 id="mi02-months-title" class="section-gap">By month</h3>
                 <div class="table-wrap">
                     <table class="table table--compact" aria-labelledby="mi02-months-title" data-reports-by-month>
-                        <thead><tr><th scope="col">Month</th><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">Fee notes produced</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">Agreed fees</th></tr></thead>
+                        <thead><tr><th scope="col">Month</th><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports produced")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports produced")</th><th scope="col" class="num">Fee notes produced</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Reports sent")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Reports sent")</th><th scope="col" class="num">Agreed fees</th><th scope="col" class="num">@ReportsModel.InspectionColumn("Agreed fees")</th><th scope="col" class="num">@ReportsModel.AuditColumn("Agreed fees")</th></tr></thead>
                         <tbody>
                         @if (Model.Monthly is { } months)
                         {
@@ -133,16 +139,22 @@
                                     <td>@row.MonthLabel</td>
                                     <td class="mono">@row.PrincipalCode</td>
                                     <td class="num tabular">@row.ReportsGenerated</td>
+                                    <td class="num tabular">@row.InspectionReportsGenerated</td>
+                                    <td class="num tabular">@row.AuditReportsGenerated</td>
                                     <td class="num tabular">@row.FeeNotesGenerated</td>
                                     <td class="num tabular">@row.Sent</td>
+                                    <td class="num tabular">@row.InspectionSent</td>
+                                    <td class="num tabular">@row.AuditSent</td>
                                     <td class="num tabular">@Money(row.AgreedFeeTotal)</td>
+                                    <td class="num tabular">@Money(row.InspectionAgreedFeeTotal)</td>
+                                    <td class="num tabular">@Money(row.AuditAgreedFeeTotal)</td>
                                 </tr>
                             }
-                            @if (months.Count == 0) { <tr><td colspan="6" class="muted">No reports were recorded for this period.</td></tr> }
+                            @if (months.Count == 0) { <tr><td colspan="12" class="muted">No reports were recorded for this period.</td></tr> }
                         }
                         else
                         {
-                            <tr><td colspan="6" class="muted">Unavailable</td></tr>
+                            <tr><td colspan="12" class="muted">Unavailable</td></tr>
                         }
                         </tbody>
                     </table>
