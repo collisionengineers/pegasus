@@ -11,22 +11,13 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The v26 frame of the Case record: the ribbon's facts and chips, the
-/// Actions menu's state-dependent items, per-section availability, the aside
-/// (Figures and Next action) and the Audit link. The
+/// Actions menu's state-dependent items, per-section availability and the
+/// aside (Figures and Next action). The
 /// section-owned members live in their own partial files beside this one; the
 /// original <c>Details.cshtml.cs</c> keeps the handlers it already had.
 /// </summary>
 public sealed partial class DetailsModel
 {
-    /// <summary>The Audit Case created from this Case, when one exists.</summary>
-    public CaseAuditLink? AuditCase { get; private set; }
-
-    /// <summary>The original Case this Audit Case was created from, when it is one.</summary>
-    public CaseAuditLink? OriginalCase { get; private set; }
-
-    /// <summary>Whether any report generation on the Case has a confirmed artifact.</summary>
-    public bool HasGeneratedReport { get; private set; }
-
     /// <summary>The Case's Draft ready AI jobs, oldest first, for the Next action panel.</summary>
     public IReadOnlyList<AiDraft> AiDrafts { get; private set; } = [];
 
@@ -51,29 +42,17 @@ public sealed partial class DetailsModel
     public bool OwnLeaseHeldElsewhere => ViewerHoldsEditAuthority && !IsEditing && CanRecoverLease;
 
     /// <summary>
-    /// Create audit (13 September): offered when the Case is Inspection + Audit,
-    /// has no Audit yet, is not Created in error or archived, and a report has
-    /// been generated — the same facts <see cref="CreateAuditCase"/> checks.
-    /// The command carries the edit lease, so the item is offered inside the
-    /// edit session.
+    /// Create audit: offered inside the edit session when Core's rule
+    /// (<see cref="AuditPolicy.Refusal"/>) allows it.
     /// </summary>
     public bool CanCreateAudit =>
         Case is { } details
-        && details.Summary.CaseType == CaseType.InspectionAndAudit
-        && AuditCase is null
-        && OriginalCase is null
-        && details.Workflow.State != CaseLifecycleState.CreatedInError
-        && details.Workflow.Archive is null
-        && HasGeneratedReport
+        && AuditPolicy.Refusal(details.Summary.CaseType, details.Workflow, details.Frame.Works) is null
         && IsEditing;
 
-    /// <summary>
-    /// The Audit reference the dialog announces, derived from the recorded
-    /// outcome exactly as Core derives it; null while no outcome is recorded.
-    /// </summary>
+    /// <summary>The Audit reference the dialog announces.</summary>
     public string? ProposedAuditReference =>
         Case is { } details
-        && AuditCasePolicy.AssessmentFor(Assessment?.Field(AssessmentVocabulary.Outcome)?.Value) is not null
             ? CaseReferenceFormat.AuditReport(details.Workflow.Identity.Reference)
             : null;
 
@@ -137,7 +116,7 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>The Case type chip; absent for a plain Inspection.</summary>
-    /// <summary>An Audit Case (standalone, or linked by Create audit) carries the Original report section (v28 P51).</summary>
+    /// <summary>A standalone Audit Case carries the Original report section (v28 P51).</summary>
     public bool IsAuditCase => Case?.Summary.CaseType == CaseType.Audit;
 
     /// <summary>Damage and Valuation read inside Vehicle (v28 P26): their hosts stay, their links go, the Vehicle link speaks for them.</summary>
@@ -157,8 +136,7 @@ public sealed partial class DetailsModel
     };
 
     /// <summary>
-    /// The frame's extra reads: the Audit link, whether a report was ever
-    /// generated, the Case's AI drafts and the self-assignment rule.
+    /// The frame's extra reads: the Case's AI drafts and the self-assignment rule.
     /// </summary>
     private async Task DescribeFrameAsync(ActionActor actor, CancellationToken cancellationToken)
     {
@@ -168,12 +146,6 @@ public sealed partial class DetailsModel
         }
 
         var caseId = details.Workflow.CaseId;
-        AuditCase = await auditLinks.GetAuditCaseAsync(caseId, cancellationToken);
-        OriginalCase = details.Summary.CaseType == CaseType.Audit
-            ? await auditLinks.GetOriginalCaseAsync(caseId, cancellationToken)
-            : null;
-        HasGeneratedReport = details.Summary.CaseType == CaseType.InspectionAndAudit
-            && await reportGenerated.HasGeneratedReportAsync(caseId, cancellationToken);
         AiDrafts = await aiDrafts.ListForCaseAsync(caseId, cancellationToken);
         CanAssignToMe = CaseLifecycleRules.CanAssignToSelf(details.Workflow);
     }
@@ -232,8 +204,8 @@ public sealed partial class DetailsModel
             : null;
 
     /// <summary>
-    /// Create audit: a new duplicate Case linked to this one. On success the
-    /// operator lands on the new Case; a refusal states Core's reason on this one.
+    /// Create audit: the Case gains its Audit work and returns to the Case with
+    /// no notice; a refusal states Core's reason.
     /// </summary>
     public async Task<IActionResult> OnPostCreateAuditAsync(
         Guid id,
@@ -249,12 +221,11 @@ public sealed partial class DetailsModel
 
         try
         {
-            var result = await createAuditCase.ExecuteAsync(
-                new(id, expectedVersion, actor, RequireOperationKey(operationKey), editLeaseToken),
+            await createAudit.ExecuteAsync(
+                new CreateAuditRequest(id, expectedVersion, actor, RequireOperationKey(operationKey), editLeaseToken),
                 cancellationToken);
             ClearLeaseState();
-            TempData["CaseStatus"] = $"Case {result.AuditCase.Reference} was created.";
-            return RedirectToPage("/Cases/Details", new { id = result.AuditCase.CaseId });
+            return RedirectToDetails(id);
         }
         catch (StaffAuthorizationException)
         {
@@ -265,7 +236,7 @@ public sealed partial class DetailsModel
         {
             LogCaseCommandFailed(logger, id, "create_audit", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] = exception is AuditCaseCreationException refusal
+            TempData["CaseError"] = exception is AuditCreationException refusal
                 ? refusal.Message
                 : "The audit case was not created because the case changed or edit mode was lost.";
             return RedirectToDetails(id);

@@ -1405,7 +1405,11 @@ public sealed class EfCaseWorkflowStore(
     }
 
 
-    private static async Task AcquireWorkflowMutationLockAsync(
+    /// <summary>
+    /// Takes the Case's workflow row <c>UPDLOCK, HOLDLOCK</c> for the rest of the
+    /// caller's transaction, so concurrent Case mutations serialize on it.
+    /// </summary>
+    internal static async Task AcquireWorkflowMutationLockAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
@@ -1459,9 +1463,16 @@ public sealed class EfCaseWorkflowStore(
         CaseEntity caseEntity,
         CancellationToken cancellationToken)
     {
+        // A Case with an Audit work also needs its Audit's a. folder confirmed;
+        // a standalone Audit keeps its files in its own Case folder.
+        var hasAuditWork = await context.CaseWorks
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.CaseId == caseEntity.Id && item.Kind == CaseWorkKinds.Audit,
+                cancellationToken);
         var isCustodyConfirmed =
             string.Equals(caseEntity.CustodyState, "confirmed", StringComparison.Ordinal)
-            && (!string.Equals(caseEntity.Type, CaseTypeCodes.Audit, StringComparison.Ordinal)
+            && (!hasAuditWork
                 || (!string.IsNullOrWhiteSpace(caseEntity.AuditCustodyRemoteId)
                     && caseEntity.AuditCustodyConfirmedAtUtc is not null));
         var hasBlockingExternalWork = await context.ExternalWorkItems

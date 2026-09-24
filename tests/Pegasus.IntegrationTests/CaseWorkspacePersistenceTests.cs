@@ -1613,57 +1613,6 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Null(snapshot.ClaimSourceOverrideContactEmailAddress);
     }
 
-    [Fact]
-    public async Task AuditCaseInheritsClaimSourceContactOverrides()
-    {
-        await using var harness = await Harness.CreateAsync();
-        CaseIdentity source;
-        await using (var context = await harness.Factory.CreateDbContextAsync())
-        {
-            var snapshot = await context.CaseDataSnapshots.SingleAsync(
-                item => item.WorkId == harness.CaseId);
-            snapshot.ClaimSourceOverrideContactName = "Audit contact";
-            snapshot.ClaimSourceOverrideContactTelephone = "0113 999 0014";
-            snapshot.ClaimSourceOverrideContactEmailAddress = "audit-contact@example.test";
-            var sourceCase = await context.Cases.Include(item => item.Principal)
-                .SingleAsync(item => item.Id == harness.CaseId);
-            source = new(
-                sourceCase.Id,
-                sourceCase.Principal.Code,
-                sourceCase.Year,
-                sourceCase.Sequence,
-                sourceCase.Reference,
-                sourceCase.AuditReference);
-            await context.SaveChangesAsync();
-        }
-
-        var before = await harness.GetRequiredDataAsync();
-        var lease = await harness.AcquireLeaseAsync(
-            before.Version,
-            harness.StaffActor,
-            "audit-contact-overrides-lease");
-        var audit = await new EfCreateAuditCaseStore(harness.Factory, harness.TimeProvider).CreateAsync(
-            new(
-                new(
-                    harness.CaseId,
-                    before.Version,
-                    harness.StaffActor,
-                    "audit-contact-overrides-save",
-                    lease.Token),
-                source,
-                AuditAssessment.Repairable,
-                $"a.{source.Reference}",
-                null),
-            default);
-
-        await using var verification = await harness.Factory.CreateDbContextAsync();
-        var inherited = await verification.CaseDataSnapshots.SingleAsync(
-            item => item.WorkId == audit.AuditCase.CaseId);
-        Assert.Equal("Audit contact", inherited.ClaimSourceOverrideContactName);
-        Assert.Equal("0113 999 0014", inherited.ClaimSourceOverrideContactTelephone);
-        Assert.Equal("audit-contact@example.test", inherited.ClaimSourceOverrideContactEmailAddress);
-    }
-
     private static ActionActor Engineer(Harness harness, StaffRole role = StaffRole.Engineer) => ActionActor.Staff(
         Guid.Parse(harness.StaffActor.SubjectId),
         [role]);

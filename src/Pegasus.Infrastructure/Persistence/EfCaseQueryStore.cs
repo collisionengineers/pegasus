@@ -419,8 +419,7 @@ public sealed class EfCaseQueryStore(
             frame,
             documents,
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
-            recordNotes,
-            workflow.Case.AuditOfCaseId);
+            recordNotes);
     }
 
     /// <summary>
@@ -517,7 +516,7 @@ public sealed class EfCaseQueryStore(
             ? await ReadDocumentsAsync(context, caseId, cancellationToken)
             : [];
         var correspondenceEmails = await ReadCorrespondenceEmailsAsync(context, caseId, cancellationToken);
-        // The two Audit facts the Files section needs are not on the section
+        // The Audit facts the Files section needs are not on the section
         // frame a caller may hand in, so read them in one narrow projection.
         var auditFacts = await context.Cases
             .AsNoTracking()
@@ -525,7 +524,6 @@ public sealed class EfCaseQueryStore(
             .Select(item => new
             {
                 item.StandaloneAuditEvidenceId,
-                item.AuditOfCaseId,
                 item.AuditCustodyRemoteId,
                 HasAuditWork = item.Works.Any(work => work.Kind == CaseWorkKinds.Audit),
                 AuditFolderFailed = item.ExternalWork.Any(work =>
@@ -544,7 +542,7 @@ public sealed class EfCaseQueryStore(
                     : CaseCustodyState.Pending;
         return new(sectionFrame, documents, sectionFrame.CustodyFolderRemoteId,
             sectionFrame.CustodyState, correspondenceEmails,
-            auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId,
+            auditFacts.StandaloneAuditEvidenceId,
             auditCustodyState,
             auditFacts.HasAuditWork ? auditFacts.AuditCustodyRemoteId : null);
     }

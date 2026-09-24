@@ -92,9 +92,7 @@ public sealed partial class DetailsModel(
     IEvaSubmissionQueries evaSubmissionQueries,
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
-    ICaseAuditLinkQueries auditLinks,
-    ICaseReportGeneratedQueries reportGenerated,
-    ICreateAuditCase createAuditCase,
+    ICreateAudit createAudit,
     IAiDraftQueries aiDrafts,
     IMarketResearchQueries marketResearchQueries,
     IStartMarketResearch startMarketResearch,
@@ -310,11 +308,6 @@ public sealed partial class DetailsModel(
         get
         {
             if (CurrentSummary?.CaseType != CaseType.Audit)
-            {
-                return false;
-            }
-
-            if (Case?.AuditOfCaseId is not null || FilesSection?.AuditOfCaseId is not null)
             {
                 return false;
             }

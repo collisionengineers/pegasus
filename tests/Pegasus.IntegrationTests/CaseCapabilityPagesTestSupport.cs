@@ -911,8 +911,7 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments,
                 AvailableReportSentEvidence,
                 RecordNotes,
-                DataOverride ?? CreateData(),
-                AuditOfCaseId));
+                DataOverride ?? CreateData()));
         }
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
@@ -972,8 +971,7 @@ internal static partial class CaseWebTestSupport
                     null,
                     CaseCustodyState.Pending,
                     CorrespondenceEmails,
-                    StandaloneAuditEvidenceId,
-                    AuditOfCaseId)
+                    StandaloneAuditEvidenceId)
                 : null);
         }
 
@@ -1008,7 +1006,7 @@ internal static partial class CaseWebTestSupport
         private CaseSectionFrame FocusedFrame()
         {
             var workflow = CreateWorkflow();
-            return new(CreateSummary(workflow), workflow, ActiveLease());
+            return new(CreateSummary(workflow), workflow, ActiveLease(), Works: Works);
         }
 
         /// <summary>
@@ -1180,9 +1178,9 @@ internal static partial class CaseWebTestSupport
                 CaseId,
                 new(CaseId, "QDOS", 2031, 42, "QDOS3100042"),
                 State,
+                AssignedEngineerId,
                 null,
-                null,
-                null,
+                ReportSentEvidence,
                 _dueWork,
                 null,
                 null,
