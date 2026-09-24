@@ -108,7 +108,7 @@ public sealed class StaffMailSendPersistenceTests
                 });
             db.Set<CaseReportGenerationEntity>().Add(new()
             {
-                Id = generationId, CaseId = fixture.CaseId, CaseVersion = 0,
+                Id = generationId, CaseId = fixture.CaseId, WorkId = fixture.CaseId, CaseVersion = 0,
                 SnapshotHash = new string('C', 64), SnapshotJson = JsonSerializer.Serialize(
                     frozenGeneration, ReportSnapshotJson),
                 TemplateVersion = "test", RendererVersion = "test",

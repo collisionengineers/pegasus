@@ -204,6 +204,9 @@ public sealed class ConcurrencyTokenPersistenceTests
             "triage-concurrency-source",
             triageSourceHash,
             """{"version":1,"data":[{"source":"email_body","strength":"strong","finding":"accepted_triage_match","signal":"concurrency-triage-match","detail":"Accepted match fixture.","matcherKey":"concurrency-test-matcher","matcherVersion":1}]}""");
+        // A Triage request is opened only under the Principal its instruction established.
+        context.InstructionDrafts.Add(new() { IntakeReceiptId = triageReceiptId, SuggestedPrincipalCode = "QDOS" });
+        await context.SaveChangesAsync();
         await context.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO IntakeStagedReceipts
                 (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel,

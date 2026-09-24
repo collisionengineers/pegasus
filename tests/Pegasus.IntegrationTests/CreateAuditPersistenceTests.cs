@@ -670,7 +670,7 @@ public sealed class CreateAuditPersistenceTests
                     ArtifactSha256 = new string('c', 64),
                     ApprovedByKind = nameof(ActorKind.Staff),
                     ApprovedBySubjectId = engineerId.ToString("D"),
-                    ApprovedByRolesJson = "[\"Engineer\"]",
+                    ApprovedByRolesJson = JsonSerializer.Serialize(new[] { StaffRole.Engineer }),
                     ApprovedAtUtc = now.AddDays(-3)
                 });
                 context.CaseReportSentEvidence.Add(new CaseReportSentEvidenceEntity

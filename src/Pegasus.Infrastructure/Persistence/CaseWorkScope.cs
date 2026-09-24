@@ -36,11 +36,26 @@ internal static class CaseWorkScope
             : CurrentIdAsync(context, caseId, cancellationToken);
 
     /// <summary>
+    /// The selected work of one Case as a query, so a read can filter on it
+    /// inside its own command rather than resolve the id with another.
+    /// </summary>
+    public static IQueryable<Guid> SelectedIds(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseWorkSelector selector) =>
+        selector == CaseWorkSelector.Primary
+            ? context.CaseWorks.Where(work => work.Id == caseId).Select(work => work.Id)
+            : CurrentWorkIds(context.CaseWorks.Where(work => work.CaseId == caseId), context);
+
+    /// <summary>
     /// The current work of every Case, for joins: each Case's Audit work where
     /// it has one, else its primary work.
     /// </summary>
     public static IQueryable<Guid> CurrentWorkIds(PegasusDbContext context) =>
-        context.CaseWorks
+        CurrentWorkIds(context.CaseWorks, context);
+
+    private static IQueryable<Guid> CurrentWorkIds(IQueryable<CaseWorkEntity> works, PegasusDbContext context) =>
+        works
             .Where(work => work.Kind == CaseWorkKinds.Audit
                 || !context.CaseWorks.Any(audit =>
                     audit.CaseId == work.CaseId && audit.Kind == CaseWorkKinds.Audit))

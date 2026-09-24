@@ -2860,8 +2860,13 @@ public sealed class CaseWorkflowPersistenceTests
         public Task<string> ReadCaseReferenceAsync(Guid caseId) => database.ScalarAsync<string>(
             $"SELECT Reference FROM Cases WHERE Id = '{caseId:D}'");
 
-        public Task<string?> ReadAuditReferenceAsync(Guid caseId) => database.ScalarAsync<string?>(
-            $"SELECT AuditReference FROM Cases WHERE Id = '{caseId:D}'");
+        // The scalar reader turns a NULL into an empty string; this reads it back as null.
+        public async Task<string?> ReadAuditReferenceAsync(Guid caseId)
+        {
+            var value = await database.ScalarAsync<string>(
+                $"SELECT COALESCE(AuditReference, N'') FROM Cases WHERE Id = '{caseId:D}'");
+            return value.Length == 0 ? null : value;
+        }
 
         public Task<Guid> ReadStandaloneAuditEvidenceIdAsync(Guid caseId) =>
             database.ScalarAsync<Guid>(

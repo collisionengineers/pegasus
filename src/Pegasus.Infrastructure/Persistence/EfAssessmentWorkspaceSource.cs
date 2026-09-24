@@ -19,7 +19,6 @@ internal sealed class EfAssessmentWorkspaceSource(
         CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
 
         var workflows = context.CaseWorkflows.AsNoTracking()
             .Include(item => item.Case)
@@ -33,10 +32,14 @@ internal sealed class EfAssessmentWorkspaceSource(
             return null;
         }
 
+        // The selected work is resolved inside the snapshot read, and the rest
+        // of the workspace reads the work that snapshot belongs to.
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
+            .SingleOrDefaultAsync(item => selectedWorkIds.Contains(item.WorkId), cancellationToken)
             ?? throw new InvalidDataException(
                 "The accepted case is missing its typed data projection.");
+        var workId = snapshot.WorkId;
         var assessmentFields = await context.CaseAssessmentFields.AsNoTracking()
             .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)

@@ -366,7 +366,8 @@ public sealed class CasesIndexWebTests
 
         Assert.Contains($"href=\"/Cases/{search.TriageCaseId:D}\">t.QDOS3100045</a>", html, StringComparison.Ordinal);
         Assert.Contains("<span class=\"status status--navy\">Open</span>", html, StringComparison.Ordinal);
-        Assert.DoesNotMatch($"<tr[^>]*data-select-id=\"{search.TriageCaseId:D}\"[^>]*data-select-view", html);
+        // Razor keeps a data- attribute whose value is null, empty: a Case listed once names no view.
+        Assert.DoesNotMatch($"<tr[^>]*data-select-id=\"{search.TriageCaseId:D}\"[^>]*data-select-view=\"[^\"]", html);
         // A Triage Case has no Case completeness requirements.
         Assert.DoesNotContain("Outstanding (", html, StringComparison.Ordinal);
     }

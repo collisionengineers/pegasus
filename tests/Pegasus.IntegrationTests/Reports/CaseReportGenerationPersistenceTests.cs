@@ -2038,7 +2038,8 @@ public sealed class CaseReportGenerationPersistenceTests
             Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportFreezeInputs?>(
                 requestedCaseId == caseId
-                    ? new(projection, Readiness(), "RPT31001", 1)
+                    // The seeded Case has only its primary work, whose id is the Case's.
+                    ? new(projection, Readiness(), "RPT31001", 1) { WorkId = caseId }
                     : null);
 
         private CaseReportReadinessInput Readiness() => new(

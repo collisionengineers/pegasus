@@ -1775,6 +1775,7 @@ public sealed class CaseWorkspacePersistenceTests
         {
             Id = generationId,
             CaseId = harness.CaseId,
+            WorkId = harness.CaseId,
             CaseVersion = caseVersion,
             SnapshotHash = new string('6', 64),
             SnapshotJson = ReportGenerationSnapshotFixture.Json(harness.CaseId, "workspace-mileage-source-generation"),
