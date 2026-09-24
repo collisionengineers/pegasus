@@ -678,7 +678,7 @@ The approved release operator supplies these deployment inputs:
 | --- | --- |
 | `AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned Key Vault secret URIs for the current and retained signing certificates. |
 | `AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned secret URIs for the separate encryption certificates. |
-| `BOX_HOLDING_FOLDER_ID` | Operator-created holding folder below the approved Pegasus Box root for non-Case sources. |
+| `BOX_HOLDING_FOLDER_ID` | Operator-created holding folder below the approved Pegasus Box root for intake whose destination is not settled automatically (Unidentified, Triage, manual upload); Case-bound and Vehicle images intake never goes there. |
 | `GLASS_MARKET_VALUE_ASSESSOR_BASE_URI` | Glass's Market Value Assessor origin. Defaults to `https://www.marketvalueassessor.jdpower.com/`. |
 | `GLASS_ESTIMATOR_BASE_URI` | Glass's repair estimator origin a launch may send the staff member to. Defaults to `https://repairestimate.autovistagroup.com/`. |
 | `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |

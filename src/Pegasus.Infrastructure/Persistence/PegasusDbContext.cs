@@ -304,6 +304,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.StorageKey).HasMaxLength(200).IsRequired();
             entity.Property(item => item.BoxFileId).HasMaxLength(200);
             entity.Property(item => item.BoxVersionId).HasMaxLength(200);
+            entity.Property(item => item.BoxParentFolderId).HasMaxLength(200);
             entity.Property(item => item.CustodyStatus).HasMaxLength(40);
             entity.HasIndex(item => new { item.IntakeReceiptId, item.ContentHash });
             entity.HasOne(item => item.IntakeReceipt)
@@ -1651,11 +1652,31 @@ internal sealed class IntakeAssetEntity
     public required string StorageKey { get; set; }
     public string? BoxFileId { get; set; }
     public string? BoxVersionId { get; set; }
+    /// <summary>
+    /// The Box folder that holds the confirmed copy: the holding folder, a
+    /// Case root or a Vehicle images root. Readers expect exactly this parent.
+    /// </summary>
+    public string? BoxParentFolderId { get; set; }
     public string? CustodyStatus { get; set; }
     public int? PageNumber { get; set; }
     public string? BoundsJson { get; set; }
     public int? WidthPixels { get; set; }
     public int? HeightPixels { get; set; }
+
+    /// <summary>
+    /// Records the confirmed copy and the folder that holds it; an absent file
+    /// or version identity keeps the one already recorded.
+    /// </summary>
+    public void ConfirmCustody(string? boxFileId, string? boxVersionId, string parentFolderId)
+    {
+        if (!string.IsNullOrWhiteSpace(boxFileId) && !string.IsNullOrWhiteSpace(boxVersionId))
+        {
+            BoxFileId = boxFileId;
+            BoxVersionId = boxVersionId;
+        }
+        BoxParentFolderId = parentFolderId;
+        CustodyStatus = "confirmed";
+    }
 }
 
 internal sealed class IntakeReceiptEventEntity

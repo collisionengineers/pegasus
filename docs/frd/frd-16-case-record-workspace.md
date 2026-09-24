@@ -7,8 +7,8 @@
 - A Case is one page at `/Cases/{id}` with ten sections. You scroll it, or
   switch to tabs. Every section can always be read.
 - Editing is one page-wide session over one lease. Edit Case, Save and
-  Cancel sit in the ribbon. Case Save, Estimate Save and Valuation Apply are
-  separate commands that do not disturb each other.
+  Cancel sit in the ribbon. The ribbon Save is the one save: it records the
+  Case fields, the Repair Spec and the valuation calculation together.
 - One Actions menu offers only what Core allows for the current state.
   Hand to Engineer is the only way out of Review.
 - The Engineer sections (Damage, Valuation, Estimate, Settlement, Report)
@@ -82,23 +82,22 @@ Once the Case has an Audit, the **Views** card heads the aside
 Below 1441px the aside folds into a strip above the sections.
 
 Actions post in place and the record's parts refresh without navigation.
-Unsaved changes in each editor are confirmed before Cancel, Refresh,
-navigation or an immediate action.
+Unsaved changes are confirmed before Refresh, navigation or an immediate
+action.
 
 **Edit session.** The whole record enters one edit mode over one lease
-([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Case Save, Estimate
-Save and Valuation Apply are separate commands. The ribbon Save ends edit
-mode and releases the lease (operator, 23 September 2026). Editing stays open
-when another editor still holds unsaved changes, when the save carries on into
-the command that asked for it, and after Estimate Save, Valuation Apply or
-Ctrl S. An open session keeps the other editors' pending values, including
-estimate rows and staged image preparations. Only that command's confirmed
-save clears its draft. Pending editors advance their Case version and lease only after the
-same operator's confirmed command, with no Case change in between. A refusal
-or unknown response keeps the proposed values and their original authority
-for review. Ctrl S submits the active dirty editor. Selecting a tab also
-updates the section that Refresh submits; after a refresh its active lazy
-body loads.
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). There is one Save
+(operator, 23 September 2026): the ribbon Save records the Case fields, the
+Repair Spec, the guide cards and the valuation calculation as they are, in
+one command under one version, then ends edit mode and releases the lease.
+The Repair Spec and the Valuation calculator have no save of their own. A
+refusal refuses the whole save and keeps every proposed value on the page
+with its original authority for review. Ctrl S saves the same way and keeps
+editing open, as does a save the page makes first so an action can carry on
+from it (Apply or Remove scaling, and the unsaved-changes question's Save).
+Pressing a section's Edit enters edit mode in place: the section stays where
+it was on the screen. Selecting a tab also updates the section that Refresh
+submits; after a refresh its active lazy body loads.
 
 Reading and editing show the same fields in the same places (operator, 23
 September 2026): every value is a box, greyed where it cannot be edited and a
@@ -126,8 +125,8 @@ Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
-in Held and after completion. Adopting the Engineer's Value is an explicit
-human staff act.
+in Held and after completion. Adopting the Engineer's Value is a human
+staff act: the Save adopts it when the valuation calculation changed.
 
 ### Inspection and Audit views
 
@@ -281,12 +280,14 @@ and edit mode, greyed when they cannot be edited. The field set is owned by
 
 ### Valuation
 
-Valuation lists each entry with its source, date, time, mileage, retail and
-trade values, and guide month (`EXT-10`). Sources are Glass's, Brego, Super
+Valuation lists each entry with its source, date, time, retail and trade
+values, and guide month, with the mileage an Engineer's Value or AI market
+research entry carries (`EXT-10`). Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
 (automation only). Read and edit show the same cards: each guide source is
-one card with month, mileage, retail and trade boxes holding that source's
-latest recorded figures, greyed while reading; any box may be blank and is
+one card with month, retail and trade boxes holding that source's
+latest recorded figures (no mileage: the Case's own is used, operator, 24
+September 2026), greyed while reading; any box may be blank and is
 saved as entered. While editing, the boxes are
 inputs that belong to the Case form, and the card has **Get valuation**,
 which asks the connected provider for the Case's accepted registration and
@@ -302,7 +303,11 @@ above the cards create a `MarketResearch` job and show a
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
 Read and edit list the same value increases, every active preset with a tick
 on each the latest adoption applied, and the calculator opens on that
-applied selection. The calculator applies presets and custom lines through
+applied selection. The calculator has no Apply of its own (operator, 23
+September 2026): the ribbon Save adopts the Engineer's Value it shows when
+the calculation changed since the page opened — a different basis card, the
+basis card's figures, or any of its controls — and an unchanged calculation
+adopts nothing. The calculator applies presets and custom lines through
 Core. Valuation sources are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources).
 
@@ -454,8 +459,10 @@ VAT bars as the editor, each value greyed in its control's place and a line's
 Type in the editor's words; a scaled spec's Target % of value bar stands in
 its place with the Scaled state; the tools (add and delete lines, the Target
 % of value controls, Reset to repairer status) are drawn only while the spec
-edits. The More menu holds New repair spec
-(editing), **Print Repair Spec** for a saved spec with lines, and Compare,
+edits. The spec has no save of its own: the ribbon Save records it, and a
+spec left unchanged is not rewritten. Apply and Remove scaling save first and
+then scale the saved spec. The More menu holds New repair spec
+(editing, recorded by the Save), **Print Repair Spec** for a saved spec with lines, and Compare,
 greyed out until the Case holds two specs (P9). Previewing the document
 does not save or discard pending edits. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
@@ -543,7 +550,7 @@ read-only apart from Files' and Notes' actions that need no edit lease.
 
 Acceptance covers the ten sections and the `?section=` jump, the
 `/Cases/{id}/Assessment` redirect, the read-only rule in Completed, the
-Actions menu per state, and the separate Save commands. It also covers the
+Actions menu per state, and the one Save. It also covers the
 views: no Views card without an Audit; after Create audit the card and the
 Audit view by default; the Inspection view read-only with its label on each
 editable head, including for the lease holder; Report in each view; the

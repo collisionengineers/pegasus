@@ -1,6 +1,6 @@
-using Pegasus.Core.Cases;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -264,11 +264,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
-    /// The adoption is one transaction: the accepted figure reaches the
-    /// confirmed <c>assessment.values.engineer</c> field and the whole ordered
+    /// The adoption is part of the one Case Save (23 September 2026) and of
+    /// its one transaction: the accepted figure reaches the confirmed
+    /// <c>assessment.values.engineer</c> field and the whole ordered
     /// calculation reaches the snapshot table, or neither does. A retried
-    /// operation key replays that same adoption, and a preset that moved
-    /// underneath the form is refused before anything is written.
+    /// operation key replays that same save, a preset that moved underneath
+    /// the form is refused before anything is written, and returning to an
+    /// earlier calculation later is a new adoption.
     /// </summary>
     [Fact]
     public async Task ApplyingAValuationStoresTheEngineersValueAndItsCalculationSnapshot()
@@ -278,7 +280,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var caseId = outcome.Identity.CaseId;
         var engineer = harness.EngineerActor;
         var presets = new EfValuationPresetStore(harness.Factory, harness.Clock);
-        var apply = new ApplyValuationCalculation(harness.Valuations);
+        var workspace = new EfCaseWorkspaceStore(harness.Factory, harness.Clock);
         var preview = new PreviewValuationCalculation(harness.Valuations);
         long version = 0;
 
@@ -305,9 +307,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         version++;
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
-
-        // The card carries no version of its own, so its last-written stamp
-        // is what an adoption pins itself to.
         var guideStamp = (await harness.Valuations.ReadBasisAsync(
             caseId,
             guide.ValuationId,
@@ -342,22 +341,26 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         var applyLease = await LeaseAsync("valuation-apply-lease");
         var stale = await Assert.ThrowsAsync<ValuationPresetException>(() =>
-            apply.ExecuteAsync(
-                ApplyRequest(applyLease, selection, "valuation-apply-stale"),
+            workspace.SaveAsync(
+                AdoptRequest(applyLease, selection, "valuation-apply-stale"),
                 CancellationToken.None));
         Assert.Equal(ValuationPresetError.VersionConflict, stale.Error);
         Assert.Equal(2, stale.CurrentVersion);
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
 
         // The refusal left the Case exactly as it was, edit lease and version
-        // included, so the corrected adoption carries on with the same lease.
+        // included, so the corrected save carries on with the same lease.
         selection = selection with { Additions = [new(TowBarPresetId, 2, null, 300m)] };
-        var request = ApplyRequest(applyLease, selection, "valuation-apply");
-        var applied = await apply.ExecuteAsync(request, CancellationToken.None);
+        var request = AdoptRequest(applyLease, selection, "valuation-apply");
+        var saved = await workspace.SaveAsync(request, CancellationToken.None);
         version++;
+        Assert.Equal(version, saved.Version);
 
+        var applied = Assert.Single(await new ListAppliedValuations(harness.Valuations)
+            .ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None));
         Assert.Equal(3176m, applied.AcceptedEngineerValue);
         Assert.Equal(guide.ValuationId, applied.GuideValuationId);
+        Assert.Equal(guideStamp, applied.GuideValuationStampUtc);
         Assert.Equal(3100m, applied.Calculation.GuideRetailValue);
         Assert.True(applied.Calculation.CommercialVatApplied);
         Assert.Equal(620m, applied.Calculation.CommercialVatAmount);
@@ -365,16 +368,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(350m, Assert.Single(applied.Calculation.Additions).SuggestedAmount);
         Assert.Equal(300m, Assert.Single(applied.Calculation.Additions).Amount);
         Assert.Equal(version, applied.CaseVersion);
+        Assert.Equal(ValuationCalculationPolicy.AppliedReason, applied.Reason);
         Assert.Equal(ValuationCalculationPolicy.PolicyStamp, applied.CalculationPolicyVersion);
 
-        var replayed = await apply.ExecuteAsync(request, CancellationToken.None);
-        Assert.Equal(applied.Id, replayed.Id);
-        Assert.Equal(applied.CaseVersion, replayed.CaseVersion);
-        Assert.Equal(applied.AcceptedEngineerValue, replayed.AcceptedEngineerValue);
-        Assert.Equal(applied.Calculation.Proposal, replayed.Calculation.Proposal);
-        Assert.Equal(
-            applied.Calculation.Additions.Single().Label,
-            replayed.Calculation.Additions.Single().Label);
+        var replayed = await workspace.SaveAsync(request, CancellationToken.None);
+        Assert.True(replayed.WasReplay);
+        Assert.Equal(version, replayed.Version);
 
         var field = Assert.IsType<AssessmentFieldValue>(
             await ReadEngineersValueAsync(harness, caseId));
@@ -389,31 +388,43 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             Assert.Equal(3176m, snapshot.AcceptedEngineerValue);
             Assert.Equal(engineer.SubjectId, snapshot.AcceptedBy);
             Assert.Contains("\"proposal\":3176", snapshot.SnapshotJson, StringComparison.Ordinal);
+            // One Save, one workflow event: the adoption is the save's own
+            // action-history entry, named in its history line.
+            var saveEvent = await context.CaseWorkflowEvents.SingleAsync(
+                item => item.CaseId == caseId && item.OperationKey == "valuation-apply");
+            Assert.Equal("case_workspace_saved", saveEvent.EventType);
+            Assert.Contains("Engineer's Value applied", saveEvent.Reason, StringComparison.Ordinal);
             Assert.Equal(
                 1,
-                await context.CaseWorkflowEvents.CountAsync(
-                    item => item.CaseId == caseId && item.EventType == "valuation_applied"));
+                await context.ActionHistory.CountAsync(
+                    item => item.AggregateType == "case_applied_valuation"
+                        && item.EventKind == "valuation_applied"
+                        && item.CorrelationId == "valuation-apply"));
         }
 
-        // A later adoption with changed inputs records its own calculated
-        // proposal and reason as a further snapshot row.
+        // A later save with changed inputs records its own calculated proposal
+        // as a further snapshot row.
         harness.Advance(TimeSpan.FromMinutes(1));
         var correctionLease = await LeaseAsync("valuation-correction-lease");
-        var corrected = await apply.ExecuteAsync(
-            ApplyRequest(correctionLease, selection with { ConditionDeduction = 26m }, "valuation-correction") with
-            {
-                Reason = "Corrected the valuation inputs after re-reading the guide."
-            },
+        await workspace.SaveAsync(
+            AdoptRequest(correctionLease, selection with { ConditionDeduction = 26m }, "valuation-correction"),
             CancellationToken.None);
         version++;
-
-        Assert.Equal(3250m, corrected.AcceptedEngineerValue);
-        Assert.Equal(applied.GuideValuationId, corrected.GuideValuationId);
-        Assert.Equal(applied.GuideValuationStampUtc, corrected.GuideValuationStampUtc);
-        Assert.Equal(3250m, corrected.Calculation.Proposal);
-        Assert.NotEqual(applied.Id, corrected.Id);
         Assert.Equal(
             "3250.00",
+            Assert.IsType<AssessmentFieldValue>(
+                await ReadEngineersValueAsync(harness, caseId)).Value);
+
+        // Returning to the earlier calculation is a new adoption, not a repeat
+        // of the first: the Case version it produced is part of what it is.
+        harness.Advance(TimeSpan.FromMinutes(1));
+        var returnLease = await LeaseAsync("valuation-return-lease");
+        await workspace.SaveAsync(
+            AdoptRequest(returnLease, selection, "valuation-return"),
+            CancellationToken.None);
+        version++;
+        Assert.Equal(
+            "3176.00",
             Assert.IsType<AssessmentFieldValue>(
                 await ReadEngineersValueAsync(harness, caseId)).Value);
 
@@ -431,12 +442,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         var history = await new ListAppliedValuations(harness.Valuations)
             .ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
-        Assert.Equal([corrected.Id, applied.Id], history.Select(item => item.Id));
         Assert.Equal(
-            [3250m, 3176m],
+            [3176m, 3250m, 3176m],
             history.Select(item => item.AcceptedEngineerValue));
+        Assert.Equal(applied.Id, history[^1].Id);
 
-        ApplyValuationRequest ApplyRequest(
+        SaveCaseWorkspaceRequest AdoptRequest(
             CaseEditLease lease,
             ValuationCalculationSelection chosen,
             string operationKey) => new(
@@ -444,10 +455,19 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             lease.Version,
             engineer,
             operationKey,
-            "Adopted the calculated Engineer's Value.",
-            lease.Token,
-            chosen,
-            guideStamp);
+            null,
+            lease.Token)
+        {
+            // An adopted Engineer's Value carries the Case's own mileage
+            // (operator, 24 September 2026), recorded by the same save.
+            Vehicle = new(
+                null,
+                null,
+                null,
+                new(42_000, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
+                new Dictionary<string, string?>(StringComparer.Ordinal)),
+            Valuation = new([], chosen)
+        };
     }
 
 }

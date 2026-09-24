@@ -489,7 +489,7 @@ public static class DependencyInjection
         services.AddScoped<IRepairSpecificationSnapshotStore, EfRepairSpecificationSnapshotStore>();
         services.AddScoped<IUnroadworthyReasonBankStore, EfUnroadworthyReasonBankStore>();
         services.AddScoped<ISaveUnroadworthyReason, SaveUnroadworthyReason>();
-        services.AddScoped<ISaveAndScaleRepairSpecification, SaveAndScaleRepairSpecification>();
+        services.AddScoped<IScaleRepairSpecification, ScaleRepairSpecification>();
         services.AddScoped<IRemoveRepairSpecificationScaling, RemoveRepairSpecificationScaling>();
         services.AddScoped<IRestoreRepairSpecificationSnapshot, RestoreRepairSpecificationSnapshot>();
         // Every retained-source caller uses this same format set. One PDF
@@ -541,7 +541,6 @@ public static class DependencyInjection
         services.AddScoped<ISaveValuationPreset, SaveValuationPreset>();
         services.AddScoped<IRemoveValuationPreset, RemoveValuationPreset>();
         services.AddScoped<IPreviewValuationCalculation, PreviewValuationCalculation>();
-        services.AddScoped<IApplyValuationCalculation, ApplyValuationCalculation>();
         services.AddScoped<IListAppliedValuations, ListAppliedValuations>();
         services.AddScoped<ISaveValuation, SaveValuation>();
         services.AddScoped<IEditValuation, EditValuation>();

@@ -61,7 +61,6 @@ public sealed partial class DetailsModel(
     ICaseReportSendHistoryQueries reportSendHistory,
     IListCaseEstimates listEstimates,
     LabourRateCardAdministration labourRateCards,
-    ISaveEstimate saveEstimate,
     IDuplicateEstimate duplicateEstimate,
     IDiscardEstimate discardEstimate,
     ISetCurrentEstimate setCurrentEstimate,
@@ -71,7 +70,7 @@ public sealed partial class DetailsModel(
     IRepairSpecificationSnapshotStore specificationSnapshots,
     IUnroadworthyReasonBankStore unroadworthyReasonBank,
     ISaveUnroadworthyReason saveUnroadworthyReasonAction,
-    ISaveAndScaleRepairSpecification saveAndScaleRepairSpecification,
+    IScaleRepairSpecification scaleRepairSpecification,
     IRemoveRepairSpecificationScaling removeRepairSpecificationScaling,
     IRestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot,
     IAddCaseDocument addCaseDocument,
@@ -99,7 +98,6 @@ public sealed partial class DetailsModel(
     IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
     IPreviewValuationCalculation previewValuation,
-    IApplyValuationCalculation applyValuation,
     IListAppliedValuations listAppliedValuations,
     ICaseFieldProposalQueries fieldProposals,
     ILogger<DetailsModel> logger,
@@ -599,8 +597,6 @@ public sealed partial class DetailsModel(
     public string? OpenDialog { get; private set; }
 
     public string ImportOperationKey { get; private set; } = NewOperationKey();
-
-    public string SaveEstimateOperationKey { get; private set; } = NewOperationKey();
 
     public string DuplicateOperationKey { get; private set; } = NewOperationKey();
 
@@ -1362,12 +1358,19 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The full-POST fallback lands back on the section the operator was
-    /// looking at (v25 decision 3); the scripted path never navigates.
+    /// looking at (v25 decision 3); the scripted path never navigates. A save
+    /// that carried a repair specification keeps that specification selected.
     /// </summary>
-    private RedirectToPageResult RedirectToSection(Guid id, string? section) =>
-        string.IsNullOrWhiteSpace(section) || NormalizeSection(section) == Labels.CaseWorkspace.DefaultSectionKey
+    private RedirectToPageResult RedirectToSection(Guid id, string? section, string? estimate = null) =>
+        (string.IsNullOrWhiteSpace(section) || NormalizeSection(section) == Labels.CaseWorkspace.DefaultSectionKey)
+            && estimate is null
             ? RedirectToDetails(id)
-            : RedirectToPage("/Cases/Details", new { id, section = NormalizeSection(section) });
+            : RedirectToPage("/Cases/Details", new
+            {
+                id,
+                section = string.IsNullOrWhiteSpace(section) ? null : NormalizeSection(section),
+                estimate
+            });
 
     public async Task<IActionResult> OnPostRenewLeaseAsync(
         Guid id,
@@ -1487,10 +1490,23 @@ public sealed partial class DetailsModel(
         string? claimSourceContactTelephone,
         string? claimSourceContactEmail,
         GuideEntryForm[]? guideEntries,
+        ValuationSelectionForm? selection,
         string? section,
         CancellationToken cancellationToken)
     {
         assessmentFields ??= [];
+        // The Repair Spec editor and the valuation calculator join the Case
+        // form (one Save, 23 September 2026). They read like the estimate and
+        // valuation commands did, so they answer to the assessment access
+        // those commands required.
+        var carriesEstimate = Posted("estimateName");
+        var carriesCalculator = selection?.Opening is not null;
+        if ((carriesEstimate || carriesCalculator)
+            && TryGetActor(out var accessActor)
+            && !await HasAssessmentAccessAsync(id, accessActor, cancellationToken))
+        {
+            return NotFound();
+        }
         string? bankWording = null;
         if (saveUnroadworthyReason)
         {
@@ -1499,6 +1515,8 @@ public sealed partial class DetailsModel(
 
         string? bankStatus = null;
         string? bankError = null;
+        string? saveError = null;
+        string? savedEstimate = null;
         var result = await ExecuteCaseCommandAsync(
             id,
             editLeaseToken,
@@ -1528,6 +1546,28 @@ public sealed partial class DetailsModel(
                 {
                     throw new InvalidOperationException("This field is not part of the Case editor.");
                 }
+                CaseWorkspaceEstimate? estimate = null;
+                if (carriesEstimate)
+                {
+                    try
+                    {
+                        estimate = await EstimateEditorPartAsync(id, cancellationToken);
+                    }
+                    catch (InvalidOperationException exception)
+                    {
+                        saveError = MutationRefusalMessage(exception, string.Empty);
+                        throw;
+                    }
+
+                    // Until the save lands, the page keeps the specification it showed.
+                    savedEstimate = estimate.EstimateId?.ToString("D") ?? "new";
+                }
+                var recordedCards = guideEntries is { Length: > 0 } || carriesCalculator
+                    ? await listCaseValuations.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken)
+                    : [];
+                var adoption = carriesCalculator
+                    ? ChangedCalculation(selection, guideEntries ?? [], recordedCards)
+                    : null;
                 var preparationSubmitted = preparationEdits is { Length: > 0 };
                 var wordingSubmitted = wordingEdits is { Length: > 0 };
                 var damageFields = assessmentFields.Where(field => EditorLabels.Damage.ContainsKey(field.Key))
@@ -1546,7 +1586,8 @@ public sealed partial class DetailsModel(
                 var engineeringSubmitted = assessmentFields.Count > vehicleIdentityFields.Count
                     || Posted(nameof(storagePerDay)) || Posted(nameof(recoveryCharge))
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
-                    || damageSubmitted || wordingSubmitted || guideEntries is { Length: > 0 };
+                    || damageSubmitted || wordingSubmitted || guideEntries is { Length: > 0 }
+                    || estimate is not null || adoption is not null;
                 var current = await getCase.ExecuteAsync(new(id, actor), cancellationToken)
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
                 var data = current.Data
@@ -1705,89 +1746,91 @@ public sealed partial class DetailsModel(
                 var recordedDate = DateOnly.TryParseExact(Recorded(AssessmentVocabulary.ReportDate), "yyyy-MM-dd",
                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : (DateOnly?)null;
                 // The guide source cards have no Save of their own (23 September
-                // 2026): this save records the ones whose boxes were changed.
+                // 2026): this save records the ones whose boxes were changed, and
+                // adopts the calculation when the operator changed it.
                 List<ValuationDetails> guideValuations = guideEntries is { Length: > 0 }
-                    ? GuideEntriesToRecord(guideEntries, await listCaseValuations.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken))
+                    ? GuideEntriesToRecord(guideEntries, recordedCards)
                     : [];
-                await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
+                SaveCaseWorkspaceResult workspaceSave;
+                try
                 {
-                    Valuation = guideValuations.Count == 0 ? null : new(null, guideValuations),
-                    Overview = !overviewSubmitted ? null : new(
-                        Submitted(nameof(claimantName), claimantName, Accepted(data.Claimant.Name)?.Value),
-                        Submitted(nameof(claimantContactNumber), claimantContactNumber, Accepted(data.Claimant.ContactNumber)?.Value),
-                        Submitted(nameof(claimantAddress), claimantAddress, Accepted(data.Claimant.Address)?.Value),
-                        Submitted(nameof(claimNumber), claimNumber, Accepted(data.Claim.Number)?.Value),
-                        Submitted(nameof(contactName), contactName, Accepted(data.Contact.Name)?.Value),
-                        Submitted(nameof(contactEmailAddress), contactEmailAddress, Accepted(data.Contact.EmailAddress)?.Value),
-                        Submitted(nameof(contactPhoneNumber), contactPhoneNumber, Accepted(data.Contact.PhoneNumber)?.Value),
-                        Submitted(nameof(incidentDate), incidentDate, Accepted(data.Accident.IncidentDate)?.Value),
-                        Submitted(nameof(accidentCircumstances), accidentCircumstances, Accepted(data.Accident.Circumstances)?.Value),
-                        Submitted(nameof(instructionDate), instructionDate, Accepted(data.Instruction.InstructionDate)?.Value),
-                        Submitted(nameof(vatStatus), vatStatus, Accepted(data.Instruction.VatStatus)?.Value),
-                        linkedRepairer?.Address
-                            ?? Submitted(nameof(repairerAddress), repairerAddress,
-                                Accepted(data.Inspection.RepairerAddress)?.Value),
-                        claimSource,
-                        repairer,
-                        Submitted(nameof(principalNotes), principalNotes, persisted?.PrincipalNotes),
-                        Submitted(nameof(claimSourceNotes), claimSourceNotes, persisted?.ClaimSourceNotes),
-                        Submitted(nameof(clientNotes), clientNotes, persisted?.ClientNotes),
-                        Submitted(
-                            nameof(dueBy),
-                            dueBy,
-                            current.Workflow.DueWork?.DueBy
-                                ?? Accepted(data.Inspection.Deadline)?.Value)),
-                    Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
-                        Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
-                        persisted?.StorageBusiness,
-                        Submitted(nameof(inspectionDate), inspectionDate, Accepted(data.Inspection.InspectionDate)?.Value),
-                        Submitted(nameof(inspectionDeadline), inspectionDeadline, Accepted(data.Inspection.Deadline)?.Value),
-                        persisted?.InspectionVehiclePresent, persisted?.InspectionCondition,
-                        persisted?.InspectionContactName, persisted?.InspectionContactTelephone,
-                        persisted?.InspectionContactEmailAddress, persisted?.InspectionNotes,
-                        Submitted(nameof(storagePerDay), storagePerDay, Money(AssessmentVocabulary.SettlementStoragePerDay)),
-                        Submitted(nameof(recoveryCharge), recoveryCharge, Money(AssessmentVocabulary.CostRecoveryCharge))),
-                    Vehicle = !vehicleSubmitted ? null : new(
-                        Submitted(nameof(vehicleRegistration), vehicleRegistration, Accepted(data.Vehicle.Registration)?.Value),
-                        Submitted(nameof(vehicleMake), vehicleMake, Accepted(data.Vehicle.Make)?.Value),
-                        Submitted(nameof(vehicleModel), vehicleModel, Accepted(data.Vehicle.Model)?.Value),
-                        new(mileageValue,
-                            originalUnit,
-                            Submitted(nameof(vehicleMileageSource), vehicleMileageSource,
-                                Recorded(AssessmentVocabulary.VehicleMileageSource)),
-                            persisted?.VehicleMileageDisplayUnit),
-                        vehicleIdentityFields.Count > 0 ? vehicleIdentityFields : null,
-                        Submitted(nameof(vehicleYear), vehicleYear, Accepted(data.Vehicle.Year)?.Value)),
-                    Damage = !damageSubmitted ? null : new(impacts, damageFields),
-                    ImagePreparation = !preparationSubmitted ? null : new(
-                        [.. preparationEdits!.Select(edit => edit.ToRequest())]),
-                    Settlement = settlementFields.Count == 0 ? null : new(settlementFields),
-                    Report = !reportSubmitted ? null : new(reportFields,
-                        Submitted(nameof(signOffEngineerId), signOffEngineerId, current.Workflow.SignOffEngineerId),
-                        Submitted(nameof(reportDate), reportDate, recordedDate)),
-                    // v28 P30: wording that reads the same as the composed
-                    // sentence is no change, so the block keeps tracking its
-                    // fields. The composed sentence is read here rather than
-                    // posted back, so the form cannot claim one it never saw.
-                    ReportWording = !wordingSubmitted ? null : await ReportWordingOf(
-                        id, actor, wordingEdits!, cancellationToken)
-                }, cancellationToken);
+                    workspaceSave = await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
+                    {
+                        Valuation = guideValuations.Count == 0 && adoption is null ? null : new(guideValuations, adoption),
+                        Estimate = estimate,
+                        Overview = !overviewSubmitted ? null : new(
+                            Submitted(nameof(claimantName), claimantName, Accepted(data.Claimant.Name)?.Value),
+                            Submitted(nameof(claimantContactNumber), claimantContactNumber, Accepted(data.Claimant.ContactNumber)?.Value),
+                            Submitted(nameof(claimantAddress), claimantAddress, Accepted(data.Claimant.Address)?.Value),
+                            Submitted(nameof(claimNumber), claimNumber, Accepted(data.Claim.Number)?.Value),
+                            Submitted(nameof(contactName), contactName, Accepted(data.Contact.Name)?.Value),
+                            Submitted(nameof(contactEmailAddress), contactEmailAddress, Accepted(data.Contact.EmailAddress)?.Value),
+                            Submitted(nameof(contactPhoneNumber), contactPhoneNumber, Accepted(data.Contact.PhoneNumber)?.Value),
+                            Submitted(nameof(incidentDate), incidentDate, Accepted(data.Accident.IncidentDate)?.Value),
+                            Submitted(nameof(accidentCircumstances), accidentCircumstances, Accepted(data.Accident.Circumstances)?.Value),
+                            Submitted(nameof(instructionDate), instructionDate, Accepted(data.Instruction.InstructionDate)?.Value),
+                            Submitted(nameof(vatStatus), vatStatus, Accepted(data.Instruction.VatStatus)?.Value),
+                            linkedRepairer?.Address
+                                ?? Submitted(nameof(repairerAddress), repairerAddress,
+                                    Accepted(data.Inspection.RepairerAddress)?.Value),
+                            claimSource,
+                            repairer,
+                            Submitted(nameof(principalNotes), principalNotes, persisted?.PrincipalNotes),
+                            Submitted(nameof(claimSourceNotes), claimSourceNotes, persisted?.ClaimSourceNotes),
+                            Submitted(nameof(clientNotes), clientNotes, persisted?.ClientNotes),
+                            Submitted(
+                                nameof(dueBy),
+                                dueBy,
+                                current.Workflow.DueWork?.DueBy
+                                    ?? Accepted(data.Inspection.Deadline)?.Value)),
+                        Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
+                            Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
+                            persisted?.StorageBusiness,
+                            Submitted(nameof(inspectionDate), inspectionDate, Accepted(data.Inspection.InspectionDate)?.Value),
+                            Submitted(nameof(inspectionDeadline), inspectionDeadline, Accepted(data.Inspection.Deadline)?.Value),
+                            persisted?.InspectionVehiclePresent, persisted?.InspectionCondition,
+                            persisted?.InspectionContactName, persisted?.InspectionContactTelephone,
+                            persisted?.InspectionContactEmailAddress, persisted?.InspectionNotes,
+                            Submitted(nameof(storagePerDay), storagePerDay, Money(AssessmentVocabulary.SettlementStoragePerDay)),
+                            Submitted(nameof(recoveryCharge), recoveryCharge, Money(AssessmentVocabulary.CostRecoveryCharge))),
+                        Vehicle = !vehicleSubmitted ? null : new(
+                            Submitted(nameof(vehicleRegistration), vehicleRegistration, Accepted(data.Vehicle.Registration)?.Value),
+                            Submitted(nameof(vehicleMake), vehicleMake, Accepted(data.Vehicle.Make)?.Value),
+                            Submitted(nameof(vehicleModel), vehicleModel, Accepted(data.Vehicle.Model)?.Value),
+                            new(mileageValue,
+                                originalUnit,
+                                Submitted(nameof(vehicleMileageSource), vehicleMileageSource,
+                                    Recorded(AssessmentVocabulary.VehicleMileageSource)),
+                                persisted?.VehicleMileageDisplayUnit),
+                            vehicleIdentityFields.Count > 0 ? vehicleIdentityFields : null,
+                            Submitted(nameof(vehicleYear), vehicleYear, Accepted(data.Vehicle.Year)?.Value)),
+                        Damage = !damageSubmitted ? null : new(impacts, damageFields),
+                        ImagePreparation = !preparationSubmitted ? null : new(
+                            [.. preparationEdits!.Select(edit => edit.ToRequest())]),
+                        Settlement = settlementFields.Count == 0 ? null : new(settlementFields),
+                        Report = !reportSubmitted ? null : new(reportFields,
+                            Submitted(nameof(signOffEngineerId), signOffEngineerId, current.Workflow.SignOffEngineerId),
+                            Submitted(nameof(reportDate), reportDate, recordedDate)),
+                        // v28 P30: wording that reads the same as the composed
+                        // sentence is no change, so the block keeps tracking its
+                        // fields. The composed sentence is read here rather than
+                        // posted back, so the form cannot claim one it never saw.
+                        ReportWording = !wordingSubmitted ? null : await ReportWordingOf(
+                            id, actor, wordingEdits!, cancellationToken)
+                    }, cancellationToken);
+                }
+                catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
+                {
+                    // A refusal names its own reason (a spec line, a valuation
+                    // figure, a value adopted with no Case mileage); a lost lease
+                    // or a changed Case keeps the shared one.
+                    saveError = MutationRefusalMessage(exception, string.Empty);
+                    throw;
+                }
                 RecordEditorCommit("case-edit-form", operationKey, expectedVersion);
-
-                // The ribbon Save ends edit mode (operator, 23 September
-                // 2026); a save the page continues from keeps it.
-                if (finishEditing)
+                if (workspaceSave.Estimate is { } writtenEstimate)
                 {
-                    try
-                    {
-                        await releaseLease.ExecuteAsync(
-                            new(id, actor, NewOperationKey(), editLeaseToken), cancellationToken);
-                    }
-                    catch (Exception exception) when (exception is not OperationCanceledException)
-                    {
-                        // The Case is saved; an unreleased lease expires by server time.
-                        LogCaseCommandFailed(logger, id, "release_lease", exception);
-                    }
+                    savedEstimate = writtenEstimate.SpecificationId.ToString("D");
                 }
 
                 if (saveUnroadworthyReason)
@@ -1809,13 +1852,20 @@ public sealed partial class DetailsModel(
                 }
             },
             "Case saved.",
-            caseId => RedirectToSection(caseId, section),
+            // The ribbon Save ends edit mode (operator, 23 September 2026): the
+            // save consumed the lease and none is claimed again. A save the page
+            // continues from, and Ctrl S, keep it.
+            caseId => RedirectToSection(caseId, section, savedEstimate),
             keepEditing: !finishEditing);
 
         if (bankError is not null)
         {
             TempData.Remove("CaseStatus");
             TempData["CaseError"] = bankError;
+        }
+        else if (!string.IsNullOrEmpty(saveError))
+        {
+            TempData["CaseError"] = saveError;
         }
         else if (bankStatus is not null)
         {
@@ -2626,86 +2676,37 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Creates a named estimate or replaces the whole content of an existing
-    /// Draft through ENG-026's Core-owned save use case.
+    /// The Repair Spec editor as the Case form posts it: the specification it
+    /// shows, whole, read on exactly the terms the estimate editor always read
+    /// it. A line that does not read as a number refuses the save.
     /// </summary>
-    public async Task<IActionResult> OnPostSaveEstimateAsync(
-        Guid id,
-        long? expectedVersion,
-        string operationKey,
-        string? editLeaseToken,
-        Guid? estimateId,
-        CancellationToken cancellationToken)
+    private async Task<CaseWorkspaceEstimate> EstimateEditorPartAsync(Guid caseId, CancellationToken cancellationToken)
     {
         var editor = ReadEditorPost();
-        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
-        if (guard is not null)
-        {
-            return guard;
-        }
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (expectedVersion is null)
-        {
-            TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return await RedrawEditorAsync(id, estimateId, editor, editor.Rows, cancellationToken);
-        }
         if (editor.Lines is null)
         {
-            TempData["CaseError"] =
-                "Check the estimate's lines: an operation, a quantity, hours or an amount does not read as a number.";
-            return await RedrawEditorAsync(id, estimateId, editor, editor.Rows, cancellationToken);
+            throw new InvalidOperationException(
+                "Check the estimate's lines: an operation, a quantity, hours or an amount does not read as a number.");
         }
 
-        try
+        var existing = await ResolveEstimateAsync(caseId, editor.EstimateId, cancellationToken);
+        var details = EditorDetailsFrom(editor, existing);
+        var selectedRateCard = ParseSelectedRateCard();
+        return new(
+            editor.EstimateId,
+            details,
+            editor.Lines,
+            editor.ExistingLineIds,
+            await ReadSupplementaryAsync(caseId, existing, details, editor.Lines, cancellationToken))
         {
-            var existing = estimateId is { } selected
-                ? await ResolveEstimateAsync(id, selected, cancellationToken)
-                : null;
-            var details = EditorDetailsFrom(editor, existing);
-            var selectedRateCard = ParseSelectedRateCard();
-            var saved = await saveEstimate.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion.Value,
-                    actor,
-                    operationKey,
-                    estimateId is null ? "Repair spec created" : "Repair spec saved",
-                    editLeaseToken!,
-                    estimateId,
-                    details,
-                    editor.Lines,
-                    new(RepairSpecificationSourceRoute.Manual, null, null, null),
-                    ExistingLineIds: editor.ExistingLineIds)
-                {
-                    SelectedRateCardId = selectedRateCard.Id,
-                    SelectedRateCardVersion = selectedRateCard.Version,
-                    Supplementary = await ReadSupplementaryAsync(id, existing, details, editor.Lines, cancellationToken),
-                },
-                cancellationToken);
-            RecordEditorCommit("case-estimate-form", operationKey, expectedVersion.Value);
-            ClearLeaseState();
-            await ReclaimLeaseAsync(id, cancellationToken);
-            TempData["CaseStatus"] = "The repair spec was saved.";
-            return RedirectToEstimate(id, saved.SpecificationId.ToString("D"));
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
-        {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception, "The estimate was not saved because the case changed or another editor holds it. Retry the operation.");
-            return await RedrawEditorAsync(id, estimateId, editor, editor.Rows, cancellationToken);
-        }
+            SelectedRateCardId = selectedRateCard.Id,
+            SelectedRateCardVersion = selectedRateCard.Version,
+        };
     }
 
     /// <summary>
     /// Re-renders an estimate form with one row added or removed. The posted
-    /// values are not persisted until Save estimate runs.
+    /// values are not persisted until the Case is saved.
     /// </summary>
     public async Task<IActionResult> OnPostEditLineAsync(
         Guid id,
@@ -2773,8 +2774,9 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Apply (v28 P34): the posted editor and scaling intent are one Core
-    /// operation, so the draft and both frozen versions commit together.
+    /// Apply (v28 P34): scales the saved specification. The page saves the
+    /// Case, the specification with it, before it asks (data-case-save-first),
+    /// so the draft and both frozen versions are the ones the operator sees.
     /// </summary>
     public async Task<IActionResult> OnPostScaleEstimateAsync(
         Guid id,
@@ -2787,7 +2789,6 @@ public sealed partial class DetailsModel(
         decimal? floorPrice,
         CancellationToken cancellationToken)
     {
-        var editor = ReadEditorPost();
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
@@ -2797,38 +2798,24 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
-        if (expectedVersion is null || estimateId is null || editor.Lines is null)
+        if (expectedVersion is null || estimateId is null)
         {
             TempData["CaseError"] = "The form has expired. Retry the operation.";
             return RedirectToEstimate(id, estimateId?.ToString("D"));
         }
         try
         {
-            var existing = await ResolveEstimateAsync(id, estimateId, cancellationToken);
-            var details = EditorDetailsFrom(editor, existing);
-            var supplementary = await ReadSupplementaryAsync(id, existing, details, editor.Lines, cancellationToken);
-            var selectedRateCard = ParseSelectedRateCard();
             if (targetPercent is null)
             {
                 throw new ArgumentException("A target percentage of the Engineer's Value is required.");
             }
             var floors = new ScalingFloors(floorRate ?? ScalingFloors.Default.LabourRatePerHour, floorPrice ?? ScalingFloors.Default.PricePercent);
-            var saved = await saveAndScaleRepairSpecification.ExecuteAsync(
-                new SaveAndScaleRepairSpecificationRequest(
-                    new SaveEstimateRequest(
-                        id, expectedVersion.Value, actor, operationKey, "Repair spec scaled", editLeaseToken!, estimateId,
-                        details, editor.Lines,
-                        new(RepairSpecificationSourceRoute.Manual, null, null, null),
-                        ExistingLineIds: editor.ExistingLineIds)
-                     {
-                         SelectedRateCardId = selectedRateCard.Id,
-                         SelectedRateCardVersion = selectedRateCard.Version,
-                         Supplementary = supplementary,
-                     },
-                     targetPercent.Value,
-                     floors),
+            var saved = await scaleRepairSpecification.ExecuteAsync(
+                new ScaleRepairSpecificationRequest(
+                    id, expectedVersion.Value, actor, operationKey, editLeaseToken!, estimateId.Value,
+                    targetPercent.Value,
+                    floors),
                 cancellationToken);
-            RecordEditorCommit("case-estimate-form", operationKey, expectedVersion.Value);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
             TempData["CaseStatus"] = "The repair spec was scaled.";

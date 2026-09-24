@@ -1,8 +1,6 @@
 using Pegasus.Core.Cases;
-using System.Text.Json;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Assessment;
 
@@ -19,7 +17,6 @@ public sealed class ValuationCalculationTests
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
     private static readonly ActionActor User =
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-    private static readonly string Lease = new('l', CaseEditAuthority.LeaseTokenLength);
 
     private static readonly ValuationPreset TowBar =
         new(TowBarId, "Tow bar", 300m, true, 1, "system:v1-foundation", Now);
@@ -336,7 +333,6 @@ public sealed class ValuationCalculationTests
         Assert.Equal(3100m, first.Calculation.Proposal);
         Assert.Equal(may, second.GuideValuationId);
         Assert.Equal(3250m, second.Calculation.Proposal);
-        Assert.NotEqual(first.GuideValuationStampUtc, second.GuideValuationStampUtc);
     }
 
     /// <summary>
@@ -354,105 +350,23 @@ public sealed class ValuationCalculationTests
             CancellationToken.None);
 
         Assert.Equal(2976m, result.Calculation.Proposal);
-        Assert.Empty(store.Applied);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             preview.ExecuteAsync(
                 new(CaseId, ActionActor.Provider(Guid.NewGuid()), Selection()),
                 CancellationToken.None));
     }
 
-    [Theory]
-    [InlineData(StaffRole.Administrator)]
-    [InlineData(StaffRole.Engineer)]
-    [InlineData(StaffRole.User)]
-    public async Task EveryStaffRoleMayApplyAnEngineersValueWithActorAttribution(StaffRole role)
-    {
-        var store = new RecordingStore { Bases = { [GuideId] = Basis(3100m) } };
-        var apply = new ApplyValuationCalculation(store);
-        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
-
-        var applied = await apply.ExecuteAsync(ApplyRequest(actor), CancellationToken.None);
-
-        Assert.Equal(3100m, applied.Calculation.Proposal);
-        Assert.Equal(3100m, applied.AcceptedEngineerValue);
-        Assert.Equal(actor.SubjectId, applied.AcceptedBy);
-        Assert.Equal(GuideId, Assert.Single(store.Applied).Selection.GuideValuationId);
-    }
-
-    [Fact]
-    public async Task NonStaffActorsCannotApplyAnEngineersValue()
-    {
-        var store = new RecordingStore { Bases = { [GuideId] = Basis(3100m) } };
-        var apply = new ApplyValuationCalculation(store);
-
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            apply.ExecuteAsync(
-                ApplyRequest(ActionActor.Provider(Guid.NewGuid())),
-                CancellationToken.None));
-        Assert.Empty(store.Applied);
-    }
-
     /// <summary>
-    /// A repeated operation key that carries a different request is a
-    /// conflict, not a retry, and the conflict reaches the caller rather than
-    /// being swallowed into a second adoption.
+    /// The Case Save adopts a calculation (one Save, 23 September 2026); it
+    /// names its basis card, and the adoptions are listed for a named Case.
     /// </summary>
-    [Fact]
-    public async Task AReplayedOperationKeyCarryingADifferentRequestConflicts()
-    {
-        var store = new RecordingStore { Bases = { [GuideId] = Basis(3100m) } };
-        var apply = new ApplyValuationCalculation(store);
-
-        await apply.ExecuteAsync(ApplyRequest(Engineer), CancellationToken.None);
-
-        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
-            apply.ExecuteAsync(
-                ApplyRequest(Engineer) with { Selection = Selection(conditionDeduction: 100m) },
-                CancellationToken.None));
-        Assert.Single(store.Applied);
-    }
-
-    /// <summary>
-    /// A further adoption records the proposal from its selected inputs and
-    /// retains the guide basis and reason.
-    /// </summary>
-    [Fact]
-    public async Task AFurtherAdoptionKeepsTheAppliedBasisAndCalculatedValue()
-    {
-        var store = new RecordingStore { Bases = { [GuideId] = Basis(3100m) } };
-        var apply = new ApplyValuationCalculation(store);
-
-        var first = await apply.ExecuteAsync(ApplyRequest(Engineer), CancellationToken.None);
-        var corrected = await apply.ExecuteAsync(
-            ApplyRequest(Engineer, "valuation-correction") with
-            {
-                Selection = Selection(conditionDeduction: 100m),
-                Reason = "Corrected the adopted value after re-reading the guide."
-            },
-            CancellationToken.None);
-
-        Assert.Equal(3100m, first.AcceptedEngineerValue);
-        Assert.Equal(3000m, corrected.AcceptedEngineerValue);
-        Assert.Equal(first.GuideValuationId, corrected.GuideValuationId);
-        Assert.Equal(first.GuideValuationStampUtc, corrected.GuideValuationStampUtc);
-        Assert.Equal(corrected.Calculation.Proposal, corrected.AcceptedEngineerValue);
-        Assert.Equal(
-            "Corrected the adopted value after re-reading the guide.",
-            corrected.Reason);
-        Assert.Equal(2, store.Applied.Count);
-    }
-
     [Fact]
     public async Task AnAdoptionMustNameACaseAndAGuideCard()
     {
-        var store = new RecordingStore { Bases = { [GuideId] = Basis(3100m) } };
-
+        Assert.Throws<ArgumentException>(() =>
+            ValuationCalculationPolicy.ValidateSelection(Selection(guideValuationId: Guid.Empty), "selection"));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new ApplyValuationCalculation(store).ExecuteAsync(
-                ApplyRequest(Engineer) with { Selection = Selection(guideValuationId: Guid.Empty) },
-                CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            new ListAppliedValuations(store).ExecuteAsync(Guid.Empty, CaseWorkSelector.Current, CancellationToken.None));
+            new ListAppliedValuations(new RecordingStore()).ExecuteAsync(Guid.Empty, CaseWorkSelector.Current, CancellationToken.None));
     }
 
     /// <summary>
@@ -544,18 +458,6 @@ public sealed class ValuationCalculationTests
         actor,
         "valuation-preset-save");
 
-    private static ApplyValuationRequest ApplyRequest(
-        ActionActor actor,
-        string operationKey = "valuation-apply") => new(
-        CaseId,
-        3,
-        actor,
-        operationKey,
-        "Adopted the calculated Engineer's Value.",
-        Lease,
-        Selection(),
-        Now);
-
     private static ValuationCalculationSelection Selection(
         Guid? guideValuationId = null,
         bool commercialVat = false,
@@ -605,14 +507,11 @@ public sealed class ValuationCalculationTests
 
     /// <summary>
     /// Stands in for the persistence boundary: it holds the basis each guide
-    /// card would be read at, and refuses a repeated operation key that
-    /// carries a different request exactly as the store does.
+    /// card would be read at.
     /// </summary>
     private sealed class RecordingStore : IAppliedValuationStore
     {
         public Dictionary<Guid, ValuationCalculationBasis> Bases { get; } = [];
-
-        public List<ApplyValuationRequest> Applied { get; } = [];
 
         public Task<ValuationCalculationBasis> ReadBasisAsync(
             Guid caseId,
@@ -623,50 +522,10 @@ public sealed class ValuationCalculationTests
                 : throw new InvalidOperationException(
                     "The selected guide valuation was not found on this case.");
 
-        public async Task<AppliedValuation> ApplyAsync(
-            ApplyValuationRequest request,
-            CancellationToken cancellationToken)
-        {
-            var replay = Applied.SingleOrDefault(
-                item => item.OperationKey == request.OperationKey);
-            if (replay is not null && Hash(replay) != Hash(request))
-            {
-                throw new CaseOperationConflictException(request.CaseId, request.OperationKey);
-            }
-
-            var basis = await ReadBasisAsync(
-                request.CaseId,
-                request.Selection.GuideValuationId,
-                cancellationToken);
-            var calculation = ValuationCalculationPolicy.Calculate(
-                ValuationCalculationPolicy.Resolve(request.Selection, basis));
-            Applied.Add(request);
-            return new(
-                Guid.NewGuid(),
-                request.CaseId,
-                request.ExpectedVersion + 1,
-                basis.GuideValuationId,
-                basis.GuideValuationStampUtc,
-                calculation,
-                ValuationCalculationPolicy.AcceptedValue(request, calculation),
-                request.Actor.SubjectId,
-                Now,
-                request.Reason,
-                ValuationCalculationPolicy.PolicyStamp);
-        }
-
         public Task<IReadOnlyList<AppliedValuation>> ListAppliedAsync(
             Guid caseId,
             CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AppliedValuation>>([]);
-
-        /// <summary>
-        /// The store compares a replayed operation key by hashing the whole
-        /// serialized request; this double compares the same way, so a retry
-        /// and a reused key are told apart here exactly as they are there.
-        /// </summary>
-        private static string Hash(ApplyValuationRequest request) =>
-            JsonSerializer.Serialize(request);
     }
 
     private sealed class RecordingPresetStore : IValuationPresetStore

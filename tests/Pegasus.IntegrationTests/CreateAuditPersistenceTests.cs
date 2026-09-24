@@ -312,59 +312,6 @@ public sealed class CreateAuditPersistenceTests
     }
 
     /// <summary>
-    /// The copied applied valuation is hashed as Apply hashes it — from the
-    /// proposal at its own scale, not the stored two-place figure — so adopting
-    /// the same figures from the same card for the same reason in the Audit is
-    /// caught rather than recorded twice.
-    /// </summary>
-    [Fact]
-    public async Task ReapplyingTheInspectionsValuationInTheAuditIsRefused()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var store = harness.Services.GetRequiredService<IAppliedValuationStore>();
-        var apply = new ApplyValuationCalculation(store);
-        const string reason = "Adopted the guide figures less the condition deduction.";
-        var selection = new ValuationCalculationSelection(
-            harness.GuideValuationId,
-            CommercialVat: false,
-            PriorTotalLossPercentage: null,
-            [],
-            ConditionDeduction: 500m);
-        var (version, token) = await harness.ClaimAsync("apply-inspection-valuation");
-        var inspectionStamp = (await store.ReadBasisAsync(harness.CaseId, harness.GuideValuationId, default))
-            .GuideValuationStampUtc;
-        var applied = await apply.ExecuteAsync(
-            new(harness.CaseId, version, harness.Actor, "apply-inspection-valuation", reason, token, selection, inspectionStamp),
-            default);
-        Assert.Equal(12000m, applied.Calculation.Proposal);
-
-        var audit = await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-reapply"), default);
-        Guid auditGuideId;
-        await using (var context = await harness.ContextAsync())
-        {
-            auditGuideId = await context.CaseValuations.AsNoTracking()
-                .Where(item => item.WorkId == audit.AuditWorkId && item.Source == nameof(ValuationSource.Glasses))
-                .Select(item => item.Id)
-                .SingleAsync();
-        }
-        var auditStamp = (await store.ReadBasisAsync(harness.CaseId, auditGuideId, default)).GuideValuationStampUtc;
-        var (auditVersion, auditToken) = await harness.ClaimAsync("reapply-in-audit");
-
-        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => apply.ExecuteAsync(
-            new(
-                harness.CaseId,
-                auditVersion,
-                harness.Actor,
-                "reapply-in-audit",
-                reason,
-                auditToken,
-                selection with { GuideValuationId = auditGuideId },
-                auditStamp),
-            default));
-        Assert.Equal("This valuation calculation and reason were already applied to this case.", refused.Message);
-    }
-
-    /// <summary>
     /// Once the Audit exists its confirmed vehicle facts are the ones read,
     /// as the Case data read beside them is; the Inspection's stay its own.
     /// </summary>
@@ -461,7 +408,7 @@ public sealed class CreateAuditPersistenceTests
         Assert.DoesNotContain(harness.GuideValuationId.ToString("D"), applied.SnapshotJson, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(
             EfValuationStore.AppliedSnapshotHash(
-                harness.CaseId, guide.Id, harness.GuideStampUtc, SeededCalculation, 12000m, "Adopted the guide figures"),
+                harness.CaseId, 3L, guide.Id, harness.GuideStampUtc, SeededCalculation, 12000m, "Adopted the guide figures"),
             applied.SnapshotHash);
         Assert.Equal(12000m, applied.AcceptedEngineerValue);
 
@@ -798,7 +745,7 @@ public sealed class CreateAuditPersistenceTests
                     GeneratedByKind = nameof(ActorKind.Staff),
                     GeneratedBySubjectId = engineerId.ToString("D"),
                     SnapshotHash = EfValuationStore.AppliedSnapshotHash(
-                        caseId, guideValuationId, guideStampUtc, SeededCalculation, 12000m, "Adopted the guide figures"),
+                        caseId, 3L, guideValuationId, guideStampUtc, SeededCalculation, 12000m, "Adopted the guide figures"),
                     AcceptedEngineerValue = 12000m,
                     AcceptedBy = engineerId.ToString("D"),
                     AcceptedAtUtc = now.AddDays(-4),

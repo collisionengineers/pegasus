@@ -108,6 +108,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal("confirmed", stored.CustodyStatus);
         Assert.Equal(confirmed.BoxFileId, stored.BoxFileId);
         Assert.Equal(confirmed.BoxVersionId, stored.BoxVersionId);
+        Assert.Equal(HoldingBox.HoldingFolderId, stored.BoxParentFolderId);
 
         var wrongReceipt = request with
         {

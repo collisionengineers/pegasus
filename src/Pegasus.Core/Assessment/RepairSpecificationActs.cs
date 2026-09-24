@@ -179,13 +179,19 @@ public static class RepairSpecificationScaling
 }
 
 /// <summary>
-/// One Engineer Apply: persist the posted Draft and scale that same edited
-/// content in one guarded operation. The Web caller supplies intent only;
+/// One Engineer Apply: scale the saved Draft in one guarded operation. The
+/// page saves the Case, the specification included, before it asks (the one
+/// Save, 23 September 2026), so this carries intent only;
 /// <see cref="EngineerValue"/> is filled by the Core act from the assessment
 /// projection before the store opens its transaction.
 /// </summary>
-public sealed record SaveAndScaleRepairSpecificationRequest(
-    SaveEstimateRequest Save,
+public sealed record ScaleRepairSpecificationRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string EditLeaseToken,
+    Guid SpecificationId,
     decimal TargetPercentOfValue,
     ScalingFloors Floors,
     decimal? EngineerValue = null);
@@ -207,10 +213,10 @@ public sealed record RestoreRepairSpecificationSnapshotRequest(
     Guid SpecificationId,
     Guid SnapshotId);
 
-public interface ISaveAndScaleRepairSpecification
+public interface IScaleRepairSpecification
 {
     Task<RepairSpecificationVersion> ExecuteAsync(
-        SaveAndScaleRepairSpecificationRequest request,
+        ScaleRepairSpecificationRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -227,19 +233,18 @@ public interface IRestoreRepairSpecificationSnapshot
 /// <summary>
 /// Apply (v28 P34): the target is derived from the confirmed Engineer's Value
 /// in the existing assessment projection. Persistence owns the single
-/// transaction that saves the posted draft and both frozen versions.
+/// transaction that scales the saved draft and freezes both versions.
 /// </summary>
-public sealed class SaveAndScaleRepairSpecification(
+public sealed class ScaleRepairSpecification(
     ICaseAssessmentStore assessment,
-    IRepairSpecificationStore store) : ISaveAndScaleRepairSpecification
+    IRepairSpecificationStore store) : IScaleRepairSpecification
 {
     public async Task<RepairSpecificationVersion> ExecuteAsync(
-        SaveAndScaleRepairSpecificationRequest request, CancellationToken cancellationToken)
+        ScaleRepairSpecificationRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var save = EstimatePolicy.ValidateSave(request.Save);
-        RepairSpecificationPolicy.RequireStaffAuthor(save.Actor);
-        var projection = await assessment.GetAsync(save.CaseId, cancellationToken);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
+        var projection = await assessment.GetAsync(request.CaseId, cancellationToken);
         var field = projection?.Field(AssessmentVocabulary.ValueEngineer);
         if (field is not { IsConfirmed: true }
             || !decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var engineerValue)
@@ -255,10 +260,9 @@ public sealed class SaveAndScaleRepairSpecification(
             throw new ArgumentException("The target must be between 1 and 100 percent of the Engineer's Value.", nameof(request));
         }
 
-        return await store.SaveAndScaleAsync(
+        return await store.ScaleAsync(
             request with
             {
-                Save = save,
                 TargetPercentOfValue = targetPercent,
                 EngineerValue = engineerValue,
             }, cancellationToken);

@@ -112,7 +112,8 @@ Read and edit share one geometry and one look (operator, 23 September 2026).
 - Where a value came from is one `src-tag` word in the cell's label line, in both modes; a staff
   value carries none. Do not reintroduce a provenance icon or tooltip.
 - Entering edit must not teleport the operator or substantially reflow the page.
-- Edit from a section head enters the one Case-wide edit session.
+- Edit from a section head enters the one Case-wide edit session; that section stays where it was
+  on the screen.
 - Save and Cancel act in place.
 - Immediate-post actions should not end the edit session unless their contract requires it.
 - A colleague's lease is read-only until an eligible staff member uses the
@@ -156,10 +157,12 @@ One route per guide source.
 Glass's, Brego, Super CAP, CAP and Cazana each own one card, the same in read and edit, containing:
 
 - guide month;
-- mileage;
 - retail value;
 - trade value;
 - Get valuation (while editing).
+
+A card has no mileage box (operator, 24 September 2026): the Case's own accepted mileage is used by the
+lookup and carried by the adopted Engineer's Value.
 
 The boxes are greyed while reading and inputs of the Case form while editing. Get valuation fills
 the same card in place, without redrawing the page, or shows the card's notice when the source has
@@ -167,9 +170,14 @@ no working provider. The ribbon Save is the writer (23 September 2026): it recor
 card with whatever was entered — any box may be left blank — and an untouched or blank card records
 nothing. A card opens holding only what is recorded, in both modes.
 
+The calculator has no Apply (operator, 23 September 2026): the ribbon Save adopts the Engineer's
+Value when the calculation changed since the page opened, and an unchanged calculation adopts
+nothing. Where a surface points the operator to the value, it says **Set in Valuation**.
+
 Do not reintroduce:
 
 - a Save on the card;
+- an Apply button on the calculator;
 - Add valuation;
 - a second generic valuation dialog;
 - a second source-button row;
@@ -182,6 +190,10 @@ AI market research remains its own distinct action/card.
 Preserve the Estimate workbench and its existing Expand/full-screen presentation toggle.
 
 Do not move its main controls into the Case ribbon.
+
+The spec has no Save of its own (operator, 23 September 2026): its controls belong to the Case form
+and the ribbon Save records it with everything else. Do not reintroduce a Save repair spec button.
+Apply and Remove scaling save the Case first and then act on the saved spec.
 
 Do not restore the redundant locked "A confirmed Engineer's Value is required" pill. The Send to
 AI control is simply unavailable/absent until its requirement is met, according to the current

@@ -90,11 +90,11 @@ stays kept.
 
 Receipt and staging are one state. Accepted Case custody is another.
 
-A follow-up message with photographs that was matched to a Case
-automatically has a separate Case-filing step. Its original message,
-attached documents and selected photographs become Case document occurrences
-with intake provenance and the right source, correspondence or image role.
-Confirmation in the holding folder does not prove this step. Case promotion
+A follow-up message that was matched to a Case automatically, with or
+without photographs, has a separate Case-filing step (operator, 23 September
+2026). Its original message, attached documents and selected photographs
+become Case document occurrences with intake provenance and the right
+source, correspondence or image role. Case promotion
 has its own stable Case, receipt and asset operation identities. A partial
 write keeps its pending document identities and resumes through the normal
 custody reconciliation. A confirmed replay neither duplicates files nor
@@ -136,14 +136,22 @@ An incoming custody claim uses the occurrence's operation identity to find
 its own source record. Intake claims update the matching receipt and asset
 pair directly; they do not probe unrelated source records or need wider
 Worker permissions. Receipt and asset GUIDs are typed identities, never matched by
-filename, source label or formatted string. Before a destination is settled,
-the original source and selected photographs are kept in the designated Box
-holding folder, each with verified content and confirmed file and version
-IDs. Unknown or pending holding custody is unfinished work, not success. The
-existing bounded retries reuse the same asset and operation identities.
-Exhausted failures stay visible for staff recovery. Re-evaluation repairs
-unconfirmed holding custody from integrity-checked staging bytes before it
-reads the Box-backed source. Missing or corrupt bytes fail closed.
+filename, source label or formatted string. The designated Box holding
+folder is only for intake whose destination is not settled automatically
+(operator, 23 September 2026): Unidentified and refused material, Triage,
+a manual upload, a failed or suppressed allocation, and material a member of
+staff links later. Intake that automation files to a new Case, to a matched
+Case or to a Vehicle images record goes straight to that destination's Box
+folder and never through holding. The holding decision is taken after
+destination automation; a held source, its documents and its selected
+photographs each carry verified content and confirmed file and version IDs.
+Each intake asset records the Box folder its confirmed copy is in (holding,
+the Case root or the Vehicle images folder), and reads expect exactly that
+folder. Unknown or pending holding custody is unfinished work, not success.
+The existing bounded retries reuse the same asset and operation identities.
+Exhausted failures stay visible for staff recovery. Re-evaluation reads the
+retained source bytes after checking their hash and length. Missing or
+corrupt bytes fail closed.
 
 A Vehicle images record has its own Box folder from registration. The folder
 is named for the record's permanent Image reference, sits directly under the
@@ -253,7 +261,7 @@ There is no way back from a tag to the flag.
 
 | Thing | States | Notes |
 | --- | --- | --- |
-| Source file | Received and staged → holding custody → Case custody | Staging is never proof of custody |
+| Source file | Received and staged → destination custody (Case, Vehicle images folder, or holding while no destination is settled) | Staging is never proof of custody |
 | OCR operation | Submitted → output kept → analysed, no-profile or ambiguous; or visibly failed | Retries reuse the kept output |
 | Custody of one file | Pending → Confirmed; or Failed | Galleries show the state until Confirmed |
 | Vehicle images folder | Queued → written; folded into a Case on merge | A Box failure never blocks the record |
@@ -263,7 +271,7 @@ There is no way back from a tag to the flag.
 - Corrupt, encrypted or non-renderable input is never sent to OCR.
 - A scan-like or ambiguous estimate is refused with no OCR fallback.
 - A Box failure after allocation leaves the Case Not ready; staff retry it.
-- Missing or corrupt staging bytes fail closed during re-evaluation.
+- Missing or corrupt retained bytes fail closed during re-evaluation.
 - Unexpected content in a Vehicle images folder makes the fold fail closed.
 - Unconfirmed custody returns an availability response, never staging bytes.
 - A duplicate tag name is refused.
@@ -271,7 +279,8 @@ There is no way back from a tag to the flag.
 ## Acceptance evidence
 
 Core tests cover the format boundary, limits, OCR binding and tag rules.
-Integration tests cover custody claims, holding-folder retention, thumbnails
+Integration tests cover custody claims, holding only for unsettled intake,
+direct filing to the Case and Vehicle images folders, thumbnails
 and placeholders, and the Box integration-test profile against the approved
 test subtree. Deployment and live acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).

@@ -4,15 +4,20 @@
     shape (v25 decision 8) and the applied-history row. Read and edit show the
     same cards and the same calculator: Glass's, Brego, Super CAP, CAP and
     Cazana are each one card holding that source's latest recorded retail,
-    trade, guide month and mileage, as greyed boxes while reading and as
-    inputs while editing. The card's inputs belong to the record's one Save
+    trade and guide month, as greyed boxes while reading and as inputs while
+    editing. A card carries no mileage: the Case's own is used wherever a
+    valuation needs one (operator, 24 September 2026). The card's inputs belong to the record's one Save
     form, #case-edit-form, so the ribbon Save records a changed card (the
     same source and month replaces); Get valuation asks the connected
     provider by script and fills the boxes, or shows the card's notice. The
     Valuation month and AI market research above the cards start the existing
-    research job. The preview lines are Core's own arithmetic, fetched by
-    script from the PreviewValuation handler; without script the Apply posts
-    and the applied calculation is shown after the redirect.
+    research job. The calculator's controls and the Basis radios belong to
+    the same form (one Save, 23 September 2026): the ribbon Save adopts the
+    calculation as the Engineer's Value when it differs from the one the page
+    opened on (selection.Opening), and leaves the value alone otherwise. The
+    preview lines are Core's own arithmetic, fetched by script from the
+    PreviewValuation handler; without script the applied calculation is
+    shown after the Save.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -30,7 +35,6 @@
     var applied = Model.LatestAppliedValuation;
     var pending = Model.PendingMarketResearch;
     var claimantVat = Model.ClaimantVatRegistered;
-    var appliedAdditions = applied?.Calculation.Additions ?? [];
     // The calculator opens on the selection the latest adoption applied, so
     // the lines read the same in both modes until the Engineer changes one.
     var appliedIsBasis = applied is not null && basis is not null && basis.ValuationId == applied.GuideValuationId;
@@ -52,19 +56,15 @@
         ? null
         : Model.Valuations.FirstOrDefault(valuation => valuation.ValuationId == applied.GuideValuationId);
     var appliedBasisName = appliedBasis is null ? "Guide" : ValuationLabels.SourceLabel(appliedBasis.Details.Source);
-    var lineForm = editable ? "case-valuation-form" : null;
+    var lineForm = editable ? "case-edit-form" : null;
     var absent = OperatorLabels.CaseWorkspace.AbsentValue;
 
-    // The value increases, one list in both modes: every active preset, ticked
-    // where the latest adoption applied it, then any applied increase that is
-    // not an active preset (a custom one, or a preset since withdrawn).
-    var activePresets = Model.ValuationPresets.Where(item => item.Active && item.RemovedAtUtc is null).ToArray();
-    ValuationAddition? AppliedPreset(ValuationPreset preset) =>
-        appliedAdditions.FirstOrDefault(addition => addition.PresetId != Guid.Empty && addition.PresetId == preset.Id);
-    var otherApplied = appliedAdditions
-        .Where(addition => addition.PresetId == Guid.Empty || activePresets.All(preset => preset.Id != addition.PresetId))
-        .ToArray();
-    var hasIncreases = editable || activePresets.Length > 0 || otherApplied.Length > 0;
+    // The value increases, one list in both modes (DetailsModel.ValuationIncreaseRows):
+    // every active preset, ticked where the latest adoption applied it, then any
+    // applied increase that is not an active preset. Read mode leaves out the
+    // blank custom rows the calculator offers.
+    var shownIncreases = Model.ValuationIncreaseRows.Where(row => row.PresetId != Guid.Empty || row.Selected).ToArray();
+    var hasIncreases = editable || shownIncreases.Length > 0;
 
     string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
     string MoneyOrAbsent(decimal? value) => value is { } amount ? Money(amount) : OperatorLabels.CaseWorkspace.AbsentValue;
@@ -140,7 +140,6 @@
                 var trade = recorded?.Details.TradeValue;
                 // A card holds exactly what was recorded, in both modes: any
                 // box may be blank (operator, 23 September 2026).
-                var mileage = recorded?.Details.Mileage;
                 var canBeBasis = recorded is not null && Pegasus.Web.Pages.Cases.DetailsModel.CanBeBasis(recorded);
                 var month = recorded?.Details.GuideMonth;
                 var monthValue = month?.ToString("yyyy-MM", CultureInfo.InvariantCulture);
@@ -149,8 +148,8 @@
                 var idPrefix = "f-valuation-" + slug + "-";
                 @* One card per source in both modes. While editing, its boxes join
                    the Case form and the ribbon Save records a changed card; Get
-                   valuation fills them by script. The Basis radio belongs to the
-                   calculator's form and is chosen by clicking the card. *@
+                   valuation fills them by script. The Basis radio, chosen by
+                   clicking the card, joins the same form. *@
                 <div class="valuation-card entry @(selected ? "sel" : null)"
                      tabindex="@(editable && canBeBasis ? "0" : null)"
                      data-valuation-entry="@slug"
@@ -168,9 +167,8 @@
                         {
                             <label class="pick sr-only">
                                 <input type="radio" name="selection.GuideValuationId" value="@recorded.ValuationId"
-                                       form="case-valuation-form" checked="@(selected ? "checked" : null)"
+                                       form="case-edit-form" checked="@(selected ? "checked" : null)"
                                        data-valuation-basis
-                                       data-stamp="@Pegasus.Web.Pages.Cases.DetailsModel.StampOf(recorded).ToString("o", CultureInfo.InvariantCulture)"
                                        data-source-name="@ValuationLabels.SourceLabel(source)" />
                                 @ValuationLabels.Basis
                             </label>
@@ -201,14 +199,6 @@
                             @if (editable)
                             {
                                 <input id="@(idPrefix)month" class="fi" type="month" name="@(field)GuideMonth" form="case-edit-form" value="@monthValue" data-valuation-entry-month />
-                            }
-                        </div>
-                        <div class="@cellClass">
-                            @{ CardLabel(editable, idPrefix + "mileage", ValuationLabels.Mileage); }
-                            <div class="fv mono @(mileage is null ? "empty" : null)">@(mileage is { } mileageShown ? mileageShown.ToString("N0", CultureInfo.InvariantCulture) : absent)</div>
-                            @if (editable)
-                            {
-                                <input id="@(idPrefix)mileage" class="fi mono" type="number" min="0" name="@(field)Mileage" form="case-edit-form" value="@mileage?.ToString(CultureInfo.InvariantCulture)" data-valuation-mileage />
                             }
                         </div>
                     </div>
@@ -256,9 +246,8 @@
                         {
                             <label class="pick sr-only">
                                 <input type="radio" name="selection.GuideValuationId" value="@valuation.ValuationId"
-                                       form="case-valuation-form" checked="@(selected ? "checked" : null)"
+                                       form="case-edit-form" checked="@(selected ? "checked" : null)"
                                        data-valuation-basis
-                                       data-stamp="@Pegasus.Web.Pages.Cases.DetailsModel.StampOf(valuation).ToString("o", CultureInfo.InvariantCulture)"
                                        data-source-name="@ValuationLabels.SourceLabel(valuation.Details.Source)" />
                                 @ValuationLabels.Basis
                             </label>
@@ -288,21 +277,15 @@
             }
         </div>
 
-        @if (editable)
-        {
-            <form method="post" asp-page="/Cases/Details" asp-page-handler="ApplyValuation" asp-route-id="@caseId"
-                  id="case-valuation-form" data-valuation-form data-case-save-first
-                  data-preview-url="@Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId })">
-                <input type="hidden" name="id" value="@caseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <input type="hidden" name="guideValuationStampUtc" data-valuation-stamp
-                       value="@(basis is null ? string.Empty : Pegasus.Web.Pages.Cases.DetailsModel.StampOf(basis).ToString("o", CultureInfo.InvariantCulture))" />
-            </form>
-        }
-
-        <div class="calc" data-valuation-calc>
+        <div class="calc" data-valuation-calc
+             data-valuation-form="@(editable ? "true" : null)"
+             data-preview-url="@(editable ? Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId }) : null)">
+            @if (editable)
+            {
+                @* The calculation the page opened on: the Save adopts only one
+                   that differs from it. *@
+                <input type="hidden" name="selection.Opening" value="@Model.OpeningValuationCanonical" form="case-edit-form" />
+            }
             @* On the report (v28 P38): the three content switches, decided beside
                the valuation they describe. One cell, so editing shows the
                switches in place of the summary. A checkbox posts "true" ahead
@@ -377,38 +360,38 @@
                 <div class="adds" data-valuation-adds>
                     @if (editable)
                     {
+                        @* The rows the calculation opens on (DetailsModel.ValuationIncreaseRows):
+                           every active preset, then the custom rows, where an
+                           applied increase that is not an active preset opens. *@
                         var index = 0;
-                        foreach (var preset in activePresets)
+                        foreach (var row in Model.ValuationIncreaseRows)
                         {
-                            var chosen = AppliedPreset(preset);
-                            <div class="add @(chosen is null ? null : "on")" data-valuation-add="@index">
-                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(chosen is null ? null : "checked")" data-preset-toggle data-valuation-input aria-label="@preset.Label" />
-                                <input type="hidden" name="selection.AdditionPresetId" value="@preset.Id" form="@lineForm" />
-                                <input type="hidden" name="selection.AdditionPresetVersion" value="@preset.Version" form="@lineForm" />
-                                <input type="hidden" name="selection.AdditionLabel" value="" form="@lineForm" />
-                                <label for="f-valuation-add-@index">@preset.Label</label>
-                                <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm"
-                                       value="@((chosen?.Amount ?? preset.SuggestedAmount).ToString("0.##", CultureInfo.InvariantCulture))" placeholder="£"
-                                       aria-label="@preset.Label amount" data-valuation-input />
-                            </div>
-                            index++;
-                        }
-                        @* The custom rows: an applied increase that is not an
-                           active preset opens in one, so re-applying keeps it. *@
-                        var customRows = Math.Max(2, otherApplied.Length);
-                        for (var custom = 0; custom < customRows; custom++)
-                        {
-                            var carried = custom < otherApplied.Length ? otherApplied[custom] : null;
-                            <div class="add add--custom @(carried is null ? null : "on")" data-valuation-add="@index">
-                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(carried is null ? null : "checked")" data-preset-toggle data-valuation-input aria-label="@ValuationLabels.OtherAddition" />
-                                <input type="hidden" name="selection.AdditionPresetId" value="@Guid.Empty" form="@lineForm" />
-                                <input type="hidden" name="selection.AdditionPresetVersion" value="0" form="@lineForm" />
-                                <input type="text" name="selection.AdditionLabel" form="@lineForm" maxlength="@ValuationCalculationPolicy.MaximumAdditionLabelLength"
-                                       value="@carried?.Label" placeholder="@ValuationLabels.OtherAddition" aria-label="@ValuationLabels.OtherAddition" data-valuation-input />
-                                <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm" placeholder="£"
-                                       value="@carried?.Amount.ToString("0.##", CultureInfo.InvariantCulture)"
-                                       aria-label="@ValuationLabels.OtherAddition amount" data-valuation-input />
-                            </div>
+                            if (row.PresetId != Guid.Empty)
+                            {
+                                <div class="add @(row.Selected ? "on" : null)" data-valuation-add="@index">
+                                    <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(row.Selected ? "checked" : null)" data-preset-toggle data-valuation-input aria-label="@row.Label" />
+                                    <input type="hidden" name="selection.AdditionPresetId" value="@row.PresetId" form="@lineForm" />
+                                    <input type="hidden" name="selection.AdditionPresetVersion" value="@row.PresetVersion" form="@lineForm" />
+                                    <input type="hidden" name="selection.AdditionLabel" value="" form="@lineForm" />
+                                    <label for="f-valuation-add-@index">@row.Label</label>
+                                    <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm"
+                                           value="@row.Amount?.ToString("0.##", CultureInfo.InvariantCulture)" placeholder="£"
+                                           aria-label="@row.Label amount" data-valuation-input />
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="add add--custom @(row.Selected ? "on" : null)" data-valuation-add="@index">
+                                    <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" checked="@(row.Selected ? "checked" : null)" data-preset-toggle data-valuation-input aria-label="@ValuationLabels.OtherAddition" />
+                                    <input type="hidden" name="selection.AdditionPresetId" value="@Guid.Empty" form="@lineForm" />
+                                    <input type="hidden" name="selection.AdditionPresetVersion" value="0" form="@lineForm" />
+                                    <input type="text" name="selection.AdditionLabel" form="@lineForm" maxlength="@ValuationCalculationPolicy.MaximumAdditionLabelLength"
+                                           value="@row.Label" placeholder="@ValuationLabels.OtherAddition" aria-label="@ValuationLabels.OtherAddition" data-valuation-input />
+                                    <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm" placeholder="£"
+                                           value="@row.Amount?.ToString("0.##", CultureInfo.InvariantCulture)"
+                                           aria-label="@ValuationLabels.OtherAddition amount" data-valuation-input />
+                                </div>
+                            }
                             index++;
                         }
                     }
@@ -416,21 +399,12 @@
                     {
                         @* Read mode lists the same increases; a tick marks each one
                            the latest adoption applied (a mark, not a control). *@
-                        foreach (var preset in activePresets)
+                        foreach (var row in shownIncreases)
                         {
-                            var chosen = AppliedPreset(preset);
-                            <div class="add @(chosen is null ? null : "on")" data-valuation-applied-addition="@(chosen is null ? null : "true")">
-                                <span class="add-check" aria-hidden="@(chosen is null ? "true" : null)">@if (chosen is not null) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
-                                <span>@preset.Label</span>
-                                <span class="amt">@Money(chosen?.Amount ?? preset.SuggestedAmount)</span>
-                            </div>
-                        }
-                        foreach (var addition in otherApplied)
-                        {
-                            <div class="add on" data-valuation-applied-addition="true">
-                                <span class="add-check"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span></span>
-                                <span>@addition.Label</span>
-                                <span class="amt">@Money(addition.Amount)</span>
+                            <div class="add @(row.Selected ? "on" : null)" data-valuation-applied-addition="@(row.Selected ? "true" : null)">
+                                <span class="add-check" aria-hidden="@(row.Selected ? null : "true")">@if (row.Selected) {<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span class="sr-only">@ValuationLabels.Applied</span>}</span>
+                                <span>@row.Label</span>
+                                <span class="amt">@Money(row.Amount ?? 0m)</span>
                             </div>
                         }
                     }
@@ -451,15 +425,6 @@
                         <partial name="Cases/Shared/_CaseValuationLines" model="calculation" />
                     }
                 </div>
-                @if (editable)
-                {
-                    <div class="cluster mt-2">
-                        <button type="submit" form="case-valuation-form" class="btn btn--primary" data-valuation-apply disabled="@(basis is null ? "disabled" : null)">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                            <span>@ValuationLabels.ApplyAsEngineersValue</span>
-                        </button>
-                    </div>
-                }
                 <div class="hist" data-valuation-history>
                     <dl class="definition-list">
                         @if (applied is null)

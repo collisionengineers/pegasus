@@ -443,6 +443,14 @@ internal static class CaseDataFieldValues
     internal static string? Current(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName) =>
         CurrentField(fields, fieldName)?.Value;
 
+    /// <summary>The accepted value: confirmed, else the intake fact; never a suggestion.</summary>
+    internal static string? Accepted(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
+    {
+        var values = fields.Where(item => item.FieldName == fieldName).ToArray();
+        return (values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
+            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact))?.Value;
+    }
+
     /// <summary>
     /// The winning row itself, for the one reader that needs more than the
     /// value: the report's mileage source is derived from the row's provenance.

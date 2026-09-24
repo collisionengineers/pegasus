@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -361,6 +362,30 @@ internal static class MultiFormatFixture
 
 internal static class ImageIntakeTestData
 {
+    /// <summary>
+    /// Runs the queued Vehicle images custody the Worker would run: a
+    /// registered record's photographs are read from its own folder, never
+    /// from a holding copy (operator, 23 September 2026).
+    /// </summary>
+    public static async Task ProcessImageCaseCustodyAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        Guid[] workIds;
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            workIds = await context.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.Kind == ExternalWorkKinds.CreateImageCaseCustody)
+                .Select(item => item.Id)
+                .ToArrayAsync();
+        }
+        Assert.NotEmpty(workIds);
+        foreach (var workId in workIds)
+        {
+            await scope.ServiceProvider.GetRequiredService<IProcessQueuedCustody>()
+                .ExecuteAsync(workId, CancellationToken.None);
+        }
+    }
+
     /// <summary>
     /// Inserts one principal with the given code and active flag, together
     /// with the organization and sequence lineage its foreign keys require.
