@@ -833,13 +833,11 @@ public sealed partial class DetailsModel(
         {
             return NotFound();
         }
-        // A Triage Case renders its own workspace (Details.Triage.cs).
-        switch (await getCaseKind.ExecuteAsync(id, cancellationToken))
+        // A Triage Case renders its own workspace (Details.Triage.cs); an
+        // unknown id is not found by the Case frame read below.
+        if (await getCaseKind.ExecuteAsync(id, cancellationToken) == CaseType.Triage)
         {
-            case null:
-                return NotFound();
-            case CaseType.Triage:
-                return await GetTriageCaseAsync(id, actor, triagePorts, cancellationToken);
+            return await GetTriageCaseAsync(id, actor, triagePorts, cancellationToken);
         }
 
         using var activity = DocumentReadTelemetry.Start("web.case.main");

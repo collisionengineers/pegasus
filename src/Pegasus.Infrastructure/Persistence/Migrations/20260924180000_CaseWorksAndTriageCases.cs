@@ -140,11 +140,11 @@ public partial class CaseWorksAndTriageCases : Migration
                     onDelete: ReferentialAction.Restrict);
             });
 
-        migrationBuilder.CreateIndex(
-            name: "IX_CaseWorks_CaseId_Kind",
-            table: "CaseWorks",
-            columns: new[] { "CaseId", "Kind" },
-            unique: true);
+        // Unique indexes on NOT NULL columns are written as SQL: this migration
+        // has no target model, so EF would filter them on IS NOT NULL, and a
+        // filter naming a column blocks a later rename of it.
+        migrationBuilder.Sql(
+            "CREATE UNIQUE INDEX [IX_CaseWorks_CaseId_Kind] ON [CaseWorks] ([CaseId], [Kind]);");
 
         migrationBuilder.CreateIndex(
             name: "IX_CaseWorks_ReportApprovalId",
@@ -264,11 +264,8 @@ public partial class CaseWorksAndTriageCases : Migration
             name: "AuditOfCaseId",
             table: "Cases");
 
-        migrationBuilder.CreateIndex(
-            name: "IX_Cases_SequenceLineageId_Year_Sequence",
-            table: "Cases",
-            columns: new[] { "SequenceLineageId", "Year", "Sequence" },
-            unique: true);
+        migrationBuilder.Sql(
+            "CREATE UNIQUE INDEX [IX_Cases_SequenceLineageId_Year_Sequence] ON [Cases] ([SequenceLineageId], [Year], [Sequence]);");
 
         migrationBuilder.AlterColumn<string>(
             name: "InitialState",
@@ -493,11 +490,8 @@ public partial class CaseWorksAndTriageCases : Migration
                 onDelete: ReferentialAction.Restrict);
         }
 
-        migrationBuilder.CreateIndex(
-            name: "IX_TriageResponseEvidenceLinks_TriageCaseId",
-            table: "TriageResponseEvidenceLinks",
-            column: "TriageCaseId",
-            unique: true);
+        migrationBuilder.Sql(
+            "CREATE UNIQUE INDEX [IX_TriageResponseEvidenceLinks_TriageCaseId] ON [TriageResponseEvidenceLinks] ([TriageCaseId]);");
 
         // 8. The engineer finding and the Triage sequence go (its seed row with it).
         migrationBuilder.DropTable(

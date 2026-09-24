@@ -136,9 +136,10 @@ public sealed class TriageCaseWebTests
         }
 
         // The guard is by kind, not a blanket refusal: an instructed Case still
-        // answers on its own sub-routes.
-        using var caseTasks = await client.GetAsync($"/Cases/{inspection.CaseId:D}/Tasks");
-        Assert.NotEqual(HttpStatusCode.NotFound, caseTasks.StatusCode);
+        // answers on its own sub-routes. The others are post-only, so the one
+        // that answers a GET (the Assessment redirect) is the control.
+        using var caseAssessment = await client.GetAsync($"/Cases/{inspection.CaseId:D}/Assessment");
+        Assert.NotEqual(HttpStatusCode.NotFound, caseAssessment.StatusCode);
     }
 
     [Fact]
@@ -427,7 +428,7 @@ public sealed class TriageCaseWebTests
                 caseLease.Version,
                 caseLease.Token,
                 actor,
-                "link-cancelled-case",
+                "link-to-cancelled-case",
                 "Staff confirmed this material belongs with the Case."),
             CancellationToken.None);
 
