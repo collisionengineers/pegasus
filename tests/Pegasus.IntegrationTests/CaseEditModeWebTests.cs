@@ -182,7 +182,7 @@ public sealed class CaseEditModeWebTests
     }
 
     [Fact]
-    public async Task TheRibbonSaveEndsEditModeAndReleasesTheLease()
+    public async Task TheRibbonSaveEndsEditMode()
     {
         var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
         using var workspace = await EnterEditModeAsync(store, services =>
@@ -201,10 +201,10 @@ public sealed class CaseEditModeWebTests
                 ("claimNumber", "CLM-42")));
         AssertPrg(response, store.CaseId);
         Assert.Single(store.Saves);
+        // The save consumed the lease and none is claimed again: there is
+        // nothing left to release.
         Assert.Single(store.Claims);
-        var release = Assert.Single(store.LeaseReleases);
-        AssertClaimant(workspace, release.Actor);
-        Assert.Equal(store.LeaseToken, release.LeaseToken);
+        Assert.Empty(store.LeaseReleases);
         var after = await workspace.GetWorkspaceAsync();
         Assert.Contains("Case saved.", after, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", after, StringComparison.Ordinal);

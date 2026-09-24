@@ -205,63 +205,47 @@ public sealed class EfValuationStore(
     }
 
     /// <summary>
-    /// Adopts a calculated valuation as the Case's Engineer's Value. The
-    /// selected guide card, the maintained presets, the claimant's own VAT
-    /// position, the Case version, the edit lease and the Engineer's finding
-    /// authority are all rechecked here — the form is the request, never the
-    /// authority — and the accepted value and its whole ordered calculation
-    /// are then written in one serializable transaction.
+    /// Adopts a calculated valuation as the Case's Engineer's Value inside the
+    /// Case save's own transaction (23 September 2026: one Save, which adopts
+    /// only a calculation the operator changed). The basis card, the
+    /// maintained presets and the Engineer's finding authority are rechecked
+    /// here — the form is the request, never the authority. The basis is the
+    /// card as this save leaves it: when the save recorded the basis source's
+    /// card for a new guide month, that new card is the one on screen. The
+    /// claimant's VAT position is the one this save records. The Case save
+    /// owns the version, the workflow event and the history line; this writes
+    /// the Engineer's Value row and field, the applied snapshot and its
+    /// action-history entry. No stamp is checked: every writer of a guide
+    /// card moves the Case version, which the save has already checked.
     /// </summary>
-    public async Task<AppliedValuation> ApplyAsync(
-        ApplyValuationRequest request,
+    internal static async Task<ValuationAdopted> AdoptAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        string operationKey,
+        ValuationCalculationSelection selection,
+        IReadOnlyList<CaseValuationEntity> writtenBySave,
+        bool claimantVatRegistered,
+        long? caseMileageInMiles,
+        long resultingCaseVersion,
+        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        request = ValuationCalculationPolicy.ValidateApply(request);
-        const string eventKind = "valuation_applied";
-        var requestHash = Hash(request);
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var replay = await FindReplayAsync(
+        var posted = await RequiredGuideAsync(
             context,
-            request.CaseId,
-            request.OperationKey,
+            workflow.CaseId,
+            selection.GuideValuationId,
             cancellationToken);
-        if (replay is not null)
-        {
-            return RequireExactReplay<AppliedValuation>(
-                replay,
-                eventKind,
-                requestHash,
-                request.CaseId,
-                request.OperationKey);
-        }
-
-        var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
-        var now = Now();
-        Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
-        var beforeDependencies = await ReadReportDependenciesAsync(
+        var guideEntity = writtenBySave.LastOrDefault(item => item.Source == posted.Source) ?? posted;
+        var basis = await ReadBasisAsync(
             context,
-            request.CaseId,
+            workflow.CaseId,
+            guideEntity,
+            claimantVatRegistered,
             cancellationToken);
-
-        var guideEntity = await RequiredGuideAsync(
-            context,
-            request.CaseId,
-            request.Selection.GuideValuationId,
-            cancellationToken);
-        var basis = await ReadBasisAsync(context, request.CaseId, guideEntity, cancellationToken);
-        if (basis.GuideValuationStampUtc != request.GuideValuationStampUtc)
-        {
-            throw new InvalidOperationException(
-                "The selected guide valuation changed after the calculation was prepared.");
-        }
-
         var calculation = ValuationCalculationPolicy.Calculate(
-            ValuationCalculationPolicy.Resolve(request.Selection, basis));
-        var accepted = ValuationCalculationPolicy.AcceptedValue(request, calculation);
+            ValuationCalculationPolicy.Resolve(selection, basis));
+        var accepted = ValuationCalculationPolicy.AcceptedValue(calculation);
 
         // The Valuations table stays the one entry surface of
         // assessment.values.engineer: the adoption writes an Engineer's Value
@@ -271,15 +255,17 @@ public sealed class EfValuationStore(
         var adopted = new CaseValuationEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
+            CaseId = workflow.CaseId,
             Case = workflow.Case,
             Source = ValuationSource.EngineersValue.ToString(),
             Date = DateOnly.FromDateTime(now.UtcDateTime),
             Time = TimeOnly.FromDateTime(now.UtcDateTime),
-            Mileage = guideEntity.Mileage,
+            // The Case's own mileage (operator, 24 September 2026): a guide
+            // card carries none. The value needs it, as the lookup does.
+            Mileage = caseMileageInMiles,
             RetailValue = accepted,
             TradeValue = 0m,
-            RecordedBy = request.Actor.SubjectId,
+            RecordedBy = actor.SubjectId,
             RecordedAtUtc = now,
         };
         ValuationPolicy.ValidateDetails(Map(adopted).Details);
@@ -287,95 +273,80 @@ public sealed class EfValuationStore(
         var engineersValue = await WriteEngineersValueAsync(
             context,
             workflow,
-            request.Actor,
+            actor,
             adopted,
             previousSource: null,
             now,
             cancellationToken);
 
         var snapshot = new AppliedValuationSnapshot(
-            workflow.Version,
+            resultingCaseVersion,
             basis.GuideValuationId,
             basis.GuideValuationStampUtc,
             calculation);
         var snapshotJson = JsonSerializer.Serialize(snapshot, SerializerOptions);
-        var reason = request.Reason.Trim();
+        const string reason = ValuationCalculationPolicy.AppliedReason;
 
-        // The hash is what the case makes of the calculation, not when it was
-        // made: the Case version is deliberately left out so that adopting
-        // the same figures from the same card for the same reason a second
-        // time is caught here rather than recorded twice.
+        // The Case version this adoption produced is part of what it is, so
+        // returning to an earlier calculation in a later save is a new
+        // adoption rather than a repeat of the first.
         var snapshotHash = Hash(new
         {
-            request.CaseId,
+            workflow.CaseId,
+            snapshot.CaseVersion,
             snapshot.GuideValuationId,
             snapshot.GuideValuationStampUtc,
             snapshot.Calculation,
             Accepted = accepted,
             Reason = reason,
         });
-        if (await context.Set<AppliedValuationSnapshotEntity>().AnyAsync(
-                item => item.CaseId == request.CaseId && item.SnapshotHash == snapshotHash,
-                cancellationToken))
-        {
-            throw new InvalidOperationException(
-                "This valuation calculation and reason were already applied to this case.");
-        }
-
         var entity = new AppliedValuationSnapshotEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
+            CaseId = workflow.CaseId,
             SnapshotJson = snapshotJson,
             CalculationPolicyVersion = ValuationCalculationPolicy.PolicyStamp,
-            GeneratedByKind = request.Actor.Kind.ToString(),
-            GeneratedBySubjectId = request.Actor.SubjectId,
+            GeneratedByKind = actor.Kind.ToString(),
+            GeneratedBySubjectId = actor.SubjectId,
             SnapshotHash = snapshotHash,
             AcceptedEngineerValue = accepted,
-            AcceptedBy = request.Actor.SubjectId,
+            AcceptedBy = actor.SubjectId,
             AcceptedAtUtc = now,
             Reason = reason,
             PolicyVersion = $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
         };
         context.Set<AppliedValuationSnapshotEntity>().Add(entity);
         var result = Map(entity, snapshot);
-        AddHistory(
+        AddActionHistory(
             context,
-            workflow,
-            request.Actor,
-            request.OperationKey,
-            request.Reason,
-            eventKind,
-            requestHash,
+            actor,
             "case_applied_valuation",
             result.Id,
-            JsonSerializer.Serialize(result, SerializerOptions),
+            "valuation_applied",
+            operationKey,
+            reason,
             engineersValue?.Before is null
                 ? null
-                : JsonSerializer.Serialize(
-                    new { EngineersValue = engineersValue.Before },
-                    SerializerOptions),
+                : JsonSerializer.Serialize(new { EngineersValue = engineersValue.Before }, SerializerOptions),
             JsonSerializer.Serialize(
                 new { AppliedValuation = result, EngineersValue = engineersValue?.After },
                 SerializerOptions),
             ValuationCalculationPolicy.PolicyStamp,
             now);
-        var afterDependencies = WithEngineersValue(beforeDependencies, engineersValue) with
-        {
-            AppliedValuationId = result.Id,
-            AcceptedEngineerValue = result.AcceptedEngineerValue,
-            AppliedValuationReason = result.Reason,
-        };
-        await MarkStaleIfNeededAsync(
-            context,
-            request.CaseId,
-            beforeDependencies,
-            afterDependencies,
-            now,
-            cancellationToken);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return result;
+        return new(result, engineersValue);
+    }
+
+    /// <summary>An adoption a Case save recorded, and the Engineer's Value field either side of it.</summary>
+    internal sealed record ValuationAdopted(AppliedValuation Applied, EngineersValueChange? EngineersValue)
+    {
+        /// <summary>The report's valuation dependencies once this adoption stands.</summary>
+        public CaseReportValuationDependencies Apply(CaseReportValuationDependencies dependencies) =>
+            WithEngineersValue(dependencies, EngineersValue) with
+            {
+                AppliedValuationId = Applied.Id,
+                AcceptedEngineerValue = Applied.AcceptedEngineerValue,
+                AppliedValuationReason = Applied.Reason,
+            };
     }
 
     /// <summary>
@@ -428,21 +399,27 @@ public sealed class EfValuationStore(
             caseId,
             guideValuationId,
             cancellationToken);
-        return await ReadBasisAsync(context, caseId, guide, cancellationToken);
+        var claimantVatField = await context.CaseAssessmentFields.AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.CaseId == caseId
+                    && item.FieldPath == AssessmentVocabulary.SettlementClaimantVatRegistered,
+                cancellationToken);
+        return await ReadBasisAsync(
+            context,
+            caseId,
+            guide,
+            string.Equals(claimantVatField?.Value, "true", StringComparison.Ordinal),
+            cancellationToken);
     }
 
     private static async Task<ValuationCalculationBasis> ReadBasisAsync(
         PegasusDbContext context,
         Guid caseId,
         CaseValuationEntity guideEntity,
+        bool claimantVatRegistered,
         CancellationToken cancellationToken)
     {
         var guide = Map(guideEntity);
-        var claimantVatField = await context.CaseAssessmentFields.AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.CaseId == caseId
-                    && item.FieldPath == AssessmentVocabulary.SettlementClaimantVatRegistered,
-                cancellationToken);
         // Every preset row, disabled and removed included: the selection
         // rules that refuse them live in Core, so the read stays a read.
         var presets = await context.Set<ValuationPresetEntity>()
@@ -459,7 +436,7 @@ public sealed class EfValuationStore(
             // is never offered as the basis, so this refuses only a stale page.
             guide.Details.RetailValue
                 ?? throw new ArgumentException("The chosen guide valuation has no retail value to calculate from."),
-            string.Equals(claimantVatField?.Value, "true", StringComparison.Ordinal),
+            claimantVatRegistered,
             [.. presets.Select(EfValuationPresetStore.Map)])
         {
             RecordedAdditions =
@@ -838,9 +815,9 @@ public sealed class EfValuationStore(
     /// of their own). Each card replaces the same source's card for the same
     /// guide month, as <see cref="SaveAsync"/> does. A card whose figures are
     /// already the recorded ones is left untouched, because rewriting it would
-    /// move its last-written stamp, which an Apply pins itself to. The Case
-    /// save owns the version, the workflow event and the history line, so this
-    /// writes only the rows and their action-history entries.
+    /// move its last-written stamp. The Case save owns the version, the
+    /// workflow event and the history line, so this writes only the rows and
+    /// their action-history entries.
     /// </summary>
     internal static async Task<GuideEntriesRecorded> RecordGuideEntriesAsync(
         PegasusDbContext context,
@@ -853,6 +830,7 @@ public sealed class EfValuationStore(
     {
         var beforeDependencies = await ReadReportDependenciesAsync(context, workflow.CaseId, cancellationToken);
         var recorded = new List<ValuationDetails>(entries.Count);
+        var written = new List<CaseValuationEntity>(entries.Count);
         foreach (var details in entries)
         {
             var replaced = await FindReplacedAsync(context, workflow.CaseId, details, cancellationToken);
@@ -878,30 +856,25 @@ public sealed class EfValuationStore(
             }
 
             var result = Map(entity);
-            context.ActionHistory.Add(new()
-            {
-                Id = Guid.NewGuid(),
-                AggregateType = "case_valuation",
-                AggregateId = result.ValuationId.ToString("D"),
-                EventKind = replaced is null ? "valuation_created" : "valuation_replaced",
-                ActorKind = actor.Kind.ToString(),
-                ActorSubjectId = actor.SubjectId,
-                ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role), SerializerOptions),
-                OccurredAtUtc = now,
-                Outcome = "Succeeded",
-                CorrelationId = operationKey,
-                Reason = "Valuation recorded.",
-                BeforeJson = before is null
-                    ? null
-                    : JsonSerializer.Serialize(new { Valuation = before }, SerializerOptions),
-                AfterJson = JsonSerializer.Serialize(new { Valuation = result }, SerializerOptions),
-                PolicyVersion = $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
-            });
+            AddActionHistory(
+                context,
+                actor,
+                "case_valuation",
+                result.ValuationId,
+                replaced is null ? "valuation_created" : "valuation_replaced",
+                operationKey,
+                "Valuation recorded.",
+                before is null ? null : JsonSerializer.Serialize(new { Valuation = before }, SerializerOptions),
+                JsonSerializer.Serialize(new { Valuation = result }, SerializerOptions),
+                $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
+                now);
             recorded.Add(details);
+            written.Add(entity);
         }
 
         return new(
             recorded,
+            written,
             beforeDependencies,
             beforeDependencies with
             {
@@ -910,9 +883,10 @@ public sealed class EfValuationStore(
             });
     }
 
-    /// <summary>The guide cards a Case save wrote, and the report's valuation dependencies either side of them.</summary>
+    /// <summary>The guide cards a Case save wrote, their rows, and the report's valuation dependencies either side of them.</summary>
     internal sealed record GuideEntriesRecorded(
         IReadOnlyList<ValuationDetails> Recorded,
+        IReadOnlyList<CaseValuationEntity> Written,
         CaseReportValuationDependencies Before,
         CaseReportValuationDependencies After);
 
@@ -950,11 +924,42 @@ public sealed class EfValuationStore(
             $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
             now);
 
+    /// <summary>One action-history entry for a valuation write.</summary>
+    private static void AddActionHistory(
+        PegasusDbContext context,
+        ActionActor actor,
+        string aggregateType,
+        Guid aggregateId,
+        string eventKind,
+        string operationKey,
+        string reason,
+        string? beforeJson,
+        string afterJson,
+        string policyVersion,
+        DateTimeOffset now) =>
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = aggregateType,
+            AggregateId = aggregateId.ToString("D"),
+            EventKind = eventKind,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role), SerializerOptions),
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = operationKey,
+            Reason = reason,
+            BeforeJson = beforeJson,
+            AfterJson = afterJson,
+            PolicyVersion = policyVersion,
+        });
+
     /// <summary>
-    /// The one history shape every valuation write records: the replayable
-    /// workflow event, the action-history entry with its before/after payload,
-    /// and the Case history line. Recording a card and adopting a calculated
-    /// Engineer's Value differ only in what they put in those payloads.
+    /// The history a valuation command records: the replayable workflow event,
+    /// the action-history entry with its before/after payload, and the Case
+    /// history line. (A Case save's cards and adoption record only the
+    /// action-history entry: the save owns the workflow event.)
     /// </summary>
     private static void AddHistory(
         PegasusDbContext context,
@@ -993,23 +998,9 @@ public sealed class EfValuationStore(
             AfterVersion = workflow.Version,
             ResultJson = resultJson,
         });
-        context.ActionHistory.Add(new()
-        {
-            Id = Guid.NewGuid(),
-            AggregateType = aggregateType,
-            AggregateId = aggregateId.ToString("D"),
-            EventKind = eventKind,
-            ActorKind = actor.Kind.ToString(),
-            ActorSubjectId = actor.SubjectId,
-            ActorRolesJson = roles,
-            OccurredAtUtc = now,
-            Outcome = "Succeeded",
-            CorrelationId = operationKey,
-            Reason = reason.Trim(),
-            BeforeJson = beforeJson,
-            AfterJson = afterJson,
-            PolicyVersion = policyVersion,
-        });
+        AddActionHistory(
+            context, actor, aggregateType, aggregateId, eventKind, operationKey,
+            reason.Trim(), beforeJson, afterJson, policyVersion, now);
         context.CaseHistory.Add(new()
         {
             Id = Guid.NewGuid(),
