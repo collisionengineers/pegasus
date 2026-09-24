@@ -41,10 +41,38 @@ public sealed class EfStaffPasswordChange(
             cancellationToken)
             ?? throw new StaffPasswordChangeException(
                 StaffPasswordChangeError.StaffAccountNotFound);
-        var change = await userManager.ChangePasswordAsync(
-            user,
-            request.CurrentPassword,
-            request.NewPassword);
+        IdentityResult change;
+        if (request.CurrentPassword is null)
+        {
+            // A forced change replaces the issued password rather than proving
+            // it. Only an account the Administrator put into forced-change
+            // state may skip the proof; anyone else is treated as having got
+            // the current password wrong.
+            if (!user.MustChangePassword)
+            {
+                throw new StaffPasswordChangeException(
+                    StaffPasswordChangeError.CurrentPasswordInvalid);
+            }
+
+            if (await userManager.CheckPasswordAsync(user, request.NewPassword))
+            {
+                throw new StaffPasswordChangeException(
+                    StaffPasswordChangeError.PasswordUnchanged);
+            }
+
+            // Reset rather than a raw hash write so the password validators run
+            // and the security stamp rotates, exactly as ChangePasswordAsync does.
+            var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
+            change = await userManager.ResetPasswordAsync(user, resetToken, request.NewPassword);
+        }
+        else
+        {
+            change = await userManager.ChangePasswordAsync(
+                user,
+                request.CurrentPassword,
+                request.NewPassword);
+        }
+
         if (!change.Succeeded)
         {
             var passwordMismatchCode = new IdentityErrorDescriber().PasswordMismatch().Code;
