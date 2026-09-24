@@ -350,7 +350,6 @@ public sealed class CasesIndexWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var query = Assert.Single(search.Queries, candidate => candidate.Filters.Query == "QDOS31000");
-        // STAGE2-CONTRACT: CaseSearchFilters.IncludeTriage (owned by TRIAGE).
         Assert.True(query.Filters.IncludeTriage);
         Assert.Equal(25, query.PageSize); // Cases, not entries.
 
@@ -543,7 +542,6 @@ public sealed class CasesIndexWebTests
                     {
                         InstructionComplete = false,
                         ImagesComplete = false,
-                        // STAGE2-CONTRACT: CaseSearchItem.TriageState (owned by TRIAGE).
                         TriageState = Pegasus.Core.Triage.TriageState.Open
                     }
                 ];

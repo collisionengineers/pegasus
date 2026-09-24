@@ -770,11 +770,11 @@ internal sealed class EfQueuedCustodyProcessor(
                 "The later Audit custody operation has no immutable Audit identity.");
         }
 
-        var beforeVersion = workflow.Version;
+        // The folder is not a workflow fact: whoever is editing the Audit keeps
+        // their lease and version, as a Case note leaves them.
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
         caseEntity.AuditCustodyConfirmedAtUtc = now;
-        CaseMutationGuard.Complete(workflow);
         CompleteWork(work, now, auditFolderRemoteId);
         context.CaseHistory.Add(new()
         {
@@ -785,7 +785,7 @@ internal sealed class EfQueuedCustodyProcessor(
             Reason = "Later Audit reference custody confirmed.",
             OccurredAtUtc = now,
             OperationKey = $"{work.OperationKey}:confirmed",
-            BeforeVersion = beforeVersion,
+            BeforeVersion = workflow.Version,
             AfterVersion = workflow.Version
         });
         await context.SaveChangesAsync(cancellationToken);

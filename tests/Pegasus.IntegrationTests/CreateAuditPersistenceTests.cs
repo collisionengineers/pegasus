@@ -25,6 +25,19 @@ public sealed class CreateAuditPersistenceTests
     private static readonly int[] CopiedSpecificationVersions = [1, 2, 4];
     private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
 
+    /// <summary>The seeded Inspection's frozen calculation: the guide retail less a condition deduction.</summary>
+    private static readonly ValuationCalculation SeededCalculation = new(
+        GuideRetailValue: 12500m,
+        CommercialVatApplied: false,
+        CommercialVatAmount: 0m,
+        ValueIncludingVat: 12500m,
+        PriorTotalLossPercentage: null,
+        PriorTotalLossAmount: 0m,
+        Additions: [],
+        AdditionsTotal: 0m,
+        ConditionDeduction: 500m,
+        Proposal: 12000m);
+
     [Fact]
     public async Task CreateAuditKeepsOneCaseAndCopiesTheInspectionIntoItsAuditWork()
     {
@@ -241,6 +254,136 @@ public sealed class CreateAuditPersistenceTests
         Assert.Equal("Jane Inspection", claimant);
     }
 
+    /// <summary>
+    /// The Audit's a. folder is not a workflow fact: confirming it records the
+    /// folder and leaves whoever is editing the Audit their lease and version.
+    /// </summary>
+    [Fact]
+    public async Task ConfirmingTheAuditFolderLeavesTheEditLeaseAndVersionAlone()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-folder"), default);
+        await harness.ClaimAsync("edit-while-the-folder-is-made");
+        var editing = await harness.ReadEditAsync();
+        var workId = await harness.AuditCustodyWorkIdAsync();
+
+        await harness.CustodyProcessor(new AuditFolderCustody()).ExecuteAsync(workId, default);
+
+        Assert.NotNull(editing.LeaseTokenHash);
+        Assert.Equal(editing, await harness.ReadEditAsync());
+        await using var context = await harness.ContextAsync();
+        var caseEntity = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == harness.CaseId);
+        Assert.Equal($"case-{Reference}/{AuditReference}", caseEntity.AuditCustodyRemoteId);
+        Assert.NotNull(caseEntity.AuditCustodyConfirmedAtUtc);
+        Assert.Equal("completed", await context.ExternalWorkItems
+            .Where(item => item.Id == workId)
+            .Select(item => item.State)
+            .SingleAsync());
+        var confirmed = await context.CaseHistory.AsNoTracking()
+            .SingleAsync(item => item.CaseId == harness.CaseId && item.EventType == "audit_custody_confirmed");
+        Assert.Equal(editing.Version, confirmed.BeforeVersion);
+        Assert.Equal(editing.Version, confirmed.AfterVersion);
+    }
+
+    /// <summary>A failed a. folder likewise leaves the editor's lease and version alone.</summary>
+    [Fact]
+    public async Task AFailedAuditFolderLeavesTheEditLeaseAndVersionAlone()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-folder-fails"), default);
+        await harness.ClaimAsync("edit-while-the-folder-fails");
+        var editing = await harness.ReadEditAsync();
+        var workId = await harness.AuditCustodyWorkIdAsync();
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => harness.CustodyProcessor(new AuditFolderCustody(fails: true)).ExecuteAsync(workId, default));
+
+        Assert.NotNull(editing.LeaseTokenHash);
+        Assert.Equal(editing, await harness.ReadEditAsync());
+        await using var context = await harness.ContextAsync();
+        Assert.Equal("failed", await context.ExternalWorkItems
+            .Where(item => item.Id == workId)
+            .Select(item => item.State)
+            .SingleAsync());
+        var failed = await context.CaseHistory.AsNoTracking()
+            .SingleAsync(item => item.CaseId == harness.CaseId && item.EventType == "audit_custody_failed");
+        Assert.Equal(editing.Version, failed.BeforeVersion);
+        Assert.Equal(editing.Version, failed.AfterVersion);
+    }
+
+    /// <summary>
+    /// The copied applied valuation is hashed as Apply hashes it — from the
+    /// proposal at its own scale, not the stored two-place figure — so adopting
+    /// the same figures from the same card for the same reason in the Audit is
+    /// caught rather than recorded twice.
+    /// </summary>
+    [Fact]
+    public async Task ReapplyingTheInspectionsValuationInTheAuditIsRefused()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var store = harness.Services.GetRequiredService<IAppliedValuationStore>();
+        var apply = new ApplyValuationCalculation(store);
+        const string reason = "Adopted the guide figures less the condition deduction.";
+        var selection = new ValuationCalculationSelection(
+            harness.GuideValuationId,
+            CommercialVat: false,
+            PriorTotalLossPercentage: null,
+            [],
+            ConditionDeduction: 500m);
+        var (version, token) = await harness.ClaimAsync("apply-inspection-valuation");
+        var inspectionStamp = (await store.ReadBasisAsync(harness.CaseId, harness.GuideValuationId, default))
+            .GuideValuationStampUtc;
+        var applied = await apply.ExecuteAsync(
+            new(harness.CaseId, version, harness.Actor, "apply-inspection-valuation", reason, token, selection, inspectionStamp),
+            default);
+        Assert.Equal(12000m, applied.Calculation.Proposal);
+
+        var audit = await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-reapply"), default);
+        Guid auditGuideId;
+        await using (var context = await harness.ContextAsync())
+        {
+            auditGuideId = await context.CaseValuations.AsNoTracking()
+                .Where(item => item.WorkId == audit.AuditWorkId && item.Source == nameof(ValuationSource.Glasses))
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+        var auditStamp = (await store.ReadBasisAsync(harness.CaseId, auditGuideId, default)).GuideValuationStampUtc;
+        var (auditVersion, auditToken) = await harness.ClaimAsync("reapply-in-audit");
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => apply.ExecuteAsync(
+            new(
+                harness.CaseId,
+                auditVersion,
+                harness.Actor,
+                "reapply-in-audit",
+                reason,
+                auditToken,
+                selection with { GuideValuationId = auditGuideId },
+                auditStamp),
+            default));
+        Assert.Equal("This valuation calculation and reason were already applied to this case.", refused.Message);
+    }
+
+    /// <summary>
+    /// Once the Audit exists its confirmed vehicle facts are the ones read,
+    /// as the Case data read beside them is; the Inspection's stay its own.
+    /// </summary>
+    [Fact]
+    public async Task VehicleEvidenceReadsTheAuditsConfirmedVehicleFacts()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.ExecuteSqlAsync(
+            $"UPDATE CaseDataFields SET ValueKind = 'confirmed', ConfirmedByActor = 'engineer', ConfirmedAtUtc = SYSDATETIMEOFFSET() WHERE WorkId = '{harness.CaseId:D}' AND FieldName = '{CaseDataFieldNames.VehicleRegistration}'");
+        var result = await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-vehicle"), default);
+        await harness.ExecuteSqlAsync(
+            $"UPDATE CaseDataFields SET Value = 'AU12DIT' WHERE WorkId = '{result.AuditWorkId:D}' AND FieldName = '{CaseDataFieldNames.VehicleRegistration}'");
+
+        var evidence = await harness.Services.GetRequiredService<Pegasus.Core.Vehicle.IVehicleEvidenceQueries>()
+            .GetAsync(harness.CaseId, default);
+
+        Assert.Equal("AU12DIT", evidence?.Confirmed?.Registration?.Value);
+    }
+
     private static async Task AssertTheAuditIsAFullCopyAsync(PegasusDbContext context, Harness harness, Guid auditWorkId)
     {
         var sourceSnapshot = await context.CaseDataSnapshots.AsNoTracking()
@@ -318,7 +461,7 @@ public sealed class CreateAuditPersistenceTests
         Assert.DoesNotContain(harness.GuideValuationId.ToString("D"), applied.SnapshotJson, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(
             EfValuationStore.AppliedSnapshotHash(
-                harness.CaseId, guide.Id, harness.GuideStampUtc, null!, 12000m, "Adopted the guide figures"),
+                harness.CaseId, guide.Id, harness.GuideStampUtc, SeededCalculation, 12000m, "Adopted the guide figures"),
             applied.SnapshotHash);
         Assert.Equal(12000m, applied.AcceptedEngineerValue);
 
@@ -355,6 +498,32 @@ public sealed class CreateAuditPersistenceTests
             Published.Add(workItemId);
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>The Case folder already exists; the Audit's a. folder is made inside it, or the adapter fails.</summary>
+    private sealed class AuditFolderCustody(bool fails = false) : ICaseCustody
+    {
+        public Task<CaseCustodyRoot> CreateCaseRootAsync(
+            Guid caseId, string caseReference, string creationOwnerToken, string operationKey,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("The Case folder already exists.");
+
+        public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+            Guid caseId,
+            string caseReference,
+            CancellationToken cancellationToken) => Task.FromResult(
+                new CaseCustodyRoot(caseId, $"case-{caseReference}", caseReference));
+
+        public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+            CaseCustodyRoot root, IntakeSourceCustodyReference source, string operationKey,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("An Audit folder retains no intake source.");
+
+        public Task<string> CreateAuditReferenceFolderAsync(
+            CaseCustodyRoot root, string auditReference, string creationOwnerToken, string operationKey,
+            CancellationToken cancellationToken) => fails
+                ? throw new HttpRequestException("Fixture adapter failure.")
+                : Task.FromResult($"{root.RemoteId}/{auditReference}");
     }
 
     private sealed class Harness : IAsyncDisposable
@@ -432,6 +601,30 @@ public sealed class CreateAuditPersistenceTests
                 default);
             return (workflow.Version, lease.Token);
         }
+
+        /// <summary>The workflow version and its edit lease, read as one value to compare.</summary>
+        public async Task<(long Version, string? LeaseTokenHash, string? LeaseHolder, DateTimeOffset? LeaseExpiresAtUtc)> ReadEditAsync()
+        {
+            await using var context = await ContextAsync();
+            var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == CaseId);
+            return (workflow.Version, workflow.EditLeaseTokenHash, workflow.EditLeaseHolder, workflow.EditLeaseExpiresAtUtc);
+        }
+
+        public async Task<Guid> AuditCustodyWorkIdAsync()
+        {
+            await using var context = await ContextAsync();
+            return await context.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.CaseId == CaseId && item.Kind == ExternalWorkKinds.CreateAuditReferenceCustody)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+
+        /// <summary>The real custody processor over this database, behind the given adapter.</summary>
+        public EfQueuedCustodyProcessor CustodyProcessor(ICaseCustody custody) => new(
+            Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            Services.GetRequiredService<IExternalWorkStore>(),
+            custody,
+            Services.GetRequiredService<TimeProvider>());
 
         public async Task AssertNoAuditAsync()
         {
@@ -591,10 +784,10 @@ public sealed class CreateAuditPersistenceTests
                     RecordedBy = engineerId.ToString("D"),
                     RecordedAtUtc = guideStampUtc
                 });
-                // A frozen calculation adopted from the guide card; its figures
-                // are immaterial here, only that the copy re-points and rehashes it.
+                // A frozen calculation adopted from the guide card; the copy
+                // re-points it and rehashes it from its own proposal.
                 var snapshotJson = JsonSerializer.Serialize(
-                    new { caseVersion = 3L, guideValuationId, guideValuationStampUtc = guideStampUtc, calculation = (object?)null },
+                    new { caseVersion = 3L, guideValuationId, guideValuationStampUtc = guideStampUtc, calculation = SeededCalculation },
                     WebJson);
                 context.Set<AppliedValuationSnapshotEntity>().Add(new AppliedValuationSnapshotEntity
                 {
@@ -605,7 +798,7 @@ public sealed class CreateAuditPersistenceTests
                     GeneratedByKind = nameof(ActorKind.Staff),
                     GeneratedBySubjectId = engineerId.ToString("D"),
                     SnapshotHash = EfValuationStore.AppliedSnapshotHash(
-                        caseId, guideValuationId, guideStampUtc, null!, 12000m, "Adopted the guide figures"),
+                        caseId, guideValuationId, guideStampUtc, SeededCalculation, 12000m, "Adopted the guide figures"),
                     AcceptedEngineerValue = 12000m,
                     AcceptedBy = engineerId.ToString("D"),
                     AcceptedAtUtc = now.AddDays(-4),

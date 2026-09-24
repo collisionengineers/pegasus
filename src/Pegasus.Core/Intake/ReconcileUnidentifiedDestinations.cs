@@ -396,11 +396,15 @@ public sealed class ReconcileUnidentifiedDestinations(
 
         // Trailing, deliberately: a receipt with no route of its own that a
         // member of staff has linked to a Case. Placed last so an established
-        // Image intake or Triage keeps precedence over the manual link.
+        // Image intake or Triage keeps precedence over the manual link. A
+        // Triage Case is a staff link destination too, resolved as a Triage.
         if (receipt.CurrentCaseId is { } linkedCaseId)
         {
+            var targetKind = await triageQueries.GetAsync(linkedCaseId, cancellationToken) is null
+                ? UnidentifiedResolutionTargetKind.InstructionCase
+                : UnidentifiedResolutionTargetKind.Triage;
             return new(
-                UnidentifiedResolutionTargetKind.InstructionCase,
+                targetKind,
                 linkedCaseId.ToString("N"),
                 receipt.CurrentCaseReference);
         }

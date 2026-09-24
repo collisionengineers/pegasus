@@ -526,7 +526,6 @@ public sealed class CaseViewsWebTests
     }
 
     /// <summary>The Create audit use case, recorded rather than run.</summary>
-    // STAGE2-CONTRACT: ICreateAudit, CreateAuditRequest, CreateAuditResult, AuditRefusal, AuditCreationException (AUDIT).
     private sealed class RecordingCreateAudit : ICreateAudit
     {
         public List<CreateAuditRequest> Requests { get; } = [];

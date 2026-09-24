@@ -477,10 +477,10 @@ internal sealed class EfExternalWorkStore(
                     failedAtUtc,
                     "queue_poisoned",
                     "Case evidence storage could not complete after queue delivery failed.");
+                work.Case!.CustodyState = "failed";
                 if (workflow is not null)
                 {
                     var beforeVersion = workflow.Version;
-                    work.Case!.CustodyState = "failed";
                     workflow.State = CaseLifecycleState.NotReady.ToString();
                     CaseMutationGuard.Complete(workflow);
                     context.CaseHistory.Add(new()
@@ -513,7 +513,6 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeVersion}",
                 if (workflow is not null)
                 {
                     var beforeAuditVersion = workflow.Version;
-                    CaseMutationGuard.Complete(workflow);
                     context.CaseHistory.Add(new()
                     {
                         Id = Guid.NewGuid(),
@@ -645,10 +644,10 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 }
 
                 FailWork(work, failedAtUtc, failureCode, failureReason);
+                work.Case!.CustodyState = "failed";
                 if (workflow is not null)
                 {
                     var beforeVersion = workflow.Version;
-                    work.Case!.CustodyState = "failed";
                     workflow.State = CaseLifecycleState.NotReady.ToString();
                     CaseMutationGuard.Complete(workflow);
                     context.CaseHistory.Add(new()
@@ -677,7 +676,6 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 if (workflow is not null)
                 {
                     var beforeAuditVersion = workflow.Version;
-                    CaseMutationGuard.Complete(workflow);
                     context.CaseHistory.Add(new()
                     {
                         Id = Guid.NewGuid(),

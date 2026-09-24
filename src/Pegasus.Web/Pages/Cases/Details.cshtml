@@ -247,7 +247,7 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                         <span>@Frame.Cancel</span>
                     </button>
-                    @if (editingCaseData && details.Data is not null)
+                    @if (editingCaseData && details.Data is not null && !Model.IsInspectionView)
                     {
                         <button type="submit" form="case-edit-form" class="btn btn--primary" name="finishEditing" value="true" data-case-save>
                             <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
@@ -564,7 +564,7 @@
                     }
                     <div class="next-row">
                         <span data-next-label>@next.Label</span>
-                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@next.SectionKey" asp-fragment="section-@next.SectionKey" data-section-jump="@next.SectionKey">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == next.SectionKey).Label</a>
+                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@next.SectionKey" asp-fragment="section-@next.SectionKey" data-section-jump="@(Model.IsInspectionView ? null : next.SectionKey)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == next.SectionKey).Label</a>
                     </div>
                 </div>
             </section>

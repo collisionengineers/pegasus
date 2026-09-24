@@ -926,9 +926,10 @@ internal sealed class EfIntakeMutationStore(
         long? beforeCaseVersion = null;
         if (expectedCaseId is { } caseId)
         {
-            // A staff link reaches every Case in any lifecycle state and every
-            // Triage Case (operator, 24 September 2026); a Triage Case answers
-            // through its Triage version and edit scope.
+            // A staff link, and its reversal, reaches every Case in any
+            // lifecycle state and every Triage Case (operator, 24 September
+            // 2026); a Triage Case answers through its Triage version and edit
+            // scope.
             caseAuthority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
                 ?? throw new KeyNotFoundException("The case does not exist.");
             await caseAuthority.RequireStaffAuthorityAsync(
@@ -939,7 +940,7 @@ internal sealed class EfIntakeMutationStore(
                 editLeaseToken
                     ?? throw new InvalidOperationException("A case edit lease token is required."),
                 occurredAtUtc,
-                anyLifecycleState: eventType == "intake_case_linked",
+                anyLifecycleState: true,
                 cancellationToken);
             if (eventType == "intake_case_linked")
             {

@@ -101,6 +101,7 @@ internal static class CaseMatchIndexProjector
         {
             return null;
         }
+
         var provider = CurrentValue(fields, CaseDataFieldNames.WorkProviderCode);
         var policy = provider is null
             ? null
