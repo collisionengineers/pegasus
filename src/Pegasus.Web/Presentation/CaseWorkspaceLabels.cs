@@ -2,6 +2,7 @@
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Web.Presentation;
 
@@ -115,8 +116,11 @@ public static class CaseWorkspaceLabels
         public const string LeaseExpires = "Lease expires";
     }
 
-    // Presentation membership only; types, allowed codes and authority remain
-    // owned by AssessmentVocabulary and the workspace command.
+    // The Case editor's assessment-field membership and labels. Types, allowed
+    // codes and finding authority remain owned by AssessmentVocabulary and the
+    // workspace command. The Automation MCP write reuses this membership
+    // (IsStaffConfirmable, FRD-10), so adding an editor here widens what
+    // automation may write.
     public static class Editors
     {
         public static IReadOnlyDictionary<string, string> Settlement { get; } = new Dictionary<string, string>
@@ -215,6 +219,59 @@ public static class CaseWorkspaceLabels
             Settlement.ContainsKey(path) || OriginalReport.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
             || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck
             || path == AssessmentVocabulary.VehicleCondition;
+
+        /// <summary>
+        /// Every assessment path a staff member records, and so confirms or
+        /// clears, through the Case editor: the editor fields above and the
+        /// paths a section writes through its own typed member.
+        /// pegasus_assessment_update accepts only these (FRD-10).
+        /// </summary>
+        public static bool IsStaffConfirmable(string path) =>
+            IsAssessmentField(path) || CaseWorkspacePolicy.TypedPaths.Contains(path);
+
+        /// <summary>
+        /// The Case section whose controls record <paramref name="field"/> (an
+        /// assessment path or a Case data field name), for a readiness
+        /// blocker's link (FRD-13); null when no section records it.
+        /// </summary>
+        public static string? SectionOf(string field)
+        {
+            // Fields shown outside the section their editor list names: the
+            // claimant's VAT answer is on Claim, and the report content
+            // switches are Valuation's On the report switches.
+            var shownElsewhere = field switch
+            {
+                AssessmentVocabulary.SettlementClaimantVatRegistered => "claim",
+                AssessmentVocabulary.ReportDiscloseGuideSource
+                    or AssessmentVocabulary.ReportValuationCommentary
+                    or AssessmentVocabulary.ReportIncludeUnrelatedDamage => "valuation",
+                _ => null
+            };
+            if (shownElsewhere is not null) return shownElsewhere;
+            if (Settlement.ContainsKey(field)) return "settlement";
+            if (OriginalReport.ContainsKey(field)) return "original-report";
+            if (Report.ContainsKey(field)) return "report";
+            if (Damage.ContainsKey(field)) return "damage";
+            if (Vehicle.ContainsKey(field)) return "vehicle";
+            return field switch
+            {
+                AssessmentVocabulary.HistoryCheck or AssessmentVocabulary.VehicleCondition
+                    or AssessmentVocabulary.VehicleMileageSource or CaseDataFieldNames.VehicleRegistration
+                    or CaseDataFieldNames.VehicleMake or CaseDataFieldNames.VehicleModel
+                    or CaseDataFieldNames.VehicleYear or CaseDataFieldNames.VehicleMileage => "vehicle",
+                AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactSeverity
+                    or AssessmentVocabulary.ImpactLocation => "damage",
+                AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade
+                    or AssessmentVocabulary.ValueEngineer => "valuation",
+                AssessmentVocabulary.ReportDate => "report",
+                AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge
+                    or CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
+                    or CaseDataFieldNames.InspectionAddress => "inspection",
+                CaseDataFieldNames.ClaimantName => "claim",
+                CaseDataFieldNames.ClaimNumber or CaseDataFieldNames.IncidentDate => "overview",
+                _ => null
+            };
+        }
     }
 
     /// <summary>
@@ -331,6 +388,25 @@ public static class CaseWorkspaceLabels
         public const string ReviewedRecipients = "Reviewed recipients";
         public const string AddTo = "Add To recipient";
         public const string AddCc = "Add Cc recipient";
+
+        /// <summary>
+        /// The section that clears a report blocker (FRD-13): the one
+        /// recording the fact it names, else the one owning the material it
+        /// names; null when none does.
+        /// </summary>
+        public static string? BlockerSection(AssessmentReadinessItem item) => item switch
+        {
+            { Field: { } field } => Editors.SectionOf(field),
+            { EstimateLine: not null } => "estimate",
+            { Requirement: CaseReportReadiness.SignatoryRequirement } => "overview",
+            { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
+            {
+                Requirement: CaseReportReadiness.CloseUpImageRequirement
+                    or CaseReportReadiness.OverviewImageRequirement
+                    or CaseReportReadiness.ImageSourceRequirement
+            } => "files",
+            _ => null
+        };
     }
 
     /// <summary>

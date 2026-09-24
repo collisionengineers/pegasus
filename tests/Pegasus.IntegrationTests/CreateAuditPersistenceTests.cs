@@ -335,6 +335,50 @@ public sealed class CreateAuditPersistenceTests
         Assert.Equal("AU12DIT", evidence?.Confirmed?.Registration?.Value);
     }
 
+    /// <summary>
+    /// Each work's report is assessed on that work's own Inspection date
+    /// (issue #834): the Audit reads the date recorded on the Audit work, the
+    /// Inspection keeps its own, and both print the one Case's received date.
+    /// </summary>
+    [Fact]
+    public async Task AssessedDateReadsEachWorksOwnInspectionDate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using (var context = await harness.ContextAsync())
+        {
+            context.Set<CaseDataFieldEntity>().Add(new CaseDataFieldEntity
+            {
+                WorkId = harness.CaseId,
+                FieldName = CaseDataFieldNames.InspectionDate,
+                ValueKind = "confirmed",
+                ValueType = "date",
+                Value = "2031-05-20",
+                SourceKind = "staff_correction",
+                SourceIdentity = "create-audit-test",
+                SourceLabel = "Staff",
+                PolicyKey = "case-data",
+                PolicyVersion = 1,
+                ConfirmedByActor = "engineer",
+                ConfirmedAtUtc = DateTimeOffset.UtcNow
+            });
+            await context.SaveChangesAsync();
+        }
+        var result = await harness.CreateAudit.ExecuteAsync(await harness.RequestAsync("create-audit-inspection-date"), default);
+        await harness.ExecuteSqlAsync(
+            $"UPDATE CaseDataFields SET Value = '2031-06-02' WHERE WorkId = '{result.AuditWorkId:D}' AND FieldName = '{CaseDataFieldNames.InspectionDate}'");
+
+        var source = new EfAssessmentWorkspaceSource(
+            harness.Services.GetRequiredService<IDbContextFactory<PegasusDbContext>>());
+        var audit = Assert.IsType<AssessmentWorkspace>(
+            await source.GetAsync(harness.CaseId, CaseWorkSelector.Current)).Assessment.CaseOwned;
+        var inspection = Assert.IsType<AssessmentWorkspace>(
+            await source.GetAsync(harness.CaseId, CaseWorkSelector.Primary)).Assessment.CaseOwned;
+
+        Assert.Equal(new DateOnly(2031, 6, 2), audit.InspectionDate);
+        Assert.Equal(new DateOnly(2031, 5, 20), inspection.InspectionDate);
+        Assert.Equal(inspection.ReceivedDate, audit.ReceivedDate);
+    }
+
     private static async Task AssertTheAuditIsAFullCopyAsync(PegasusDbContext context, Harness harness, Guid auditWorkId)
     {
         var sourceSnapshot = await context.CaseDataSnapshots.AsNoTracking()

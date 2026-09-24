@@ -95,7 +95,6 @@ public static class CaseReportFreshness
         AssessmentVocabulary.VehicleTemporaryRepairsPossible,
         AssessmentVocabulary.VehicleTemporaryRepairMethod,
         AssessmentVocabulary.VehicleTemporaryRepairCost,
-        AssessmentVocabulary.IncidentAssessed,
         AssessmentVocabulary.ImpactSeverity,
         AssessmentVocabulary.ImpactLocation,
         AssessmentVocabulary.DamageImpacts,
@@ -272,7 +271,7 @@ public static class CaseReportFreshness
             || before.VehicleMileage != after.VehicleMileage
             || before.VehicleMileageUnit != after.VehicleMileageUnit
             || before.IncidentDate != after.IncidentDate
-            || before.InstructionDate != after.InstructionDate
+            || before.InspectionDate != after.InspectionDate
             || before.InspectionMode != after.InspectionMode
             || before.InspectionAddress != after.InspectionAddress;
     }

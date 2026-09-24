@@ -8,10 +8,11 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Assessment;
 
 /// <summary>
-/// Which repairer VAT position the estimate stands on (B04). Unknown is a
-/// real state, not a missing value: it blocks Use as Current until the
-/// operator records an explicit status or explicitly selects the VAT
-/// categories. The claimant's VAT position never controls estimate VAT.
+/// Which repairer VAT position the repair spec stands on (B04), recorded on
+/// the spec itself, the only owner of the fact. Unknown is a real state: its
+/// totals charge VAT on nothing until the operator records the status or
+/// selects the categories, and it never gates Use repair spec (v28 P10). The
+/// claimant's VAT position never controls estimate VAT.
 /// </summary>
 public enum RepairerVatStatus
 {
@@ -110,7 +111,7 @@ public sealed record EstimateRateSnapshot(
 /// repairer's VAT position: an estimate that records no <see cref="Vat"/>
 /// policy stands on <see cref="RepairerVatStatus.Unknown"/> and charges VAT
 /// on nothing until an Engineer records the status or selects the
-/// categories, which is also what blocks it from being made Current.
+/// categories; that never gates Use repair spec (v28 P10).
 /// </remarks>
 public sealed record EstimateDetails(
     string Name,

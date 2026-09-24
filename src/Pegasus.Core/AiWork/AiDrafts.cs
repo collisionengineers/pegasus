@@ -5,8 +5,8 @@ namespace Pegasus.Core.AiWork;
 
 /// <summary>
 /// The per-kind action a person takes on a Draft ready job (FRD-27, Work Centre
-/// D9): Review estimate opens the Case's Estimate section, Open query opens the
-/// message, Review opens the Unidentified item.
+/// D9): Review estimate opens the Case's Repair Spec section, Open query opens
+/// the message, Review opens the Unidentified item.
 /// </summary>
 public enum AiDraftAction
 {

@@ -162,7 +162,10 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The one-line Next action the aside states: the AI draft rows come first
-    /// (rendered by the view), then the next permitted lifecycle action.
+    /// (rendered by the view), then the next permitted lifecycle action. With
+    /// Engineer, while the report is not ready, it names the first blocker at
+    /// the section that clears it, and at the Report section when that blocker
+    /// has none.
     /// </summary>
     public (string Label, string SectionKey) NextAction
     {
@@ -185,10 +188,15 @@ public sealed partial class DetailsModel
             }
             if (ReportDraftNotReady && ReportDraftReasons.Count > 0)
             {
-                // One line in the aside: the first missing requirement and how
-                // many follow; the Report section states the whole list.
-                var first = ReportDraftReasons[0].Requirement;
-                return (ReportDraftReasons.Count > 1 ? $"{first} · {ReportDraftReasons.Count - 1} more" : first, "valuation");
+                // One line in the aside: the first blocker and how many follow,
+                // linking to the section that clears the first (FRD-13). The
+                // Report section lists every blocker with its own link, and is
+                // the target when the first has no section.
+                var first = ReportDraftReasons[0];
+                return (ReportDraftReasons.Count > 1
+                        ? $"{first.Requirement} · {ReportDraftReasons.Count - 1} more"
+                        : first.Requirement,
+                    BlockerSectionKey(first) ?? "report");
             }
             if (CurrentReportGeneration is null
                 || CurrentReportGeneration.State == Pegasus.Core.Reports.CaseReportGenerationState.Stale)

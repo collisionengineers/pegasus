@@ -40,7 +40,7 @@ fee note.
 
 | Outcome | Title and badge | Headline figures | Settlement meaning |
 | --- | --- | --- | --- |
-| `total_loss` | `TOTAL LOSS REPORT`; `TOTAL LOSS — CATEGORY x` | Pre-accident value, repair cost including VAT, salvage value, recommended settlement | Recommended settlement is the accepted Engineer value less the accepted salvage value. The accepted category and its approved salvage treatment are required. |
+| `total_loss` | `TOTAL LOSS REPORT`; `TOTAL LOSS — CATEGORY x` | Pre-accident value, repair cost including VAT, salvage value, recommended settlement | Recommended settlement is the accepted Engineer value less the accepted salvage value. The accepted category and its approved salvage treatment are required. The active template prints Category S only; any other recorded category is a named readiness item (operator, 24 September 2026). |
 | `repairable` | `REPAIRABLE REPORT`; `REPAIRABLE` | Pre-accident value, labour hours, repair cost including VAT | Recommended settlement is the calculated repair cost for the Engineer's repairable finding. |
 | `cash_in_lieu` | `CASH IN LIEU REPORT`; `CASH IN LIEU` | Pre-accident value, labour hours, cash-in-lieu settlement | The recommended cash-in-lieu settlement is the calculated repair cost. |
 | `contract_repair` | `CONTRACT REPAIR REPORT`; `CONTRACT REPAIR` | Pre-accident value, labour hours, repair cost including VAT | The agreed contract sum the Engineer recorded (v28 P35) is the contract-repair cap and cannot increase; the report prints it beside the Core-computed VAT-inclusive repair total. |
@@ -164,10 +164,11 @@ approve before issue.
 
 **What a generation freezes.** The Case version, signatory account and
 signature digest, Current estimate identity, version and breakdown, accepted
-Engineer value and applied valuation identity, content switches, report date
-or override, the Engineer's changes to the report's wording — headings,
-wording, order and what is off the report — fee, source documents with their
-Box identities, and each prepared image's role, order, rotation and crop.
+Engineer value with the retail and trade values its adoption recorded, and
+applied valuation identity, content switches, report date or override, the
+Engineer's changes to the report's wording — headings, wording, order and
+what is off the report — fee, source documents with their Box identities,
+and each prepared image's role, order, rotation and crop.
 
 ### Companion documents and what a delivery attaches
 
@@ -261,7 +262,10 @@ anything. Native Hand to Engineer opens engineering work without an EVA
 export; EVA is optional and never gates report readiness.
 
 The report prints its images two to a page in the order the Engineer set,
-and an image flagged Full page on a page of its own (v28 P41).
+and an image flagged Full page on a page of its own (v28 P41). Every image
+the Engineer includes prints, whatever their number or source file size,
+each as a print-resolution copy; the retained source is unchanged (operator,
+24 September 2026).
 
 A report generated without an overridden report date is dated the day it was
 generated, and that date is written into the Case's own record so the screen
@@ -276,23 +280,60 @@ is not a report, approval, delivery or correspondence.
 Settlement and Report editors use the Case's one workspace Save with its
 version and edit lease
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)); a save needs no
-reason. Report records Engineer comments, agreed fee, description lines, an
-eligible Sign-off Engineer, the content switches and the report-date
-override. Beside the valuation commentary switch it records **valuation
-commentary** text, up to 4,000 characters. With the switch on, the report
-prints that text if recorded, otherwise the applied valuation's reason, and
-readiness accepts either. With the switch off, neither prints. Vehicle
-History is edited once, in Vehicle. Values not submitted stay unchanged;
-explicit clears and false values count as submitted. Turning off the date
-override does not clear an unsubmitted recorded date. Validation and
-concurrency refusals keep the current and proposed values for comparison.
+reason. Report records Engineer comments, agreed fee, description lines, the
+report-date override and the **valuation commentary** text, up to 4,000
+characters; the Sign-off Engineer is chosen on the Case card in Case details,
+and the three content switches under **On the report** in Valuation (v28
+P38). With the valuation commentary switch on, the report prints that text if
+recorded, otherwise the applied valuation's reason, and readiness accepts
+either. With the switch off, neither prints. Vehicle History is edited once,
+in Vehicle. Values not submitted stay unchanged; explicit clears and false
+values count as submitted. Turning off the date override does not clear an
+unsubmitted recorded date. Validation and concurrency refusals keep the
+current and proposed values for comparison.
 
 Engineer sections stay viewable in other states; edits follow
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#actions). Report readiness
-adds only real post-Review requirements: the sign-off content and accepted
-estimate figures. It never asks staff to reconfirm what Review already
-checked. Missing accepted state fails generation rather than inventing
-values.
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
+
+### Report readiness
+
+Readiness names every fact the report prints and cannot print without, and
+nothing else (operator, 24 September 2026). Each is one blocker: what is
+missing, where it comes from, why, what clears it, and a link to the section
+that records it
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)). The
+Case page and Generate evaluate the whole list before a generation is
+recorded. The preview refuses on the same printed facts, sign-off Engineer,
+Current repair spec and labour rate before anything is projected; it does not
+wait for the report images, the applied valuation snapshot, or the valuation
+commentary and unrelated damage the On the report switches ask for. A fact
+Review already checked is named again only when it is missing and the report
+prints it. Missing accepted state is never invented.
+
+Each fact is recorded in one section of the Case record
+([FRD-16](frd-16-case-record-workspace.md#case-workspace)):
+
+| Fact | Recorded in |
+| --- | --- |
+| Claimant name | Claim |
+| Claim reference, incident date, a Sign-off Engineer with a signature on file | Case details |
+| Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
+| Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
+| Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
+| The Engineer's Value and, from its basis guide card, the retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
+| A Current repair spec with a labour rate | Repair Spec |
+| Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage value and a category the template prints (Category S only); on a contract repair the confirmed agreed contract sum | Decisions |
+| Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
+| One Close-up and one Overview image matching their confirmed sources | Files |
+
+The date the report says instructions were received is the Case's Received
+date (operator, 24 September 2026); every Case has one, so it is never a
+blocker. On an Inspection + Audit Case each report prints its own work's
+Inspection date, and changing it makes the current generation stale. An
+Automation value stays a blocker until a staff Save of its section confirms
+or clears it. VAT comes only from the Current repair spec
+([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report));
+readiness asks no separate repairer VAT question.
 
 ### Report correction, finality, and post-report work
 
@@ -371,6 +412,9 @@ The Case's own states are in
 - A stale version in the browser is refused, never replaced.
 - A stale generation cannot be prepared or sent.
 - A fee-note request against a report that already contains one is refused.
+- A missing printed fact or a total-loss category other than S is a named
+  readiness item: preview and Generate refuse before any generation is
+  recorded, never at render.
 - No generated file, preview, draft or export counts as Report sent.
 
 ## Acceptance evidence

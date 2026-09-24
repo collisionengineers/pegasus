@@ -171,7 +171,6 @@ raise failed; an Administrator retries it from
 | `/Upload` | Staff upload ([FRD-18](frd-18-manual-upload.md#staff-upload-page)) | — |
 | `/Cases` | Queues: workflow (Triage included), pre-Case work and exceptions ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues; the Triage list |
 | `/Cases/{id}` | Case record with section navigation; `?section=` jumps; once the Case has an Audit, `?view=inspection` or `?view=audit` chooses the view, the Audit view by default ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). A Triage Case renders as the Triage Case page ([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)) | Case workspace side-nav sections; the Assessment page; the Triage record page |
-| `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` | Engineer assessment page |
 | `/ReleaseNotes` | Published release notes, newest first; **Got it** posts here | — |
 | `/ProblemReports` | **Send** on Report a problem posts here; it has no page of its own | — |
 | `/Search` | Advanced search ([FRD-15](frd-15-work-centre-queues-and-search.md#search)) | Cases list |
@@ -189,14 +188,13 @@ its message, its upload and the record it became
 `/Unidentified` is a permanent redirect to `/Cases?tab=unidentified`, kept
 for existing links and bookmarks. `/Triage` and `/Triage/{id}` are removed
 and answer Not found, with no redirect. The Case record's other capability
-routes (custody, tasks, vehicle, workflow, closure, assessment, document
-export and EVA send) answer Not found for a Triage Case. The
-`/VehicleImages` list route is removed. The vehicle-images detail page
-remains and is reached from Awaiting-instruction rows, the Case Files
-section and upload outcomes. There is no separate top-level Unidentified,
-Organisations, Staff accounts, Roles or Automation Activity entry. The
-Engineer workbench is a set of sections on the Case record, not a page of
-its own.
+routes (custody, tasks, vehicle, workflow, closure, document export and EVA
+send) answer Not found for a Triage Case. The `/VehicleImages` list route is
+removed. The vehicle-images detail page remains and is reached from
+Awaiting-instruction rows, the Case Files section and upload outcomes. There
+is no separate top-level Unidentified, Organisations, Staff accounts, Roles
+or Automation Activity entry. The Engineer workbench is a set of sections on
+the Case record, not a page of its own.
 
 ### Command palette and keyboard
 

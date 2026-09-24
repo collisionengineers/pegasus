@@ -1329,6 +1329,175 @@ public sealed class CaseWorkspacePersistenceTests
         // guide card's (operator, 24 September 2026): 100,000 km is 62,137 miles.
         var engineersValue = Assert.Single(cards, card => card.Details.Source == ValuationSource.EngineersValue);
         Assert.Equal(62_137, engineersValue.Details.Mileage);
+        // The adoption records the basis card's retail and trade beside the
+        // Engineer's Value as the adopting Engineer's confirmed findings: the
+        // report's Retail value and Trade value (operator, 24 September 2026).
+        var fields = await AssessmentFieldsAsync(harness);
+        Assert.Equal("13000.00", fields[AssessmentVocabulary.ValueEngineer].Value);
+        foreach (var (path, value) in new[]
+        {
+            (AssessmentVocabulary.ValueRetail, "13000.00"),
+            (AssessmentVocabulary.ValueTrade, "12000.00"),
+        })
+        {
+            var field = fields[path];
+            Assert.Equal(value, field.Value);
+            Assert.Equal(nameof(ActorKind.Staff), field.RecordedByKind);
+            Assert.Equal(engineer.SubjectId, field.RecordedBy);
+            Assert.Equal(engineer.SubjectId, field.ConfirmedBy);
+            Assert.NotNull(field.ConfirmedAtUtc);
+        }
+    }
+
+    /// <summary>
+    /// A basis card without a trade figure leaves the report's Trade value
+    /// outstanding (operator, 24 September 2026): the blocker stays until the
+    /// trade is entered on that card and a Save adopts again, which stales the
+    /// current report; removing the trade again removes the recorded one.
+    /// </summary>
+    [Fact]
+    public async Task ABasisCardWithoutTradeKeepsTheTradeValueBlockerUntilTradeIsEnteredAndReadopted()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var april = new DateOnly(2030, 4, 1);
+        var withoutTrade = GuideCard(ValuationSource.Glasses, april, 12_500m) with { TradeValue = null };
+        var initial = await harness.GetRequiredDataAsync();
+        var engineer = Engineer(harness);
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-no-trade-1");
+        var first = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "no-trade-save-1", engineer) with
+            {
+                Valuation = new([withoutTrade])
+            },
+            CancellationToken.None);
+        var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
+        var card = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        var selection = new ValuationCalculationSelection(card.ValuationId, false, null, [], 0m);
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var adoptLease = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-no-trade-2");
+        var adopted = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, first.Version, adoptLease.Token, "no-trade-save-2", engineer) with
+            {
+                Vehicle = new(
+                    null,
+                    null,
+                    null,
+                    new(72_850, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
+                    new Dictionary<string, string?>(StringComparer.Ordinal)),
+                Valuation = new([], selection)
+            },
+            CancellationToken.None);
+
+        var fields = await AssessmentFieldsAsync(harness);
+        Assert.Equal("12500.00", fields[AssessmentVocabulary.ValueRetail].Value);
+        Assert.False(fields.ContainsKey(AssessmentVocabulary.ValueTrade));
+        var tradeValue = Assert.Single(
+            AssessmentPolicy.EvaluatePostReviewReadiness(adopted.Assessment),
+            item => item.Requirement == "Trade value");
+        Assert.Equal(AssessmentVocabulary.ValueTrade, tradeValue.Field);
+        var generationId = await SeedCurrentGenerationAsync(harness, adopted.Version);
+
+        // The trade entered on the same card, with the calculation the page
+        // then posts because the card it opened on changed.
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var tradeLease = await harness.AcquireLeaseAsync(adopted.Version, engineer, "lease-no-trade-3");
+        var readopted = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, adopted.Version, tradeLease.Token, "no-trade-save-3", engineer) with
+            {
+                Valuation = new([withoutTrade with { TradeValue = 11_000m }], selection)
+            },
+            CancellationToken.None);
+
+        fields = await AssessmentFieldsAsync(harness);
+        Assert.Equal("11000.00", fields[AssessmentVocabulary.ValueTrade].Value);
+        Assert.DoesNotContain(
+            AssessmentPolicy.EvaluatePostReviewReadiness(readopted.Assessment),
+            item => item.Requirement == "Trade value");
+        Assert.Equal(2, (await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None)).Count);
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Stale,
+            expectedStaleEvents: 1,
+            expectedReason: CaseReportStaleReasons.ValuationChanged);
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var clearLease = await harness.AcquireLeaseAsync(readopted.Version, engineer, "lease-no-trade-4");
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, readopted.Version, clearLease.Token, "no-trade-save-4", engineer) with
+            {
+                Valuation = new([withoutTrade], selection)
+            },
+            CancellationToken.None);
+
+        fields = await AssessmentFieldsAsync(harness);
+        Assert.False(fields.ContainsKey(AssessmentVocabulary.ValueTrade));
+        Assert.Equal("12500.00", fields[AssessmentVocabulary.ValueRetail].Value);
+    }
+
+    /// <summary>
+    /// The Inspection date is the date the report says the damage was
+    /// assessed (issue #834), so changing it through the workspace stales the
+    /// current report. The Inspection deadline is not printed, so moving it
+    /// leaves the report current.
+    /// </summary>
+    [Fact]
+    public async Task InspectionDateSaveThroughTheWorkspaceStalesTheReport()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var inspection = Inspection(CaseReportAddressTreatment.PhysicalVehicleLocation, "1 Depot Road");
+        var firstLease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            harness.StaffActor,
+            "inspection-date-first-lease");
+        var inspected = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, firstLease.Token, "inspection-date-first-save") with
+            {
+                Inspection = inspection
+            },
+            CancellationToken.None);
+        var generationId = await SeedCurrentGenerationAsync(harness, inspected.Version);
+
+        var deadlineLease = await harness.AcquireLeaseAsync(
+            inspected.Version,
+            harness.StaffActor,
+            "inspection-deadline-lease");
+        var rescheduled = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, inspected.Version, deadlineLease.Token, "inspection-deadline-save") with
+            {
+                Inspection = inspection with { InspectionDeadline = new DateOnly(2031, 5, 25) }
+            },
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Confirmed,
+            expectedStaleEvents: 0);
+
+        var dateLease = await harness.AcquireLeaseAsync(
+            rescheduled.Version,
+            harness.StaffActor,
+            "inspection-date-change-lease");
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, rescheduled.Version, dateLease.Token, "inspection-date-change-save") with
+            {
+                Inspection = inspection with
+                {
+                    InspectionDate = new DateOnly(2031, 5, 21),
+                    InspectionDeadline = new DateOnly(2031, 5, 25)
+                }
+            },
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Stale,
+            expectedStaleEvents: 1,
+            expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
     }
 
     [Fact]
@@ -1870,6 +2039,14 @@ public sealed class CaseWorkspacePersistenceTests
         await using var context = await harness.Factory.CreateDbContextAsync();
         return await context.CaseAssessmentFields.AsNoTracking()
             .LongCountAsync(item => item.WorkId == harness.CaseId);
+    }
+
+    private static async Task<Dictionary<string, CaseAssessmentFieldEntity>> AssessmentFieldsAsync(Harness harness)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        return await context.CaseAssessmentFields.AsNoTracking()
+            .Where(item => item.WorkId == harness.CaseId)
+            .ToDictionaryAsync(item => item.FieldPath, StringComparer.Ordinal);
     }
 
     private sealed class RejectingQueryReadInterceptor(params string[] forbiddenCommandTexts) : DbCommandInterceptor

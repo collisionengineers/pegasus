@@ -203,7 +203,7 @@ public sealed class CaseEstimateScalingWebTests
             null,
             [],
             [],
-            new(null, null, null, null, null, null, "tbc", null, null, null, null));
+            new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
         var source = new CaseDataSource(CaseDataSourceKind.StaffCorrection, "test", "Test", "test", 1);
         var repairer = new CaseField<string>(new(repairerAddress, CaseDataValueKind.Fact, source), null, null);
         var inspection = new CaseField<string>(new(inspectionAddress, CaseDataValueKind.Fact, source), null, null);

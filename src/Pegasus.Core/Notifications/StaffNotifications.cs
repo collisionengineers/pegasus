@@ -28,7 +28,7 @@ public enum StaffNotificationCause
 
 /// <summary>
 /// One notification for one person. <see cref="Route"/> is the relative application
-/// path the shell opens — the Case at its Estimate section, the message, or the
+/// path the shell opens — the Case at its Repair Spec section, the message, or the
 /// Unidentified item, per cause. <see cref="CaseId"/> is null only for an
 /// Unidentified resolution draft, whose subject is a U-reference rather than a Case.
 /// </summary>
@@ -127,10 +127,12 @@ public static class StaffNotificationPolicy
     public static string UnidentifiedRoute(Guid unidentifiedId) => $"/Unidentified/{unidentifiedId:D}";
 
     /// <summary>
-    /// Where an AI draft opens, per kind: Estimate at the Case's Estimate section,
+    /// Where an AI draft opens, per kind: Estimate at the Case's Repair Spec section,
     /// Query response at the message it answers when the job names one, otherwise
-    /// the Case's correspondence, Unidentified resolution at the item. Market
-    /// research and the queue pass raise nothing (null).
+    /// the Case's correspondence, Unidentified resolution at the item. The Work
+    /// Centre, the Case's Next action, draft notifications and the Operations AI
+    /// Job List all open this route. Market research and the queue pass raise
+    /// nothing (null).
     /// </summary>
     public static string? AiDraftRoute(AiJobRecord job)
     {

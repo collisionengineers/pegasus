@@ -447,7 +447,7 @@ public sealed class CaseRecordGapsV26WebTests
             GetAssessmentWorkspaceQuery query, CancellationToken cancellationToken) =>
             Task.FromResult<AssessmentWorkspace?>(AssessmentWorkspaceTestData.Create(new CaseAssessmentProjection(
                 store.CaseId, "QDOS3100042", store.CaseVersion, store.State, null, [.. Fields], [],
-                new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null))));
+                new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null))));
 
         Task<AssessmentAccessState?> IGetAssessmentAccess.ExecuteAsync(
             GetAssessmentAccessQuery query, CancellationToken cancellationToken) =>

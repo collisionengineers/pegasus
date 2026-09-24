@@ -1362,12 +1362,14 @@ public sealed class EfCaseReportContentSource(
                     image.Sha256,
                     image.ContentLength),
                 cancellationToken).ConfigureAwait(false);
-            using var buffer = new MemoryStream();
-            await content.Content.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+            // The version is opened at its frozen length, so its bytes are read
+            // once into an array of exactly that length.
+            var bytes = new byte[image.ContentLength];
+            await content.Content.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
             photos.Add(new ReportImageEvidence(
                 content.FileName,
                 image.ContentType,
-                buffer.ToArray(),
+                bytes,
                 image.Sha256,
                 image.Role,
                 image.Order,

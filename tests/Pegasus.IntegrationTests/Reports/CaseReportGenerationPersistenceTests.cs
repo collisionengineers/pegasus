@@ -1141,6 +1141,53 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(2, (await harness.ReadyEventsAsync()).Count);
     }
 
+    /// <summary>
+    /// Issue #834: the report prints only Category S, so a total loss of any
+    /// other category is named before the freeze writes anything. The
+    /// confirmed current generation stays current and nothing supersedes it.
+    /// </summary>
+    [Fact]
+    public async Task ANonPrintableSalvageCategoryIsNamedBeforeAnyGenerationIsWritten()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var first = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var current = Assert.IsType<CaseReportGenerationRecord>(first.Generation);
+        Assert.Equal(CaseReportGenerationState.Confirmed, current.State);
+        var artifactsBefore = await harness.ArtifactRowsAsync();
+
+        var recordedAt = new DateTimeOffset(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
+        AssessmentFieldValue Confirmed(string path, string value) => new(
+            path, value, ActorKind.Staff, "engineer-1", recordedAt, "engineer-1", recordedAt);
+        harness.ReviseAssessment(assessment => assessment with
+        {
+            Fields =
+            [
+                .. assessment.Fields.Where(field => field.Path != AssessmentVocabulary.Outcome),
+                Confirmed(AssessmentVocabulary.Outcome, "total_loss"),
+                Confirmed(AssessmentVocabulary.SalvageCategory, "B"),
+                Confirmed(AssessmentVocabulary.SalvageValue, "500.00"),
+            ],
+        });
+        var renderer = new RecordingRenderer(harness);
+        var refused = await harness.Generate(new RecordingCustody(harness), renderer)
+            .ExecuteAsync(harness.Request(operationKey: "case-report-category-b"), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.NotReady, refused.Outcome);
+        Assert.Null(refused.Generation);
+        var reason = Assert.Single(refused.Reasons);
+        Assert.Equal("Salvage category", reason.Requirement);
+        Assert.Equal(AssessmentVocabulary.SalvageCategory, reason.Field);
+        Assert.Empty(renderer.Kinds);
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(current.Id, generation.Id);
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        Assert.Null(generation.SupersededById);
+        Assert.Equal(
+            artifactsBefore.Select(row => row.Id),
+            (await harness.ArtifactRowsAsync()).Select(row => row.Id));
+    }
+
     [Fact]
     public async Task ReopeningAGeneratedArtifactReturnsTheConfirmedImmutableBytes()
     {
@@ -1669,6 +1716,10 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Accepts a different Engineer's Value, a material change.</summary>
         public void AcceptEngineerValue(decimal value) => snapshotSource.AcceptEngineerValue(value);
 
+        /// <summary>Records a revised assessment, which every later freeze reads.</summary>
+        public void ReviseAssessment(Func<CaseAssessmentProjection, CaseAssessmentProjection> revise) =>
+            snapshotSource.TransformAssessment(revise);
+
         public static byte[] SignatureBytes => FakeSnapshotSource.SignatureBytes;
 
         public ReportImageEvidence[] RehydratedPhotos(
@@ -2005,6 +2056,7 @@ public sealed class CaseReportGenerationPersistenceTests
         private readonly Guid valuationId = Guid.NewGuid();
         private readonly Guid guideValuationId = Guid.NewGuid();
         private decimal engineerValue = 5_000m;
+        private Func<CaseAssessmentProjection, CaseAssessmentProjection>? transform;
 
         public FakeSnapshotSource(
             Guid caseId,
@@ -2034,16 +2086,27 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public void AcceptEngineerValue(decimal value) => engineerValue = value;
 
+        /// <summary>
+        /// Applies <paramref name="revise"/> to the accepted assessment every
+        /// later read returns, both to what the report prints and to what
+        /// readiness is decided from.
+        /// </summary>
+        public void TransformAssessment(Func<CaseAssessmentProjection, CaseAssessmentProjection> revise) =>
+            transform = revise;
+
         public Task<CaseReportFreezeInputs?> GetAsync(
-            Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseReportFreezeInputs?>(
+            Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
+        {
+            var current = transform?.Invoke(assessment) ?? assessment;
+            return Task.FromResult<CaseReportFreezeInputs?>(
                 requestedCaseId == caseId
                     // The seeded Case has only its primary work, whose id is the Case's.
-                    ? new(projection, Readiness(), "RPT31001", 1) { WorkId = caseId }
+                    ? new(projection with { Assessment = current }, Readiness(current), "RPT31001", 1) { WorkId = caseId }
                     : null);
+        }
 
-        private CaseReportReadinessInput Readiness() => new(
-            assessment,
+        private CaseReportReadinessInput Readiness(CaseAssessmentProjection current) => new(
+            current,
             SignatoryId,
             null,
             [new SignOffEngineerProfile(

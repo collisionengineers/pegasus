@@ -78,25 +78,28 @@ public sealed class CaseWorkspaceTests
             CaseWorkspaceChangeSummary.Describe(before, before, beforeFields, beforeFields, false, 0, "  Checked with the repairer "));
     }
 
-    [Fact]
-    public void TheWorkspaceRefusesTheAcceptedEngineerValuePath()
+    [Theory]
+    [InlineData(AssessmentVocabulary.ValueEngineer)]
+    [InlineData(AssessmentVocabulary.ValueRetail)]
+    [InlineData(AssessmentVocabulary.ValueTrade)]
+    public void TheWorkspaceRefusesTheAdoptedValuationPaths(string path)
     {
-        // The Engineer's value is adopted only from its calculation, which
-        // records the calculation and the value together (one Save, 23
-        // September 2026). As a free field a Case save can neither record nor
-        // clear it.
+        // The Engineer's Value and the retail and trade of its basis card are
+        // recorded only by the adoption, which records them with the
+        // calculation (one Save, 23 September 2026; operator, 24 September
+        // 2026). As free fields a Case save can neither record nor clear them.
         var clear = Assert.Throws<InvalidOperationException>(() =>
             CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
             {
                 Report = new(
                     new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
-                        [AssessmentVocabulary.ValueEngineer] = null
+                        [path] = null
                     },
                     null,
                     null)
             })));
-        Assert.Contains("Apply", clear.Message, StringComparison.Ordinal);
+        Assert.Contains("adopts an Engineer's Value", clear.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
