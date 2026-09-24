@@ -150,8 +150,8 @@ public sealed partial class DetailsModel
     /// </summary>
     private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
     {
-        Valuations = await listCaseValuations.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
-        AppliedValuations = await listAppliedValuations.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
+        Valuations = await listCaseValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
+        AppliedValuations = await listAppliedValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
         PendingMarketResearch = await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
         if (LatestAppliedValuation is { } applied)
         {
