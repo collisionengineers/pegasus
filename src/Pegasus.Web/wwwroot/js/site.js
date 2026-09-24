@@ -53,23 +53,32 @@
 
     // Manual refresh feedback. The label change is the signal; the spin is
     // decoration on top of it, so the feedback still reads correctly under
-    // reduced motion or with no CSS at all.
-    document.querySelectorAll('[data-refresh-form]').forEach(function (form) {
-        form.addEventListener('submit', function () {
-            var region = form.closest('[data-refresh-region]') || form.parentElement;
-            if (region) {
-                region.classList.add('is-refreshing');
-                region.setAttribute('aria-busy', 'true');
+    // reduced motion or with no CSS at all. Bound per region so a Work
+    // Centre fragment adopted by its background refresh keeps the feedback.
+    function bindRefreshFeedback(root) {
+        root.querySelectorAll('[data-refresh-form]').forEach(function (form) {
+            if (form.dataset.refreshBound === 'true') {
+                return;
             }
-            var label = form.querySelector('[data-refresh-label]');
-            if (label) {
-                label.textContent = 'Refreshing';
-            }
-            form.querySelectorAll('button').forEach(function (button) {
-                button.disabled = true;
+            form.dataset.refreshBound = 'true';
+            form.addEventListener('submit', function () {
+                var region = form.closest('[data-refresh-region]') || form.parentElement;
+                if (region) {
+                    region.classList.add('is-refreshing');
+                    region.setAttribute('aria-busy', 'true');
+                }
+                var label = form.querySelector('[data-refresh-label]');
+                if (label) {
+                    label.textContent = 'Refreshing';
+                }
+                form.querySelectorAll('button').forEach(function (button) {
+                    button.disabled = true;
+                });
             });
         });
-    });
+    }
+    bindRefreshFeedback(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindRefreshFeedback);
 
     // Copy a support reference. Without script the value is still selectable
     // text, which is why the button is rendered hidden and revealed here rather
