@@ -589,16 +589,16 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
 | `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Rail: Operations; running jobs |
 | `admin` | `layout-grid` | `DCF60CA3B7FC36D4C69ED1A6EBC4CAD464CE850786B7AEE5BD1AB0A542C0D0BE` | Rail: Administration |
-| `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Utility search; palette; Search buttons |
+| `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Utility search; palette; Search buttons; DVLA & MOT lookup |
 | `plus` | `plus` | `A1190965745A47ED26827784BBAE8B9291D5170501A02FB335D82247EA276108` | Add, Create, New estimate |
-| `refresh` | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | Refresh, DVLA/DVSA refresh |
+| `refresh` | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | The one Refresh control (`Shared/_RefreshButton`) |
 | `chevron-right` | `chevron-right` | `07C6F850908E2A9ABA2AD8B7B91AA8E525D463398D479DAD5EF10CB534FE3710` | Row affordance, stepper |
 | `chevron-left` | `chevron-left` | `1E4CC2B6933AEDC73D77B080ABC988D9A4ED319191AC4AB2F0BD417C8E91BCE1` | Back, pagination |
 | `chevron-down` | `chevron-down` | `07FA08D36ABFC560E7901833347764591406C71C2E8974BAF3EE518866D549C3` | Disclosure, select |
 | `arrow` | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Open full record, transitions |
 | `user` | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Rail user, account dialog |
 | `more` | `more-horizontal` | `2124DA66776313BB29ED93D2CC06BBF1307EF8C8DBE672B3EE3AF4975F5E56D1` | Overflow menus |
-| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due |
+| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due; Renew editing |
 | `alert` | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary, blocked |
 | `warning` | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Warning notice, exceptions group |
 | `check` | `check` | `DE2A367F6B80B94E85E56CF01EFB198FB835039FEC3C0B4E643EAE54E9C857C6` | Save, confirm, checks |
@@ -610,7 +610,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `save` | `save` | `BEEDEA57260C30DD0B222C239B536C1EFD8B8DD7BDD3BB5311CFB5DD325677A3` | Save |
 | `close` | `x` | `FE4FAFDA78C537A7218FC7EDE65B1A01BE9BD5DF253C75805309D1EA2E6152DC` | Dialog close, tab close, remove |
 | `hold` | `pause` | `1A4247062E4B9E29A38E9C6C0867F6D85351F8B058606EA1FC89768495734773` | Place on Hold, Held |
-| `play` | `play` | `197D4369B982F7DBA348DCD5BD06F4C003A2C345C40CE2AC44719238463844D5` | Release Hold, Start automation |
+| `play` | `play` | `197D4369B982F7DBA348DCD5BD06F4C003A2C345C40CE2AC44719238463844D5` | Release Hold, Start automation, Retry this work |
 | `report`, `document` | `file-text` | `A6AF7723E87920CF322C8C39F0A1080075BFA19B3E966A8E21D2D81A93772936` | Report, instruction evidence |
 | `settings` | `settings` | `F6CE9F023EC1C2720723672887014349E1D3A68DF9555CA3795C5FEF95265B4A` | Principal settings, configuration |
 | `filter` | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Filter bars |
@@ -620,7 +620,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `bell` | `bell` | `5B315496E663ECA0E7465EDAD43FCD54BF00577C1737A5E8F9CC5352D185E79F` | Utility bar notifications |
 | `signout` | `log-out` | `20B23EB0AF17FE443827B2E64EC23057092180CDE64B3FAC5F2A9DC210A70880` | Sign out |
 | `calendar` | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date filters, due |
-| `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel |
+| `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel; Reconcile provider outcome |
 | `copy` | `copy` | `10CBC775CD0ACEBBB15F863348821192DBD4A2858380CC295BEB020AB4144DCB` | Copy reference |
 | `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download ZIP in the Send to EVA dialog |
 | `folder` | `folder` | `6E9E30D6DB22DC0118AC8C8466659342AFAE90784EFD65B5E2929BE1BA7B0C16` | Folder scopes, Case Files |
@@ -636,7 +636,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `key` | `key` | `9C4745F5604E0E32D887381FF5AE40DDA8BF4DF163D98025823CBBC0A06391C4` | API key |
 | `shield` | `shield` | `456B29F0717F73785AE1CA5A492EF0B21693BDA13045B509E845BA38F08717AE` | Roles, access |
 | — | `trash-2` | `2D59EB8F9393ABDFEE674BFC1A67A3ABD81146C1525F12DF7E753ACB40CB0773` | Delete estimate, remove line, Delete message |
-| — | `rotate-cw` | `5DE57E248094872B06E8408E710E05E1D89BDEB2243DDF780254C8632FC6DDFB` | Rotate view |
+| — | `rotate-cw` | `5DE57E248094872B06E8408E710E05E1D89BDEB2243DDF780254C8632FC6DDFB` | Rotate view right (paired with `rotate-ccw`) |
 | `activity` (undefined in the prototype) | `activity` | `8E33259DA8A236EBC5D6C96F27DFAB90CE1F69D78F9D935FA28A143443F2380B` | Service health, presence |
 | `spark` (undefined) | `sparkles` | `D412CDDF7D44B1EED79ACB99F7D64A85E99BB77E9780FE49770883301EE63652` | Automation & AI nav entry, AI job rows |
 | `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply |
@@ -663,7 +663,7 @@ glyph the v26 mockups reference that no current page draws.
 | — | `file-output` | `C109CACE75A7483445BF22061B3141C5210AB2706012502180288644E3917F62` | No caller |
 | — | `eye-off` | `56982F58FC81CBE4EB066E455259234DE2F2FE4B120631693BA0FA5544EB516F` | No caller |
 | — | `key-round` | `5E7E3CD234E740B048195FBEF0B1C66E7CA85500AE1C7ACA7F35117496576E83` | No caller |
-| — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | No caller |
+| — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | Rotate view left (paired with `rotate-cw`) |
 | — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records) |
 | — | `zap` | `998D4DC807CBE0CE4AF837D6282BCB925F8B169A1CE6DF4B1A2B06D6210474A0` | Working-set tab: Glass's session open |
 | — | `grip-vertical` | `93D0BBD15AB6203E42D45A911F90B3BAB3D287E56AD4140804311B15FA062074` | No caller |
@@ -686,7 +686,7 @@ glyph the v26 mockups reference that no current page draws.
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
 | — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item |
 | — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | No caller |
-| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified Reopen |
+| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified Reopen; Damage Reset; restore composed wording |
 
 The v26 rail no longer draws the prototype's rail glyphs for three routes:
 Cases uses `list-checks`, Operations `activity` and Administration `settings`
@@ -857,7 +857,8 @@ deleted in wave 5.
 | Class | Role |
 | --- | --- |
 | `page-header`, `page-title`, `eyebrow`, `page-actions` | Header row |
-| `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (Refresh, dismiss, section fold) |
+| `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (dismiss, section fold) |
+| `freshness`, `freshness-status`, `health-dot`, `refresh-button` (`Shared/_RefreshButton`) | Page freshness line and the one Refresh control every surface composes; the label becomes "Refreshing" and the icon spins while a refresh runs (`prefers-reduced-motion` keeps the label and disabled state) |
 | `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric` | Count buttons linking to `/Cases?tab=` (the Work Centre's four) |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |

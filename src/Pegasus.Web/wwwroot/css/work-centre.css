@@ -5,7 +5,7 @@
 .work-centre .metric-section { margin-bottom: 12px; }
 
 .wc-updated { font-size: 12px; color: var(--muted); margin-right: 4px; white-space: nowrap; }
-.wc-refresh-form { margin: 0; }
+.wc-refresh { display: flex; align-items: center; gap: 8px; }
 
 .wc-panes .pane-head { gap: 10px; }
 .wc-panes .pane-head .meta { font-size: 12px; color: var(--muted); margin-left: auto; }
