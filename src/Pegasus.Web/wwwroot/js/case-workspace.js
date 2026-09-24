@@ -3160,7 +3160,8 @@
 
 
 // --- files -----------------------------------------------------------------
-// --- files: tabs, image preparation staging, tiles, the viewer and crop --------
+// --- files: tabs, the Correspondence message dialog, image preparation staging,
+//     tiles, the viewer and crop ------------------------------------------------
 // v26 § Files, § Image viewer, § Crop and tag. The crop is a stored rectangle
 // over the rotated source (Core's CaseAssetCrop), staged into the one Case
 // form as preparationEdits[i].* and posted by Save; nothing here writes a
@@ -3264,6 +3265,71 @@
                 : buttons[0].getAttribute('data-file-tab'), false);
         });
     }
+
+    // ---- Correspondence: a message in a dialog -----------------------------------
+    // Open message opens its row's dialog through the shell's dialog binding;
+    // the first open fetches the message from the Inbox record's Content
+    // handler. A failure says so and the next open tries again. Both listeners
+    // are on the document, so a lazily mounted or swapped Files section needs
+    // no binding of its own.
+    function messageSpinner() {
+        var spinner = document.createElement('div');
+        spinner.className = 'spinner';
+        spinner.setAttribute('aria-hidden', 'true');
+        return spinner;
+    }
+    document.addEventListener('pegasus:dialog-open', function (event) {
+        var dialog = event.target;
+        if (!(dialog instanceof Element) || !dialog.matches('[data-case-message-dialog]')) { return; }
+        var state = dialog.dataset.caseMessageState;
+        var body = dialog.querySelector('[data-case-message-body]');
+        var url = dialog.getAttribute('data-case-message-url');
+        if (state === 'loading' || state === 'loaded' || !body || !url) { return; }
+        dialog.dataset.caseMessageState = 'loading';
+        body.setAttribute('aria-busy', 'true');
+        body.replaceChildren(messageSpinner());
+        fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+            .then(function (response) {
+                if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
+                    throw new Error('message: ' + response.status);
+                }
+                return response.text();
+            })
+            .then(function (html) {
+                var content = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-message-content]');
+                if (!content) { throw new Error('message: no content'); }
+                body.replaceChildren(document.importNode(content, true));
+                body.removeAttribute('aria-busy');
+                dialog.dataset.caseMessageState = 'loaded';
+            })
+            .catch(function () {
+                var status = document.createElement('p');
+                status.className = 'muted';
+                status.setAttribute('role', 'status');
+                status.textContent = 'Preview unavailable';
+                body.replaceChildren(status);
+                body.removeAttribute('aria-busy');
+                delete dialog.dataset.caseMessageState;
+            });
+    });
+    // Capture, ahead of the shell's dialog opener and the edit session's
+    // unsaved-changes guard. A modified click on Open message stays a link
+    // click (a new tab or window) rather than opening the dialog. Open full
+    // message closes the dialog first, so that question is not left behind
+    // this dialog's inert backdrop.
+    document.addEventListener('click', function (event) {
+        var target = event.target instanceof Element ? event.target : null;
+        if (!target) { return; }
+        var modified = event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey;
+        if (modified && target.closest('[data-correspondence] a[data-dialog-open]')) {
+            event.stopPropagation();
+            return;
+        }
+        var link = target.closest('[data-case-message-full]');
+        if (!link || modified) { return; }
+        var dialog = link.closest('[data-case-message-dialog]');
+        if (dialog && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
+    }, true);
 
     // ---- preparation staging ------------------------------------------------------
     // One state per image occurrence, seeded from the [data-preparation-card]

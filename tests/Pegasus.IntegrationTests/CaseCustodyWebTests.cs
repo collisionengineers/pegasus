@@ -396,6 +396,17 @@ public sealed class CaseCustodyWebTests
         Assert.DoesNotContain("Sender not recorded", visible, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Inbox/{forwardedId:D}\"", queries, StringComparison.OrdinalIgnoreCase);
         Assert.Contains($"href=\"/Inbox/{senderlessId:D}\"", queries, StringComparison.OrdinalIgnoreCase);
+        // Open message stays on one line and opens its row's dialog over the
+        // Case, which fetches the record's content on open.
+        Assert.Contains("<td class=\"row-actions nowrap\">", queries, StringComparison.Ordinal);
+        foreach (var (id, subject) in new[] { (forwardedId, "Repair query"), (senderlessId, "Sender unavailable") })
+        {
+            var dialogId = $"case-message-{id:N}";
+            Assert.Contains($"data-dialog-open=\"{dialogId}\"", queries, StringComparison.Ordinal);
+            Assert.Contains($"data-dialog=\"{dialogId}\" data-case-message-dialog", html, StringComparison.Ordinal);
+            Assert.Contains($"data-case-message-url=\"/Inbox/{id:D}?handler=Content\"", html, StringComparison.Ordinal);
+            Assert.Contains($"id=\"{dialogId}-title\" class=\"wrap\" tabindex=\"-1\">{subject}</h2>", html, StringComparison.Ordinal);
+        }
         Assert.DoesNotContain("<form", queries, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<button", queries, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("disabled", queries, StringComparison.OrdinalIgnoreCase);
@@ -434,6 +445,7 @@ public sealed class CaseCustodyWebTests
         Assert.Contains("data-file-tab=\"correspondence\">Correspondence · 0<", html, StringComparison.Ordinal);
         Assert.Contains("data-correspondence-empty", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-correspondence-row", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-message-dialog", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Raise a query", html, StringComparison.OrdinalIgnoreCase);
     }
 
