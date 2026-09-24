@@ -404,7 +404,7 @@ public sealed class CreateAuditPersistenceTests
         public ICaseWorkflowStore Workflows { get; }
         public ILeaseCaseForEdit Leases { get; }
         public RecordingPublisher Publisher { get; } = new();
-        public ICreateAudit CreateAudit { get; }
+        public CreateAudit CreateAudit { get; }
 
         public Task<PegasusDbContext> ContextAsync() => database.CreateContextAsync();
 

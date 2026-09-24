@@ -1062,9 +1062,9 @@ public sealed class TriageQueuesWebTests
         var expected = await queries.ListAsync(null, CancellationToken.None);
         Assert.Equal(total, seen.Count);
         Assert.Equal(
-            expected.Select(item => item.Id).ToArray(),
-            seen.Select(item => item.Id).ToArray());
-        Assert.Equal(total, seen.Select(item => item.Id).Distinct().Count());
+            expected.Select(item => item.CaseId).ToArray(),
+            seen.Select(item => item.CaseId).ToArray());
+        Assert.Equal(total, seen.Select(item => item.CaseId).Distinct().Count());
 
         // A cursor is bound to its query: the same page under a state filter
         // is a different scope and is refused rather than answered.
