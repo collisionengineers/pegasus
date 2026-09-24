@@ -3267,9 +3267,10 @@
     // ---- Correspondence: a message in a dialog -----------------------------------
     // Open message opens its row's dialog through the shell's dialog binding;
     // the first open fetches the message from the Inbox record's Content
-    // handler. A failure says so and the next open tries again. Both listeners
-    // are on the document, so a lazily mounted or swapped Files section needs
-    // no binding of its own.
+    // handler, and the record's Reply, Reply all and Forward, where it offers
+    // them, join the dialog's foot. A failure says so and the next open tries
+    // again. Both listeners are on the document, so a lazily mounted or
+    // swapped Files section needs no binding of its own.
     function messageSpinner() {
         var spinner = document.createElement('div');
         spinner.className = 'spinner';
@@ -3294,9 +3295,13 @@
                 return response.text();
             })
             .then(function (html) {
-                var content = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-message-content]');
+                var fragment = new DOMParser().parseFromString(html, 'text/html');
+                var content = fragment.querySelector('[data-message-content]');
                 if (!content) { throw new Error('message: no content'); }
                 body.replaceChildren(document.importNode(content, true));
+                var actions = fragment.querySelector('[data-message-actions]');
+                var foot = dialog.querySelector('[data-case-message-foot]');
+                if (actions && foot) { foot.prepend(document.importNode(actions, true)); }
                 body.removeAttribute('aria-busy');
                 dialog.dataset.caseMessageState = 'loaded';
             })
@@ -3312,9 +3317,10 @@
     });
     // Capture, ahead of the shell's dialog opener and the edit session's
     // unsaved-changes guard. A modified click on Open message stays a link
-    // click (a new tab or window) rather than opening the dialog. Open full
-    // message closes the dialog first, so that question is not left behind
-    // this dialog's inert backdrop.
+    // click (a new tab or window) rather than opening the dialog. A link to
+    // the record (Open full message, Reply, Reply all, Forward) closes the
+    // dialog first, so that question is not left behind this dialog's inert
+    // backdrop.
     document.addEventListener('click', function (event) {
         var target = event.target instanceof Element ? event.target : null;
         if (!target) { return; }
@@ -3323,7 +3329,7 @@
             event.stopPropagation();
             return;
         }
-        var link = target.closest('[data-case-message-full]');
+        var link = target.closest('[data-case-message-record]');
         if (!link || modified) { return; }
         var dialog = link.closest('[data-case-message-dialog]');
         if (dialog && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }
