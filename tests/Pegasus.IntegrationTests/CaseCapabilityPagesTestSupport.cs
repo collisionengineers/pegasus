@@ -901,6 +901,7 @@ internal static partial class CaseWebTestSupport
             GetCaseSectionQuery query,
             CancellationToken cancellationToken)
         {
+            PageFrameQueries.Add(query);
             if (query.CaseId != CaseId)
             {
                 return Task.FromResult<CasePageFrame?>(null);
@@ -973,7 +974,9 @@ internal static partial class CaseWebTestSupport
                     CaseCustodyState.Pending,
                     CorrespondenceEmails,
                     StandaloneAuditEvidenceId,
-                    AuditOfCaseId)
+                    AuditOfCaseId,
+                    AuditCustodyState: AuditCustodyState,
+                    AuditCustodyFolderRemoteId: AuditCustodyFolderRemoteId)
                 : null);
         }
 
@@ -1008,7 +1011,7 @@ internal static partial class CaseWebTestSupport
         private CaseSectionFrame FocusedFrame()
         {
             var workflow = CreateWorkflow();
-            return new(CreateSummary(workflow), workflow, ActiveLease());
+            return new(CreateSummary(workflow), workflow, ActiveLease(), Works: Works);
         }
 
         /// <summary>
@@ -1187,7 +1190,12 @@ internal static partial class CaseWebTestSupport
                 null,
                 null,
                 null,
-                CaseVersion) with { HoldReviewOn = HoldReviewOn };
+                CaseVersion) with
+            {
+                HoldReviewOn = HoldReviewOn,
+                AssignedEngineerId = AssignedEngineerId,
+                ReportSentEvidence = ReportSentEvidence
+            };
 
         Task<CaseDueWork> IRecordManualCaseChase.ExecuteAsync(
             ManualChaseRecord request,

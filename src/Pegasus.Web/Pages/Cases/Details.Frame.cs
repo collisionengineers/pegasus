@@ -51,29 +51,20 @@ public sealed partial class DetailsModel
     public bool OwnLeaseHeldElsewhere => ViewerHoldsEditAuthority && !IsEditing && CanRecoverLease;
 
     /// <summary>
-    /// Create audit (13 September): offered when the Case is Inspection + Audit,
-    /// has no Audit yet, is not Created in error or archived, and a report has
-    /// been generated — the same facts <see cref="CreateAuditCase"/> checks.
-    /// The command carries the edit lease, so the item is offered inside the
-    /// edit session.
+    /// Create audit (v29 P5): offered where Core's shared Audit policy finds
+    /// no refusal (an Inspection + Audit Case whose report is sent, with no
+    /// Audit yet and an assigned Engineer). The command carries the edit
+    /// lease, so the item is offered inside the edit session.
     /// </summary>
+    // STAGE2-CONTRACT: AuditPolicy.Refusal(CaseType, CaseWorkflowRecord, CaseWorkSet?) (AUDIT, Lifecycle/CreateAudit.cs).
     public bool CanCreateAudit =>
         Case is { } details
-        && details.Summary.CaseType == CaseType.InspectionAndAudit
-        && AuditCase is null
-        && OriginalCase is null
-        && details.Workflow.State != CaseLifecycleState.CreatedInError
-        && details.Workflow.Archive is null
-        && HasGeneratedReport
+        && AuditPolicy.Refusal(details.Summary.CaseType, details.Workflow, Works) is null
         && IsEditing;
 
-    /// <summary>
-    /// The Audit reference the dialog announces, derived from the recorded
-    /// outcome exactly as Core derives it; null while no outcome is recorded.
-    /// </summary>
+    /// <summary>The Audit reference the dialog announces: <c>a.{Case/PO}</c>.</summary>
     public string? ProposedAuditReference =>
         Case is { } details
-        && AuditCasePolicy.AssessmentFor(Assessment?.Field(AssessmentVocabulary.Outcome)?.Value) is not null
             ? CaseReferenceFormat.AuditReport(details.Workflow.Identity.Reference)
             : null;
 
@@ -87,14 +78,20 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The one availability sentence a section states in its head while an
-    /// edit session (this viewer's or a colleague's) keeps it reading; null
-    /// when the section edits, or when nothing is being edited at all.
+    /// edit session (this viewer's or a colleague's) keeps it reading, or
+    /// while the Inspection view reads (v29 P3: every section but Files and
+    /// Notes, which are the Case's own); null when the section edits, or when
+    /// nothing is being edited at all.
     /// </summary>
     public string? SectionAvailability(string key)
     {
         if (CurrentWorkflow is null)
         {
             return null;
+        }
+        if (IsInspectionView && key is not ("files" or "notes"))
+        {
+            return CaseWorkspaceLabels.Frame.ReadOnlyAuditCreated;
         }
         if (ColleagueIsEditing && EditAuthorityHolder is { } holder)
         {
@@ -114,13 +111,15 @@ public sealed partial class DetailsModel
     /// <summary>
     /// Whether a section head offers Edit: outside an edit session, on a Case
     /// this viewer could edit, for a section that has controls at all. The
-    /// Files and Notes sections act through their own immediate posts.
+    /// Files and Notes sections act through their own immediate posts. The
+    /// Inspection view offers no Edit anywhere (v29 P3).
     /// </summary>
     public bool SectionOffersEdit(string key) =>
         !IsEditing
         && !ColleagueIsEditing
         && !IsPostReportReadOnly
         && CurrentWorkflow?.Archive is null
+        && !IsInspectionView
         && key is not ("files" or "notes");
 
     /// <summary>The state chip's text, with the hold's review date when one is set.</summary>
@@ -232,8 +231,10 @@ public sealed partial class DetailsModel
             : null;
 
     /// <summary>
-    /// Create audit: a new duplicate Case linked to this one. On success the
-    /// operator lands on the new Case; a refusal states Core's reason on this one.
+    /// Create audit (v29 P5): the Case gains its Audit work and from then on
+    /// reads its Audit view. It posts in place with the lease handling of the
+    /// other Actions-menu lifecycle actions and lands back on this Case's
+    /// default view with no notice; a refusal states Core's reason.
     /// </summary>
     public async Task<IActionResult> OnPostCreateAuditAsync(
         Guid id,
@@ -249,12 +250,11 @@ public sealed partial class DetailsModel
 
         try
         {
-            var result = await createAuditCase.ExecuteAsync(
+            // STAGE2-CONTRACT: ICreateAudit.ExecuteAsync(CreateAuditRequest(CaseId, ExpectedVersion, Actor, OperationKey, EditLeaseToken)) (AUDIT).
+            await createAudit.ExecuteAsync(
                 new(id, expectedVersion, actor, RequireOperationKey(operationKey), editLeaseToken),
                 cancellationToken);
             ClearLeaseState();
-            TempData["CaseStatus"] = $"Case {result.AuditCase.Reference} was created.";
-            return RedirectToPage("/Cases/Details", new { id = result.AuditCase.CaseId });
         }
         catch (StaffAuthorizationException)
         {
@@ -265,11 +265,13 @@ public sealed partial class DetailsModel
         {
             LogCaseCommandFailed(logger, id, "create_audit", exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
-            TempData["CaseError"] = exception is AuditCaseCreationException refusal
+            // STAGE2-CONTRACT: AuditCreationException.Message is the approved refusal string (AUDIT).
+            TempData["CaseError"] = exception is AuditCreationException refusal
                 ? refusal.Message
-                : "The audit case was not created because the case changed or edit mode was lost.";
-            return RedirectToDetails(id);
+                : CaseCommandRefused;
         }
+
+        return RedirectToDetails(id);
     }
 
     /// <summary>
