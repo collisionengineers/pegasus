@@ -536,7 +536,7 @@ public sealed class CaseReportGenerationPersistenceTests
         var refused = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
 
         Assert.Contains(
-            "IX_CaseReportGenerations_CaseId_SnapshotHash",
+            "IX_CaseReportGenerations_WorkId_SnapshotHash",
             refused.InnerException?.Message,
             StringComparison.Ordinal);
         Assert.Single(await harness.GenerationRowsAsync());

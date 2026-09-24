@@ -189,7 +189,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260922224715_ProblemReportDispatchIdentity",
                 "20260922225349_ReleaseNoteCreateIdentity",
                 "20260923120000_StaffAccountDeletionRuntimePermissions",
-                "20260923180000_ValuationCardFiguresOptional"
+                "20260923180000_ValuationCardFiguresOptional",
+                "20260924180000_CaseWorksAndTriageCases"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -270,13 +271,12 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'Cases'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseSequences'"));
-        Assert.Equal(7, await database.ScalarAsync<int>(
+        Assert.Equal(6, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*)
             FROM sys.indexes
             WHERE object_id = OBJECT_ID(N'Cases')
               AND name IN (
-                  N'IX_Cases_AuditOfCaseId',
                   N'IX_Cases_AuditReference',
                   N'IX_Cases_OriginIntakeReceiptId',
                   N'IX_Cases_PrincipalId',
@@ -284,7 +284,7 @@ public sealed class IntakePersistenceIntegrationTests
                   N'IX_Cases_SequenceLineageId_Year_Sequence',
                   N'IX_Cases_StandaloneAuditEvidenceId')
             """));
-        Assert.Equal(7, await database.ScalarAsync<int>(
+        Assert.Equal(6, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*)
             FROM sys.indexes
@@ -299,6 +299,25 @@ public sealed class IntakePersistenceIntegrationTests
               AND name = N'IX_Cases_AuditReference'
               AND is_unique = 1
               AND has_filter = 1
+            """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM sys.indexes
+            WHERE object_id = OBJECT_ID(N'Cases')
+              AND name = N'IX_Cases_SequenceLineageId_Year_Sequence'
+              AND is_unique = 1
+              AND has_filter = 0
+            """));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseWorks'"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*)
+            FROM [Cases] AS c
+            WHERE NOT EXISTS (
+                SELECT 1 FROM [CaseWorks] AS w
+                WHERE w.[Id] = c.[Id] AND w.[CaseId] = c.[Id] AND w.[Kind] = N'primary')
             """));
         Assert.Equal(3, await database.ScalarAsync<int>(
             """
