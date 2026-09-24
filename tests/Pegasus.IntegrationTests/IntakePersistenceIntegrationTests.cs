@@ -190,6 +190,7 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260922225349_ReleaseNoteCreateIdentity",
                 "20260923120000_StaffAccountDeletionRuntimePermissions",
                 "20260923180000_ValuationCardFiguresOptional",
+                "20260924090000_IntakeAssetBoxParentFolder",
                 "20260924180000_CaseWorksAndTriageCases"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());

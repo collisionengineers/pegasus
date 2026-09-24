@@ -101,9 +101,10 @@ assume another Case-version increment.
 value scales a Draft down under the Engineer's hand: one factor lowers every
 part price, every materials figure and the labour rate, each to its floor
 (£50 an hour and 65 % of price unless the Engineer sets others); hours never
-move. Apply freezes the outgoing draft, saves the scaled specification and
-freezes it again as the scaled version; Remove scaling returns the Draft to
-the version frozen before. A contract repair's agreed sum is Case data the
+move. Apply saves the Case first (the one Save, which records the Draft as
+edited), then freezes the saved draft, saves the scaled specification and
+freezes it again as the scaled version; Remove scaling likewise saves first
+and returns the Draft to the version frozen before. A contract repair's agreed sum is Case data the
 Engineer records beside the specification; recording it sets the outcome to
 Contract repair, and a different sum is a scaling target. Every import,
 scale, removal, restore and sent report freezes a numbered version with how
@@ -121,8 +122,11 @@ one calculation basis. The three assessment-report lists (new parts, repairs
 and additional operations) are one deterministic names-only projection of
 those ordered lines, not a second renderer-owned specification.
 
-**Replay in the estimate editor.** The editor saves the Case version and line
-identities the staff member submitted. Retrying the same operation keeps that
+**Replay in the estimate editor.** The editor has no save of its own: the
+Case's one Save carries the specification with the rest of the Case
+(operator, 23 September 2026), and a specification it leaves unchanged is not
+rewritten. The Save keeps the Case version and line identities the staff
+member submitted. Retrying the same operation keeps that
 intent: source evidence and amendment timestamps are resolved only for a new
 operation, not rebuilt before replay detection. A prior successful operation
 returns the same estimate identity in its current state, even after later

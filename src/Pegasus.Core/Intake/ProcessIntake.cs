@@ -37,17 +37,22 @@ public sealed class ProcessIntake(
 
     /// <summary>The exception type behind a reading that was not recorded.</summary>
     private const string ReportFailureTag = "intake.third_party_report.failure_type";
-    public Task<IntakeReceipt> ExecuteAsync(
+    public async Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken = default)
+    {
         // No retry orchestration wraps this direct/manual-upload path, so a
         // reader fault here has no later attempt to defer to: treat it as final.
-        ExecuteCoreAsync(
+        var receipt = await ExecuteCoreAsync(
             source,
             retainedSourceStorageKey: null,
             replaceExisting: false,
             isFinalAttempt: true,
             cancellationToken);
+        // No destination automation runs on this path, so nothing files the
+        // receipt anywhere else: it is held.
+        return await RetainHoldingAssetsAsync(receipt, cancellationToken);
+    }
 
     /// <param name="isFinalAttempt">
     /// True when the caller's own retry schedule (if any) has no further
@@ -101,15 +106,14 @@ public sealed class ProcessIntake(
 
             if (!replaceExisting)
             {
-                var retained = await RetainHoldingAssetsAsync(existing, cancellationToken);
                 await RecordAutomaticAuditEvidenceAsync(
-                    retained,
-                    retained.MailClassificationDecision,
+                    existing,
+                    existing.MailClassificationDecision,
                     cancellationToken);
                 activity?.SetTag("intake.reader_result", "not_read_replay");
-                activity?.SetTag("intake.reader_key", retained.SourceReaderKey);
-                RecordTelemetry(activity, retained, "replay", started);
-                return retained with { IsDuplicate = true };
+                activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
+                RecordTelemetry(activity, existing, "replay", started);
+                return existing with { IsDuplicate = true };
             }
         }
 
@@ -277,7 +281,8 @@ public sealed class ProcessIntake(
             throw;
         }
         await RetainUploadedCorrespondenceAsync(safeSource, sourceHash, readResult, cancellationToken);
-        receipt = await RetainHoldingAssetsAsync(receipt, cancellationToken);
+        // Holding custody waits for the destination: only a receipt that no
+        // automatic destination files is held (RequiresHolding).
         await RecordAutomaticAuditEvidenceAsync(
             receipt,
             assessment.MailClassificationDecision,
@@ -315,9 +320,27 @@ public sealed class ProcessIntake(
     }
 
     /// <summary>
+    /// Whether a receipt's files belong in the holding folder once destination
+    /// automation has run. Holding is for intake with no settled destination;
+    /// a receipt an automatic destination files is not held (operator,
+    /// 23 September 2026): a new Case files it through the Case's own custody,
+    /// a Vehicle images record into its own folder, and an automatic
+    /// association onto the matched Case. Anything else - Unidentified,
+    /// Triage, a manual upload, a failed or suppressed allocation, a filing
+    /// that failed or does not apply - is held.
+    /// </summary>
+    internal static bool RequiresHolding(
+        IntakeReceipt receipt,
+        AutomaticCaseEvidencePromotionOutcome promotion) =>
+        receipt.AcceptedCaseId is null
+        && receipt.Decision != IntakeDecision.ImageIntakeRegistered
+        && promotion is not (AutomaticCaseEvidencePromotionOutcome.Confirmed
+            or AutomaticCaseEvidencePromotionOutcome.Pending);
+
+    /// <summary>
     /// Ensures every eligible retained intake asset has confirmed holding
-    /// custody. This is also the repair entry point for a completed receipt:
-    /// callers must run it before attempting to reopen its Box-backed source.
+    /// custody. An asset another custody already confirmed (its Case or
+    /// Vehicle images folder) is left where it is.
     /// </summary>
     internal async Task<IntakeReceipt> RetainHoldingAssetsAsync(
         IntakeReceipt receipt,
@@ -379,10 +402,12 @@ public sealed class ProcessIntake(
         // Retention writes custody state and Box identities through its own
         // store. Reload rather than returning the pre-handoff projection so
         // the current caller, gallery and following automation all see the
-        // confirmed files without waiting for a later request.
-        return await receiptStore.FindBySourceIdentityAsync(receipt.SourceIdentity, cancellationToken)
+        // confirmed files without waiting for a later request. Whether this
+        // call found a duplicate is the caller's fact, not a stored one.
+        var reloaded = await receiptStore.FindBySourceIdentityAsync(receipt.SourceIdentity, cancellationToken)
             ?? throw new InvalidDataException(
                 "The receipt retained for holding custody is no longer available.");
+        return reloaded with { IsDuplicate = receipt.IsDuplicate };
     }
 
     private static bool IsHoldingRetentionCandidate(

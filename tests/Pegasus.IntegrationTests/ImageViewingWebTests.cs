@@ -107,6 +107,9 @@ public sealed class ImageViewingWebTests
             Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
             Guid.NewGuid().ToString("N"));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
+        // The registered photograph is served from the record's own folder
+        // once its custody runs, as the Worker would.
+        await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();

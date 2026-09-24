@@ -343,6 +343,16 @@ public sealed class ImageCaseCustodyIntegrationTests
                 .AsNoTracking()
                 .SingleAsync(item => item.Id == createWorkId);
             Assert.Equal("completed", work.State);
+            // The Vehicle images folder holds each registered file, so each is
+            // read from there rather than from a holding copy.
+            Assert.All(
+                await context.IntakeAssets.AsNoTracking()
+                    .Where(asset => sourceAssetIds.Contains(asset.Id)).ToListAsync(),
+                asset =>
+                {
+                    Assert.Equal("confirmed", asset.CustodyStatus);
+                    Assert.Equal(intake.CustodyRootRemoteId, asset.BoxParentFolderId);
+                });
         }
         // Every group image is retained under the registration, in ordinal
         // order, byte-exact.
@@ -437,6 +447,11 @@ public sealed class ImageCaseCustodyIntegrationTests
                     .AsNoTracking()
                     .CountAsync(item => item.CaseId == caseId
                         && item.EventType == "image_custody_merged"));
+            // The fold moved the files into the Case folder: they are read from there now.
+            Assert.All(
+                await assertContext.IntakeAssets.AsNoTracking()
+                    .Where(asset => sourceAssetIds.Contains(asset.Id)).ToListAsync(),
+                asset => Assert.Equal(caseRoot.RemoteId, asset.BoxParentFolderId));
         }
         // The contents moved into the case's location and the emptied
         // image-case folder is gone.

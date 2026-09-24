@@ -2078,7 +2078,6 @@ public static class OperatorLabels
             public const string CompareEstimates = "Compare repair specs";
             public const string State = "State";
             public const string UseEstimate = "Use repair spec";
-            public const string SaveEstimate = "Save repair spec";
             public const string AddLine = "Add line";
             public const string DeleteAllLines = "Delete all lines";
             public const string LinesWord = "lines";

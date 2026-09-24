@@ -40,7 +40,8 @@ flowchart LR
   association.
   Administration settings use expected-version checks on each save. Case
   editing retains its existing workflow lease and one atomic workspace save
-  for data, assessment, damage and image preparation.
+  for data, assessment, damage, image preparation, the Draft repair
+  specification, guide cards and valuation adoption.
 - Direct manual Case creation shares the permanent reference allocator with
   receipt acceptance and Triage creation. It creates no intake receipt or
   invented source provenance.

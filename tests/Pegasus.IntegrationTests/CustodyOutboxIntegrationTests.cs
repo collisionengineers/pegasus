@@ -35,7 +35,7 @@ public sealed class CustodyOutboxIntegrationTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ReevaluationRepairsUnknownHoldingBeforeReadingTheRetainedLogicalSource(bool repairHolding)
+    public async Task ReevaluationReadsTheRetainedSourceAndHoldsItAfterAutomation(bool repairHolding)
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -104,9 +104,9 @@ public sealed class CustodyOutboxIntegrationTests
             Assert.IsType<string>(dispatch.LeaseToken),
             now,
             CancellationToken.None);
-        var guardedReader = new ConfirmedHoldingLogicalReader(
-            receipts, services.GetRequiredService<IReadLogicalDocumentVersion>());
-        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, guardedReader)
+        // Re-evaluation reads the retained bytes; holding - repaired here when
+        // it was left unknown - follows destination automation.
+        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services)
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
 
         Assert.Equal(QueuedIntakeProcessingOutcome.Completed, outcome);
@@ -122,29 +122,60 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(originalSource.ContentHash, reevaluatedSource.ContentHash);
         Assert.Equal(IncomingArtifactCustodyState.Confirmed, reevaluatedSource.CustodyState);
         Assert.Equal(original.AssetRecords.Count, reevaluated.AssetRecords.Count);
-        Assert.Equal(originalSource.Id, Assert.Single(guardedReader.ReadAssetIds));
-    }
-
-    private sealed class ConfirmedHoldingLogicalReader(
-        IIntakeReceiptQueries receipts,
-        IReadLogicalDocumentVersion inner) : IReadLogicalDocumentVersion
-    {
-        public List<Guid> ReadAssetIds { get; } = [];
-
-        public async Task<LogicalDocumentContent> OpenAsync(
-            ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken)
-        {
-            var receipt = await receipts.GetAsync(request.IntakeReceiptId!.Value, cancellationToken);
-            var asset = Assert.Single(Assert.IsType<IntakeReceipt>(receipt).AssetRecords,
-                candidate => candidate.Id == request.IntakeAssetId);
-            Assert.Equal(IncomingArtifactCustodyState.Confirmed, asset.CustodyState);
-            ReadAssetIds.Add(asset.Id);
-            return await inner.OpenAsync(request, cancellationToken);
-        }
     }
 
     [Fact]
-    public async Task FirstHoldingFailureCanBeReevaluatedBeforeAnyEvaluationExists()
+    public async Task ReevaluationFailsClosedWhenTheRetainedSourceBytesAreCorrupt()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var source = CreatePreCaseReevaluationSource();
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            source.Source, $"reevaluation-corrupt-source:{Guid.NewGuid():N}", CancellationToken.None);
+        var firstEvaluation = await DrainStagedAsync(
+            services, received.StagedReceiptId, CancellationToken.None);
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var original = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            firstEvaluation.ProcessedReceiptId, CancellationToken.None));
+        var originalSource = Assert.Single(original.AssetRecords, asset =>
+            asset.Kind == IntakeAssetKind.Source
+            && asset.Disposition == IntakeAssetDisposition.Source);
+        await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(
+            new(
+                original.Id,
+                original.Version,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+                $"reevaluate-corrupt-source:{Guid.NewGuid():N}",
+                "Re-evaluate the retained source under the current policy."),
+            CancellationToken.None);
+        var queued = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            original.Id, CancellationToken.None));
+        var retainedPath = Path.Combine(
+            factory.ArtifactDirectory,
+            originalSource.StorageKey.Replace('/', Path.DirectorySeparatorChar));
+        await File.WriteAllBytesAsync(retainedPath, [1, 2, 3]);
+
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            received.StagedReceiptId, now, TimeSpan.FromMinutes(1), CancellationToken.None));
+        await workStore.MarkDispatchedAsync(
+            dispatch.Id, Assert.IsType<string>(dispatch.LeaseToken), now, CancellationToken.None);
+        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services)
+            .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.Failed, outcome);
+        Assert.Equal(queued.Version, Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
+            original.Id, CancellationToken.None)).Version);
+        var failedWork = Assert.IsType<IntakeWorkItem>(await workStore.FindWorkItemAsync(
+            received.StagedReceiptId, CancellationToken.None));
+        Assert.Equal(IntakeWorkState.Failed, failedWork.State);
+        Assert.Equal("staged_artifact_integrity_failure", failedWork.FailureCode);
+    }
+
+    [Fact]
+    public async Task AFirstHoldingFailureIsRetriedOnItsRecordedEvaluation()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -163,32 +194,28 @@ public sealed class CustodyOutboxIntegrationTests
         var processing = ActivatorUtilities.CreateInstance<ProcessIntake>(services, retention);
         var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, processing);
 
+        // Holding follows destination automation, so the failed hand-over
+        // leaves the recorded evaluation pending on the ordinary retry.
         Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled,
             await processor.ExecuteAsync(received.StagedReceiptId));
         Assert.Null(await workStore.GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None));
-        Assert.Equal(0L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
+        Assert.Equal(1L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
         var original = Assert.IsType<IntakeReceipt>(await receipts.FindBySourceIdentityAsync(
             source.Source.SourceIdentity, CancellationToken.None));
         Assert.Contains(original.AssetRecords, asset => asset.CustodyState == IncomingArtifactCustodyState.Unknown);
         var originalIds = original.AssetRecords.Select(asset => asset.Id).Order().ToArray();
 
-        await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(new(
-            original.Id, original.Version, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
-            $"retry-first-holding:{original.Id:N}", "Retry storage and evaluate the retained source."));
+        var retryAt = now.AddMinutes(1);
         dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
-            received.StagedReceiptId, now, TimeSpan.FromMinutes(1), CancellationToken.None));
-        await workStore.MarkDispatchedAsync(dispatch.Id, dispatch.LeaseToken!, now, CancellationToken.None);
-        var guardedReader = new ConfirmedHoldingLogicalReader(receipts,
-            services.GetRequiredService<IReadLogicalDocumentVersion>());
+            received.StagedReceiptId, retryAt, TimeSpan.FromMinutes(1), CancellationToken.None));
+        await workStore.MarkDispatchedAsync(dispatch.Id, dispatch.LeaseToken!, retryAt, CancellationToken.None);
 
         Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
-            await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, guardedReader)
-                .ExecuteAsync(received.StagedReceiptId));
+            await processor.ExecuteAsync(received.StagedReceiptId));
         var repaired = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(original.Id, CancellationToken.None));
         Assert.Equal(originalIds, repaired.AssetRecords.Select(asset => asset.Id).Order());
         Assert.All(repaired.AssetRecords, asset => Assert.Equal(IncomingArtifactCustodyState.Confirmed, asset.CustodyState));
-        Assert.Single(guardedReader.ReadAssetIds);
         Assert.Equal(1L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
         Assert.Equal(1L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
     }
@@ -2397,7 +2424,6 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
                 services.GetRequiredService<TimeProvider>(),
-                services.GetRequiredService<IReadLogicalDocumentVersion>(),
                 services.GetRequiredService<IIntakeOcrOperationStore>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
 
@@ -2682,7 +2708,6 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
                 services.GetRequiredService<TimeProvider>(),
-                services.GetRequiredService<IReadLogicalDocumentVersion>(),
                 services.GetRequiredService<IIntakeOcrOperationStore>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(

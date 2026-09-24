@@ -344,6 +344,43 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.False(await db.Set<DocumentOccurrenceEntity>().AnyAsync(value => value.CaseId == caseId && value.SemanticRole == DocumentSemanticRole.Image));
     }
 
+    [Fact]
+    public async Task AMatchedFollowUpWithoutPhotographsIsFiledOnTheCaseAndNotHeld()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, FollowUp(includePhotos: false));
+        await using var db = await factory.Database.CreateContextAsync();
+        var files = await (from occurrence in db.Set<DocumentOccurrenceEntity>()
+                           join version in db.Set<DocumentVersionEntity>() on occurrence.VersionId equals version.Id
+                           where occurrence.CaseId == caseId
+                           select new
+                           {
+                               occurrence.SemanticRole,
+                               occurrence.SourceOccurrenceIdentity,
+                               version.FileName,
+                               version.CustodyStatus
+                           }).ToArrayAsync();
+        Assert.Equal(2, files.Length);
+        Assert.All(files, file => Assert.Equal(DocumentCustodyStatus.Confirmed, file.CustodyStatus));
+        Assert.Single(files, file => file.FileName == "follow-up.eml" && file.SemanticRole == DocumentSemanticRole.OriginalSource);
+        Assert.Single(files, file => file.FileName == "1_Images-V1.pdf" && file.SemanticRole == DocumentSemanticRole.Correspondence);
+        Assert.False((await db.Cases.SingleAsync(value => value.Id == caseId)).ImagesComplete);
+
+        // Filed on the Case, the receipt's files are read from the Case folder:
+        // none of them is copied to the holding folder.
+        var filedAssetIds = files.Select(file => file.SourceOccurrenceIdentity).ToHashSet(StringComparer.Ordinal);
+        var filedAssets = (await db.IntakeAssets.Where(asset => asset.IntakeReceiptId == receiptId).ToListAsync())
+            .Where(asset => filedAssetIds.Contains(asset.Id.ToString("N")))
+            .ToArray();
+        Assert.Equal(2, filedAssets.Length);
+        Assert.All(filedAssets, asset =>
+        {
+            Assert.Equal("confirmed", asset.CustodyStatus);
+            Assert.Equal("case-root", asset.BoxParentFolderId);
+        });
+    }
+
     private static async Task AssertFiledAsync(IntakeWebApplicationFactory factory, Guid caseId, DocumentCustodyStatus custody)
     {
         await using var db = await factory.Database.CreateContextAsync();

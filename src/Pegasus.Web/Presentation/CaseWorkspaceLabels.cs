@@ -275,7 +275,7 @@ public static class CaseWorkspaceLabels
         public const string Corrected = "Corrected";
         public const string Accept = "Accept";
         public const string AcceptAll = "Accept all";
-        public const string ApplyInValuation = "Apply in Valuation";
+        public const string SetInValuation = "Set in Valuation";
         public const string ValuationLink = "Valuation";
         public const string EngineersValue = "Engineer's Value";
         public const string SalvageValue = "Salvage value";
@@ -288,7 +288,7 @@ public static class CaseWorkspaceLabels
         public const string ExceedsEngineersValue = "Exceeds Engineer's Value";
         public const string FromCurrentEstimate = "From current repair spec";
         public const string CurrentEstimate = "current estimate";
-        public const string ApplyInValuationMeta = "Apply in Valuation";
+        public const string SetInValuationMeta = "Set in Valuation";
         public const string CostsHireDelays = "Costs, hire & delays";
         public const string Salvage = "Salvage";
         public const string StorageCharge = "Storage charge";
@@ -608,7 +608,6 @@ public static class CaseWorkspaceLabels
         public const string ClaimantVatRegistered = "Claimant is VAT registered";
         public const string ValueIncreases = "Value increases";
         public const string OtherAddition = "Other…";
-        public const string ApplyAsEngineersValue = "Apply as Engineer's Value";
         public const string AppliedEngineersValue = "Applied Engineer's Value";
         public const string NoneYet = "None yet";
         public const string AppliedBy = "Applied by";
@@ -617,7 +616,6 @@ public static class CaseWorkspaceLabels
         public const string Applied = "Applied";
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
-        public const string Mileage = "Mileage";
         public const string Listings = "listings";
         public const string ChooseBasis = "Choose a basis card to calculate.";
         public const string GuideRetail = "Guide retail";

@@ -11,7 +11,10 @@
     work-lists and the rollup with its off-pattern line (P37). Reading and
     editing are one layout (operator, 23 September 2026): a spec that cannot
     be changed shows every field as a greyed value in its control's place
-    (EstimateBody). Every action is a plain posted form;
+    (EstimateBody). The editor has no Save of its own (one Save, 23 September
+    2026): its controls belong to the record's form, #case-edit-form, and the
+    ribbon Save records the spec as it stands; Apply and Remove scaling save
+    the Case first. Every other action is a plain posted form;
     case-workspace.js adds the phantom row, the full-screen toggle, the VAT
     reset, the range interaction, the tab rename, the one labour-rate control
     (P33) and the Undo toast.
@@ -208,13 +211,13 @@
             <div class="fg g4">
                 @if (editable)
                 {
-                    <div class="fc" data-estimate-name-cell><label for="estimate-name">@EngineerLabels.EstimateName</label><input id="estimate-name" class="fi" name="estimateName" maxlength="100" required value="@(Model.PostedEstimateValue("estimateName") ?? d.Name)" /></div>
+                    <div class="fc" data-estimate-name-cell><label for="estimate-name">@EngineerLabels.EstimateName</label><input id="estimate-name" class="fi" name="estimateName" form="case-edit-form" maxlength="100" required value="@(Model.PostedEstimateValue("estimateName") ?? d.Name)" /></div>
                     @* One labour rate control (v28 P33): the card chooses the
                        figure, the figure can be typed, typing keeps the entered rate. *@
                     <div class="fc">
                         <label for="estimate-labour-rate">@EngineerLabels.LabourRatePerHour</label>
                         <div class="rate-pair" data-estimate-rate-pair>
-                            <select id="estimate-rate-card" class="fi" name="selectedRateCard" aria-label="@EstimateLabels.LabourRateCard">
+                            <select id="estimate-rate-card" class="fi" name="selectedRateCard" form="case-edit-form" aria-label="@EstimateLabels.LabourRateCard">
                                 <option value="">@EstimateLabels.KeepEnteredRate</option>
                                 @foreach (var card in Model.LabourRateCards.Where(card => card.Enabled))
                                 {
@@ -226,7 +229,7 @@
                                     <option value="@cardKey" data-rate="@card.HourlyRate.ToString("0.##", CultureInfo.InvariantCulture)" selected="@(selected ? "selected" : null)">@card.Name — £@card.HourlyRate.ToString("N2", culture)/h</option>
                                 }
                             </select>
-                            <input id="estimate-labour-rate" class="fi mono" name="estimateLabourRate" type="number" min="0" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateLabourRate") ?? d.LabourRate?.ToString(CultureInfo.InvariantCulture))" />
+                            <input id="estimate-labour-rate" class="fi mono" name="estimateLabourRate" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateLabourRate") ?? d.LabourRate?.ToString(CultureInfo.InvariantCulture))" />
                         </div>
                     </div>
                     @* Regional uplift (v28 P17): + 15 % on the rate, suggested
@@ -235,18 +238,18 @@
                         <label for="estimate-regional-uplift">@EngineerLabels.RegionalUplift</label>
                         <div class="uplift" data-estimate-uplift>
                             <label class="choice">
-                                <input id="estimate-regional-uplift" type="checkbox" name="estimateRegionalUplift" value="true" checked="@(d.RegionalUplift ? "checked" : null)" />
-                                <input type="hidden" name="estimateRegionalUplift" value="false" />
+                                <input id="estimate-regional-uplift" type="checkbox" name="estimateRegionalUplift" form="case-edit-form" value="true" checked="@(d.RegionalUplift ? "checked" : null)" />
+                                <input type="hidden" name="estimateRegionalUplift" value="false" form="case-edit-form" />
                                 <span>@EstimateLabels.UpliftPercent</span>
                             </label>
                             <span class="src-tag @(upliftSuggestions.Count > 0 ? "src-tag--ai" : null)" data-estimate-uplift-chip>@(upliftSuggestions.Count > 0 ? EstimateLabels.Suggested + " · " + string.Join(", ", upliftSuggestions) : EstimateLabels.LondonAndHomeCounties)</span>
                         </div>
                     </div>
-                    <div class="fc"><label for="estimate-other">@EngineerLabels.OtherCostsPounds</label><input id="estimate-other" class="fi mono" name="estimateOtherCosts" type="number" min="0" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateOtherCosts") ?? d.OtherCosts?.ToString(CultureInfo.InvariantCulture))" /></div>
-                    <div class="fc"><label for="estimate-vat">@EngineerLabels.VatPercent</label><input id="estimate-vat" class="fi mono" name="estimateVatPercent" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateVatPercent") ?? d.VatPercent.ToString(CultureInfo.InvariantCulture))" /></div>
+                    <div class="fc"><label for="estimate-other">@EngineerLabels.OtherCostsPounds</label><input id="estimate-other" class="fi mono" name="estimateOtherCosts" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateOtherCosts") ?? d.OtherCosts?.ToString(CultureInfo.InvariantCulture))" /></div>
+                    <div class="fc"><label for="estimate-vat">@EngineerLabels.VatPercent</label><input id="estimate-vat" class="fi mono" name="estimateVatPercent" form="case-edit-form" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateVatPercent") ?? d.VatPercent.ToString(CultureInfo.InvariantCulture))" /></div>
                     <div class="fc">
                         <label for="estimate-vat-status">@VatLabels.RepairerStatus</label>
-                        <select id="estimate-vat-status" class="fi" name="estimateVatStatus" data-vat-status>
+                        <select id="estimate-vat-status" class="fi" name="estimateVatStatus" form="case-edit-form" data-vat-status>
                             @foreach (var status in Enum.GetValues<RepairerVatStatus>())
                             {
                                 <option value="@status" selected="@((Model.PostedEstimateValue("estimateVatStatus") is { } postedStatus ? postedStatus == status.ToString() : vatPolicy.RepairerStatus == status) ? "selected" : null)">@VatLabels.StatusLabel(status)</option>
@@ -286,18 +289,18 @@
             <template data-estimate-line-template>
                 <tr class="phantom" data-estimate-phantom>
                     <td>
-                        <input type="hidden" name="lineId" value="" />
-                        <select name="lineOperation" aria-label="@EngineerLabels.Operation">@foreach (var (value, label) in operations) {<option value="@value">@label</option>}</select>
+                        <input type="hidden" name="lineId" value="" form="case-edit-form" />
+                        <select name="lineOperation" form="case-edit-form" aria-label="@EngineerLabels.Operation">@foreach (var (value, label) in operations) {<option value="@value">@label</option>}</select>
                     </td>
-                    <td><input name="lineDescription" placeholder="@EstimateLabels.AddALine" aria-label="@EngineerLabels.Description" /></td>
-                    <td><input class="mono" name="linePartNumber" aria-label="@EngineerLabels.PartNumber" /></td>
-                    <td><input class="num" name="lineQuantity" type="number" min="1" step="1" inputmode="numeric" aria-label="@EngineerLabels.Quantity" /></td>
-                    <td><input class="num" name="linePartPounds" type="number" min="0" step="0.01" inputmode="decimal" aria-label="@EngineerLabels.PartAmount" /></td>
-                    <td><input class="num" name="lineLabourHours" type="number" min="0" step="0.1" inputmode="decimal" aria-label="@EngineerLabels.LabourHours" /></td>
-                    <td><input class="num" name="linePaintHours" type="number" min="0" step="0.1" inputmode="decimal" aria-label="@EngineerLabels.PaintHours" /></td>
-                    <td><input class="num" name="lineMaterials" type="number" min="0" step="0.01" inputmode="decimal" aria-label="@EngineerLabels.MaterialPounds" /></td>
+                    <td><input name="lineDescription" form="case-edit-form" placeholder="@EstimateLabels.AddALine" aria-label="@EngineerLabels.Description" /></td>
+                    <td><input class="mono" name="linePartNumber" form="case-edit-form" aria-label="@EngineerLabels.PartNumber" /></td>
+                    <td><input class="num" name="lineQuantity" form="case-edit-form" type="number" min="1" step="1" inputmode="numeric" aria-label="@EngineerLabels.Quantity" /></td>
+                    <td><input class="num" name="linePartPounds" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" aria-label="@EngineerLabels.PartAmount" /></td>
+                    <td><input class="num" name="lineLabourHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" aria-label="@EngineerLabels.LabourHours" /></td>
+                    <td><input class="num" name="linePaintHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" aria-label="@EngineerLabels.PaintHours" /></td>
+                    <td><input class="num" name="lineMaterials" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" aria-label="@EngineerLabels.MaterialPounds" /></td>
                     <td><span class="src-tag">@EstimateLabels.SourceManual</span></td>
-                    <td><button type="submit" class="del" name="removeLine" value="" formaction="@editLineAction" aria-label="@EstimateLabels.RemoveThisLine">×</button></td>
+                    <td><button type="submit" class="del" name="removeLine" value="" form="case-edit-form" formaction="@editLineAction" aria-label="@EstimateLabels.RemoveThisLine">×</button></td>
                 </tr>
             </template>
         }
@@ -329,24 +332,24 @@
                                 : EstimateLabels.SourceManual;
                             <tr data-estimate-line>
                                 <td>
-                                    <input type="hidden" name="lineId" value="@row.ExistingLineId" />
+                                    <input type="hidden" name="lineId" value="@row.ExistingLineId" form="case-edit-form" />
                                     <label class="sr-only" for="line-operation-@index">@EngineerLabels.LineField(EngineerLabels.Operation, lineNumber)</label>
-                                    <select id="line-operation-@index" name="lineOperation">
+                                    <select id="line-operation-@index" name="lineOperation" form="case-edit-form">
                                         @foreach (var (value, label) in operations)
                                         {
                                             <option value="@value" selected="@(row.Operation == value ? "selected" : null)">@label</option>
                                         }
                                     </select>
                                 </td>
-                                <td><label class="sr-only" for="line-description-@index">@EngineerLabels.LineField(EngineerLabels.Description, lineNumber)</label><input id="line-description-@index" name="lineDescription" value="@row.Description" /></td>
-                                <td><label class="sr-only" for="line-part-@index">@EngineerLabels.LineField(EngineerLabels.PartNumber, lineNumber)</label><input id="line-part-@index" class="mono" name="linePartNumber" value="@row.PartNumber" /></td>
-                                <td><label class="sr-only" for="line-quantity-@index">@EngineerLabels.LineField(EngineerLabels.Quantity, lineNumber)</label><input id="line-quantity-@index" class="num" name="lineQuantity" type="number" min="1" step="1" inputmode="numeric" value="@row.Quantity" /></td>
-                                <td><label class="sr-only" for="line-pounds-@index">@EngineerLabels.LineField(EngineerLabels.PartAmount, lineNumber)</label><input id="line-pounds-@index" class="num @OffPatternClass(lineNumber, "linePartPounds")" name="linePartPounds" type="number" min="0" step="0.01" inputmode="decimal" value="@row.PartPounds" title="@OffPatternLabel(lineNumber, "linePartPounds")" /></td>
-                                <td><label class="sr-only" for="line-labour-@index">@EngineerLabels.LineField(EngineerLabels.LabourHours, lineNumber)</label><input id="line-labour-@index" class="num @OffPatternClass(lineNumber, "lineLabourHours")" name="lineLabourHours" type="number" min="0" step="0.1" inputmode="decimal" value="@row.LabourHours" title="@OffPatternLabel(lineNumber, "lineLabourHours")" /></td>
-                                <td><label class="sr-only" for="line-paint-@index">@EngineerLabels.LineField(EngineerLabels.PaintHours, lineNumber)</label><input id="line-paint-@index" class="num @OffPatternClass(lineNumber, "linePaintHours")" name="linePaintHours" type="number" min="0" step="0.1" inputmode="decimal" value="@row.PaintHours" title="@OffPatternLabel(lineNumber, "linePaintHours")" /></td>
-                                <td><label class="sr-only" for="line-materials-@index">@EngineerLabels.LineField(EngineerLabels.MaterialPounds, lineNumber)</label><input id="line-materials-@index" class="num" name="lineMaterials" type="number" min="0" step="0.01" inputmode="decimal" value="@row.Materials" /></td>
+                                <td><label class="sr-only" for="line-description-@index">@EngineerLabels.LineField(EngineerLabels.Description, lineNumber)</label><input id="line-description-@index" name="lineDescription" form="case-edit-form" value="@row.Description" /></td>
+                                <td><label class="sr-only" for="line-part-@index">@EngineerLabels.LineField(EngineerLabels.PartNumber, lineNumber)</label><input id="line-part-@index" class="mono" name="linePartNumber" form="case-edit-form" value="@row.PartNumber" /></td>
+                                <td><label class="sr-only" for="line-quantity-@index">@EngineerLabels.LineField(EngineerLabels.Quantity, lineNumber)</label><input id="line-quantity-@index" class="num" name="lineQuantity" form="case-edit-form" type="number" min="1" step="1" inputmode="numeric" value="@row.Quantity" /></td>
+                                <td><label class="sr-only" for="line-pounds-@index">@EngineerLabels.LineField(EngineerLabels.PartAmount, lineNumber)</label><input id="line-pounds-@index" class="num @OffPatternClass(lineNumber, "linePartPounds")" name="linePartPounds" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@row.PartPounds" title="@OffPatternLabel(lineNumber, "linePartPounds")" /></td>
+                                <td><label class="sr-only" for="line-labour-@index">@EngineerLabels.LineField(EngineerLabels.LabourHours, lineNumber)</label><input id="line-labour-@index" class="num @OffPatternClass(lineNumber, "lineLabourHours")" name="lineLabourHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" value="@row.LabourHours" title="@OffPatternLabel(lineNumber, "lineLabourHours")" /></td>
+                                <td><label class="sr-only" for="line-paint-@index">@EngineerLabels.LineField(EngineerLabels.PaintHours, lineNumber)</label><input id="line-paint-@index" class="num @OffPatternClass(lineNumber, "linePaintHours")" name="linePaintHours" form="case-edit-form" type="number" min="0" step="0.1" inputmode="decimal" value="@row.PaintHours" title="@OffPatternLabel(lineNumber, "linePaintHours")" /></td>
+                                <td><label class="sr-only" for="line-materials-@index">@EngineerLabels.LineField(EngineerLabels.MaterialPounds, lineNumber)</label><input id="line-materials-@index" class="num" name="lineMaterials" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@row.Materials" /></td>
                                 <td><span class="src-tag @(origin == EstimateLabels.SourceAmended ? "src-tag--ai" : null)">@origin</span></td>
-                                <td><button type="submit" class="del" name="removeLine" value="@index" formaction="@editLineAction" aria-label="@EngineerLabels.RemoveLine(lineNumber)">×</button></td>
+                                <td><button type="submit" class="del" name="removeLine" value="@index" form="case-edit-form" formaction="@editLineAction" aria-label="@EngineerLabels.RemoveLine(lineNumber)">×</button></td>
                             </tr>
                         }
                     }
@@ -381,11 +384,11 @@
         if (editable)
         {
             <div class="cluster est-add-line">
-                <button type="submit" class="btn btn--small btn--danger" name="clearLines" value="true" formaction="@editLineAction" data-estimate-delete-all data-undo-label="@EstimateLabels.Undo">
+                <button type="submit" class="btn btn--small btn--danger" name="clearLines" value="true" form="case-edit-form" formaction="@editLineAction" data-estimate-delete-all data-undo-label="@EstimateLabels.Undo">
                     <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
                     <span>@EngineerLabels.DeleteAllLines</span>
                 </button>
-                <button type="submit" class="btn btn--small" name="addLine" value="true" formaction="@editLineAction" data-estimate-add-line>
+                <button type="submit" class="btn btn--small" name="addLine" value="true" form="case-edit-form" formaction="@editLineAction" data-estimate-add-line>
                     <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
                     <span>@EngineerLabels.AddLine</span>
                 </button>
@@ -397,7 +400,7 @@
             {
                 @* Target % of value (v28 P34): one factor lowers prices,
                    materials and the rate to their floors; hours never
-                   move. Apply saves the editor and scales the saved
+                   move. Apply saves the Case first and scales the saved
                    spec; Core writes the authoritative result. A tool, so
                    it is drawn only while the spec edits. *@
                 <div class="bar est-scale" data-estimate-scale>
@@ -408,16 +411,16 @@
                     }
                     @if (engineerValue is null)
                     {
-                        <span class="muted">@CaseWorkspaceLabels.Settlement.ApplyInValuation</span>
+                        <span class="muted">@CaseWorkspaceLabels.Settlement.SetInValuation</span>
                     }
                     else
                     {
                         <input type="range" min="1" max="100" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
-                        <span class="dsc"><input type="number" name="targetPercent" min="1" max="100" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
+                        <span class="dsc"><input type="number" name="targetPercent" form="case-estimate-scale-form" min="1" max="100" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
                     }
                     <span class="est-floors">@EstimateLabels.Floors
-                        <span class="dsc"><label for="estimate-floor-rate">@EstimateLabels.FloorLabour</label><input id="estimate-floor-rate" name="floorRate" type="number" min="0" step="1" inputmode="decimal" value="@ScalingFloors.Default.LabourRatePerHour.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-rate /></span>
-                        <span class="dsc"><label for="estimate-floor-price">@EstimateLabels.FloorPrices</label><input id="estimate-floor-price" name="floorPrice" type="number" min="0" max="100" step="5" inputmode="decimal" value="@ScalingFloors.Default.PricePercent.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-price /></span>
+                        <span class="dsc"><label for="estimate-floor-rate">@EstimateLabels.FloorLabour</label><input id="estimate-floor-rate" name="floorRate" form="case-estimate-scale-form" type="number" min="0" step="1" inputmode="decimal" value="@ScalingFloors.Default.LabourRatePerHour.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-rate /></span>
+                        <span class="dsc"><label for="estimate-floor-price">@EstimateLabels.FloorPrices</label><input id="estimate-floor-price" name="floorPrice" form="case-estimate-scale-form" type="number" min="0" max="100" step="5" inputmode="decimal" value="@ScalingFloors.Default.PricePercent.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-price /></span>
                     </span>
                     @if (contractPercent is >= 1m and <= 100m)
                     {
@@ -429,7 +432,7 @@
                     }
                     @if (engineerValue is not null)
                     {
-                        <button type="submit" class="btn btn--small btn--primary" formaction="@Url.Page("/Cases/Details", "ScaleEstimate", new { id = caseId, section = "estimate" })" data-scale-apply><span>@EstimateLabels.Apply</span></button>
+                        <button type="submit" class="btn btn--small btn--primary" form="case-estimate-scale-form" data-scale-apply><span>@EstimateLabels.Apply</span></button>
                     }
                     <button type="submit" class="btn btn--small" form="remove-scaling-form" data-scale-remove disabled="@(scaled ? null : "disabled")"><span>@EstimateLabels.RemoveScaling</span></button>
                 </div>
@@ -474,10 +477,10 @@
             <span class="bl">@EstimateLabels.DiscountsPercent</span>
             @if (editable)
             {
-                <span class="dsc"><label for="estimate-discount-parts">@EngineerLabels.Parts</label><input id="estimate-discount-parts" name="estimateDiscountParts" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateDiscountParts") ?? DiscountLabels.PercentValue(discounts.Parts))" /></span>
-                <span class="dsc"><label for="estimate-discount-materials">@TotalsLabels.Materials</label><input id="estimate-discount-materials" name="estimateDiscountMaterials" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateDiscountMaterials") ?? DiscountLabels.PercentValue(discounts.Materials))" /></span>
-                <span class="dsc"><label for="estimate-discount-specialist">@TotalsLabels.Specialist</label><input id="estimate-discount-specialist" name="estimateDiscountSpecialist" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateDiscountSpecialist") ?? DiscountLabels.PercentValue(discounts.Specialist))" /></span>
-                <span class="dsc"><label for="estimate-discount-overall">@EstimateLabels.Overall</label><input id="estimate-discount-overall" name="estimateDiscountOverall" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateDiscountOverall") ?? DiscountLabels.PercentValue(discounts.Overall))" /></span>
+                <span class="dsc"><label for="estimate-discount-parts">@EngineerLabels.Parts</label><input id="estimate-discount-parts" name="estimateDiscountParts" form="case-edit-form" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateDiscountParts") ?? DiscountLabels.PercentValue(discounts.Parts))" /></span>
+                <span class="dsc"><label for="estimate-discount-materials">@TotalsLabels.Materials</label><input id="estimate-discount-materials" name="estimateDiscountMaterials" form="case-edit-form" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateDiscountMaterials") ?? DiscountLabels.PercentValue(discounts.Materials))" /></span>
+                <span class="dsc"><label for="estimate-discount-specialist">@TotalsLabels.Specialist</label><input id="estimate-discount-specialist" name="estimateDiscountSpecialist" form="case-edit-form" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateDiscountSpecialist") ?? DiscountLabels.PercentValue(discounts.Specialist))" /></span>
+                <span class="dsc"><label for="estimate-discount-overall">@EstimateLabels.Overall</label><input id="estimate-discount-overall" name="estimateDiscountOverall" form="case-edit-form" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="@(Model.PostedEstimateValue("estimateDiscountOverall") ?? DiscountLabels.PercentValue(discounts.Overall))" /></span>
             }
             else
             {
@@ -495,9 +498,9 @@
                 {
                     var field = Pegasus.Web.Pages.Cases.DetailsModel.VatCategoryField(category);
                     <label class="choice">
-                        <input id="@field" name="@field" type="checkbox" value="true" data-vat-category="@category"
+                        <input id="@field" name="@field" form="case-edit-form" type="checkbox" value="true" data-vat-category="@category"
                                checked="@(vatPolicy.Charges(category) ? "checked" : null)" />
-                        <input type="hidden" name="@field" value="false" />
+                        <input type="hidden" name="@field" value="false" form="case-edit-form" />
                         <span>@VatLabels.CategoryLabel(category)</span>
                     </label>
                 }
@@ -524,7 +527,7 @@
                     {
                         <div class="fc">
                             <label for="estimate-supplementary-of">@EstimateLabels.ChangesVs</label>
-                            <select id="estimate-supplementary-of" class="fi" name="supplementaryOf">
+                            <select id="estimate-supplementary-of" class="fi" name="supplementaryOf" form="case-edit-form">
                                 <option value="" selected="@(supplementary is null ? "selected" : null)">@EstimateLabels.Choose</option>
                                 @foreach (var other in others)
                                 {
@@ -534,7 +537,7 @@
                         </div>
                         <div class="fc">
                             <label for="estimate-supplementary-reason">@EngineerLabels.Reason</label>
-                            <select id="estimate-supplementary-reason" class="fi" name="supplementaryReason">
+                            <select id="estimate-supplementary-reason" class="fi" name="supplementaryReason" form="case-edit-form">
                                 @foreach (var (code, label, _) in RepairSpecificationComparison.SupplementaryReasons)
                                 {
                                     <option value="@code" selected="@(supplementary?.Reason == code ? "selected" : null)">@label</option>
@@ -543,7 +546,7 @@
                         </div>
                         <div class="fc">
                             <span class="lbl">@EngineerLabels.Report</span>
-                            <label class="choice"><input type="checkbox" name="supplementaryExplain" value="true" checked="@(supplementary?.ExplainOnReport == true ? "checked" : null)" /><input type="hidden" name="supplementaryExplain" value="false" /><span>@EstimateLabels.ExplainOnReport</span></label>
+                            <label class="choice"><input type="checkbox" name="supplementaryExplain" form="case-edit-form" value="true" checked="@(supplementary?.ExplainOnReport == true ? "checked" : null)" /><input type="hidden" name="supplementaryExplain" value="false" form="case-edit-form" /><span>@EstimateLabels.ExplainOnReport</span></label>
                         </div>
                     }
                     else
@@ -885,30 +888,31 @@
         {
             if (editable)
             {
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveEstimate"
-                      asp-route-id="@caseId" asp-route-section="estimate" id="case-estimate-form" class="stack" data-estimate-form
-                      data-line-removed-label="@EstimateLabels.LineRemoved" data-lines-removed-label="@EstimateLabels.LinesRemoved(2).Replace("2 ", string.Empty)">
-                    <input type="hidden" name="expectedVersion" value="@caseVersion" />
-                    <input type="hidden" name="operationKey" value="@Model.SaveEstimateOperationKey" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                    <input type="hidden" name="estimateId" value="@(estimate?.SpecificationId)" />
+                @* The editor's controls belong to the Case form; the ribbon Save
+                   records the spec with the rest of the Case. *@
+                <div class="stack" data-estimate-form
+                     data-line-removed-label="@EstimateLabels.LineRemoved" data-lines-removed-label="@EstimateLabels.LinesRemoved(2).Replace("2 ", string.Empty)">
+                    <input type="hidden" name="estimateId" value="@(estimate?.SpecificationId)" form="case-edit-form" />
                     @{ await EstimateBody(); }
-                    <div class="button-row">
-                        <button type="submit" class="btn btn--primary" data-estimate-save>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                            <span>@EngineerLabels.SaveEstimate</span>
-                        </button>
-                    </div>
-                </form>
-                if (scaled && estimate is not null)
+                </div>
+                if (estimate is not null && !Model.EditingNewEstimate && engineerValue is not null)
                 {
-                    <form id="remove-scaling-form" method="post" asp-page="/Cases/Details" asp-page-handler="RemoveEstimateScaling"
-                          asp-route-id="@caseId" asp-route-section="estimate">
+                    <form id="case-estimate-scale-form" method="post" asp-page="/Cases/Details" asp-page-handler="ScaleEstimate"
+                          asp-route-id="@caseId" asp-route-section="estimate" data-case-save-first>
                         <input type="hidden" name="expectedVersion" value="@caseVersion" />
                         <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                         <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
-                        <p class="muted">Save any repair spec edits before removing scaling; this action uses the last saved version.</p>
+                    </form>
+                }
+                if (scaled && estimate is not null)
+                {
+                    <form id="remove-scaling-form" method="post" asp-page="/Cases/Details" asp-page-handler="RemoveEstimateScaling"
+                          asp-route-id="@caseId" asp-route-section="estimate" data-case-save-first>
+                        <input type="hidden" name="expectedVersion" value="@caseVersion" />
+                        <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <input type="hidden" name="estimateId" value="@estimate.SpecificationId" />
                     </form>
                 }
             }

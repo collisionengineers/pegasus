@@ -38,12 +38,10 @@ public sealed class CaseValuationWebTests
                 "Recorded the Glass's figure",
                 ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
                 ("guideEntries[0].GuideMonth", "2031-05"),
-                ("guideEntries[0].Mileage", "42000"),
                 ("guideEntries[0].RetailValue", "12500.00"),
                 ("guideEntries[0].TradeValue", "10250.00"),
                 ("guideEntries[1].Source", nameof(ValuationSource.Brego)),
                 ("guideEntries[1].GuideMonth", ""),
-                ("guideEntries[1].Mileage", ""),
                 ("guideEntries[1].RetailValue", ""),
                 ("guideEntries[1].TradeValue", "")));
 
@@ -51,10 +49,11 @@ public sealed class CaseValuationWebTests
         var saved = Assert.Single(store.Saves);
         Assert.True(saved.Actor.IsInRole(role));
         AssertLeasedMutation(workspace, saved, DetailsModelOperationKey, "Recorded the Glass's figure", before);
-        Assert.Null(saved.Valuation!.DraftInputs);
+        // A card alone adopts nothing: no calculation was posted.
+        Assert.Null(saved.Valuation!.Adoption);
         var card = Assert.Single(saved.Valuation.GuideEntries!);
         Assert.Equal(ValuationSource.Glasses, card.Source);
-        Assert.Equal(42_000, card.Mileage);
+        Assert.Null(card.Mileage);
         Assert.Equal(12_500m, card.RetailValue);
         Assert.Equal(10_250m, card.TradeValue);
         Assert.Equal(new DateOnly(2031, 5, 1), card.GuideMonth);
@@ -82,7 +81,6 @@ public sealed class CaseValuationWebTests
                 "Part of a card",
                 ("guideEntries[0].Source", nameof(ValuationSource.SuperCap)),
                 ("guideEntries[0].GuideMonth", ""),
-                ("guideEntries[0].Mileage", ""),
                 ("guideEntries[0].RetailValue", "12500.00"),
                 ("guideEntries[0].TradeValue", "")));
 
