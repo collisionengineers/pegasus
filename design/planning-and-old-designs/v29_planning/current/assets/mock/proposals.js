@@ -12,6 +12,8 @@
 //   ?dialog=create-audit|triage   open that proposed dialog on load
 //   ?type=triage         Create case with Triage chosen
 //   ?opt=key:value,...   undecided choices (see OPTIONS)
+//   ?opt=auditview:X     item AA, how the Audit and Inspection views are shown:
+//                        strip (1, default) | ribbon (2) | sectionrow (3) | aside (4) | compare (5)
 //
 // Second pass, 23 September 2026: the views replace the working-set strip (the
 // open-records tabs), not the Scroll/Tabs switch; a Triage Case changes only as
@@ -30,6 +32,7 @@
   var state = window.V29_STATE || {};
   var stage = params.get('stage') === 'sent' ? 'sent' : 'audit';
   var view = params.get('view') === 'inspection' ? 'inspection' : 'audit';
+  if (/(^|,)auditview:compare(,|$)/.test(params.get('opt') || '')) view = 'audit';
 
   // Undecided choices, each a strip variable with its proposed default.
   var OPTIONS = {
@@ -37,7 +40,8 @@
     rolabel: 'on',         // on | none             the approved label on read-only Inspection heads (item B)
     singleview: 'none',    // none | tab            a Case with one view shows no strip, or its one view tab (item A)
     principal: 'off',      // off | on              the live Open the Triage, or with a Principal pick (item S)
-    metric: 'end'          // end | afterheld       where the Triages metric sits (item Q)
+    metric: 'end',         // end | afterheld       where the Triages metric sits (item Q)
+    auditview: 'strip'     // strip | ribbon | sectionrow | aside | compare   how the views are shown (item AA)
   };
   (params.get('opt') || '').split(',').forEach(function (pair) {
     var parts = pair.split(':');
@@ -147,12 +151,104 @@
     wrapper.appendChild(link);
     return wrapper;
   }
+  // The two views as links to this page, the current one marked.
+  function viewLink(key, label) {
+    var link = el('a', { href: presetHref({ view: key }), 'data-v29-view': key }, [label]);
+    if (key === view) link.setAttribute('aria-current', 'page');
+    return link;
+  }
+  function viewSwitch(ariaLabel) {
+    return el('div', { 'class': 'layout-switch', role: 'group', 'aria-label': ariaLabel, 'data-v29-view-switch': '' },
+      [viewLink('inspection', 'Inspection'), viewLink('audit', 'Audit')]);
+  }
+
+  // Option 2 · the ribbon carries the switch, as a ribbon item after the reference.
+  function viewsInRibbon() {
+    var reference = $('.ribbon-ref');
+    if (!reference) return;
+    var item = el('div', { 'class': 'ribbon-item', 'data-v29-ribbon-views': '' }, [
+      el('div', { 'class': 'ribbon-label' }, ['View']),
+      el('div', { 'class': 'ribbon-value' }, [viewSwitch('Case view')])
+    ]);
+    // The live ribbon shares its width equally (flex 1 1 0); the switch keeps its own width.
+    item.style.flex = '0 0 auto';
+    reference.parentNode.insertBefore(mark(item, 'P1'), reference.nextSibling);
+  }
+
+  // Option 3 · the section row carries the switch, before Refresh; Scroll/Tabs stays at the end.
+  function viewsInSectionRow() {
+    var tools = $('.section-row .section-tools');
+    if (!tools) return;
+    tools.insertBefore(mark(viewSwitch('Case view'), 'P1'), tools.firstChild);
+  }
+
+  // Option 4 · the aside's first card lists the two views with their report state.
+  function viewsInAside() {
+    var aside = $('[data-case-aside]');
+    if (!aside) return;
+    function row(key, label, reference, chip, tone) {
+      var name = key === view
+        ? el('span', { 'class': 'v29-view-current', 'aria-current': 'page' }, [label + ' · ' + reference])
+        : el('a', { href: presetHref({ view: key }), 'data-v29-view': key }, [label + ' · ' + reference]);
+      return el('div', { 'class': 'next-row', 'data-v29-view-row': key }, [name, el('span', { 'class': 'status status--plain ' + tone }, [chip])]);
+    }
+    var card = el('section', { 'class': 'panel context-card', 'data-v29-views-card': '' }, [
+      el('div', { 'class': 'panel-head' }, [el('h2', {}, ['Views'])]),
+      el('div', { 'class': 'panel-body stack' }, [
+        row('inspection', 'Inspection', caseReference(), 'Sent', 'status--green'),
+        row('audit', 'Audit', auditReference(), 'With Engineer', 'status--blue')
+      ])
+    ]);
+    aside.insertBefore(mark(card, 'P1'), aside.firstChild);
+  }
+
+  // Option 5 · no switch: the page is the Audit, and a value the Audit changed
+  // shows the Inspection's value under it. Two changes are illustrated.
+  function compareInPlace() {
+    var record = $('[data-case-record]');
+    if (record) record.setAttribute('data-v29-view', 'compare');
+    var changes = [
+      ['settlement.repair_delays', '3'],
+      ['narrative.engineers_comments', 'Synthetic audit comment: rear impact confirmed; repair delays revised.']
+    ];
+    changes.forEach(function (change) {
+      var cell = $('.fc[data-field="' + change[0] + '"]');
+      var value = cell ? $('.fv', cell) : null;
+      if (!value) return;
+      var before = value.textContent.trim();
+      value.textContent = change[1];
+      cell.appendChild(mark(el('div', { 'class': 'v29-was', 'data-v29-was': '' }, [
+        el('span', { 'class': 'lbl' }, ['Inspection']), el('span', {}, [before])
+      ]), 'P1'));
+      var section = cell.closest('.record-section');
+      var head = section ? $('.panel-head', section) : null;
+      if (head && !$('[data-v29-changed]', head)) {
+        var title = $('h2', head);
+        title.parentNode.insertBefore(mark(el('span', { 'class': 'status status--plain', 'data-v29-changed': '' }, ['Changed from Inspection']), 'P1'), title.nextSibling);
+      }
+    });
+    // With no Inspection view, the sent report line keeps its facts and drops its link.
+    setTimeout(function () {
+      var link = $('[data-v29-inspection-report] > .btn');
+      if (link) link.remove();
+    }, 0);
+  }
+
   function p1ViewTabs() {
     var strip = $('[data-working-set]');
     if (strip) removed(strip, 'P1');
     document.body.classList.remove('has-working-set');
     var record = $('[data-case-record]');
     if (!record || !strip) return;
+    if (auditCreated() && OPTIONS.auditview !== 'strip') {
+      record.setAttribute('data-v29-view', view);
+      record.setAttribute('data-v29-auditview', OPTIONS.auditview);
+      if (OPTIONS.auditview === 'ribbon') viewsInRibbon();
+      else if (OPTIONS.auditview === 'sectionrow') viewsInSectionRow();
+      else if (OPTIONS.auditview === 'aside') viewsInAside();
+      else if (OPTIONS.auditview === 'compare') compareInPlace();
+      return;
+    }
     var tabs = [];
     if (auditCreated()) {
       tabs.push(viewTab('inspection', 'Inspection', caseReference(), view === 'inspection'));

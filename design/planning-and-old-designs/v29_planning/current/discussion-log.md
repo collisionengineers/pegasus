@@ -90,3 +90,27 @@ unchanged beyond prior requirements).
   notes that the working set's way back to open records goes.
 - J stays open for the Cases lists and for intake matching.
 - T asks what happens to Set principal on a Triage Case.
+
+## 24 September 2026: third pass
+
+**What the operator said.**
+
+> create 4 other possible views/mockups for displaying this new audit view
+
+**What changed.** Four alternatives now sit beside the strip tabs as one
+switchable choice (`opt=auditview:`):
+
+- a ribbon switch;
+- a section-row switch;
+- a Views card in the aside;
+- compare in place, with no switch and the Inspection's value shown under
+  each value the Audit changed.
+
+Each has presets and screenshots. v29-notes section 1a sets out what each is,
+with what speaks for and against it.
+
+**Found while building:** the ribbon switch fits the read ribbon but not the
+edit session's, where it shortens the claimant and Engineer (p24).
+
+**Items raised:** AA, the choice among the five, with the new labels the
+chosen one brings.

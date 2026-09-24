@@ -37,7 +37,9 @@ Presets are query strings on a state page:
 - `?stage=sent` shows the Inspection report sent, before Create audit;
 - `?view=inspection` shows the Inspection view;
 - `?dialog=create-audit` opens the Create audit dialog;
-- `?opt=key:value` switches one undecided choice.
+- `?opt=key:value` switches one undecided choice;
+- `?opt=auditview:ribbon`, `sectionrow`, `aside` or `compare` shows one of the four other ways to
+  present the views (item AA). The strip tabs are the default.
 
 [`proposals.js`](assets/mock/proposals.js) lists them all.
 
@@ -56,6 +58,7 @@ Scroll/Tabs, and a Triage Case keeps its prior requirements. **Awaiting the
 operator's sign-off.**
 
 - **Settled:** B, E, J (Search), O and P.
+- **New on 24 September 2026:** AA, five ways to show the views.
 - **Open:** every other lettered item in
   [v29-notes.md](v29-notes.md#6-sign-off-list).
 

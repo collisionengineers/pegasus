@@ -2,7 +2,7 @@
 
 Round opened 23 September 2026 for the combined rework of PR 803 (Triage as a
 Case type) and issue 814 (Inspection + Audit on one Case). The operator's
-decisions and both passes are in [discussion-log.md](discussion-log.md). Stage 2
+decisions and every pass are in [discussion-log.md](discussion-log.md). Stage 2
 follows the approved plan once this list is settled.
 
 ## 1. What changes and why
@@ -20,6 +20,27 @@ follows the approved plan once this list is settled.
 | Cases lists Triage under Pre-Case work | Triage sits in the Workflow group, after Query | p16 |
 | Create case offers Inspection and Inspection and Audit | Create case also offers **Triage**, asking only for Principal and registration | p17 |
 | Search does not find a Triage | Search finds the Triage Case by its Case/PO and registration | s11, p21 |
+
+## 1a. Five ways to show the Audit and Inspection views (item AA)
+
+Third pass, 24 September 2026, at the operator's request. Each option is
+switchable in the Case record family with `opt=auditview:…`, and each has
+presets under the `case-record` states.
+
+In every option:
+
+- the working set is gone (item A);
+- Scroll/Tabs is unchanged;
+- the Inspection view is read-only with the approved label;
+- the Audit report and the Inspection's sent report sit in Report as in P4.
+
+| # | Option (`opt=auditview:`) | What it is | Shots | For | Against |
+| --- | --- | --- | --- | --- | --- |
+| 1 | View tabs in the strip (`strip`, default) | The strip that held the working set carries Inspection `QDOS31001` and Audit `a.QDOS31001` tabs, in the working-set tab's own markup | p01, p03, p07 | Always visible; each tab names its report's reference, so the ribbon stays as live; room for the working set's state glyphs (A) | Keeps a 40px strip for one Case type only; looks like the working set it replaces |
+| 2 | Ribbon switch (`ribbon`) | A "View" item after the reference in the ribbon holds an Inspection · Audit segmented switch | p22, p23, p24 | Sits with the Case's identity and travels with the sticky ribbon; no strip | The ribbon has no spare room. In the edit session the claimant and Engineer shorten to "Jane Ex…", "develop…" (p24). The Audit reference is not shown unless C adds it |
+| 3 | Section-row switch (`sectionrow`) | The same switch at the start of the section row's tools, before Refresh and Scroll/Tabs | p25, p26 | No change to the ribbon or strip; always visible in the sticky row | Two segmented controls side by side (views and Scroll/Tabs) read alike; the switch sits among page tools rather than with the Case's identity |
+| 4 | Views card in the aside (`aside`) | A "Views" card heads the aside: each view with its reference and its report state (Sent, With Engineer); the current one is plain, the other a link | p27, p28 | Shows the state of both reports at a glance; uses the existing context-card pattern | Below 1441px the aside folds above the sections and is no longer sticky (p27 at 1440), so switching back means scrolling up; the aside grows by a card |
+| 5 | Compare in place (`compare`) | No switch and no Inspection view. The page is the Audit; a value the Audit changed shows the Inspection's value under it ("Inspection 2"), and its section head says "Changed from Inspection". Two changes are illustrated | p29, p30 | The Audit's differences are visible where the work happens; no second page to keep in mind | The Inspection's full copy is never shown as a whole, only its sent report and the changed values; "Changed from Inspection" is new copy needing approval; B's read-only view no longer applies |
 
 ## 2. Live rules the mockup mirrors
 
@@ -191,15 +212,27 @@ unless the item names a variant. Settled items keep their letter.
 - **Y. The Cases list's Triage quick detail** keeps its "Open Triage" button,
   which now opens `/Cases/{id}` (p16). Confirm.
 - *Z (first pass, "Our ref" on the Triage page) is withdrawn under P.*
+- **AA. How the views are shown.** Choose one of the five options in
+  [section 1a](#1a-five-ways-to-show-the-audit-and-inspection-views-item-aa):
+  1. view tabs in the strip (the default);
+  2. a ribbon switch;
+  3. a section-row switch;
+  4. a Views card in the aside;
+  5. compare in place.
+
+  Options 2 to 5 add labels: "View" (2), "Views" (4), and "Changed from
+  Inspection" plus the "Inspection" value line (5). Confirm the wording of the
+  one you choose.
 
 ## 7. Self-check
 
-- **Second pass, 23 September 2026:** `RESULT {"fail":[],"okCount":343}` across
-  11 captured states and 21 proposal presets, each checked at 1580 and 1440.
+- **Third pass, 24 September 2026:** `RESULT {"fail":[],"okCount":444}` across 11
+  captured states and 30 proposal presets, each checked at 1580 and 1440. That
+  includes the four alternative view options (item AA).
 - **Captures are unchanged since the first pass.** That pass's live parity
   check still stands: all 10 directly addressable states matched the running
   application element for element.
-- **The screenshot run had 0 page errors:** 21 presets at three widths.
+- **The screenshot run had 0 page errors:** 30 presets at three widths.
 - **Not application evidence.** None of this is application evidence.
 
 ## 8. Known limits
@@ -214,6 +247,8 @@ unless the item names a variant. Settled items keep their letter.
   action and dialog are drawn from the live markup.
 - **The Triage Case's number, `t.QDOS31003`, is illustrative.** It is the next
   number in the fixture's QDOS 2031 sequence.
+- **Option 5's two changed values are illustrative mockup data:** Repair delays
+  2 → 3 and an amended Engineer's comment. The fixture holds no Audit edit.
 - **The Inspection and Audit copies hold the same values** in the fixture,
   because no Audit edit was made after the copy. This is why the Search Audit
   entry shows the same claimant.
@@ -256,3 +291,5 @@ found these differences between live and the FRDs:
 - 23 September 2026, second pass (this document): the views replace the
   working-set strip; Triage keeps its prior requirements; B, E, J (Search), O
   and P are settled.
+- 24 September 2026, third pass: four other ways to show the views, set out
+  beside the strip tabs as item AA (section 1a).

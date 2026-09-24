@@ -1,23 +1,182 @@
 [
- { "name": "audit-view", "state": "case-record", "query": "stage=audit&view=audit", "shows": "P1 the working-set strip carries the Case's views, Audit current; Scroll/Tabs unchanged; P4 Audit report and the Inspection's sent report; P6 Box audit folder" },
- { "name": "audit-view-report", "state": "case-record", "query": "stage=audit&view=audit&scroll=section-report", "shows": "P4 the Audit report card with a.QDOS31001 and the Inspection's sent report line" },
- { "name": "inspection-view", "state": "case-record", "query": "stage=audit&view=inspection", "shows": "P1 Inspection view tab; P3 no Edit, the approved Read-only label on each head" },
- { "name": "audit-view-files", "state": "case-record", "query": "stage=audit&view=audit&scroll=section-files", "shows": "P6 Files names the Box audit folder beside the Case folder" },
- { "name": "inspection-view-report", "state": "case-record", "query": "stage=audit&view=inspection&scroll=section-report", "shows": "P4 the sent Inspection report, nothing to generate" },
- { "name": "audit-view-ribbon-ref", "state": "case-record", "query": "stage=audit&view=audit&opt=auditref:audit", "shows": "P2 variant: the ribbon also names the Audit reference" },
- { "name": "audit-editing", "state": "case-record-editing", "query": "stage=audit", "shows": "P1 the Audit view in the edit session" },
- { "name": "sent-read", "state": "case-record", "query": "stage=sent", "shows": "P1 before Create audit: one view, no strip; P4 the Inspection report sent" },
- { "name": "sent-read-single-tab", "state": "case-record", "query": "stage=sent&opt=singleview:tab", "shows": "P1 variant: a Case with one view shows that view's tab" },
- { "name": "sent-actions", "state": "case-record-editing", "query": "stage=sent&menu=actions", "shows": "P5 Create audit in the Actions menu once the Inspection report is sent" },
- { "name": "create-audit-dialog", "state": "case-record-editing", "query": "stage=sent&dialog=create-audit", "shows": "P5 the Create audit dialog: Case, Audit reference, Engineer" },
- { "name": "standalone-audit", "state": "audit-record", "query": "", "shows": "P1 no strip on a Case with one view; Original report section kept" },
- { "name": "triage-case", "state": "triage-record", "query": "", "shows": "P7 the live Triage page with the Case's Files; P9 t. Case/PO at /Cases/{id}" },
- { "name": "work-centre", "state": "work-centre", "query": "", "shows": "P8 fifth metric Triages; P9 t. Case/PO in Needs attention" },
- { "name": "work-centre-metric-after-held", "state": "work-centre", "query": "opt=metric:afterheld", "shows": "P8 variant: Triages after Held" },
- { "name": "cases-triage", "state": "cases-triage", "query": "", "shows": "P10 Triage in the Workflow group; P9 t. Case/PO, opens /Cases/{id}" },
- { "name": "create-triage", "state": "create-case", "query": "type=triage", "shows": "P11 Create case with Triage: Principal and registration only" },
- { "name": "open-triage", "state": "unidentified-record", "query": "dialog=triage", "shows": "P12 the live Open the Triage, registration only" },
- { "name": "open-triage-principal", "state": "unidentified-record", "query": "dialog=triage&opt=principal:on", "shows": "P12 variant: with a Principal pick" },
- { "name": "search-audit-entry", "state": "search-results", "query": "", "shows": "P14 the Inspection + Audit Case as two entries, QDOS31001 and a.QDOS31001, both to the same Case" },
- { "name": "search-triage", "state": "search-triage", "query": "", "shows": "P13 Search finds the Triage Case by registration" }
+ {
+  "name": "audit-view",
+  "state": "case-record",
+  "query": "stage=audit&view=audit",
+  "shows": "P1 the working-set strip carries the Case's views, Audit current; Scroll/Tabs unchanged; P4 Audit report and the Inspection's sent report; P6 Box audit folder"
+ },
+ {
+  "name": "audit-view-report",
+  "state": "case-record",
+  "query": "stage=audit&view=audit&scroll=section-report",
+  "shows": "P4 the Audit report card with a.QDOS31001 and the Inspection's sent report line"
+ },
+ {
+  "name": "inspection-view",
+  "state": "case-record",
+  "query": "stage=audit&view=inspection",
+  "shows": "P1 Inspection view tab; P3 no Edit, the approved Read-only label on each head"
+ },
+ {
+  "name": "audit-view-files",
+  "state": "case-record",
+  "query": "stage=audit&view=audit&scroll=section-files",
+  "shows": "P6 Files names the Box audit folder beside the Case folder"
+ },
+ {
+  "name": "inspection-view-report",
+  "state": "case-record",
+  "query": "stage=audit&view=inspection&scroll=section-report",
+  "shows": "P4 the sent Inspection report, nothing to generate"
+ },
+ {
+  "name": "audit-view-ribbon-ref",
+  "state": "case-record",
+  "query": "stage=audit&view=audit&opt=auditref:audit",
+  "shows": "P2 variant: the ribbon also names the Audit reference"
+ },
+ {
+  "name": "audit-editing",
+  "state": "case-record-editing",
+  "query": "stage=audit",
+  "shows": "P1 the Audit view in the edit session"
+ },
+ {
+  "name": "sent-read",
+  "state": "case-record",
+  "query": "stage=sent",
+  "shows": "P1 before Create audit: one view, no strip; P4 the Inspection report sent"
+ },
+ {
+  "name": "sent-read-single-tab",
+  "state": "case-record",
+  "query": "stage=sent&opt=singleview:tab",
+  "shows": "P1 variant: a Case with one view shows that view's tab"
+ },
+ {
+  "name": "sent-actions",
+  "state": "case-record-editing",
+  "query": "stage=sent&menu=actions",
+  "shows": "P5 Create audit in the Actions menu once the Inspection report is sent"
+ },
+ {
+  "name": "create-audit-dialog",
+  "state": "case-record-editing",
+  "query": "stage=sent&dialog=create-audit",
+  "shows": "P5 the Create audit dialog: Case, Audit reference, Engineer"
+ },
+ {
+  "name": "standalone-audit",
+  "state": "audit-record",
+  "query": "",
+  "shows": "P1 no strip on a Case with one view; Original report section kept"
+ },
+ {
+  "name": "triage-case",
+  "state": "triage-record",
+  "query": "",
+  "shows": "P7 the live Triage page with the Case's Files; P9 t. Case/PO at /Cases/{id}"
+ },
+ {
+  "name": "work-centre",
+  "state": "work-centre",
+  "query": "",
+  "shows": "P8 fifth metric Triages; P9 t. Case/PO in Needs attention"
+ },
+ {
+  "name": "work-centre-metric-after-held",
+  "state": "work-centre",
+  "query": "opt=metric:afterheld",
+  "shows": "P8 variant: Triages after Held"
+ },
+ {
+  "name": "cases-triage",
+  "state": "cases-triage",
+  "query": "",
+  "shows": "P10 Triage in the Workflow group; P9 t. Case/PO, opens /Cases/{id}"
+ },
+ {
+  "name": "create-triage",
+  "state": "create-case",
+  "query": "type=triage",
+  "shows": "P11 Create case with Triage: Principal and registration only"
+ },
+ {
+  "name": "open-triage",
+  "state": "unidentified-record",
+  "query": "dialog=triage",
+  "shows": "P12 the live Open the Triage, registration only"
+ },
+ {
+  "name": "open-triage-principal",
+  "state": "unidentified-record",
+  "query": "dialog=triage&opt=principal:on",
+  "shows": "P12 variant: with a Principal pick"
+ },
+ {
+  "name": "search-audit-entry",
+  "state": "search-results",
+  "query": "",
+  "shows": "P14 the Inspection + Audit Case as two entries, QDOS31001 and a.QDOS31001, both to the same Case"
+ },
+ {
+  "name": "search-triage",
+  "state": "search-triage",
+  "query": "",
+  "shows": "P13 Search finds the Triage Case by registration"
+ },
+ {
+  "name": "alt2-ribbon-audit",
+  "state": "case-record",
+  "query": "stage=audit&view=audit&opt=auditview:ribbon",
+  "shows": "AA option 2: the view switch is a ribbon item after the reference"
+ },
+ {
+  "name": "alt2-ribbon-inspection",
+  "state": "case-record",
+  "query": "stage=audit&view=inspection&opt=auditview:ribbon",
+  "shows": "AA option 2: the Inspection view chosen in the ribbon"
+ },
+ {
+  "name": "alt2-ribbon-editing",
+  "state": "case-record-editing",
+  "query": "stage=audit&opt=auditview:ribbon",
+  "shows": "AA option 2: the ribbon switch in the edit session, beside Editing, Cancel, Save and Actions"
+ },
+ {
+  "name": "alt3-sectionrow-audit",
+  "state": "case-record",
+  "query": "stage=audit&view=audit&opt=auditview:sectionrow",
+  "shows": "AA option 3: the view switch in the section row, before Refresh and Scroll/Tabs"
+ },
+ {
+  "name": "alt3-sectionrow-inspection",
+  "state": "case-record",
+  "query": "stage=audit&view=inspection&opt=auditview:sectionrow",
+  "shows": "AA option 3: the Inspection view chosen in the section row"
+ },
+ {
+  "name": "alt4-aside-audit",
+  "state": "case-record",
+  "query": "stage=audit&view=audit&opt=auditview:aside",
+  "shows": "AA option 4: a Views card heads the aside, each view with its report state"
+ },
+ {
+  "name": "alt4-aside-inspection",
+  "state": "case-record",
+  "query": "stage=audit&view=inspection&opt=auditview:aside",
+  "shows": "AA option 4: the Inspection view chosen in the aside"
+ },
+ {
+  "name": "alt5-compare",
+  "state": "case-record",
+  "query": "stage=audit&opt=auditview:compare",
+  "shows": "AA option 5: no switch; the page is the Audit"
+ },
+ {
+  "name": "alt5-compare-decisions",
+  "state": "case-record",
+  "query": "stage=audit&opt=auditview:compare&scroll=section-settlement",
+  "shows": "AA option 5: values the Audit changed show the Inspection's value under them (two illustrated)"
+ }
 ]

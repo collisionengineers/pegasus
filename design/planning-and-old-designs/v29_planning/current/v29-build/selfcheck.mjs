@@ -56,6 +56,12 @@ const FACTS = `JSON.stringify((() => {
     layoutButtons: qa('[data-case-layout]').filter(visible).length,
     viewTabs: qa('[data-v29-view-tabs] .workspace-tab').filter(visible).map((t) => text(t.querySelector('.ref')) + ' ' + text(t.querySelector('.reg')) + (t.classList.contains('is-active') ? '*' : '')),
     workingSet: visible(q('[data-working-set]')),
+    ribbonViews: qa('[data-v29-ribbon-views] a').filter(visible).map((a) => text(a) + (a.getAttribute('aria-current') === 'page' ? '*' : '')),
+    sectionRowViews: qa('.section-tools [data-v29-view-switch] a').filter(visible).map((a) => text(a) + (a.getAttribute('aria-current') === 'page' ? '*' : '')),
+    asideViews: qa('[data-v29-views-card] [data-v29-view-row]').filter(visible).map((r) => text(r) + (r.querySelector('[aria-current]') ? '*' : '')),
+    anySwitch: qa('[data-v29-view-switch] a, [data-v29-view-tabs] .workspace-tab, [data-v29-views-card] [data-v29-view-row]').filter(visible).length,
+    wasLines: qa('[data-v29-was]').filter(visible).map(text),
+    changedChips: qa('[data-v29-changed]').filter(visible).length,
     triageFiles: visible(q('#section-files[data-v29-proposal="P7"]')),
     searchLinks: qa('.pane table tbody tr').filter(visible).map((r) => { const a = r.querySelector('td .table-row-link'); return a ? text(a) + ' -> ' + a.getAttribute('href').replace(/[0-9a-f-]{36}/, '{id}') : ''; }),
     heading: text(q('.ribbon-ref .ribbon-value')),
@@ -191,6 +197,43 @@ const expectations = {
   ],
   'search-audit-entry': (f) => [
     [f.searchLinks.join(' | ') === 'a.QDOS31002 -> /Cases/{id} | QDOS31001 -> /Cases/{id}?view=inspection | a.QDOS31001 -> /Cases/{id}?view=audit', `search entries ${f.searchLinks.join(' | ')}`]
+  ],
+  'alt2-ribbon-audit': (f) => [
+    [f.ribbonViews.join(',') === 'Inspection,Audit*', `ribbon switch ${f.ribbonViews.join(',')}`],
+    [f.viewTabs.length === 0 && !f.workingSet, 'a strip is shown with the ribbon switch'],
+    [f.layoutButtons === 2, 'Scroll/Tabs should stay']
+  ],
+  'alt2-ribbon-inspection': (f) => [
+    [f.ribbonViews.join(',') === 'Inspection*,Audit', `ribbon switch ${f.ribbonViews.join(',')}`],
+    [f.editCase.length === 0 && f.sectionEdits === 0, 'Edit offered in the Inspection view']
+  ],
+  'alt2-ribbon-editing': (f) => [
+    [f.ribbonViews.join(',') === 'Inspection,Audit*', `ribbon switch ${f.ribbonViews.join(',')}`]
+  ],
+  'alt3-sectionrow-audit': (f) => [
+    [f.sectionRowViews.join(',') === 'Inspection,Audit*', `section row switch ${f.sectionRowViews.join(',')}`],
+    [f.layoutButtons === 2, 'Scroll/Tabs should stay beside it'],
+    [f.viewTabs.length === 0 && !f.workingSet, 'a strip is shown with the section-row switch']
+  ],
+  'alt3-sectionrow-inspection': (f) => [
+    [f.sectionRowViews.join(',') === 'Inspection*,Audit', `section row switch ${f.sectionRowViews.join(',')}`]
+  ],
+  'alt4-aside-audit': (f) => [
+    [f.asideViews.length === 2 && /^Audit · a\.QDOS31001/.test(f.asideViews[1]) && f.asideViews[1].endsWith('*'), `aside views ${f.asideViews.join(' | ')}`],
+    [/Sent/.test(f.asideViews[0] || ''), 'the Inspection row does not show Sent'],
+    [f.viewTabs.length === 0 && !f.workingSet, 'a strip is shown with the aside card']
+  ],
+  'alt4-aside-inspection': (f) => [
+    [f.asideViews.length === 2 && f.asideViews[0].endsWith('*'), `aside views ${f.asideViews.join(' | ')}`]
+  ],
+  'alt5-compare': (f) => [
+    [f.anySwitch === 0, 'a view switch is shown in compare mode'],
+    [f.editCase.length === 1, 'Edit Case missing: the page is the Audit'],
+    [!/Inspection view/.test(f.inspectionReport), 'the sent report line still links an Inspection view']
+  ],
+  'alt5-compare-decisions': (f) => [
+    [f.wasLines.length === 2 && /^Inspection\s*2$/.test(f.wasLines[0]), `Inspection values ${f.wasLines.join(' | ')}`],
+    [f.changedChips === 2, `${f.changedChips} Changed from Inspection chips (Decisions and Report each changed)`]
   ],
   'search-triage': (f) => [
     [f.searchRows.join(',') === 't.QDOS31003', `search rows ${f.searchRows.join(',')}`]

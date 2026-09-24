@@ -29,6 +29,15 @@
 - One view shown as a tab (P1 variant): [1580](../../../current/v29-shots/p09-sent-read-single-tab-1580.png) · [1440](../../../current/v29-shots/p09-sent-read-single-tab-1440.png) · [760](../../../current/v29-shots/p09-sent-read-single-tab-760.png)
 - Actions with Create audit (P5): [1580](../../../current/v29-shots/p10-sent-actions-1580.png) · [1440](../../../current/v29-shots/p10-sent-actions-1440.png) · [760](../../../current/v29-shots/p10-sent-actions-760.png)
 - Standalone Audit (P1): [1580](../../../current/v29-shots/p12-standalone-audit-1580.png) · [1440](../../../current/v29-shots/p12-standalone-audit-1440.png) · [760](../../../current/v29-shots/p12-standalone-audit-760.png)
+- AA option 2, ribbon switch, Audit view: [1580](../../../current/v29-shots/p22-alt2-ribbon-audit-1580.png) · [1440](../../../current/v29-shots/p22-alt2-ribbon-audit-1440.png) · [760](../../../current/v29-shots/p22-alt2-ribbon-audit-760.png)
+- AA option 2, ribbon switch, Inspection view: [1580](../../../current/v29-shots/p23-alt2-ribbon-inspection-1580.png) · [1440](../../../current/v29-shots/p23-alt2-ribbon-inspection-1440.png) · [760](../../../current/v29-shots/p23-alt2-ribbon-inspection-760.png)
+- AA option 2, ribbon switch, edit session: [1580](../../../current/v29-shots/p24-alt2-ribbon-editing-1580.png) · [1440](../../../current/v29-shots/p24-alt2-ribbon-editing-1440.png) · [760](../../../current/v29-shots/p24-alt2-ribbon-editing-760.png)
+- AA option 3, section-row switch, Audit view: [1580](../../../current/v29-shots/p25-alt3-sectionrow-audit-1580.png) · [1440](../../../current/v29-shots/p25-alt3-sectionrow-audit-1440.png) · [760](../../../current/v29-shots/p25-alt3-sectionrow-audit-760.png)
+- AA option 3, section-row switch, Inspection view: [1580](../../../current/v29-shots/p26-alt3-sectionrow-inspection-1580.png) · [1440](../../../current/v29-shots/p26-alt3-sectionrow-inspection-1440.png) · [760](../../../current/v29-shots/p26-alt3-sectionrow-inspection-760.png)
+- AA option 4, Views card, Audit view: [1580](../../../current/v29-shots/p27-alt4-aside-audit-1580.png) · [1440](../../../current/v29-shots/p27-alt4-aside-audit-1440.png) · [760](../../../current/v29-shots/p27-alt4-aside-audit-760.png)
+- AA option 4, Views card, Inspection view: [1580](../../../current/v29-shots/p28-alt4-aside-inspection-1580.png) · [1440](../../../current/v29-shots/p28-alt4-aside-inspection-1440.png) · [760](../../../current/v29-shots/p28-alt4-aside-inspection-760.png)
+- AA option 5, compare in place: [1580](../../../current/v29-shots/p29-alt5-compare-1580.png) · [1440](../../../current/v29-shots/p29-alt5-compare-1440.png) · [760](../../../current/v29-shots/p29-alt5-compare-760.png)
+- AA option 5, compare in place, Decisions: [1580](../../../current/v29-shots/p30-alt5-compare-decisions-1580.png) · [1440](../../../current/v29-shots/p30-alt5-compare-decisions-1440.png) · [760](../../../current/v29-shots/p30-alt5-compare-decisions-760.png)
 
 ## Notes
 
