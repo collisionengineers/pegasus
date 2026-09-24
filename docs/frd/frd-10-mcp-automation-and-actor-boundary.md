@@ -10,7 +10,7 @@
   its own identity and history and no management powers.
 - Lists page by cursor, 50 by default and 100 at most. Documents are checked
   for permission before any content is read.
-- The Actor can work Unidentified items, Triage, AI jobs and estimates. It
+- The Actor can work Unidentified items, Triage Cases, AI jobs and estimates. It
   cannot send mail on its own or touch Glass's credentials.
 - A tool counts as delivered only after a real caller has proved success,
   authorisation failure, validation failure and history.
@@ -102,9 +102,10 @@ Triage is ordinary `PerformCasework`. The Actor may list and inspect a
 Triage, retrieve its retained origin source, mark it Awaiting information,
 record or supersede a finding, link or unlink exact response evidence,
 complete, cancel or reopen it, and link or unlink a Case under the normal
-Case edit lease and version guards. Each action calls the same Core query or
-command staff use, supplies the resolved Automation identity rather than
-caller-provided actor data, and keeps Triage distinct from Unidentified.
+Case edit lease and version guards. The tools identify a Triage by its Case
+id (`caseId`) and return its `t.` Case/PO. Each action calls the same Core
+query or command staff use, supplies the resolved Automation identity rather
+than caller-provided actor data, and keeps Triage distinct from Unidentified.
 
 Assignment names a selected staff assignee, separate from the acting principal.
 An actor-relative `Assign to me` is not part of the Automation contract and

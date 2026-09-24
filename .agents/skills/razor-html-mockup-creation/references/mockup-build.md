@@ -8,7 +8,7 @@ HTML.
 - A self-contained HTML file: no server, build, network or font download. The
   Case record and the shell (every other rail destination, hash-routed) were two
   files that share tokens and hand the Case route to each other.
-- Tokens, rail, utility bar, workspace tabs, Lucide glyphs and real geometry
+- Tokens, rail, utility bar, Lucide glyphs and real geometry
   (the `DamageDiagramGeometry` SVG) are pulled from `origin/dev`, so the mockup
   is the live shell with the proposal inside it, not a new design system.
 - Fixtures are synthetic (the v24 MA59BDY / QDOS26214 case). Images are
@@ -31,23 +31,25 @@ stated in the README as demo control, not product UI.
 
 Every strip state is also reachable by query string (`state`, `edit=1`,
 `section`, `glass`, `proposal=1`, `role`, `data`, `fresh`, `unavailable=1`,
-`dialog`, `tabs=N`, `tabopt=key:value,...`, `viewer=N`) so a screenshot needs no
-click, and the self-check can assert each preset.
+`dialog`, `opt=key:value,...`, `viewer=N`) so a screenshot needs no click, and
+the self-check can assert each preset.
 
 ## Persistence
 
-Per-browser choices (rail collapse, collapsed sections, strip variables, the
-working set of open records) live in `localStorage` keys namespaced by version
-(`vNN.rail`, `vNN.tabopt`, `vNN.open`). Shared state is read by both files so a
-record opened in the shell shows on the Case record's strip.
+Per-browser choices (rail collapse, collapsed sections, strip variables) live
+in `localStorage` keys namespaced by version (for example `vNN.rail`). Shared
+state is read by both files. The live shell has no working set of open
+records, so a mockup draws none.
 
 ## Frame rules
 
 State them as numbers in the notes and keep them:
 
+- no working-set strip: the sticky block starts under the 48px utility bar;
 - ribbon 56px, section row 40px, the sticky block measured at runtime, not assumed;
 - 12-column content grid with 36px cells; aside 285px at 1441px and above,
-  folded into a strip above the sections below that;
+  folded into a strip above the sections below that; the aside's first card is
+  the Views card only on an Inspection + Audit Case whose Audit exists;
 - 13.5px body text and 36px controls per the design authority;
 - one primary plus one More menu per panel head, with any exception named;
 - no control in a head that the section's state does not allow; availability
