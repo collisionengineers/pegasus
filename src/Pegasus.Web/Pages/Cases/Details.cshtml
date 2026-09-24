@@ -79,12 +79,6 @@
     var offersActionsMenu = canUnlinkEvidence || canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
         || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
         || offersCreateAudit || offersAdverseClosure;
-    ViewData["WorkingSetRecord"] = new WorkingSetRecord(
-        $"/Cases/{summary.CaseId:D}",
-        WorkingSetRecord.Kinds.Case,
-        workflow.Identity.Reference,
-        summary.Registration,
-        Model.WorkingSetGlyph);
     var staleGeneration = Model.CurrentReportGeneration is { State: CaseReportGenerationState.Stale };
     var next = Model.NextAction;
     var outcome = Model.AssessmentEditorValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)

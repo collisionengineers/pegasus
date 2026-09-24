@@ -481,10 +481,6 @@ public sealed partial class DetailsModel(
                 : await destinations.SearchAsync(receipt, query.Length > 300 ? query[..300] : query, actor, cancellationToken);
         }
 
-        ViewData["WorkingSetRecord"] = new WorkingSetRecord(
-            $"/Unidentified/{id:D}",
-            WorkingSetRecord.Kinds.Unidentified,
-            context.Item.Reference);
         return null;
     }
 

@@ -11,22 +11,21 @@ namespace Pegasus.IntegrationTests;
 /// v26 Unidentified record (received file D2, D5): the record hosts what the
 /// removed received-file page did. Close with reason moves the item under the
 /// Cases list's Closed filter with its reason; Reopen brings it back; the page
-/// announces itself to the working set and links to no receipt page.
+/// links to no receipt page.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class UnidentifiedRecordWebTests
 {
     [Fact]
-    public async Task TheRecordAnnouncesItselfAndLinksToNoReceiptPage()
+    public async Task TheRecordLinksToNoReceiptPage()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var (receiptId, itemId, reference) = await SeedOpenItemAsync(factory, UnidentifiedReasonCode.UnreadableOrCorruptContent);
+        var (receiptId, itemId, _) = await SeedOpenItemAsync(factory, UnidentifiedReasonCode.UnreadableOrCorruptContent);
 
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
 
-        Assert.Contains("data-record-kind=\"unidentified\"", html, StringComparison.Ordinal);
-        Assert.Contains($"data-record-ref=\"{reference}\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-record-kind", html, StringComparison.Ordinal);
         Assert.Contains("data-unidentified-state=\"open\"", html, StringComparison.Ordinal);
         Assert.Contains("data-unidentified-action=\"close\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain($"href=\"/Received/{receiptId:D}/Source\"", html, StringComparison.Ordinal);

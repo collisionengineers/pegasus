@@ -613,11 +613,6 @@ public sealed class DetailsModel(
             : null;
         CanAssignToMe = TriageLifecycleRules.CanAssignToSelf(triage.Record)
             && NeedsAttentionPolicy.CanTake(NeedsAttentionKind.Triage, actor);
-        ViewData["WorkingSetRecord"] = new WorkingSetRecord(
-            $"/Triage/{id:D}",
-            WorkingSetRecord.Kinds.Triage,
-            triage.Record.Reference ?? "Triage",
-            triage.Record.NormalizedVehicleRegistration);
 
         ActiveFindings = triage.Findings
             .Where(candidate => !triage.Findings.Any(

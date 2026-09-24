@@ -5,7 +5,7 @@
 // Blocks, in order:
 //   frame       sticky measure, Scroll/Tabs, lazy section bodies, the
 //               section nav, in-place actions (fetch + swap), the edit
-//               session (dirty guard, heartbeat, expiry), pegasus:dirty
+//               session (dirty guard, heartbeat, expiry)
 //   sections    the section-owned enhancements (damage clicker, valuation
 //               calculator, estimate grid, report images, files, viewer)
 //
@@ -419,9 +419,8 @@
     }
 
     // ---- the edit session: dirty guard, heartbeat, expiry ------------------
-    function announce(isDirty) {
+    function setDirty(isDirty) {
         dirty = isDirty;
-        document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: isDirty } }));
     }
     function editorFor(control) {
         var form = control.form || (control.closest ? control.closest('form') : null);
@@ -431,7 +430,7 @@
         var id = form.getAttribute('id');
         dirtyEditors.set(id, (dirtyEditors.get(id) || 0) + 1);
         activeEditor = id;
-        announce(true);
+        setDirty(true);
     }
     ['input', 'change'].forEach(function (name) {
         document.addEventListener(name, function (event) {
@@ -683,12 +682,6 @@
         });
         record.setAttribute('data-layout', layout);
         main = document.getElementById('case-main');
-        var mainAttributes = parsed.querySelector('main[data-record-kind]');
-        var liveMain = document.querySelector('main#main-content');
-        if (mainAttributes && liveMain) {
-            var glyph = mainAttributes.getAttribute('data-record-glyph');
-            if (glyph) { liveMain.setAttribute('data-record-glyph', glyph); } else { liveMain.removeAttribute('data-record-glyph'); }
-        }
         // Dialogs first so the openers in the swapped roots find them.
         ['[data-case-dialogs]', '[data-case-viewer-host]', '[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]'].forEach(function (selector) {
             var root = document.querySelector(selector);
@@ -706,7 +699,7 @@
         updateSectionFields();
         measure();
         keep(saved);
-        announce(dirtyEditors.size > 0);
+        setDirty(dirtyEditors.size > 0);
         if (confirmed && dirtyEditors.size > 0 && !mayAdvance) {
             showActionError('The save completed, but the Case changed again or editing expired. Your other unsaved changes still use their original version.');
         }
@@ -1040,14 +1033,14 @@
                     return;
                 }
                 dirtyEditors.clear();
-                announce(false);
+                setDirty(false);
                 proceed();
             });
             return;
         }
         if (isCancel) {
             dirtyEditors.clear();
-            announce(false);
+            setDirty(false);
         }
         proceed();
     });
@@ -1078,7 +1071,7 @@
                 }
             } else if (answer === 'discard') {
                 dirtyEditors.clear();
-                announce(false);
+                setDirty(false);
                 window.location.assign(link.href);
             }
         });
