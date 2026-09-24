@@ -177,14 +177,6 @@
                 </div>
             </div>
             <div class="ribbon-actions" data-case-ribbon-actions>
-                @if (Model.AuditCase is { } auditCase)
-                {
-                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@auditCase.CaseId" data-audit-link>@Frame.AuditCase @auditCase.Reference</a>
-                }
-                @if (Model.OriginalCase is { } originalAudit)
-                {
-                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@originalAudit.CaseId" data-original-link>@Frame.OriginalCase @originalAudit.Reference</a>
-                }
                 @if (workflow.OriginalCaseId is { } originalCaseId)
                 {
                     <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@originalCaseId">@Frame.OriginalCase</a>

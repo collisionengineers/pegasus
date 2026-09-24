@@ -127,8 +127,7 @@ internal sealed class EfRecentCaseQueries(
         events.Where(item => item.BeforeVersion == 0
             && item.AfterVersion == 0
             && (item.EventType == "manual_case_created"
-                || item.EventType == "case_created_as_replacement"
-                || item.EventType == "audit_case_created"));
+                || item.EventType == "case_created_as_replacement"));
 
     private sealed record Row(
         RecentCaseRowKind Kind,

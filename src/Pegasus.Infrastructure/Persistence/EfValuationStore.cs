@@ -306,19 +306,13 @@ public sealed class EfValuationStore(
         var snapshotJson = JsonSerializer.Serialize(snapshot, SerializerOptions);
         var reason = request.Reason.Trim();
 
-        // The hash is what the case makes of the calculation, not when it was
-        // made: the Case version is deliberately left out so that adopting
-        // the same figures from the same card for the same reason a second
-        // time is caught here rather than recorded twice.
-        var snapshotHash = Hash(new
-        {
+        var snapshotHash = AppliedSnapshotHash(
             request.CaseId,
             snapshot.GuideValuationId,
             snapshot.GuideValuationStampUtc,
             snapshot.Calculation,
-            Accepted = accepted,
-            Reason = reason,
-        });
+            accepted,
+            reason);
         if (await context.Set<AppliedValuationSnapshotEntity>().AnyAsync(
                 item => item.WorkId == workId && item.SnapshotHash == snapshotHash,
                 cancellationToken))
@@ -539,6 +533,60 @@ public sealed class EfValuationStore(
         Guid GuideValuationId,
         DateTimeOffset GuideValuationStampUtc,
         ValuationCalculation Calculation);
+
+    /// <summary>
+    /// The one hash of an applied valuation. It is what the case makes of the
+    /// calculation, not when it was made: the Case version is deliberately left
+    /// out so that adopting the same figures from the same card for the same
+    /// reason a second time is caught rather than recorded twice.
+    /// </summary>
+    internal static string AppliedSnapshotHash(
+        Guid caseId,
+        Guid guideValuationId,
+        DateTimeOffset guideValuationStampUtc,
+        ValuationCalculation calculation,
+        decimal accepted,
+        string reason) =>
+        Hash(new
+        {
+            CaseId = caseId,
+            GuideValuationId = guideValuationId,
+            GuideValuationStampUtc = guideValuationStampUtc,
+            Calculation = calculation,
+            Accepted = accepted,
+            Reason = reason,
+        });
+
+    /// <summary>
+    /// An applied valuation re-pointed at copied guide cards (Create audit's
+    /// copy, whose guide cards carry new ids): the frozen snapshot with its
+    /// guide id mapped, and the hash recomputed by <see cref="AppliedSnapshotHash"/>.
+    /// </summary>
+    internal static (string SnapshotJson, string SnapshotHash) RepointAppliedSnapshot(
+        AppliedValuationSnapshotEntity entity,
+        Guid caseId,
+        IReadOnlyDictionary<Guid, Guid> guideValuationIds)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        ArgumentNullException.ThrowIfNull(guideValuationIds);
+        var source = ReadSnapshot(entity);
+        if (!guideValuationIds.TryGetValue(source.GuideValuationId, out var guideValuationId))
+        {
+            throw new InvalidDataException(
+                "The applied valuation names a guide valuation that was not copied.");
+        }
+
+        var snapshot = source with { GuideValuationId = guideValuationId };
+        return (
+            JsonSerializer.Serialize(snapshot, SerializerOptions),
+            AppliedSnapshotHash(
+                caseId,
+                snapshot.GuideValuationId,
+                snapshot.GuideValuationStampUtc,
+                snapshot.Calculation,
+                entity.AcceptedEngineerValue,
+                entity.Reason));
+    }
 
     public async Task<IReadOnlyList<CaseValuation>> ListForCaseAsync(
         Guid caseId,

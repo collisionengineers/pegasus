@@ -3078,13 +3078,10 @@ public sealed class CustodyOutboxIntegrationTests
         public virtual async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
             Guid caseId,
             string caseReference,
-            CancellationToken cancellationToken,
-            Guid? parentCaseId = null,
-            string? parentCaseReference = null)
+            CancellationToken cancellationToken)
         {
             EffectCalls++;
-            return await inner.GetExistingCaseRootAsync(
-                caseId, caseReference, cancellationToken, parentCaseId, parentCaseReference);
+            return await inner.GetExistingCaseRootAsync(caseId, caseReference, cancellationToken);
         }
 
         public virtual async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
@@ -3177,9 +3174,7 @@ public sealed class CustodyOutboxIntegrationTests
         public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
             Guid caseId,
             string caseReference,
-            CancellationToken cancellationToken,
-            Guid? parentCaseId = null,
-            string? parentCaseReference = null) => throw Failure();
+            CancellationToken cancellationToken) => throw Failure();
 
         public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
             CaseCustodyRoot root, IntakeSourceCustodyReference source, string operationKey,

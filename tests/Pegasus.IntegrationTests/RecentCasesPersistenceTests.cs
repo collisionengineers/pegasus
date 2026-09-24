@@ -8,7 +8,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class RecentCasesPersistenceTests
 {
     private static readonly string[] ExpectedAutomationChangeKinds =
-        ["operator_note", "case_field_updated", "audit_case_created"];
+        ["operator_note", "case_field_updated", "audit_created"];
     private static readonly DateTimeOffset Since =
         new(2031, 5, 1, 9, 0, 0, TimeSpan.Zero);
 
@@ -27,7 +27,7 @@ public sealed class RecentCasesPersistenceTests
         Assert.Equal(6, first.TotalCount);
         Assert.Equal(3, first.TotalPages);
         Assert.Equal([ids.Note, ids.InitialEdit], first.Items.Select(item => item.CaseId));
-        Assert.Equal([ids.AuditOriginal, ids.Guidance], second.Items.Select(item => item.CaseId));
+        Assert.Equal([ids.Audited, ids.Guidance], second.Items.Select(item => item.CaseId));
         Assert.Equal([ids.Replacement, ids.Mail], third.Items.Select(item => item.CaseId));
         Assert.Equal(CaseArrival.Email, Assert.Single(third.Items, item => item.CaseId == ids.Mail).Arrival);
         Assert.Equal(CaseArrival.Automation, Assert.Single(third.Items, item => item.CaseId == ids.Replacement).Arrival);
@@ -49,7 +49,7 @@ public sealed class RecentCasesPersistenceTests
         var mail = Guid.NewGuid();
         var replacement = Guid.NewGuid();
         var guidance = Guid.NewGuid();
-        var auditOriginal = Guid.NewGuid();
+        var audited = Guid.NewGuid();
         var initialEdit = Guid.NewGuid();
         var note = Guid.NewGuid();
         context.Add(Receipt(mailReceiptId));
@@ -57,22 +57,22 @@ public sealed class RecentCasesPersistenceTests
             Case(mail, principal, 1, Since.AddMinutes(50), mailReceiptId),
             Case(replacement, principal, 2, Since.AddMinutes(51)),
             Case(guidance, principal, 3, Since.AddMinutes(52)),
-            Case(auditOriginal, principal, 4, Since.AddDays(-1)),
+            Case(audited, principal, 4, Since.AddDays(-1)),
             Case(initialEdit, principal, 5, Since.AddDays(-1)),
             Case(note, principal, 6, Since.AddDays(-1)),
             Workflow(mail),
             Workflow(replacement),
             Workflow(guidance),
-            Workflow(auditOriginal),
+            Workflow(audited),
             Workflow(initialEdit),
             Workflow(note),
             Event(replacement, "case_created_as_replacement", Since.AddMinutes(51), 0, 0),
             Event(guidance, "case_guidance_applied", Since.AddMinutes(52), 0, 0),
-            Event(auditOriginal, "audit_case_created", Since.AddMinutes(53), 0, 1),
+            Event(audited, "audit_created", Since.AddMinutes(53), 0, 1),
             Event(initialEdit, "case_field_updated", Since.AddMinutes(54), 0, 1),
             Event(note, "operator_note", Since.AddMinutes(55), 0, 0));
         await context.SaveChangesAsync();
-        return new(mail, replacement, guidance, auditOriginal, initialEdit, note);
+        return new(mail, replacement, guidance, audited, initialEdit, note);
     }
 
     private static IntakeReceiptEntity Receipt(Guid id) => new()
@@ -147,7 +147,7 @@ public sealed class RecentCasesPersistenceTests
         Guid Mail,
         Guid Replacement,
         Guid Guidance,
-        Guid AuditOriginal,
+        Guid Audited,
         Guid InitialEdit,
         Guid Note);
 }
