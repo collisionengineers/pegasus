@@ -36,7 +36,10 @@ internal sealed class EfRecentCaseQueries(
             join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
                 on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
             from receipt in receipts.DefaultIfEmpty()
+            // New cases are definitive instructions; a Triage Case is counted
+            // by its own Work Centre metric.
             where caseEntity.CreatedAtUtc >= sinceUtc
+                && caseEntity.Type != CaseTypeCodes.Triage
             select new Row(
                 RecentCaseRowKind.NewCase,
                 caseEntity.Id,

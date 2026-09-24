@@ -60,7 +60,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Equal(TriageCasePairing.ActorId, history.Actor);
         Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
             item.CaseId == caseId && item.EventType == history.EventType));
-        Assert.Equal(1, await context.Cases.CountAsync(item => item.Type != CaseTypeCodes.Triage));
+        // The instructed Case and the Triage Case, which is a Case too.
+        Assert.Equal(2, await context.Cases.CountAsync());
         Assert.Equal(1, (await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId)).Version);
     }
 

@@ -95,6 +95,12 @@ internal static class CaseMatchIndexProjector
         IEnumerable<IProviderCaseMatchPolicy> policies,
         DateTimeOffset updatedAtUtc)
     {
+        // A Triage Case is never an intake match target: it is not a definitive
+        // instruction, and a later instruction is a Case of its own.
+        if (string.Equals(caseEntity.Type, CaseTypeCodes.Triage, StringComparison.Ordinal))
+        {
+            return null;
+        }
         var provider = CurrentValue(fields, CaseDataFieldNames.WorkProviderCode);
         var policy = provider is null
             ? null

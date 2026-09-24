@@ -74,7 +74,7 @@ internal sealed class EfOperationsStore(
             .Take(sourceLimit)
             .Select(item => new ResponseEmailRow(
                 item.Id,
-                item.SentEvidence.TriageId,
+                item.SentEvidence.TriageCaseId,
                 item.DiscoveredAtUtc))
             .ToListAsync(cancellationToken);
         var sentStateRows = await context.ApprovedSentPollStates
@@ -110,7 +110,7 @@ internal sealed class EfOperationsStore(
             .Take(sourceLimit)
             .Select(item => new SentEmailRow(
                 item.Id,
-                item.TriageId,
+                item.TriageCaseId,
                 item.SentAtUtc))
             .ToListAsync(cancellationToken);
         var reportRows = await (
@@ -139,7 +139,7 @@ internal sealed class EfOperationsStore(
             item.MailboxAddress,
             item.QuarantinedAtUtc,
             IntakeId: null,
-            TriageId: null,
+            TriageCaseId: null,
             CaseId: null,
             CaseReference: null,
             PrincipalCode: null,
@@ -154,7 +154,7 @@ internal sealed class EfOperationsStore(
             MailboxIdentity: null,
             item.ProcessedAtUtc,
             item.Id,
-            TriageId: null,
+            TriageCaseId: null,
             CaseId: null,
             CaseReference: null,
             PrincipalCode: null,
@@ -170,7 +170,7 @@ internal sealed class EfOperationsStore(
             MailboxIdentity: null,
             item.DiscoveredAtUtc,
             IntakeId: null,
-            item.TriageId,
+            item.TriageCaseId,
             CaseId: null,
             CaseReference: null,
             PrincipalCode: null,
@@ -187,7 +187,7 @@ internal sealed class EfOperationsStore(
             MailboxIdentity: null,
             item.SentAtUtc,
             IntakeId: null,
-            item.TriageId,
+            item.TriageCaseId,
             CaseId: null,
             CaseReference: null,
             PrincipalCode: null,
@@ -201,7 +201,7 @@ internal sealed class EfOperationsStore(
             item.MailboxIdentity,
             item.DiscoveredAtUtc,
             IntakeId: null,
-            TriageId: null,
+            TriageCaseId: null,
             item.CaseId,
             item.CaseReference,
             item.PrincipalCode,
@@ -216,7 +216,7 @@ internal sealed class EfOperationsStore(
             item.MailboxAddress,
             item.RecordedAtUtc,
             IntakeId: null,
-            TriageId: null,
+            TriageCaseId: null,
             CaseId: null,
             CaseReference: null,
             PrincipalCode: null,
@@ -480,7 +480,7 @@ internal sealed class EfOperationsStore(
             item.MailboxAddress,
             item.DueAtUtc,
             IntakeId: null,
-            TriageId: null,
+            TriageCaseId: null,
             CaseId: null,
             CaseReference: null,
             PrincipalCode: null,
@@ -512,7 +512,7 @@ internal sealed class EfOperationsStore(
             item.MailboxAddress,
             item.DueAtUtc,
             IntakeId: null,
-            TriageId: null,
+            TriageCaseId: null,
             CaseId: null,
             CaseReference: null,
             PrincipalCode: null,
@@ -629,12 +629,12 @@ internal sealed class EfOperationsStore(
 
     private sealed record ResponseEmailRow(
         Guid Id,
-        Guid TriageId,
+        Guid TriageCaseId,
         DateTimeOffset DiscoveredAtUtc);
 
     private sealed record SentEmailRow(
         Guid Id,
-        Guid TriageId,
+        Guid TriageCaseId,
         DateTimeOffset SentAtUtc);
 
     private sealed record ReportSentEmailRow(

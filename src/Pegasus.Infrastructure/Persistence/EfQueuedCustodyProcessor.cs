@@ -627,14 +627,17 @@ internal sealed class EfQueuedCustodyProcessor(
             return;
         }
 
-        var caseEntity = await context.Cases
-            .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
-        var workflow = await context.CaseWorkflows
-            .Include(value => value.Case).ThenInclude(value => value.Principal)
-            .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
-        ArchivedCaseGuard.RequireMutable(workflow);
+        // A Triage Case has no workflow: its Triage is the authority, and
+        // custody completing neither moves its state nor its version.
+        var authority = await CaseMutationAuthority.LoadAsync(
+            context,
+            work.CaseId ?? throw new InvalidDataException("The case custody work item has no owning case."),
+            cancellationToken)
+            ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
+        authority.RequireMutable();
+        var caseEntity = authority.Case;
 
-        var beforeVersion = workflow.Version;
+        var beforeVersion = authority.Version;
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.CustodySourceRemoteId = version.RemoteId;
         caseEntity.CustodySourceContentHash = version.ContentHash;
@@ -650,7 +653,8 @@ internal sealed class EfQueuedCustodyProcessor(
         var completeness = new CaseCompleteness(
             caseEntity.InstructionComplete,
             caseEntity.ImagesComplete);
-        if (workflow.State == CaseLifecycleState.NotReady.ToString()
+        if (authority.Workflow is { } workflow
+            && workflow.State == CaseLifecycleState.NotReady.ToString()
             && completeness.IsReadyForReview())
         {
             workflow.State = CaseLifecycleState.Review.ToString();
@@ -658,7 +662,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 context, workflow, checked(workflow.Version + 1), now);
         }
         await RecordRetainedCaseFilesAsync(context, caseEntity.Id, retainedFiles, now, cancellationToken);
-        CaseMutationGuard.Complete(workflow);
+        authority.CompleteSystemMutation();
         CompleteWork(work, now, version.RemoteId);
         context.Set<CaseHistoryEntity>().Add(new()
         {
@@ -670,7 +674,7 @@ internal sealed class EfQueuedCustodyProcessor(
             OccurredAtUtc = now,
             OperationKey = $"{work.OperationKey}:confirmed",
             BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version
+            AfterVersion = authority.Version
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -691,22 +695,23 @@ internal sealed class EfQueuedCustodyProcessor(
             return;
         }
 
-        var caseEntity = await context.Cases
-            .SingleAsync(value => value.Id == work.CaseId, cancellationToken);
+        var authority = await CaseMutationAuthority.LoadAsync(
+            context,
+            work.CaseId ?? throw new InvalidDataException("The case custody work item has no owning case."),
+            cancellationToken)
+            ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
+        var caseEntity = authority.Case;
         if (caseEntity.OriginIntakeReceiptId is not null)
         {
             throw new InvalidDataException("Manual custody completion requires a receiptless Case.");
         }
-        var workflow = await context.CaseWorkflows
-            .Include(value => value.Case).ThenInclude(value => value.Principal)
-            .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
-        ArchivedCaseGuard.RequireMutable(workflow);
+        authority.RequireMutable();
 
-        var beforeVersion = workflow.Version;
+        var beforeVersion = authority.Version;
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.CustodyConfirmedAtUtc = now;
         caseEntity.CustodyState = "confirmed";
-        CaseMutationGuard.Complete(workflow);
+        authority.CompleteSystemMutation();
         CompleteWork(work, now, root.RemoteId);
         context.CaseHistory.Add(new()
         {
@@ -718,7 +723,7 @@ internal sealed class EfQueuedCustodyProcessor(
             OccurredAtUtc = now,
             OperationKey = $"{work.OperationKey}:confirmed",
             BeforeVersion = beforeVersion,
-            AfterVersion = workflow.Version
+            AfterVersion = authority.Version
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

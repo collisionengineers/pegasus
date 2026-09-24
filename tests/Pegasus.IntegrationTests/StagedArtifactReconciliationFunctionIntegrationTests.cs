@@ -158,7 +158,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         }
         public Task<TriageCasePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageId, CancellationToken cancellationToken) =>
+        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 

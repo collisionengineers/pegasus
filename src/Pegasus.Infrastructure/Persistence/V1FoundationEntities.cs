@@ -54,12 +54,6 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public Guid ConcurrencyToken { get; set; }
 }
 
-internal sealed class TriageSequenceEntity
-{
-    public int Id { get; set; }
-    public long LastAllocatedSequence { get; set; }
-}
-
 internal sealed class ValuationPresetEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }

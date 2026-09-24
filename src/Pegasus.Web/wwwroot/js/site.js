@@ -1884,6 +1884,35 @@
         select.addEventListener('change', sync);
         sync();
     });
+
+    // Create case: a Triage Case asks only for the Principal and the
+    // registration, so choosing it hides every other field and stops it being
+    // required; choosing another type restores both. Without script every
+    // field shows and the server takes only what a Triage Case needs.
+    document.querySelectorAll('[data-manual-case-type]').forEach(function (select) {
+        var form = select.closest('form');
+        if (!form) {
+            return;
+        }
+        var triageValue = select.getAttribute('data-manual-case-type');
+        function sync() {
+            var triage = select.value === triageValue;
+            form.querySelectorAll('[data-triage-hidden]').forEach(function (field) {
+                field.hidden = triage;
+                field.querySelectorAll('input, select, textarea').forEach(function (control) {
+                    if (triage && control.required) {
+                        control.setAttribute('data-triage-required', '');
+                        control.required = false;
+                    } else if (!triage && control.hasAttribute('data-triage-required')) {
+                        control.removeAttribute('data-triage-required');
+                        control.required = true;
+                    }
+                });
+            });
+        }
+        select.addEventListener('change', sync);
+        sync();
+    });
 })();
 
 // ===========================================================================

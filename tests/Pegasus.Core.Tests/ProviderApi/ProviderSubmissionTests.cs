@@ -4,6 +4,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ProviderApi;
+using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Tests.ProviderApi;
 
@@ -396,7 +397,7 @@ public sealed class ProviderSubmissionTests
             QueuedIntakeStatusKind.Complete,
             ProcessedReceiptId: null,
             FailureCode: null);
-        var result = new GetProviderSubmissionResult(store, status, status);
+        var result = new GetProviderSubmissionResult(store, status, status, new FakeTriageQueries());
 
         var paused = await result.ExecuteAsync(Paused, receipt.SubmissionId, CancellationToken.None);
         Assert.NotNull(paused);
@@ -408,6 +409,67 @@ public sealed class ProviderSubmissionTests
             OtherPrincipalId, KeyId, PrincipalCredentialState.Active);
         Assert.Null(await result.ExecuteAsync(foreign, receipt.SubmissionId, CancellationToken.None));
         Assert.Null(await result.ExecuteAsync(Active, Guid.NewGuid(), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A Triage request becomes a Triage Case, not an accepted instruction, so
+    /// its receipt names no current Case; the result returns the Triage
+    /// Case's t. reference (decision U).
+    /// </summary>
+    [Fact]
+    public async Task ResultReturnsTheTriageCaseReferenceWhenTheRequestOpenedATriageCase()
+    {
+        var store = new FakeStore();
+        var intake = new FakeIntakeSubmission();
+        var receipt = await Submit(store, intake).ExecuteAsync(Request(Active), CancellationToken.None);
+        var status = new FakeStatus();
+        var staged = intake.StagedIds.Single();
+        var processedId = Guid.NewGuid();
+        status.Statuses[staged] = new(
+            staged,
+            ProviderInstructionPolicy.SourceFileName,
+            Now,
+            QueuedIntakeStatusKind.Complete,
+            ProcessedReceiptId: processedId,
+            FailureCode: null);
+        status.Receipts[processedId] = new IntakeReceipt(
+            processedId,
+            ProviderInstructionPolicy.SourceFileName,
+            "application/json",
+            1,
+            new string('a', 64),
+            new IntakeSourceIdentity(IntakeSourceChannel.ProviderApi, "provider-token"),
+            Now,
+            Now,
+            IntakeDecision.NeedsSorting,
+            "A Triage request.",
+            [],
+            [],
+            null,
+            [],
+            null,
+            null,
+            false,
+            "reader",
+            "1",
+            null,
+            null);
+        var triage = new FakeTriageQueries();
+        triage.ByOriginReceipt[processedId] = new TriageSummary(
+            Guid.NewGuid(),
+            "AB12CDE",
+            TriageState.Open,
+            AssigneeId: null,
+            LinkedInstructionCaseId: null,
+            Now,
+            Version: 0,
+            Reference: "t.QDOS26001",
+            Provider: "QDOS");
+
+        var result = await new GetProviderSubmissionResult(store, status, status, triage)
+            .ExecuteAsync(Active, receipt.SubmissionId, CancellationToken.None);
+
+        Assert.Equal("t.QDOS26001", result?.CaseReference);
     }
 
     [Fact]
@@ -669,7 +731,7 @@ public sealed class ProviderSubmissionTests
             QueuedIntakeStatusKind.Processing,
             ProcessedReceiptId: null,
             FailureCode: null);
-        var getResult = new GetProviderSubmissionResult(store, status, status);
+        var getResult = new GetProviderSubmissionResult(store, status, status, new FakeTriageQueries());
 
         var before = await getResult.ExecuteAsync(Active, submissionId, CancellationToken.None);
         Assert.Equal(QueuedIntakeStatusKind.Received, before?.Status);
@@ -906,6 +968,23 @@ public sealed class ProviderSubmissionTests
             Add(entry);
             return Task.FromResult(true);
         }
+    }
+
+    private sealed class FakeTriageQueries : ITriageQueries
+    {
+        public Dictionary<Guid, TriageSummary> ByOriginReceipt { get; } = [];
+
+        public Task<IReadOnlyList<TriageSummary>> ListAsync(TriageState? state, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<TriageSummary?> GetByOriginReceiptAsync(Guid originReceiptId, CancellationToken cancellationToken) =>
+            Task.FromResult(ByOriginReceipt.GetValueOrDefault(originReceiptId));
     }
 
     private sealed class FakeStatus : IQueuedIntakeStatusQueries, IIntakeReceiptQueries

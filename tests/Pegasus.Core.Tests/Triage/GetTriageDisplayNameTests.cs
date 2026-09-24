@@ -7,7 +7,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Tests.Triage;
 
 /// <summary>
-/// The Triage history table (<c>Pages/Triage/Details.cshtml</c>) shows
+/// The Triage history table (<c>Pages/Cases/Shared/_TriageCase.cshtml</c>) shows
 /// the resolved staff name, never the raw actor subject id it used to render —
 /// covers <c>GetTriage</c>'s resolution of <see cref="TriageHistoryEntry.Actor"/>.
 /// </summary>
@@ -31,7 +31,9 @@ public sealed class GetTriageDisplayNameTests
             TriageState.AwaitingInformation,
             null,
             null,
-            2);
+            2,
+            "t.QDOS31001",
+            Guid.NewGuid());
         var detail = new TriageDetail(
             record,
             NowUtc.AddDays(-1),
@@ -87,7 +89,9 @@ public sealed class GetTriageDisplayNameTests
             TriageState.Open,
             null,
             null,
-            1);
+            1,
+            "t.QDOS31002",
+            Guid.NewGuid());
         var detail = new TriageDetail(
             record,
             NowUtc.AddDays(-1),
@@ -140,7 +144,7 @@ public sealed class GetTriageDisplayNameTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
-        public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<TriageDetail?>(detail);
 
         public Task<TriageSummary?> GetByOriginReceiptAsync(
@@ -149,7 +153,7 @@ public sealed class GetTriageDisplayNameTests
             throw new NotSupportedException("Not used by these tests.");
 
         public Task<IReadOnlyList<TriageSentEvidenceReference>> ListSentEvidenceReferencesAsync(
-            Guid triageId,
+            Guid caseId,
             int maximumResults,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<TriageSentEvidenceReference>>([]);

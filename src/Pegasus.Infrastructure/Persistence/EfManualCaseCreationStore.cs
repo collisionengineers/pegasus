@@ -85,6 +85,11 @@ public sealed class EfManualCaseCreationStore(
         {
             throw new PrincipalUnavailableException(request.PrincipalCode);
         }
+        if (request.CaseType == CaseType.Triage)
+        {
+            return await CreateTriageAsync(
+                context, transaction, request, principal, allocated, fingerprint, now, cancellationToken);
+        }
         var completeness = new CaseCompleteness(
             InstructionComplete: IsInstructionComplete(request.Data),
             ImagesComplete: false);
@@ -220,6 +225,65 @@ public sealed class EfManualCaseCreationStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(Identity(caseEntity), vehicleLookupWorkId);
+    }
+
+    /// <summary>
+    /// A Triage Case entered by staff: its Principal and registration only. It
+    /// has no Case workflow, data snapshot, match index entry, due work or
+    /// vehicle lookup; it gets standard Case custody. With no workflow to write
+    /// the Case history triple, the replay row is written directly.
+    /// </summary>
+    private static async Task<ManualCaseCreationOutcome> CreateTriageAsync(
+        PegasusDbContext context,
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction,
+        CreateManualCaseRequest request,
+        PrincipalEntity principal,
+        AllocatedCaseIdentity allocated,
+        string fingerprint,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        const string reason = "Case created directly by staff.";
+        var registration = request.Data.VehicleRegistration
+            ?? throw new InvalidOperationException("A manual case needs Vehicle registration.");
+        var triage = TriageCaseRows.Add(
+            context,
+            principal,
+            allocated,
+            null,
+            registration,
+            request.Actor,
+            request.OperationKey,
+            reason,
+            fingerprint,
+            now);
+        context.ActionHistory.Add(new ActionHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "case",
+            AggregateId = triage.CaseId.ToString("D"),
+            EventKind = "manual_case_created",
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(
+                request.Actor.Roles.OrderBy(role => role),
+                new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = request.OperationKey,
+            Reason = reason,
+            BeforeJson = "null",
+            AfterJson = JsonSerializer.Serialize(new
+            {
+                CommandFingerprint = fingerprint,
+                Identity = Identity(triage.Case)
+            }),
+            PolicyVersion = $"{CaseDataPolicy.EditPolicyKey}/v{CaseDataPolicy.EditPolicyVersion}"
+        });
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(Identity(triage.Case), null);
     }
 
     private async Task<CaseIdentity?> FindReplayAsync(

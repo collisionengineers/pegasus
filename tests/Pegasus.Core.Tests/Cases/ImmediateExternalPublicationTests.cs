@@ -18,7 +18,7 @@ public sealed class ImmediateExternalPublicationTests
             CaseIds.Add(caseId);
             return Task.FromResult(new TriageCasePairingResult(0, 0, 0));
         }
-        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageId, CancellationToken cancellationToken) =>
+        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<TriageCasePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

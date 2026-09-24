@@ -21,7 +21,7 @@ public sealed record TriageListPage(
         : (int)Math.Ceiling((double)TotalCount / PageSize);
 }
 
-public sealed record GetTriageQuery(Guid TriageId, ActionActor Actor);
+public sealed record GetTriageQuery(Guid CaseId, ActionActor Actor);
 
 /// <summary>
 /// One keyset page of the Triage list. <paramref name="Cursor"/> is null for
@@ -131,7 +131,7 @@ public sealed class ListTriagePage(ITriageQueries queries, ICursorProtector prot
     : IListTriagePage
 {
     private const string QueryName = "triage";
-    private const string Order = "created_desc,sequence_desc";
+    private const string Order = "created_desc,case_desc";
 
     private readonly ITriageQueries queries =
         queries ?? throw new ArgumentNullException(nameof(queries));
@@ -172,7 +172,7 @@ public sealed class ListTriagePage(ITriageQueries queries, ICursorProtector prot
             ? protector.Protect(
                 scope,
                 CursorPaging.EncodeUtcTimestamp(position.CreatedAtUtc),
-                position.Id)
+                position.CaseId)
             : null;
         return new(slice.Items, next);
     }
@@ -202,14 +202,14 @@ public sealed class GetTriage(
     {
         ArgumentNullException.ThrowIfNull(query);
         StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
-        if (query.TriageId == Guid.Empty)
+        if (query.CaseId == Guid.Empty)
         {
             throw new ArgumentException(
                 "A Triage identifier is required.",
                 nameof(query));
         }
 
-        var detail = await queries.GetAsync(query.TriageId, cancellationToken);
+        var detail = await queries.GetAsync(query.CaseId, cancellationToken);
         if (detail is null)
         {
             return null;
@@ -236,7 +236,7 @@ public sealed class GetTriage(
         };
 
         var sentEvidence = await candidateQueries.ListSentEvidenceReferencesAsync(
-            query.TriageId,
+            query.CaseId,
             MaximumReplyChainIdentities,
             cancellationToken);
         if (sentEvidence.Count == 0)

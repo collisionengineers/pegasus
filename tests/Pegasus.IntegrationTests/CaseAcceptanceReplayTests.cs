@@ -224,23 +224,30 @@ public sealed partial class CaseAcceptanceReplayTests
                 unlinkRequest with { Reason = "A conflicting replay reason." },
                 CancellationToken.None));
 
-        // Recovery is a deliberate reopen, not a silent relink: a cancelled
-        // case refuses the relink until it is reopened with a reason.
+        // Staff "Link to case" reaches a Case in any lifecycle state (operator,
+        // 24 September 2026): the relink is accepted, and it is only a link —
+        // it does not reopen the cancelled Case.
         var relinkLease = await acquireLease.ExecuteAsync(
             new(caseId, unlinkLease.Version + 1, AcceptingActor, "lease:association-relink"),
             CancellationToken.None);
-        await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
-            link.ExecuteAsync(
-                new LinkIntakeRequest(
-                    receipt.Id,
-                    caseId,
-                    unlinked.Version,
-                    relinkLease.Version,
-                    relinkLease.Token,
-                    AcceptingActor,
-                    "association:relink-accepted-origin",
-                    "The current association was re-verified against retained evidence."),
-                CancellationToken.None));
+        await link.ExecuteAsync(
+            new LinkIntakeRequest(
+                receipt.Id,
+                caseId,
+                unlinked.Version,
+                relinkLease.Version,
+                relinkLease.Token,
+                AcceptingActor,
+                "association:relink-accepted-origin",
+                "The current association was re-verified against retained evidence."),
+            CancellationToken.None);
+        var relinked = Assert.IsType<IntakeReceipt>(await getIntake.ExecuteAsync(
+            new(receipt.Id, AcceptingActor),
+            CancellationToken.None));
+        Assert.Equal(caseId, relinked.CurrentCaseId);
+        Assert.Equal(
+            CaseLifecycleState.SourceEmailUnlinked,
+            await ReadCaseStateAsync(factory.Services, caseId));
     }
 
 

@@ -176,7 +176,7 @@ public sealed class OperationsUseCaseTests
         MailboxIdentity: null,
         FixedUtcNow,
         IntakeId: null,
-        TriageId: null,
+        TriageCaseId: null,
         CaseId: null,
         CaseReference: null,
         PrincipalCode: null,

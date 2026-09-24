@@ -9,7 +9,7 @@ namespace Pegasus.Core.Tests.Lifecycle;
 public sealed class AssignToMeTests
 {
     private static readonly Guid CaseId = Guid.NewGuid();
-    private static readonly Guid TriageId = Guid.NewGuid();
+    private static readonly Guid TriageCaseId = Guid.NewGuid();
     [Theory]
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
@@ -73,7 +73,7 @@ public sealed class AssignToMeTests
         var assign = new RecordingTriageAssign();
         var sut = new AssignTriageToMe(new TriageQueries(Triage(TriageState.Open, null)), assign);
 
-        await sut.ExecuteAsync(new(TriageId, 2, actor, "take-t1") { EditLeaseToken = "lease" }, default);
+        await sut.ExecuteAsync(new(TriageCaseId, 2, actor, "take-t1") { EditLeaseToken = "lease" }, default);
 
         var request = Assert.Single(assign.Requests);
         Assert.Equal(staffId, request.AssigneeId);
@@ -89,10 +89,10 @@ public sealed class AssignToMeTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => new AssignTriageToMe(new TriageQueries(Triage(TriageState.Open, Guid.NewGuid())), assign)
-                .ExecuteAsync(new(TriageId, 2, Staff(StaffRole.Engineer), "take-t2"), default));
+                .ExecuteAsync(new(TriageCaseId, 2, Staff(StaffRole.Engineer), "take-t2"), default));
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => new AssignTriageToMe(new TriageQueries(Triage(TriageState.Completed, null)), assign)
-                .ExecuteAsync(new(TriageId, 2, Staff(StaffRole.Engineer), "take-t3"), default));
+                .ExecuteAsync(new(TriageCaseId, 2, Staff(StaffRole.Engineer), "take-t3"), default));
 
         Assert.Empty(assign.Requests);
         Assert.True(TriageLifecycleRules.CanAssignToSelf(Triage(TriageState.Open, null)));
@@ -116,14 +116,15 @@ public sealed class AssignToMeTests
         ActionActor.Staff(Guid.NewGuid(), [role]);
 
     private static TriageRecord Triage(TriageState state, Guid? assigneeId) => new(
-        TriageId,
+        TriageCaseId,
         new(Guid.NewGuid(), new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, "token"), new string('a', 64), Guid.NewGuid()),
         "AB12CDE",
         state,
         assigneeId,
-        LinkedCaseId: null,
+        LinkedInstructionCaseId: null,
         2,
-        "T-00001");
+        "t.QDOS26001",
+        Guid.NewGuid());
 
     private sealed class Queries(CaseWorkflowRecord current) : ICaseWorkflowQueries
     {
@@ -153,8 +154,8 @@ public sealed class AssignToMeTests
         public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
             Task.FromResult(0);
 
-        public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<TriageDetail?>(id == current.Id
+        public Task<TriageDetail?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<TriageDetail?>(caseId == current.CaseId
                 ? new TriageDetail(current, DateTimeOffset.UnixEpoch, [], [], [], [])
                 : null);
 

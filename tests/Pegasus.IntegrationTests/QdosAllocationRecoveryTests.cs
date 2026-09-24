@@ -970,6 +970,7 @@ public sealed class QdosAllocationRecoveryTests
             services.GetRequiredService<ProcessIntake>(),
             services.GetRequiredService<IIntakeReceiptQueries>(),
             services.GetRequiredService<ICreateTriageFromIntake>(),
+            services.GetRequiredService<ITriagePrincipalGate>(),
             services.GetRequiredService<IAutomaticCaseAssociationStore>(),
             spy,
             clock,
@@ -1582,7 +1583,8 @@ public sealed class IntakeAllocationConsumerTests
                 source,
                 $"mailbox-submit:{Guid.NewGuid():N}");
         }
-        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        // The Triage Case is a Case row of its own.
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
 
         var formalReceipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
@@ -1616,7 +1618,8 @@ public sealed class IntakeAllocationConsumerTests
                 .ListAsync(null, CancellationToken.None));
         }
 
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        // The formal Case beside the Triage Case.
+        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
     }
     [Fact]
@@ -1844,7 +1847,8 @@ public sealed class IntakeAllocationConsumerTests
             Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
                 .ListAsync(null, CancellationToken.None));
         }
-        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        // Only the Triage Case: the failed allocation created no Case.
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
 
         await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
         await using (var scope = factory.Services.CreateAsyncScope())
@@ -1867,7 +1871,8 @@ public sealed class IntakeAllocationConsumerTests
                 .ListAsync(null, CancellationToken.None));
         }
 
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        // The formal Case beside the Triage Case.
+        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM TriageHistory WHERE EventType = N'triage_created'"));

@@ -27,11 +27,6 @@ internal static class V1FoundationModelConfiguration
             e.Property(x => x.State).HasConversion<string>().HasMaxLength(40); e.Property(x => x.AttemptStage).HasConversion<string>().HasMaxLength(40);
             e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
         });
-        builder.Entity<TriageSequenceEntity>(e =>
-        {
-            e.ToTable("TriageSequences", t => t.HasCheckConstraint("CK_TriageSequences_LastAllocatedSequence", "[LastAllocatedSequence] >= 0"));
-            e.HasKey(x => x.Id); e.HasData(new TriageSequenceEntity { Id = 1, LastAllocatedSequence = 0 });
-        });
         builder.Entity<ValuationPresetEntity>(e =>
         {
             e.ToTable("ValuationPresets"); e.HasKey(x => x.Id); e.HasIndex(x => x.Label).IsUnique();
