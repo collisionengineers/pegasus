@@ -55,14 +55,12 @@ public sealed class EfCaseWorkspaceStore(
             return await ProjectAsync(context, request.CaseId, wasReplay: true, cancellationToken);
         }
 
-        var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: true)
-            .SingleOrDefaultAsync(item => item.WorkId == request.CaseId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         var workflow = await context.CaseWorkflows
             .Include(item => item.DueWork)
             .Include(item => item.Case)
             .ThenInclude(item => item.Principal)
-            .SingleAsync(item => item.CaseId == request.CaseId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
 
         CaseMutationGuard.RequireVersion(workflow, request.ExpectedVersion);
         AssessmentPolicy.RequireOriginalReportScope(
@@ -83,6 +81,18 @@ public sealed class EfCaseWorkspaceStore(
             throw new InvalidOperationException(
                 "The Case cannot be saved in its current state.");
         }
+
+        // The save writes the current work, resolved after the guards: Create
+        // audit takes the same workflow lock and bumps the version, so a save
+        // prepared against the Inspection is refused as stale. Matching, the
+        // accepted deadline, due work and the completeness gate are the Case's
+        // and move only on a primary-work save (decision M).
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
+        var isPrimary = workId == request.CaseId;
+        var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: true)
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
+            ?? throw new InvalidDataException(
+                "The accepted case has no typed data snapshot for its current work.");
 
         var dueWorkVersionBeforeSave = workflow.DueWork?.Version;
         var beforeData = CaseDataFieldWriter.ReadEditable(snapshot) with
@@ -110,28 +120,31 @@ public sealed class EfCaseWorkspaceStore(
         if (data != beforeData)
         {
             CaseDataFieldWriter.ApplyEditableData(context, snapshot, data, request.Actor, now);
-            CaseMatchIndexProjector.Apply(
-                context,
-                await context.CaseMatchIndex.SingleOrDefaultAsync(
-                    item => item.CaseId == request.CaseId,
-                    cancellationToken),
-                CaseMatchIndexProjector.Project(
-                    snapshot.Work.Case,
-                    snapshot.Fields,
-                    caseMatchPolicies ?? [],
-                    now));
+            if (isPrimary)
+            {
+                CaseMatchIndexProjector.Apply(
+                    context,
+                    await context.CaseMatchIndex.SingleOrDefaultAsync(
+                        item => item.CaseId == request.CaseId,
+                        cancellationToken),
+                    CaseMatchIndexProjector.Project(
+                        snapshot.Work.Case,
+                        snapshot.Fields,
+                        caseMatchPolicies ?? [],
+                        now));
+            }
         }
         var afterReportData = EffectiveReportData(snapshot.Fields);
 
-        if (request.Inspection is not null)
+        if (isPrimary && request.Inspection is not null)
         {
             snapshot.Work.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
         }
 
-        var dueByChanged = request.Overview is not null && data.DueBy != beforeData.DueBy;
+        var dueByChanged = isPrimary && request.Overview is not null && data.DueBy != beforeData.DueBy;
 
         var assessmentFields = await context.CaseAssessmentFields
-            .Where(item => item.WorkId == request.CaseId)
+            .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
         var beforeAssessment = assessmentFields.ToDictionary(
             item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
@@ -140,7 +153,7 @@ public sealed class EfCaseWorkspaceStore(
         AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
-            request.CaseId,
+            workId,
             assessmentFields,
             fieldsToWrite,
             request.Actor,
@@ -190,12 +203,12 @@ public sealed class EfCaseWorkspaceStore(
 
         var wordingChanged = request.ReportWording is { } wording
             && await SaveReportWordingAsync(
-                context, request, wording.Blocks ?? [], now, cancellationToken);
+                context, request, workId, wording.Blocks ?? [], now, cancellationToken);
 
         var (estimate, beforeLines, afterLines) = await SaveEstimateAsync(
             context,
             request,
-            workflow,
+            workId,
             now,
             cancellationToken);
 
@@ -206,6 +219,7 @@ public sealed class EfCaseWorkspaceStore(
             ? await EfValuationStore.RecordGuideEntriesAsync(
                 context,
                 workflow,
+                workId,
                 request.Actor,
                 request.OperationKey,
                 entries,
@@ -224,7 +238,7 @@ public sealed class EfCaseWorkspaceStore(
             workflow.SignOffEngineerId = signOffEngineerId;
         }
 
-        if (request.Completeness is { } completeness)
+        if (isPrimary && request.Completeness is { } completeness)
         {
             snapshot.Work.Case.InstructionComplete =
                 completeness.InstructionComplete ?? snapshot.Work.Case.InstructionComplete;
@@ -240,7 +254,8 @@ public sealed class EfCaseWorkspaceStore(
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
-        if (workflow.AssignedEngineerId is null
+        if (isPrimary
+            && workflow.AssignedEngineerId is null
             && state is CaseLifecycleState.NotReady or CaseLifecycleState.Review)
         {
             if (evaluation.SatisfiesPolicy)
@@ -281,7 +296,7 @@ public sealed class EfCaseWorkspaceStore(
                 snapshot.Work.Case.AcceptedInspectionDeadline,
                 dueWorkVersionBeforeSave);
         }
-        else
+        else if (isPrimary)
         {
             CaseDueWorkScheduler.ProjectDueBy(
                 context,
@@ -422,7 +437,7 @@ public sealed class EfCaseWorkspaceStore(
         object? AfterLines)> SaveEstimateAsync(
         PegasusDbContext context,
         SaveCaseWorkspaceRequest request,
-        CaseWorkflowEntity workflow,
+        Guid workId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -431,12 +446,12 @@ public sealed class EfCaseWorkspaceStore(
             return (null, null, null);
         }
 
-        var draft = await EfRepairSpecificationStore.DraftQuery(context, request.CaseId)
+        var draft = await EfRepairSpecificationStore.DraftQuery(context, workId)
             .Include(item => item.Lines)
             .SingleOrDefaultAsync(cancellationToken);
         if (draft is null)
         {
-            if (await EfRepairSpecificationStore.AcceptedQuery(context, request.CaseId)
+            if (await EfRepairSpecificationStore.AcceptedQuery(context, workId)
                     .AnyAsync(cancellationToken))
             {
                 throw new InvalidOperationException(
@@ -446,11 +461,10 @@ public sealed class EfCaseWorkspaceStore(
 
             var version = await EfRepairSpecificationStore.NextVersionAsync(
                 context,
-                request.CaseId,
+                workId,
                 cancellationToken);
             draft = EfRepairSpecificationStore.NewLegacyDraft(
-                request.CaseId,
-                workflow.Case,
+                workId,
                 version,
                 request.Actor.SubjectId,
                 request.OperationKey,
@@ -477,7 +491,7 @@ public sealed class EfCaseWorkspaceStore(
             var tracked = draft.Lines.OrderBy(line => line.Position).ToList();
             (beforeLines, afterLines) = EstimateLineWriter.Replace(
                 context,
-                request.CaseId,
+                workId,
                 draft,
                 tracked,
                 lines,
@@ -500,25 +514,26 @@ public sealed class EfCaseWorkspaceStore(
         bool wasReplay,
         CancellationToken cancellationToken)
     {
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleAsync(item => item.WorkId == caseId, cancellationToken);
+            .SingleAsync(item => item.WorkId == workId, cancellationToken);
         var workflow = await context.CaseWorkflows.AsNoTracking()
             .Include(item => item.Case)
             .ThenInclude(item => item.Principal)
             .SingleAsync(item => item.CaseId == caseId, cancellationToken);
-        var estimate = await EfRepairSpecificationStore.DraftQuery(context, caseId)
+        var estimate = await EfRepairSpecificationStore.DraftQuery(context, workId)
             .AsNoTracking()
             .Include(item => item.Lines)
             .SingleOrDefaultAsync(cancellationToken);
         var fields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.WorkId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var estimateId = estimate?.Id;
         var lines = estimateId is null
             ? []
             : await context.CaseEstimateLines.AsNoTracking()
-                .Where(item => item.WorkId == caseId && item.RepairSpecificationId == estimateId)
+                .Where(item => item.WorkId == workId && item.RepairSpecificationId == estimateId)
                 .OrderBy(item => item.Position)
                 .ToArrayAsync(cancellationToken);
         return new(
@@ -543,12 +558,13 @@ public sealed class EfCaseWorkspaceStore(
     private static async Task<bool> SaveReportWordingAsync(
         PegasusDbContext context,
         SaveCaseWorkspaceRequest request,
+        Guid workId,
         IReadOnlyList<CaseReportWording> blocks,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var existing = await context.CaseReportWordings
-            .Where(item => item.WorkId == request.CaseId)
+            .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
         var submitted = blocks.ToDictionary(block => block.Key, StringComparer.Ordinal);
         var changed = false;
@@ -586,7 +602,7 @@ public sealed class EfCaseWorkspaceStore(
                 context.CaseReportWordings.Add(new CaseReportWordingEntity
                 {
                     Id = Guid.NewGuid(),
-                    WorkId = request.CaseId,
+                    WorkId = workId,
                     BlockKey = block.Key,
                     Title = block.Title,
                     Text = block.Text,

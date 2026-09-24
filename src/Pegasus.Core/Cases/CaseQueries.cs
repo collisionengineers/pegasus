@@ -218,7 +218,8 @@ public sealed record CaseSectionFrame(
     CaseWorkflowRecord Workflow,
     CaseEditLeaseSnapshot? ActiveEditLease,
     string? CustodyFolderRemoteId = null,
-    CaseCustodyState CustodyState = CaseCustodyState.Pending);
+    CaseCustodyState CustodyState = CaseCustodyState.Pending,
+    CaseWorkSet? Works = null);
 
 /// <summary>
 /// The already-authorized page inputs a directly rendered body may reuse. A
@@ -233,7 +234,8 @@ public sealed record GetCaseSectionQuery(
     bool HasAssessmentWorkspace = false,
     CaseDataProjection? Data = null,
     IReadOnlyList<CaseDocument>? Documents = null,
-    CaseSectionFrame? Frame = null);
+    CaseSectionFrame? Frame = null,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 
 /// <summary>
 /// The Case page's first-response frame. It keeps the identity, workflow,
@@ -308,7 +310,8 @@ public sealed record CaseHeader(
     CaseEditLeaseSnapshot? ActiveEditLease,
     int DocumentCount,
     int HistoryCount,
-    int OpenTaskCount);
+    int OpenTaskCount,
+    CaseWorkSet? Works = null);
 
 public interface ICaseQueryStore
 {
@@ -494,7 +497,7 @@ public sealed class GetCasePageFrame(
             return null;
         }
 
-        var data = await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(
             frame.Frame,
@@ -522,7 +525,7 @@ public sealed class GetCaseVehicleSection(
         }
 
         var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
-        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         var evidence = workspace?.LatestVehicleObservation
             ?? (await vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken))?.LatestObservation;
@@ -545,7 +548,7 @@ public sealed class GetCaseValuationSection(
         }
 
         var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
-        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(frame, data, workspace?.Assessment);
     }
@@ -706,7 +709,7 @@ internal static class CaseSectionQueries
         CancellationToken cancellationToken) =>
         query.HasAssessmentWorkspace
             ? Task.FromResult(query.AssessmentWorkspace)
-            : workspaces.ExecuteAsync(new(query.CaseId, query.Actor), cancellationToken);
+            : workspaces.ExecuteAsync(new(query.CaseId, query.Actor, query.Work), cancellationToken);
 
 }
 
@@ -890,7 +893,7 @@ public sealed class GetCase(
             return null;
         }
 
-        var data = await _caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = await _caseDataQueries.GetAsync(query.CaseId, CaseWorkSelector.Current, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         var vehicleEvidence = await _vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken);
         var custody = await _caseCustodyQueries.GetPreparationsAsync(query.CaseId, cancellationToken);

@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
@@ -97,5 +98,8 @@ public static class CaseFieldProposalPolicy
 public interface ICaseFieldProposalQueries
 {
     /// <summary>Every recorded proposal on the Case, one per decision field.</summary>
-    Task<IReadOnlyList<CaseFieldProposal>> ListForCaseAsync(Guid caseId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<CaseFieldProposal>> ListForCaseAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        CancellationToken cancellationToken);
 }

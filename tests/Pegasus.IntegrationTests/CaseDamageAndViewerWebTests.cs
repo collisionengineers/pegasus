@@ -385,6 +385,7 @@ public sealed class CaseDamageAndViewerWebTests
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
             Guid caseId,
+            CaseWorkSelector work,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>([]);
 

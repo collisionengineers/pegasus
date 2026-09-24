@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
@@ -429,7 +430,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 (item.PresetId, item.PresetVersion, item.Label)));
 
         var history = await new ListAppliedValuations(harness.Valuations)
-            .ExecuteAsync(caseId, CancellationToken.None);
+            .ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal([corrected.Id, applied.Id], history.Select(item => item.Id));
         Assert.Equal(
             [3250m, 3176m],

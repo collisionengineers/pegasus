@@ -454,7 +454,7 @@ public sealed class CaseRecordGapsV26WebTests
             Task.FromResult<AssessmentAccessState?>(new(store.State));
 
         Task<IReadOnlyList<CaseFieldProposal>> ICaseFieldProposalQueries.ListForCaseAsync(
-            Guid caseId, CancellationToken cancellationToken) =>
+            Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseFieldProposal>>([.. Proposals]);
 
         Task<ContactDirectoryRecord?> IContactDirectoryQueries.GetAsync(
@@ -639,7 +639,7 @@ public sealed class CaseRecordGapsV26WebTests
         RecordingCaseDetailsStore store,
         string? recordedAddress)
     {
-        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+        var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The case fixture returned no data.");
         var setting = new CaseDataSource(
             CaseDataSourceKind.ProviderSetting, "QDOS", "Principal setting", "provider-inspection", 1);

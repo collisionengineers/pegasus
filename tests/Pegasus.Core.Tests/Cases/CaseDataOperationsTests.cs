@@ -320,7 +320,7 @@ public sealed class CaseDataOperationsTests
 
         public Task<CaseDataProjection?> GetAsync(
             Guid caseId,
-            CancellationToken cancellationToken) => Task.FromResult<CaseDataProjection?>(null);
+            CaseWorkSelector work, CancellationToken cancellationToken) => Task.FromResult<CaseDataProjection?>(null);
 
         public Task<CaseDataProjection> ConfirmCompletenessAsync(
             ConfirmCompletenessRequest request,

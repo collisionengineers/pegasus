@@ -61,7 +61,7 @@ public sealed partial class SendModel(
             return NotFound();
         }
 
-        var caseData = await caseDataQueries.GetAsync(caseId, cancellationToken);
+        var caseData = await caseDataQueries.GetAsync(caseId, CaseWorkSelector.Current, cancellationToken);
         if (caseData is null)
         {
             return NotFound();

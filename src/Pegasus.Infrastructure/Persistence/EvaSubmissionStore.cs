@@ -56,7 +56,7 @@ public sealed class EvaSubmissionStore(
             throw new ArgumentException("The operation key is invalid.", nameof(request));
         }
 
-        var caseData = await caseDataQueries.GetAsync(request.CaseId, cancellationToken);
+        var caseData = await caseDataQueries.GetAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken);
         if (caseData is null)
         {
             return null;

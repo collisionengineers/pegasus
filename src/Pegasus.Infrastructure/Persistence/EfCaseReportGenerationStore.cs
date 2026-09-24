@@ -822,9 +822,12 @@ public sealed class EfCaseReportGenerationStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        // The report date is the current work's field.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken)
+            .ConfigureAwait(false);
         var existing = await context.CaseAssessmentFields
             .SingleOrDefaultAsync(
-                field => field.WorkId == request.CaseId
+                field => field.WorkId == workId
                     && field.FieldPath == AssessmentVocabulary.ReportDate,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -837,7 +840,7 @@ public sealed class EfCaseReportGenerationStore(
         {
             context.CaseAssessmentFields.Add(new()
             {
-                WorkId = request.CaseId,
+                WorkId = workId,
                 FieldPath = AssessmentVocabulary.ReportDate,
                 Value = value,
                 RecordedByKind = request.Actor.Kind.ToString(),

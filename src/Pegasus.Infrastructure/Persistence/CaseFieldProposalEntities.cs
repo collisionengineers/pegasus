@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -49,7 +50,7 @@ internal static class CaseFieldProposalWriter
 {
     public static void Track(
         PegasusDbContext context,
-        Guid caseId,
+        Guid workId,
         string path,
         string? value,
         ActorKind actorKind,
@@ -62,7 +63,7 @@ internal static class CaseFieldProposalWriter
             return;
         }
 
-        var row = context.CaseFieldProposals.Find(caseId, path);
+        var row = context.CaseFieldProposals.Find(workId, path);
         var next = CaseFieldProposalPolicy.Next(
             row is null ? null : Map(row), path, value, actorKind, actorSubjectId, now);
         if (next is null)
@@ -74,7 +75,7 @@ internal static class CaseFieldProposalWriter
         {
             row = new CaseFieldProposalEntity
             {
-                WorkId = caseId,
+                WorkId = workId,
                 FieldPath = path,
                 ProposedValue = next.ProposedValue,
                 ProposedBy = next.ProposedBy
@@ -111,11 +112,13 @@ internal sealed class EfCaseFieldProposalQueries(IDbContextFactory<PegasusDbCont
 {
     public async Task<IReadOnlyList<CaseFieldProposal>> ListForCaseAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var rows = await context.CaseFieldProposals.AsNoTracking()
-            .Where(item => item.WorkId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         return [.. rows.Select(CaseFieldProposalWriter.Map)];

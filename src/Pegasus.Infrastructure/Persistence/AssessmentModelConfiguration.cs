@@ -163,6 +163,8 @@ internal static class AssessmentModelConfiguration
                 .WithMany()
                 .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
+            // Mapped records name the Case, which the work carries.
+            entity.Navigation(item => item.Work).AutoInclude();
         });
 
         builder.Entity<CaseRepairSpecificationSnapshotEntity>(entity =>
@@ -186,6 +188,7 @@ internal static class AssessmentModelConfiguration
                 .WithMany()
                 .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.Navigation(item => item.Work).AutoInclude();
         });
 
         builder.Entity<CaseReportWordingEntity>(entity =>
@@ -251,6 +254,7 @@ internal static class AssessmentModelConfiguration
                 .WithMany()
                 .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.Navigation(item => item.Work).AutoInclude();
         });
 
         builder.Entity<AiWorkRequestEntity>(entity =>

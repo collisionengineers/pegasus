@@ -1015,7 +1015,7 @@ internal static partial class CaseWebTestSupport
         /// The same case the details surface serves, through the port the data-reading
         /// case pages (the EVA send page) use.
         /// </summary>
-        public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(caseId == CaseId ? DataOverride ?? CreateData() : null);
 
         Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(
@@ -1030,7 +1030,7 @@ internal static partial class CaseWebTestSupport
 
         Task<InspectionAddressChoicesData?> IInspectionAddressChoicesQueries.GetAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<InspectionAddressChoicesData?>(
                 caseId == CaseId ? InspectionChoices : null);
 

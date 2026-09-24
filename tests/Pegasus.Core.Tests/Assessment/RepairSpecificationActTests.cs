@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -382,7 +383,7 @@ public sealed class RepairSpecificationActTests
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> SetCurrentEstimateAsync(SetCurrentEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
             Guid caseId, int? afterVersion, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>

@@ -1,4 +1,5 @@
 ﻿using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -279,7 +280,7 @@ public sealed class ValuationTests
         var store = new RecordingStore();
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new ListCaseValuations(store).ExecuteAsync(Guid.Empty, CancellationToken.None));
+            new ListCaseValuations(store).ExecuteAsync(Guid.Empty, CaseWorkSelector.Current, CancellationToken.None));
     }
 
     private static SaveValuationRequest SaveRequest(
@@ -345,7 +346,7 @@ public sealed class ValuationTests
 
         public Task<IReadOnlyList<CaseValuation>> ListForCaseAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult(Listed);
     }
 }

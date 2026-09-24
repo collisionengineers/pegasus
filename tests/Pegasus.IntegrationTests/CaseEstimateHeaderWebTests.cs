@@ -240,7 +240,7 @@ public sealed class CaseEstimateHeaderWebTests
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
                 caseId == Estimate.CaseId ? [Estimate] : []);
     }

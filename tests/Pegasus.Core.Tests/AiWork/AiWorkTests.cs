@@ -361,7 +361,7 @@ public sealed class AiWorkTests
     {
         public Task<CaseDataProjection?> GetAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(new(
                 new(caseId, "QDOS", 2031, 1, "CE-QDOS-31-00001", null),
                 new(

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -14,9 +15,11 @@ internal sealed class EfAssessmentWorkspaceSource(
 {
     public async Task<AssessmentWorkspace?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
 
         var workflows = context.CaseWorkflows.AsNoTracking()
             .Include(item => item.Case)
@@ -31,15 +34,15 @@ internal sealed class EfAssessmentWorkspaceSource(
         }
 
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
             ?? throw new InvalidDataException(
                 "The accepted case is missing its typed data projection.");
         var assessmentFields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.WorkId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var specificationEntities = await context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.WorkId == caseId
+            .Where(item => item.WorkId == workId
                 && (item.State == RepairSpecificationState.Draft.ToString()
                     || item.State == RepairSpecificationState.Accepted.ToString()))
             .Include(item => item.Lines)

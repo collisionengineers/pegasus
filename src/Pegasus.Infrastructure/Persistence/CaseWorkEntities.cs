@@ -1,3 +1,5 @@
+using Pegasus.Core.Cases;
+
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
@@ -25,9 +27,23 @@ internal sealed class CaseWorkEntity
     public CaseReportSentEvidenceEntity? ReportSentEvidence { get; set; }
 }
 
-/// <summary>The persisted vocabulary of a work's kind.</summary>
+/// <summary>The persisted vocabulary of a work's kind, parsed exactly.</summary>
 internal static class CaseWorkKinds
 {
     public const string Primary = "primary";
     public const string Audit = "audit";
+
+    public static string ToCode(CaseWorkKind kind) => kind switch
+    {
+        CaseWorkKind.Primary => Primary,
+        CaseWorkKind.Audit => Audit,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown work kind.")
+    };
+
+    public static CaseWorkKind Parse(string value) => value switch
+    {
+        Primary => CaseWorkKind.Primary,
+        Audit => CaseWorkKind.Audit,
+        _ => throw new InvalidDataException($"Unknown persisted work kind '{value}'.")
+    };
 }

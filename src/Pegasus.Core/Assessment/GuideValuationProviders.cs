@@ -108,7 +108,7 @@ public sealed class FetchGuideValuation(
         var provider = _providers.FirstOrDefault(candidate => candidate.Source == request.Source)
             ?? throw new GuideValuationProviderUnavailableException(request.Source);
 
-        var data = await _caseData.GetAsync(request.CaseId, cancellationToken)
+        var data = await _caseData.GetAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         var registration = Accepted(data.Vehicle.Registration)?.Value;
         if (string.IsNullOrWhiteSpace(registration))

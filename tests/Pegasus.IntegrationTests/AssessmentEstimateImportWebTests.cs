@@ -2138,7 +2138,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
-            Guid ownerCaseId, CancellationToken cancellationToken) =>
+            Guid ownerCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
                 new[] { CurrentAccepted, CurrentDraft }.Where(item => item is not null).ToArray()!);
 
@@ -2147,8 +2147,8 @@ public sealed partial class AssessmentEstimateImportWebTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
-            Guid ownerCaseId, CancellationToken cancellationToken) =>
-            ListEstimatesAsync(ownerCaseId, cancellationToken);
+            Guid ownerCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            ListEstimatesAsync(ownerCaseId, work, cancellationToken);
 
         public Task<RepairSpecificationVersion> ExecuteAsync(
             SaveEstimateRequest request,

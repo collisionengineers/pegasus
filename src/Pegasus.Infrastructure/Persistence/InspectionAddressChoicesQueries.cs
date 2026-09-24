@@ -27,6 +27,7 @@ public sealed class InspectionAddressChoicesQueries(
 
     public async Task<InspectionAddressChoicesData?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -35,8 +36,9 @@ public sealed class InspectionAddressChoicesQueries(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var current = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken);
         if (current is null)
         {
             return null;
@@ -99,8 +101,9 @@ public sealed class InspectionAddressChoicesQueries(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, query.CaseId, cancellationToken);
         var current = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.WorkId == query.CaseId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken);
         if (current is null)
         {
             return [];

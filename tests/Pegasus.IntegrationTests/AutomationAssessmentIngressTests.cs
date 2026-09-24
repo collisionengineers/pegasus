@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -174,7 +175,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(versionId, line.SourceDocumentVersionId);
             Assert.Equal(hash, line.SourceDocumentSha256);
         });
-        Assert.Single(await store.ListEstimatesAsync(caseId, default));
+        Assert.Single(await store.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default));
         await store.RequireImportAuthorityAsync(new(ActionActor.Automation(imported.CreatedBy), caseId, 2, replayLease.LeaseToken,
             occurrenceId, versionId, hash, "mcp:replay-authority", "Glass's 1"), default);
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(

@@ -40,4 +40,18 @@ public static class CaseReferenceFormat
         ArgumentException.ThrowIfNullOrWhiteSpace(casePo);
         return AuditPrefix + casePo;
     }
+
+    /// <summary>
+    /// The reference a report prints as Our Ref, names its file and email
+    /// subject with: the Audit work's report is <c>a.{Case/PO}</c>; every
+    /// other report is the Case/PO itself (a standalone Audit's already
+    /// carries its <c>a.</c>).
+    /// </summary>
+    public static string ReportReference(CaseIdentity identity, CaseWorkKind workKind)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        return workKind == CaseWorkKind.Audit
+            ? identity.AuditReference ?? AuditReport(identity.Reference)
+            : identity.Reference;
+    }
 }

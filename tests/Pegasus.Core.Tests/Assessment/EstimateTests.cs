@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Security.Cryptography;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
@@ -1249,7 +1250,7 @@ public sealed class EstimateTests
         public int Calls { get; private set; }
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
-            Guid caseId, CancellationToken cancellationToken)
+            Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
         {
             Calls++;
             return Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(estimates);
@@ -1427,7 +1428,7 @@ public sealed class EstimateTests
             return Task.FromResult(Current);
         }
 
-        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
