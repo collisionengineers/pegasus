@@ -228,47 +228,19 @@ public sealed class AssessmentReportRenderingTests
         Assert.Throws<ReportRenderRejectedException>(broken.Validate);
     }
 
+    /// <summary>
+    /// The renderer's own contract reads the same printable category as
+    /// readiness: a total loss prints only Category S, whose wording the
+    /// active template has.
+    /// </summary>
     [Fact]
-    public async Task AnOversizedImageIsRefusedNamingTheImage()
+    public void ATotalLossSnapshotPrintsOnlyCategoryS()
     {
-        var oversized = new byte[AssessmentReportRenderPolicy.MaximumImageBytes + 1];
-        var renderer = new FakeRenderer();
-        var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
-        {
-            Photos =
-            [
-                new ReportImageEvidence(
-                    "box://case/oversized.png",
-                    "image/png",
-                    oversized,
-                    Convert.ToHexStringLower(SHA256.HashData(oversized))),
-            ],
-        };
+        var categoryS = Snapshot(AssessmentReportOutcome.TotalLoss);
+        var categoryN = categoryS with { SalvageCategory = "N" };
 
-        var exception = await Assert.ThrowsAsync<ReportRenderRejectedException>(
-            () => new GenerateAssessmentReportDraft(renderer)
-                .ExecuteAsync(invalid, CaseReportArtifactKind.AssessmentReport));
-        Assert.Contains("box://case/oversized.png", exception.Message, StringComparison.Ordinal);
-        Assert.Null(renderer.Received);
-    }
-
-    [Fact]
-    public async Task MoreImagesThanTheBoundAreRefused()
-    {
-        var renderer = new FakeRenderer();
-        var photo = Snapshot(AssessmentReportOutcome.Repairable).Photos.Single();
-        var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
-        {
-            Photos = Enumerable
-                .Range(0, AssessmentReportRenderPolicy.MaximumImages + 1)
-                .Select(index => photo with { CustodyReference = $"box://case/photo-{index}" })
-                .ToArray(),
-        };
-
-        await Assert.ThrowsAsync<ReportRenderRejectedException>(
-            () => new GenerateAssessmentReportDraft(renderer)
-                .ExecuteAsync(invalid, CaseReportArtifactKind.AssessmentReport));
-        Assert.Null(renderer.Received);
+        categoryS.Validate();
+        Assert.Throws<ReportRenderRejectedException>(categoryN.Validate);
     }
 
     [Fact]

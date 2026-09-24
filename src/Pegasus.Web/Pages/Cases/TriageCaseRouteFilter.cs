@@ -20,7 +20,6 @@ public sealed class TriageCaseRouteFilter(IGetCaseKind getCaseKind) : IAsyncPage
         "/Cases/Vehicle",
         "/Cases/Workflow",
         "/Cases/Closure",
-        "/Cases/Assessment/Index",
         "/Cases/Documents/Export",
         "/Cases/Eva/Send"
     };

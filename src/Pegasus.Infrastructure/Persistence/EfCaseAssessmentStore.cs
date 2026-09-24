@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -61,7 +62,8 @@ public sealed class EfCaseAssessmentStore(
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
             .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
-        return Map(workflow, fields, lines, caseDataFields);
+        var originReceivedAtUtc = await OriginReceivedAtUtcAsync(context, workId, cancellationToken);
+        return Map(workflow, fields, lines, caseDataFields, originReceivedAtUtc);
     }
 
     public async Task<CaseAssessmentProjection> SaveAsync(
@@ -266,14 +268,31 @@ public sealed class EfCaseAssessmentStore(
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
             .Where(item => item.WorkId == workId)
             .ToArrayAsync(cancellationToken);
-        return Map(workflow, fields, lines, caseDataFields);
+        var originReceivedAtUtc = await OriginReceivedAtUtcAsync(context, workId, cancellationToken);
+        return Map(workflow, fields, lines, caseDataFields, originReceivedAtUtc);
     }
 
+    /// <summary>The origin receipt time <see cref="Map"/> takes, read off the work's snapshot.</summary>
+    private static Task<DateTimeOffset?> OriginReceivedAtUtcAsync(
+        PegasusDbContext context,
+        Guid workId,
+        CancellationToken cancellationToken) =>
+        context.CaseDataSnapshots.AsNoTracking()
+            .Where(item => item.WorkId == workId)
+            .Select(item => item.OriginReceivedAtUtc)
+            .SingleOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// <paramref name="originReceivedAtUtc"/> is the work's case data
+    /// snapshot's <c>OriginReceivedAtUtc</c>: when the Case's origin receipt
+    /// was received, or null for a manual Case, which has none.
+    /// </summary>
     internal static CaseAssessmentProjection Map(
         CaseWorkflowEntity workflow,
         IReadOnlyList<CaseAssessmentFieldEntity> fields,
         IReadOnlyList<CaseEstimateLineEntity> lines,
-        IReadOnlyList<CaseDataFieldEntity> caseDataFields) => new(
+        IReadOnlyList<CaseDataFieldEntity> caseDataFields,
+        DateTimeOffset? originReceivedAtUtc) => new(
         workflow.CaseId,
         workflow.Case.Reference,
         workflow.Version,
@@ -313,7 +332,7 @@ public sealed class EfCaseAssessmentStore(
                 item.PaintWorkUnits,
                 item.Quantity))
             .ToArray(),
-        MapCaseOwned(caseDataFields, fields));
+        MapCaseOwned(workflow.Case, caseDataFields, fields, originReceivedAtUtc));
 
     /// <summary>
     /// The current specification for report/read purposes is the accepted
@@ -335,8 +354,10 @@ public sealed class EfCaseAssessmentStore(
     }
 
     private static AssessmentCaseOwnedData MapCaseOwned(
+        CaseEntity caseEntity,
         IReadOnlyList<CaseDataFieldEntity> caseDataFields,
-        IReadOnlyList<CaseAssessmentFieldEntity> assessmentFields)
+        IReadOnlyList<CaseAssessmentFieldEntity> assessmentFields,
+        DateTimeOffset? originReceivedAtUtc)
     {
         string? Current(string fieldName) => CaseDataFieldValues.Current(caseDataFields, fieldName);
 
@@ -369,6 +390,11 @@ public sealed class EfCaseAssessmentStore(
                 .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource
                     && item.ConfirmedAtUtc is not null)
                 ?.Value);
+        // The Case's received date is what its Received cell shows: its origin
+        // receipt's received time, or its creation for a manual Case, as a
+        // London calendar date. The report prints it as the date instructions
+        // were received (operator, 24 September 2026).
+        var receivedDate = LondonCalendar.DateAt(originReceivedAtUtc ?? caseEntity.CreatedAtUtc);
         return new(
             Current(CaseDataFieldNames.VehicleRegistration),
             Current(CaseDataFieldNames.VehicleMake),
@@ -380,9 +406,12 @@ public sealed class EfCaseAssessmentStore(
             Current(CaseDataFieldNames.VehicleMileageUnit),
             mileageSource,
             CurrentDate(CaseDataFieldNames.IncidentDate),
-            CurrentDate(CaseDataFieldNames.InstructionDate),
+            receivedDate,
             inspectionMode,
-            Current(CaseDataFieldNames.InspectionAddress));
+            Current(CaseDataFieldNames.InspectionAddress),
+            CurrentDate(CaseDataFieldNames.InspectionDate),
+            Current(CaseDataFieldNames.ClaimantName),
+            Current(CaseDataFieldNames.ClaimNumber));
     }
 
     private static ActorKind ParseActorKind(string value) =>

@@ -123,6 +123,19 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var ready = AssessmentReportProjection.Project(
             input with { ReportDate = new DateOnly(2026, 8, 19) });
         Assert.True(ready.IsReady, string.Join("; ", ready.Reasons.Select(reason => reason.Requirement)));
+        // The printed Case facts are read through the production projection:
+        // the Assessed date is the Case's confirmed Inspection date (not the
+        // intake's 2031-05-20), the claimant and Your Ref are the Case's own,
+        // and instructions were received on the Case's received date (the
+        // receipt's, not the instruction_date field's 2031-05-01).
+        var printed = Assert.IsType<AssessmentReportSnapshot>(ready.Snapshot);
+        Assert.Equal(new DateOnly(2031, 5, 6), input.Assessment.CaseOwned.InspectionDate);
+        Assert.Equal(new DateOnly(2031, 5, 6), printed.Assessed);
+        Assert.Equal("Mrs Jane Example", input.Assessment.CaseOwned.ClaimantName);
+        Assert.Equal("Mrs Jane Example", printed.ClaimantName);
+        Assert.Equal("ABC/DEF/12345/1", input.Assessment.CaseOwned.ClaimNumber);
+        Assert.Equal("ABC/DEF/12345/1", printed.YourReference);
+        Assert.Equal(Pegasus.Core.LondonCalendar.DateAt(StartUtc), printed.InstructionsReceived);
         var pdf = "%PDF-1.4 report-ready"u8.ToArray();
         var draft = await new GenerateAssessmentReportDraft(new TestReportRenderer(pdf))
             .ExecuteAsync(ready.Snapshot!, CaseReportArtifactKind.AssessmentReport);
@@ -195,7 +208,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             (CaseDataFieldNames.InstructionDate, CaseDataCodes.Date, "2031-05-01"),
             (CaseDataFieldNames.InspectionMode, CaseDataCodes.InspectionMode,
                 ProviderInspectionModePolicy.ImageBasedAssessmentCode),
-            (CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, "1 Test Street, London")
+            (CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, "1 Test Street, London"),
+            (CaseDataFieldNames.InspectionDate, CaseDataCodes.Date, "2031-05-06")
         };
         var existingConfirmed = await context.Set<CaseDataFieldEntity>()
             .Where(field => field.WorkId == caseId
@@ -224,13 +238,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             [AssessmentVocabulary.VehicleType] = "car",
             [AssessmentVocabulary.VehicleMileageSource] = "owner",
             [AssessmentVocabulary.VehicleCondition] = "good",
-            [AssessmentVocabulary.IncidentAssessed] = "2031-05-06",
             [AssessmentVocabulary.ImpactSeverity] = "moderate",
             [AssessmentVocabulary.ImpactLocation] = "right_rear",
             [AssessmentVocabulary.ValueRetail] = "5000.00",
             [AssessmentVocabulary.ValueTrade] = "4000.00",
             [AssessmentVocabulary.ValueEngineer] = "5000.00",
-            [AssessmentVocabulary.CostRepairerVatRegistered] = "true",
             [AssessmentVocabulary.Outcome] = "repairable",
             [AssessmentVocabulary.LegalStatus] = "roadworthy",
             [AssessmentVocabulary.HistoryCheck] = "History clear",
@@ -399,13 +411,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     ["vehicle.condition"] = "good",
                     ["assessment.outcome"] = "total_loss",
                     ["assessment.category"] = "S",
-                    ["assessment.salvage_value"] = "1500.00",
-                    ["assessment.values.retail"] = "12000",
-                    ["assessment.values.trade"] = "10500"
-                    // assessment.values.engineer is deliberately absent: the
-                    // Engineer's Value is adopted only by the valuation Apply
-                    // command (B03), and a field save that posted it
-                    // is now refused rather than recorded.
+                    ["assessment.salvage_value"] = "1500.00"
+                    // The valuation values are deliberately absent: the
+                    // Engineer's Value and its basis card's retail and trade
+                    // are recorded only by a Case Save's adoption, and a field
+                    // save that posted them is refused.
                 },
                 [
                     new("repair", null, "Repair nearside door", 3.5m, null, false, null, null,
@@ -1967,6 +1977,27 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     10000m)),
             CancellationToken.None);
         Assert.NotNull(await ReadEngineersValueAsync(harness, caseId));
+        // The retail and trade an adoption records beside the Engineer's Value.
+        await using (var seedContext = await harness.Factory.CreateDbContextAsync())
+        {
+            seedContext.CaseAssessmentFields.AddRange(
+                new[]
+                {
+                    (Path: AssessmentVocabulary.ValueRetail, Value: "12000.00"),
+                    (Path: AssessmentVocabulary.ValueTrade, Value: "10000.00")
+                }.Select(value => new CaseAssessmentFieldEntity
+                {
+                    WorkId = caseId,
+                    FieldPath = value.Path,
+                    Value = value.Value,
+                    RecordedByKind = nameof(ActorKind.Staff),
+                    RecordedBy = engineer.SubjectId,
+                    RecordedAtUtc = StartUtc,
+                    ConfirmedBy = engineer.SubjectId,
+                    ConfirmedAtUtc = StartUtc
+                }));
+            await seedContext.SaveChangesAsync();
+        }
 
         harness.Advance(TimeSpan.FromMinutes(5));
         var editLease = await harness.AcquireLeaseAsync(
@@ -1987,6 +2018,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
 
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var remaining = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(field => field.WorkId == caseId)
+            .Select(field => field.FieldPath)
+            .ToArrayAsync();
+        Assert.DoesNotContain(AssessmentVocabulary.ValueEngineer, remaining);
+        Assert.DoesNotContain(AssessmentVocabulary.ValueRetail, remaining);
+        Assert.DoesNotContain(AssessmentVocabulary.ValueTrade, remaining);
     }
 
     [Fact]

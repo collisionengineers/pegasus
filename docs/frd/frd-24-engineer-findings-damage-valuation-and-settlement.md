@@ -8,8 +8,9 @@
   is a new reasoned version, never an edit of the old one.
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
-- Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources. Engineer's Value
-  is adopted by a staff member's Save when the calculation changed, in a fixed order.
+- Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
+  Engineer's Value is adopted, with its basis card's retail and trade values,
+  by a staff member's Save when the calculation changed, in a fixed order.
 - Settlement saves with the Case's single workspace Save. Equity is derived,
   never typed in.
 - AI and Market Research only propose. An authorised person decides.
@@ -141,14 +142,20 @@ it never becomes the Engineer's Value by itself.
 
 **Engineer's Value** is adopted only by an enabled human staff member's Case
 Save, and only when the valuation calculation changed since the page opened
-(a different basis card, the basis card's figures, or any calculator
+(a different basis card, the basis card's retail or trade, or any calculator
 control; operator, 23 September 2026), in this order:
 commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
 condition deduction, rounding to whole pounds away from zero. No field of the
 Save writes the adopted value directly; an unchanged calculation adopts
-nothing. This calculation is current
-required behaviour. Extra rationale or revaluation-history scope needs its
-own accepted contract.
+nothing. The adoption also records the basis card's retail and trade as the
+Case's retail and trade values, which the report prints beside the
+Engineer's Value; a later adoption replaces all three together. A basis card
+without a trade figure records no trade value, and report readiness names
+Trade value until trade is entered on that card and the Case saved, which
+adopts again
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+This calculation is current required behaviour. Extra rationale or
+revaluation-history scope needs its own accepted contract.
 
 ### Settlement
 
@@ -219,8 +226,9 @@ circular readiness gate is acceptable.
 - A correction never edits an accepted or issued finding in place.
 - Equity is absent when its accepted inputs are incomplete, never a made-up
   zero.
-- No assessment field writes the Engineer's Value; only a staff Save whose
-  valuation calculation changed adopts it.
+- No assessment field writes the Engineer's Value or its basis card's retail
+  and trade; only a staff Save whose valuation calculation changed adopts
+  them.
 - A valuation source with no connected provider shows the card's notice and
   still lets the figures be typed by hand; the Case Save records them.
 - Research evidence and an AI valuation proposal never become the Engineer's
@@ -229,8 +237,10 @@ circular readiness gate is acceptable.
 
 ## Acceptance evidence
 
-Core tests cover the Engineer's Value order. Live Glass's evidence is a
-separate tier ([engineering](../engineering.md#required-evidence-tiers)).
+Core tests cover the Engineer's Value order. Integration tests cover an
+adoption recording its basis card's retail and trade and a basis card without
+trade leaving Trade value outstanding. Live Glass's evidence is a separate
+tier ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 

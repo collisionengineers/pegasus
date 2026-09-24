@@ -1,5 +1,6 @@
 using Pegasus.Core.Cases;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
@@ -143,7 +144,7 @@ internal sealed class EfAssessmentReportProjectionSource(
             .Select((pair, index) => new ReportImageEvidence(
                 pair.Row.FileName,
                 pair.Row.MediaType,
-                withImageContent ? contents[index].ToArray() : [],
+                withImageContent ? ContentOf(contents[index]) : [],
                 pair.Row.Sha256,
                 pair.Image.Role,
                 pair.Image.Order,
@@ -173,9 +174,7 @@ internal sealed class EfAssessmentReportProjectionSource(
         // EstimateTotals, and fails closed when there is none.
         var projection = new AssessmentReportProjectionInput(
             workspace.Assessment,
-            workspace.Data.Claimant.Name.Current?.Value,
             reportReference,
-            workspace.Data.Claim.Number.Current?.Value,
             [workspace.Header.Principal],
             ReportDate: null,
             photos,
@@ -240,6 +239,18 @@ internal sealed class EfAssessmentReportProjectionSource(
 
         return new ReportGuideSources(guides);
     }
+
+    /// <summary>
+    /// The bytes a content read returned, without a second copy: the batch
+    /// read hands each image back as a whole array, which the report takes as
+    /// it is. Only a slice of a larger buffer is copied out.
+    /// </summary>
+    private static byte[] ContentOf(ReadOnlyMemory<byte> content) =>
+        MemoryMarshal.TryGetArray(content, out var segment)
+            && segment is { Array: { } array, Offset: 0 }
+            && segment.Count == array.Length
+                ? array
+                : content.ToArray();
 
     // Projection and transactional freeze use one definition of current source
     // membership. The supplied context decides the transaction, never a new one.

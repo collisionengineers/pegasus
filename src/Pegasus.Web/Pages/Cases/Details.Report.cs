@@ -59,6 +59,16 @@ public sealed partial class DetailsModel
     public OperatorLabels.SourceTagWord? AssessmentSourceTag(string path) =>
         OperatorLabels.SourceTag(ShownAssessment(path));
 
+    /// <summary>
+    /// The section of this Case a report blocker links to: the one that clears
+    /// it when this Case shows it (Original report is a standalone Audit's
+    /// only); null otherwise.
+    /// </summary>
+    public string? BlockerSectionKey(AssessmentReadinessItem item) =>
+        CaseWorkspaceLabels.Report.BlockerSection(item) is { } key && (key != "original-report" || IsAuditCase)
+            ? key
+            : null;
+
     /// <summary>The same reading over any raw value the vocabulary defines at <paramref name="path"/>.</summary>
     public static string DisplayAssessmentValue(string path, string? raw)
     {

@@ -1905,7 +1905,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 null,
                 fields,
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
         }
 
         private CaseDataProjection CreateData(long version) =>
@@ -1917,7 +1917,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 null,
                 [],
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null))).Data;
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null))).Data;
 
         private static CaseSectionFrame CreateFrame(CaseDetails details) =>
             new(details.Summary, details.Workflow, details.ActiveEditLease);

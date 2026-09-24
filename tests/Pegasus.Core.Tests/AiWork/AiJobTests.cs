@@ -497,7 +497,7 @@ public sealed class AiJobTests
                 null,
                 fields,
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null)));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2031, 5, 6), null, null, null, null, null)));
         }
 
         public Task<CaseAssessmentProjection> SaveAsync(

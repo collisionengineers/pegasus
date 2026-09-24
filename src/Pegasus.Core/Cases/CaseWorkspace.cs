@@ -234,7 +234,9 @@ public sealed record CaseWorkspaceImagePreparation(
 /// the same source and guide month replaces the earlier card. The
 /// <see cref="Adoption"/> is present only when the operator changed the
 /// calculation since the page opened; the save then adopts its result as the
-/// Engineer's Value, calculated from the basis card as this save leaves it.
+/// Engineer's Value, calculated from the basis card as this save leaves it,
+/// and records that card's retail and trade as the report's Retail value and
+/// Trade value.
 /// </summary>
 public sealed record CaseWorkspaceValuation(
     IReadOnlyList<ValuationDetails>? GuideEntries,
@@ -900,9 +902,10 @@ public static class CaseWorkspacePolicy
     /// <summary>
     /// Paths a section owns through a typed member. Accepting them again as
     /// free-form assessment fields would give one fact two spellings in one
-    /// payload.
+    /// payload. The Case editor records each of these through its section's
+    /// typed member, so each is a path a staff member can confirm.
     /// </summary>
-    private static readonly HashSet<string> TypedPaths = new(
+    public static IReadOnlySet<string> TypedPaths { get; } = new HashSet<string>(
         StringComparer.Ordinal)
     {
         AssessmentVocabulary.DamageImpacts,

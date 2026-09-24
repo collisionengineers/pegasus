@@ -89,10 +89,10 @@ Important ownership decisions:
 - Inspection owns inspection/storage-location details and storage money inputs.
 - Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
 - Damage owns the Plan damage clicker and engineering damage facts.
-- Valuation owns guide-source cards and valuation calculation.
+- Valuation owns guide-source cards, the valuation calculation and the On the report content switches.
 - Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
 - Decisions owns settlement decisions and settlement-only figures.
-- Report owns report content switches, generation/preview/finality controls and report commentary.
+- Report owns generation/preview/finality controls, report wording, report date, commentary, the Fee pane and the report's blocker list, each row linking to the section that owns the fact rather than repeating it.
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces.
 - Notes owns the single Case timeline, notes and chase recording.
 

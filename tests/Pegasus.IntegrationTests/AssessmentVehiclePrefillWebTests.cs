@@ -228,7 +228,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 null,
                 [],
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
             return AssessmentWorkspaceTestData.Create(details, assessment);
         }
     }

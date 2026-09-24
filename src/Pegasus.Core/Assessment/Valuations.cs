@@ -184,8 +184,9 @@ public static class ValuationPolicy
     /// <summary>
     /// One guide source's card as the Case save records it (23 September
     /// 2026: the source cards have no Save of their own), with whatever of
-    /// its boxes were entered. The Engineer's Value is the Apply command's
-    /// and AI market research is the automation's, so neither is a guide card.
+    /// its boxes were entered. The Engineer's Value is adopted by a Case Save
+    /// that changes the valuation calculation and AI market research is the
+    /// automation's, so neither is a guide card.
     /// </summary>
     public static ValuationDetails ValidateGuideEntry(ActionActor actor, ValuationDetails details)
     {
@@ -195,7 +196,7 @@ public static class ValuationPolicy
         if (details.Source == ValuationSource.EngineersValue)
         {
             throw new InvalidOperationException(
-                "The Engineer's Value is recorded by the valuation Apply command, not as a guide card.");
+                "The Engineer's Value is adopted by saving a changed valuation calculation, not recorded as a guide card.");
         }
         RequireActor(actor, details);
         return ValidateDetails(details);

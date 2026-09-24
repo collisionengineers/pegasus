@@ -256,7 +256,8 @@ internal static partial class CaseWebTestSupport
             CaseId, "QDOS3100042", CaseVersion, State, null,
             [new(AssessmentVocabulary.ReportDate, "2031-05-06", ActorKind.Staff,
                 "recorded-engineer", _now, "recorded-engineer", _now)],
-            [], new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+            [], new("AB12CDE", null, null, null, null, null, "tbc", null, DateOnly.FromDateTime(_now.UtcDateTime), null, null,
+                null, "Case claimant", "CLM-42"));
 
         Task<AssessmentAccessState?> IGetAssessmentAccess.ExecuteAsync(
             GetAssessmentAccessQuery query, CancellationToken cancellationToken) =>
@@ -276,7 +277,7 @@ internal static partial class CaseWebTestSupport
             MetadataReads++;
             var assessment = EngineeringAssessment();
             return Task.FromResult<CaseReportFreezeInputs?>(new CaseReportFreezeInputs(
-                new(assessment, "Case claimant", assessment.Reference, "CLM-42", [], null, [], []),
+                new(assessment, assessment.Reference, [], null, [], []),
                 new(assessment, null, null, [], null, null, [], new Dictionary<Guid, Pegasus.Core.Documents.DocumentVersion>()),
                 assessment.Reference, CaseVersion));
         }

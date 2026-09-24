@@ -6,8 +6,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// The one place a case assessment field row is materialised with its
 /// provenance. The assessment save writes the whole surface through it, and
-/// the Engineer's Value valuation writes the single confirmed
-/// <c>assessment.values.engineer</c> field through it, so the row shape and
+/// the valuation adoption writes the confirmed
+/// <c>assessment.values.engineer</c>, <c>assessment.values.retail</c> and
+/// <c>assessment.values.trade</c> fields through it, so the row shape and
 /// the provenance stamped on it have exactly one owner.
 /// </summary>
 internal static class AssessmentFieldWriter

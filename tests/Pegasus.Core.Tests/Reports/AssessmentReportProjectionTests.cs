@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
@@ -21,8 +22,16 @@ public sealed class AssessmentReportProjectionTests
         Assert.Empty(result.Reasons);
         var snapshot = result.Snapshot!;
         Assert.Equal("CE-100", snapshot.OurReference);
+        // The claimant, the claim reference and the dates are the Case's own
+        // facts: instructions were received on the Case's received date, and
+        // the damage was assessed on its Inspection date.
         Assert.Equal("P-100", snapshot.YourReference);
         Assert.Equal("Alex Example", snapshot.ClaimantName);
+        Assert.Equal(new DateOnly(2026, 8, 2), snapshot.InstructionsReceived);
+        Assert.Equal(new DateOnly(2026, 8, 3), snapshot.Assessed);
+        // The adoption's basis retail and trade.
+        Assert.Equal(5000m, snapshot.RetailValue);
+        Assert.Equal(4000m, snapshot.TradeValue);
         Assert.Equal(["Approved Principal"], snapshot.ReportFor);
         Assert.Equal("PK12TMZ", snapshot.Vehicle.Registration);
         Assert.Equal("image_based", snapshot.AssessmentMethod);
@@ -128,8 +137,14 @@ public sealed class AssessmentReportProjectionTests
         AssertNotReady(result, $"Estimate line {unconfirmed.Position} ({unconfirmed.Type}) awaits review");
     }
 
+    /// <summary>
+    /// Entry to Review proves only instruction and image completeness, so each
+    /// Case fact the report prints is named before anything is projected. The
+    /// vehicle make, model and year are left to the Review-entry rail, and a
+    /// missing mileage prints as To be confirmed, so none of them is named.
+    /// </summary>
     [Fact]
-    public void ReviewTransitionRequirementsAreNotRecalculatedByReportReadiness()
+    public void EveryCaseFactTheReportPrintsIsANamedBlocker()
     {
         var input = ReadyInput();
         var assessment = input.Assessment with
@@ -144,9 +159,9 @@ public sealed class AssessmentReportProjectionTests
                 MileageUnit = null,
                 MileageSource = "tbc",
                 IncidentDate = null,
-                InstructionDate = null,
                 InspectionMode = null,
-                InspectionAddress = null
+                InspectionAddress = null,
+                InspectionDate = null
             }
         };
 
@@ -155,15 +170,39 @@ public sealed class AssessmentReportProjectionTests
             input.CurrentEstimate,
             input.Signatory);
 
-        Assert.True(result.CanGenerate);
-        Assert.Empty(result.Reasons);
+        string[] printed = ["Vehicle registration", "Incident date", "Inspection type", "Inspection date"];
+        Assert.False(result.CanGenerate);
+        Assert.Equal(
+            printed.Order(StringComparer.Ordinal),
+            result.Reasons.Select(reason => reason.Requirement).Order(StringComparer.Ordinal));
     }
 
-    [Fact]
-    public void MissingReviewTransitionDataAtGenerationIsAnInvalidState()
+    /// <summary>
+    /// A Review Case can lack a fact the report prints, so the projection
+    /// names it as ordinary casework rather than throwing for the error page.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseDataFieldNames.ClaimantName, "Claimant name")]
+    [InlineData(CaseDataFieldNames.ClaimNumber, "Claim reference")]
+    [InlineData(CaseDataFieldNames.IncidentDate, "Incident date")]
+    [InlineData(CaseDataFieldNames.VehicleRegistration, "Vehicle registration")]
+    [InlineData(CaseDataFieldNames.InspectionMode, "Inspection type")]
+    [InlineData(CaseDataFieldNames.InspectionDate, "Inspection date")]
+    [InlineData(CaseDataFieldNames.InspectionAddress, "Inspection address")]
+    public void AMissingPrintedCaseFactIsNotReadyAndNeverThrows(string field, string requirement)
     {
-        Assert.Throws<InvalidDataException>(() =>
-            AssessmentReportProjection.Project(ReadyInput() with { ClaimantName = null }));
+        var input = ReadyInput();
+
+        var result = AssessmentReportProjection.Project(input with
+        {
+            Assessment = input.Assessment with
+            {
+                CaseOwned = WithoutCaseFact(input.Assessment.CaseOwned, field)
+            }
+        });
+
+        var reason = AssertNotReady(result, requirement);
+        Assert.Equal(field, reason.Field);
     }
 
     [Fact]
@@ -234,12 +273,12 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void MissingRepairCostsIsNotReadyNamingTheAcceptedFormulaGap()
     {
-        // There is no hand-typed cost path: without a Current estimate the
-        // draft fails closed naming the missing estimate (EXT-09).
+        // There is no hand-typed cost path: without a Current repair spec the
+        // draft fails closed with generation's own item for it.
         var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = null });
 
         var reason = AssertNotReady(result, AssessmentReportProjection.RepairCostRequirement);
-        Assert.Contains("EXT-09", reason.WhyOutstanding, StringComparison.Ordinal);
+        Assert.Equal(CaseReportReadiness.CurrentEstimateMissing, reason);
     }
 
     [Fact]
@@ -392,6 +431,39 @@ public sealed class AssessmentReportProjectionTests
         Assert.Empty(result.Reasons);
     }
 
+    /// <summary>
+    /// The active total-loss template has accepted wording for Category S
+    /// only, so another category is named before projection instead of being
+    /// refused at render after a generation is written.
+    /// </summary>
+    [Fact]
+    public void AnUnprintableSalvageCategoryIsNotReady()
+    {
+        var reason = AssertNotReady(
+            AssessmentReportProjection.Project(TotalLossInput("N")),
+            "Salvage category");
+        Assert.Equal(AssessmentVocabulary.SalvageCategory, reason.Field);
+
+        var printable = AssessmentReportProjection.Project(TotalLossInput("S"));
+        Assert.True(printable.IsReady);
+        Assert.Equal("S", printable.Snapshot!.SalvageCategory);
+    }
+
+    [Fact]
+    public void AnOverriddenReportDateWithoutADateIsNotReady()
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields
+            .Append(Field(AssessmentVocabulary.ReportDateOverride, "true"))
+            .ToArray();
+
+        var result = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = fields } });
+
+        var reason = AssertNotReady(result, "Report date");
+        Assert.Equal(AssessmentVocabulary.ReportDate, reason.Field);
+    }
+
     [Fact]
     public void AReportDateIsSetOnlyWhenOneIsStated()
     {
@@ -428,7 +500,6 @@ public sealed class AssessmentReportProjectionTests
 
             Assert.Equal(new DateOnly(2027, 1, 2), snapshot.Vehicle.TaxExpiry);
             Assert.Equal(new DateOnly(2027, 3, 4), snapshot.Vehicle.MotExpiry);
-            Assert.Equal(new DateOnly(2026, 8, 3), snapshot.Assessed);
             Assert.Equal(new DateOnly(2026, 8, 20), snapshot.Settlement.SalvageSettled);
         }
         finally
@@ -645,7 +716,6 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.VehicleTemporaryRepairsPossible, "true"),
             Field(AssessmentVocabulary.VehicleTemporaryRepairMethod, "Secure bumper"),
             Field(AssessmentVocabulary.VehicleTemporaryRepairCost, "25.00"),
-            Field(AssessmentVocabulary.IncidentAssessed, "2026-08-03"),
             Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
             Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
             Field(AssessmentVocabulary.DamageImpacts, "[{\"areas\":[\"right_rear\"],\"disc\":{\"x\":0.86,\"y\":0.86,\"r\":0.1},\"severity\":\"moderate\",\"note\":\"Quarter panel\"}]"),
@@ -665,7 +735,6 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.ValueRetail, "5000.00"),
             Field(AssessmentVocabulary.ValueTrade, "4000.00"),
             Field(AssessmentVocabulary.ValueEngineer, "5000.00"),
-            Field(AssessmentVocabulary.CostRepairerVatRegistered, "true"),
             Field(AssessmentVocabulary.Outcome, "repairable"),
             Field(AssessmentVocabulary.LegalStatus, "roadworthy"),
             Field(AssessmentVocabulary.HistoryCheck, "History clear"),
@@ -711,9 +780,12 @@ public sealed class AssessmentReportProjectionTests
             MileageUnit: "miles",
             MileageSource: "online_data",
             IncidentDate: new DateOnly(2026, 8, 1),
-            InstructionDate: new DateOnly(2026, 8, 2),
+            ReceivedDate: new DateOnly(2026, 8, 2),
             InspectionMode: "ImageBasedAssessment",
-            InspectionAddress: null);
+            InspectionAddress: null,
+            InspectionDate: new DateOnly(2026, 8, 3),
+            ClaimantName: "Alex Example",
+            ClaimNumber: "P-100");
 
         var assessment = new CaseAssessmentProjection(
             Guid.NewGuid(),
@@ -727,9 +799,7 @@ public sealed class AssessmentReportProjectionTests
 
         return new AssessmentReportProjectionInput(
             assessment,
-            ClaimantName: "Alex Example",
             OurReference: "CE-100",
-            YourReference: "P-100",
             ReportFor: ["Approved Principal"],
             ReportDate: new DateOnly(2026, 8, 19),
             Photos: [photo],
@@ -738,7 +808,7 @@ public sealed class AssessmentReportProjectionTests
             Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
     }
 
-    private static AssessmentReportProjectionInput TotalLossInput()
+    private static AssessmentReportProjectionInput TotalLossInput(string category = "S")
     {
         var input = ReadyInput();
         return input with
@@ -748,12 +818,33 @@ public sealed class AssessmentReportProjectionTests
                 Fields =
                 [
                     .. ReplaceField(input.Assessment.Fields, AssessmentVocabulary.Outcome, "total_loss"),
-                    Field(AssessmentVocabulary.SalvageCategory, "S"),
+                    Field(AssessmentVocabulary.SalvageCategory, category),
                     Field(AssessmentVocabulary.SalvageValue, "500.00"),
                 ],
             },
         };
     }
+
+    /// <summary>
+    /// <paramref name="owned"/> without the one printed Case fact named by its
+    /// Case field. An address is printed only for a vehicle inspected at a
+    /// physical location, so the address is removed from such an inspection.
+    /// </summary>
+    private static AssessmentCaseOwnedData WithoutCaseFact(AssessmentCaseOwnedData owned, string field) => field switch
+    {
+        CaseDataFieldNames.ClaimantName => owned with { ClaimantName = null },
+        CaseDataFieldNames.ClaimNumber => owned with { ClaimNumber = null },
+        CaseDataFieldNames.IncidentDate => owned with { IncidentDate = null },
+        CaseDataFieldNames.VehicleRegistration => owned with { Registration = null },
+        CaseDataFieldNames.InspectionMode => owned with { InspectionMode = null },
+        CaseDataFieldNames.InspectionDate => owned with { InspectionDate = null },
+        CaseDataFieldNames.InspectionAddress => owned with
+        {
+            InspectionMode = nameof(CaseInspectionMode.PhysicalAddress),
+            InspectionAddress = null
+        },
+        _ => throw new ArgumentOutOfRangeException(nameof(field), field, "Not a Case fact the report prints.")
+    };
 
     private static AssessmentFieldValue[] ReplaceField(
         IReadOnlyList<AssessmentFieldValue> fields, string path, string value) =>
