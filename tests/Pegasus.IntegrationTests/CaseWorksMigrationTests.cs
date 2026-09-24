@@ -11,7 +11,7 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseWorksMigrationTests
 {
-    private const string PreviousMigration = "20260923180000_ValuationCardFiguresOptional";
+    private const string PreviousMigration = "20260924090000_IntakeAssetBoxParentFolder";
     private const string CaseWorksMigration = "20260924180000_CaseWorksAndTriageCases";
     private const string ResetInstruction =
         "Run the approved pegasus-wipe-intake-data reset before applying CaseWorksAndTriageCases.";

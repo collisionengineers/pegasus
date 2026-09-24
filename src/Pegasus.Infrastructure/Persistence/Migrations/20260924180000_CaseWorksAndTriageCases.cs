@@ -68,8 +68,10 @@ public partial class CaseWorksAndTriageCases : Migration
         ("TriageHistory", "FK_TriageHistory_Triage_TriageId",
             [("IX_TriageHistory_TriageId_OccurredAtUtc", "IX_TriageHistory_TriageCaseId_OccurredAtUtc")],
             "FK_TriageHistory_Triage_TriageCaseId"),
+        // Its unique index was created filtered on [TriageId], which sp_rename
+        // cannot rename through, so it is dropped and recreated around the rename.
         ("TriageResponseEvidenceLinks", "FK_TriageResponseEvidenceLinks_Triage_TriageId",
-            [("IX_TriageResponseEvidenceLinks_TriageId", "IX_TriageResponseEvidenceLinks_TriageCaseId")],
+            [],
             "FK_TriageResponseEvidenceLinks_Triage_TriageCaseId"),
         ("SentEmailEvidence", "FK_SentEmailEvidence_Triage_TriageId",
             [
@@ -470,6 +472,10 @@ public partial class CaseWorksAndTriageCases : Migration
             table: "TriageHistory",
             newName: "AfterLinkedInstructionCaseId");
 
+        migrationBuilder.DropIndex(
+            name: "IX_TriageResponseEvidenceLinks_TriageId",
+            table: "TriageResponseEvidenceLinks");
+
         foreach (var (table, _, indexes, newForeignKey) in TriageChildTables)
         {
             migrationBuilder.RenameColumn(name: "TriageId", table: table, newName: "TriageCaseId");
@@ -486,6 +492,12 @@ public partial class CaseWorksAndTriageCases : Migration
                 principalColumn: "CaseId",
                 onDelete: ReferentialAction.Restrict);
         }
+
+        migrationBuilder.CreateIndex(
+            name: "IX_TriageResponseEvidenceLinks_TriageCaseId",
+            table: "TriageResponseEvidenceLinks",
+            column: "TriageCaseId",
+            unique: true);
 
         // 8. The engineer finding and the Triage sequence go (its seed row with it).
         migrationBuilder.DropTable(
