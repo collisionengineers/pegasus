@@ -92,6 +92,7 @@ public sealed class V1ActivityReportPersistenceTests
                 {
                     Id = generationId,
                     CaseId = caseId,
+                    WorkId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
                     SnapshotJson = "{\"agreedFee\":111.25}",
@@ -105,6 +106,7 @@ public sealed class V1ActivityReportPersistenceTests
                 {
                     Id = priorGenerationId,
                     CaseId = caseId,
+                    WorkId = caseId,
                     CaseVersion = 0,
                     SnapshotHash = new string('c', 64),
                     SnapshotJson = "{\"agreedFee\":1.00}",
@@ -183,7 +185,7 @@ public sealed class V1ActivityReportPersistenceTests
                 SentOperation(generationId, contextVersion: 1, sentAt));
             context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
             {
-                CaseId = caseId,
+                WorkId = caseId,
                 FieldPath = AssessmentVocabulary.AgreedFee,
                 Value = "999.99",
                 RecordedByKind = "Staff",

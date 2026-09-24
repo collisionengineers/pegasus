@@ -982,7 +982,7 @@ public sealed class CaseTaskArchivePersistenceTests
                 CancellationToken cancellationToken) => Task.FromResult($"{root.RemoteId}/{auditReference}");
         }
 
-        private static Task<int> InsertCaseAsync(
+        private static async Task InsertCaseAsync(
             PegasusDbContext context,
             Guid caseId,
             Guid principalId,
@@ -990,9 +990,12 @@ public sealed class CaseTaskArchivePersistenceTests
             Guid receiptId,
             string reference,
             string caseType,
-            int sequence) =>
-            context.Database.ExecuteSqlInterpolatedAsync(
+            int sequence)
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2026}, {sequence}, {reference}, {caseType}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {StartUtc}, {0L}, {Guid.NewGuid()})");
+            await CaseWorkFixture.InsertPrimaryWorksAsync(context);
+        }
 
         private static async Task InsertReceiptAsync(
             PegasusDbContext context,

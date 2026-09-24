@@ -198,7 +198,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             (CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, "1 Test Street, London")
         };
         var existingConfirmed = await context.Set<CaseDataFieldEntity>()
-            .Where(field => field.CaseId == caseId
+            .Where(field => field.WorkId == caseId
                 && field.ValueKind == CaseDataCodes.Confirmed
                 && caseData.Select(value => value.Name).Contains(field.FieldName))
             .ToArrayAsync();
@@ -206,7 +206,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         context.Set<CaseDataFieldEntity>().AddRange(caseData.Select(field =>
             new CaseDataFieldEntity
             {
-                CaseId = caseId,
+                WorkId = caseId,
                 FieldName = field.Name,
                 ValueKind = CaseDataCodes.Confirmed,
                 ValueType = field.Type,
@@ -242,7 +242,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         context.CaseAssessmentFields.AddRange(values.Select(value =>
             new CaseAssessmentFieldEntity
             {
-                CaseId = caseId,
+                WorkId = caseId,
                 FieldPath = value.Key,
                 Value = value.Value,
                 RecordedByKind = ActorKind.Staff.ToString(),
@@ -279,7 +279,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         context.Set<CaseRepairSpecificationEntity>().Add(new()
         {
             Id = Guid.NewGuid(),
-            CaseId = caseId,
+            WorkId = caseId,
             Version = 1,
             State = RepairSpecificationState.Accepted.ToString(),
             SourceRoute = RepairSpecificationSourceRoute.Manual.ToString(),
@@ -1688,6 +1688,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             {
                 Id = supersededId,
                 CaseId = caseId,
+                WorkId = caseId,
                 CaseVersion = 0,
                 SnapshotHash = new string('1', 64),
                 SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "seed-generation-superseded"),
@@ -1701,6 +1702,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             {
                 Id = currentId,
                 CaseId = caseId,
+                WorkId = caseId,
                 CaseVersion = 0,
                 SnapshotHash = new string('2', 64),
                 SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "seed-generation-current"),
@@ -2081,7 +2083,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             complete.ExecuteAsync(command with { RetailValue = 12001m }, CancellationToken.None));
 
         await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(1, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         await Assert.ThrowsAnyAsync<DbException>(async () =>
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -2157,7 +2159,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         Assert.Equal(AiJobState.Taken.ToString(), await context.AiJobs
             .Where(item => item.JobId == taken.JobId)
@@ -2230,7 +2232,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(taken.TakenBy, unchanged.TakenBy);
         Assert.Equal(taken.LeaseExpiresAtUtc, unchanged.LeaseExpiresAtUtc);
         Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
     }
 
@@ -2296,7 +2298,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         var unchanged = await context.AiJobs.AsNoTracking()
             .SingleAsync(item => item.JobId == taken.JobId);
@@ -2367,7 +2369,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         var unchanged = await context.AiJobs.AsNoTracking()
             .SingleAsync(item => item.JobId == taken.JobId);
@@ -2449,7 +2451,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(1, content.DeleteCount);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         var unchanged = await context.AiJobs.AsNoTracking()
             .SingleAsync(item => item.JobId == taken.JobId);

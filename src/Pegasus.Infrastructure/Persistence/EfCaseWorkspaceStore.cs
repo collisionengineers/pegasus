@@ -56,7 +56,7 @@ public sealed class EfCaseWorkspaceStore(
         }
 
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: true)
-            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
         var workflow = await context.CaseWorkflows
             .Include(item => item.DueWork)
@@ -89,7 +89,7 @@ public sealed class EfCaseWorkspaceStore(
         {
             DueBy = CaseDuePolicy.Resolve(
                 workflow.DueWork?.DueBy,
-                snapshot.Case.AcceptedInspectionDeadline)
+                snapshot.Work.Case.AcceptedInspectionDeadline)
         };
         var beforeReportData = EffectiveReportData(snapshot.Fields);
         var beforeMileageField = CaseDataFieldValues.CurrentField(
@@ -116,7 +116,7 @@ public sealed class EfCaseWorkspaceStore(
                     item => item.CaseId == request.CaseId,
                     cancellationToken),
                 CaseMatchIndexProjector.Project(
-                    snapshot.Case,
+                    snapshot.Work.Case,
                     snapshot.Fields,
                     caseMatchPolicies ?? [],
                     now));
@@ -125,13 +125,13 @@ public sealed class EfCaseWorkspaceStore(
 
         if (request.Inspection is not null)
         {
-            snapshot.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
+            snapshot.Work.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
         }
 
         var dueByChanged = request.Overview is not null && data.DueBy != beforeData.DueBy;
 
         var assessmentFields = await context.CaseAssessmentFields
-            .Where(item => item.CaseId == request.CaseId)
+            .Where(item => item.WorkId == request.CaseId)
             .ToListAsync(cancellationToken);
         var beforeAssessment = assessmentFields.ToDictionary(
             item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
@@ -140,7 +140,6 @@ public sealed class EfCaseWorkspaceStore(
         AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
-            workflow.Case,
             request.CaseId,
             assessmentFields,
             fieldsToWrite,
@@ -227,10 +226,10 @@ public sealed class EfCaseWorkspaceStore(
 
         if (request.Completeness is { } completeness)
         {
-            snapshot.Case.InstructionComplete =
-                completeness.InstructionComplete ?? snapshot.Case.InstructionComplete;
-            snapshot.Case.ImagesComplete =
-                completeness.ImagesComplete ?? snapshot.Case.ImagesComplete;
+            snapshot.Work.Case.InstructionComplete =
+                completeness.InstructionComplete ?? snapshot.Work.Case.InstructionComplete;
+            snapshot.Work.Case.ImagesComplete =
+                completeness.ImagesComplete ?? snapshot.Work.Case.ImagesComplete;
         }
 
         // Readiness is evaluated from the row that was just written,
@@ -267,7 +266,7 @@ public sealed class EfCaseWorkspaceStore(
                 await CaseDueWorkScheduler.ScheduleAsync(
                     context,
                     workflow,
-                    snapshot.Case.AcceptedInspectionDeadline,
+                    snapshot.Work.Case.AcceptedInspectionDeadline,
                     now,
                     cancellationToken);
             }
@@ -279,7 +278,7 @@ public sealed class EfCaseWorkspaceStore(
                 context,
                 workflow,
                 data.DueBy,
-                snapshot.Case.AcceptedInspectionDeadline,
+                snapshot.Work.Case.AcceptedInspectionDeadline,
                 dueWorkVersionBeforeSave);
         }
         else
@@ -287,7 +286,7 @@ public sealed class EfCaseWorkspaceStore(
             CaseDueWorkScheduler.ProjectDueBy(
                 context,
                 workflow,
-                snapshot.Case.AcceptedInspectionDeadline,
+                snapshot.Work.Case.AcceptedInspectionDeadline,
                 dueWorkVersionBeforeSave);
         }
 
@@ -479,7 +478,6 @@ public sealed class EfCaseWorkspaceStore(
             (beforeLines, afterLines) = EstimateLineWriter.Replace(
                 context,
                 request.CaseId,
-                workflow.Case,
                 draft,
                 tracked,
                 lines,
@@ -503,7 +501,7 @@ public sealed class EfCaseWorkspaceStore(
         CancellationToken cancellationToken)
     {
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleAsync(item => item.CaseId == caseId, cancellationToken);
+            .SingleAsync(item => item.WorkId == caseId, cancellationToken);
         var workflow = await context.CaseWorkflows.AsNoTracking()
             .Include(item => item.Case)
             .ThenInclude(item => item.Principal)
@@ -513,14 +511,14 @@ public sealed class EfCaseWorkspaceStore(
             .Include(item => item.Lines)
             .SingleOrDefaultAsync(cancellationToken);
         var fields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var estimateId = estimate?.Id;
         var lines = estimateId is null
             ? []
             : await context.CaseEstimateLines.AsNoTracking()
-                .Where(item => item.CaseId == caseId && item.RepairSpecificationId == estimateId)
+                .Where(item => item.WorkId == caseId && item.RepairSpecificationId == estimateId)
                 .OrderBy(item => item.Position)
                 .ToArrayAsync(cancellationToken);
         return new(
@@ -550,7 +548,7 @@ public sealed class EfCaseWorkspaceStore(
         CancellationToken cancellationToken)
     {
         var existing = await context.CaseReportWordings
-            .Where(item => item.CaseId == request.CaseId)
+            .Where(item => item.WorkId == request.CaseId)
             .ToListAsync(cancellationToken);
         var submitted = blocks.ToDictionary(block => block.Key, StringComparer.Ordinal);
         var changed = false;
@@ -588,7 +586,7 @@ public sealed class EfCaseWorkspaceStore(
                 context.CaseReportWordings.Add(new CaseReportWordingEntity
                 {
                     Id = Guid.NewGuid(),
-                    CaseId = request.CaseId,
+                    WorkId = request.CaseId,
                     BlockKey = block.Key,
                     Title = block.Title,
                     Text = block.Text,
@@ -620,8 +618,8 @@ public sealed class EfCaseWorkspaceStore(
     }
 
     private static CaseCompleteness Completeness(CaseDataSnapshotEntity snapshot) => new(
-        snapshot.Case.InstructionComplete,
-        snapshot.Case.ImagesComplete);
+        snapshot.Work.Case.InstructionComplete,
+        snapshot.Work.Case.ImagesComplete);
 
     private static string RequestHash(SaveCaseWorkspaceRequest request)
     {

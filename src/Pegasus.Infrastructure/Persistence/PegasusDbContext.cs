@@ -17,6 +17,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<PrincipalEntity> Principals => Set<PrincipalEntity>();
     internal DbSet<CaseSequenceEntity> CaseSequences => Set<CaseSequenceEntity>();
     internal DbSet<CaseEntity> Cases => Set<CaseEntity>();
+    internal DbSet<CaseWorkEntity> CaseWorks => Set<CaseWorkEntity>();
     internal DbSet<CaseIntakeLinkEntity> CaseIntakeLinks => Set<CaseIntakeLinkEntity>();
     internal DbSet<CaseDataSnapshotEntity> CaseDataSnapshots => Set<CaseDataSnapshotEntity>();
     internal DbSet<CaseDataFieldEntity> CaseDataFields => Set<CaseDataFieldEntity>();
@@ -149,6 +150,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        EnsurePrimaryWorks();
         RegenerateConcurrencyTokens();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
@@ -157,8 +159,46 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
     {
+        EnsurePrimaryWorks();
         RegenerateConcurrencyTokens();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    // Every Case has its primary work, whose id is the Case id. The context
+    // supplies it for every Case added without one, so no creator writes it
+    // and none can forget it; the database still fails closed
+    // (CK_CaseWorks_PrimaryId, the unique (CaseId, Kind) index and the
+    // foreign keys from every per-work table).
+    private void EnsurePrimaryWorks()
+    {
+        var added = ChangeTracker.Entries<CaseEntity>()
+            .Where(entry => entry.State == EntityState.Added)
+            .Select(entry => entry.Entity)
+            .ToList();
+        if (added.Count == 0)
+        {
+            return;
+        }
+
+        var tracked = ChangeTracker.Entries<CaseWorkEntity>()
+            .Select(entry => entry.Entity.Id)
+            .ToHashSet();
+        foreach (var caseEntity in added)
+        {
+            if (tracked.Contains(caseEntity.Id))
+            {
+                continue;
+            }
+
+            CaseWorks.Add(new CaseWorkEntity
+            {
+                Id = caseEntity.Id,
+                CaseId = caseEntity.Id,
+                Case = caseEntity,
+                Kind = CaseWorkKinds.Primary,
+                CreatedAtUtc = caseEntity.CreatedAtUtc
+            });
+        }
     }
 
     private void RegenerateConcurrencyTokens()
@@ -192,6 +232,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         EvaHandoffModelConfiguration.Configure(builder);
         EvaSubmissionModelConfiguration.Configure(builder);
         AutomaticEvaReviewSubmissionModelConfiguration.Configure(builder);
+        CaseWorkModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
         CaseFieldProposalModelConfiguration.Configure(builder);
         PrincipalCredentialModelConfiguration.Configure(builder);
@@ -1259,6 +1300,7 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public string? AuditCustodyRemoteId { get; set; }
     public DateTimeOffset? AuditCustodyConfirmedAtUtc { get; set; }
     public CaseEngineerFindingEntity? EngineerFinding { get; set; }
+    public List<CaseWorkEntity> Works { get; set; } = [];
     public List<CaseIntakeLinkEntity> IntakeLinks { get; set; } = [];
     public List<CaseHistoryEntity> History { get; set; } = [];
     public List<ExternalWorkItemEntity> ExternalWork { get; set; } = [];

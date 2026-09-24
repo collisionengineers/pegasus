@@ -521,6 +521,7 @@ public sealed class CaseReportGenerationPersistenceTests
         {
             Id = Guid.NewGuid(),
             CaseId = harness.CaseId,
+            WorkId = harness.CaseId,
             CaseVersion = live.CaseVersion,
             SnapshotHash = live.SnapshotHash,
             SnapshotJson = "{}",

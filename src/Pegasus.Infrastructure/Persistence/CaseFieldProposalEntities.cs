@@ -11,7 +11,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 internal sealed class CaseFieldProposalEntity
 {
-    public Guid CaseId { get; set; }
+    public Guid WorkId { get; set; }
     public required string FieldPath { get; set; }
     public required string ProposedValue { get; set; }
     public required string ProposedBy { get; set; }
@@ -30,13 +30,13 @@ internal static class CaseFieldProposalModelConfiguration
             entity.ToTable("CaseFieldProposals", table => table.HasCheckConstraint(
                 "CK_CaseFieldProposals_Resolution",
                 "[Resolution] IS NULL OR [Resolution] IN ('Accepted', 'Corrected')"));
-            entity.HasKey(item => new { item.CaseId, item.FieldPath });
+            entity.HasKey(item => new { item.WorkId, item.FieldPath });
             entity.Property(item => item.FieldPath).HasMaxLength(200);
             entity.Property(item => item.ProposedValue).HasMaxLength(4000).IsRequired();
             entity.Property(item => item.ProposedBy).HasMaxLength(200).IsRequired();
             entity.Property(item => item.Resolution).HasMaxLength(20);
             entity.Property(item => item.ResolvedBy).HasMaxLength(200);
-            entity.HasOne<CaseEntity>().WithMany().HasForeignKey(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<CaseWorkEntity>().WithMany().HasForeignKey(item => item.WorkId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
@@ -74,7 +74,7 @@ internal static class CaseFieldProposalWriter
         {
             row = new CaseFieldProposalEntity
             {
-                CaseId = caseId,
+                WorkId = caseId,
                 FieldPath = path,
                 ProposedValue = next.ProposedValue,
                 ProposedBy = next.ProposedBy
@@ -115,7 +115,7 @@ internal sealed class EfCaseFieldProposalQueries(IDbContextFactory<PegasusDbCont
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await context.CaseFieldProposals.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         return [.. rows.Select(CaseFieldProposalWriter.Map)];

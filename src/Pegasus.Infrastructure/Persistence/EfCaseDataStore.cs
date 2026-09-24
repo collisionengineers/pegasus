@@ -32,7 +32,7 @@ public sealed class EfCaseDataStore(
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var snapshot = await SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken);
         if (snapshot is null)
         {
             return null;
@@ -102,13 +102,13 @@ public sealed class EfCaseDataStore(
         }
 
         var before = new CaseCompleteness(
-            snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete);
+            snapshot.Work.Case.InstructionComplete,
+            snapshot.Work.Case.ImagesComplete);
         evaluation = CaseCompletenessPolicy.Evaluate(request.Completeness,
             await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken));
         var beforeJson = JsonSerializer.Serialize(before, JsonOptions);
-        snapshot.Case.InstructionComplete = request.Completeness.InstructionComplete;
-        snapshot.Case.ImagesComplete = request.Completeness.ImagesComplete;
+        snapshot.Work.Case.InstructionComplete = request.Completeness.InstructionComplete;
+        snapshot.Work.Case.ImagesComplete = request.Completeness.ImagesComplete;
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
@@ -134,7 +134,7 @@ public sealed class EfCaseDataStore(
             }
 
             workflow.State = nameof(CaseLifecycleState.NotReady);
-            await CaseDueWorkScheduler.ScheduleAsync(context, workflow, snapshot.Case.AcceptedInspectionDeadline, now, cancellationToken);
+            await CaseDueWorkScheduler.ScheduleAsync(context, workflow, snapshot.Work.Case.AcceptedInspectionDeadline, now, cancellationToken);
         }
 
         var beforeVersion = workflow.Version;
@@ -217,8 +217,8 @@ public sealed class EfCaseDataStore(
 
         var before = CaseDataFieldWriter.ReadEditable(snapshot);
         var completenessBefore = new CaseCompleteness(
-            snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete);
+            snapshot.Work.Case.InstructionComplete,
+            snapshot.Work.Case.ImagesComplete);
         if (before == data)
         {
             throw new InvalidOperationException("SaveCase requires at least one changed confirmed value.");
@@ -232,12 +232,12 @@ public sealed class EfCaseDataStore(
                 item => item.CaseId == request.CaseId,
                 cancellationToken),
             CaseMatchIndexProjector.Project(
-                snapshot.Case,
+                snapshot.Work.Case,
                 snapshot.Fields,
                 caseMatchPolicies ?? [],
                 now));
-        snapshot.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
-        snapshot.Case.InstructionComplete = false;
+        snapshot.Work.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
+        snapshot.Work.Case.InstructionComplete = false;
         snapshot.CompletenessPolicySatisfied = false;
         if (workflow.State != nameof(CaseLifecycleState.NotReady))
         {
@@ -250,8 +250,8 @@ public sealed class EfCaseDataStore(
         var beforeVersion = workflow.Version;
         workflow.Version++;
         var completenessAfter = new CaseCompleteness(
-            snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete);
+            snapshot.Work.Case.InstructionComplete,
+            snapshot.Work.Case.ImagesComplete);
         ClearLease(workflow);
         CaseMutationHistory.Add(
             context,
@@ -302,7 +302,7 @@ public sealed class EfCaseDataStore(
             CancellationToken cancellationToken)
     {
         var snapshot = await SnapshotQuery(context, tracking: true)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
         var workflow = await context.CaseWorkflows
             .Include(item => item.Case).ThenInclude(item => item.Principal)
@@ -320,7 +320,7 @@ public sealed class EfCaseDataStore(
         CancellationToken cancellationToken)
     {
         var snapshot = await SnapshotQuery(context, tracking)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
         var workflowQuery = tracking
             ? context.CaseWorkflows
@@ -341,7 +341,8 @@ public sealed class EfCaseDataStore(
         bool tracking)
     {
         var query = context.CaseDataSnapshots
-            .Include(item => item.Case)
+            .Include(item => item.Work)
+            .ThenInclude(item => item.Case)
             .ThenInclude(item => item.Principal)
             .Include(item => item.Fields);
         return tracking ? query : query.AsNoTracking();
@@ -365,12 +366,12 @@ public sealed class EfCaseDataStore(
         CaseDataSnapshotEntity snapshot,
         CaseWorkflowEntity workflow) => new(
         new(
-            snapshot.CaseId,
-            snapshot.Case.Principal.Code,
-            snapshot.Case.Year,
-            snapshot.Case.Sequence,
-            snapshot.Case.Reference,
-            snapshot.Case.AuditReference),
+            snapshot.Work.CaseId,
+            snapshot.Work.Case.Principal.Code,
+            snapshot.Work.Case.Year,
+            snapshot.Work.Case.Sequence,
+            snapshot.Work.Case.Reference,
+            snapshot.Work.Case.AuditReference),
         new(
             snapshot.OriginIntakeReceiptId,
             snapshot.OriginSourceChannel is null
@@ -388,8 +389,8 @@ public sealed class EfCaseDataStore(
         ParseLifecycleState(workflow.State),
         new(
             new(
-                snapshot.Case.InstructionComplete,
-                snapshot.Case.ImagesComplete),
+                snapshot.Work.Case.InstructionComplete,
+                snapshot.Work.Case.ImagesComplete),
             new(
                 snapshot.CompletenessPolicySatisfied,
                 snapshot.CompletenessPolicyKey,
@@ -429,7 +430,7 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.RepairerAddress),
             TextField(snapshot, CaseDataFieldNames.RepairerName)),
         Workspace(snapshot),
-        snapshot.Case.StandaloneAuditEvidenceId);
+        snapshot.Work.Case.StandaloneAuditEvidenceId);
 
     /// <summary>
     /// The v1 workspace facts. Each is entered by staff through the one Case
@@ -805,7 +806,7 @@ internal static class CaseDataFieldWriter
         {
             existing = new()
             {
-                CaseId = snapshot.CaseId,
+                WorkId = snapshot.WorkId,
                 Snapshot = snapshot,
                 FieldName = fieldName,
                 ValueKind = CaseDataCodes.Confirmed,

@@ -455,9 +455,10 @@ internal sealed class EfCaseArtifactCustody(
         }
 
         var snapshot = await db.Set<CaseDataSnapshotEntity>()
-            .Include(item => item.Case)
+            .Include(item => item.Work)
+            .ThenInclude(item => item.Case)
             .ThenInclude(item => item.Principal)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
             ?? throw new InvalidDataException("The automatically associated Case has no data snapshot.");
         var workflow = await db.CaseWorkflows
             .Include(item => item.Case)
@@ -470,11 +471,11 @@ internal sealed class EfCaseArtifactCustody(
 
         var configuration = await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken);
         var before = new CaseCompleteness(
-            snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete);
+            snapshot.Work.Case.InstructionComplete,
+            snapshot.Work.Case.ImagesComplete);
         var after = before with { ImagesComplete = true };
         var evaluation = CaseCompletenessPolicy.Evaluate(after, configuration);
-        snapshot.Case.ImagesComplete = true;
+        snapshot.Work.Case.ImagesComplete = true;
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
@@ -501,7 +502,7 @@ internal sealed class EfCaseArtifactCustody(
             }
             workflow.State = nameof(CaseLifecycleState.NotReady);
             await CaseDueWorkScheduler.ScheduleAsync(
-                db, workflow, snapshot.Case.AcceptedInspectionDeadline, nowUtc, cancellationToken);
+                db, workflow, snapshot.Work.Case.AcceptedInspectionDeadline, nowUtc, cancellationToken);
         }
 
         var beforeVersion = workflow.Version;

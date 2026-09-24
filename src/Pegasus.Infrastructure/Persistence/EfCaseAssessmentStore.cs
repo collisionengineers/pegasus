@@ -48,17 +48,17 @@ public sealed class EfCaseAssessmentStore(
         }
 
         var fields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var specificationId = await CurrentSpecificationIdAsync(caseId, cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == caseId
                 && item.RepairSpecificationId == specificationId)
             .OrderBy(item => item.Position)
             .ToArrayAsync(cancellationToken);
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .ToArrayAsync(cancellationToken);
         return Map(workflow, fields, lines, caseDataFields);
     }
@@ -115,13 +115,13 @@ public sealed class EfCaseAssessmentStore(
         }
 
         var fields = await context.CaseAssessmentFields
-            .Where(item => item.CaseId == request.CaseId)
+            .Where(item => item.WorkId == request.CaseId)
             .ToListAsync(cancellationToken);
         var beforeAssessment = fields.ToDictionary(
             item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
         var mileageField = CaseDataFieldValues.CurrentField(
             await context.CaseDataFields.AsNoTracking()
-                .Where(item => item.CaseId == request.CaseId)
+                .Where(item => item.WorkId == request.CaseId)
                 .ToArrayAsync(cancellationToken),
             CaseDataFieldNames.VehicleMileage);
         CaseDataSourceKind? mileageProvenance = mileageField is null
@@ -146,7 +146,7 @@ public sealed class EfCaseAssessmentStore(
         }
         var specificationId = specification?.Id;
         var lines = await context.CaseEstimateLines
-            .Where(item => item.CaseId == request.CaseId
+            .Where(item => item.WorkId == request.CaseId
                 && item.RepairSpecificationId == specificationId)
             .OrderBy(item => item.Position)
             .ToListAsync(cancellationToken);
@@ -156,7 +156,6 @@ public sealed class EfCaseAssessmentStore(
         var confirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null;
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
-            workflow.Case,
             request.CaseId,
             fields,
             fieldsToWrite,
@@ -170,7 +169,6 @@ public sealed class EfCaseAssessmentStore(
             (beforeLines, afterLines) = EstimateLineWriter.Replace(
                 context,
                 request.CaseId,
-                workflow.Case,
                 specification,
                 lines,
                 replacementLines,
@@ -252,17 +250,17 @@ public sealed class EfCaseAssessmentStore(
             .ThenInclude(item => item.Principal)
             .SingleAsync(item => item.CaseId == caseId, cancellationToken);
         var fields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var specificationId = await CurrentSpecificationIdAsync(caseId, cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == caseId
                 && item.RepairSpecificationId == specificationId)
             .OrderBy(item => item.Position)
             .ToArrayAsync(cancellationToken);
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .ToArrayAsync(cancellationToken);
         return Map(workflow, fields, lines, caseDataFields);
     }

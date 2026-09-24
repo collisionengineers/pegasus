@@ -31,15 +31,15 @@ internal sealed class EfAssessmentWorkspaceSource(
         }
 
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
             ?? throw new InvalidDataException(
                 "The accepted case is missing its typed data projection.");
         var assessmentFields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var specificationEntities = await context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == caseId
                 && (item.State == RepairSpecificationState.Draft.ToString()
                     || item.State == RepairSpecificationState.Accepted.ToString()))
             .Include(item => item.Lines)

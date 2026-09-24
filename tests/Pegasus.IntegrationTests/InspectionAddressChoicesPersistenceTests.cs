@@ -148,7 +148,7 @@ public sealed class InspectionAddressChoicesPersistenceTests
         var sourceCase = await context.Cases.AsNoTracking()
             .SingleAsync(item => item.Id == sourceCaseId);
         var sourceSnapshot = await context.CaseDataSnapshots.AsNoTracking()
-            .SingleAsync(item => item.CaseId == sourceCaseId);
+            .SingleAsync(item => item.WorkId == sourceCaseId);
         var ids = new Guid[count];
         for (var index = 0; index < count; index++)
         {
@@ -175,8 +175,7 @@ public sealed class InspectionAddressChoicesPersistenceTests
             context.Cases.Add(clone);
             context.CaseDataSnapshots.Add(new()
             {
-                CaseId = caseId,
-                Case = clone,
+                WorkId = caseId,
                 OriginIntakeReceiptId = sourceSnapshot.OriginIntakeReceiptId,
                 OriginSourceChannel = sourceSnapshot.OriginSourceChannel,
                 OriginExternalReceiptToken = sourceSnapshot.OriginExternalReceiptToken,
@@ -208,5 +207,5 @@ public sealed class InspectionAddressChoicesPersistenceTests
         Guid caseId,
         DateTimeOffset confirmedAtUtc) =>
         context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseDataFields SET ConfirmedAtUtc = {confirmedAtUtc} WHERE CaseId = {caseId} AND FieldName = {"inspection_address"} AND ValueKind = {"confirmed"}");
+            $"UPDATE CaseDataFields SET ConfirmedAtUtc = {confirmedAtUtc} WHERE WorkId = {caseId} AND FieldName = {"inspection_address"} AND ValueKind = {"confirmed"}");
 }

@@ -99,8 +99,7 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             var valuationEntity = replaced ?? new CaseValuationEntity
             {
                 Id = Guid.NewGuid(),
-                CaseId = command.CaseId,
-                Case = workflow.Case,
+                WorkId = command.CaseId,
                 Source = details.Source.ToString(),
                 RecordedBy = command.Actor.SubjectId,
                 RecordedAtUtc = now

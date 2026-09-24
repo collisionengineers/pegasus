@@ -81,11 +81,11 @@ internal sealed class EfRecentCaseQueries(
         var pageRows = rows.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
         var caseIds = pageRows.Select(row => row.CaseId).Distinct().ToArray();
         var facts = await context.CaseDataFields.AsNoTracking()
-            .Where(item => caseIds.Contains(item.CaseId)
+            .Where(item => caseIds.Contains(item.WorkId)
                 && item.ValueKind == CaseDataCodes.Confirmed
                 && (item.FieldName == CaseDataFieldNames.VehicleRegistration
                     || item.FieldName == CaseDataFieldNames.ClaimantName))
-            .Select(item => new { item.CaseId, item.FieldName, item.Value })
+            .Select(item => new { CaseId = item.WorkId, item.FieldName, item.Value })
             .ToListAsync(cancellationToken);
         var drafts = await (
             from caseEntity in context.Set<CaseEntity>().AsNoTracking()

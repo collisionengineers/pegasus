@@ -213,11 +213,10 @@ public sealed class EfCreateAuditCaseStore(
     {
         var source = await context.CaseDataSnapshots.AsNoTracking()
             .Include(item => item.Fields)
-            .SingleOrDefaultAsync(item => item.CaseId == sourceCaseId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == sourceCaseId, cancellationToken);
         var snapshot = new CaseDataSnapshotEntity
         {
-            CaseId = auditCase.Id,
-            Case = auditCase,
+            WorkId = auditCase.Id,
             CompletenessPolicyKey = source?.CompletenessPolicyKey ?? "case-completeness",
             CompletenessPolicyVersion = source?.CompletenessPolicyVersion ?? 1,
             CompletenessPolicySatisfied = true,
@@ -230,7 +229,7 @@ public sealed class EfCreateAuditCaseStore(
         {
             snapshot.Fields.Add(new CaseDataFieldEntity
             {
-                CaseId = auditCase.Id,
+                WorkId = auditCase.Id,
                 Snapshot = snapshot,
                 FieldName = field.FieldName,
                 ValueKind = field.ValueKind,
@@ -256,14 +255,13 @@ public sealed class EfCreateAuditCaseStore(
         CancellationToken cancellationToken)
     {
         var fields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == sourceCaseId)
+            .Where(item => item.WorkId == sourceCaseId)
             .ToListAsync(cancellationToken);
         foreach (var field in fields)
         {
             context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
             {
-                CaseId = auditCase.Id,
-                Case = auditCase,
+                WorkId = auditCase.Id,
                 FieldPath = field.FieldPath,
                 Value = field.Value,
                 RecordedByKind = field.RecordedByKind,
@@ -300,8 +298,7 @@ public sealed class EfCreateAuditCaseStore(
         var copy = new CaseRepairSpecificationEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = auditCase.Id,
-            Case = auditCase,
+            WorkId = auditCase.Id,
             Version = 1,
             State = source.State,
             SourceRoute = source.SourceRoute,
@@ -347,8 +344,7 @@ public sealed class EfCreateAuditCaseStore(
             copy.Lines.Add(new CaseEstimateLineEntity
             {
                 Id = Guid.NewGuid(),
-                CaseId = auditCase.Id,
-                Case = auditCase,
+                WorkId = auditCase.Id,
                 RepairSpecificationId = copy.Id,
                 Position = line.Position,
                 LineType = line.LineType,

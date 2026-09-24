@@ -54,8 +54,9 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<AppliedValuationSnapshotEntity>(e =>
         {
-            e.ToTable("AppliedValuationSnapshots"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.CaseId, x.SnapshotHash }).IsUnique();
-            e.HasIndex(x => new { x.CaseId, x.AcceptedAtUtc });
+            e.ToTable("AppliedValuationSnapshots"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.WorkId, x.SnapshotHash }).IsUnique();
+            e.HasIndex(x => new { x.WorkId, x.AcceptedAtUtc });
+            e.HasOne<CaseWorkEntity>().WithMany().HasForeignKey(x => x.WorkId).OnDelete(DeleteBehavior.Restrict);
             e.Property(x => x.SnapshotHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.AcceptedEngineerValue).HasPrecision(18, 2);
         });
         builder.Entity<GlassRepairEstimateSessionEntity>(e =>
@@ -68,7 +69,8 @@ internal static class V1FoundationModelConfiguration
         });
         builder.Entity<CaseReportGenerationEntity>(e =>
         {
-            e.ToTable("CaseReportGenerations"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.CaseId, x.SnapshotHash }).IsUnique().HasFilter("[State] <> N'Stale'");
+            e.ToTable("CaseReportGenerations"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.WorkId, x.SnapshotHash }).IsUnique().HasFilter("[State] <> N'Stale'");
+            e.HasOne(x => x.Work).WithMany().HasForeignKey(x => x.WorkId).OnDelete(DeleteBehavior.Restrict);
             e.Property(x => x.SnapshotHash).HasMaxLength(64).IsFixedLength();
         });
         builder.Entity<GeneratedCaseArtifactEntity>(e =>

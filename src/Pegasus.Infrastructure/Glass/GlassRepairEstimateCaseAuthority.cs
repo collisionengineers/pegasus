@@ -64,7 +64,7 @@ public sealed class EfGlassRepairEstimateCaseAuthority(
 
         var fields = await context.Set<CaseDataFieldEntity>()
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == caseId)
             .ToArrayAsync(cancellationToken);
         return new(RequireRegistration(fields), RequireMileageMiles(fields));
     }

@@ -80,7 +80,7 @@ public sealed partial class CaseCreateWebTests
         var created = await context.Cases.SingleAsync(item => item.Id == caseId);
         var snapshot = await context.CaseDataSnapshots
             .Include(item => item.Fields)
-            .SingleAsync(item => item.CaseId == caseId);
+            .SingleAsync(item => item.WorkId == caseId);
 
         Assert.Null(created.OriginIntakeReceiptId);
         Assert.Null(snapshot.OriginIntakeReceiptId);
@@ -113,7 +113,7 @@ public sealed partial class CaseCreateWebTests
         var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
         var snapshot = await context.CaseDataSnapshots
             .Include(item => item.Fields)
-            .SingleAsync(item => item.CaseId == caseId);
+            .SingleAsync(item => item.WorkId == caseId);
         Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceId
             && item.Value == claimSourceId.ToString("D"));
         Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceVersion
@@ -152,7 +152,7 @@ public sealed partial class CaseCreateWebTests
         var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
         var snapshot = await context.CaseDataSnapshots
             .Include(item => item.Fields)
-            .SingleAsync(item => item.CaseId == caseId);
+            .SingleAsync(item => item.WorkId == caseId);
         Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceId
             && item.Value == claimSourceId.ToString("D"));
     }
@@ -1046,7 +1046,7 @@ public sealed partial class CaseCreateWebTests
             services,
             $"""
             SELECT TOP 1 SourceKind FROM CaseDataFields
-            WHERE CaseId = '{caseId:D}'
+            WHERE WorkId = '{caseId:D}'
                 AND FieldName = 'inspection_address'
                 AND ValueKind = 'confirmed'
             """);

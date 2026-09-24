@@ -274,7 +274,7 @@ public sealed class EfContactDirectoryAdministration(
         var principalCases =
             from @case in context.Cases.AsNoTracking()
             join principal in context.Principals.AsNoTracking() on @case.PrincipalId equals principal.Id
-            join snapshot in context.CaseDataSnapshots.AsNoTracking() on @case.Id equals snapshot.CaseId into snapshots
+            join snapshot in context.CaseDataSnapshots.AsNoTracking() on @case.Id equals snapshot.WorkId into snapshots
             from snapshot in snapshots.DefaultIfEmpty()
             select new
             {
@@ -285,11 +285,11 @@ public sealed class EfContactDirectoryAdministration(
 
         var snapshotCases =
             from field in context.CaseDataFields.AsNoTracking()
-            join snapshot in context.CaseDataSnapshots.AsNoTracking() on field.CaseId equals snapshot.CaseId
-            join @case in context.Cases.AsNoTracking() on snapshot.CaseId equals @case.Id
+            join snapshot in context.CaseDataSnapshots.AsNoTracking() on field.WorkId equals snapshot.WorkId
+            join @case in context.Cases.AsNoTracking() on snapshot.WorkId equals @case.Id
             join sourceKind in context.CaseDataFields.AsNoTracking()
-                on new { field.CaseId, FieldName = CaseDataFieldNames.InspectionLocationSourceKind }
-                equals new { sourceKind.CaseId, sourceKind.FieldName } into sourceKinds
+                on new { field.WorkId, FieldName = CaseDataFieldNames.InspectionLocationSourceKind }
+                equals new { sourceKind.WorkId, sourceKind.FieldName } into sourceKinds
             from sourceKind in sourceKinds.DefaultIfEmpty()
             join organization in context.Organizations.AsNoTracking() on field.Value equals organization.Id.ToString()
             where field.FieldName == CaseDataFieldNames.ClaimSourceId

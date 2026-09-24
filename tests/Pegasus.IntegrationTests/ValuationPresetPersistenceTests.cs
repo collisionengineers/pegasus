@@ -383,7 +383,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var snapshot = await context.Set<AppliedValuationSnapshotEntity>()
-                .SingleAsync(item => item.CaseId == caseId);
+                .SingleAsync(item => item.WorkId == caseId);
             Assert.Equal(applied.Id, snapshot.Id);
             Assert.Equal(3176m, snapshot.AcceptedEngineerValue);
             Assert.Equal(engineer.SubjectId, snapshot.AcceptedBy);

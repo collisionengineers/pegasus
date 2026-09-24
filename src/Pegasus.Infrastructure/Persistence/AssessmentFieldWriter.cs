@@ -20,8 +20,7 @@ internal static class AssessmentFieldWriter
     /// </summary>
     public static CaseAssessmentFieldEntity Write(
         PegasusDbContext context,
-        CaseEntity owningCase,
-        Guid caseId,
+        Guid workId,
         CaseAssessmentFieldEntity? existing,
         string path,
         string value,
@@ -31,13 +30,12 @@ internal static class AssessmentFieldWriter
         string? confirmedBy)
     {
         ArgumentNullException.ThrowIfNull(context);
-        CaseFieldProposalWriter.Track(context, caseId, path, value, recordedByKind, recordedBy, recordedAtUtc);
+        CaseFieldProposalWriter.Track(context, workId, path, value, recordedByKind, recordedBy, recordedAtUtc);
         if (existing is null)
         {
             var created = new CaseAssessmentFieldEntity
             {
-                CaseId = caseId,
-                Case = owningCase,
+                WorkId = workId,
                 FieldPath = path,
                 Value = value,
                 RecordedByKind = recordedByKind.ToString(),
@@ -121,8 +119,7 @@ internal static class AssessmentWriteSet
     /// </summary>
     public static (Dictionary<string, object?> Before, Dictionary<string, object?> After) Apply(
         PegasusDbContext context,
-        CaseEntity owningCase,
-        Guid caseId,
+        Guid workId,
         List<CaseAssessmentFieldEntity> fields,
         IReadOnlyDictionary<string, string?> toWrite,
         ActionActor actor,
@@ -145,7 +142,7 @@ internal static class AssessmentWriteSet
             {
                 if (existing is not null)
                 {
-                    CaseFieldProposalWriter.Track(context, caseId, path, null, actor.Kind, actor.SubjectId, now);
+                    CaseFieldProposalWriter.Track(context, workId, path, null, actor.Kind, actor.SubjectId, now);
                     context.CaseAssessmentFields.Remove(existing);
                     fields.Remove(existing);
                 }
@@ -169,8 +166,7 @@ internal static class AssessmentWriteSet
             {
                 var written = AssessmentFieldWriter.Write(
                     context,
-                    owningCase,
-                    caseId,
+                    workId,
                     existing,
                     path,
                     value,

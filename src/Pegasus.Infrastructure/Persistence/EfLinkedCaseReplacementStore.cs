@@ -100,7 +100,7 @@ public sealed class EfLinkedCaseReplacementStore(
             cancellationToken);
         var originalCaseData = await context.CaseDataSnapshots
             .Include(item => item.Fields)
-            .SingleOrDefaultAsync(item => item.CaseId == original.CaseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == original.CaseId, cancellationToken)
             ?? throw new InvalidDataException(
                 "The original case has no immutable typed case-data snapshot.");
 
@@ -245,8 +245,7 @@ public sealed class EfLinkedCaseReplacementStore(
     {
         var replacement = new CaseDataSnapshotEntity
         {
-            CaseId = replacementCase.Id,
-            Case = replacementCase,
+            WorkId = replacementCase.Id,
             OriginIntakeReceiptId = original.OriginIntakeReceiptId,
             OriginSourceChannel = original.OriginSourceChannel,
             OriginExternalReceiptToken = original.OriginExternalReceiptToken,
@@ -266,7 +265,7 @@ public sealed class EfLinkedCaseReplacementStore(
         };
         replacement.Fields.AddRange(original.Fields.Select(field => new CaseDataFieldEntity
         {
-            CaseId = replacementCase.Id,
+            WorkId = replacementCase.Id,
             Snapshot = replacement,
             FieldName = field.FieldName,
             ValueKind = field.ValueKind,
@@ -315,7 +314,7 @@ public sealed class EfLinkedCaseReplacementStore(
                 && item.ValueKind == CaseDataCodes.Confirmed);
         replacementCaseData.Fields.Add(new()
         {
-            CaseId = replacementCaseData.CaseId,
+            WorkId = replacementCaseData.WorkId,
             Snapshot = replacementCaseData,
             FieldName = CaseDataFieldNames.WorkProviderCode,
             ValueKind = CaseDataCodes.Confirmed,
