@@ -76,13 +76,14 @@ recorded **Ambiguous** outcome (never an invented winner); none →
 attachment tells.
 
 **The triage classification is the Triage trigger.** A `triage-request`
-classification is pre-case work: intake does not allocate a case from it, and
-the classification decision is written to the receipt as the accepted
-Triage-match evidence, carrying this policy's key and version. A known vehicle
-registration then opens the Triage; no known registration registers the material
-as Unidentified instead. There is no separate triage matcher — that abstraction
-had only a null implementation and was retired; one owner answers the
-question, and it is this policy.
+classification is not an instruction: intake allocates no instructed Case from
+it, and the classification decision is written to the receipt as the accepted
+Triage-match evidence, carrying this policy's key and version. With the QDOS
+Principal established, a known vehicle registration then opens a Triage Case
+with a `t.` Case/PO from the QDOS sequence (for example `t.QDOS26003`); no
+known registration registers the material as Unidentified instead. There is no
+separate triage matcher — that abstraction had only a null implementation and
+was retired; one owner answers the question, and it is this policy.
 
 Display labels for the taxonomy (family · subtype) are owned by
 `src/Pegasus.Web/Presentation/OperatorLabels.cs`

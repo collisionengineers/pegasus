@@ -69,7 +69,10 @@ fields Pegasus reads from the Tractable PDF is an
 allocator as intake acceptance. Staff must supply the identity-critical Case
 facts. The action is recorded. No intake receipt and no invented source
 provenance are created. Ordinary detail may still be missing, so the new
-Case starts in `Not ready` until its normal requirements are met.
+Case starts in `Not ready` until its normal requirements are met. A Triage
+created this way needs only its Principal and registration, starts `Open`
+and follows the Triage states
+([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
 A staff-created Case, and any other staff acceptance with no accepted mail
 route or Provider API credential to name the Principal, records
@@ -87,8 +90,8 @@ reason.
 
 Unidentified is the one place for material that Pegasus has safely kept but
 cannot place. It is the pre-Case outcome for every route: email, provider
-and intermediary routes, manual upload, image groups, and Triage. There is
-no separate "blocked" outcome anywhere.
+and intermediary routes, manual upload, image groups, and Triage requests.
+There is no separate "blocked" outcome anywhere.
 
 **What becomes Unidentified.** Retained material whose identity, meaning,
 owner, or destination cannot be established becomes one `UnidentifiedItem`.
@@ -121,14 +124,16 @@ scope lists retained mail whose item is still open; the message leaves that
 scope when the item resolves. A provider or intermediary route reaches
 Unidentified only when the material is kept but no unique owner or
 destination can be shown; a reasoned policy refusal is an Unidentified item
-closed with that reason. Triage is separate: an open Triage record follows
-the Triage states and never gets a U-reference just because it is waiting
-for information. A classified Triage request that has no registration yet
-is held in Unidentified until a registration is known, and opening the
-Triage resolves that item. Grouped vehicle images are judged as one group:
-one usable registration follows the Case or Image-initiated route, no
-usable registration is one Unidentified item with every file, and two
-different valid registrations are the Conflicting identification reason.
+closed with that reason. Triage is separate: a Triage Case follows the
+Triage states and never gets a U-reference just because it is waiting for
+information. The Principal is identified before a request is classified as
+a Triage, and a Triage Case is created only for an established Principal. A
+Triage request whose Principal is not established, or that has no
+registration yet, is held in Unidentified; opening the Triage from the item
+once both are known resolves that item. Grouped vehicle images are judged
+as one group: one usable registration follows the Case or Image-initiated
+route, no usable registration is one Unidentified item with every file, and
+two different valid registrations are the Conflicting identification reason.
 Automation may list and look up items by exact U-reference and uses the
 same Core resolution command as staff
 ([FRD-10](frd-10-mcp-automation-and-actor-boundary.md)).
@@ -223,7 +228,7 @@ Received or Processing; no older terminal outcome is shown over it.
 
 There is no received-file page. A received file is shown where it matters:
 on its message, on the upload that brought it, and on the record it became
-(Case, Triage, Image-initiated Case, or Unidentified item). Each of those
+(Case, Triage Case, Image-initiated Case, or Unidentified item). Each of those
 offers **Open file** for the retained original and, for email, **Open
 message**.
 
@@ -273,6 +278,7 @@ rules, including what happens when Box filing fails, are owned by
   move between them. Reaching a real destination resolves it.
 - Whether a Case may be created, and the state it starts in, are owned by
   [FRD-22](frd-22-pre-case-gates-matching-and-association.md#mandatory-pre-case-gates).
+  A Triage Case starts `Open` under [FRD-03](frd-03-triage.md).
 
 ## Edge cases and fail-closed behaviour
 

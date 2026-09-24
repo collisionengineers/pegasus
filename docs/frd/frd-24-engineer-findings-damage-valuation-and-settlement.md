@@ -39,7 +39,10 @@ Roadworthiness (`Roadworthy` or `Unroadworthy`) and Assessment
 (`Repairable` or `Total loss`) are separate professional findings. Neither is
 derived from the other, and Triage findings never fill or change either one.
 Every enabled human staff role may record or correct these findings under the
-existing state, lease and version rules.
+existing state, lease and version rules. On an Inspection + Audit Case with
+an Audit, the Audit's findings, damage, valuation and settlement are
+recorded on the Audit's values; the Inspection's stay as its report was
+sent ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 
 **Corrections.** A correction never edits an accepted or issued finding in
 place. It creates a reasoned superseding report, finding or addendum with
@@ -55,8 +58,9 @@ on a source or an estimate version are evidence only. No finding, figure,
 outcome, deduction or settlement meaning is derived from them. They are shown
 as recorded.
 
-**No money effects.** Triage findings and their corrections have no Case,
-report, Audit-reference, fee or invoice effect. Invoicing is deferred
+**No money effects.** Triage findings and their corrections have no effect
+on a linked instruction Case or on any report, Audit reference, fee or
+invoice. Invoicing is deferred
 separately: a finding correction must not create, alter, credit or void an
 invoice. Any later financial consequence needs the separately accepted,
 versioned finance contract.

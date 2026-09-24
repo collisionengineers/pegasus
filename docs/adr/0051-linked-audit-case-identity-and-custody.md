@@ -1,9 +1,9 @@
 ---
 id: ADR-0051
-status: accepted
+status: superseded
 date: 2026-09-16
 supersedes: [ADR-0002]
-superseded_by: []
+superseded_by: [ADR-0056]
 related_capabilities: []
 related_frd: [frd-01, frd-05]
 tags: [identity, custody, audit, box]
