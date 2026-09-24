@@ -46,4 +46,12 @@ internal static class CaseWorkKinds
         Audit => CaseWorkKind.Audit,
         _ => throw new InvalidDataException($"Unknown persisted work kind '{value}'.")
     };
+
+    /// <summary>
+    /// Whether a report made from a work is an Audit report
+    /// (<see cref="CaseWorkPolicy.IsAuditReport"/>), from the persisted Case
+    /// type and work kind codes.
+    /// </summary>
+    public static bool IsAuditReport(string caseTypeCode, string workKindCode) =>
+        CaseWorkPolicy.IsAuditReport(CaseTypeCodes.Parse(caseTypeCode), Parse(workKindCode));
 }
