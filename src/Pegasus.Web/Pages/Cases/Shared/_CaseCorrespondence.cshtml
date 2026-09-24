@@ -11,7 +11,8 @@
    associated with the Case - polled mail and uploaded .eml files - and
    Compose where staff mail is available. Open message shows the message in
    a dialog over the Case, its content fetched from the Inbox record on
-   first open; without script the link opens that record. *@
+   first open, with the record's Reply, Reply all and Forward for this Case
+   where the record offers them; without script the link opens that record. *@
 <div class="correspondence" data-correspondence>
     @if (Model.StaffMailAvailable)
     {
@@ -57,7 +58,7 @@
         {
             var dialogId = $"case-message-{row.RetainedMessageId:N}";
             <div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" data-case-message-dialog
-                 data-case-message-url="@Url.Page("/Mail/Message", "Content", new { id = row.RetainedMessageId })" hidden>
+                 data-case-message-url="@Url.Page("/Mail/Message", "Content", new { id = row.RetainedMessageId, correspondenceCaseReference = summary.Reference })" hidden>
                 <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="@dialogId-title">
                     <div class="dialog-head">
                         <h2 id="@dialogId-title" class="wrap" tabindex="-1">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(row.Subject)</h2>
@@ -68,8 +69,8 @@
                     <div class="dialog-body" data-case-message-body aria-busy="true">
                         <div class="spinner" aria-hidden="true"></div>
                     </div>
-                    <div class="dialog-foot">
-                        <a class="btn btn--dark" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-case-message-full>
+                    <div class="dialog-foot" data-case-message-foot>
+                        <a class="btn btn--dark" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId" data-case-message-record>
                             <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
                             <span>@OperatorLabels.Inbox.OpenFullMessage</span>
                         </a>
