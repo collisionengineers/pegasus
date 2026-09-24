@@ -9,7 +9,7 @@
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources. Engineer's Value
-  is adopted only by an explicit Apply, in a fixed order.
+  is adopted by a staff member's Save when the calculation changed, in a fixed order.
 - Settlement saves with the Case's single workspace Save. Equity is derived,
   never typed in.
 - AI and Market Research only propose. An authorised person decides.
@@ -111,8 +111,11 @@ and while the source has no working provider the card answers `{Source}
 valuation is unavailable. Contact an administrator or report a problem.`
 (23 September 2026). The card has no Save of its own: the Case's single
 workspace Save records every changed card with whatever was entered, and any
-of its month, mileage, retail and trade may be left blank (operator, 23
-September 2026); a card with every box blank, or unchanged, records nothing.
+of its month, retail and trade may be left blank (operator, 23 September
+2026); a card with every box blank, or unchanged, records nothing. A guide
+card carries no mileage (operator, 24 September 2026): the Case's own
+accepted mileage is the one a valuation uses, both for the lookup and for the
+Engineer's Value.
 The basis is chosen by clicking a card (or Enter or Space on it), and only a
 card with a retail value can be the basis, since the calculation starts from
 retail; there is no Basis control beside the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
@@ -120,21 +123,26 @@ market research is automation-only. No guide provider is
 connected today; connecting one needs its own accepted decision
 ([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
 
-Every entry keeps its date and time, and the mileage, retail and trade
-values and guide month it was given; a guide card may hold any of them blank,
-while an Engineer's Value or AI market research entry always carries its
-figures. Glass's valuation and Glass's repair estimating are two systems
+Every entry keeps its date and time, and the retail and trade values and
+guide month it was given; a guide card may hold any of them blank. An
+Engineer's Value or AI market research entry always carries its figures and a
+mileage: an adopted Engineer's Value takes the Case's accepted mileage in
+miles, so a Save that would adopt one while the Case has no mileage is
+refused, as the lookup is. Glass's valuation and Glass's repair estimating are two systems
 and both are used: the valuation source and the estimate import source keep
 separate label entries and are never merged. An AI market research entry is
 the proposal recorded by the `MarketResearch` job
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
 it never becomes the Engineer's Value by itself.
 
-**Engineer's Value** is adopted only by an explicit Apply by an enabled human
-staff member, in this order:
+**Engineer's Value** is adopted only by an enabled human staff member's Case
+Save, and only when the valuation calculation changed since the page opened
+(a different basis card, the basis card's figures, or any calculator
+control; operator, 23 September 2026), in this order:
 commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
-condition deduction, rounding to whole pounds away from zero. A generic
-assessment save never writes the adopted value. This calculation is current
+condition deduction, rounding to whole pounds away from zero. No field of the
+Save writes the adopted value directly; an unchanged calculation adopts
+nothing. This calculation is current
 required behaviour. Extra rationale or revaluation-history scope needs its
 own accepted contract.
 
@@ -207,8 +215,8 @@ circular readiness gate is acceptable.
 - A correction never edits an accepted or issued finding in place.
 - Equity is absent when its accepted inputs are incomplete, never a made-up
   zero.
-- A generic assessment save never writes the Engineer's Value; only an
-  explicit Apply does.
+- No assessment field writes the Engineer's Value; only a staff Save whose
+  valuation calculation changed adopts it.
 - A valuation source with no connected provider shows the card's notice and
   still lets the figures be typed by hand; the Case Save records them.
 - Research evidence and an AI valuation proposal never become the Engineer's

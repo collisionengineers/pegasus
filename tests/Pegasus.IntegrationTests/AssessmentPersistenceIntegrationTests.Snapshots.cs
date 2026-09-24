@@ -252,24 +252,15 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         var scaleLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "spec-scale-lease-2");
         var assessment = new EfCaseAssessmentStore(harness.Factory, harness.Clock, harness.RepairSpecifications);
-        var scaled = await new SaveAndScaleRepairSpecification(assessment, harness.RepairSpecifications).ExecuteAsync(
+        // Apply scales the saved spec (one Save, 23 September 2026).
+        var scaled = await new ScaleRepairSpecification(assessment, harness.RepairSpecifications).ExecuteAsync(
             new(
-                new SaveEstimateRequest(
-                    caseId,
-                    scaleLease.Version,
-                    engineer,
-                    "spec-scale-apply",
-                    "Repair spec scaled",
-                    scaleLease.Token,
-                    specification.SpecificationId,
-                    specification.Details,
-                    specification.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
-                    specification.Source,
-                    ExistingLineIds: specification.Lines.Select(line => (Guid?)line.Id).ToArray())
-                {
-                    SelectedRateCardId = rateCard.Id,
-                    SelectedRateCardVersion = rateCard.Version,
-                },
+                caseId,
+                scaleLease.Version,
+                engineer,
+                "spec-scale-apply",
+                scaleLease.Token,
+                specification.SpecificationId,
                 // The spec is about £984 against a £5,000 Engineer's Value, so a
                 // 45% target sits above it and scaling would have nothing to do.
                 // 15% asks for a real reduction, which is what this test proves.

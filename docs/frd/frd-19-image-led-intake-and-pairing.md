@@ -171,9 +171,11 @@ complete membership, and fail-closed source-identity rules apply to both.
   still applies even when one Case matches. No readable registration, or
   conflicting ones, produces one Unidentified item holding the PDF and its
   photographs. Completed historical mail is not backfilled automatically.
-- **Photographs for an established Case.** A mailbox receipt already
+- **Mail for an established Case.** A mailbox receipt already
   associated with one eligible pre-report Case files its original message,
-  attached documents, and selected photographs on that Case. This route
+  attached documents, and selected photographs on that Case, with or without
+  photographs (operator, 23 September 2026); nothing it files is also kept in
+  the holding folder. This route
   needs no further instruction, no readable registration, and no Image
   reference. The receipt keeps its classification and source identity.
   Linking alone does not prove the files reached Case custody. Promotion

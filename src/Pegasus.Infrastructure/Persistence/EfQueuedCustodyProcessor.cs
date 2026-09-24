@@ -399,6 +399,7 @@ internal sealed class EfQueuedCustodyProcessor(
     private static async Task RecordRetainedCaseFilesAsync(
         PegasusDbContext context,
         Guid caseId,
+        string caseRootRemoteId,
         IReadOnlyList<RetainedCaseFile> retainedFiles,
         DateTimeOffset now,
         CancellationToken cancellationToken)
@@ -454,9 +455,8 @@ internal sealed class EfQueuedCustodyProcessor(
             {
                 var asset = await context.Set<IntakeAssetEntity>()
                     .SingleAsync(value => value.Id == intakeAssetId, cancellationToken);
-                asset.BoxFileId = file.BoxFileId;
-                asset.BoxVersionId = file.BoxVersionId;
-                asset.CustodyStatus = "confirmed";
+                // The Case folder holds the confirmed copy: readers expect it.
+                asset.ConfirmCustody(file.BoxFileId, file.BoxVersionId, caseRootRemoteId);
             }
             var occurrence = new DocumentOccurrenceEntity
             {
@@ -682,7 +682,8 @@ internal sealed class EfQueuedCustodyProcessor(
             AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
                 context, workflow, checked(workflow.Version + 1), now);
         }
-        await RecordRetainedCaseFilesAsync(context, caseEntity.Id, retainedFiles, now, cancellationToken);
+        await RecordRetainedCaseFilesAsync(
+            context, caseEntity.Id, root.RemoteId, retainedFiles, now, cancellationToken);
         CaseMutationGuard.Complete(workflow);
         CompleteWork(work, now, version.RemoteId);
         context.Set<CaseHistoryEntity>().Add(new()
@@ -1043,10 +1044,11 @@ internal sealed class EfQueuedCustodyProcessor(
             leaseGuard,
             cancellationToken);
         await leaseGuard.RequireCurrentAsync(cancellationToken);
+        var retained = new List<(Guid AssetId, CustodyDocumentVersion Version)>(payload.Assets.Count);
         for (var index = 0; index < payload.Assets.Count; index++)
         {
             var asset = payload.Assets[index];
-            await caseCustody.RetainImageCaseAssetAsync(
+            var version = await caseCustody.RetainImageCaseAssetAsync(
                 root,
                 new(
                     asset.IntakeReceiptId,
@@ -1060,9 +1062,10 @@ internal sealed class EfQueuedCustodyProcessor(
                 $"{payload.OperationKey}:asset:{asset.AssetId:N}",
                 leaseGuard,
                 cancellationToken);
+            retained.Add((asset.AssetId, version));
         }
         await leaseGuard.RequireCurrentAsync(cancellationToken);
-        await CompleteImageCreateAsync(workId, leaseToken, root, cancellationToken);
+        await CompleteImageCreateAsync(workId, leaseToken, root, retained, cancellationToken);
     }
 
     private async Task ProcessImageMergeAsync(
@@ -1124,6 +1127,7 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid workId,
         string leaseToken,
         CaseCustodyRoot root,
+        IReadOnlyList<(Guid AssetId, CustodyDocumentVersion Version)> retained,
         CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -1143,6 +1147,20 @@ internal sealed class EfQueuedCustodyProcessor(
         if (!string.Equals(intake.CustodyState, ImageCustodyStates.Merged, StringComparison.Ordinal))
         {
             intake.CustodyState = ImageCustodyStates.Confirmed;
+        }
+        // The Vehicle images folder holds each registered file: its assets are
+        // read from there rather than from a holding copy (operator, 23 September 2026).
+        var assetIds = retained.Select(item => item.AssetId).ToArray();
+        var assets = await context.IntakeAssets
+            .Where(value => assetIds.Contains(value.Id))
+            .ToDictionaryAsync(value => value.Id, cancellationToken);
+        foreach (var (assetId, version) in retained)
+        {
+            if (!assets.TryGetValue(assetId, out var asset))
+            {
+                throw new InvalidDataException("A registered image file no longer has its retained asset.");
+            }
+            asset.ConfirmCustody(version.RemoteId, version.BoxVersionId, root.RemoteId);
         }
         CompleteWork(work, now, root.RemoteId);
         await context.SaveChangesAsync(cancellationToken);
@@ -1170,6 +1188,24 @@ internal sealed class EfQueuedCustodyProcessor(
         var intake = await context.ImageIntakes
             .SingleAsync(value => value.Id == imageIntakeId, cancellationToken);
         var alreadyMerged = string.Equals(intake.CustodyState, ImageCustodyStates.Merged, StringComparison.Ordinal);
+        if (folded && intake.CustodyRootRemoteId is { } imageRoot)
+        {
+            // The fold moved the image folder's files into the Case folder;
+            // Box keeps their file and version identities, only the parent changes.
+            var caseRoot = await context.Cases
+                .Where(value => value.Id == caseId)
+                .Select(value => value.CustodyRootRemoteId)
+                .SingleAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(caseRoot))
+            {
+                foreach (var asset in await context.IntakeAssets
+                    .Where(value => value.BoxParentFolderId == imageRoot)
+                    .ToListAsync(cancellationToken))
+                {
+                    asset.BoxParentFolderId = caseRoot;
+                }
+            }
+        }
         if (folded && !alreadyMerged)
         {
             intake.CustodyState = ImageCustodyStates.Merged;

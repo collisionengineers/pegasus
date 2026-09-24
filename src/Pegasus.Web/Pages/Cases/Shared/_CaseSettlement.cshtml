@@ -55,14 +55,14 @@
         <div class="metric-strip" data-settlement-figures>
             @if (isTotalLoss)
             {
-                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.ApplyInValuationMeta</span>}</div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.SetInValuationMeta</span>}</div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.SalvageValue</span><span class="metric-value">@Money(salvage)</span></div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.Equity</span><span class="metric-value red">@Money(equity)</span><span class="metric-meta">@SettlementLabels.EquityMeta</span></div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.RepairCostIncVat</span><span class="metric-value">@Money(repairCost)</span><span class="metric-meta">@(repairCost is { } cost && engineerValue is { } value && cost > value ? SettlementLabels.ExceedsEngineersValue : SettlementLabels.FromCurrentEstimate)</span></div>
             }
             else
             {
-                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.ApplyInValuationMeta</span>}</div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.SetInValuationMeta</span>}</div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.LabourHours</span><span class="metric-value">@(Model.LabourHours is { } hours ? hours.ToString("0.00", CultureInfo.InvariantCulture) : "—")</span></div>
                 <div class="metric"><span class="metric-label">@(outcome == "cash_in_lieu" ? SettlementLabels.CashInLieu : SettlementLabels.RepairCostIncVat)</span><span class="metric-value red">@Money(repairCost)</span><span class="metric-meta">@SettlementLabels.FromCurrentEstimate</span></div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.RepairCostOfValue</span><span class="metric-value">@(repairCost is { } c && engineerValue is { } v && v > 0 ? $"{Math.Round(c / v * 100)}%" : "—")</span></div>
@@ -102,7 +102,7 @@
                             <span class="status @Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusClass(valueProposal.Status)">@Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusWord(valueProposal.Status)</span>
                             @if (editing && valueProposal.Status == CaseFieldProposalStatus.Awaiting)
                             {
-                                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ApplyInValuation</a>
+                                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.SetInValuation</a>
                             }
                         }
                     </div>
@@ -222,7 +222,7 @@
                 <div class="salvage-share" data-salvage-share>
                     @if (engineerValueForShare is null)
                     {
-                        <span class="muted">@SettlementLabels.ApplyInValuation</span>
+                        <span class="muted">@SettlementLabels.SetInValuation</span>
                     }
                     else
                     {

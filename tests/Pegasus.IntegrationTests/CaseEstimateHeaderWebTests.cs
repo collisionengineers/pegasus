@@ -114,7 +114,8 @@ public sealed class CaseEstimateHeaderWebTests
         {
             editing = WebUtility.HtmlDecode(EstimateSection(await GetHtmlAsync(workspace.Client, path)));
         }
-        Assert.Contains("id=\"case-estimate-form\"", editing, StringComparison.Ordinal);
+        // The editor has no form of its own: its controls belong to the Case form (one Save).
+        Assert.Contains("name=\"estimateName\" form=\"case-edit-form\"", editing, StringComparison.Ordinal);
 
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
