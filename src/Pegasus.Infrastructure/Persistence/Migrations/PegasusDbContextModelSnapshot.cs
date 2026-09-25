@@ -8107,6 +8107,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<int>("AttemptNumber")
                         .HasColumnType("int");
 
+                    b.Property<string>("Colour")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTimeOffset?>("EffectiveAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -8198,6 +8202,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset?>("SourceObservedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<DateOnly?>("TaxDueDate")
+                        .HasColumnType("date");
 
                     b.Property<string>("TypeApproval")
                         .HasMaxLength(100)

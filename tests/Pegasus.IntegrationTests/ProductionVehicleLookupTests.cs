@@ -39,7 +39,7 @@ public sealed class ProductionVehicleLookupTests
             {
                 Assert.Equal(HttpMethod.Post, request.Method);
                 Assert.True(request.Headers.Contains("x-api-key"));
-                return Json(HttpStatusCode.OK, """{"make":"FORD","model":"FOCUS","yearOfManufacture":2020,"engineCapacity":999,"fuelType":"PETROL","typeApproval":"M1","wheelplan":"2 AXLE RIGID BODY","revenueWeight":1800}""");
+                return Json(HttpStatusCode.OK, """{"make":"FORD","model":"FOCUS","yearOfManufacture":2020,"engineCapacity":999,"fuelType":"PETROL","typeApproval":"M1","wheelplan":"2 AXLE RIGID BODY","revenueWeight":1800,"colour":"BLUE","taxDueDate":"2027-01-01"}""");
             }
             if (request.RequestUri.Host == "login.microsoftonline.com")
             {
@@ -47,7 +47,7 @@ public sealed class ProductionVehicleLookupTests
             }
             Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
             Assert.True(request.Headers.Contains("X-API-Key"));
-            return Json(HttpStatusCode.OK, """[{"make":"FORD","model":"FOCUS","manufactureDate":"2020-03-01","engineSize":"999","motTests":[{"completedDate":"2026-01-02","testResult":"PASSED","expiryDate":"2027-01-01","odometerValue":"12000","odometerUnit":"mi"}]}]""");
+            return Json(HttpStatusCode.OK, """[{"make":"FORD","model":"FOCUS","manufactureDate":"2020-03-01","engineSize":"999","primaryColour":"Blue","motTests":[{"completedDate":"2026-01-02","testResult":"PASSED","expiryDate":"2027-01-01","odometerValue":"12000","odometerUnit":"mi"}]}]""");
         });
 
         var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
@@ -57,6 +57,9 @@ public sealed class ProductionVehicleLookupTests
         Assert.Equal("M1", result.Vehicle?.TypeApproval);
         Assert.Equal("2 AXLE RIGID BODY", result.Vehicle?.Wheelplan);
         Assert.Equal(1800, result.Vehicle?.RevenueWeightKg);
+        // DVLA's colour ranks first; DVSA's primary colour is the fallback.
+        Assert.Equal("BLUE", result.Vehicle?.Colour);
+        Assert.Equal(new DateOnly(2027, 1, 1), result.Vehicle?.TaxDueDate);
         Assert.Equal(12000, Assert.Single(result.MotTests).Mileage);
         Assert.Equal("ves-1.2+mot-history-v1", result.ProviderVersion);
         Assert.Equal(64, result.ResponseIdentity.Length);
@@ -99,6 +102,28 @@ public sealed class ProductionVehicleLookupTests
         Assert.Equal(new DateOnly(2026, 5, 14), latest.TestDate);
         Assert.Equal(113068, latest.Mileage);
         Assert.Equal(VehicleMileageUnit.Kilometres, latest.MileageUnit);
+    }
+
+    [Fact]
+    public async Task DvsaPrimaryColourDescribesTheColourVesDoesNotGive()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
+            {
+                return Json(HttpStatusCode.OK, """{"make":"TOYOTA","yearOfManufacture":2007,"taxDueDate":"2026-11-01"}""");
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.OK, """{"make":"TOYOTA","model":"ALPHARD","primaryColour":"Silver","motTests":[]}""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("DP07EFB"), CancellationToken.None);
+
+        Assert.Equal("Silver", result.Vehicle?.Colour);
+        Assert.Equal(new DateOnly(2026, 11, 1), result.Vehicle?.TaxDueDate);
     }
 
     [Fact]

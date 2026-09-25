@@ -8,17 +8,17 @@ namespace Pegasus.Core.Tests.Reports;
 public sealed class CaseReportFreshnessTests
 {
     [Fact]
-    public void NoteOnlyWorkspaceChangesDoNotStaleTheGeneration()
+    public void UnprintedWorkspaceChangesDoNotStaleTheGeneration()
     {
         var beforeData = new CaseEditableData(ClientNotes: "Original note");
         var afterData = beforeData with { ClientNotes = "Updated note" };
         var beforeAssessment = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            [AssessmentVocabulary.VehicleEngineerNotes] = "Original engineer note",
+            [AssessmentVocabulary.OriginalReportAssessor] = "Original assessor",
         };
         var afterAssessment = new Dictionary<string, string?>(beforeAssessment, StringComparer.Ordinal)
         {
-            [AssessmentVocabulary.VehicleEngineerNotes] = "Updated engineer note",
+            [AssessmentVocabulary.OriginalReportAssessor] = "Corrected assessor",
         };
 
         var decision = CaseReportFreshness.ClassifyWorkspace(

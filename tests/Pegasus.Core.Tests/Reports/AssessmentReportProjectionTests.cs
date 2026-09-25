@@ -38,17 +38,16 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(["Door skin"], snapshot.NewParts);
         Assert.Equal(["Nearside door"], snapshot.Repairs);
         Assert.Equal(["Blend nearside wing"], snapshot.Operations);
-        Assert.True(snapshot.Vehicle.VinChecked);
         Assert.Equal("Manual", snapshot.Vehicle.Transmission);
         Assert.Equal("Blue", snapshot.Vehicle.Colour);
         Assert.Equal("Hatchback", snapshot.Vehicle.Body);
         Assert.Equal(new DateOnly(2027, 1, 2), snapshot.Vehicle.TaxExpiry);
         Assert.Equal(new DateOnly(2027, 3, 4), snapshot.Vehicle.MotExpiry);
         Assert.Equal("None", snapshot.Vehicle.AirbagsDeployed);
-        Assert.Equal("P0001", snapshot.Vehicle.FaultCodes);
-        Assert.True(snapshot.Vehicle.TemporaryRepairsPossible);
-        Assert.Equal("Secure bumper", snapshot.Vehicle.TemporaryRepairMethod);
-        Assert.Equal(25m, snapshot.Vehicle.TemporaryRepairCost);
+        // A roadworthy vehicle prints no temporary repair.
+        Assert.Null(snapshot.Vehicle.TemporaryRepairsPossible);
+        Assert.Null(snapshot.Vehicle.TemporaryRepairMethod);
+        Assert.Null(snapshot.Vehicle.TemporaryRepairCost);
         var impact = Assert.Single(snapshot.Damage.Impacts);
         Assert.Equal(("RH Rear", "Moderate", "Quarter panel"), (impact.Areas, impact.Severity, impact.Note));
         Assert.Equal(["right_rear"], impact.Codes);
@@ -93,6 +92,104 @@ public sealed class AssessmentReportProjectionTests
 
         // A ready snapshot must also satisfy the renderer's own gate.
         snapshot.Validate();
+    }
+
+    [Fact]
+    public void TemporaryRepairsPrintOnlyForAnUnroadworthyVehicle()
+    {
+        var input = ReadyInput();
+        AssessmentFieldValue[] fields =
+        [
+            .. ReplaceField(input.Assessment.Fields, AssessmentVocabulary.LegalStatus, "unroadworthy"),
+            Field(AssessmentVocabulary.UnroadworthyReason, "Brake line severed"),
+        ];
+
+        var result = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = fields } });
+
+        Assert.True(result.IsReady);
+        var vehicle = result.Snapshot!.Vehicle;
+        Assert.True(vehicle.TemporaryRepairsPossible);
+        Assert.Equal("Secure bumper", vehicle.TemporaryRepairMethod);
+        Assert.Equal(25m, vehicle.TemporaryRepairCost);
+    }
+
+    /// <summary>
+    /// The Damage section's Incident narrative is the Nature of Incident block
+    /// the report prints (operator, 24 September 2026): the sentence composed
+    /// from the headline impact, or the Engineer's own wording, whether or not
+    /// the report can yet be projected.
+    /// </summary>
+    [Fact]
+    public void TheIncidentNarrativeIsTheNatureOfIncidentBlockTheReportPrints()
+    {
+        const string composed = "The vehicle has suffered Moderate collision/impact damage to the Right Rear.";
+        const string worded = "The vehicle was struck from behind.";
+        var input = ReadyInput();
+
+        Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(input));
+        Assert.Equal(composed, PrintedNatureOfIncident(input));
+
+        var engineerWording = input with
+        {
+            Wording = [new(ReportWordingComposition.NatureOfIncident, null, worded, null)]
+        };
+        Assert.Equal(worded, ReportWordingComposition.NatureOfIncidentOf(engineerWording));
+        Assert.Equal(worded, PrintedNatureOfIncident(engineerWording));
+
+        // A Case the report cannot yet be projected for reads the same narrative.
+        var unsigned = input with { Signatory = null };
+        Assert.False(AssessmentReportProjection.Project(unsigned).IsReady);
+        Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(unsigned));
+
+        // No headline impact and no wording of the Engineer's: no narrative.
+        var noImpact = input with
+        {
+            Assessment = input.Assessment with
+            {
+                Fields =
+                [
+                    .. input.Assessment.Fields.Where(field =>
+                        field.Path is not (AssessmentVocabulary.ImpactSeverity or AssessmentVocabulary.ImpactLocation))
+                ]
+            }
+        };
+        Assert.Null(ReportWordingComposition.NatureOfIncidentOf(noImpact));
+    }
+
+    [Theory]
+    [InlineData(true, ValuationSource.Glasses, true)]
+    [InlineData(true, ValuationSource.Cazana, false)]
+    [InlineData(false, ValuationSource.Glasses, false)]
+    public void TheCaseReadsTheStatementOfTruthTheReportPrints(
+        bool disclose, ValuationSource guide, bool namesGlasses)
+    {
+        var ready = ReadyInput();
+        var input = ready with
+        {
+            Assessment = ready.Assessment with
+            {
+                Fields =
+                [
+                    .. ready.Assessment.Fields,
+                    Field(AssessmentVocabulary.ReportDiscloseGuideSource, disclose ? "true" : "false"),
+                ]
+            },
+            Guides = new ReportGuideSources([guide]),
+        };
+
+        var statement = AssessmentReportContract.StatementOfTruthOf(input);
+
+        Assert.Equal(AssessmentReportProjection.Project(input).Snapshot!.StatementOfTruth, statement);
+        Assert.Equal(namesGlasses, statement.Contains(AssessmentReportContract.StatementOfTruthGuide));
+        Assert.Equal(
+            [AssessmentReportContract.StatementOfTruth1, AssessmentReportContract.StatementOfTruth2],
+            statement.Take(2));
+        Assert.Equal(
+            [AssessmentReportContract.StatementOfTruth3, AssessmentReportContract.StatementOfTruth4],
+            statement.TakeLast(2));
+        // The Case shows it before a report can be projected.
+        Assert.Equal(statement, AssessmentReportContract.StatementOfTruthOf(input with { Signatory = null }));
     }
 
     [Theory]
@@ -705,14 +802,12 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.VehicleVin, "VIN12345"),
             Field(AssessmentVocabulary.VehicleEngineCc, "1600"),
             Field(AssessmentVocabulary.VehicleFuel, "Petrol"),
-            Field(AssessmentVocabulary.VehicleVinChecked, "true"),
             Field(AssessmentVocabulary.VehicleTransmission, "manual"),
             Field(AssessmentVocabulary.VehicleColour, "Blue"),
             Field(AssessmentVocabulary.VehicleBody, "Hatchback"),
             Field(AssessmentVocabulary.VehicleTaxExpiry, "2027-01-02"),
             Field(AssessmentVocabulary.VehicleMotExpiry, "2027-03-04"),
             Field(AssessmentVocabulary.VehicleAirbagsDeployed, "None"),
-            Field(AssessmentVocabulary.VehicleFaultCodes, "P0001"),
             Field(AssessmentVocabulary.VehicleTemporaryRepairsPossible, "true"),
             Field(AssessmentVocabulary.VehicleTemporaryRepairMethod, "Secure bumper"),
             Field(AssessmentVocabulary.VehicleTemporaryRepairCost, "25.00"),
@@ -845,6 +940,12 @@ public sealed class AssessmentReportProjectionTests
         },
         _ => throw new ArgumentOutOfRangeException(nameof(field), field, "Not a Case fact the report prints.")
     };
+
+    /// <summary>The text of the Nature of Incident block the projected report prints.</summary>
+    private static string PrintedNatureOfIncident(AssessmentReportProjectionInput input) =>
+        Assert.Single(
+            AssessmentReportProjection.Project(input).Snapshot!.PrintedWording,
+            block => block.Key == ReportWordingComposition.NatureOfIncident).Text;
 
     private static AssessmentFieldValue[] ReplaceField(
         IReadOnlyList<AssessmentFieldValue> fields, string path, string value) =>

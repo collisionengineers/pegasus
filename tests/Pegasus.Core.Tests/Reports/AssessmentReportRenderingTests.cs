@@ -283,13 +283,16 @@ public sealed class AssessmentReportRenderingTests
     public void TheGuideSentenceNamesGlassesOnlyWhenDisclosedAndUsed()
     {
         var snapshot = Snapshot(AssessmentReportOutcome.Repairable);
-
-        Assert.False(snapshot.PrintsGuideDisclosure);
-        Assert.True((snapshot with
+        var disclosedGlasses = snapshot with
         {
             Content = new CaseReportContentSwitches(true, false, false),
             Guides = new ReportGuideSources([ValuationSource.Glasses]),
-        }).PrintsGuideDisclosure);
+        };
+
+        Assert.False(snapshot.PrintsGuideDisclosure);
+        Assert.True(disclosedGlasses.PrintsGuideDisclosure);
+        Assert.Contains(AssessmentReportContract.StatementOfTruthGuide, disclosedGlasses.StatementOfTruth);
+        Assert.DoesNotContain(AssessmentReportContract.StatementOfTruthGuide, snapshot.StatementOfTruth);
         Assert.False((snapshot with
         {
             Content = new CaseReportContentSwitches(true, false, false),
@@ -393,7 +396,7 @@ public sealed class AssessmentReportRenderingTests
             ClaimantName: "Alex Example", IncidentDate: new DateOnly(2026, 8, 1),
             InstructionsReceived: new DateOnly(2026, 8, 2), Assessed: new DateOnly(2026, 8, 3),
             ReportFor: ["Approved Principal", "1 Example Street"],
-            Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "car", "good", "80,000 miles", "online_data", "VIN", "1600 cc", "Petrol", true, "manual", "Blue", "Hatchback", new(2027, 1, 2), new(2027, 3, 4), "None", "P0001", true, "Secure bumper", 25m),
+            Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "car", "good", "80,000 miles", "online_data", "VIN", "1600 cc", "Petrol", "manual", "Blue", "Hatchback", new(2027, 1, 2), new(2027, 3, 4), "None", true, "Secure bumper", 25m),
             Outcome: outcome, LegalStatus: "roadworthy", UnroadworthyReason: null,
             ImpactSeverity: "moderate", ImpactLocation: "right_rear", AssessmentMethod: "image_based", LocationAddress: null,
             EngineerValue: 5_000m, RetailValue: 5_000m, TradeValue: 4_000m,

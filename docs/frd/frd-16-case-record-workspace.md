@@ -253,15 +253,23 @@ Storage location, and Repairer
 ### Vehicle
 
 Vehicle shows registration, make, model, year, and one mileage with its
-editable unit, each with its source tag (a staff value untagged). The rows a
-lookup fills (engine, fuel, colour, transmission, tax and MOT expiry) are
-always drawn, reading Not recorded until a lookup answers. One **Look up
-DVLA & MOT** action (`EXT-01`) fills an empty Make, Model, Year or Mileage,
-and a Vehicle type that staff have not confirmed. It never overwrites an
-extracted or staff-entered value. There is no checks panel and no suggestion
-table. Run Experian check stays the disabled seam. A labelled Vehicle history
-area holds the history-check narrative as read-only text, editable in edit
-mode ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
+editable unit, each with its source tag (a staff value untagged). VIN,
+Vehicle type and Body type follow, edited in place like the registration. The
+facts only the DVLA/DVSA lookup records (engine, fuel, colour, tax and MOT
+expiry) are always drawn, read-only with the Lookup tag, and read Not
+recorded until a lookup answers; no Save writes them, and a Save that changes
+the registration clears them until the new vehicle is looked up
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
+Transmission keeps its place among them and is edited in place, picked from
+Manual, Automatic, Semi-automatic, CVT or Unknown, because no approved lookup
+returns it (operator, 24 September 2026). One **Look up DVLA & MOT** action
+(`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
+that staff have not confirmed, and records the lookup's own facts. It never
+overwrites an extracted or staff-entered value. There is no checks panel and
+no suggestion table. Run Experian check stays the disabled seam. A labelled
+Vehicle history area holds the history-check narrative as read-only text,
+editable in edit mode
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
 A **DVLA & MOT lookup** outcome line says what the lookup itself did (looked
 up and current, or a failure reason), separately from whether it filled a
 field.
@@ -279,7 +287,12 @@ wider than half the vehicle and is clipped to its body, so it never covers
 the page around the plan. Beside it sits the recorded-areas list numbered
 like the discs, with the areas, severity and note per damage, and the other
 damage facts; the list rows and the chips stand in the same places in read
-and edit mode, greyed when they cannot be edited. The field set is owned by
+and edit mode, greyed when they cannot be edited. The **Incident narrative**
+is read-only: it is the report's Nature of Incident wording, the Engineer's
+own from Report wording or else the sentence composed from the recorded
+damage
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks)).
+The field set is owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record).
 
 ### Valuation
@@ -325,11 +338,13 @@ Repair Spec carries the specification set and raw estimate import. See
 
 ### Decisions
 
-Decisions shows outcome, category, salvage value, excess, betterment,
-claimant VAT registered, reserve, equity (derived), repair duration and
-delays, report delay, storage per day, recovery, hire start and daily cost,
-diminution and salvage logistics. Financial ratio lines are permitted. The
-field meanings are owned by
+Decisions shows outcome, category, salvage value, roadworthiness with the
+unroadworthy reason and, only while the vehicle is recorded unroadworthy,
+whether temporary repairs are possible with their method and cost (operator,
+24 September 2026), excess, betterment, claimant VAT registered, reserve,
+equity (derived), repair duration and delays, report delay, storage per day,
+recovery, hire start and daily cost, diminution and salvage logistics.
+Financial ratio lines are permitted. The field meanings are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement).
 
 ### Report
@@ -343,7 +358,10 @@ the section that clears it
 for the agreed fee, description lines and fee note preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 The content switches are under **On the report** in Valuation. The report
-renders the sign-off Engineer tuple and the marked damage diagram.
+renders the sign-off Engineer tuple and the marked damage diagram. The
+**Statement of truth** cell shows the accepted statement the report prints,
+read-only; no Case edits it
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
 
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
@@ -565,11 +583,14 @@ Save. It also covers the views: no Views card without an Audit; after Create
 audit the card and the Audit view by default; the Inspection view read-only
 with its label on each editable head, including for the lease holder; Report
 in each view; the audit folder chip in each state; the Create audit dialog;
-and a standalone Audit's single view with its Original report. Authenticated Web
-tests cover server-owned behaviour; they do not prove client-side interaction
-or visual correctness. Browser acceptance exercises the keyboard Import
-action, picker and section-scoped drop overlay. Deployment and live acceptance
-are separate evidence tiers
+and a standalone Audit's single view with its Original report. Web tests
+cover the Vehicle section's read-only lookup facts beside Transmission edited
+in place, and the Damage Incident narrative and Report Statement of truth
+reading their report owners. Authenticated Web tests cover server-owned
+behaviour; they do not prove client-side interaction or visual correctness.
+Browser acceptance exercises the keyboard Import action, picker and
+section-scoped drop overlay. Deployment and live acceptance are separate
+evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

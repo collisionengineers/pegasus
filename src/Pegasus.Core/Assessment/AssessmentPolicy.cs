@@ -94,11 +94,12 @@ public static class AssessmentPolicy
 
     /// <summary>
     /// The one gate every generic field save passes: the path must be part of
-    /// the vocabulary, must not be derived from the damage impacts, must not
-    /// be owned by the accepted case record, and must not be a finding a named
-    /// command adopts. The value is then canonicalized against its
-    /// own definition. Both the assessment save and the Case workspace save
-    /// call it, so an unwritable path fails the same way on either route.
+    /// the vocabulary, must not be derived from the damage impacts or recorded
+    /// by the vehicle lookup, must not be owned by the accepted case record, and
+    /// must not be a finding a named command adopts. The value is then
+    /// canonicalized against its own definition. Both the assessment save and
+    /// the Case workspace save call it, so an unwritable path fails the same
+    /// way on either route.
     /// </summary>
     public static string? NormalizeWritableField(string path, string? rawValue)
     {
@@ -107,6 +108,11 @@ public static class AssessmentPolicy
         {
             throw new InvalidOperationException(
                 $"The field '{path}' is derived from damage.impacts and cannot be written directly.");
+        }
+        if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is filled by the DVLA/DVSA vehicle lookup and cannot be written directly.");
         }
         if (AssessmentVocabulary.CaseOwnedPaths.Contains(path))
         {
@@ -537,12 +543,21 @@ public static class AssessmentPolicy
                 Field: AssessmentVocabulary.SettlementContractSum));
         }
 
+        // Temporary repairs are the unroadworthy vehicle's: the report prints
+        // them only then and Decisions shows their rows only then. For any
+        // other vehicle an unconfirmed temporary repair would block the report
+        // on a value it does not print, from rows the operator cannot see, so
+        // it blocks nothing.
+        var temporaryRepairsApply = AssessmentVocabulary.TemporaryRepairsApply(
+            fields.GetValueOrDefault(AssessmentVocabulary.LegalStatus));
+
         // One actionable blocker per unconfirmed value, naming the exact
         // field or line and who recorded it. A single aggregate count is
         // prohibited: an unmet requirement has to identify its own material,
         // provenance, reason, and permitted resolution.
         foreach (var field in projection.Fields.Where(field => !field.IsConfirmed
-            && !(contractRepair && field.Path == AssessmentVocabulary.SettlementContractSum)))
+            && !(contractRepair && field.Path == AssessmentVocabulary.SettlementContractSum)
+            && (temporaryRepairsApply || !AssessmentVocabulary.TemporaryRepairPaths.Contains(field.Path))))
         {
             items.Add(new(
                 $"{field.Path} awaits review",
