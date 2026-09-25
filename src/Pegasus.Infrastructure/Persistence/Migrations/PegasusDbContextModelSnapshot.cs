@@ -1331,13 +1331,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("nvarchar(60)");
 
-                    b.Property<DateTimeOffset?>("ConfirmedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ConfirmedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<DateTimeOffset>("RecordedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -1362,8 +1355,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CaseAssessmentFields", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CaseAssessmentFields_Confirmation", "([ConfirmedBy] IS NULL AND [ConfirmedAtUtc] IS NULL) OR ([ConfirmedBy] IS NOT NULL AND [ConfirmedAtUtc] IS NOT NULL)");
-
                             t.HasCheckConstraint("CK_CaseAssessmentFields_FieldPath", "[FieldPath] <> '' AND LEN([FieldPath]) <= 60");
 
                             t.HasCheckConstraint("CK_CaseAssessmentFields_RecordedByKind", "[RecordedByKind] IN ('Staff', 'Automation')");
@@ -1880,13 +1871,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<DateTimeOffset?>("ConfirmedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ConfirmedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<string>("CurrentValuesJson")
                         .HasColumnType("nvarchar(max)");
 
@@ -2007,47 +1991,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_CaseEstimateLines_Status", "[Status] IS NULL OR [Status] IN ('confirmed', 'estimated', 'provisional')");
 
                             t.HasCheckConstraint("CK_CaseEstimateLines_Unpriced", "[Unpriced] = 0 OR [Price] IS NULL");
-                        });
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseFieldProposalEntity", b =>
-                {
-                    b.Property<Guid>("WorkId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("FieldPath")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTimeOffset>("ProposedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ProposedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("ProposedValue")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("Resolution")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTimeOffset?>("ResolvedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ResolvedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.HasKey("WorkId", "FieldPath");
-
-                    b.ToTable("CaseFieldProposals", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_CaseFieldProposals_Resolution", "[Resolution] IS NULL OR [Resolution] IN ('Accepted', 'Corrected')");
                         });
                 });
 
@@ -8625,15 +8568,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("RepairSpecification");
 
                     b.Navigation("Work");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseFieldProposalEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseWorkEntity", null)
-                        .WithMany()
-                        .HasForeignKey("WorkId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseHistoryEntity", b =>

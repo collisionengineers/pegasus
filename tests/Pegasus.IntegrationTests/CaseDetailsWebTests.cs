@@ -525,8 +525,6 @@ public sealed class CaseDetailsWebTests
                 "diesel",
                 ActorKind.Automation,
                 "vehicle-lookup",
-                new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero),
-                "vehicle-lookup",
                 new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero))],
             [],
             new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));

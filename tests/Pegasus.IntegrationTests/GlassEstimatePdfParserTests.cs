@@ -142,7 +142,7 @@ public sealed class GlassEstimatePdfParserTests
         var recorded = parsed.Lines.Select((line, index) => new CaseEstimateLineRecord(
             Guid.NewGuid(), index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits,
             line.Price, line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel,
-            line.Justification, ActorKind.Automation, "oracle-check", DateTimeOffset.UnixEpoch, null, null,
+            line.Justification, ActorKind.Automation, "oracle-check", DateTimeOffset.UnixEpoch,
             line.PaintWorkUnits, line.Quantity, line.Materials)).ToArray();
         var calculation = EstimateTotals.Compute(new(Guid.NewGuid(), Guid.NewGuid(), 1, RepairSpecificationState.Draft,
             new(parsed.Route, "oracle-source", parsed.SourceVersion, hash), recorded, null, "oracle-check",

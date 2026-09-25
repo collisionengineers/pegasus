@@ -5,23 +5,20 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The one place a case assessment field row is materialised with its
-/// provenance. The assessment save writes the whole surface through it, and
-/// the valuation adoption writes the confirmed
-/// <c>assessment.values.engineer</c>, <c>assessment.values.retail</c> and
-/// <c>assessment.values.trade</c> fields through it, and the vehicle lookup
-/// writes the Vehicle type unconfirmed and the facts it alone derives
-/// (<see cref="AssessmentVocabulary.LookupDerivedPaths"/>) confirmed by
-/// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.RecorderId"/>
-/// through it, so the row shape and the provenance stamped on it have
-/// exactly one owner.
+/// provenance. The assessment save and the Case save write the whole surface
+/// through it, the valuation adoption writes <c>assessment.values.engineer</c>,
+/// <c>assessment.values.retail</c> and <c>assessment.values.trade</c> through
+/// it, and the vehicle lookup and the original-report prefill write the values
+/// they fill through it, so the row shape and the provenance stamped on it
+/// have exactly one owner. A recorded value is the Case's value whoever
+/// recorded it (operator, 25 September 2026); there is no confirmation state.
 /// </summary>
 internal static class AssessmentFieldWriter
 {
     /// <summary>
-    /// Adds or restamps one field row. A null <paramref name="confirmedBy"/>
-    /// records unconfirmed working data. The caller supplies the provenance
+    /// Adds or restamps one field row. The caller supplies the provenance
     /// because it may come from the current request or from a selected source
-    /// row; deciding that source and whether it confirms are business policy.
+    /// row; deciding that source is business policy.
     /// </summary>
     public static CaseAssessmentFieldEntity Write(
         PegasusDbContext context,
@@ -31,11 +28,9 @@ internal static class AssessmentFieldWriter
         string value,
         ActorKind recordedByKind,
         string recordedBy,
-        DateTimeOffset recordedAtUtc,
-        string? confirmedBy)
+        DateTimeOffset recordedAtUtc)
     {
         ArgumentNullException.ThrowIfNull(context);
-        CaseFieldProposalWriter.Track(context, workId, path, value, recordedByKind, recordedBy, recordedAtUtc);
         if (existing is null)
         {
             var created = new CaseAssessmentFieldEntity
@@ -45,9 +40,7 @@ internal static class AssessmentFieldWriter
                 Value = value,
                 RecordedByKind = recordedByKind.ToString(),
                 RecordedBy = recordedBy,
-                RecordedAtUtc = recordedAtUtc,
-                ConfirmedBy = confirmedBy,
-                ConfirmedAtUtc = confirmedBy is null ? null : recordedAtUtc
+                RecordedAtUtc = recordedAtUtc
             };
             context.CaseAssessmentFields.Add(created);
             return created;
@@ -57,10 +50,12 @@ internal static class AssessmentFieldWriter
         existing.RecordedByKind = recordedByKind.ToString();
         existing.RecordedBy = recordedBy;
         existing.RecordedAtUtc = recordedAtUtc;
-        existing.ConfirmedBy = confirmedBy;
-        existing.ConfirmedAtUtc = confirmedBy is null ? null : recordedAtUtc;
         return existing;
     }
+
+    /// <summary>The kind of actor that recorded the row, or null when there is no row.</summary>
+    public static ActorKind? RecordedByKind(CaseAssessmentFieldEntity? existing) =>
+        existing is null ? null : Enum.Parse<ActorKind>(existing.RecordedByKind);
 }
 
 /// <summary>
@@ -120,7 +115,11 @@ internal static class AssessmentWriteSet
 
     /// <summary>
     /// Applies the write set to the tracked rows and returns the before/after
-    /// evidence the history record carries.
+    /// values the history record carries. A value that has not changed is
+    /// left as it stands, whoever posted it: the one Case Save posts every
+    /// control, and an untouched value keeps its provenance and its source
+    /// tag (operator, 25 September 2026). Only a changed value is recorded
+    /// with the actor's provenance.
     /// </summary>
     public static (Dictionary<string, object?> Before, Dictionary<string, object?> After) Apply(
         PegasusDbContext context,
@@ -134,20 +133,16 @@ internal static class AssessmentWriteSet
         ArgumentNullException.ThrowIfNull(fields);
         ArgumentNullException.ThrowIfNull(toWrite);
         ArgumentNullException.ThrowIfNull(actor);
-        var confirmedBy = actor.Kind == ActorKind.Staff ? actor.SubjectId : null;
         var before = new Dictionary<string, object?>(StringComparer.Ordinal);
         var after = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var (path, value) in toWrite)
         {
             var existing = fields.SingleOrDefault(item => item.FieldPath == path);
-            before[path] = existing is null
-                ? null
-                : new { existing.Value, existing.ConfirmedBy };
+            before[path] = existing?.Value;
             if (value is null)
             {
                 if (existing is not null)
                 {
-                    CaseFieldProposalWriter.Track(context, workId, path, null, actor.Kind, actor.SubjectId, now);
                     context.CaseAssessmentFields.Remove(existing);
                     fields.Remove(existing);
                 }
@@ -155,38 +150,18 @@ internal static class AssessmentWriteSet
                 continue;
             }
 
-            if (existing is not null
-                && confirmedBy is null
-                && string.Equals(existing.Value, value, StringComparison.Ordinal))
+            if (existing is null)
             {
-                // An automation resubmission of a value that has not changed
-                // leaves the record alone: saving unchanged data must not
-                // reset readiness or advisory state (FRD-01 case identity and
-                // lifecycle, the progression rules), so a value a staff Engineer
-                // already confirmed stays confirmed and keeps its
-                // provenance. A staff save still re-stamps, because that is
-                // how an Engineer confirms a value.
+                fields.Add(AssessmentFieldWriter.Write(
+                    context, workId, null, path, value, actor.Kind, actor.SubjectId, now));
             }
-            else
+            else if (!string.Equals(existing.Value, value, StringComparison.Ordinal))
             {
-                var written = AssessmentFieldWriter.Write(
-                    context,
-                    workId,
-                    existing,
-                    path,
-                    value,
-                    actor.Kind,
-                    actor.SubjectId,
-                    now,
-                    confirmedBy);
-                if (existing is null)
-                {
-                    fields.Add(written);
-                }
-                existing = written;
+                AssessmentFieldWriter.Write(
+                    context, workId, existing, path, value, actor.Kind, actor.SubjectId, now);
             }
 
-            after[path] = new { existing.Value, existing.ConfirmedBy };
+            after[path] = value;
         }
 
         return (before, after);

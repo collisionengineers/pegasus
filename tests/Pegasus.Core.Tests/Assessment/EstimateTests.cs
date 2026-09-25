@@ -406,8 +406,6 @@ public sealed class EstimateTests
         Assert.Equal("repair-specification/v4", basis.PolicyVersion);
         Assert.Equal(basis, RepairSpecificationPolicy.ValidateCalculationBasis(basis));
 
-        var unconfirmed = draft with { Lines = [Line("repair", workUnits: 1m, confirmed: false)] };
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(unconfirmed, actor));
         var discarded = draft with { State = RepairSpecificationState.Discarded };
         Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(discarded, actor));
         EstimatePolicy.ValidateSetCurrent(draft with { State = RepairSpecificationState.Accepted }, actor);
@@ -1309,10 +1307,10 @@ public sealed class EstimateTests
 
     private static CaseEstimateLineRecord Line(
         string type, decimal? workUnits = null, decimal? paintWorkUnits = null,
-        decimal? price = null, int? quantity = null, bool confirmed = true,
+        decimal? price = null, int? quantity = null,
         decimal? materials = null) => new(
         Guid.NewGuid(), 1, type, null, "Line", workUnits, price, false, null, null, null, null, null,
-        ActorKind.Staff, Engineer.SubjectId, Now, confirmed ? Engineer.SubjectId : null, confirmed ? Now : null,
+        ActorKind.Staff, Engineer.SubjectId, Now,
         paintWorkUnits, quantity, materials);
 
     private static AiJobRecord Job(

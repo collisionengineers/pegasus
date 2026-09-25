@@ -15,8 +15,6 @@ internal sealed class CaseAssessmentFieldEntity
     public required string RecordedByKind { get; set; }
     public required string RecordedBy { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
-    public string? ConfirmedBy { get; set; }
-    public DateTimeOffset? ConfirmedAtUtc { get; set; }
 }
 
 internal sealed class CaseEstimateLineEntity
@@ -41,8 +39,6 @@ internal sealed class CaseEstimateLineEntity
     public required string RecordedByKind { get; set; }
     public required string RecordedBy { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
-    public string? ConfirmedBy { get; set; }
-    public DateTimeOffset? ConfirmedAtUtc { get; set; }
     public string? Operation { get; set; }
     public decimal? Materials { get; set; }
     public string? OriginalValuesJson { get; set; }

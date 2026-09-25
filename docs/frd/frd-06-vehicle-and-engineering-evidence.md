@@ -219,7 +219,7 @@ The mileage tiers and discrepancy rule are in
 or source, retrieval time, effective date, source age, response or version
 identity, and a typed outcome: current, stale, unavailable, partial or
 failed. A refresh creates a new observation. It never silently overwrites a
-last-good observation, a staff-confirmed value or a higher-tier mileage.
+last-good observation, a staff-recorded value or a higher-tier mileage.
 Accepting, rejecting or linking an external fact goes into permanent history.
 Routine calls, retries and polling are content-safe telemetry.
 
@@ -233,17 +233,18 @@ the facts only the lookup holds.
 - Vehicle type follows one rule: type approval, then wheelplan, then
   rigid-body revenue weight. L1 and L2 mopeds are `scooter`, other L-class
   vehicles are `motorcycle`, and heavy, PSV or tractor classifications are
-  `other`. It fills only where staff have not confirmed a type. A changed
-  lookup classification may replace an earlier unconfirmed lookup value; an
-  unchanged value is not re-stamped.
-- A Lookup Vehicle type stays unconfirmed until staff Save, which re-stamps
-  it as staff-confirmed.
+  `other`. It fills only where staff have not recorded a type. A changed
+  lookup classification may replace an earlier lookup value; an unchanged
+  value is not re-stamped.
+- A Lookup Vehicle type keeps its Lookup tag until staff change it; a Save
+  that leaves it untouched leaves its provenance alone (operator, 25
+  September 2026).
 - Engine, Fuel, Colour, Tax expiry and MOT expiry are the lookup's alone
   (operator, 24 September 2026). Engine and fuel are DVLA's, else DVSA's;
   colour is DVLA's, else DVSA's primary colour; tax expiry is DVLA's tax due
   date; MOT expiry is the latest expiry date in the DVSA MOT history. Each is
-  recorded confirmed with Lookup provenance, so none awaits review, and the
-  Case shows it read-only; no staff or automation save writes it. Each answer
+  recorded with Lookup provenance and the Case shows it read-only; no staff
+  or automation save writes it. Each answer
   replaces a changed value, leaves an unchanged one as it stands and stales a
   generated report when one changes. An answer where each provider either
   described the vehicle or said it holds no such vehicle also clears a fact
@@ -270,9 +271,9 @@ sweep, which remains the recovery path if the creation-time attempt fails or
 is unavailable. The outcome shows on the Case whichever trigger produced it:
 looked up and current, or a stated failure reason, separately from whether
 any field was filled. The automatic trigger fills only an empty Make, Model,
-Year or Mileage and an unconfirmed Vehicle type, and records the lookup's own
-facts, under the rules above. It never overwrites or confirms a field staff
-can edit.
+Year or Mileage and a Vehicle type staff have not recorded, and records the
+lookup's own facts, under the rules above. It never overwrites a value staff
+recorded.
 
 **A 404 is classified first.** Only a 404 whose body is that provider's own
 vehicle-not-found error counts as `NotFound`. Any other 404 (a gateway, route
@@ -345,7 +346,7 @@ neither picks a provider nor authorises an external call.
 | Thing | States |
 | --- | --- |
 | VRM read | suggestion, `NoReadableResult`, unknown, dependency unavailable, technical failure; confirmed by staff or registered automatically at the bar |
-| Vehicle lookup | current, stale, unavailable, partial, failed; a filled field is Lookup then staff-confirmed on Save, and the lookup's own facts are recorded confirmed with Lookup provenance |
+| Vehicle lookup | current, stale, unavailable, partial, failed; a filled field keeps Lookup provenance until staff change it, and the lookup's own facts are recorded with Lookup provenance |
 
 ## Edge cases and fail-closed behaviour
 

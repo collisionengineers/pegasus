@@ -214,8 +214,7 @@ internal sealed class EfVehicleLookupWorkStore(
             .ToListAsync(cancellationToken);
         var selectedMileageSource = await context.CaseAssessmentFields
             .Where(item => item.WorkId == workId
-                && item.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.VehicleMileageSource
-                && item.ConfirmedAtUtc != null)
+                && item.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.VehicleMileageSource)
             .Select(item => item.Value)
             .SingleOrDefaultAsync(cancellationToken);
         var beforeVehicle = ReportVehicleDependencies(caseDataFields, selectedMileageSource);
@@ -326,7 +325,7 @@ internal sealed class EfVehicleLookupWorkStore(
     /// (<see cref="AssessmentVocabulary.LookupDerivedPaths"/>) follow each
     /// answer as
     /// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.DerivedAssessmentWrites"/>
-    /// says, recorded confirmed by the lookup. All of it applies only when the
+    /// says, recorded by the lookup. All of it applies only when the
     /// answer is for the work's current registration
     /// (<see cref="EfVehicleWorkflowStore.CurrentRegistration"/>). Returns the
     /// lookup-written assessment values before and after this answer, for
@@ -455,31 +454,31 @@ internal sealed class EfVehicleLookupWorkStore(
             .ToListAsync(cancellationToken);
         var before = Values(assessmentRows);
 
-        void Write(CaseAssessmentFieldEntity? existing, string path, string value, string? confirmedBy)
+        void Write(CaseAssessmentFieldEntity? existing, string path, string value)
         {
             var written = AssessmentFieldWriter.Write(
                 context, workId, existing, path, value,
-                ActorKind.Automation, VehicleLookupFillPolicy.RecorderId, recordedAtUtc, confirmedBy);
+                ActorKind.Automation, VehicleLookupFillPolicy.RecorderId, recordedAtUtc);
             if (existing is null)
             {
                 assessmentRows.Add(written);
             }
         }
 
-        // Vehicle type: a staff-editable working value, filled only where staff
-        // have not confirmed one, unconfirmed, re-stamped only when it changes.
+        // Vehicle type: a staff-editable value, filled only where staff have
+        // not recorded one, re-stamped only when it changes.
         var vehicleType = VehicleTypePolicy.Classify(result.Vehicle);
         var existingType = assessmentRows.SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleType);
         if (vehicleType is not null
-            && VehicleLookupFillPolicy.Fills(hasFact: false, hasConfirmed: existingType?.ConfirmedBy is not null)
+            && AssessmentPolicy.FillLands(AssessmentFieldWriter.RecordedByKind(existingType))
             && !string.Equals(existingType?.Value, vehicleType, StringComparison.Ordinal))
         {
-            Write(existingType, AssessmentVocabulary.VehicleType, vehicleType, confirmedBy: null);
+            Write(existingType, AssessmentVocabulary.VehicleType, vehicleType);
         }
 
         // The facts only the lookup records are its to replace and, on a complete
-        // answer, to clear: recorded confirmed by the lookup whatever wrote the row
-        // before, so none awaits review; an unchanged value is left as it stands.
+        // answer, to clear: recorded by the lookup whatever wrote the row before;
+        // an unchanged value the lookup recorded is left as it stands.
         foreach (var (path, value) in VehicleLookupFillPolicy.DerivedAssessmentWrites(result))
         {
             var existing = assessmentRows.SingleOrDefault(item => item.FieldPath == path);
@@ -491,10 +490,10 @@ internal sealed class EfVehicleLookupWorkStore(
                     assessmentRows.Remove(existing);
                 }
             }
-            else if (existing is not { ConfirmedBy: VehicleLookupFillPolicy.RecorderId }
+            else if (existing is not { RecordedBy: VehicleLookupFillPolicy.RecorderId }
                 || !string.Equals(existing.Value, value, StringComparison.Ordinal))
             {
-                Write(existing, path, value, confirmedBy: VehicleLookupFillPolicy.RecorderId);
+                Write(existing, path, value);
             }
         }
 

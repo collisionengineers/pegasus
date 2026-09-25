@@ -160,7 +160,7 @@ public sealed class EfRepairSpecificationStore(
         ArgumentNullException.ThrowIfNull(request);
         if (request.EngineerValue is not { } engineerValue || engineerValue <= 0m)
         {
-            throw new InvalidOperationException("A confirmed Engineer's Value is required before scaling.");
+            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -447,16 +447,6 @@ public sealed class EfRepairSpecificationStore(
         request = edit.Evidenced;
         if (importedDocument)
         {
-            // Retaining/reading a source is not confirmation of its technical
-            // lines, even when an Engineer initiated the import.
-            foreach (var line in entity.Lines)
-            {
-                line.ConfirmedBy = null;
-                line.ConfirmedAtUtc = null;
-            }
-        }
-        if (importedDocument)
-        {
             // v1 of an imported specification is the import itself (v28 P43).
             EfRepairSpecificationSnapshotStore.Freeze(
                 context, workId, Map(entity), request.Actor, RepairSpecificationSnapshotKind.Imported,
@@ -702,17 +692,8 @@ public sealed class EfRepairSpecificationStore(
             cancellationToken);
         var entity = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
 
-        // "Use estimate" is the Engineer's acceptance of a Draft: their act
-        // confirms every line it carries, and the calculation basis is the
-        // one totals owner's figures at this moment.
-        if (entity.State == RepairSpecificationState.Draft.ToString())
-        {
-            foreach (var line in entity.Lines)
-            {
-                line.ConfirmedBy = request.Actor.SubjectId;
-                line.ConfirmedAtUtc = now;
-            }
-        }
+        // "Use estimate" is the Engineer's acceptance of a Draft, and the
+        // calculation basis is the one totals owner's figures at this moment.
         var candidate = Map(entity);
         EstimatePolicy.ValidateSetCurrent(candidate, request.Actor);
         if (candidate.State == RepairSpecificationState.Draft)
@@ -1283,7 +1264,7 @@ public sealed class EfRepairSpecificationStore(
                 line.WorkUnits, line.Price, line.Unpriced, line.PartNumber, line.Betterment,
                 line.Status, line.EvidenceLabel, line.Justification,
                 Enum.Parse<ActorKind>(line.RecordedByKind), line.RecordedBy, line.RecordedAtUtc,
-                line.ConfirmedBy, line.ConfirmedAtUtc, line.PaintWorkUnits, line.Quantity,
+                line.PaintWorkUnits, line.Quantity,
                 line.Materials, ReadOrigin(line), line.SourceDocumentIdentity,
                 line.SourceDocumentVersionId, line.SourceDocumentSha256, line.SourceRowIdentity,
                 line.AmendedBy, line.AmendedAtUtc)).ToArray(),
@@ -1377,11 +1358,12 @@ internal sealed record EstimateCalculationBreakdown(
 
 /// <summary>
 /// The one owner of an estimate's line rows. Replacing the lines of a Draft is
-/// a whole-list operation — positions are contiguous and start at one — and a
-/// staff line is confirmed by the act of saving it while an Automation line
-/// stays unconfirmed working data until an Engineer accepts it. The estimate
-/// commands and the Case workspace save write lines through here, so the two
-/// routes cannot record different provenance for the same edit.
+/// a whole-list operation — positions are contiguous and start at one — and
+/// every line carries the provenance of the actor that saved it; a Draft's
+/// lines become the Case's accepted lines when an Engineer makes it Current.
+/// The estimate commands and the Case workspace save write lines through
+/// here, so the two routes cannot record different provenance for the same
+/// edit.
 /// </summary>
 internal static class EstimateLineWriter
 {
@@ -1395,7 +1377,6 @@ internal static class EstimateLineWriter
     {
         ArgumentNullException.ThrowIfNull(line);
         ArgumentNullException.ThrowIfNull(actor);
-        var confirmedBy = actor.Kind == ActorKind.Staff ? actor.SubjectId : null;
         return new()
         {
             Id = Guid.NewGuid(),
@@ -1433,9 +1414,7 @@ internal static class EstimateLineWriter
             AmendedAtUtc = line.AmendedAtUtc,
             RecordedByKind = actor.Kind.ToString(),
             RecordedBy = actor.SubjectId,
-            RecordedAtUtc = now,
-            ConfirmedBy = confirmedBy,
-            ConfirmedAtUtc = confirmedBy is null ? null : now
+            RecordedAtUtc = now
         };
     }
 
@@ -1489,8 +1468,7 @@ internal static class EstimateLineWriter
             line.Betterment,
             line.Status,
             line.EvidenceLabel,
-            line.Justification,
-            line.ConfirmedBy
+            line.Justification
         };
     }
 }
