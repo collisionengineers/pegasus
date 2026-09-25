@@ -1149,6 +1149,7 @@ public sealed class GlassRepairEstimateGatewayTests
             }
         }
         Assert.Equal(Enum.Parse<GlassRepairEstimateSessionState>(state), session.State);
+        var beforeResume = (await harness.Store.GetAsync(session.Id, default))!;
         harness.CaseAuthority.Facts = new(registrationChanged ? "XY99ZZZ" : Registration,
             registrationChanged ? MileageMiles : MileageMiles + 1);
         var requests = harness.Mva.Requests.Count;
@@ -1158,7 +1159,7 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Contains("registration or mileage has changed", refused.Message, StringComparison.Ordinal);
         Assert.Equal(requests, harness.Mva.Requests.Count);
         Assert.Equal(imports, harness.Import.Requests.Count);
-        Assert.Equal(session, (await harness.Store.GetAsync(session.Id, default))!.Session);
+        Assert.Equal(beforeResume, await harness.Store.GetAsync(session.Id, default));
         Assert.True(GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State));
     }
 
@@ -1234,13 +1235,14 @@ public sealed class GlassRepairEstimateGatewayTests
             harness.Import.Refusal = new CaseEditLeaseExpiredException(harness.CaseId, Harness.CaseVersion);
             session = await harness.CompleteAsync(session);
         }
+        var beforeResume = (await harness.Store.GetAsync(session.Id, default))!;
         if (replaced) { harness.Credentials.Give(harness.Engineer, harness.EngineerId, generation: 9); }
         else { harness.Credentials.Revoke(harness.Engineer); }
         var requests = harness.Mva.Requests.Count;
         var imports = harness.Import.Requests.Count;
         await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Gateway.ResumeAsync(
             new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken), default));
-        Assert.Equal(session, (await harness.Store.GetAsync(session.Id, default))!.Session);
+        Assert.Equal(beforeResume, await harness.Store.GetAsync(session.Id, default));
         Assert.Equal(requests, harness.Mva.Requests.Count);
         Assert.Equal(imports, harness.Import.Requests.Count);
     }

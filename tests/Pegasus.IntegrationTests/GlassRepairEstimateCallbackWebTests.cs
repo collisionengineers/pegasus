@@ -643,7 +643,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var html = await response.Content.ReadAsStringAsync();
         var attribute = Regex.Match(html, "data-glass-launch=\"([^\"]+)\"", RegexOptions.CultureInvariant);
         Assert.True(attribute.Success, "A successful launch renders the same-origin handoff.");
-        Assert.Contains("/js/glass-return.js", html, StringComparison.Ordinal);
+        // MapStaticAssets fingerprints the file name in the rendered script URL.
+        Assert.Matches(
+            """<script\b[^>]*\bsrc="/js/glass-return(?:\.[A-Za-z0-9]+)?\.js(?:\?v=[^"]*)?"[^>]*></script>""",
+            html);
         return new Uri(WebUtility.HtmlDecode(attribute.Groups[1].Value), UriKind.Absolute);
     }
 
