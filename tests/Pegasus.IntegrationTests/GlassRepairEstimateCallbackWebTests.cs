@@ -596,17 +596,49 @@ public sealed class GlassRepairEstimateCallbackWebTests
     // --------------------------------------------------------------- the wait
 
     /// <summary>
-    /// The Case moved on while the operator was inside Glass's: everything the
-    /// provider produced is kept, nothing is imported, and the estimate lands
-    /// when the Engineer takes the Case back.
+    /// The staff member left edit mode while Glass's was open, so the launch's
+    /// edit authority is spent. Nobody holds the Case, so the return takes a
+    /// fresh lease for the returning staff member and lands the estimate as
+    /// the repair spec in use (FRD-25).
     /// </summary>
     [Fact]
-    public async Task AReturnThatLostTheCasesEditAuthorityWaitsUntilTheResumeImportsIt()
+    public async Task AReturnWhoseLaunchLeaseEndedTakesAFreshLeaseAndLandsTheSpecInUse()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        var card = await workspace.AddRateCardAsync("80", 80m);
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        await workspace.FinishEditingAsync();
+
+        using (var returned = await workspace.ReturnAsync(correlation))
+        {
+            await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
+        }
+
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Null(session.FailureCode);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
+        var estimate = Assert.Single(await workspace.EstimatesAsync());
+        Assert.Equal(RepairSpecificationSourceRoute.Glasses, estimate.Source.Route);
+        Assert.True(estimate.IsCurrent);
+        Assert.Equal(new EstimateRateSnapshot(card.Id, card.Version, 80m), estimate.Details.Rate);
+        Assert.Equal(BothDocuments, await workspace.RetainedMediaTypesAsync());
+    }
+
+    /// <summary>
+    /// The same return while the staff member is back in edit mode under a
+    /// new lease: landing the estimate would overtake their unsaved edits, so
+    /// it waits, with everything the provider produced kept, until Resume
+    /// imports it.
+    /// </summary>
+    [Fact]
+    public async Task AReturnWhileTheStaffMemberHoldsTheCaseAgainWaitsUntilTheResumeImportsIt()
     {
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
         await workspace.FinishEditingAsync();
+        await workspace.ClaimLeaseAsync();
 
         using (var returned = await workspace.ReturnAsync(correlation))
         {
@@ -621,7 +653,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
         // rather than asking Glass's for a second copy.
         Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
 
-        await workspace.ClaimLeaseAsync();
         using var resumed = await workspace.PostAsync("ResumeGlass", await workspace.ResumeFormAsync());
 
         await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
@@ -631,6 +662,35 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(RepairSpecificationSourceRoute.Glasses, estimate.Source.Route);
         Assert.True(estimate.IsCurrent);
         Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
+    }
+
+    /// <summary>
+    /// The same return while another staff member holds the Case: the return
+    /// never takes the Case from them, so the estimate waits and nothing is
+    /// imported.
+    /// </summary>
+    [Fact]
+    public async Task AReturnWhileAnotherStaffMemberHoldsTheCaseWaitsAndImportsNothing()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        await workspace.FinishEditingAsync();
+        var holder = await workspace.HoldAsAnotherStaffMemberAsync();
+        var heldVersion = await workspace.CaseVersionAsync();
+
+        using (var returned = await workspace.ReturnAsync(correlation))
+        {
+            await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
+        }
+
+        var waiting = Assert.Single(await workspace.SessionsAsync());
+        Assert.Null(waiting.FailureCode);
+        Assert.Equal(GlassRepairEstimateSessionState.AwaitingImport, waiting.State);
+        Assert.Empty(await workspace.EstimatesAsync());
+        Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
+        Assert.Equal(holder, await workspace.LeaseHolderAsync());
+        Assert.Equal(heldVersion, await workspace.CaseVersionAsync());
     }
 
     // -------------------------------------------------------------- the shape
@@ -974,6 +1034,40 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     item => item.ExpiresAtUtc,
                     DateTimeOffset.UnixEpoch));
             Assert.Equal(1, changed);
+        }
+
+        /// <summary>
+        /// Another staff member takes the Case into edit mode, as the Case
+        /// row records a live lease.
+        /// </summary>
+        public async Task<string> HoldAsAnotherStaffMemberAsync()
+        {
+            var holder = Guid.NewGuid().ToString("D");
+            await using var scope = factory.Services.CreateAsyncScope();
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == CaseId);
+            Assert.Null(workflow.EditLeaseHolder);
+            workflow.EditLeaseHolder = holder;
+            workflow.EditLeaseHolderKind = nameof(ActorKind.Staff);
+            workflow.EditLeaseTokenHash = new string('A', 64);
+            workflow.EditLeaseOperationKey = Guid.NewGuid().ToString("N");
+            workflow.EditLeaseExpiresAtUtc = DateTimeOffset.MaxValue;
+            await context.SaveChangesAsync();
+            return holder;
+        }
+
+        public async Task<string?> LeaseHolderAsync()
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            return await context.CaseWorkflows
+                .Where(item => item.CaseId == CaseId)
+                .Select(item => item.EditLeaseHolder)
+                .SingleAsync();
         }
 
         public async Task FinishEditingAsync()
