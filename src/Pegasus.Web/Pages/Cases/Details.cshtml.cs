@@ -3054,6 +3054,29 @@ public sealed partial class DetailsModel(
         }
     }
 
+    /// <summary>Read the owning staff member's Glass's controls without changing Case or lease state.</summary>
+    public async Task<IActionResult> OnGetGlassSessionAsync(
+        Guid id, [FromHeader(Name = "X-Pegasus-Edit-Lease")] string? renderLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        if (!TryGetActor(out var actor)) { return Forbid(); }
+        Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
+        if (Case is null) { return NotFound(); }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access?.CanOpen != true) { return NotFound(); }
+        AssessmentCanOpen = true;
+        AssessmentIsReadOnly = access.IsReadOnly;
+        // Like lazy section reads, this GET never restores or writes TempData.
+        if (!string.IsNullOrWhiteSpace(renderLeaseToken) && validateCaseRenderLease is not null
+            && await validateCaseRenderLease.ExecuteAsync(new(id, actor, renderLeaseToken), cancellationToken))
+        {
+            fragmentLeaseToken = renderLeaseToken;
+        }
+        await LoadGlassSessionAsync(id, actor, cancellationToken);
+        return Partial("/Pages/Cases/Shared/_GlassControls.cshtml", this);
+    }
+
     /// <summary>
     /// Starts a Glass's Repair Estimate for this Case and sends the staff
     /// member's own browser to the provider's estimator.
@@ -3073,6 +3096,7 @@ public sealed partial class DetailsModel(
     /// </remarks>
     public async Task<IActionResult> OnPostLaunchGlassAsync(
         Guid id,
+        long expectedCaseVersion,
         string operationKey,
         string? editLeaseToken,
         [FromServices] IGlassRepairEstimateGateway glassEstimates,
@@ -3096,9 +3120,7 @@ public sealed partial class DetailsModel(
                 new GlassRepairEstimateLaunchRequest(
                     actor,
                     id,
-                    // The version the guard read, as the other Estimate
-                    // commands present it; the gateway refuses a stale one.
-                    currentCaseVersion,
+                    expectedCaseVersion,
                     editLeaseToken!,
                     operationKey),
                 cancellationToken);
@@ -3123,15 +3145,13 @@ public sealed partial class DetailsModel(
     /// Case's edit authority has been regained.
     /// </summary>
     /// <remarks>
-    /// The held result is the reason this resume carries the Case's version and
-    /// lease: finishing it writes the Draft, and the shared contract's resume
-    /// has nowhere to put the authority that write stands on, so the
-    /// Infrastructure request that does is used. The session named by the form
-    /// must be the one this staff member holds for this Case — the gateway proves
-    /// the owner, and this proves the Case.
+    /// Every resume carries the presented Case version and lease. The gateway
+    /// proves current authority and unchanged vehicle facts before provider work.
+    /// The form must name this staff member's session on this Case.
     /// </remarks>
     public async Task<IActionResult> OnPostResumeGlassAsync(
         Guid id,
+        long expectedCaseVersion,
         string operationKey,
         string? editLeaseToken,
         Guid sessionId,
@@ -3158,14 +3178,13 @@ public sealed partial class DetailsModel(
 
         try
         {
-            // Finishing a held result needs the Case authority this staff member
-            // has just regained; a live session needs only itself.
+            // Every resume proves current authority and unchanged vehicle facts.
             var session = await glassEstimates.ResumeAsync(
                 new GlassRepairEstimateResumeRequest(
                     actor,
                     sessionId,
                     expectedSessionVersion,
-                    currentCaseVersion,
+                    expectedCaseVersion,
                     editLeaseToken!),
                 cancellationToken);
             return await OpenEstimatorAsync(
@@ -3203,7 +3222,8 @@ public sealed partial class DetailsModel(
         {
             // The edit authority is deliberately kept: the operator is inside
             // the provider now and the result lands back on this Case.
-            return Redirect(estimator.AbsoluteUri);
+            Response.Headers.CacheControl = "no-store";
+            return Partial("_GlassLaunch", estimator.AbsoluteUri);
         }
 
         return ReportGlassSession(id, session, refusal);
@@ -3218,6 +3238,7 @@ public sealed partial class DetailsModel(
     public static PartialViewResult GlassReturn(PageModel page, Guid caseId)
     {
         ArgumentNullException.ThrowIfNull(page);
+        page.Response.Headers.CacheControl = "no-store";
         return page.Partial(
             "_GlassReturn",
             page.Url.Page("/Cases/Details", new { id = caseId, section = "estimate" })!);
@@ -3281,6 +3302,11 @@ public sealed partial class DetailsModel(
             await glassEstimates.CloseAsync(new(actor, sessionId, expectedSessionVersion,
                 externalSessionClosed, reason ?? string.Empty), cancellationToken);
             TempData["CaseStatus"] = GlassLabels.Closed;
+        }
+        catch (GlassRepairEstimateSessionConflictException conflict)
+            when (conflict.Conflict == GlassRepairEstimateSessionConflict.Version)
+        {
+            TempData["CaseError"] = GlassLabels.CloseChanged;
         }
         catch (Exception exception) when (IsGlassRefusal(exception) || exception is StaffAuthorizationException)
         {

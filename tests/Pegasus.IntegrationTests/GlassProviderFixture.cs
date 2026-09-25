@@ -47,6 +47,17 @@ internal static class GlassProviderFixture
         + Uri.EscapeDataString(
             caller ?? $"https://mva.test/ere/ere-callback/ere_id/{EreId}/ere_session/{EreSession}");
 
+    // Named fields and repeated id match the captured MVA detail form.
+    public static string VehicleDetail(string registration = Registration, long mileage = MileageMiles,
+        string vehicleId = VehicleId, string natCode = NatCode, string profile = ProfileId) => $"""
+        <form><input name="id" value="{vehicleId}" type="hidden" />
+        <input name="natcode" value="{natCode}" type="hidden" />
+        <input name="registration_number" value="{registration}" />
+        <input name="mileage" value="{mileage}" /></form>
+        <form><input name="id" value="{vehicleId}" type="hidden" />
+        <select name="ere_profile"><option value="{profile}">Repair profile</option></select></form>
+        """;
+
     /// <summary>The provider answers this with a byte-order mark at both ends.</summary>
     public static string StartEre(string launchUrl) =>
         "\uFEFF{\"message\":\"\",\"status\":\"ok\",\"ere_url\":\"" + launchUrl.Replace("/", "\\/", StringComparison.Ordinal) + "\"}\uFEFF";
@@ -89,9 +100,7 @@ internal static class GlassProviderFixture
             HttpStatusCode.OK, "\uFEFF{\"vrm\":\"" + Registration + "\",\"id\":\"" + VehicleId + "\"}"));
         mva.Set("GET /index/vehicle-details/", new(HttpStatusCode.OK, "<div></div>"));
         mva.Set("GET /index/vehicle-detail-inline-fragment/", new(HttpStatusCode.OK, "<div></div>"));
-        mva.Set("GET /index/vehicle-details-value/", new(
-            HttpStatusCode.OK,
-            "\uFEFF<script>var PROFILE_ID = '" + ProfileId + "'; var NATCODE = '" + NatCode + "';</script>"));
+        mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, VehicleDetail()));
         mva.Set("GET /index/update-vehicle-select/", new(HttpStatusCode.OK, "{\"error\":false}"));
         mva.Set("GET /index/get-selected-vehicle-count/grid/stocklistGrid", new(
             HttpStatusCode.OK, "{\"grid\":\"stocklistGrid\",\"error\":false,\"count\":\"1\"}"));

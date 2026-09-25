@@ -143,6 +143,22 @@ has not started an estimate; an existing estimate reopens by its existing
 identity. These actions sit in the Case estimate section and do not need
 credentials reset.
 
+Every Resume presents the current Case version and live edit lease, including
+preparation, an active estimate and a waiting import. The current registration
+(normalized for spacing and case) and whole-mile mileage must match the
+protected launch facts. A mismatch refuses further provider work and leaves
+the account held; staff restore the original facts or confirm external closure
+before starting a new session. Valid Resume replaces the protected import
+authority with the authority just proved. Credential generation must still
+match the account used at launch.
+
+Before selecting a vehicle or reopening an estimate, the provider detail form
+must identify the expected vehicle ID, registration, mileage and NatCode, and
+offer the configured repair profile. Missing or contradictory controls refuse
+the action. Resume uses the positive estimate ID already recorded; uncertain
+writes never restart at zero. A URL issued by the provider establishes no
+claim that the hosted editor has initialized successfully.
+
 Keeping a returned estimate's source files does not use up the staff member's
 still-valid Case edit authority. The import uses that authority to land one
 Draft. A genuine Case edit in between, or an expired or lost lease, leaves
@@ -220,9 +236,19 @@ the same import. Import never selects a Current estimate.
 
 ## Acceptance evidence
 
-Core tests cover the import replay key. Integration tests cover the estimate
-import command under a lease, Use estimate, and Glass's session closure. Live
-Glass's evidence is a separate tier
+Core and integration evidence covers identity, current authority, account
+exclusivity, uncertain writes, callback replay, custody and one Draft import.
+Browser evidence covers save-before-launch, refusal without provider work,
+fresh controls, stale Close and preservation of edits during return.
+
+The hosted editor must also pass live acceptance on the deployed artifact:
+three fresh launches across two vehicle models (cold and warm browser), three
+positive-ID resumes including reload and host restart, deliberate estimate
+changes followed by Save & Exit and automatic Draft import, replay producing
+one Draft, expired-lease recovery, original-window closure, and a second Case
+refused while the account is held. Chrome is primary; Edge also covers a fresh
+launch and Resume. Manual export/import does not satisfy this integration's
+acceptance. Supplier startup failures remain open until that journey passes
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
