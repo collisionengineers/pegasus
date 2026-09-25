@@ -16,6 +16,7 @@
     };
 }
 <div data-glass-controls="session" data-glass-id="@glassSession?.Id" data-glass-version="@glassSession?.Version"
+     data-glass-imported-dirty="@GlassLabels.ImportedWithChanges" data-glass-returned-dirty="@GlassLabels.ReturnedWithChanges"
      data-glass-state="@glassSession?.State" hidden="@(Model.GlassSessionElsewhere is null && !showGlassLine)">
     @* The Glass's session line: only while this staff member's session holds
        the account or has failed, or while the account is held from

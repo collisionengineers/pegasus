@@ -9,7 +9,7 @@
     var editing = Model.SectionIsEditable("estimate");
 }
 <div data-glass-controls="launch" data-glass-id="@glassSession?.Id" data-glass-version="@glassSession?.Version"
-     data-glass-controls-url="@Url.Page("/Cases/Details", "GlassSession", new { id = caseId })"
+     data-glass-controls-url="@Url.Page("/Cases/Details", "GlassSession", new { id = caseId, view = Model.ViewRoute })"
      hidden="@(!editing || (!Model.CanResumeGlass && !Model.CanLaunchGlass))">
     @* The one Glass's slot (v26 G) — Glass's while the
        account is free, Resume while this staff member's session holds it;
