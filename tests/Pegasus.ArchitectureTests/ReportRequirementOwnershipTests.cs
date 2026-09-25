@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
@@ -53,30 +54,6 @@ public sealed class ReportRequirementOwnershipTests
         ClaimantName: null,
         ClaimNumber: null);
 
-    // Assessment paths automation wrote before #834 that no Case section
-    // edits. A value staff can neither confirm nor clear would block the
-    // report, so pegasus_assessment_update refuses each.
-    private static readonly string[] PathsWithoutAStaffEditor =
-    [
-        AssessmentVocabulary.VehicleEngineCc,
-        AssessmentVocabulary.VehicleFuel,
-        AssessmentVocabulary.VehicleVinChecked,
-        AssessmentVocabulary.VehicleTransmission,
-        AssessmentVocabulary.VehicleColour,
-        AssessmentVocabulary.VehicleTaxExpiry,
-        AssessmentVocabulary.VehicleMotExpiry,
-        AssessmentVocabulary.VehicleAirbagsDeployed,
-        AssessmentVocabulary.VehicleFaultCodes,
-        AssessmentVocabulary.VehicleTemporaryRepairsPossible,
-        AssessmentVocabulary.VehicleTemporaryRepairMethod,
-        AssessmentVocabulary.VehicleTemporaryRepairCost,
-        AssessmentVocabulary.VehicleModifications,
-        AssessmentVocabulary.VehicleHistoryNotes,
-        AssessmentVocabulary.VehicleEngineerNotes,
-        AssessmentVocabulary.NatureOfIncident,
-        AssessmentVocabulary.StatementOfTruth
-    ];
-
     [Fact]
     public void EveryUnconditionalReportRequirementHasExactlyOneWriter()
     {
@@ -111,6 +88,11 @@ public sealed class ReportRequirementOwnershipTests
             if (AssessmentVocabulary.AdoptedFindingPaths.Contains(path))
             {
                 writers.Add("the valuation adoption");
+            }
+            // The DVLA/DVSA lookup records these.
+            if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
+            {
+                writers.Add("the vehicle lookup");
             }
             // None is the #834 defect; two means an adopted or derived path
             // leaked into an editor.
@@ -175,7 +157,8 @@ public sealed class ReportRequirementOwnershipTests
         var accepted = new List<string>();
         foreach (var (path, definition) in AssessmentVocabulary.Definitions)
         {
-            if (AssessmentVocabulary.DerivedPaths.Contains(path))
+            if (AssessmentVocabulary.DerivedPaths.Contains(path)
+                || AssessmentVocabulary.LookupDerivedPaths.Contains(path))
             {
                 continue;
             }
@@ -195,18 +178,14 @@ public sealed class ReportRequirementOwnershipTests
         }
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
-        Assert.All(PathsWithoutAStaffEditor, path =>
-        {
-            var refusal = AutomationRefusal(path);
-            Assert.NotNull(refusal);
-            Assert.Contains("no staff editor", refusal.Message, StringComparison.Ordinal);
-        });
+        Assert.Contains(
+            "no staff editor", AutomationRefusal(AssessmentVocabulary.RateCard)!.Message, StringComparison.Ordinal);
         Assert.Null(AutomationRefusal(AssessmentVocabulary.CostRecoveryCharge));
-        // The 17 non-finding Decisions editors, 4 original report, 8 Report,
-        // 13 Damage and 3 Vehicle editors, the vehicle history and condition,
+        // The 20 non-finding Decisions editors, 4 original report, 8 Report,
+        // 14 Damage and 4 Vehicle editors, the vehicle history and condition,
         // and the 5 typed Case-save paths. A new editor changes this count on
         // purpose: it widens what automation may write.
-        Assert.Equal(52, accepted.Count);
+        Assert.Equal(57, accepted.Count);
     }
 
     [Theory]
@@ -233,7 +212,12 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(CaseDataFieldNames.ClaimantName, null, null, "claim")]
     [InlineData(CaseDataFieldNames.ClaimNumber, null, null, "overview")]
     [InlineData(CaseDataFieldNames.IncidentDate, null, null, "overview")]
-    [InlineData(AssessmentVocabulary.VehicleFuel, null, null, null)]
+    [InlineData(AssessmentVocabulary.VehicleFuel, null, null, "vehicle")]
+    [InlineData(AssessmentVocabulary.VehicleTransmission, null, null, "vehicle")]
+    [InlineData(AssessmentVocabulary.VehicleAirbagsDeployed, null, null, "damage")]
+    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairsPossible, null, null, "settlement")]
+    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairMethod, null, null, "settlement")]
+    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairCost, null, null, "settlement")]
     [InlineData(null, 3, null, "estimate")]
     [InlineData(null, null, CaseReportReadiness.SignatoryRequirement, "overview")]
     [InlineData(null, null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
@@ -248,6 +232,41 @@ public sealed class ReportRequirementOwnershipTests
             requirement ?? "Requirement", "Source", "Why outstanding", "How to resolve", field, estimateLine);
 
         Assert.Equal(section, CaseWorkspaceLabels.Report.BlockerSection(item));
+    }
+
+    /// <summary>
+    /// Engine capacity, fuel, colour, tax expiry and MOT expiry are the
+    /// DVLA/DVSA lookup's alone (operator, 24 September 2026): no Case editor,
+    /// automation write or field save records one, each answer sets all of
+    /// them, and a blocker naming one links the Vehicle section that shows it.
+    /// </summary>
+    [Fact]
+    public void TheVehicleLookupIsTheOnlyWriterOfTheFactsItDerives()
+    {
+        var notFound = new VehicleLookupResult(
+            "AB12CDE", VehicleLookupOutcome.NotFound, "dvla-ves+dvsa-mot-history", "ves-1.2+mot-history-v1",
+            "response", RecordedAtUtc, null, null, null, [], null);
+        var writes = VehicleLookupFillPolicy.DerivedAssessmentWrites(notFound);
+
+        Assert.Equal(
+            AssessmentVocabulary.LookupDerivedPaths.Order(StringComparer.Ordinal).ToArray(),
+            writes.Keys.Order(StringComparer.Ordinal).ToArray());
+        Assert.All(writes.Values, value => Assert.Null(value));
+
+        Assert.All(AssessmentVocabulary.LookupDerivedPaths, path =>
+        {
+            Assert.Contains(path, AssessmentVocabulary.Definitions);
+            Assert.DoesNotContain(path, AssessmentVocabulary.DerivedPaths);
+            Assert.DoesNotContain(path, AssessmentVocabulary.AdoptedFindingPaths);
+            Assert.DoesNotContain(path, AssessmentVocabulary.CaseOwnedPaths);
+            Assert.False(CaseWorkspaceLabels.Editors.IsStaffConfirmable(path));
+            // MCP lets the path through, so Core's field save names the refusal.
+            Assert.Null(AutomationRefusal(path));
+            var refusal = Assert.Throws<InvalidOperationException>(() =>
+                AssessmentPolicy.NormalizeWritableField(path, "1"));
+            Assert.Contains("filled by the DVLA/DVSA vehicle lookup", refusal.Message, StringComparison.Ordinal);
+            Assert.Equal("vehicle", CaseWorkspaceLabels.Editors.SectionOf(path));
+        });
     }
 
     /// <summary>

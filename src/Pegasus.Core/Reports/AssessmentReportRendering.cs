@@ -32,6 +32,40 @@ public static class AssessmentReportContract
     public const string StatementOfTruth4 = "We appreciate your instructions and enclose our fee note for your kind attention, which we confirm remains payable irrespective of the outcome of this case. Please ensure this is passed to your accounts department.";
 
     /// <summary>
+    /// Whether the accepted Glass's guide-disclosure sentence prints: the
+    /// operator turned "Disclose guide source" on <em>and</em> a Glass's
+    /// valuation guide was actually used. No sentence is substituted for
+    /// another guide — the approved v3 specification supplies none.
+    /// </summary>
+    public static bool PrintsGuideDisclosure(CaseReportContentSwitches content, ReportGuideSources guides)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(guides);
+        return content.DiscloseGuideSource && guides.UsesGlassesValuationGuide;
+    }
+
+    /// <summary>
+    /// The accepted statement of truth in print order: the one owner. The PDF
+    /// prints it and the Case's Report section shows it read-only; no Case
+    /// edits it.
+    /// </summary>
+    public static IReadOnlyList<string> StatementOfTruth(CaseReportContentSwitches content, ReportGuideSources guides) =>
+        PrintsGuideDisclosure(content, guides)
+            ? [StatementOfTruth1, StatementOfTruth2, StatementOfTruthGuide, StatementOfTruth3, StatementOfTruth4]
+            : [StatementOfTruth1, StatementOfTruth2, StatementOfTruth3, StatementOfTruth4];
+
+    /// <summary>
+    /// The statement this Case's report prints, from the content switches and
+    /// guide sources a generation freezes; available before a report can be
+    /// projected.
+    /// </summary>
+    public static IReadOnlyList<string> StatementOfTruthOf(AssessmentReportProjectionInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return StatementOfTruth(CaseReportReadiness.ContentOf(input.Assessment), input.Guides ?? ReportGuideSources.None);
+    }
+
+    /// <summary>
     /// The one salvage category a total-loss report prints: the active
     /// total-loss template has accepted wording for Category S only (operator,
     /// 24 September 2026). Readiness names any other category before a report
@@ -98,14 +132,12 @@ public sealed record ReportVehicle(
     string? Vin,
     string? Engine,
     string? Fuel,
-    bool? VinChecked,
     string? Transmission,
     string? Colour,
     string? Body,
     DateOnly? TaxExpiry,
     DateOnly? MotExpiry,
     string? AirbagsDeployed,
-    string? FaultCodes,
     bool? TemporaryRepairsPossible,
     string? TemporaryRepairMethod,
     decimal? TemporaryRepairCost);
@@ -385,15 +417,13 @@ public sealed record AssessmentReportSnapshot(
     public IReadOnlyList<ReportWordingBlock> PrintedWording =>
         ReportWordingComposition.Compose(this, Wording ?? []);
 
-    /// <summary>
-    /// Whether the accepted Glass's guide-disclosure sentence prints: the
-    /// operator turned "Disclose guide source" on <em>and</em> a Glass's
-    /// valuation guide was actually used. No sentence is substituted for
-    /// another guide — the approved v3 specification supplies none.
-    /// </summary>
+    /// <summary>Whether this report prints the Glass's guide-disclosure sentence (H5).</summary>
     [JsonIgnore]
-    public bool PrintsGuideDisclosure =>
-        Content.DiscloseGuideSource && Guides.UsesGlassesValuationGuide;
+    public bool PrintsGuideDisclosure => AssessmentReportContract.PrintsGuideDisclosure(Content, Guides);
+
+    /// <summary>The accepted statement of truth this report prints, in order.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> StatementOfTruth => AssessmentReportContract.StatementOfTruth(Content, Guides);
 
     /// <summary>
     /// The images in printed order: Close-up first, Overview second, then

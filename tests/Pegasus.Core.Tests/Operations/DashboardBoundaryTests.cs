@@ -92,7 +92,7 @@ public sealed class DashboardBoundaryTests
                     caseId, "C/2026/004", null, CaseType.Inspection, "QDOS",
                     CaseLifecycleState.Held, EngineerId: null, Registration: "KP68 ABC",
                     Claimant: "Meridian Claims", ClaimNumber: null, ReceivedAtUtc: NowUtc,
-                    InstructionDate: null, Origin: "Instruction-initiated", CreatedAtUtc: NowUtc)
+                    Origin: "Instruction-initiated", CreatedAtUtc: NowUtc)
             ],
         };
         var unidentifiedId = Guid.NewGuid();
@@ -564,7 +564,6 @@ public sealed class DashboardBoundaryTests
         Claimant: "Meridian Claims",
         ClaimNumber: null,
         ReceivedAtUtc: NowUtc,
-        InstructionDate: null,
         Origin: "Instruction-initiated",
         CreatedAtUtc: NowUtc);
 

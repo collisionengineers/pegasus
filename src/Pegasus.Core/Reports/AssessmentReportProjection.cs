@@ -258,6 +258,8 @@ public static class AssessmentReportProjection
             ? $"{value.ToString("N0", CultureInfo.GetCultureInfo("en-GB"))} {mileageUnit}"
             : "To be confirmed";
 
+        // Temporary repairs are the unroadworthy vehicle's (Decisions shows them only then), so a roadworthy vehicle's report carries no temporary-repair value and its rows print a dash.
+        var unroadworthy = AssessmentVocabulary.TemporaryRepairsApply(Field(fields, AssessmentVocabulary.LegalStatus));
         return new ReportVehicle(
             Registration: assessment.CaseOwned.Registration ?? string.Empty,
             Make: assessment.CaseOwned.Make ?? string.Empty,
@@ -270,17 +272,15 @@ public static class AssessmentReportProjection
             Vin: Field(fields, AssessmentVocabulary.VehicleVin),
             Engine: Field(fields, AssessmentVocabulary.VehicleEngineCc),
             Fuel: Field(fields, AssessmentVocabulary.VehicleFuel),
-            VinChecked: ParseFlag(Field(fields, AssessmentVocabulary.VehicleVinChecked)),
             Transmission: AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.VehicleTransmission)),
             Colour: Field(fields, AssessmentVocabulary.VehicleColour),
             Body: Field(fields, AssessmentVocabulary.VehicleBody),
             TaxExpiry: ParseDate(Field(fields, AssessmentVocabulary.VehicleTaxExpiry)),
             MotExpiry: ParseDate(Field(fields, AssessmentVocabulary.VehicleMotExpiry)),
             AirbagsDeployed: Field(fields, AssessmentVocabulary.VehicleAirbagsDeployed),
-            FaultCodes: Field(fields, AssessmentVocabulary.VehicleFaultCodes),
-            TemporaryRepairsPossible: ParseFlag(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairsPossible)),
-            TemporaryRepairMethod: Field(fields, AssessmentVocabulary.VehicleTemporaryRepairMethod),
-            TemporaryRepairCost: ParseMoney(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairCost)));
+            TemporaryRepairsPossible: unroadworthy ? ParseFlag(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairsPossible)) : null,
+            TemporaryRepairMethod: unroadworthy ? Field(fields, AssessmentVocabulary.VehicleTemporaryRepairMethod) : null,
+            TemporaryRepairCost: unroadworthy ? ParseMoney(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairCost)) : null);
     }
 
     private static ReportDamage BuildDamage(IReadOnlyDictionary<string, string?> fields)

@@ -19,7 +19,6 @@ public static class CaseDataFieldNames
     public const string ContactName = "contact_name";
     public const string ContactEmailAddress = "contact_email_address";
     public const string ContactPhoneNumber = "contact_phone_number";
-    public const string InstructionDate = "instruction_date";
     public const string VatStatus = "vat_status";
     public const string InspectionDate = "inspection_date";
     public const string InspectionDeadline = "inspection_deadline";

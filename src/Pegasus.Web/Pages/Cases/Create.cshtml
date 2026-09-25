@@ -98,11 +98,6 @@
                         <input asp-for="VehicleRegistration" maxlength="20" required />
                         <span asp-validation-for="VehicleRegistration" class="field-error"></span>
                     </div>
-                    <div class="field" data-triage-hidden>
-                        <label asp-for="InstructionDate">Instruction date</label>
-                        <input asp-for="InstructionDate" type="date" />
-                        <span asp-validation-for="InstructionDate" class="field-error"></span>
-                    </div>
                 </div>
             </div>
         </section>
@@ -226,10 +221,6 @@ else
                             "Incident date",
                             draft?.DateOfIncident?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture),
                             "Date of incident");
-                        Row(
-                            "Instruction date",
-                            draft?.InstructionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture),
-                            "Instruction date");
                     }
                 </div>
                 <details>

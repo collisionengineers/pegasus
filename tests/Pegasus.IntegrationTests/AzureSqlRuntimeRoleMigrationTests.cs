@@ -917,6 +917,30 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Contains("VehicleLookupRequests", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
+    // A complete vehicle lookup answer that no longer carries engine, fuel,
+    // colour, tax expiry or MOT expiry clears that fact, so the Worker deletes
+    // the CaseAssessmentFields row it recorded.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerDeleteOnCaseAssessmentFields()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            [
+                "CaseAssessmentFields:DELETE",
+                "CaseAssessmentFields:INSERT",
+                "CaseAssessmentFields:SELECT",
+                "CaseAssessmentFields:UPDATE"
+            ],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("CaseAssessmentFields:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.DoesNotContain("CaseAssessmentFields", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+    }
+
     // Case-document registration moved into the Worker's
     // custody processor while these three tables were granted to Web only, so
     // every deployed case uploaded its evidence to Box and was then refused the

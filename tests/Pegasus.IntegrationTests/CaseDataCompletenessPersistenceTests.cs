@@ -370,6 +370,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             projection.Inspection.Mode.Confirmed?.Value);
         Assert.Null(projection.Contact.Name.Current);
         Assert.Null(projection.Instruction.VatStatus.Current);
+        Assert.Equal(new DateOnly(2031, 5, 6), projection.Instruction.ReceivedDate);
 
         var currentAddress = await harness.AddressStore.GetAsync(
             harness.ReceiptId,

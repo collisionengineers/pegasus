@@ -316,11 +316,14 @@ public sealed class CaseEditModeWebTests
         });
         var html = await workspace.GetWorkspaceAsync();
         foreach (var path in CaseWorkspaceLabels.Editors.Settlement.Keys.Concat(CaseWorkspaceLabels.Editors.Report.Keys)
+                     .Concat(CaseWorkspaceLabels.Editors.Damage.Keys).Concat(CaseWorkspaceLabels.Editors.Vehicle.Keys)
                      .Append(AssessmentVocabulary.HistoryCheck).Append(AssessmentVocabulary.VehicleCondition))
         {
             var name = CaseWorkspaceLabels.Editors.FormName(path);
             // Administrator includes engineering authority; every editor uses
-            // the same Case Save form, including engineering findings.
+            // the same Case Save form, including engineering findings. The
+            // temporary repair rows hide while the vehicle is roadworthy, but
+            // their controls still render and still join the form.
             Assert.Matches($"<(input|textarea|select)[^>]*name=\"{Regex.Escape(name)}\"[^>]*form=\"case-edit-form\"", html);
         }
         Assert.Single(Regex.Matches(html, "id=\"case-edit-form\""));
@@ -462,8 +465,7 @@ public sealed class CaseEditModeWebTests
         using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(DetailsModelOperationKey, "Correct recorded settlement",
                 (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess), "0"),
-                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.StatementOfTruth),
-                    "I confirm this report is true")));
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.RateCard), "standard")));
         AssertPrg(response, store.CaseId);
         Assert.Empty(store.Saves);
         Assert.Contains("Excess", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);

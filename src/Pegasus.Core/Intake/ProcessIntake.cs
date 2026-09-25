@@ -206,7 +206,6 @@ public sealed class ProcessIntake(
         var assessment = await AssessAsync(
             readResult,
             safeSource.SourceIdentity,
-            processedAtUtc,
             safeSource.ReceivedAtUtc,
             cancellationToken);
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
@@ -768,7 +767,6 @@ public sealed class ProcessIntake(
     private async Task<IntakeAssessment> AssessAsync(
         IntakeSourceReadResult readResult,
         IntakeSourceIdentity sourceIdentity,
-        DateTimeOffset processedAtUtc,
         DateTimeOffset receivedAtUtc,
         CancellationToken cancellationToken)
     {
@@ -871,7 +869,6 @@ public sealed class ProcessIntake(
             return DeclaredAssessment(
                 binding,
                 readerEvidence,
-                processedAtUtc,
                 providerMatchDecision);
         }
 
@@ -1031,7 +1028,7 @@ public sealed class ProcessIntake(
 
         var policyResult = extractionPolicy.Extract(
             instructionRead,
-            new(processedAtUtc, receivedAtUtc),
+            new(receivedAtUtc),
             principalContext);
         EnsureConsistentPolicyResult(policyResult, principalContext);
         var (decision, reason, failureCode, failureReason) = policyResult.Applicability switch
@@ -1249,15 +1246,11 @@ public sealed class ProcessIntake(
     private static IntakeAssessment DeclaredAssessment(
         ProviderSubmissionBinding binding,
         IReadOnlyList<IntakeEvidence> readerEvidence,
-        DateTimeOffset processedAtUtc,
         CaseMatchEvaluationResult? caseMatchDecision)
     {
         var instruction = binding.Instruction;
         var isTriage = instruction.Kind == ProviderInstructionKind.Triage;
-        var draft = ProviderInstructionPolicy.ToDraft(
-            instruction,
-            binding.PrincipalCode,
-            LondonCalendar.DateAt(processedAtUtc));
+        var draft = ProviderInstructionPolicy.ToDraft(instruction, binding.PrincipalCode);
         var fields = ProviderInstructionPolicy.ReviewFields(draft);
         var missingFields = InstructionDraftCompleteness.MissingFieldNames(draft);
         IntakeEvidence[] evidence = isTriage

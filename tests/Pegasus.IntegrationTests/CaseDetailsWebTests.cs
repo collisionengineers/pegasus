@@ -352,7 +352,6 @@ public sealed class CaseDetailsWebTests
             "contactName",
             "contactEmailAddress",
             "contactPhoneNumber",
-            "instructionDate",
             "vatStatus",
             "inspectionDate",
             "inspectionDeadline",
@@ -363,6 +362,7 @@ public sealed class CaseDetailsWebTests
         {
             Assert.Equal(1, Occurrences(html, $"name=\"{field}\""));
         }
+        Assert.Equal(0, Occurrences(html, "name=\"instructionDate\""));
         Assert.Contains(
             "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\">",
             html,

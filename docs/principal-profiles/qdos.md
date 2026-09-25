@@ -150,7 +150,7 @@ Owner: `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`
 Owners: `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` (the
 provider-neutral `InstructionFieldEngine`) and
 `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs`
-(the QDOS grammar, `Version 10`). The engine carries no QDOS knowledge; every
+(the QDOS grammar, `Version 11`). The engine carries no QDOS knowledge; every
 QDOS-specific label, guard, and synthesis rule is supplied by the policy.
 
 Mechanics (engine):
@@ -209,6 +209,11 @@ QDOS grammar (policy):
 - **Inspection date**: when the letter states no inspection date, the draft
   defaults it to the Europe/London calendar date the instruction was received.
   This SystemDefault candidate records `inspection-date-defaulted` evidence.
+- **Letter date**: the letter's own `Date:`, `Instruction Date:` or
+  `Date of Instruction:` row is a label boundary only. It still ends the value
+  before it on a flattened row and is skipped inside a party block, but it
+  never becomes a field: the Case's Received date is its instruction date
+  ([FRD-23](../frd/frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
 
 Corpus tests: `tests/Pegasus.IntegrationTests/QdosMappingExtractionTests.cs`
 (per-file expectation table over the real local corpus, skip-if-absent —

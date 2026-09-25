@@ -16,6 +16,10 @@ _Avoid_: Client, Work Provider, sender
 Collision Engineers’ immutable internal reference, allocated from the accepted Principal’s sequence to a Case: no prefix for an Inspection or Inspection + Audit Case (`QDOS26001`), `a.` for a standalone Audit (`a.QDOS26002`) and `t.` for a Triage (`t.QDOS26003`). The Audit reference of an Inspection + Audit Case (`a.QDOS26001`) names its Audit report; it is not a Case/PO and consumes no number.
 _Avoid_: Claim number, external reference
 
+**Received date**:
+The Europe/London date a Case was received: its instruction's receipt, or its creation when staff create it directly. It is the Case's only instruction date: EVA's `Instruction Date` and the date the report says instructions were received ([FRD-23](docs/frd/frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
+_Avoid_: Instruction date (as a separate fact), processed date
+
 **Image intake**:
 A durable Image-initiated Case projection for image-only material with a usable normalised VRM. It carries an Image Intake Reference, may merge into one eligible instructed Case, and otherwise awaits definitive instruction or is staff-closed with a reason; it never becomes a formal Case/PO.
 _Avoid_: Image Case, temporary Case

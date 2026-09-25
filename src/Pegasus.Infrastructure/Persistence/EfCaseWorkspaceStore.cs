@@ -109,6 +109,7 @@ public sealed class EfCaseWorkspaceStore(
                 snapshot.Work.Case.AcceptedInspectionDeadline)
         };
         var beforeReportData = EffectiveReportData(snapshot.Fields);
+        var registrationBefore = CaseDataFieldWriter.Registration(snapshot);
         var beforeMileageField = CaseDataFieldValues.CurrentField(
             snapshot.Fields,
             CaseDataFieldNames.VehicleMileage);
@@ -155,6 +156,9 @@ public sealed class EfCaseWorkspaceStore(
             .ToListAsync(cancellationToken);
         var beforeAssessment = assessmentFields.ToDictionary(
             item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
+        var removedLookupFacts = await CaseDataFieldWriter.RemoveLookupFactsOnRegistrationChangeAsync(
+            context, snapshot, registrationBefore, cancellationToken);
+        assessmentFields.RemoveAll(item => removedLookupFacts.Contains(item));
         var requestedFields = CaseWorkspacePolicy.AssessmentFields(request);
         var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields, request.Actor.Kind);
         AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);

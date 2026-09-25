@@ -331,12 +331,15 @@ public sealed class AutomationAssessmentIngressTests
         var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 50);
 
         // An automation value stays unconfirmed until staff save its Case
-        // section, so a path no section edits, a professional finding, a
-        // case-owned fact and a retired path are each refused, naming the field.
+        // section, so a fact the vehicle lookup records, a professional
+        // finding, a case-owned fact and the retired paths (the statement of
+        // truth is the report contract's wording) are each refused, naming
+        // the field. A path no section edits, the Engineer signature, is
+        // refused in the test above.
         var refusals = new (string Path, string Value, string Refusal)[]
         {
-            (AssessmentVocabulary.VehicleFuel, "Petrol", "no staff editor on the Case"),
-            (AssessmentVocabulary.StatementOfTruth, "I believe the facts stated are true.", "no staff editor on the Case"),
+            (AssessmentVocabulary.VehicleFuel, "Petrol", "filled by the DVLA/DVSA vehicle lookup"),
+            ("statement_of_truth", "I believe the facts stated are true.", "not part of the assessment vocabulary"),
             (AssessmentVocabulary.ValueTrade, "9000", "is a professional finding"),
             ("incident.assessed", "2031-05-06", "case-detail edit path"),
             ("costs.repairer_vat_registered", "true", "not part of the assessment vocabulary")
