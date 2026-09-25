@@ -1,0 +1,474 @@
+@*
+    The review of a stored upload (v30 Upload E, "Inspection studio"): the
+    files on the left, inspected one at a time, and the upload's one decision
+    on the right. Both status pages render this partial from a
+    UploadReviewView; the forms post to the hosting page's own handler, so the
+    server contract (operation id, reviewed versions, chosen Case) is the
+    hosting page's and this partial only draws it.
+
+    Model: Pegasus.Web.Presentation.UploadReviewView
+*@
+@model Pegasus.Web.Presentation.UploadReviewView
+@using Pegasus.Web.Presentation
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload
+@{
+    var files = Model.Files;
+    var inspected = files.Count > 0 ? files[Model.Inspected] : null;
+    var anyUnreadable = files.Any(file => file.CouldNotBeRead);
+    var listOpen = anyUnreadable || files.Any(file => file.Action is not null);
+    var filesJson = System.Text.Json.JsonSerializer.Serialize(files.Select(file => new
+    {
+        name = file.Name,
+        size = file.Size,
+        kind = file.Kind,
+        image = file.ImageUrl,
+        original = file.OriginalUrl,
+        unreadable = file.CouldNotBeRead
+    }));
+    var single = Model.SingleReceiptId is not null;
+    var target = Model.Confirmation?.Target;
+    var operationId = Model.Confirmation?.OperationId ?? Model.OperationId;
+    var mixedNote = Model.CouldNotBeReadCount > 0 ? Labels.CouldNotBeReadNote(Model.CouldNotBeReadCount) : null;
+}
+
+<header class="page-header up-head">
+    <div class="page-title">
+        <h1>@Labels.Title</h1>
+        <p class="up-subtitle">@Labels.ReviewSubtitle</p>
+    </div>
+    <div class="page-actions">
+        <span class="up-meta">@Labels.ReceivedAt(Model.ReceivedAtUtc, Model.NowUtc)</span>
+        @if (Model.Phase != UploadReviewPhase.Pending)
+        {
+            <a class="btn" asp-page="/Upload">
+                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                <span>@Labels.NewUpload</span>
+            </a>
+        }
+    </div>
+</header>
+
+<div class="up-surface" data-upload-review data-auto-refresh="@Model.AutoRefreshMilliseconds">
+    <div class="up-workspace">
+        <section class="up-decision" aria-labelledby="up-decision-title" data-upload-phase="@Model.Phase.ToString().ToLowerInvariant()">
+            @if (Model.Error is { } error)
+            {
+                <div class="up-alert up-alert--error" role="alert" tabindex="-1" data-upload-error>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                    <div><strong>@error</strong></div>
+                </div>
+            }
+            @if (Model.IsDuplicate)
+            {
+                <div class="up-alert" role="status">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                    <div><strong>@Labels.AlreadyReceived</strong></div>
+                </div>
+            }
+            @switch (Model.Phase)
+            {
+                case UploadReviewPhase.Pending:
+                    <div class="up-decision-head">
+                        <p class="up-eyebrow">@Labels.PendingEyebrow</p>
+                        <h2 id="up-decision-title">@Labels.PendingTitle</h2>
+                        <div class="up-progress" role="progressbar" aria-label="@Labels.PendingTitle"></div>
+                        <p class="up-explainer">@Labels.PendingSentence(files.Count)</p>
+                        <div class="up-action-slot">
+                            <partial name="Shared/_RefreshButton" />
+                        </div>
+                    </div>
+                    break;
+                case UploadReviewPhase.Attached:
+                    <div class="up-decision-head">
+                        <div class="up-result-mark"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg></div>
+                        <p class="up-eyebrow">@Labels.CompleteEyebrow</p>
+                        <h2 id="up-decision-title">@Labels.AttachedTitle</h2>
+                        <p class="up-explainer">@Labels.AttachedSentence(files.Count)</p>
+                        @if (Model.Destination is { } destination)
+                        {
+                            <div class="up-final-destination" data-upload-destination>
+                                <strong class="mono">@destination.Reference</strong>
+                                @{
+                                    var person = new[] { destination.Registration, destination.Claimant }.Where(part => !string.IsNullOrWhiteSpace(part));
+                                }
+                                @if (person.Any())
+                                {
+                                    <p>@string.Join(" · ", person)</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(destination.Principal))
+                                {
+                                    <p>@destination.Principal</p>
+                                }
+                                @if (destination.Stage is { } stage)
+                                {
+                                    <partial name="Shared/_StatusChip" model="@stage" />
+                                }
+                            </div>
+                            <a class="btn btn--primary" href="@destination.Url">@Labels.OpenCase(destination.Reference)</a>
+                        }
+                    </div>
+                    break;
+                case UploadReviewPhase.Discarded:
+                    <div class="up-decision-head">
+                        <div class="up-result-mark is-neutral"><svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg></div>
+                        <p class="up-eyebrow">@Labels.ClosedEyebrow</p>
+                        <h2 id="up-decision-title">@Labels.DiscardedTitle</h2>
+                        <p class="up-explainer">@Labels.DiscardedSentence</p>
+                        <a class="btn btn--primary" asp-page="/Upload">@Labels.StartAnother</a>
+                    </div>
+                    break;
+                case UploadReviewPhase.Report when Model.Report is { } report:
+                    <div class="up-decision-head">
+                        <p class="up-eyebrow">@report.Eyebrow</p>
+                        <h2 id="up-decision-title">@report.Title</h2>
+                        @if (report.Sentence is { } sentence)
+                        {
+                            <p class="up-explainer">@sentence</p>
+                        }
+                        @if (report.Action is not null || report.OfferRefresh)
+                        {
+                            <div class="up-action-slot">
+                                @if (report.Action is { } action)
+                                {
+                                    <a class="btn btn--primary" href="@action.Url">@action.Label</a>
+                                }
+                                @if (report.OfferRefresh)
+                                {
+                                    <partial name="Shared/_RefreshButton" />
+                                }
+                            </div>
+                        }
+                    </div>
+                    @if (Model.Record is not null || Model.OffersLeave)
+                    {
+                        <div class="up-side-actions">
+                            @if (Model.Record is { } reportRecord)
+                            {
+                                <partial name="Shared/_UploadReviewRecord" model="@reportRecord" />
+                            }
+                            @if (Model.OffersLeave)
+                            {
+                                <partial name="Shared/_UploadReviewLeave" model="@Model" />
+                            }
+                        </div>
+                    }
+                    break;
+                case UploadReviewPhase.Decision:
+                    var hasCandidates = Model.Candidates.Count > 0;
+                    <div class="up-decision-head">
+                        <p class="up-eyebrow">@(hasCandidates ? Labels.ChooseEyebrow : Labels.NoMatchEyebrow)</p>
+                        <h2 id="up-decision-title">@(hasCandidates ? Labels.ChooseTitle : Labels.NoMatchTitle)</h2>
+                        <p class="up-explainer">@(hasCandidates ? Labels.CandidatesSentence(Model.Candidates.Count, Model.Registration) : Labels.NoMatchSentence)</p>
+                    </div>
+                    <div class="up-choice">
+                        @if (Model.CouldNotBeReadCount > 0)
+                        {
+                            <div class="up-alert" role="status" data-could-not-be-read-count>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                                <div><strong>@Labels.CouldNotBeReadTitle(Model.CouldNotBeReadCount)</strong><p>@Labels.CouldNotBeReadSentence(files.Count)</p></div>
+                            </div>
+                        }
+                        @* One decision for the whole upload. The chosen Case travels as
+                           the radio's value; the reviewed Case version is filled in by
+                           the review dialog (script) or by the server's confirmation
+                           step (no script). Nothing is written until the rendered
+                           decision is posted. *@
+                        <form method="post" asp-page-handler="@Model.AttachHandler" id="upload-decision-form" class="up-decision-form" data-upload-decision>
+                            <input type="hidden" name="operationId" value="@operationId" />
+                            @if (single)
+                            {
+                                <input type="hidden" name="receiptId" value="@Model.SingleReceiptId" />
+                                <input type="hidden" name="receiptVersion" value="@Model.ReceiptVersions.Values.FirstOrDefault()" />
+                            }
+                            else
+                            {
+                                foreach (var member in Model.ReceiptVersions)
+                                {
+                                    <input type="hidden" name="receiptVersions[@member.Key]" value="@member.Value" />
+                                }
+                            }
+                            @if (hasCandidates)
+                            {
+                                <div class="up-candidates">
+                                    @foreach (var candidate in Model.Candidates)
+                                    {
+                                        <partial name="Shared/_UploadReviewCandidate" model="@candidate" view-data='new ViewDataDictionary(ViewData) { ["Checked"] = target?.CaseId == candidate.CaseId }' />
+                                    }
+                                </div>
+                            }
+                            <div class="up-action-slot">
+                                <button type="submit" class="btn btn--primary up-review" data-upload-review-button>
+                                    <span>@Labels.Review</span>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                </button>
+                                @if (hasCandidates || Model.SearchResults.Count > 0)
+                                {
+                                    <p class="up-choice-hint">@Labels.SelectHint</p>
+                                }
+                            </div>
+                        </form>
+                        <details class="up-search" data-refresh-hold open="@Model.SearchOpen">
+                            <summary>@(hasCandidates ? Labels.FindAnotherCase : Labels.FindCase)<svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg></summary>
+                            <form class="up-search-form" method="get" action="@Model.PageUrl" role="search">
+                                @if (Model.IsDuplicate)
+                                {
+                                    <input type="hidden" name="duplicate" value="true" />
+                                }
+                                <label class="sr-only" for="up-case-query">@Labels.SearchLabel</label>
+                                <input id="up-case-query" type="search" name="q" value="@Model.SearchTerm" placeholder="@Labels.SearchPlaceholder" autocomplete="off" maxlength="80" data-upload-search />
+                                <button class="btn" type="submit">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                                    <span>@Labels.Search</span>
+                                </button>
+                            </form>
+                            <div class="up-search-results" aria-live="polite">
+                                @if (Model.SearchFailed)
+                                {
+                                    <div class="up-search-note" role="alert">
+                                        <strong>@Labels.SearchUnavailable</strong><br />@Labels.SearchUnavailableSentence<br />
+                                        <a class="btn" href="@Model.PageUrl?q=@Uri.EscapeDataString(Model.SearchTerm ?? string.Empty)">@Labels.RetrySearch</a>
+                                    </div>
+                                }
+                                else if (Model.SearchTerm is { } term)
+                                {
+                                    if (Model.SearchResults.Count == 0)
+                                    {
+                                        <p class="up-search-note">@Labels.NoSearchMatches(term)</p>
+                                    }
+                                    foreach (var candidate in Model.SearchResults)
+                                    {
+                                        <partial name="Shared/_UploadReviewCandidate" model="@candidate" view-data='new ViewDataDictionary(ViewData) { ["Checked"] = target?.CaseId == candidate.CaseId, ["Form"] = "upload-decision-form" }' />
+                                    }
+                                }
+                            </div>
+                        </details>
+                        @if (Model.Proposal is { } proposal)
+                        {
+                            <div class="up-search up-proposal">
+                                <a class="up-text-link" href="@proposal.Url">@proposal.Label<svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg></a>
+                                <p class="up-explainer">@Labels.ProposalSentence</p>
+                            </div>
+                        }
+                    </div>
+                    <div class="up-side-actions">
+                        @if (Model.Record is { } decisionRecord)
+                        {
+                            <partial name="Shared/_UploadReviewRecord" model="@decisionRecord" />
+                        }
+                        <partial name="Shared/_UploadReviewLeave" model="@Model" />
+                    </div>
+                    break;
+            }
+        </section>
+
+        <section class="up-inspector" aria-label="File inspection" data-upload-inspector data-files="@filesJson">
+            <header class="up-inspect-top">
+                <strong>@Labels.FilesInUpload</strong>
+                <span data-inspect-count>@Model.InspectedOfCount</span>
+            </header>
+            <div class="up-inspect-media">
+                <div class="up-inspect-photo" data-inspect-photo>
+                    @if (inspected?.ImageUrl is { } inspectedImage)
+                    {
+                        <img src="@inspectedImage" alt="" />
+                    }
+                    else
+                    {
+                        <span class="up-file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-@(inspected?.Kind.Contains("document", StringComparison.OrdinalIgnoreCase) == true ? "file-text" : "file")" /></svg></span>
+                    }
+                </div>
+            </div>
+            <div class="up-inspect-caption">
+                <span data-inspect-name title="@inspected?.Name">@inspected?.Name</span>
+                @if (inspected is { } && (inspected.ImageUrl ?? inspected.OriginalUrl) is { } openUrl)
+                {
+                    <a class="btn" href="@openUrl" target="_blank" rel="noopener" data-upload-preview data-inspect-open>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-zoom-in" /></svg>
+                        <span>@Labels.Open</span>
+                    </a>
+                }
+            </div>
+            <div class="up-filmstrip" aria-label="Choose a file to inspect">
+                @for (var index = 0; index < files.Count; index++)
+                {
+                    var file = files[index];
+                    <a class="up-film" href="@Model.PageUrl?inspect=@(index + 1)" data-upload-inspect="@index" aria-pressed="@(index == Model.Inspected ? "true" : "false")" aria-label="Inspect file @(index + 1): @file.Name">
+                        @if (file.ImageUrl is { } thumb)
+                        {
+                            <img src="@thumb" loading="lazy" alt="" />
+                        }
+                        else
+                        {
+                            <span class="up-file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-@(file.Kind.Contains("document", StringComparison.OrdinalIgnoreCase) ? "file-text" : "file")" /></svg></span>
+                        }
+                        <small>@(index + 1)@(file.CouldNotBeRead ? " · Unreadable" : null)</small>
+                    </a>
+                }
+            </div>
+            <details class="up-files" open="@listOpen">
+                <summary>@Labels.NamesAndOutcomes · @Model.FileCount</summary>
+                <ul class="up-file-list">
+                    @for (var index = 0; index < files.Count; index++)
+                    {
+                        var file = files[index];
+                        var fileUrl = file.ImageUrl ?? file.OriginalUrl;
+                        <li class="up-file @(file.CouldNotBeRead ? "up-file-error" : null)" data-upload-file="@file.StagedReceiptId" @(file.CouldNotBeRead ? Html.Raw("data-member-could-not-be-read") : null)>
+                            <span class="up-thumb">
+                                @if (file.ImageUrl is { } thumb)
+                                {
+                                    <img src="@thumb" loading="lazy" alt="" />
+                                }
+                                else
+                                {
+                                    <span class="up-file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg></span>
+                                }
+                            </span>
+                            <div class="up-file-name">
+                                @if (fileUrl is not null)
+                                {
+                                    <a href="@fileUrl" target="_blank" rel="noopener" title="@file.Name" data-upload-preview="@index">@file.Name</a>
+                                }
+                                else
+                                {
+                                    <span title="@file.Name">@file.Name</span>
+                                }
+                                <small>@string.Join(" · ", new[] { file.Size, file.Kind }.Where(part => part.Length > 0))</small>
+                            </div>
+                            <span class="up-file-state @file.StateTone" data-upload-file-state>
+                                @if (file.StateTone == "is-error")
+                                {
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                                }
+                                else if (file.StateTone == "is-done" || file.StateLabel == Labels.StateReady)
+                                {
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                                }
+                                @file.StateLabel
+                            </span>
+                            @if (file.Action is { } fileAction)
+                            {
+                                <a class="btn btn--small" href="@fileAction.Url">@fileAction.Label</a>
+                            }
+                        </li>
+                    }
+                </ul>
+            </details>
+        </section>
+    </div>
+</div>
+
+@if (Model.Phase == UploadReviewPhase.Decision)
+{
+    @* Review the exact destination before anything is written (FRD-18). With
+       script the dialog is filled from the chosen card; without it the server's
+       confirmation step renders it open with the re-read target. *@
+    <div id="upload-confirm" class="dialog-backdrop" data-dialog="upload-confirm" @(Model.Confirmation is null ? Html.Raw("hidden") : Html.Raw("data-dialog-open-on-load=\"true\""))>
+        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="upload-confirm-title">
+            <div class="dialog-head">
+                <h2 id="upload-confirm-title" tabindex="-1">@Labels.AddFilesTitle(files.Count)</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page-handler="@Model.AttachHandler" id="upload-confirm-form" class="dialog-body stack" data-upload-confirm>
+                <input type="hidden" name="operationId" value="@operationId" />
+                @if (single)
+                {
+                    <input type="hidden" name="receiptId" value="@Model.SingleReceiptId" />
+                    <input type="hidden" name="receiptVersion" value="@Model.ReceiptVersions.Values.FirstOrDefault()" />
+                }
+                else
+                {
+                    foreach (var member in Model.ReceiptVersions)
+                    {
+                        <input type="hidden" name="receiptVersions[@member.Key]" value="@member.Value" />
+                    }
+                }
+                <input type="hidden" name="caseId" value="@target?.CaseId" data-confirm-case />
+                <input type="hidden" name="caseVersion" value="@Model.Confirmation?.ExpectedCaseVersion" data-confirm-version />
+                <input type="hidden" name="reference" value="@target?.Reference" data-confirm-reference />
+                <p>@Labels.ConfirmSentence</p>
+                <div class="up-confirm-case">
+                    <strong class="mono" data-confirm-ref>@target?.Reference</strong>
+                    <dl>
+                        <dt>Registration</dt><dd class="mono" data-confirm-registration>@target?.Registration</dd>
+                        <dt>Claimant</dt><dd data-confirm-claimant>@target?.Claimant</dd>
+                        <dt>Principal</dt><dd data-confirm-principal>@target?.Principal</dd>
+                        <dt>Stage</dt><dd data-confirm-stage>@target?.Stage</dd>
+                    </dl>
+                </div>
+                <p>@Labels.OriginalFiles(files.Count)@(Model.TotalSize.Length > 0 ? " · " + Model.TotalSize : null)@if (mixedNote is not null) {<br />@mixedNote}</p>
+            </form>
+            <div class="dialog-foot">
+                <a class="btn" href="@Model.PageUrl" data-dialog-close data-dialog-initial-focus>@Labels.Cancel</a>
+                <button type="submit" form="upload-confirm-form" class="btn btn--primary" data-confirm-submit>@Labels.ConfirmAdd(target?.Reference ?? string.Empty)</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (Model.OffersDiscard)
+{
+    @* Discard is separate from the primary flow: a focused confirmation with
+       the acknowledgement that the source and processing record are retained. *@
+    <div id="upload-discard" class="dialog-backdrop" data-dialog="upload-discard" @(Model.OpenDiscard ? Html.Raw("data-dialog-open-on-load=\"true\"") : Html.Raw("hidden"))>
+        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="upload-discard-title">
+            <div class="dialog-head">
+                <h2 id="upload-discard-title" tabindex="-1">@Labels.DiscardTitle</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page-handler="DiscardGroup" id="upload-discard-form" class="dialog-body stack" data-upload-discard>
+                <input type="hidden" name="groupVersion" value="@Model.GroupVersion" />
+                <input type="hidden" name="operationId" value="@Guid.NewGuid()" />
+                @foreach (var member in Model.DiscardVersions)
+                {
+                    <input type="hidden" name="receiptVersions[@member.Key]" value="@member.Value" />
+                }
+                <p>@Labels.DiscardSentence(files.Count)</p>
+                <label class="up-confirm-check" for="upload-discard-check">
+                    @* The acknowledgement is checked by the script's own sentence in the
+                       dialog and by the server on the post; the browser's generic tooltip
+                       would speak over both. *@
+                    <input id="upload-discard-check" name="consequencesConfirmed" type="checkbox" value="true" data-dialog-initial-focus />
+                    <span>@Labels.DiscardAcknowledgement</span>
+                </label>
+                <p class="field-error" role="alert" hidden data-discard-error>@Labels.DiscardMissing</p>
+            </form>
+            <div class="dialog-foot">
+                <a class="btn" href="@Model.PageUrl" data-dialog-close>@Labels.Cancel</a>
+                <button type="submit" form="upload-discard-form" class="btn btn--danger">@Labels.Discard</button>
+            </div>
+        </section>
+    </div>
+}
+
+@* The file preview: filled by script from the roster above; without script
+   every file name and thumbnail opens the file itself. *@
+<div id="upload-preview" class="dialog-backdrop" data-dialog="upload-preview" hidden>
+    <section class="dialog dialog--wide up-preview" role="dialog" aria-modal="true" aria-labelledby="upload-preview-title">
+        <div class="dialog-head">
+            <h2 id="upload-preview-title" tabindex="-1" data-preview-title></h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <div class="dialog-body">
+            <div class="up-preview-image" data-preview-image></div>
+            <p class="up-preview-name" data-preview-name></p>
+            <p class="muted" data-preview-meta></p>
+        </div>
+        <div class="dialog-foot up-preview-foot">
+            <button type="button" class="btn" data-preview-previous data-dialog-initial-focus>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                <span>@Labels.Previous</span>
+            </button>
+            <a class="btn" href="#" target="_blank" rel="noopener" data-preview-original>@Labels.OpenOriginal</a>
+            <button type="button" class="btn" data-preview-next>
+                <span>@Labels.Next</span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+            </button>
+        </div>
+    </section>
+</div>

@@ -1,12 +1,18 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.ImageIntake;
-using Pegasus.Core.Intake;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
+using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload;
 
 namespace Pegasus.Web.Pages;
 
+/// <summary>
+/// A stored upload of several files (v30 Upload E): the files inspected one
+/// at a time on the left, the upload's one decision on the right. One
+/// submission, one decision — never per file.
+/// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class UploadGroupStatusModel(
@@ -15,14 +21,14 @@ public sealed class UploadGroupStatusModel(
     IUploadOutcomeQueries outcomeQueries,
     IUploadCaseDecision caseDecision,
     IGetIntake intake,
+    ISearchCases searchCases,
     IDiscardIntakeSubmissionGroup discardSubmission,
-    IRegisterImageIntake registerImageIntake,
-    IImageIntakeOriginResolver imageIntakeOriginResolver,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
 {
     private readonly IUploadCaseDecision _caseDecision = caseDecision;
 
     public IntakeSubmissionGroup Group { get; private set; } = null!;
+
     public IReadOnlyDictionary<Guid, QueuedIntakeStatus?> Statuses { get; private set; } =
         new Dictionary<Guid, QueuedIntakeStatus?>();
 
@@ -35,12 +41,15 @@ public sealed class UploadGroupStatusModel(
     public IReadOnlyDictionary<Guid, UploadOutcomeView?> Outcomes { get; private set; } =
         new Dictionary<Guid, UploadOutcomeView?>();
 
+    /// <summary>Each member's receipt (staged or processed), for its size, kind and image.</summary>
+    public IReadOnlyDictionary<Guid, IntakeReceipt?> Receipts { get; private set; } =
+        new Dictionary<Guid, IntakeReceipt?>();
+
     /// <summary>
     /// Set only when every member's outcome is the same Image-initiated Case
     /// registration. The group is the registration unit (one reference for
     /// the whole submission), so the page reports that registration once for
-    /// the group instead of repeating the identical outcome per file. Any
-    /// other mix of outcomes keeps the per-file report.
+    /// the group instead of repeating the identical outcome per file.
     /// </summary>
     public UploadOutcomeView? GroupRegistrationOutcome { get; private set; }
 
@@ -115,13 +124,11 @@ public sealed class UploadGroupStatusModel(
     /// </summary>
     public long? GroupConfirmationCaseVersion { get; private set; }
 
-    public bool OfferGroupRegistration { get; private set; }
-
     /// <summary>
     /// The one decision for the upload (Upload planning, 13 September): attached to a
     /// Case, registered as vehicle images, or Unidentified. Null while any member is
     /// still moving or the members do not share one destination (the open decision
-    /// card then owns the choice).
+    /// then owns the choice).
     /// </summary>
     public sealed record SubmissionDecision(string Label, string Tone, string Message, UploadOutcomeAction? Action);
 
@@ -132,6 +139,9 @@ public sealed class UploadGroupStatusModel(
 
     /// <summary>Every member could not be read, so the group is one Unidentified item.</summary>
     public bool NoMemberCouldBeRead => Group.Members.Count > 0 && Group.Members.All(member => member.CouldNotBeRead == true);
+
+    /// <summary>What the page draws.</summary>
+    public UploadReviewView Review { get; private set; } = null!;
 
     private static SubmissionDecision? DecideSubmission(UploadOutcomeView?[] outcomes)
     {
@@ -160,7 +170,6 @@ public sealed class UploadGroupStatusModel(
         };
     }
 
-    private Guid _firstOpenImageReceiptId;
     private bool _groupReadyForAttachment;
 
     // This surface owns the group-only handler below. Refusing the inherited
@@ -171,89 +180,30 @@ public sealed class UploadGroupStatusModel(
         Guid receiptId,
         CancellationToken cancellationToken) => Task.FromResult(false);
 
-    protected override async Task<IReadOnlyList<Guid>> SearchReceiptIdsAsync(
-        Guid surfaceId,
-        CancellationToken cancellationToken)
-    {
-        // The search endpoint is invoked independently of the page GET.
-        // Rebuild the same open decision roster, rather than sending every
-        // historical group member to the destination policy (settled members
-        // are correctly no longer viable and would otherwise empty the
-        // intersection for the whole submission).
-        if (await LoadAsync(surfaceId, cancellationToken) is not null)
-        {
-            return [];
-        }
-        return OpenGroupDecision ? OpenMemberReceiptIds : [];
-    }
+    protected override IReadOnlyList<Guid> SearchReceiptIds => OpenGroupDecision ? OpenMemberReceiptIds : [];
 
-    public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken) =>
-        await LoadAsync(id, cancellationToken) ?? Page();
-
-    public async Task<IActionResult> OnPostRegisterGroupAsync(
+    /// <param name="q">The Find term.</param>
+    /// <param name="inspect">The file inspected on the left, one-based; the first when absent.</param>
+    /// <param name="discard">Opens the discard confirmation, for a browser without script.</param>
+    public async Task<IActionResult> OnGetAsync(
         Guid id,
-        string? vehicleRegistration,
-        string? reason,
+        string? q,
+        int? inspect,
+        bool discard,
         CancellationToken cancellationToken)
     {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
         if (await LoadAsync(id, cancellationToken) is { } notFound)
         {
             return notFound;
         }
-        if (!OpenGroupDecision || !OfferGroupRegistration)
+
+        if (TryGetActor(out var actor))
         {
-            return RedirectToSurface(id);
+            await SearchAsync(q, actor, cancellationToken);
         }
 
-        var normalized = ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration);
-        if (normalized.Length == 0 || string.IsNullOrWhiteSpace(reason))
-        {
-            TempData["UploadConfirmationError"] = "A registration and a reason are required.";
-            return RedirectToSurface(id);
-        }
-
-        try
-        {
-            var origin = await imageIntakeOriginResolver.ResolveOriginAsync(
-                _firstOpenImageReceiptId, cancellationToken);
-            if (origin is null)
-            {
-                TempData["UploadConfirmationError"] = "This submission is still being processed. Try again shortly.";
-                return RedirectToSurface(id);
-            }
-
-            // The automation's own replay identity for this group, so exactly
-            // one registration can ever exist for the submission whether the
-            // pipeline or a staff decision made it.
-            var record = await registerImageIntake.ExecuteAsync(
-                new(
-                    origin,
-                    normalized,
-                    actor,
-                    $"image-intake-register:group:{id:N}",
-                    reason,
-                    id),
-                cancellationToken);
-            TempData["Confirmation"] = $"Registered as vehicle-image case {record.ImageIntakeReference}.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (ArgumentException)
-        {
-            TempData["UploadConfirmationError"] = "The registration must be letters and digits only.";
-        }
-        catch (InvalidOperationException)
-        {
-            TempData["UploadConfirmationError"] = "The submission could not be registered. Refresh and try again.";
-        }
-
-        return RedirectToSurface(id);
+        await BuildReviewAsync(id, inspect, discard, cancellationToken);
+        return Page();
     }
 
     public async Task<IActionResult> OnPostAttachGroupAsync(
@@ -285,11 +235,17 @@ public sealed class UploadGroupStatusModel(
                 return await RenderSurfaceAsync(id, cancellationToken);
             }
 
-            if (caseId is null)
+            // A chosen or typed Case takes the rendered confirmation step
+            // before any write: the dialog repeats the exact target and binds
+            // every member's reviewed receipt version and the Case version.
+            if (caseId is null || caseVersion is null)
             {
                 var firstReceiptId = roster[0];
-                var confirmation = await _caseDecision.PrepareAsync(
-                    firstReceiptId, reference, operationId, receiptVersions[firstReceiptId], actor, cancellationToken);
+                var confirmation = caseId is { } chosen
+                    ? await _caseDecision.PrepareByCaseAsync(
+                        firstReceiptId, chosen, operationId, receiptVersions[firstReceiptId], actor, cancellationToken)
+                    : await _caseDecision.PrepareAsync(
+                        firstReceiptId, reference, operationId, receiptVersions[firstReceiptId], actor, cancellationToken);
                 if (confirmation is null
                     || !(await _caseDecision.SearchForUploadsAsync(
                         roster, confirmation.Reference, actor, cancellationToken))
@@ -356,8 +312,7 @@ public sealed class UploadGroupStatusModel(
         }
         if (!consequencesConfirmed)
         {
-            TempData["UploadConfirmationError"] =
-                "Confirm that the retained source and processing record will remain before discarding this submission.";
+            TempData["UploadConfirmationError"] = Labels.DiscardMissing;
             return RedirectToSurface(id);
         }
         if (!CanDiscard || groupVersion is null || receiptVersions is null
@@ -387,7 +342,6 @@ public sealed class UploadGroupStatusModel(
             return Forbid();
         }
 
-
         return RedirectToSurface(id);
     }
 
@@ -402,27 +356,35 @@ public sealed class UploadGroupStatusModel(
         Group = group;
         var haveActor = TryGetActor(out var actor);
 
-        // Each member's status read, and — once terminal — its confirmation
-        // outcome, is an independent read against its own DbContext (every
-        // store behind these ports is IDbContextFactory-backed, not shared),
-        // so a group's members are read concurrently rather than one durable
-        // round-trip at a time. This page polls itself while a queue member or
-        // its later group-level outcome is still working, so the saving is real.
+        // Each member's status read, its receipt and — once terminal — its
+        // confirmation outcome are independent reads against their own
+        // DbContext (every store behind these ports is IDbContextFactory-backed,
+        // not shared), so a group's members are read concurrently rather than
+        // one durable round-trip at a time. This page polls itself while a
+        // queue member or its later group-level outcome is still working, so
+        // the saving is real.
         var memberResults = await Task.WhenAll(group.Members.Select(async member =>
         {
             var status = await statuses.GetAsync(member.StagedReceiptId, cancellationToken);
             UploadOutcomeView? outcome = null;
-            if (status is { Status: QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed }
-                && haveActor)
+            IntakeReceipt? receipt = null;
+            if (haveActor)
             {
-                outcome = await outcomeQueries.BuildAsync(status, group.Id, actor!, cancellationToken);
+                if (status is { Status: QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed })
+                {
+                    outcome = await outcomeQueries.BuildAsync(status, group.Id, actor!, cancellationToken);
+                }
+
+                receipt = await intake.ExecuteAsync(
+                    new(status?.ProcessedReceiptId ?? member.StagedReceiptId, actor!), cancellationToken);
             }
 
-            return (member.StagedReceiptId, status, outcome);
+            return (member.StagedReceiptId, status, outcome, receipt);
         }));
 
         Statuses = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.status);
         Outcomes = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.outcome);
+        Receipts = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.receipt);
         var outcomes = memberResults.Select(result => result.outcome).ToArray();
         Decision = DecideSubmission(outcomes);
         if (outcomes.Length > 1
@@ -466,19 +428,14 @@ public sealed class UploadGroupStatusModel(
         if (haveActor && group.Discard is null && group.Channel == IntakeSourceChannel.ManualUpload
             && group.Members.Count == group.ExpectedMemberCount
             && memberResults.All(result => result.status is { Status: QueuedIntakeStatusKind.Complete,
-                ProcessedReceiptId: not null }))
+                ProcessedReceiptId: not null } && result.receipt is not null))
         {
-            var receipts = await Task.WhenAll(memberResults.Select(async result =>
-            {
-                var receiptId = result.status!.ProcessedReceiptId!.Value;
-                return await intake.ExecuteAsync(new(receiptId, actor!), cancellationToken);
-            }));
-            if (receipts.All(receipt => receipt is not null)
-                && receipts.Select(receipt => receipt!.Id).Distinct().Count() == group.Members.Count)
+            var receipts = memberResults.Select(result => result.receipt!).ToArray();
+            if (receipts.Select(receipt => receipt.Id).Distinct().Count() == group.Members.Count)
             {
                 GroupMemberReceiptVersions = receipts.ToDictionary(
-                    receipt => receipt!.Id,
-                    receipt => receipt!.Version);
+                    receipt => receipt.Id,
+                    receipt => receipt.Version);
                 CanDiscard = GroupMemberReceiptVersions.Count == group.Members.Count;
             }
         }
@@ -487,13 +444,143 @@ public sealed class UploadGroupStatusModel(
             GroupSuggestedDestinations = await _caseDecision.GetSuggestionsForUploadsAsync(
                 OpenMemberReceiptIds, actor!, cancellationToken);
         }
-        var firstOpenImage = open.FirstOrDefault(result => result.outcome!.ThumbnailReceiptId is not null);
-        OfferGroupRegistration = OpenGroupDecision
-            && GroupRegistrationOutcome is null
-            && firstOpenImage.outcome is not null;
-        _firstOpenImageReceiptId = firstOpenImage.outcome?.ThumbnailReceiptId ?? Guid.Empty;
 
         return null;
+    }
+
+    private async Task BuildReviewAsync(Guid id, int? inspect, bool discard, CancellationToken cancellationToken)
+    {
+        var haveActor = TryGetActor(out var actor);
+        var files = Group.Members
+            .OrderBy(member => member.Ordinal)
+            .Select(member => ReviewFile(member))
+            .ToArray();
+        var phase = UploadReviewPhase.Report;
+        UploadReviewReport? report = null;
+        UploadReviewDestination? destination = null;
+        var record = GroupRegistrationOutcome?.Record
+            ?? Outcomes.Values.Select(outcome => outcome?.Record).FirstOrDefault(item => item is not null);
+        if (Group.Discard is not null)
+        {
+            phase = UploadReviewPhase.Discarded;
+        }
+        else if (RefreshAutomatically)
+        {
+            phase = UploadReviewPhase.Pending;
+        }
+        else if (Group.Members.Count != Group.ExpectedMemberCount || Statuses.Values.Any(status => status is null))
+        {
+            report = new(Labels.ReviewRequiredEyebrow, Labels.IncompleteTitle, Labels.IncompleteSentence, null, OfferRefresh: true);
+        }
+        else if (OpenGroupDecision)
+        {
+            phase = UploadReviewPhase.Decision;
+        }
+        else if (Decision is { Label: var label } decided)
+        {
+            if (label == OperatorLabels.UploadDecision.Attached)
+            {
+                phase = UploadReviewPhase.Attached;
+                var reference = Receipts.Values.Select(receipt => receipt?.CurrentCaseReference).FirstOrDefault(value => value is not null);
+                destination = haveActor
+                    ? await UploadReviewDestinations.LookupAsync(searchCases, actor!, reference, decided.Action?.Url, cancellationToken)
+                    : null;
+            }
+            else if (label == OperatorLabels.UploadDecision.VehicleImages)
+            {
+                report = new(Labels.CompleteEyebrow, $"Registered as {Labels.ImageIntake}", record is null ? decided.Message : $"{Labels.RegisteredAutomatically} · {record.State}", decided.Action);
+            }
+            else
+            {
+                var first = Outcomes.Values.First(outcome => outcome is not null)!;
+                var unidentified = decided.Action is { } action && action.Url.Contains("/Unidentified/", StringComparison.Ordinal)
+                    ? action with { Label = Labels.OpenUnidentified }
+                    : decided.Action;
+                report = NoMemberCouldBeRead
+                    ? new(Labels.ReviewRequiredEyebrow, Labels.UnreadableTitle, Labels.UnreadableSentence, unidentified)
+                    : new(first.Kind == UploadOutcomeKind.Resolved ? Labels.CompleteEyebrow : Labels.ReviewRequiredEyebrow, first.StateLabel, first.Message, unidentified);
+            }
+        }
+        else if (Statuses.Values.All(status => status is { Status: QueuedIntakeStatusKind.Failed }))
+        {
+            var reason = Outcomes.Values.Select(outcome => outcome?.Message).FirstOrDefault(message => message is not null)
+                ?? OperatorLabels.IntakeFailure(Statuses.Values.First()!.FailureCode);
+            report = new(Labels.ReviewRequiredEyebrow, "The files could not be processed", reason, null);
+        }
+        else
+        {
+            report = new(Labels.ReviewRequiredEyebrow, Labels.MixedOutcomesTitle, Labels.MixedOutcomesSentence, null);
+            files = files.Select(file => file with
+            {
+                Action = Outcomes.GetValueOrDefault(file.StagedReceiptId)?.PrimaryAction
+            }).ToArray();
+        }
+
+        var receiptVersions = GroupConfirmationReceiptVersions ?? OpenMemberReceiptVersions;
+        var known = GroupSuggestedDestinations.Concat(SearchResults);
+        var proposal = OpenGroupDecision
+            ? Outcomes.Values.FirstOrDefault(outcome => outcome is { Kind: UploadOutcomeKind.ReadyToCreate, PrimaryAction: not null })?.PrimaryAction
+            : null;
+        Review = new UploadReviewView(
+            phase,
+            Group.ReceivedAtUtc,
+            files,
+            Math.Clamp((inspect ?? 1) - 1, 0, Math.Max(0, files.Length - 1)),
+            $"/Upload/Group/{id:D}",
+            "AttachGroup",
+            UploadCaseConfirmation?.Input.OperationId ?? UploadCaseDraft?.OperationId ?? Guid.NewGuid(),
+            receiptVersions)
+        {
+            NowUtc = timeProvider.GetUtcNow(),
+            AutoRefreshMilliseconds = AutomaticRefreshMilliseconds,
+            Error = TempData["UploadConfirmationError"] as string,
+            Candidates = GroupSuggestedDestinations.Select(UploadReviewCandidate.From).ToArray(),
+            SearchResults = SearchResults.Select(UploadReviewCandidate.From).ToArray(),
+            SearchTerm = SearchTerm,
+            SearchFailed = SearchFailed,
+            Record = record is null ? null : new UploadReviewRecord(record.Reference, $"{Labels.RegisteredAutomatically} · {record.State}", record.Url),
+            Proposal = proposal is null ? null : proposal with { Label = Labels.Proposal },
+            Destination = destination,
+            Report = report,
+            Confirmation = ReviewConfirmation(UploadCaseConfirmation, known),
+            CouldNotBeReadCount = CouldNotBeReadCount,
+            CanDiscard = CanDiscard,
+            GroupVersion = Group.Version,
+            DiscardVersions = GroupMemberReceiptVersions,
+            OpenDiscard = discard && CanDiscard
+        };
+    }
+
+    private UploadReviewFile ReviewFile(IntakeSubmissionGroupMember member)
+    {
+        var status = Statuses.GetValueOrDefault(member.StagedReceiptId);
+        var outcome = Outcomes.GetValueOrDefault(member.StagedReceiptId);
+        var receipt = Receipts.GetValueOrDefault(member.StagedReceiptId);
+        var unreadable = member.CouldNotBeRead == true;
+        var (label, tone) = (Group.Discard, status?.Status, outcome?.Kind) switch
+        {
+            (not null, _, _) => (Labels.StateDiscarded, string.Empty),
+            (_, null or QueuedIntakeStatusKind.Received, _) => (Labels.StateReceived, "is-running"),
+            (_, QueuedIntakeStatusKind.Processing, _) => (Labels.StateProcessing, "is-running"),
+            (_, QueuedIntakeStatusKind.Failed, _) => (Labels.StateFailed, "is-error"),
+            (_, _, UploadOutcomeKind.Working) => (Labels.StateProcessing, "is-running"),
+            (_, _, UploadOutcomeKind.Attached) => (unreadable ? Labels.StateAddedUnreadable : Labels.StateAdded, "is-done"),
+            _ when unreadable => (Labels.StateCouldNotBeRead, "is-error"),
+            _ => (Labels.StateReady, string.Empty)
+        };
+        var imageReceiptId = outcome?.ThumbnailReceiptId
+            ?? (receipt is { MediaType: var mediaType } && mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ? receipt.Id : null);
+        return new UploadReviewFile(
+            member.Ordinal,
+            member.StagedReceiptId,
+            member.SourceFileName,
+            receipt?.SourceLength,
+            Labels.Kind(receipt?.MediaType, member.SourceFileName),
+            imageReceiptId is { } imageId ? $"/Received/{imageId:D}/Image" : null,
+            receipt is null ? null : $"/Received/{receipt.Id:D}/Source",
+            label,
+            tone,
+            unreadable);
     }
 
     protected override IActionResult RedirectToSurface(Guid id) =>
@@ -501,8 +588,16 @@ public sealed class UploadGroupStatusModel(
 
     protected override async Task<IActionResult> RenderSurfaceAsync(
         Guid surfaceId,
-        CancellationToken cancellationToken) =>
-        (await LoadAsync(surfaceId, cancellationToken)) ?? Page();
+        CancellationToken cancellationToken)
+    {
+        if (await LoadAsync(surfaceId, cancellationToken) is { } notFound)
+        {
+            return notFound;
+        }
+
+        await BuildReviewAsync(surfaceId, null, false, cancellationToken);
+        return Page();
+    }
 
     private bool TryGetPostedRoster(
         Dictionary<Guid, long>? receiptVersions,

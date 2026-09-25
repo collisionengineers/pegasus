@@ -3,6 +3,11 @@
 @{
     ViewData["Title"] = Model.SignedOut ? "Signed out" : "Sign in";
     Layout = "Shared/_LayoutAuth";
+    // The one model-only error this page raises is the credential refusal; it
+    // reads as the shared danger notice rather than a bare summary list.
+    var refusal = ViewData.ModelState.TryGetValue(string.Empty, out var entry) && entry.Errors.Count > 0
+        ? entry.Errors[0].ErrorMessage
+        : null;
 }
 
 @if (Model.SignedOut)
@@ -17,19 +22,31 @@
 }
 else
 {
-    <h1>Sign in to Pegasus</h1>
+    @* The identity panel already names the product (v30 item I). *@
+    <h1>Sign in</h1>
 }
-<div asp-validation-summary="ModelOnly" class="validation-summary mt-1" role="alert"></div>
+@if (refusal is not null)
+{
+    <div class="notice notice--danger auth-notice" role="alert" tabindex="-1">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+        <span>@refusal</span>
+    </div>
+}
 <form method="post">
     <input asp-for="ReturnUrl" type="hidden" />
     <div class="field">
         <label asp-for="UserName">Username</label>
-        <input asp-for="UserName" type="text" autocomplete="username" autofocus />
+        <input asp-for="UserName" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus />
         <span asp-validation-for="UserName" class="field-error"></span>
     </div>
     <div class="field">
         <label asp-for="Password">Password</label>
-        <input asp-for="Password" type="password" autocomplete="current-password" />
+        <div class="password-control">
+            <input asp-for="Password" type="password" autocomplete="current-password" />
+            @* Show / Hide (v30 item J): shipped hidden and revealed by site.js,
+               so without script the field is simply a password field. *@
+            <button type="button" class="password-reveal" data-password-reveal aria-controls="Password" aria-pressed="false" aria-label="Show password" hidden>Show</button>
+        </div>
         <span asp-validation-for="Password" class="field-error"></span>
     </div>
     <button type="submit" class="btn btn--primary">Sign in</button>

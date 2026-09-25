@@ -1,6 +1,5 @@
 ﻿using System.Globalization;
 using System.Net;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -16,17 +15,17 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The confirmation surface's own staff decision — the case-search
-/// suggestions behind the autocomplete, and adding uploaded material to a
-/// case found there — exercised through the real Web host end to end. The
-/// per-branch decision table itself is covered in
+/// The review surface's own staff decision (v30 Upload E): Find within the
+/// Cases the upload may join, the candidate cards, and adding uploaded
+/// material to the chosen Case — exercised through the real Web host end to
+/// end. The per-branch decision table itself is covered in
 /// <see cref="UploadOutcomeQueriesTests"/>.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class UploadConfirmationWebTests
 {
     [Fact]
-    public async Task CaseSearchSuggestsMatchingCasesToStaff()
+    public async Task FindRendersMatchingCasesAsCandidatesToStaff()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -43,40 +42,33 @@ public sealed class UploadConfirmationWebTests
         var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
         var receiptId = IntakeWebDriver.ReceiptId(processed);
 
-        using var response = await client.GetAsync(
-            $"/Upload/Status/{stagedReceiptId:D}?handler=CaseSearch&receiptId={receiptId:D}&term=AB12%20CDE");
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}?q=AB12%20CDE");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var suggestions = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
-        Assert.True(suggestions.GetArrayLength() >= 1);
-        var match = suggestions.EnumerateArray().Single(item =>
-            item.GetProperty("caseId").GetGuid() == caseId);
-        Assert.False(string.IsNullOrWhiteSpace(match.GetProperty("reference").GetString()));
-        Assert.Equal(
-            "AB12CDE",
-            match.GetProperty("registration").GetString()?.Replace(" ", "", StringComparison.Ordinal));
-        Assert.False(string.IsNullOrWhiteSpace(match.GetProperty("stage").GetString()));
+        // The match is a candidate card carrying the Case id as the decision's
+        // value and its facts for the review dialog; nothing is preselected.
+        Assert.Contains($"data-upload-candidate=\"{caseReference}\"", html, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{caseId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-registration=\"AB12", html, StringComparison.Ordinal);
+        Assert.DoesNotContain($"value=\"{caseId:D}\"\n           form=\"upload-decision-form\"\n           checked", html.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.Contains("value=\"AB12 CDE\"", html, StringComparison.Ordinal);
 
-        // A term shorter than two characters returns nothing rather than the
-        // whole case list.
-        using var shortTerm = await client.GetAsync(
-            $"/Upload/Status/{stagedReceiptId:D}?handler=CaseSearch&receiptId={receiptId:D}&term=A");
-        Assert.Equal(HttpStatusCode.OK, shortTerm.StatusCode);
-        Assert.Equal(
-            0,
-            JsonDocument.Parse(await shortTerm.Content.ReadAsStringAsync())
-                .RootElement.GetArrayLength());
+        // A term shorter than two characters finds nothing rather than the
+        // whole case list, and says so.
+        var shortTerm = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}?q=A");
+        Assert.DoesNotContain("data-upload-candidate=", shortTerm, StringComparison.Ordinal);
+        Assert.Contains("No Cases or Triage items match", shortTerm, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task CaseSearchIsStaffOnly()
+    public async Task FindIsStaffOnly()
     {
         using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var client = IntakeWebDriver.CreateClient(factory);
 
         using var anonymousRequest = new HttpRequestMessage(
             HttpMethod.Get,
-            $"/Upload/Status/{Guid.NewGuid():D}?handler=CaseSearch&term=AB12");
+            $"/Upload/Status/{Guid.NewGuid():D}?q=AB12");
         anonymousRequest.Headers.Add("X-Test-Anonymous", "1");
         using var anonymous = await client.SendAsync(anonymousRequest);
         Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
@@ -87,7 +79,7 @@ public sealed class UploadConfirmationWebTests
 
         using var rolelessRequest = new HttpRequestMessage(
             HttpMethod.Get,
-            $"/Upload/Group/{Guid.NewGuid():D}?handler=CaseSearch&term=AB12");
+            $"/Upload/Group/{Guid.NewGuid():D}?q=AB12");
         rolelessRequest.Headers.Add("X-Test-Roleless", "1");
         using var roleless = await client.SendAsync(rolelessRequest);
         Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
@@ -111,9 +103,10 @@ public sealed class UploadConfirmationWebTests
         var receiptId = IntakeWebDriver.ReceiptId(processed);
 
         var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
-        Assert.Contains("Choose a case destination", statusPage, StringComparison.Ordinal);
-        Assert.Contains("Add to an existing case", statusPage, StringComparison.Ordinal);
-        Assert.Contains("Cancel", statusPage, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"decision\"", statusPage, StringComparison.Ordinal);
+        Assert.Contains("Find the right Case", statusPage, StringComparison.Ordinal);
+        Assert.Contains("Review new Case proposal", statusPage, StringComparison.Ordinal);
+        Assert.Contains("Leave undecided", statusPage, StringComparison.Ordinal);
         var (receiptVersion, caseVersion) = await AttachmentVersionsAsync(factory, receiptId, caseId);
         var operationId = Guid.NewGuid();
 
@@ -129,14 +122,15 @@ public sealed class UploadConfirmationWebTests
 
         await AssertLinkedAsync(factory, receiptId, caseId);
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
-        Assert.Contains("This was added to case", afterPage, StringComparison.Ordinal);
-        Assert.DoesNotContain("Add to an existing case", afterPage, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"attached\"", afterPage, StringComparison.Ordinal);
+        Assert.Contains("Added to Case", afterPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Review and add to Case", afterPage, StringComparison.Ordinal);
         Assert.DoesNotContain("automatically associated", afterPage, StringComparison.Ordinal);
         // The case this upload now belongs to is reached only through the
         // association the attach recorded, not through an accepted case link
-        // of its own: the status page still opens it.
-        Assert.Contains(">Open case</a>", afterPage, StringComparison.Ordinal);
+        // of its own: the destination card still opens it.
         Assert.Contains($"href=\"/Cases/{caseId:D}\"", afterPage, StringComparison.Ordinal);
+        Assert.Contains("data-upload-destination", afterPage, StringComparison.Ordinal);
         Assert.DoesNotContain("Open receipt", afterPage, StringComparison.Ordinal);
 
         // The same decision submitted again changes nothing and still reports
@@ -198,11 +192,13 @@ public sealed class UploadConfirmationWebTests
         }
 
         var groupPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
-        Assert.Contains("registered as a new vehicle-image case", groupPage, StringComparison.Ordinal);
-        Assert.Contains("Add to an existing case", groupPage, StringComparison.Ordinal);
-        // The group card owns the confirmation and carries every actual
-        // member receipt, not the registered image record's origin repeated
-        // for each file.
+        // The automatic Image intake registration is a subordinate record
+        // link under the one Case decision.
+        Assert.Contains("data-upload-record", groupPage, StringComparison.Ordinal);
+        Assert.Contains("Registered automatically", groupPage, StringComparison.Ordinal);
+        Assert.Contains("Review and add to Case", groupPage, StringComparison.Ordinal);
+        // The decision form carries every actual member receipt, not the
+        // registered image record's origin repeated for each file.
         Assert.Equal(2, SplitOccurrences(GroupAttachForm(groupPage), "receiptVersions[").Count());
 
         // Typed input takes a server-rendered confirmation step before the
@@ -231,8 +227,8 @@ public sealed class UploadConfirmationWebTests
 
         await AssertLinkedAsync(factory, originReceiptId, caseId);
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
-        Assert.Contains("This was added to case", afterPage, StringComparison.Ordinal);
-        Assert.DoesNotContain("Add to an existing case", afterPage, StringComparison.Ordinal);
+        Assert.Contains("Added to Case", afterPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Review and add to Case", afterPage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -257,9 +253,11 @@ public sealed class UploadConfirmationWebTests
 
         var caseReference = await CaseReferenceAsync(factory, caseId);
         var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
-        Assert.Contains("registered as a new vehicle-image case", statusPage, StringComparison.Ordinal);
-        Assert.Contains("Add to an existing case", statusPage, StringComparison.Ordinal);
-        Assert.Contains(caseReference, statusPage, StringComparison.Ordinal);
+        Assert.Contains("data-upload-record", statusPage, StringComparison.Ordinal);
+        Assert.Contains("Review and add to Case", statusPage, StringComparison.Ordinal);
+        // The unique match is a candidate, never a selection.
+        Assert.Contains($"data-upload-candidate=\"{caseReference}\"", statusPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("checked=\"checked\"", statusPage, StringComparison.Ordinal);
         Assert.DoesNotContain("automatically associated with case", statusPage, StringComparison.Ordinal);
         Assert.DoesNotContain($"href=\"/Cases/{caseId:D}\"", statusPage, StringComparison.OrdinalIgnoreCase);
     }
@@ -295,8 +293,8 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var failedPage = await response.Content.ReadAsStringAsync();
         Assert.Contains("No single viable case matched", failedPage, StringComparison.Ordinal);
-        Assert.Contains("NO-SUCH-CASE", failedPage, StringComparison.Ordinal);
         Assert.DoesNotContain("Reason for adding to this case", failedPage, StringComparison.Ordinal);
+        // The same page operation is kept for the corrected decision.
         Assert.Contains(operationId.ToString("D"), failedPage, StringComparison.Ordinal);
 
         // The failed typed first step is a recoverable form error, not a
@@ -379,39 +377,23 @@ public sealed class UploadConfirmationWebTests
         }
 
         var groupPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
-        Assert.Contains("This submission", groupPage, StringComparison.Ordinal);
-        Assert.Contains("Create a vehicle-image case", groupPage, StringComparison.Ordinal);
-        Assert.Contains("Add to an existing case", groupPage, StringComparison.Ordinal);
-        // Exactly one decision surface: no per-file offers, and the per-file
-        // rows keep their state chips without action buttons.
+        Assert.Contains("data-upload-phase=\"decision\"", groupPage, StringComparison.Ordinal);
+        Assert.Contains("Find the right Case", groupPage, StringComparison.Ordinal);
+        // Exactly one decision surface: one Review action for the whole
+        // upload, no per-file offers, and no manual registration form (the
+        // Image intake registration is automatic, 24 September 2026).
+        Assert.Single(SplitOccurrences(groupPage, "data-upload-review-button"));
         Assert.DoesNotContain(">Create a case<", groupPage, StringComparison.Ordinal);
         Assert.DoesNotContain(">Review<", groupPage, StringComparison.Ordinal);
-        Assert.Single(SplitOccurrences(groupPage, "Add to an existing case"));
-        // Image members render thumbnails through the inline image route.
+        Assert.DoesNotContain("name=\"vehicleRegistration\"", groupPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"reason\"", groupPage, StringComparison.Ordinal);
+        // Image members are inspected through the inline image route.
         Assert.Contains("/Image", groupPage, StringComparison.Ordinal);
-        Assert.Contains("upload-thumb", groupPage, StringComparison.Ordinal);
-
-        var filesHeading = groupPage.IndexOf("id=\"group-status-title\"", StringComparison.Ordinal);
-        var decisionHeading = groupPage.IndexOf("id=\"group-decision-title\"", StringComparison.Ordinal);
-        var discardPanel = groupPage.IndexOf("id=\"group-discard-title\"", StringComparison.Ordinal);
-        var rightColumn = groupPage.IndexOf("class=\"upload-received__right\"", StringComparison.Ordinal);
-        Assert.True(filesHeading >= 0);
-        Assert.True(rightColumn > filesHeading && rightColumn < decisionHeading);
-        Assert.DoesNotContain("upload-received--files-only", groupPage, StringComparison.Ordinal);
-        Assert.True(decisionHeading > filesHeading);
-        Assert.True(discardPanel > decisionHeading);
-
-        var registrationSubmit = groupPage.IndexOf(
-            "form=\"group-registration-form\"", decisionHeading, StringComparison.Ordinal);
-        var cancelLink = groupPage.IndexOf(
-            ">Cancel</a>", decisionHeading, StringComparison.Ordinal);
-        Assert.True(registrationSubmit > decisionHeading);
-        Assert.True(cancelLink > registrationSubmit);
-        var actionRowStart = groupPage.LastIndexOf(
-            "<div class=\"button-row\">", registrationSubmit, StringComparison.Ordinal);
-        var actionRowEnd = groupPage.IndexOf("</div>", actionRowStart, StringComparison.Ordinal);
-        Assert.True(actionRowStart >= 0);
-        Assert.True(actionRowEnd > cancelLink);
+        Assert.Contains("data-upload-inspect=\"1\"", groupPage, StringComparison.Ordinal);
+        // Leaving and discarding stay separate from the primary flow.
+        Assert.Contains("data-upload-leave", groupPage, StringComparison.Ordinal);
+        Assert.Contains("data-upload-dialog=\"upload-discard\"", groupPage, StringComparison.Ordinal);
+        Assert.Contains("name=\"consequencesConfirmed\"", groupPage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -441,68 +423,12 @@ public sealed class UploadConfirmationWebTests
         await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
 
         var groupPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
-        Assert.Contains("id=\"group-decision-title\"", groupPage, StringComparison.Ordinal);
-        Assert.Contains("Add to an existing case", groupPage, StringComparison.Ordinal);
-        Assert.Contains("href=\"/Upload\">Cancel</a>", groupPage, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"group-registration-form\"", groupPage, StringComparison.Ordinal);
-        Assert.DoesNotContain("Create a vehicle-image case", groupPage, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task RegisterGroupCreatesOneVehicleImageCaseFromTheStaffTypedRegistration()
-    {
-        using var factory = new IntakeWebApplicationFactory(
-            "Development",
-            true,
-            recognitionEngine: new FakeVrmRecognitionEngine());
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
-        var upload = await IntakeWebDriver.PostUploadManyAsync(
-            client,
-            form.AntiforgeryToken,
-            form.ExternalReceiptToken,
-            [
-                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
-                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
-            ]);
-        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
-        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
-        var memberReceiptId = IntakeWebDriver.ReceiptId(processed);
-        await using (var reconcileScope = factory.Services.CreateAsyncScope())
-        {
-            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
-        }
-
-        var redirect = await PostGroupHandlerAsync(
-            client,
-            $"/Upload/Group/{groupId:D}?handler=RegisterGroup",
-            new Dictionary<string, string>
-            {
-                ["vehicleRegistration"] = "ab12 cde",
-                ["reason"] = "Staff read the registration from the photographs."
-            });
-        Assert.Equal(HttpStatusCode.Redirect, redirect);
-
-        await using var scope = factory.Services.CreateAsyncScope();
-        var detail = await scope.ServiceProvider
-            .GetRequiredService<IImageIntakeQueries>()
-            .GetByOriginReceiptAsync(memberReceiptId, CancellationToken.None);
-        Assert.NotNull(detail);
-        Assert.StartsWith("AB12CDE", detail!.Record.ImageIntakeReference, StringComparison.Ordinal);
-        Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, detail.State);
-
-        // Replay: the same decision posts again and still reports one
-        // registration for the group.
-        var replay = await PostGroupHandlerAsync(
-            client,
-            $"/Upload/Group/{groupId:D}?handler=RegisterGroup",
-            new Dictionary<string, string>
-            {
-                ["vehicleRegistration"] = "AB12CDE",
-                ["reason"] = "Staff read the registration from the photographs."
-            });
-        Assert.Equal(HttpStatusCode.Redirect, replay);
+        Assert.Contains("data-upload-phase=\"decision\"", groupPage, StringComparison.Ordinal);
+        Assert.Contains("Review and add to Case", groupPage, StringComparison.Ordinal);
+        Assert.Contains("data-upload-leave", groupPage, StringComparison.Ordinal);
+        Assert.Contains(">Leave undecided</a>", groupPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-record", groupPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"vehicleRegistration\"", groupPage, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -551,11 +477,14 @@ public sealed class UploadConfirmationWebTests
         if (interruptAfterFirstMember)
         {
             Assert.Contains("1 file was completed before this stopped", confirmation.Body, StringComparison.Ordinal);
-            Assert.Contains("Confirm and add the submission", confirmation.Body, StringComparison.Ordinal);
+            // The review dialog is rendered open again with the same reviewed
+            // roster, so the corrected decision is the same decision.
+            Assert.Contains("data-dialog=\"upload-confirm\" data-dialog-open-on-load=\"true\"", confirmation.Body, StringComparison.Ordinal);
+            Assert.Contains($"Confirm and add to {caseReference}", confirmation.Body, StringComparison.Ordinal);
             Assert.Equal(2, SplitOccurrences(GroupAttachForm(confirmation.Body), "name=\"receiptVersions[").Count());
             var refreshedPage = await IntakeWebDriver.GetHtmlAsync(
                 attachmentClient, $"/Upload/Group/{groupId:D}");
-            Assert.DoesNotContain("Confirm and add the submission", refreshedPage, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-dialog=\"upload-confirm\" data-dialog-open-on-load=\"true\"", refreshedPage, StringComparison.Ordinal);
             // No receipt links on the upload confirmation (received-file page removed,
             // 13 September): the member left open is no longer offered "Review this file".
             Assert.DoesNotContain("Review this file", refreshedPage, StringComparison.Ordinal);
@@ -618,8 +547,8 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, groupItem.ResolutionTargetKind);
         Assert.Equal(caseId.ToString("N"), groupItem.ResolutionTargetId);
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
-        Assert.DoesNotContain("This submission", afterPage, StringComparison.Ordinal);
-        Assert.Contains("Open case", afterPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-phase=\"decision\"", afterPage, StringComparison.Ordinal);
+        Assert.Contains("Added to Case", afterPage, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{caseId:D}\"", afterPage, StringComparison.Ordinal);
         await using var db = await linkScope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
@@ -673,14 +602,13 @@ public sealed class UploadConfirmationWebTests
         var html = await IntakeWebDriver.GetHtmlAsync(pageClient, $"/Upload/Group/{groupId:D}");
 
         Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("upload-received--files-only", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"group-discard-title\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"group-decision-title\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Add the submission to this case", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Create a vehicle-image case", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-case-search", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Add to an existing case", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Create a new case", html, StringComparison.Ordinal);
+        // Still processing: the decision waits, and nothing is offered per file.
+        Assert.Contains("data-upload-phase=\"pending\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-phase=\"decision\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Review and add to Case", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-search", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Review new Case proposal", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-dialog=\"upload-discard\"", html, StringComparison.Ordinal);
     }
 
     [Theory]

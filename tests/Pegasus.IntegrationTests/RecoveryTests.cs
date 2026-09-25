@@ -440,7 +440,8 @@ public sealed class RecoveryTests
             $"/Upload/Status/{received.StagedReceiptId:D}");
         statusPage.EnsureSuccessStatusCode();
         var html = await statusPage.Content.ReadAsStringAsync();
-        Assert.Contains("<h1>Processing</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"pending\"", html, StringComparison.Ordinal);
+        Assert.Contains("<h2 id=\"up-decision-title\">Processing your files</h2>", html, StringComparison.Ordinal);
         Assert.Contains("data-auto-refresh=\"30000\"", html, StringComparison.Ordinal);
 
         await IntakeTestEvidence.AssertNoDurableIntakeReceiptsAsync(factory);
@@ -483,7 +484,8 @@ public sealed class RecoveryTests
             $"/Upload/Status/{received.StagedReceiptId:D}");
         failedPage.EnsureSuccessStatusCode();
         var html = await failedPage.Content.ReadAsStringAsync();
-        Assert.Contains("<h1>Failed</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"report\"", html, StringComparison.Ordinal);
+        Assert.Contains("The file could not be processed", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "unexpected_intake_processing_failure",
             html,

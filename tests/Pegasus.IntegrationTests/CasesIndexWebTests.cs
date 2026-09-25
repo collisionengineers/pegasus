@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -8,6 +8,7 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Web.Authentication;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
@@ -106,18 +107,21 @@ public sealed class CasesIndexWebTests
             await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
         }
 
-        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-        using var registration = await client.PostAsync(
-            $"/Upload/Group/{groupId:D}?handler=RegisterGroup",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["vehicleRegistration"] = "AB12CDE",
-                ["reason"] = "Staff read the registration from the photographs."
-            }));
-        Assert.Equal(HttpStatusCode.Redirect, registration.StatusCode);
-
+        // Registration is automatic (v30, 24 September 2026); the fixture
+        // registers the group the way the pipeline does.
         await using var scope = factory.Services.CreateAsyncScope();
+        var origin = await scope.ServiceProvider.GetRequiredService<IImageIntakeOriginResolver>()
+            .ResolveOriginAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(origin);
+        await scope.ServiceProvider.GetRequiredService<IRegisterImageIntake>().ExecuteAsync(
+            new(
+                origin!,
+                "AB12CDE",
+                ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                $"image-intake-register:group:{groupId:N}",
+                "Registered for the Cases index fixture.",
+                groupId),
+            CancellationToken.None);
         var image = await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
         Assert.NotNull(image);
@@ -128,13 +132,6 @@ public sealed class CasesIndexWebTests
         Assert.Contains($"/Upload/Group/{groupId:D}", html, StringComparison.Ordinal);
         Assert.Contains("Continue with this submission", html, StringComparison.Ordinal);
         Assert.DoesNotContain("?handler=Attach", html, StringComparison.Ordinal);
-
-        using var scopedSearch = await client.GetAsync(
-            $"/Cases?handler=CaseSearch&id={image.Record.Id:D}&receiptId={receiptId:D}&term=AB");
-        using var allSearch = await client.GetAsync(
-            $"/Cases?handler=CaseSearch&id={image.Record.Id:D}&term=AB");
-        Assert.Equal("[]", (await scopedSearch.Content.ReadAsStringAsync()).Trim());
-        Assert.Equal("[]", (await allSearch.Content.ReadAsStringAsync()).Trim());
 
         var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receiptId, CancellationToken.None);
@@ -173,13 +170,6 @@ public sealed class CasesIndexWebTests
         using var memberPage = await client.GetAsync($"/Upload/Status/{memberId:D}");
         Assert.Equal(HttpStatusCode.Redirect, memberPage.StatusCode);
         Assert.Equal($"/Upload/Group/{groupId:D}", memberPage.Headers.Location?.OriginalString);
-
-        using var memberScopedSearch = await client.GetAsync(
-            $"/Upload/Status/{memberId:D}?handler=CaseSearch&receiptId={receiptId:D}&term=AB");
-        using var memberAllSearch = await client.GetAsync(
-            $"/Upload/Status/{memberId:D}?handler=CaseSearch&term=AB");
-        Assert.Equal("[]", (await memberScopedSearch.Content.ReadAsStringAsync()).Trim());
-        Assert.Equal("[]", (await memberAllSearch.Content.ReadAsStringAsync()).Trim());
 
         forgedIndex.Remove("id");
         forgedIndex["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
