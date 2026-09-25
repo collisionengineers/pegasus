@@ -88,14 +88,5 @@ public sealed class ApprovedMailboxReportSentEvidenceTests
                 request.DiscoveredAtUtc,
                 request.DiscoveredBy));
         }
-
-        public Task<RetainedApprovedMailboxReportSentEvidence?> GetAsync(
-            Guid evidenceId,
-            CancellationToken cancellationToken) => Task.FromResult<RetainedApprovedMailboxReportSentEvidence?>(null);
-
-        public Task<IReadOnlyList<RetainedApprovedMailboxReportSentEvidence>> ListUnlinkedAsync(
-            int maximumResults,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<RetainedApprovedMailboxReportSentEvidence>>([]);
     }
 }

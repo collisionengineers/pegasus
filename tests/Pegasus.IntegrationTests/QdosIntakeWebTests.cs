@@ -48,8 +48,7 @@ public sealed class QdosIntakeWebTests
         await using (var statusScope = factory.Services.CreateAsyncScope())
         {
             var work = Assert.IsType<IntakeWorkItem>(
-                await statusScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>()
-                    .FindWorkItemAsync(stagedReceiptId, CancellationToken.None));
+                await IntakeWorkItemReads.FindAsync(statusScope.ServiceProvider, stagedReceiptId));
             Assert.Equal(IntakeWorkState.Pending, work.State);
             Assert.Null(await statusScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>()
                 .GetCompletedEvaluationAsync(stagedReceiptId, CancellationToken.None));
@@ -381,7 +380,7 @@ public sealed class QdosIntakeWebTests
             distinctReceipt.SourceIdentity.ExternalReceiptToken);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        Assert.Equal(2, (await queries.ListAsync(null, 1, 100, CancellationToken.None)).TotalCount);
+        Assert.Equal(2, (await queries.ListByCursorAsync(null, null, 100, CancellationToken.None)).Items.Count);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
@@ -444,8 +443,8 @@ public sealed class QdosIntakeWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        var receipts = await queries.ListAsync(null, 1, 100, CancellationToken.None);
-        Assert.Equal(fixtures.Length, receipts.TotalCount);
+        var receipts = await queries.ListByCursorAsync(null, null, 100, CancellationToken.None);
+        Assert.Equal(fixtures.Length, receipts.Items.Count);
         Assert.Equal(fixtures.Select(fixture => fixture.Hash), processedReceipts.Select(receipt => receipt.SourceHash));
         Assert.Equal(fixtures.Length, processedReceipts.Select(receipt => receipt.Id).Distinct().Count());
         Assert.All(processedReceipts, receipt => Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel));
@@ -479,7 +478,7 @@ public sealed class QdosIntakeWebTests
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         var counts = await queries.GetCountsAsync(CancellationToken.None);
         var dashboard = await client.GetStringAsync("/");
-        var sortingQueue = await queries.ListAsync(IntakeDecision.NeedsSorting, 1, 25, CancellationToken.None);
+        var sortingQueue = await queries.ListByCursorAsync(IntakeDecision.NeedsSorting, null, 25, CancellationToken.None);
 
         Assert.Equal(new IntakeQueueCounts(1), counts);
         Assert.Matches(

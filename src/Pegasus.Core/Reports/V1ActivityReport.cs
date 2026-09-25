@@ -1,5 +1,4 @@
 using Pegasus.Core.Identity;
-using System.Text;
 
 namespace Pegasus.Core.Reports;
 
@@ -65,55 +64,6 @@ public interface IV1ActivityReportQueries
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
         CancellationToken cancellationToken);
-}
-
-public static class PrincipalReportActivityCsv
-{
-    public const string Header =
-        "Principal,Generation events,Reports produced,Reports produced · Inspection,Reports produced · Audit,Pending or failed,Sent,Sent · Inspection,Sent · Audit,Ready transitions,Missing origin for generated turnaround,Missing origin for Ready turnaround,Missing origin for Sent turnaround,Missing sender attribution,Received to generation,Received to generated artifact,Received to Ready,Received to Sent,Current Triage,Oldest current Triage created UTC,Current held cases,Oldest held UTC,Held without recorded hold event,Report types,Agreed fees,Agreed fees · Inspection,Agreed fees · Audit";
-
-    public static string ToCsv(IReadOnlyList<PrincipalReportActivity> rows)
-    {
-        ArgumentNullException.ThrowIfNull(rows);
-        var builder = new StringBuilder(Header).Append("\r\n");
-        foreach (var row in rows)
-        {
-            builder.Append(EngineerActivityReportCsv.EscapeField(row.PrincipalCode)).Append(',')
-                .Append(row.GenerationEvents).Append(',')
-                .Append(row.ReportsProduced).Append(',')
-                .Append(row.InspectionReportsProduced).Append(',')
-                .Append(row.AuditReportsProduced).Append(',')
-                .Append(row.ArtifactTypes.Sum(x => x.PendingOrFailed)).Append(',')
-                .Append(row.Sent).Append(',')
-                .Append(row.InspectionSent).Append(',')
-                .Append(row.AuditSent).Append(',')
-                .Append(row.Ready).Append(',')
-                .Append(row.MissingOriginForGeneratedTurnaround).Append(',')
-                .Append(row.MissingOriginForReadyTurnaround).Append(',')
-                .Append(row.MissingOriginForSentTurnaround).Append(',')
-                .Append(row.MissingSentActor).Append(',')
-                .Append(Format(row.AverageReceivedToGeneration)).Append(',')
-                .Append(Format(row.AverageReceivedToGeneratedArtifact)).Append(',')
-                .Append(Format(row.AverageReceivedToReady)).Append(',')
-                .Append(Format(row.AverageReceivedToSent)).Append(',')
-                .Append(row.CurrentTriage).Append(',')
-                .Append(row.OldestCurrentTriageCreatedAtUtc?.ToString("O") ?? string.Empty).Append(',')
-                .Append(row.CurrentHeldCases).Append(',')
-                .Append(row.OldestHeldAtUtc?.ToString("O") ?? string.Empty).Append(',')
-                .Append(row.HeldWithoutRecordedHoldEvent).Append(',')
-                .Append(EngineerActivityReportCsv.EscapeField(string.Join("; ", row.ArtifactTypes
-                    .Select(x => $"{x.Kind}: {x.Generated} generated, {x.PendingOrFailed} pending or failed")))).Append(',')
-                .Append(row.AgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                .Append(row.InspectionAgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
-                .Append(row.AuditAgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))
-                .Append("\r\n");
-        }
-
-        return builder.ToString();
-    }
-
-    private static string Format(TimeSpan? value) => value?.ToString("c") ?? string.Empty;
-
 }
 
 public sealed class GetV1ActivityReport(IV1ActivityReportQueries queries)

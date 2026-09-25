@@ -354,7 +354,6 @@
         // Case's own forms carry the Case-named one.
         record.querySelectorAll('[data-case-section-field], [data-refresh-field="section"]').forEach(function (field) { field.value = activeKey; });
     }
-    window.pegasusCaseJumpTo = jumpTo;
 
     nav.addEventListener('click', function (event) {
         var link = event.target.closest('[data-section-link]');
@@ -432,7 +431,6 @@
     function setDirty(isDirty) {
         dirty = isDirty;
         if (!isDirty) { estimateTouched = false; }
-        document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: isDirty } }));
     }
     function estimateIsDirty() { return estimateTouched && dirtyEditors.has('case-edit-form'); }
     function editorFor(control) {
@@ -462,7 +460,6 @@
         return id ? document.getElementById(id) : null;
     }
     window.pegasusDirtyEditForm = activeDirtyForm;
-    window.pegasusCaseIsDirty = function () { return dirty; };
     window.addEventListener('beforeunload', function (event) {
         if (!dirty) { return; }
         event.preventDefault();
@@ -689,7 +686,7 @@
             if (!current || !next) {
                 return;
             }
-            current.querySelectorAll('[data-dialog]:not([hidden]), [data-reason-dialog]:not([hidden])').forEach(function (dialog) {
+            current.querySelectorAll('[data-dialog]:not([hidden])').forEach(function (dialog) {
                 if (typeof dialog.pegasusClose === 'function') {
                     dialog.pegasusClose();
                 }
@@ -741,7 +738,6 @@
         document.dispatchEvent(new CustomEvent('pegasus:case-swapped'));
         return true;
     }
-    window.pegasusCaseSwap = swap;
 
     function samePage(url) {
         try {
@@ -3546,7 +3542,6 @@
         openCrop: function (id) { if (viewer) { viewer.openCrop(id); } },
         toggleInReport: toggleInReport
     };
-    window.pegasusOpenCaseCrop = function (id) { window.pegasusCasePreparation.openCrop(id); };
 
     // v28 P50: how many of the Case's images the report uses, under the grid.
     function countImagesInReport() {

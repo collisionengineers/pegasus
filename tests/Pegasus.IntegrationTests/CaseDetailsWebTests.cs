@@ -478,7 +478,6 @@ public sealed class CaseDetailsWebTests
         Assert.Contains("form=\"case-finish-editing-form\"", actions, StringComparison.Ordinal);
         Assert.Contains("data-case-cancel-form", actions, StringComparison.Ordinal);
         Assert.Contains("form=\"case-edit-form\"", actions, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-case-save-reason", html, StringComparison.Ordinal);
         Assert.DoesNotContain("case-save-reason-dialog", html, StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(actions, ">Cancel</span>"));
         Assert.Equal(1, Occurrences(actions, ">Save</span>"));
@@ -612,22 +611,6 @@ public sealed class CaseDetailsWebTests
         Assert.Null(lazyValuationQuery.Frame);
         Assert.Same(assessment, store.ValuationSectionAssessments.Last());
     }
-
-    /// <summary>
-    /// WP7 moved report composition off the Files section entirely — the
-    /// Report section is now the only place a report's image set is chosen —
-    /// and moved image preparation's gate from assessment access to
-    /// <c>CanEditCaseData</c> (lease held, state not PostReportComplete or
-    /// Query, not archived). So a visit with assessment access denied but the
-    /// Case lease held still sees the Images tab's tiles with their crop
-    /// controls: assessment access no longer has a say in this surface.
-    /// </summary>
-    private static FormUrlEncodedContent RepeatableForm(
-        string antiforgeryToken,
-        params (string Name, string Value)[] values) =>
-        new(values
-            .Select(item => KeyValuePair.Create(item.Name, item.Value))
-            .Append(KeyValuePair.Create("__RequestVerificationToken", antiforgeryToken)));
 
     private static string[] JumpLinkOrder(string html) =>
         [.. JumpLinkRegex().Matches(JumpNav(html)).Select(match => match.Groups[1].Value)];

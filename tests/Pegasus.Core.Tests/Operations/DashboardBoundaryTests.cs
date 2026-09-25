@@ -233,7 +233,7 @@ public sealed class DashboardBoundaryTests
     public async Task NeedsAttentionStillListsOpenTriageBehindFiftySettledRecords()
     {
         var recorder = new RecordingDashboardQueries();
-        var triageItems = Enumerable.Range(1, GetOperationsSnapshot.MaximumNeedsAttention)
+        var triageItems = Enumerable.Range(1, GetOperationsSnapshot.PageSize)
             .Select(index => NewTriage(Guid.NewGuid(), $"S{index:000}", TriageState.FindingRecorded))
             .ToList();
         triageItems.Add(NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open));
@@ -394,7 +394,7 @@ public sealed class DashboardBoundaryTests
     public async Task NeedsAttentionIsBoundedAtFiftyRows()
     {
         var recorder = new RecordingDashboardQueries();
-        var rows = Enumerable.Range(1, GetOperationsSnapshot.MaximumNeedsAttention + 10)
+        var rows = Enumerable.Range(1, GetOperationsSnapshot.PageSize + 10)
             .Select(index => NewUnidentified(Guid.NewGuid(), $"U{1000 + index}"))
             .ToArray();
         var snapshot = await ExecuteAsync(
@@ -625,21 +625,8 @@ public sealed class DashboardBoundaryTests
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new IntakeQueueCounts(0));
 
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeListPage([], page, pageSize, 0));
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<IntakeReceipt?>(null);
-
-        public Task<IntakeAssetRecord?> GetAssetAsync(
-            Guid receiptId,
-            Guid assetId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IntakeAssetRecord?>(null);
     }
 
     /// <summary>
@@ -737,10 +724,6 @@ public sealed class DashboardBoundaryTests
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
-            ResolveUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
         public Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
@@ -794,9 +777,6 @@ public sealed class DashboardBoundaryTests
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(Guid staffId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
     }
 
     private sealed class NoStaffAccounts : IStaffAccountQueries
@@ -816,11 +796,6 @@ public sealed class DashboardBoundaryTests
             throw new NotSupportedException("Not used by these tests.");
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-            Guid staffId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
     }

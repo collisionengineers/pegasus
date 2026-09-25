@@ -769,10 +769,11 @@ builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
 builder.Services.AddScoped<SubmitGroupedIntake>();
 builder.Services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<SubmitGroupedIntake>());
-// The consolidated Automation activity read model backs the Administration
-// view in every profile; the ingress itself stays behind the composition gate.
+// No Administration view reads the Automation activity use case: automation
+// activity is read in Action logs (FRD-04). GetServiceHealth reads the newest
+// activity through this port in every profile; the ingress itself stays
+// behind the composition gate.
 builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore>();
-builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
 // Administration health remains available when the Automation ingress is disabled.
 builder.Services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
 builder.Services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>();

@@ -346,18 +346,6 @@ public sealed class AllocateDefinitiveIntakeTests
 
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new IntakeQueueCounts(0));
-
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeListPage([], page, pageSize, 0));
-
-        public Task<IntakeAssetRecord?> GetAssetAsync(
-            Guid receiptId,
-            Guid assetId,
-            CancellationToken cancellationToken) => Task.FromResult<IntakeAssetRecord?>(null);
     }
 
     private sealed class EvidenceQueries(Guid receiptId, Guid evidenceId) : IStandaloneAuditEvidenceQueries

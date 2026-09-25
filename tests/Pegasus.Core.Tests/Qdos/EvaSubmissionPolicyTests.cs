@@ -113,7 +113,7 @@ public sealed class EvaSubmissionPolicyTests
     {
         var modes = new EvaSubmissionModes(policy);
 
-        Assert.Equal(allowsManualApi, EvaSubmissionPolicy.Allows(modes));
+        Assert.Equal(allowsManualApi, EvaSubmissionPolicy.AllowsManualSubmission(modes));
         Assert.Equal(isEva, modes.IsEnabled);
     }
 

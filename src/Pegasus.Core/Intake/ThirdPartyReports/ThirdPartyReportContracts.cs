@@ -1,5 +1,3 @@
-using Pegasus.Core.Identity;
-
 namespace Pegasus.Core.Intake.ThirdPartyReports;
 
 /// <summary>A typed observation with original value, units and exact source locator.</summary>
@@ -100,10 +98,3 @@ public sealed record ThirdPartyReportCandidate(
     ThirdPartyReportParties Parties, ThirdPartyReportDamage Damage,
     IReadOnlyList<ThirdPartyReportEstimate> Estimates,
     ThirdPartyReportValuation Valuation, ThirdPartyReportDeclaration Declaration);
-
-public interface IThirdPartyReportCandidateQueries
-{
-    Task<IReadOnlyList<ThirdPartyReportCandidate>> GetAsync(
-        ActionActor actor, Guid receiptId, Guid? documentVersionId, Guid? intakeAssetId,
-        CancellationToken cancellationToken);
-}

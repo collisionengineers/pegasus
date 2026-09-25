@@ -143,13 +143,6 @@ public static class ServiceHealthPolicy
     public const string AiJobsService = "AI jobs";
     public const string AutomationService = "Automation ingress";
 
-    public static bool HasPartialData(ServiceHealthSnapshot snapshot)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        return snapshot.Rows.Any(row =>
-            row.State is ServiceHealthState.Partial or ServiceHealthState.Failed);
-    }
-
     /// <summary>
     /// A poll cursor: a recorded failure code wins, a cursor that has never
     /// completed has no evidence, and a completed poll goes stale at the
@@ -402,10 +395,9 @@ public sealed class GetServiceHealth(
             ServiceHealthDependency.AiConnector));
 
         var ingressEnabled = await automationIngress.IsEnabledAsync(cancellationToken);
-        // Read through the port, not ListAutomationActivity: that use case is
-        // gated on ManageAutomationClients because it exposes the records
-        // themselves, whereas this row exposes only the newest timestamp to a
-        // PerformCasework reader. Nothing else from the record leaves here.
+        // The row reads the activity port directly and exposes only the
+        // newest timestamp to a PerformCasework reader. Nothing else from the
+        // record leaves here.
         var newestActivity = await automationActivity.ListAsync(
             new(actor, Page: 1, PageSize: 1),
             cancellationToken);

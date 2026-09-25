@@ -171,43 +171,6 @@ public static class InstructionEvidenceImages
         || string.Equals(mediaType, "image/png", StringComparison.OrdinalIgnoreCase);
 }
 
-/// <summary>One evidence image of a case's instruction receipts.</summary>
-/// <summary>
-/// One photograph on the case's Evidence gallery.
-///
-/// Box is the record: once intake's files are registered as case
-/// documents, <see cref="OccurrenceId"/> and <see cref="VersionId"/> are set and
-/// the image is served from Box through the case-document route. They are null
-/// only for a case accepted before those records existed, which still renders
-/// from its retained intake asset — the transition is additive, and a case
-/// stops rendering the day its staging blobs age out, not the day this shipped.
-///
-/// <see cref="IsStored"/> is false while custody is still in flight.
-/// The gallery listed confirmed versions only, so a Case opened during custody
-/// work showed a partial set that grew on reload and looked like files that had
-/// been lost. A pending image is on its way, is named, and says so.
-/// </summary>
-public sealed record CaseEvidenceImage(
-    Guid ReceiptId,
-    Guid AssetId,
-    string FileName,
-    string MediaType,
-    long ContentLength,
-    Guid? OccurrenceId = null,
-    Guid? VersionId = null,
-    bool IsStored = true)
-{
-    /// <summary>Whether this image is served from Box rather than from the staging blob.</summary>
-    public bool IsCaseDocument => OccurrenceId is not null && VersionId is not null;
-}
-
-public interface ICaseEvidenceImageQueries
-{
-    Task<IReadOnlyList<CaseEvidenceImage>> ListForCaseAsync(
-        Guid caseId,
-        CancellationToken cancellationToken);
-}
-
 public sealed record DownloadIntakeAssetQuery(
     Guid ReceiptId,
     Guid AssetId,
@@ -218,44 +181,6 @@ public interface IDownloadIntakeAsset
     Task<IntakeSourceDownload?> ExecuteAsync(
         DownloadIntakeAssetQuery query,
         CancellationToken cancellationToken = default);
-}
-
-public sealed record IntakeAssetMetadataQuery(
-    Guid ReceiptId,
-    Guid AssetId,
-    ActionActor Actor);
-
-public interface IGetIntakeAssetMetadata
-{
-    Task<IntakeFileMetadata?> ExecuteAsync(
-        IntakeAssetMetadataQuery query,
-        CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// The exact metadata of one retained asset, authorized at the same boundary
-/// its bytes are and carrying no storage key. A connector asks for this before
-/// it asks for content, and verifies the content it receives against the hash
-/// and length it was given here.
-/// </summary>
-public sealed class GetIntakeAssetMetadata(IIntakeReceiptQueries receiptQueries)
-    : IGetIntakeAssetMetadata
-{
-    public async Task<IntakeFileMetadata?> ExecuteAsync(
-        IntakeAssetMetadataQuery query,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
-        if (query.ReceiptId == Guid.Empty || query.AssetId == Guid.Empty)
-        {
-            return null;
-        }
-
-        var receipt = await receiptQueries.GetAsync(query.ReceiptId, cancellationToken);
-        var asset = receipt?.AssetRecords.SingleOrDefault(record => record.Id == query.AssetId);
-        return asset is null ? null : IntakeFileIdentity.Describe(receipt!, asset);
-    }
 }
 
 /// <summary>

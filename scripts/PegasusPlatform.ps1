@@ -1008,57 +1008,6 @@ function Get-PegasusDatabaseConnectionString {
     return "Server=127.0.0.1,$Port;Database=$DatabaseName;User ID=sa;Password=$Password;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True"
 }
 
-function Get-PegasusOrphanedDatabaseContainer {
-    <#
-        .SYNOPSIS
-        Lists database containers this repository created whose run is gone.
-
-        .DESCRIPTION
-        Reports only. Removing a container that was not proved to belong to the
-        current run is exactly the kind of unproved destructive act these
-        scripts avoid.
-    #>
-    param(
-        [Parameter(Mandatory)]
-        [string]$Command,
-        [Parameter(Mandatory)]
-        [string]$RepositoryRoot,
-        [string[]]$KnownRunIds = @()
-    )
-
-    if ((Get-PegasusDatabaseEngineKind) -eq 'LocalDb') {
-        return @()
-    }
-
-    $output = (& $Command ps --all `
-        --filter "label=com.pegasus.repositoryRoot=$RepositoryRoot" `
-        --format '{{.Names}}|{{.Label "com.pegasus.runId"}}' 2>&1 | Out-String)
-    if ($LASTEXITCODE -ne 0) {
-        return @()
-    }
-
-    $orphans = [System.Collections.Generic.List[object]]::new()
-    foreach ($line in ($output -split "`n")) {
-        $trimmed = $line.Trim()
-        if ([string]::IsNullOrWhiteSpace($trimmed)) {
-            continue
-        }
-
-        $parts = $trimmed -split '\|', 2
-        if ($parts.Count -ne 2 -or $KnownRunIds -contains $parts[1]) {
-            continue
-        }
-
-        $orphans.Add([pscustomobject]@{
-            ContainerName = $parts[0]
-            RunId = $parts[1]
-            RemoveCommand = "docker rm --force --volumes $($parts[0])"
-        }) | Out-Null
-    }
-
-    return @($orphans)
-}
-
 # ---------------------------------------------------------------------------
 # Repair hints
 # ---------------------------------------------------------------------------

@@ -72,9 +72,7 @@ public sealed class EfWorkflowConfigurationStore(
                 "The current workflow configuration has not been initialized.");
         if (entity.Version != request.ExpectedVersion)
         {
-            throw new WorkflowConfigurationVersionConflictException(
-                request.ExpectedVersion,
-                entity.Version);
+            throw new WorkflowConfigurationVersionConflictException();
         }
 
         var before = Snapshot(entity);

@@ -84,7 +84,6 @@ public static class CaseDuePolicy
 public static class CaseChaseSchedule
 {
     public const string PolicyKey = "case-chase-schedule";
-    public const int PolicyVersion = 1;
     public const string PolicyIdentity = PolicyKey + "/v1";
 
     public static DateTimeOffset FirstChaseAt(DateTimeOffset enteredNotReadyAtUtc, int intervalDays = 7)

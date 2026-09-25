@@ -536,9 +536,6 @@ public sealed class AiJobTests
         public Task<UnidentifiedResolveResult> ResolveAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         public Task<UnidentifiedItem?> GetByOriginAsync(UnidentifiedOrigin origin, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

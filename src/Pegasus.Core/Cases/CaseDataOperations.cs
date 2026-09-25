@@ -4,33 +4,6 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Cases;
 
-public sealed class ConfirmCompleteness(
-    ICaseDataStore store,
-    ICaseWorkflowConfiguration configuration) : IConfirmCompleteness
-{
-    private readonly ICaseDataStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly ICaseWorkflowConfiguration _configuration =
-        configuration ?? throw new ArgumentNullException(nameof(configuration));
-
-    public async Task<CaseDataProjection> ExecuteAsync(
-        ConfirmCompletenessRequest request,
-        CancellationToken cancellationToken)
-    {
-        CaseDataPolicy.ValidateMutation(request);
-        ArgumentNullException.ThrowIfNull(request.Completeness);
-        CaseDataPolicy.ValidateCompleteness(request.Completeness);
-
-        var currentConfiguration = await _configuration.GetCurrentAsync(cancellationToken);
-        var evaluation = CaseCompletenessPolicy.Evaluate(
-            request.Completeness,
-            currentConfiguration);
-        return await _store.ConfirmCompletenessAsync(
-            request,
-            evaluation,
-            cancellationToken);
-    }
-}
-
 public sealed class SaveCase(ICaseDataStore store) : ISaveCase
 {
     private readonly ICaseDataStore _store = store ?? throw new ArgumentNullException(nameof(store));

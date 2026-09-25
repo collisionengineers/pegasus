@@ -765,23 +765,8 @@ public sealed class IntakeOcrTests
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(id == receipt.Id ? receipt : null);
 
-        public Task<IntakeAssetRecord?> GetAssetAsync(
-            Guid receiptId,
-            Guid assetId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(receiptId == receipt.Id
-                ? receipt.AssetRecords.SingleOrDefault(asset => asset.Id == assetId)
-                : null);
-
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new IntakeQueueCounts(0));
-
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeListPage([], page, pageSize, 0));
     }
 
     private sealed class FakeAnalysis : IAnalyzeRetainedInstruction

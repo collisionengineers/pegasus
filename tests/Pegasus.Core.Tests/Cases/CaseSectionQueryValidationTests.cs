@@ -205,8 +205,5 @@ public sealed class CaseSectionQueryValidationTests
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(Guid staffId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 }

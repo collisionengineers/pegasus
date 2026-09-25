@@ -658,7 +658,7 @@ public sealed class QdosAllocationRecoveryTests
             Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled, await processor.ExecuteAsync(stagedId));
             Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
             Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
-            var retry = Assert.IsType<IntakeWorkItem>(await workStore.FindWorkItemAsync(stagedId, CancellationToken.None));
+            var retry = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(scope.ServiceProvider, stagedId));
             Assert.True(retry.HasPendingEvaluation);
             await DispatchAsync(retry.DueAtUtc);
             Assert.Equal(QueuedIntakeProcessingOutcome.Completed, await processor.ExecuteAsync(stagedId));
@@ -1045,7 +1045,7 @@ public sealed class QdosAllocationRecoveryTests
             await processor.ExecuteAsync(received.StagedReceiptId));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
-        var pending = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(received.StagedReceiptId, CancellationToken.None));
+        var pending = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(services, received.StagedReceiptId));
         Assert.Equal(IntakeWorkState.RetryScheduled, pending.State);
         Assert.True(pending.HasPendingEvaluation);
         Assert.Null(await store.GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None));
@@ -1293,7 +1293,6 @@ public sealed class QdosAllocationRecoveryTests
         public Task<ReceivedIntake> ReceiveAsync(IntakeStagedReceipt receipt, string operationKey, CancellationToken cancellationToken) => inner.ReceiveAsync(receipt, operationKey, cancellationToken);
         public Task<IntakeWorkItem?> ClaimDispatchAsync(DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
         public Task<IntakeWorkItem?> ClaimDispatchAsync(Guid stagedReceiptId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimDispatchAsync(stagedReceiptId, nowUtc, leaseDuration, cancellationToken);
-        public Task<IntakeWorkItem?> FindWorkItemAsync(Guid stagedReceiptId, CancellationToken cancellationToken) => inner.FindWorkItemAsync(stagedReceiptId, cancellationToken);
         public Task MarkDispatchedAsync(Guid workItemId, string leaseToken, DateTimeOffset nowUtc, CancellationToken cancellationToken) => inner.MarkDispatchedAsync(workItemId, leaseToken, nowUtc, cancellationToken);
         public Task ReleaseDispatchAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) => inner.ReleaseDispatchAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
         public Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(Guid stagedReceiptId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimProcessingAsync(stagedReceiptId, nowUtc, leaseDuration, cancellationToken);
@@ -1711,11 +1710,11 @@ public sealed class IntakeAllocationConsumerTests
                 .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
         }
 
-        IntakeListPage page;
+        KeysetPage<IntakeReceiptSummary> page;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             page = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-                .ListAsync(null, 1, 25, CancellationToken.None);
+                .ListByCursorAsync(null, null, 25, CancellationToken.None);
         }
 
         var row = Assert.Single(page.Items, item => item.Id == receipt.Id);

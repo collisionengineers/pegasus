@@ -183,16 +183,6 @@ public sealed partial class WorkflowConfigurationWebTests
     }
 
     [GeneratedRegex(
-        "<a(?=[^>]*href=\"/Administration/Configuration\")(?=[^>]*aria-current=\"page\")[^>]*>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex CurrentAreaLinkRegex();
-
-    [GeneratedRegex(
-        "<form(?=[^>]*method=\"post\")(?=[^>]*action=\"/Administration/Configuration\")[^>]*>[\\s\\S]*?</form>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ConfigurationFormRegex();
-
-    [GeneratedRegex(
         "<nav[^>]*class=\"admin-nav[^\"]*\"[^>]*>[\\s\\S]*?</nav>",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AdminNavRegex();
@@ -201,15 +191,4 @@ public sealed partial class WorkflowConfigurationWebTests
         "<a[^>]*href=\"(?<href>[^\"]*)\"",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AdminRailLinkRegex();
-
-    [GeneratedRegex(
-        "<div class=\"panel-title-meta\">\\s*Version \\d+\\s*</div>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex PolicyVersionMetaRegex();
-
-    [GeneratedRegex(
-        "<h[12][^>]*>(?<text>[^<]*)</h[12]>",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex HeadingRegex();
-
 }

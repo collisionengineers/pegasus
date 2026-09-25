@@ -286,16 +286,6 @@ internal sealed class BoxContentClient(
 
     public string RootFolderId => options.RootFolderId;
 
-    public async Task<BoxItem> GetOrCreateFolderAsync(
-        string parentId,
-        string name,
-        CancellationToken cancellationToken)
-    {
-        await EnsureDescendantAsync(parentId, cancellationToken);
-        return await FindChildAsync(parentId, name, "folder", cancellationToken)
-            ?? await CreateFolderAsync(parentId, name, cancellationToken);
-    }
-
     public Task<IReadOnlyList<BoxItem>> ListChildrenAsync(
         string parentId,
         CancellationToken cancellationToken) =>
@@ -721,44 +711,6 @@ internal sealed class BoxContentClient(
             await retained.DisposeAsync();
             throw;
         }
-    }
-
-    /// <summary>
-    /// Downloads a file whose descent from the approved root is already proved:
-    /// <paramref name="listedChild"/> was returned by listing
-    /// <paramref name="fencedParentId"/>, and that folder's own descent was
-    /// proved when it was listed.
-    ///
-    /// <see cref="EnsureDescendantAsync"/> re-walks the same ancestry
-    /// on every call, one GET per level, and it dominated the case export —
-    /// roughly twenty of its forty-five Box round trips proved, over and over,
-    /// what the listing had just established. The fence is re-checked here
-    /// rather than assumed: the caller must hand back the parent it listed
-    /// under, and the child must still claim it. Nothing is remembered between
-    /// calls, so a Box-side move cannot be read through a stale identity —
-    /// the next operation resolves the folder again and fails loudly.
-    ///
-    /// The listing is the proof, not the parent Box restates on each entry: a
-    /// stated parent that disagrees is refused, but a parent Box declines to
-    /// send cannot refuse a child that was returned by listing the fenced
-    /// folder itself. That sentence exists because a field Box
-    /// silently omitted made every managed read fail in production, and no
-    /// check here may be made to depend on Box volunteering one.
-    ///
-    /// Callers holding only an identifier must use <see cref="DownloadAsync"/>.
-    /// </summary>
-    public async Task<byte[]> DownloadFencedAsync(
-        BoxItem listedChild,
-        string fencedParentId,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(listedChild);
-        if (listedChild.ParentId is { Length: > 0 } parentId
-            && !string.Equals(parentId, fencedParentId, StringComparison.Ordinal))
-        {
-            throw new UnauthorizedAccessException("The Box object is outside the approved custody root.");
-        }
-        return await DownloadContentAsync(listedChild.Id, cancellationToken);
     }
 
     private async Task<byte[]> DownloadContentAsync(string fileId, CancellationToken cancellationToken)
@@ -1490,21 +1442,6 @@ internal sealed class BoxCaseCustody(
             throw new InvalidDataException("Box changed the custody folder identity during promotion.");
         }
         return promoted;
-    }
-
-    private async Task<BoxContentClient.BoxItem> GetOrCreateFolderAsync(
-        string parentId,
-        string name,
-        CustodyEffectLeaseGuard? leaseGuard,
-        CancellationToken cancellationToken)
-    {
-        var existing = await client.FindChildAsync(parentId, name, "folder", cancellationToken);
-        if (existing is not null)
-        {
-            return existing;
-        }
-        await RequireLeaseAsync(leaseGuard, cancellationToken);
-        return await client.CreateFolderAsync(parentId, name, cancellationToken);
     }
 
     private static Task RequireLeaseAsync(

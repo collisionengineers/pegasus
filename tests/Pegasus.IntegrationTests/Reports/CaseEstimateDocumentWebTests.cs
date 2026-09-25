@@ -244,14 +244,6 @@ public sealed class CaseEstimateDocumentWebTests
             SaveEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<RepairSpecificationVersion> StartDraftAsync(
-            StartRepairSpecificationDraftRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<RepairSpecificationVersion> AcceptAsync(
-            AcceptRepairSpecificationRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(
             Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

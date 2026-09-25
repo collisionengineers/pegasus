@@ -197,13 +197,3 @@ public interface IEditScopeLeases
         ReleaseEditScopeRequest request,
         CancellationToken cancellationToken);
 }
-
-/// <summary>
-/// Account administration invokes this when a staff session is revoked or an
-/// account is disabled, so the actor cannot retain a Triage or Image Intake
-/// scope until ordinary expiry.
-/// </summary>
-public interface IEditScopeRevocations
-{
-    Task ClearForActorAsync(ActionActor actor, CancellationToken cancellationToken);
-}

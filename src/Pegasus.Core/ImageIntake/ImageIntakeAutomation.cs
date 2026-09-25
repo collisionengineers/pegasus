@@ -37,15 +37,6 @@ public interface IImageIntakeAutomation
     Task<ImageIntakeAutomationOutcome> ApplyAsync(IntakeReceipt receipt, CancellationToken cancellationToken);
 }
 
-public sealed class NoImageIntakeAutomation : IImageIntakeAutomation
-{
-    public Task<ImageIntakeAutomationOutcome> ApplyAsync(IntakeReceipt receipt, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(receipt);
-        return Task.FromResult(new ImageIntakeAutomationOutcome(receipt));
-    }
-}
-
 public sealed class ImageIntakeAutomation(
     IVrmRecognitionEngine engine,
     IVrmSuggestionStore suggestionStore,

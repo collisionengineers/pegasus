@@ -13,8 +13,6 @@ public sealed partial class ExportModel(
     IExportCaseBundle exportCaseBundle,
     ILogger<ExportModel> logger) : CaseMutationPageModel(logger)
 {
-    private const long MaximumArchiveBytes = 100L * 1024 * 1024;
-
     /// <summary>
     /// Export answered a GET with the archive until it became a POST, so a
     /// bookmark, a browser history entry or a stale link can still point here.
@@ -36,12 +34,9 @@ public sealed partial class ExportModel(
     /// would both fire it, and it carried no antiforgery token. There is no
     /// GET handler left, so the route answers 405 to one.
     ///
-    /// The handler is named because the unnamed POST on this page is already
-    /// the selective export of chosen document versions, which does edit the
-    /// case's document custody and keeps its lease. This one still takes no
-    /// case version or edit lease. Its operation key makes the action-history
-    /// record replay-safe; the proxy's separate once-per-case guarantee remains
-    /// the primary key on `EvaFirstHandoffProxies`.
+    /// It takes no case version or edit lease. Its operation key makes the
+    /// action-history record replay-safe; the proxy's separate once-per-case
+    /// guarantee remains the primary key on `EvaFirstHandoffProxies`.
     /// </summary>
     public async Task<IActionResult> OnPostBundleAsync(
         Guid caseId,

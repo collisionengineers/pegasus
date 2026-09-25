@@ -266,21 +266,6 @@ public sealed record ReleaseCaseEditLeaseRequest(
     string OperationKey,
     string LeaseToken);
 
-public sealed record ClearCaseEditLeaseRequest(
-    Guid CaseId,
-    Guid ExpectedHolderUserId,
-    long ExpectedLeaseGeneration,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason);
-
-public sealed record ClearCaseEditLeaseResult(
-    Guid CaseId,
-    Guid HolderUserId,
-    long LeaseGeneration,
-    long CaseVersion,
-    DateTimeOffset ClearedAtUtc);
-
 public abstract record CaseMutationRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -466,13 +451,6 @@ public interface ILeaseCaseForEdit
         CancellationToken cancellationToken);
 
     Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken);
-}
-
-public interface IAdministrativeCaseEditLeaseStore
-{
-    Task<ClearCaseEditLeaseResult> ClearAsync(
-        ClearCaseEditLeaseRequest request,
-        CancellationToken cancellationToken);
 }
 
 /// <summary>

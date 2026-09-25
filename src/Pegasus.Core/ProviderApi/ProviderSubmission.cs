@@ -261,23 +261,6 @@ public static class ProviderSubmissionPolicy
         return normalized;
     }
 
-    public static string? NormalizeProviderReference(string? providerReference)
-    {
-        var normalized = providerReference?.Trim();
-        if (string.IsNullOrEmpty(normalized))
-        {
-            return null;
-        }
-        if (normalized.Length > MaximumProviderReferenceLength)
-        {
-            throw new ArgumentException(
-                $"A provider reference is at most {MaximumProviderReferenceLength} characters.",
-                nameof(providerReference));
-        }
-
-        return normalized;
-    }
-
     /// <summary>
     /// The envelope bound is the Provider API's own
     /// (<see cref="IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength"/>):

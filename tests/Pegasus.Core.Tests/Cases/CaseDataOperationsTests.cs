@@ -51,37 +51,6 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
-    public async Task ConfirmCompletenessRequiresStaffActorAndActiveLeaseMaterial()
-    {
-        var store = new RecordingStore();
-        var command = new ConfirmCompleteness(store, new FixedConfiguration(Configuration));
-        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-
-        await Assert.ThrowsAsync<ArgumentException>(() => command.ExecuteAsync(
-            new(
-                Guid.NewGuid(),
-                0,
-                staff,
-                "confirm-completeness",
-                "Reviewed current evidence",
-                " ",
-                new(true, true)),
-            CancellationToken.None));
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
-            new(
-                Guid.NewGuid(),
-                0,
-                ActionActor.SystemWorker("worker"),
-                "confirm-completeness-system",
-                "Reviewed current evidence",
-                "lease",
-                new(true, true)),
-            CancellationToken.None));
-
-        Assert.Null(store.ConfirmedRequest);
-    }
-
-    [Fact]
     public void NormalizeRequiresInspectionAddressAndModeTogether()
     {
         Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
@@ -306,30 +275,13 @@ public sealed class CaseDataOperationsTests
         Assert.Equal(request.CaseId, store.SavedRequest.CaseId);
     }
 
-    private sealed class FixedConfiguration(CaseWorkflowConfiguration configuration)
-        : ICaseWorkflowConfiguration
-    {
-        public Task<CaseWorkflowConfiguration> GetCurrentAsync(
-            CancellationToken cancellationToken) => Task.FromResult(configuration);
-    }
-
     private sealed class RecordingStore : ICaseDataStore
     {
-        public ConfirmCompletenessRequest? ConfirmedRequest { get; private set; }
         public SaveCaseRequest? SavedRequest { get; private set; }
 
         public Task<CaseDataProjection?> GetAsync(
             Guid caseId,
             CaseWorkSelector work, CancellationToken cancellationToken) => Task.FromResult<CaseDataProjection?>(null);
-
-        public Task<CaseDataProjection> ConfirmCompletenessAsync(
-            ConfirmCompletenessRequest request,
-            CaseCompletenessEvaluation evaluation,
-            CancellationToken cancellationToken)
-        {
-            ConfirmedRequest = request;
-            throw new NotSupportedException();
-        }
 
         public Task<CaseDataProjection> SaveAsync(
             SaveCaseRequest request,

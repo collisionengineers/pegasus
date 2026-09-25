@@ -11,7 +11,6 @@ using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Core.Reports;
@@ -85,12 +84,10 @@ public static class DependencyInjection
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeAssociationDestinationQueries, EfIntakeAssociationDestinations>();
-        services.AddScoped<ICaseEvidenceImageQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<EfIntakeAllocationStore>();
         services.AddScoped<IIntakeAllocationStore>(
             provider => provider.GetRequiredService<EfIntakeAllocationStore>());
         services.AddScoped<IAllocateIntake, AllocateIntake>();
-        services.AddScoped<IListIntake, ListIntake>();
         services.AddScoped<IListIntakeByCursor, ListIntakeByCursor>();
         services.AddScoped<IGetIntake, GetIntake>();
         services.AddScoped<IGetIntakeSourceMetadata, GetIntakeSourceMetadata>();
@@ -199,7 +196,6 @@ public static class DependencyInjection
         services.AddScoped<IExactEmailResponseEvidenceQueries>(
             provider => provider.GetRequiredService<EfEmailEvidenceStore>());
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
-        services.AddScoped<ReplaySentEmailEvidence>();
         services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
         services.AddSingleton<IMailRoutePolicy, PrincipalMailRoutePolicy>();
         services.AddSingleton<IEnumerable<IMailClassificationPolicy>>(provider =>
@@ -233,11 +229,6 @@ public static class DependencyInjection
         services.AddScoped<EfRetainedInstructionAnalysisStore>();
         services.AddScoped<IRetainedInstructionAnalysisStore>(provider =>
             provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
-        services.AddScoped<ISourceCandidateQueries>(provider =>
-            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
-        services.AddScoped<IThirdPartyReportCandidateQueries>(provider =>
-            provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
-        services.AddScoped<IGetLatestRetainedInstructionAnalysis, GetLatestRetainedInstructionAnalysis>();
         services.AddScoped<AnalyzeRetainedInstruction>();
         services.AddScoped<IAnalyzeRetainedInstruction>(provider =>
             provider.GetRequiredService<AnalyzeRetainedInstruction>());
@@ -264,7 +255,6 @@ public static class DependencyInjection
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
         services.AddScoped<EfStaffAccountQueries>();
         services.AddScoped<IStaffAccountQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
-        services.AddScoped<IStaffHeldCaseEditLeaseQueries>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICaseEngineerChoices>(provider => provider.GetRequiredService<EfStaffAccountQueries>());
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
@@ -283,7 +273,6 @@ public static class DependencyInjection
         services.AddScoped<IListStaffAccounts, ListStaffAccounts>();
         services.AddScoped<IGetStaffAccount, GetStaffAccount>();
         services.AddScoped<IDescribeCaseEditAuthorityHolder, DescribeCaseEditAuthorityHolder>();
-        services.AddScoped<IGetStaffHeldCaseEditLeases, GetStaffHeldCaseEditLeases>();
         services.AddScoped<ICreateStaffAccount, CreateStaffAccount>();
         services.AddScoped<IDisableStaffAccount, DisableStaffAccount>();
         services.AddScoped<IUpdateStaffAccountSettings, UpdateStaffAccountSettings>();
@@ -328,8 +317,6 @@ public static class DependencyInjection
         services.AddScoped<IProviderAttachmentAdmission, ProviderAttachmentAdmission>();
         services.AddScoped<ISubmitProviderInstruction, SubmitProviderInstruction>();
         services.AddScoped<IGetProviderSubmissionResult, GetProviderSubmissionResult>();
-        services.AddScoped<ICreatePrincipal, CreatePrincipal>();
-        services.AddScoped<IListPrincipals, ListPrincipals>();
         services.AddScoped<IGetPrincipal, GetPrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
         services.AddScoped<IUpdatePrincipalReportSettings, UpdatePrincipalReportSettings>();
@@ -360,17 +347,11 @@ public static class DependencyInjection
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IVehicleLookupWorkStore, EfVehicleLookupWorkStore>();
         services.AddScoped<EfOperationsStore>();
-        services.AddScoped<IEmailOperationsProjectionStore>(
-            provider => provider.GetRequiredService<EfOperationsStore>());
         services.AddScoped<IRequestOperationsProjectionStore>(
-            provider => provider.GetRequiredService<EfOperationsStore>());
-        services.AddScoped<IMailboxProcessingRetryStore>(
             provider => provider.GetRequiredService<EfOperationsStore>());
         services.AddScoped<IExternalWorkRetryStore>(
             provider => provider.GetRequiredService<EfOperationsStore>());
-        services.AddScoped<GetEmailOperations>();
         services.AddScoped<GetRequestOperations>();
-        services.AddScoped<RetryMailboxProcessing>();
         services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
         services.AddScoped<GetOperationsSnapshot>();
@@ -398,7 +379,6 @@ public static class DependencyInjection
         services.AddScoped<LabourRateCardAdministration>();
         services.AddScoped<EfEditScopeStore>();
         services.AddScoped<IEditScopeLeases>(provider => provider.GetRequiredService<EfEditScopeStore>());
-        services.AddScoped<IEditScopeRevocations>(provider => provider.GetRequiredService<EfEditScopeStore>());
         services.AddScoped<EfContactDirectoryAdministration>();
         services.AddScoped<IContactDirectoryAdministration>(provider => provider.GetRequiredService<EfContactDirectoryAdministration>());
         services.AddScoped<IContactDirectoryQueries>(provider => provider.GetRequiredService<EfContactDirectoryAdministration>());
@@ -446,8 +426,6 @@ public static class DependencyInjection
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
         services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
         services.AddScoped<IReleaseCaseEditLease, ReleaseCaseEditLease>();
-        services.AddScoped<IAdministrativeCaseEditLeaseStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
-        services.AddScoped<IClearCaseEditLease, ClearCaseEditLease>();
         services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<EfCaseQueryStore>();
@@ -479,7 +457,6 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
         services.AddScoped<IInspectionLocationChoices>(
             provider => provider.GetRequiredService<InspectionAddressChoicesQueries>());
-        services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
         services.AddScoped<IAddCaseNote, AddCaseNote>();
         services.AddScoped<ISaveCase, SaveCase>();
@@ -522,8 +499,6 @@ public static class DependencyInjection
         services.AddScoped<IListCaseEstimates, ListCaseEstimates>();
         services.AddScoped<IListCaseEstimatesByCursor, ListCaseEstimatesByCursor>();
         services.AddScoped<EfCaseAssetPreparationStore>();
-        services.AddScoped<ICaseAssetPreparationStore>(provider =>
-            provider.GetRequiredService<EfCaseAssetPreparationStore>());
         services.AddScoped<ICaseAssetPreparationQueries>(provider =>
             provider.GetRequiredService<EfCaseAssetPreparationStore>());
         // The tag vocabulary is a read of the database alone, so the Case
@@ -542,8 +517,6 @@ public static class DependencyInjection
         services.AddScoped<IRemoveValuationPreset, RemoveValuationPreset>();
         services.AddScoped<IPreviewValuationCalculation, PreviewValuationCalculation>();
         services.AddScoped<IListAppliedValuations, ListAppliedValuations>();
-        services.AddScoped<ISaveValuation, SaveValuation>();
-        services.AddScoped<IEditValuation, EditValuation>();
         services.AddScoped<IListCaseValuations, ListCaseValuations>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
@@ -586,8 +559,6 @@ public static class DependencyInjection
         services.AddScoped<RunDueChasers>();
         services.AddScoped<EfCaseReportSentEvidenceStore>();
         services.AddScoped<IApprovedMailboxReportSentEvidenceStore>(
-            provider => provider.GetRequiredService<EfCaseReportSentEvidenceStore>());
-        services.AddScoped<IApprovedMailboxReportSentEvidenceQueries>(
             provider => provider.GetRequiredService<EfCaseReportSentEvidenceStore>());
         services.AddScoped<IRetainApprovedMailboxReportSentEvidence, RetainApprovedMailboxReportSentEvidence>();
         services.AddScoped<EfLinkedCaseReplacementStore>();
@@ -711,8 +682,6 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ICreateImageTag>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
-            services.AddScoped<ICaseDocumentStateQueries>(provider =>
-                provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IMarketResearchAiJobCompletionStore, EfMarketResearchAiJobCompletionStore>();
             services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
         }
@@ -737,8 +706,6 @@ public static class DependencyInjection
             provider.GetRequiredService<EfAssessmentReportProjectionSource>());
         services.AddScoped<EfCaseReportGenerationStore>();
         services.AddScoped<ICaseReportGenerationStore>(provider =>
-            provider.GetRequiredService<EfCaseReportGenerationStore>());
-        services.AddScoped<ICaseReportGenerationQueries>(provider =>
             provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<IGeneratedCaseArtifactStore>(provider =>
             provider.GetRequiredService<EfCaseReportGenerationStore>());

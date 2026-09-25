@@ -14,10 +14,9 @@ public sealed class FetchGuideValuationTests
         var caseData = new RecordingCaseData();
         var fetch = new FetchGuideValuation([], caseData);
 
-        var refusal = await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
+        await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
             fetch.ExecuteAsync(Request(ValuationSource.Glasses), default));
 
-        Assert.Equal(ValuationSource.Glasses, refusal.ValuationSource);
         Assert.Equal(0, caseData.Reads);
     }
 

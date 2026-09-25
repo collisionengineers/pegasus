@@ -23,8 +23,7 @@ internal sealed class EfDocumentCustodyStore(
     IMarkAsOriginalReportStore,
     ITagCaseImage,
     IUntagCaseImage,
-    ICreateImageTag,
-    ICaseDocumentStateQueries
+    ICreateImageTag
 {
     internal const string OriginalReportRecordedEventKind = "original_report_recorded";
     /// <summary>The two history words an image tag writes on the case.</summary>
@@ -114,22 +113,6 @@ internal sealed class EfDocumentCustodyStore(
 
             throw;
         }
-    }
-    async Task<CaseDocumentState?> ICaseDocumentStateQueries.GetAsync(
-        Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        if (caseId == Guid.Empty)
-        {
-            throw new ArgumentException("A case identifier is required.", nameof(caseId));
-        }
-
-        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.CaseWorkflows
-            .AsNoTracking()
-            .Where(value => value.CaseId == caseId)
-            .Select(value => new CaseDocumentState(value.CaseId, value.Version))
-            .SingleOrDefaultAsync(cancellationToken);
     }
     async Task<CaseDocumentMetadata?> IGetCaseDocumentMetadata.ExecuteAsync(
         GetCaseDocumentMetadataQuery query,

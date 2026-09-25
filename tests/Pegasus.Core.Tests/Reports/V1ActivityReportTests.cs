@@ -101,19 +101,6 @@ public sealed class V1ActivityReportTests
     }
 
     [Fact]
-    public void CsvUsesTheSharedFormulaSafeEscaping()
-    {
-        var csv = PrincipalReportActivityCsv.ToCsv(
-            [new(Guid.NewGuid(), "=QDOS", 1, 1, 1, 1, 0, 0, 0, 0, TimeSpan.FromHours(1), TimeSpan.FromHours(2), TimeSpan.FromHours(1), null, 0, null, 0, null, 0,
-                [new(nameof(CaseReportArtifactKind.AssessmentReport), 1, 0)])]);
-
-        Assert.StartsWith(PrincipalReportActivityCsv.Header + "\r\n", csv, StringComparison.Ordinal);
-        // Reports produced and Sent each sit beside their Inspection and Audit split (MI-02).
-        Assert.Contains("'=QDOS,1,1,1,0,0,1,1,0,1,0,0,0,0,01:00:00,02:00:00,01:00:00", csv, StringComparison.Ordinal);
-        Assert.Contains("AssessmentReport: 1 generated", csv, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void FirstReportFeeBelongsToOnlyOneHalfOfASplitMonth()
     {
         var first = new DateTimeOffset(2031, 9, 1, 10, 0, 0, TimeSpan.Zero);

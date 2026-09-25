@@ -143,7 +143,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
                 var completed = await assertWorkStore.GetCompletedEvaluationAsync(stagedReceiptId, CancellationToken.None);
                 if (completed is null)
                 {
-                    var workItem = await assertWorkStore.FindWorkItemAsync(stagedReceiptId, CancellationToken.None);
+                    var workItem = await IntakeWorkItemReads.FindAsync(assertScope.ServiceProvider, stagedReceiptId);
                     Assert.Fail(
                         $"iteration={iteration} stagedReceiptId={stagedReceiptId} has no completed evaluation. " +
                         $"workItem: State={workItem?.State} Attempts={workItem?.AttemptCount} Due={workItem?.DueAtUtc} " +
@@ -316,18 +316,15 @@ public sealed class GroupedImageIntakeConcurrencyTests
         {
             var receiptQueries = strandedScope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
             var workStore = strandedScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>();
-            var imageIntakeQueries = strandedScope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
             var strandedReceipt = await receiptQueries.GetAsync(strandedReceiptId, CancellationToken.None);
             Assert.Equal(IntakeDecision.NeedsSorting, strandedReceipt!.Decision);
             Assert.NotNull(await workStore.GetCompletedEvaluationAsync(
                 stagedReceiptIds[1],
                 CancellationToken.None));
-            Assert.NotNull(await imageIntakeQueries.GetBySubmissionGroupAsync(
-                groupId,
-                CancellationToken.None));
             var contextFactory = strandedScope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.True(await context.ImageIntakes.AnyAsync(item => item.SubmissionGroupId == groupId));
             Assert.Empty(await context.IntakeMutationHistory
                 .Where(item => item.IntakeReceiptId == strandedReceiptId
                     && (item.EventType == "image_intake_registered"

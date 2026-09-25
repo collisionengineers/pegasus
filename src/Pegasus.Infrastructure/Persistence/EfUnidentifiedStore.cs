@@ -117,29 +117,6 @@ public sealed class EfUnidentifiedStore(
         return new(Map(entity), false);
     }
 
-    public async Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
-        ResolveUnidentifiedRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        UnidentifiedValidation.ValidateResolve(request);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var history = await context.Set<UnidentifiedHistoryEntity>().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.OperationKey == request.OperationKey.Trim(), cancellationToken);
-        if (history is null)
-        {
-            return null;
-        }
-
-        if (history.UnidentifiedItemId != request.UnidentifiedItemId)
-        {
-            throw new UnidentifiedOperationConflictException();
-        }
-
-        var entity = await context.Set<UnidentifiedItemEntity>().AsNoTracking()
-            .SingleAsync(item => item.Id == request.UnidentifiedItemId, cancellationToken);
-        return new(Map(entity), Map(history), true);
-    }
-
     public async Task<UnidentifiedResolveResult> ResolveAsync(
         ResolveUnidentifiedRequest request,
         CancellationToken cancellationToken = default)

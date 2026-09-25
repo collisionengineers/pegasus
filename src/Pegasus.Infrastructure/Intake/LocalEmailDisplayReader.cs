@@ -9,20 +9,15 @@ namespace Pegasus.Infrastructure.Intake;
 /// The decoded display view of one message.
 /// </summary>
 /// <remarks>
-/// The first six members are the formatted header lines the desktop evaluation
-/// tool shows. The structured members below them are the same facts in the shape
-/// the retained-mail read model stores: one sender split into address and display
-/// name, recipients as addresses rather than a rendered string, and attachments
-/// with their decoded length.
+/// The members are the facts in the shape the retained-mail read model stores:
+/// the subject and inert body text, one sender split into address and display
+/// name, recipients and reply-to targets as addresses rather than a rendered
+/// string, attachments with their decoded length, and the message and thread
+/// identities.
 /// </remarks>
 public sealed record LocalEmailDisplay(
-    string From,
-    string To,
-    string Cc,
-    string SentAt,
     string Subject,
     string Body,
-    IReadOnlyList<string> AttachmentNames,
     IReadOnlyList<string> ReplyToAddresses,
     string? SenderAddress = null,
     string? SenderDisplayName = null,
@@ -80,13 +75,8 @@ public static partial class LocalEmailDisplayReader
         var replyToAddresses = Addresses(hasReplyToHeader ? message.ReplyTo : message.From);
         var attachments = Attachments(message);
         return new LocalEmailDisplay(
-            message.From.ToString(),
-            message.To.ToString(),
-            message.Cc.ToString(),
-            message.Date == DateTimeOffset.MinValue ? string.Empty : message.Date.ToString("u"),
             message.Subject ?? string.Empty,
             body ?? string.Empty,
-            attachments.Select(item => item.FileName).ToArray(),
             replyToAddresses,
             sender?.Address,
             string.IsNullOrWhiteSpace(sender?.Name) ? null : sender!.Name,

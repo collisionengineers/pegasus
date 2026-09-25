@@ -15,12 +15,10 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseDataCompletenessPersistenceTests
 {
     [Fact]
-    public async Task CompletenessMutationUsesPersistedConfigurationInsteadOfEarlierEvaluation()
+    public async Task TheWorkspaceSaveEvaluatesCompletenessAgainstThePersistedConfiguration()
     {
         await using var harness = await CaseDataHarness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
-        var facts = new CaseCompleteness(true, false);
-        var staleEvaluation = CaseCompletenessPolicy.Evaluate(facts, new("case-workflow", 1));
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var configuration = await context.Set<WorkflowConfigurationEntity>().SingleAsync();
@@ -29,15 +27,24 @@ public sealed class CaseDataCompletenessPersistenceTests
             await context.SaveChangesAsync();
         }
         var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-configured-readiness");
-        var result = await harness.DataStore.ConfirmCompletenessAsync(new(harness.CaseId, initial.Version,
-            harness.StaffActor, "save-configured-readiness", "Confirm retained facts", lease.Token, facts),
-            staleEvaluation, default);
-        Assert.Equal(CaseLifecycleState.Review, result.State);
-        Assert.True(result.Completeness.Evaluation.SatisfiesPolicy);
-        Assert.False(result.Completeness.Values.ImagesComplete);
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                harness.CaseId,
+                initial.Version,
+                harness.StaffActor,
+                "save-configured-readiness",
+                null,
+                lease.Token)
+            {
+                Completeness = new(true, false)
+            },
+            default);
+        Assert.Equal(CaseLifecycleState.Review, saved.Data.State);
+        Assert.True(saved.Completeness.Evaluation.SatisfiesPolicy);
+        Assert.False(saved.Completeness.Values.ImagesComplete);
         var reloaded = await harness.GetRequiredDataAsync();
         Assert.Empty(reloaded.Completeness.Evaluation.MissingRequirements);
-        Assert.True(reloaded.Completeness.Evaluation.PolicyVersion > staleEvaluation.PolicyVersion);
+        Assert.True(reloaded.Completeness.Evaluation.PolicyVersion > 1);
     }
 
     [Theory]
@@ -424,48 +431,19 @@ public sealed class CaseDataCompletenessPersistenceTests
     }
 
     [Fact]
-    public async Task ConfirmAndSaveUseSharedVersionLeaseReplayAndImmutableHistory()
+    public async Task SaveUsesVersionLeaseReplayAndImmutableHistory()
     {
         await using var harness = await CaseDataHarness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
         Assert.Equal(0, initial.Version);
         Assert.Equal(41, await harness.HiddenCaseVersionAsync());
-        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-confirm");
-        var confirmation = new ConfirmCompletenessRequest(
-            harness.CaseId,
-            initial.Version,
-            harness.StaffActor,
-            "confirm-completeness-1",
-            "Confirmed instruction and image evidence",
-            lease.Token,
-            new(
-                true,
-                true));
-
-        var confirmed = await harness.ConfirmCompleteness.ExecuteAsync(
-            confirmation,
-            CancellationToken.None);
-        var replayedConfirmation = await harness.ConfirmCompleteness.ExecuteAsync(
-            confirmation,
-            CancellationToken.None);
-
-        Assert.Equal(CaseLifecycleState.Review, confirmed.State);
-        Assert.Equal(1, confirmed.Version);
-        Assert.True(confirmed.Completeness.Values.InstructionComplete);
-        Assert.True(confirmed.Completeness.Values.ImagesComplete);
-        Assert.Equal(confirmed, replayedConfirmation);
-        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
-            harness.ConfirmCompleteness.ExecuteAsync(
-                confirmation with { Reason = "Different confirmation material" },
-                CancellationToken.None));
-
         var saveLease = await harness.AcquireLeaseAsync(
-            confirmed.Version,
+            initial.Version,
             harness.StaffActor,
             "lease-save");
         var save = new SaveCaseRequest(
             harness.CaseId,
-            confirmed.Version,
+            initial.Version,
             harness.StaffActor,
             "save-case-1",
             "Confirmed the reviewed case values",
@@ -481,7 +459,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         var saved = await harness.SaveCase.ExecuteAsync(save, CancellationToken.None);
         var replayedSave = await harness.SaveCase.ExecuteAsync(save, CancellationToken.None);
 
-        Assert.Equal(2, saved.Version);
+        Assert.Equal(1, saved.Version);
         // The legacy SaveCase demotes the case as a side effect of editing any
         // fact. The Case workspace save does not: it re-evaluates readiness
         // from the row it just wrote
@@ -499,32 +477,13 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Null(saved.Vehicle.Registration.Confirmed);
         Assert.Equal(initial.Identity, saved.Identity);
         Assert.Equal(initial.Origin, saved.Origin);
-        Assert.Equal(2, await harness.HistoryCountAsync());
-        Assert.Equal(41, await harness.HiddenCaseVersionAsync());
-
-        var reconfirmLease = await harness.AcquireLeaseAsync(
-            saved.Version,
-            harness.StaffActor,
-            "lease-reconfirm");
-        var reconfirmed = await harness.ConfirmCompleteness.ExecuteAsync(
-            new(
-                harness.CaseId,
-                saved.Version,
-                harness.StaffActor,
-                "confirm-completeness-2",
-                "Reconfirmed after the case-data change",
-                reconfirmLease.Token,
-                new(true, true)),
-            CancellationToken.None);
-        Assert.Equal(3, reconfirmed.Version);
-        Assert.Equal(CaseLifecycleState.Review, reconfirmed.State);
-        Assert.Equal(3, await harness.HistoryCountAsync());
+        Assert.Equal(1, await harness.HistoryCountAsync());
         Assert.Equal(41, await harness.HiddenCaseVersionAsync());
 
         await Assert.ThrowsAsync<CaseVersionConflictException>(() => harness.SaveCase.ExecuteAsync(
             save with
             {
-                ExpectedVersion = 1,
+                ExpectedVersion = initial.Version,
                 OperationKey = "save-stale-version",
                 Data = save.Data with { ClaimantName = "Stale overwrite" }
             },
@@ -562,17 +521,6 @@ public sealed class CaseDataCompletenessPersistenceTests
                 "not-the-issued-token",
                 changed),
             CancellationToken.None));
-        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
-            harness.ConfirmCompleteness.ExecuteAsync(
-                new(
-                    harness.CaseId,
-                    initial.Version,
-                    harness.StaffActor,
-                    "confirm-wrong-token",
-                    "Wrong completeness lease token denial",
-                    "not-the-issued-token",
-                    new(true, true)),
-                CancellationToken.None));
 
         var otherStaff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => harness.SaveCase.ExecuteAsync(
@@ -628,7 +576,6 @@ public sealed class CaseDataCompletenessPersistenceTests
             ActionActor staffActor,
             InspectionAddressResolutionStore addressStore,
             EfCaseDataStore dataStore,
-            ConfirmCompleteness confirmCompleteness,
             SaveCase saveCase,
             AcquireCaseEditLease acquireLease,
             EfCaseWorkflowStore workflowStore,
@@ -646,7 +593,6 @@ public sealed class CaseDataCompletenessPersistenceTests
             StaffActor = staffActor;
             AddressStore = addressStore;
             DataStore = dataStore;
-            ConfirmCompleteness = confirmCompleteness;
             SaveCase = saveCase;
             this.acquireLease = acquireLease;
         }
@@ -661,7 +607,6 @@ public sealed class CaseDataCompletenessPersistenceTests
         public ActionActor StaffActor { get; }
         public InspectionAddressResolutionStore AddressStore { get; }
         public EfCaseDataStore DataStore { get; }
-        public ConfirmCompleteness ConfirmCompleteness { get; }
         public SaveCase SaveCase { get; }
 
         public static async Task<CaseDataHarness> CreateAsync(
@@ -740,7 +685,6 @@ public sealed class CaseDataCompletenessPersistenceTests
                     staffActor,
                     addressStore,
                     dataStore,
-                    new ConfirmCompleteness(dataStore, configuration),
                     new SaveCase(dataStore),
                     new AcquireCaseEditLease(workflowStore),
                     workflowStore,

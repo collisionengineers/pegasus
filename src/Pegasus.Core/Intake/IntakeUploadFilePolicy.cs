@@ -33,10 +33,6 @@ public static class IntakeUploadFilePolicy
         return true;
     }
 
-    public static bool IsVideo(string? mediaType) =>
-        string.Equals(mediaType, Mp4MediaType, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(mediaType, MovMediaType, StringComparison.OrdinalIgnoreCase);
-
     private static bool HasIsoBaseMediaHeader(ReadOnlySpan<byte> content, bool isQuickTime)
     {
         if (content.Length < 16 || !content.Slice(4, 4).SequenceEqual("ftyp"u8))
