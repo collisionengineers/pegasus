@@ -18,7 +18,7 @@ public sealed class ImmediateExternalPublicationTests
             CaseIds.Add(caseId);
             return Task.FromResult(new TriageCasePairingResult(0, 0, 0));
         }
-        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageId, CancellationToken cancellationToken) =>
+        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<TriageCasePairingResult> ReconcileAsync(int maximumItems, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -40,6 +40,28 @@ public sealed class ImmediateExternalPublicationTests
 
         Assert.False(result.IsDuplicate);
         Assert.Equal([workItemId], publisher.WorkItemIds);
+    }
+
+    /// <summary>
+    /// A Triage is never accepted from intake as a Case type: it is created by
+    /// its own route, so acceptance refuses it before reaching the store.
+    /// </summary>
+    [Fact]
+    public async Task AcceptanceRefusesTheTriageCaseType()
+    {
+        var store = new AcceptanceStore(Guid.NewGuid());
+        var acceptance = new AcceptIntake(
+            store,
+            new ConfigurationStore(),
+            new InspectionModeStore(),
+            new RecordingPublisher(),
+            new RecordingTriagePairing());
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => acceptance.ExecuteAsync(
+            AcceptanceRequest() with { CaseType = CaseType.Triage },
+            CancellationToken.None));
+
+        Assert.Null(store.LastRequest);
     }
 
     /// <summary>

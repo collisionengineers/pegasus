@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
@@ -58,7 +59,8 @@ public sealed class EfRepairSpecificationStore(
 
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         Guard(workflow, request.ExpectedCaseVersion, request.Actor, request.EditLeaseToken, Now());
-        if (await DraftQuery(context, request.CaseId).AnyAsync(cancellationToken))
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
+        if (await DraftQuery(context, workId).AnyAsync(cancellationToken))
         {
             throw new InvalidOperationException("A current repair-specification draft already exists for this case.");
         }
@@ -69,7 +71,7 @@ public sealed class EfRepairSpecificationStore(
             predecessor = await context.CaseRepairSpecifications
                 .Include(item => item.Lines)
                 .SingleOrDefaultAsync(
-                    item => item.Id == predecessorId && item.CaseId == request.CaseId,
+                    item => item.Id == predecessorId && item.WorkId == workId,
                     cancellationToken)
                 ?? throw new InvalidOperationException("The repair specification being corrected was not found.");
             if (predecessor.State != RepairSpecificationState.Accepted.ToString())
@@ -77,19 +79,18 @@ public sealed class EfRepairSpecificationStore(
                 throw new InvalidOperationException("A correction must supersede the accepted repair specification.");
             }
         }
-        else if (await AcceptedQuery(context, request.CaseId).AnyAsync(cancellationToken))
+        else if (await AcceptedQuery(context, workId).AnyAsync(cancellationToken))
         {
             throw new InvalidOperationException(
                 "The accepted repair specification is immutable; start a reasoned correction that identifies it.");
         }
 
-        var nextVersion = await NextVersionAsync(context, request.CaseId, cancellationToken);
+        var nextVersion = await NextVersionAsync(context, workId, cancellationToken);
         var now = Now();
         var entity = new CaseRepairSpecificationEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
-            Case = workflow.Case,
+            WorkId = workId,
             Version = nextVersion,
             State = RepairSpecificationState.Draft.ToString(),
             SourceRoute = source.Route.ToString(),
@@ -149,11 +150,12 @@ public sealed class EfRepairSpecificationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedCaseVersion, request.Actor, request.EditLeaseToken, now);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
         var beforeEstimate = await ReadReportEstimateDependenciesAsync(
             context,
-            request.CaseId,
+            workId,
             cancellationToken);
-        var entity = await RequiredEstimateAsync(context, request.CaseId, request.SpecificationId, cancellationToken);
+        var entity = await RequiredEstimateAsync(context, workId, request.SpecificationId, cancellationToken);
         if (entity.Version != request.ExpectedSpecificationVersion)
         {
             throw new InvalidOperationException("The repair-specification version is stale.");
@@ -161,7 +163,7 @@ public sealed class EfRepairSpecificationStore(
         var candidate = Map(entity) with { Source = source, CalculationBasis = basis };
         RepairSpecificationPolicy.ValidateAcceptance(candidate, request.Actor);
         if (await context.CaseRepairSpecifications.AnyAsync(
-                item => item.CaseId == request.CaseId && item.Id != entity.Id
+                item => item.WorkId == workId && item.Id != entity.Id
                     && item.IsCurrent
                     && item.Id != entity.SupersedesSpecificationId,
                 cancellationToken))
@@ -250,6 +252,7 @@ public sealed class EfRepairSpecificationStore(
             IsolationLevel.Serializable,
             cancellationToken);
         _ = await RequiredWorkflowForUpdateAsync(context, caseId, cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var existing = await context.ActionHistory
             .SingleOrDefaultAsync(
                 item => item.AggregateType == CaseAggregateType
@@ -269,8 +272,7 @@ public sealed class EfRepairSpecificationStore(
                 throw new CaseOperationConflictException(caseId, operationKey);
             }
 
-            var linkedEstimate = await RequiredEstimateAsync(
-                context, caseId, estimateId, cancellationToken);
+            var linkedEstimate = await RequiredEstimateOfCaseAsync(context, caseId, estimateId, cancellationToken);
             if (!string.Equals(linkedEstimate.CreationOperationKey, operationKey, StringComparison.Ordinal)
                 || !string.Equals(linkedEstimate.SourceSha256, normalizedSha256, StringComparison.OrdinalIgnoreCase))
             {
@@ -280,7 +282,7 @@ public sealed class EfRepairSpecificationStore(
             return new(estimateId);
         }
 
-        var estimate = await RequiredEstimateAsync(context, caseId, estimateId, cancellationToken);
+        var estimate = await RequiredEstimateAsync(context, workId, estimateId, cancellationToken);
         if (!string.Equals(estimate.SourceSha256, normalizedSha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new CaseOperationConflictException(caseId, operationKey);
@@ -314,18 +316,15 @@ public sealed class EfRepairSpecificationStore(
         PersistEstimateAsync(request, importedDocument: false, cancellationToken);
 
     /// <summary>
-    /// The Estimate Apply command. The posted draft and both scaling snapshots
-    /// share this one serializable transaction and one operation key.
+    /// The Estimate Apply command: the saved Draft and both scaling snapshots
+    /// share this one serializable transaction and one operation key. The page
+    /// saves the specification with the Case before it asks.
     /// </summary>
-    public async Task<RepairSpecificationVersion> SaveAndScaleAsync(
-        SaveAndScaleRepairSpecificationRequest request,
+    public async Task<RepairSpecificationVersion> ScaleAsync(
+        ScaleRepairSpecificationRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Save.EstimateId is not { } specificationId)
-        {
-            throw new InvalidOperationException("Only an existing repair specification can be scaled.");
-        }
         if (request.EngineerValue is not { } engineerValue || engineerValue <= 0m)
         {
             throw new InvalidOperationException("A confirmed Engineer's Value is required before scaling.");
@@ -335,63 +334,25 @@ public sealed class EfRepairSpecificationStore(
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        var replayHash = Hash(new
-        {
-            request.Save,
-            request.TargetPercentOfValue,
-            request.Floors,
-        });
+        // The Engineer's Value is read by the act, not posted: the hash is the
+        // operator's intent, so a replay is judged on what was asked.
+        var replayHash = Hash(request with { EngineerValue = null });
         if (await CaseOperationReplay.FindAsync(
-                context, request.Save.CaseId, request.Save.OperationKey, replayHash, cancellationToken))
+                context, request.CaseId, request.OperationKey, replayHash, cancellationToken))
         {
-            return await ReplayedAsync(context, request.Save.CaseId, request.Save.OperationKey, cancellationToken);
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
         }
 
-        var workflow = await RequiredWorkflowAsync(context, request.Save.CaseId, cancellationToken);
+        var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
-        Guard(workflow, request.Save.ExpectedVersion, request.Save.Actor, request.Save.EditLeaseToken, now);
-        var entity = await RequiredEstimateAsync(context, request.Save.CaseId, specificationId, cancellationToken);
-        var existing = Map(entity);
-        EstimatePolicy.ValidateEditable(existing, request.Save.Actor);
-
-        var save = EstimatePolicy.ApplyEditorEvidence(request.Save, existing, now);
-        if (save.SelectedRateCardId is { } rateCardId)
-        {
-            var card = await context.LabourRateCards.AsNoTracking().SingleOrDefaultAsync(
-                item => item.Id == rateCardId, cancellationToken);
-            if (card is null || !card.Active || card.Version != save.SelectedRateCardVersion)
-            {
-                throw new InvalidOperationException(
-                    "The selected labour-rate card changed or is disabled. Select a current card.");
-            }
-            save = save with
-            {
-                Details = save.Details with
-                {
-                    LabourRate = card.PanelRate,
-                    Rate = new EstimateRateSnapshot(card.Id, card.Version, card.PanelRate),
-                },
-            };
-        }
-        else if (save.SelectedRateCardVersion is not null)
-        {
-            throw new ArgumentException("Select a labour-rate card for the specified version.");
-        }
-
-        context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
-        entity.Lines.Clear();
-        entity.SourceRoute = save.Source.Route.ToString();
-        entity.SourceArtifactReference = save.Source.ArtifactReference;
-        entity.SourceVersion = save.Source.SourceVersion;
-        entity.SourceSha256 = save.Source.Sha256;
-        entity.AiJobId = save.AiJobId ?? entity.AiJobId;
-        entity.LastOperationKey = save.OperationKey;
-        ApplyDetails(entity, save.Details);
-        ApplySupplementary(entity, save.Supplementary);
-        AddLines(context, entity, save.Lines, save.Actor, now);
-        RecordBreakdown(entity);
-
+        Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
+        var specificationId = request.SpecificationId;
+        var entity = await RequiredEstimateAsync(context, workId, specificationId, cancellationToken);
         var edited = Map(entity);
+        EstimatePolicy.ValidateEditable(edited, request.Actor);
+        entity.LastOperationKey = request.OperationKey;
+
         var result = RepairSpecificationScaling.Scale(
             edited,
             engineerValue * request.TargetPercentOfValue / 100m,
@@ -403,28 +364,28 @@ public sealed class EfRepairSpecificationStore(
             .OrderByDescending(item => item.Number)
             .FirstOrDefaultAsync(cancellationToken);
         var beforeScaling = EfRepairSpecificationSnapshotStore.Freeze(
-            context, edited, request.Save.Actor, RepairSpecificationSnapshotKind.BeforeScaling,
+            context, workId, edited, request.Actor, RepairSpecificationSnapshotKind.BeforeScaling,
             "Before scaling", now, latest);
 
         context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
         entity.Lines.Clear();
         ApplyDetails(entity, result.Details);
-        AddLines(context, entity, result.Lines, request.Save.Actor, now);
+        AddLines(context, entity, result.Lines, request.Actor, now);
         RecordBreakdown(entity);
         var scaled = Map(entity);
         EfRepairSpecificationSnapshotStore.Freeze(
-            context, scaled, request.Save.Actor, RepairSpecificationSnapshotKind.Scaled,
+            context, workId, scaled, request.Actor, RepairSpecificationSnapshotKind.Scaled,
             reason, now, beforeScaling);
         if (entity.IsCurrent)
         {
             await EfCaseReportGenerationStore.MarkStaleAsync(
-                context, request.Save.CaseId, "current_estimate_saved", now, cancellationToken);
+                context, request.CaseId, "current_estimate_saved", now, cancellationToken);
         }
         AddHistory(
             context,
             workflow,
-            request.Save.Actor,
-            request.Save.OperationKey,
+            request.Actor,
+            request.OperationKey,
             reason,
             "estimate_scaled",
             replayHash,
@@ -454,12 +415,13 @@ public sealed class EfRepairSpecificationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
-        var entity = await RequiredEstimateAsync(context, request.CaseId, request.SpecificationId, cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
+        var entity = await RequiredEstimateAsync(context, workId, request.SpecificationId, cancellationToken);
         var specification = Map(entity);
         EstimatePolicy.ValidateEditable(specification, request.Actor);
         var versionRow = await context.CaseRepairSpecificationSnapshots
             .SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId && item.Id == request.SnapshotId,
+                item => item.WorkId == workId && item.Id == request.SnapshotId,
                 cancellationToken)
             ?? throw new KeyNotFoundException("The version was not found.");
         if (versionRow.SpecificationId != request.SpecificationId)
@@ -473,7 +435,7 @@ public sealed class EfRepairSpecificationStore(
             .OrderByDescending(item => item.Number)
             .FirstOrDefaultAsync(cancellationToken);
         var beforeRestore = EfRepairSpecificationSnapshotStore.Freeze(
-            context,
+            context, workId,
             specification,
             request.Actor,
             RepairSpecificationSnapshotKind.BeforeRestore,
@@ -495,7 +457,7 @@ public sealed class EfRepairSpecificationStore(
         RecordBreakdown(entity);
         var restored = Map(entity);
         EfRepairSpecificationSnapshotStore.Freeze(
-            context,
+            context, workId,
             restored,
             request.Actor,
             RepairSpecificationSnapshotKind.Restored,
@@ -563,7 +525,8 @@ public sealed class EfRepairSpecificationStore(
 
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
-        var entity = await RequiredEstimateAsync(context, request.CaseId, request.SpecificationId, cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
+        var entity = await RequiredEstimateAsync(context, workId, request.SpecificationId, cancellationToken);
         EstimatePolicy.ValidateEditable(Map(entity), request.Actor);
         var before = EfRepairSpecificationSnapshotStore.Map(beforeRow);
 
@@ -581,7 +544,7 @@ public sealed class EfRepairSpecificationStore(
         RecordBreakdown(entity);
         var restored = Map(entity);
         EfRepairSpecificationSnapshotStore.Freeze(
-            context,
+            context, workId,
             restored,
             request.Actor,
             RepairSpecificationSnapshotKind.ScalingRemoved,
@@ -624,6 +587,7 @@ public sealed class EfRepairSpecificationStore(
             cancellationToken);
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
         if (importedDocument)
         {
             CaseMutationGuard.Require(workflow, request.Actor, request.ExpectedVersion, request.EditLeaseToken, now);
@@ -631,7 +595,7 @@ public sealed class EfRepairSpecificationStore(
             // The workflow lock and source census share this transaction: two
             // concurrent completions cannot create two Drafts for one Case/hash.
             var existingImport = await context.CaseRepairSpecifications.Include(item => item.Lines)
-                .FirstOrDefaultAsync(item => item.CaseId == request.CaseId
+                .FirstOrDefaultAsync(item => item.WorkId == workId
                     && item.SourceSha256 == request.Source.Sha256, cancellationToken);
             if (existingImport is not null)
             {
@@ -645,13 +609,77 @@ public sealed class EfRepairSpecificationStore(
         }
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
 
+        var edit = await ApplyEditAsync(context, workflow, request, now, leaveUnchanged: false, cancellationToken);
+        var entity = edit.Entity;
+        request = edit.Evidenced;
+        if (importedDocument)
+        {
+            // Retaining/reading a source is not confirmation of its technical
+            // lines, even when an Engineer initiated the import.
+            foreach (var line in entity.Lines)
+            {
+                line.ConfirmedBy = null;
+                line.ConfirmedAtUtc = null;
+            }
+        }
+        if (importedDocument)
+        {
+            // v1 of an imported specification is the import itself (v28 P43).
+            EfRepairSpecificationSnapshotStore.Freeze(
+                context, workId, Map(entity), request.Actor, RepairSpecificationSnapshotKind.Imported,
+                "Imported " + Pegasus.Core.Assessment.RepairSpecificationRouteWords.Of(request.Source.Route), now);
+        }
+        if (edit.EditingCurrent)
+        {
+            // Editing the current estimate changes the breakdown a frozen
+            // report pinned; a Draft-only save never stales a generation.
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, "current_estimate_saved", now, cancellationToken);
+        }
+        AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
+            request.EventType ?? edit.EventType, requestHash, new { entity.Id, entity.Version, entity.Name, Lines = request.Lines.Count }, now);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(entity);
+    }
+
+    /// <summary>What one editor save did to a specification, inside its caller's transaction.</summary>
+    internal sealed record EstimateEdit(
+        CaseRepairSpecificationEntity Entity,
+        string EventType,
+        bool EditingCurrent,
+        bool Changed,
+        SaveEstimateRequest Evidenced,
+        object? BeforeLines,
+        object? AfterLines);
+
+    /// <summary>
+    /// The one routine that writes a specification from an editor save, inside
+    /// the caller's transaction and under the caller's guard: it creates the
+    /// Draft or replaces an editable one's header, lines and supplementary
+    /// statement, carries each line's evidence, resolves a newly chosen
+    /// labour-rate card and records the breakdown. The estimate command and
+    /// the Case save both write through it, so the two cannot record different
+    /// things for the same edit. With <paramref name="leaveUnchanged"/> an edit
+    /// that is the specification exactly as recorded writes nothing.
+    /// </summary>
+    internal static async Task<EstimateEdit> ApplyEditAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        SaveEstimateRequest request,
+        DateTimeOffset now,
+        bool leaveUnchanged,
+        CancellationToken cancellationToken)
+    {
+        // Every edit writes the Case's current work: the Audit once it exists.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
         CaseRepairSpecificationEntity entity;
         RepairSpecificationVersion? existing = null;
         string eventType;
         var editingCurrent = false;
         if (request.EstimateId is { } estimateId)
         {
-            entity = await RequiredEstimateAsync(context, request.CaseId, estimateId, cancellationToken);
+            entity = await RequiredEstimateAsync(context, workId, estimateId, cancellationToken);
             editingCurrent = entity.IsCurrent;
             existing = Map(entity);
             EstimatePolicy.ValidateEditable(existing, request.Actor);
@@ -662,9 +690,8 @@ public sealed class EfRepairSpecificationStore(
             entity = new CaseRepairSpecificationEntity
             {
                 Id = Guid.NewGuid(),
-                CaseId = request.CaseId,
-                Case = workflow.Case,
-                Version = await NextVersionAsync(context, request.CaseId, cancellationToken),
+                WorkId = workId,
+                Version = await NextVersionAsync(context, workId, cancellationToken),
                 State = RepairSpecificationState.Draft.ToString(),
                 SourceRoute = request.Source.Route.ToString(),
                 CreatedBy = request.Actor.SubjectId,
@@ -673,21 +700,9 @@ public sealed class EfRepairSpecificationStore(
                 Name = request.Details.Name,
                 AiJobId = request.AiJobId,
             };
-            context.CaseRepairSpecifications.Add(entity);
             eventType = "estimate_created";
         }
         request = EstimatePolicy.ApplyEditorEvidence(request, existing, now);
-        if (existing is not null)
-        {
-            context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
-            entity.Lines.Clear();
-        }
-        entity.SourceRoute = request.Source.Route.ToString();
-        entity.SourceArtifactReference = request.Source.ArtifactReference;
-        entity.SourceVersion = request.Source.SourceVersion;
-        entity.SourceSha256 = request.Source.Sha256;
-        entity.AiJobId = request.AiJobId ?? entity.AiJobId;
-        entity.LastOperationKey = request.OperationKey;
         if (request.SelectedRateCardId is { } rateCardId)
         {
             var card = await context.LabourRateCards.AsNoTracking().SingleOrDefaultAsync(
@@ -702,39 +717,33 @@ public sealed class EfRepairSpecificationStore(
         }
         else if (request.SelectedRateCardVersion is not null)
             throw new ArgumentException("Select a labour-rate card for the specified version.");
+        if (leaveUnchanged && EstimatePolicy.IsUnchanged(request, existing))
+        {
+            return new(entity, eventType, editingCurrent, Changed: false, request, null, null);
+        }
+
+        if (existing is null)
+        {
+            context.CaseRepairSpecifications.Add(entity);
+        }
+        var beforeLines = entity.Lines.OrderBy(line => line.Position).Select(EstimateLineWriter.Evidence).ToArray();
+        if (existing is not null)
+        {
+            context.CaseEstimateLines.RemoveRange(entity.Lines.ToArray());
+            entity.Lines.Clear();
+        }
+        entity.SourceRoute = request.Source.Route.ToString();
+        entity.SourceArtifactReference = request.Source.ArtifactReference;
+        entity.SourceVersion = request.Source.SourceVersion;
+        entity.SourceSha256 = request.Source.Sha256;
+        entity.AiJobId = request.AiJobId ?? entity.AiJobId;
+        entity.LastOperationKey = request.OperationKey;
         ApplyDetails(entity, request.Details);
         ApplySupplementary(entity, request.Supplementary);
         AddLines(context, entity, request.Lines, request.Actor, now);
-        if (importedDocument)
-        {
-            // Retaining/reading a source is not confirmation of its technical
-            // lines, even when an Engineer initiated the import.
-            foreach (var line in entity.Lines)
-            {
-                line.ConfirmedBy = null;
-                line.ConfirmedAtUtc = null;
-            }
-        }
         RecordBreakdown(entity);
-        if (importedDocument)
-        {
-            // v1 of an imported specification is the import itself (v28 P43).
-            EfRepairSpecificationSnapshotStore.Freeze(
-                context, Map(entity), request.Actor, RepairSpecificationSnapshotKind.Imported,
-                "Imported " + Pegasus.Core.Assessment.RepairSpecificationRouteWords.Of(request.Source.Route), now);
-        }
-        if (editingCurrent)
-        {
-            // Editing the current estimate changes the breakdown a frozen
-            // report pinned; a Draft-only save never stales a generation.
-            await EfCaseReportGenerationStore.MarkStaleAsync(
-                context, request.CaseId, "current_estimate_saved", now, cancellationToken);
-        }
-        AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
-            request.EventType ?? eventType, requestHash, new { entity.Id, entity.Version, entity.Name, Lines = request.Lines.Count }, now);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return Map(entity);
+        var afterLines = entity.Lines.OrderBy(line => line.Position).Select(EstimateLineWriter.Evidence).ToArray();
+        return new(entity, eventType, editingCurrent, Changed: true, request, beforeLines, afterLines);
     }
 
     public async Task<RepairSpecificationVersion> DuplicateEstimateAsync(
@@ -754,7 +763,8 @@ public sealed class EfRepairSpecificationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
-        var original = await RequiredEstimateAsync(context, request.CaseId, request.EstimateId, cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
+        var original = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
         EstimatePolicy.ValidateDuplicate(Map(original));
 
         // A copy is the staff member's own working estimate: it keeps the figures
@@ -764,9 +774,8 @@ public sealed class EfRepairSpecificationStore(
         var entity = new CaseRepairSpecificationEntity
         {
             Id = Guid.NewGuid(),
-            CaseId = request.CaseId,
-            Case = workflow.Case,
-            Version = await NextVersionAsync(context, request.CaseId, cancellationToken),
+            WorkId = workId,
+            Version = await NextVersionAsync(context, workId, cancellationToken),
             State = RepairSpecificationState.Draft.ToString(),
             SourceRoute = RepairSpecificationSourceRoute.Manual.ToString(),
             CreatedBy = request.Actor.SubjectId,
@@ -813,7 +822,8 @@ public sealed class EfRepairSpecificationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
-        var entity = await RequiredEstimateAsync(context, request.CaseId, request.EstimateId, cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
+        var entity = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
         EstimatePolicy.ValidateDiscard(Map(entity));
         var discardingCurrent = entity.IsCurrent;
         entity.State = RepairSpecificationState.Discarded.ToString();
@@ -852,11 +862,12 @@ public sealed class EfRepairSpecificationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
         var beforeEstimate = await ReadReportEstimateDependenciesAsync(
             context,
-            request.CaseId,
+            workId,
             cancellationToken);
-        var entity = await RequiredEstimateAsync(context, request.CaseId, request.EstimateId, cancellationToken);
+        var entity = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
 
         // "Use estimate" is the Engineer's acceptance of a Draft: their act
         // confirms every line it carries, and the calculation basis is the
@@ -883,7 +894,7 @@ public sealed class EfRepairSpecificationStore(
         // The previous Current is cleared in the same transaction; the
         // filtered unique index refuses two Current rows on one case.
         var previous = await context.CaseRepairSpecifications
-            .Where(item => item.CaseId == request.CaseId && item.IsCurrent && item.Id != entity.Id)
+            .Where(item => item.WorkId == workId && item.IsCurrent && item.Id != entity.Id)
             .ToListAsync(cancellationToken);
         foreach (var item in previous)
         {
@@ -912,11 +923,13 @@ public sealed class EfRepairSpecificationStore(
 
     public async Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var entities = await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderBy(item => item.Version)
             .ToArrayAsync(cancellationToken);
         return entities.Select(Map).ToArray();
@@ -938,8 +951,9 @@ public sealed class EfRepairSpecificationStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var rows = context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.CaseId == caseId);
+            .Where(item => item.WorkId == workId);
         if (afterId is { } id)
         {
             var afterValue = afterVersion!.Value;
@@ -961,7 +975,7 @@ public sealed class EfRepairSpecificationStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId && item.Id == specificationId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Work.CaseId == caseId && item.Id == specificationId, cancellationToken);
         return entity is null ? null : Map(entity);
     }
 
@@ -969,7 +983,8 @@ public sealed class EfRepairSpecificationStore(
         Guid caseId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await AcceptedQuery(context, caseId).AsNoTracking().Include(item => item.Lines)
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        var entity = await AcceptedQuery(context, workId).AsNoTracking().Include(item => item.Lines)
             .SingleOrDefaultAsync(cancellationToken);
         return entity is null ? null : Map(entity);
     }
@@ -978,7 +993,8 @@ public sealed class EfRepairSpecificationStore(
         Guid caseId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await DraftQuery(context, caseId).AsNoTracking().Include(item => item.Lines)
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        var entity = await DraftQuery(context, workId).AsNoTracking().Include(item => item.Lines)
             .SingleOrDefaultAsync(cancellationToken);
         return entity is null ? null : Map(entity);
     }
@@ -993,20 +1009,20 @@ public sealed class EfRepairSpecificationStore(
     /// marked Current.
     /// </summary>
     internal static IQueryable<CaseRepairSpecificationEntity> DraftQuery(
-        PegasusDbContext context, Guid caseId) => context.CaseRepairSpecifications
-        .Where(item => item.CaseId == caseId
+        PegasusDbContext context, Guid workId) => context.CaseRepairSpecifications
+        .Where(item => item.WorkId == workId
             && item.State == RepairSpecificationState.Draft.ToString())
         .OrderByDescending(item => item.Version)
         .Take(1);
 
     internal static IQueryable<CaseRepairSpecificationEntity> AcceptedQuery(
-        PegasusDbContext context, Guid caseId) => context.CaseRepairSpecifications
-        .Where(item => item.CaseId == caseId && item.IsCurrent);
+        PegasusDbContext context, Guid workId) => context.CaseRepairSpecifications
+        .Where(item => item.WorkId == workId && item.IsCurrent);
 
     internal static async Task<int> NextVersionAsync(
-        PegasusDbContext context, Guid caseId, CancellationToken cancellationToken) =>
+        PegasusDbContext context, Guid workId, CancellationToken cancellationToken) =>
         (await context.CaseRepairSpecifications
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .MaxAsync(item => (int?)item.Version, cancellationToken) ?? 0) + 1;
 
     /// <summary>
@@ -1017,11 +1033,10 @@ public sealed class EfRepairSpecificationStore(
     /// explicit, source-validated, supersession-aware workflow.
     /// </summary>
     internal static CaseRepairSpecificationEntity NewLegacyDraft(
-        Guid caseId, CaseEntity @case, int version, string createdBy, string operationKey, DateTimeOffset now) => new()
+        Guid workId, int version, string createdBy, string operationKey, DateTimeOffset now) => new()
     {
         Id = Guid.NewGuid(),
-        CaseId = caseId,
-        Case = @case,
+        WorkId = workId,
         Version = version,
         State = RepairSpecificationState.Draft.ToString(),
         SourceRoute = RepairSpecificationSourceRoute.LegacyUnresolved.ToString(),
@@ -1100,8 +1115,9 @@ public sealed class EfRepairSpecificationStore(
     /// The reverse of <see cref="ApplyDetails"/>: the canonical header as the
     /// row records it. A row that names no applicable categories carries the
     /// status's own defaults; a row whose status was never recorded reads
-    /// back as <see cref="RepairerVatStatus.Unknown"/>, which is what blocks
-    /// it from being made Current until the status or the categories are.
+    /// back as <see cref="RepairerVatStatus.Unknown"/>, whose totals charge
+    /// VAT on nothing until the status or the categories are recorded (it
+    /// never gates Use repair spec, v28 P10).
     /// </summary>
     private static EstimateDetails ReadDetails(CaseRepairSpecificationEntity entity)
     {
@@ -1198,6 +1214,15 @@ public sealed class EfRepairSpecificationStore(
         }
     }
 
+    /// <summary>The recorded result of a Case operation already applied under this key, if any.</summary>
+    internal static Task<string?> ReplayedCaseAfterJsonAsync(
+        PegasusDbContext context, Guid caseId, string operationKey, string eventKind, CancellationToken cancellationToken) =>
+        context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateType == "case" && item.AggregateId == caseId.ToString("D")
+                && item.CorrelationId == operationKey && item.EventKind == eventKind)
+            .Select(item => item.AfterJson)
+            .SingleOrDefaultAsync(cancellationToken);
+
     private static async Task<RepairSpecificationVersion> ReplayedAsync(
         PegasusDbContext context, Guid caseId, string operationKey, CancellationToken cancellationToken)
     {
@@ -1207,15 +1232,12 @@ public sealed class EfRepairSpecificationStore(
         var eventType = await context.CaseWorkflowEvents.AsNoTracking()
             .Where(item => item.CaseId == caseId && item.OperationKey == operationKey)
             .Select(item => item.EventType).SingleAsync(cancellationToken);
-        var after = await context.ActionHistory.AsNoTracking()
-            .Where(item => item.AggregateType == "case" && item.AggregateId == caseId.ToString("D")
-                && item.CorrelationId == operationKey && item.EventKind == eventType)
-            .Select(item => item.AfterJson).SingleAsync(cancellationToken);
+        var after = await ReplayedCaseAfterJsonAsync(context, caseId, operationKey, eventType, cancellationToken);
         using var result = JsonDocument.Parse(after
             ?? throw new InvalidOperationException("The estimate operation has no recorded result identity."));
         var estimateId = result.RootElement.GetProperty("id").GetGuid();
         return Map(await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .SingleAsync(item => item.CaseId == caseId && item.Id == estimateId, cancellationToken));
+            .SingleAsync(item => item.Work.CaseId == caseId && item.Id == estimateId, cancellationToken));
     }
 
     private static async Task<EstimateImportResult> ReadSourceHashReplayAsync(
@@ -1253,7 +1275,7 @@ public sealed class EfRepairSpecificationStore(
 
         var estimate = await context.CaseRepairSpecifications.AsNoTracking()
             .SingleOrDefaultAsync(
-                item => item.CaseId == caseId && item.Id == snapshot.EstimateId,
+                item => item.Work.CaseId == caseId && item.Id == snapshot.EstimateId,
                 cancellationToken);
         if (estimate is null)
         {
@@ -1278,19 +1300,27 @@ public sealed class EfRepairSpecificationStore(
             : null;
     }
 
+    // A write finds its estimate in the current work only: an estimate of the
+    // Inspection is read-only once the Audit exists, so it is not found here.
     private static async Task<CaseRepairSpecificationEntity> RequiredEstimateAsync(
+        PegasusDbContext context, Guid workId, Guid estimateId, CancellationToken cancellationToken) =>
+        await context.CaseRepairSpecifications.Include(item => item.Lines)
+            .SingleOrDefaultAsync(item => item.Id == estimateId && item.WorkId == workId, cancellationToken)
+        ?? throw new InvalidOperationException("The estimate was not found on this case.");
+
+    private static async Task<CaseRepairSpecificationEntity> RequiredEstimateOfCaseAsync(
         PegasusDbContext context, Guid caseId, Guid estimateId, CancellationToken cancellationToken) =>
         await context.CaseRepairSpecifications.Include(item => item.Lines)
-            .SingleOrDefaultAsync(item => item.Id == estimateId && item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.Id == estimateId && item.Work.CaseId == caseId, cancellationToken)
         ?? throw new InvalidOperationException("The estimate was not found on this case.");
 
     private static async Task<CaseReportEstimateDependencies> ReadReportEstimateDependenciesAsync(
         PegasusDbContext context,
-        Guid caseId,
+        Guid workId,
         CancellationToken cancellationToken)
     {
         var current = await context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.CaseId == caseId && item.IsCurrent)
+            .Where(item => item.WorkId == workId && item.IsCurrent)
             .Select(item => new { item.Id, item.Version })
             .SingleOrDefaultAsync(cancellationToken);
         return current is null
@@ -1413,14 +1443,14 @@ public sealed class EfRepairSpecificationStore(
     private static CaseEstimateLineEntity NewLine(
         EstimateLineInput line, int position, CaseRepairSpecificationEntity target,
         ActionActor actor, DateTimeOffset now) =>
-        EstimateLineWriter.NewLine(line, position, target.CaseId, target.Case, target, actor, now);
+        EstimateLineWriter.NewLine(line, position, target.WorkId, target, actor, now);
 
     internal static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity)
     {
         var details = ReadDetails(entity);
         var breakdown = ReadBreakdown(entity);
         return new(
-            entity.Id, entity.CaseId, entity.Version,
+            entity.Id, entity.Work.CaseId, entity.Version,
             Enum.Parse<RepairSpecificationState>(entity.State),
             new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
                 entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),
@@ -1480,7 +1510,7 @@ public sealed class EfRepairSpecificationStore(
     /// <c>entity.Lines</c> ever being included.
     /// </summary>
     internal static CaseEstimatePageItem MapPageItem(CaseRepairSpecificationEntity entity) => new(
-        entity.Id, entity.CaseId, entity.Version,
+        entity.Id, entity.Work.CaseId, entity.Version,
         Enum.Parse<RepairSpecificationState>(entity.State),
         new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
             entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),
@@ -1534,8 +1564,7 @@ internal static class EstimateLineWriter
     public static CaseEstimateLineEntity NewLine(
         EstimateLineInput line,
         int position,
-        Guid caseId,
-        CaseEntity owningCase,
+        Guid workId,
         CaseRepairSpecificationEntity? specification,
         ActionActor actor,
         DateTimeOffset now)
@@ -1546,8 +1575,7 @@ internal static class EstimateLineWriter
         return new()
         {
             Id = Guid.NewGuid(),
-            CaseId = caseId,
-            Case = owningCase,
+            WorkId = workId,
             RepairSpecificationId = specification?.Id,
             RepairSpecification = specification,
             Position = position,
@@ -1594,8 +1622,7 @@ internal static class EstimateLineWriter
     /// </summary>
     public static (object Before, object After) Replace(
         PegasusDbContext context,
-        Guid caseId,
-        CaseEntity owningCase,
+        Guid workId,
         CaseRepairSpecificationEntity? specification,
         List<CaseEstimateLineEntity> tracked,
         IReadOnlyList<EstimateLineInput> replacement,
@@ -1612,7 +1639,7 @@ internal static class EstimateLineWriter
         foreach (var line in replacement)
         {
             position++;
-            var entity = NewLine(line, position, caseId, owningCase, specification, actor, now);
+            var entity = NewLine(line, position, workId, specification, actor, now);
             context.CaseEstimateLines.Add(entity);
             tracked.Add(entity);
         }

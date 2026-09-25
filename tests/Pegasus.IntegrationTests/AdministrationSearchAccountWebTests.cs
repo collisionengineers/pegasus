@@ -858,14 +858,14 @@ public sealed class AdministrationSearchAccountWebTests
         var html = await search.Content.ReadAsStringAsync();
         Assert.Contains("No cases match these filters.", html, StringComparison.Ordinal);
 
-        // A real bookmark carries a whole filter set, including the two
-        // parameters the ported grid no longer draws. Every value survives the
-        // move byte for byte, in its original order, and the page it lands on
+        // A real bookmark carries a whole filter set, including the received
+        // date the ported grid does not draw. Every value survives the move
+        // byte for byte, in its original order, and the page it lands on
         // accepts all of them.
         const string wholeFilterSet =
             "?case=QDOS3100042&registration=AB12CDE&claimant=Claimant&claimNumber=CLM42"
             + "&principal=QDOS&state=Review&receivedDate=2031-05-01"
-            + "&instructionDate=2031-05-02&fromDate=2031-04-01&toDate=2031-05-31"
+            + "&fromDate=2031-04-01&toDate=2031-05-31"
             + "&origin=Email&query=" + keyword + "&page=2";
         using var wholeBookmark = await client.GetAsync("/Cases" + wholeFilterSet);
         Assert.Equal(HttpStatusCode.MovedPermanently, wholeBookmark.StatusCode);
@@ -949,7 +949,7 @@ public sealed class AdministrationSearchAccountWebTests
                     Year = 2032,
                     Sequence = 1,
                     Reference = "QDOS32001",
-                    Type = "Inspection",
+                    Type = "inspection",
                     InitialState = "Review",
                     CustodyState = "Confirmed",
                     OriginIntakeReceiptId = receiptId,
@@ -961,6 +961,7 @@ public sealed class AdministrationSearchAccountWebTests
                 {
                     Id = generationId,
                     CaseId = caseId,
+                    WorkId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
                     SnapshotJson = "{\"agreedFee\":0.00}",
@@ -1045,8 +1046,14 @@ public sealed class AdministrationSearchAccountWebTests
         csvResponse.EnsureSuccessStatusCode();
         Assert.StartsWith("text/csv", csvResponse.Content.Headers.ContentType?.MediaType, StringComparison.Ordinal);
         var csv = await csvResponse.Content.ReadAsStringAsync();
-        Assert.Contains("Principal,Reports produced,Reports sent,Agreed fees,Report types", csv, StringComparison.Ordinal);
-        Assert.Contains("QDOS,1,1,0.00,Report 1", csv, StringComparison.Ordinal);
+        Assert.Contains(
+            "Principal,Reports produced,Reports produced · Inspection,Reports produced · Audit,"
+            + "Reports sent,Reports sent · Inspection,Reports sent · Audit,"
+            + "Agreed fees,Agreed fees · Inspection,Agreed fees · Audit,Report types",
+            csv,
+            StringComparison.Ordinal);
+        // An Inspection Case's report, send and fee are all Inspection.
+        Assert.Contains("QDOS,1,1,0,1,1,0,0.00,0.00,0.00,Report 1", csv, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1099,7 +1106,7 @@ public sealed class AdministrationSearchAccountWebTests
                     Year = 2032,
                     Sequence = 2,
                     Reference = "QDOS32002",
-                    Type = "Inspection",
+                    Type = "inspection",
                     InitialState = "Review",
                     CustodyState = "Confirmed",
                     OriginIntakeReceiptId = receiptId,
@@ -1134,6 +1141,7 @@ public sealed class AdministrationSearchAccountWebTests
                 {
                     Id = generationId,
                     CaseId = caseId,
+                    WorkId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
                     SnapshotJson = "{\"agreedFee\":0.00}",

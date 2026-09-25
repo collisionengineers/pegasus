@@ -178,15 +178,22 @@ internal sealed class EfCaseArtifactCustody(
             }
         }
 
-        var workflow = await db.CaseWorkflows
-            .Include(value => value.Case)
-            .SingleOrDefaultAsync(value => value.CaseId == caseId, cancellationToken)
+        // A Triage Case keeps standard Case files but has no workflow; its
+        // Triage is the authority. Automatic evidence promotion never targets
+        // it: automatic association only ever reaches an instructed Case.
+        var authority = await CaseMutationAuthority.LoadAsync(db, caseId, cancellationToken)
             ?? throw new InvalidOperationException("The artifact Case is unavailable.");
         if (request.IsAutomaticIntakeEvidencePromotion)
         {
-            await RequireAutomaticPromotionTargetAsync(db, workflow, request, cancellationToken);
+            if (authority.Workflow is not { } promotionWorkflow)
+            {
+                throw new IntakeDependencyUnavailableException(
+                    "The automatically associated Case is no longer safe for evidence filing.");
+            }
+
+            await RequireAutomaticPromotionTargetAsync(db, promotionWorkflow, request, cancellationToken);
         }
-        var caseEntity = workflow.Case;
+        var caseEntity = authority.Case;
         var lastOrdinal = await db.Set<CaseDocumentEntity>()
             .Where(value => value.CaseId == caseId)
             .Select(value => (int?)value.Ordinal)
@@ -196,7 +203,8 @@ internal sealed class EfCaseArtifactCustody(
             Id = Guid.NewGuid(),
             CaseId = caseId,
             Ordinal = checked(lastOrdinal + 1),
-            SourceOccurrenceIdentity = request.OccurrenceIdentity
+            SourceOccurrenceIdentity = request.OccurrenceIdentity,
+            CustodyFolder = CaseCustodyFolders.ToCode(request.Folder)
         } : await db.Set<CaseDocumentEntity>().SingleAsync(
             value => value.Id == existing.Version.DocumentId, cancellationToken);
         var version = existing?.Version ?? new DocumentVersionEntity
@@ -243,9 +251,13 @@ internal sealed class EfCaseArtifactCustody(
         }
         if (initialWriteTransaction is not null)
             await initialWriteTransaction.CommitAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(caseEntity.CustodyRootRemoteId))
+        // A document is filed in its own folder; the Audit's a. folder may
+        // not exist yet, and reconciliation files the document once it does.
+        var auditFolder = string.Equals(document.CustodyFolder, CaseCustodyFolders.Audit, StringComparison.Ordinal);
+        var folderRoot = CaseCustodyFolders.RootOf(caseEntity, document.CustodyFolder);
+        if (string.IsNullOrWhiteSpace(folderRoot))
         {
-            return Pending(version, occurrence.Id, "case_custody_pending");
+            return Pending(version, occurrence.Id, auditFolder ? "audit_custody_pending" : "case_custody_pending");
         }
 
         if (request.IsAutomaticIntakeEvidencePromotion
@@ -260,7 +272,7 @@ internal sealed class EfCaseArtifactCustody(
         var address = new ManagedDocumentContentAddress(
             caseId,
             caseEntity.Reference,
-            caseEntity.CustodyRootRemoteId,
+            folderRoot,
             occurrence.Id,
             occurrence.Ordinal,
             document.Id,
@@ -289,7 +301,9 @@ internal sealed class EfCaseArtifactCustody(
                 && value.CustodyStatus == DocumentCustodyStatus.Pending
                 && value.PendingContentStorageKey == pendingContentStorageKey
                 && db.Cases.Any(caseValue => caseValue.Id == caseId
-                    && caseValue.CustodyRootRemoteId == capturedRoot)
+                    && (auditFolder
+                        ? caseValue.AuditCustodyRemoteId == capturedRoot
+                        : caseValue.CustodyRootRemoteId == capturedRoot))
                 && (!request.IsAutomaticIntakeEvidencePromotion || db.CaseWorkflows.Any(workflow =>
                     workflow.CaseId == caseId
                     && workflow.Version == request.ExpectedCaseVersion!.Value
@@ -321,6 +335,9 @@ internal sealed class EfCaseArtifactCustody(
             db, caseId, occurrence.OperationKey, timeProvider.GetUtcNow(), cancellationToken);
         if (request.IsAutomaticIntakeEvidencePromotion)
         {
+            await RecordFiledIntakeAssetAsync(
+                db, request.IntakeReceiptId!.Value, occurrence.SourceOccurrenceIdentity,
+                write.RemoteId, write.BoxVersionId, capturedRoot, cancellationToken);
             await CompleteAutomaticPromotionIfReadyAsync(
                 db, caseId, request.IntakeReceiptId!.Value,
                 request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
@@ -455,9 +472,10 @@ internal sealed class EfCaseArtifactCustody(
         }
 
         var snapshot = await db.Set<CaseDataSnapshotEntity>()
-            .Include(item => item.Case)
+            .Include(item => item.Work)
+            .ThenInclude(item => item.Case)
             .ThenInclude(item => item.Principal)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
             ?? throw new InvalidDataException("The automatically associated Case has no data snapshot.");
         var workflow = await db.CaseWorkflows
             .Include(item => item.Case)
@@ -470,11 +488,11 @@ internal sealed class EfCaseArtifactCustody(
 
         var configuration = await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken);
         var before = new CaseCompleteness(
-            snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete);
+            snapshot.Work.Case.InstructionComplete,
+            snapshot.Work.Case.ImagesComplete);
         var after = before with { ImagesComplete = true };
         var evaluation = CaseCompletenessPolicy.Evaluate(after, configuration);
-        snapshot.Case.ImagesComplete = true;
+        snapshot.Work.Case.ImagesComplete = true;
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
@@ -501,7 +519,7 @@ internal sealed class EfCaseArtifactCustody(
             }
             workflow.State = nameof(CaseLifecycleState.NotReady);
             await CaseDueWorkScheduler.ScheduleAsync(
-                db, workflow, snapshot.Case.AcceptedInspectionDeadline, nowUtc, cancellationToken);
+                db, workflow, snapshot.Work.Case.AcceptedInspectionDeadline, nowUtc, cancellationToken);
         }
 
         var beforeVersion = workflow.Version;
@@ -542,6 +560,32 @@ internal sealed class EfCaseArtifactCustody(
             BeforeJson = JsonSerializer.Serialize(before),
             AfterJson = JsonSerializer.Serialize(after)
         });
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// An intake asset filed on its Case is read from the Case folder from then
+    /// on: its confirmed copy is the Case document, so it needs no holding copy
+    /// and readers expect the Case root as its parent.
+    /// </summary>
+    internal static async Task RecordFiledIntakeAssetAsync(
+        PegasusDbContext db,
+        Guid receiptId,
+        string occurrenceIdentity,
+        string? boxFileId,
+        string? boxVersionId,
+        string caseRootRemoteId,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParseExact(occurrenceIdentity.Trim(), "N", out var assetId))
+        {
+            throw new InvalidDataException("The filed intake evidence has no retained asset identity.");
+        }
+        var asset = await db.Set<IntakeAssetEntity>()
+            .SingleOrDefaultAsync(value => value.Id == assetId && value.IntakeReceiptId == receiptId,
+                cancellationToken)
+            ?? throw new InvalidDataException("The filed intake evidence has no retained asset identity.");
+        asset.ConfirmCustody(boxFileId, boxVersionId, caseRootRemoteId);
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -645,9 +689,7 @@ internal sealed class EfCaseArtifactCustody(
                 NormalizeHash(request.Sha256),
                 cancellationToken);
         }
-        asset.BoxFileId = file.Id;
-        asset.BoxVersionId = file.VersionId;
-        asset.CustodyStatus = "confirmed";
+        asset.ConfirmCustody(file.Id, file.VersionId, holdingFolderId);
         await db.SaveChangesAsync(cancellationToken);
         return new(
             CaseArtifactCustodyDisposition.Confirmed,
@@ -890,7 +932,10 @@ public sealed class ReconcilePendingArtifactCustody
         var confirmed = 0; var retained = 0; var failures = 0;
         foreach (var candidate in candidates)
         {
-            if (string.IsNullOrWhiteSpace(candidate.Case.CustodyRootRemoteId))
+            var auditFolder = string.Equals(
+                candidate.Document.CustodyFolder, CaseCustodyFolders.Audit, StringComparison.Ordinal);
+            var folderRoot = CaseCustodyFolders.RootOf(candidate.Case, candidate.Document.CustodyFolder);
+            if (string.IsNullOrWhiteSpace(folderRoot))
             {
                 await RecordAttemptAsync(candidate.Version.Id, "Retained", "CaseRootUnavailable");
                 retained++;
@@ -914,7 +959,7 @@ public sealed class ReconcilePendingArtifactCustody
                 var address = new ManagedDocumentContentAddress(
                     candidate.Case.Id,
                     candidate.Case.Reference,
-                    candidate.Case.CustodyRootRemoteId,
+                    folderRoot,
                     candidate.Occurrence.Id,
                     candidate.Occurrence.Ordinal,
                     candidate.Document.Id,
@@ -950,7 +995,9 @@ public sealed class ReconcilePendingArtifactCustody
                         && value.CustodyStatus == DocumentCustodyStatus.Pending
                         && value.PendingContentStorageKey == candidate.Version.PendingContentStorageKey
                         && update.Cases.Any(caseValue => caseValue.Id == candidate.Case.Id
-                            && caseValue.CustodyRootRemoteId == candidate.Case.CustodyRootRemoteId))
+                            && (auditFolder
+                                ? caseValue.AuditCustodyRemoteId == folderRoot
+                                : caseValue.CustodyRootRemoteId == folderRoot)))
                     .ExecuteUpdateAsync(setters => setters
                         .SetProperty(value => value.BoxFileId, write.RemoteId)
                         .SetProperty(value => value.BoxVersionId, write.BoxVersionId)
@@ -964,6 +1011,11 @@ public sealed class ReconcilePendingArtifactCustody
                         timeProvider.GetUtcNow(), cancellationToken);
                     if (automaticPromotion is { } completedPromotion)
                     {
+                        await EfCaseArtifactCustody.RecordFiledIntakeAssetAsync(
+                            update, completedPromotion.ReceiptId,
+                            candidate.Occurrence.SourceOccurrenceIdentity,
+                            write.RemoteId, write.BoxVersionId,
+                            candidate.Case.CustodyRootRemoteId!, cancellationToken);
                         await EfCaseArtifactCustody.CompleteAutomaticPromotionIfReadyAsync(
                             update, candidate.Case.Id, completedPromotion.ReceiptId,
                             completedPromotion.ExpectedCaseVersion, timeProvider.GetUtcNow(), cancellationToken);

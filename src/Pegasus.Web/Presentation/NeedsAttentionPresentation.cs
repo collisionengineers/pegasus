@@ -56,9 +56,9 @@ public static class NeedsAttentionPresentation
     public static string RecordPage(NeedsAttentionKind kind) => kind switch
     {
         NeedsAttentionKind.CaseChase or NeedsAttentionKind.HeldDecision
-            or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer => "/Cases/Details",
+            or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer
+            or NeedsAttentionKind.Triage => "/Cases/Details",
         NeedsAttentionKind.Unidentified => "/Unidentified/Details",
-        NeedsAttentionKind.Triage => "/Triage/Details",
         _ => "/Operations/Index"
     };
 

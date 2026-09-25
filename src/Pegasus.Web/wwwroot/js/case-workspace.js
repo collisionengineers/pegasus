@@ -5,7 +5,7 @@
 // Blocks, in order:
 //   frame       sticky measure, Scroll/Tabs, lazy section bodies, the
 //               section nav, in-place actions (fetch + swap), the edit
-//               session (dirty guard, heartbeat, expiry), pegasus:dirty
+//               session (dirty guard, heartbeat, expiry)
 //   sections    the section-owned enhancements (damage clicker, valuation
 //               calculator, estimate grid, report images, files, viewer)
 //
@@ -35,11 +35,14 @@
     var dirtyEditors = new Map();
     var activeEditor = null;
     var submitting = false;
+    // One editor: the record's Save form (one Save, 23 September 2026). The
+    // Repair Spec and the valuation calculator are controls of it.
     var editorLabels = {
-        'case-edit-form': 'Case',
-        'case-estimate-form': 'Estimate',
-        'case-valuation-form': 'Valuation'
+        'case-edit-form': 'Case'
     };
+    // Whether the unsaved Case changes include the Repair Spec's, which an
+    // import must not overwrite. Cleared with the Case's draft.
+    var estimateTouched = false;
     var pendingAnchor = null;
     var navigationVersion = 0;
 
@@ -197,7 +200,11 @@
         if (lease) {
             headers['X-Pegasus-Edit-Lease'] = lease;
         }
-        fetch(fragmentPath + '?section=' + encodeURIComponent(key), { credentials: 'same-origin', headers: headers })
+        // The Inspection view's bodies read the Inspection's own work (v29).
+        var view = record.getAttribute('data-case-view');
+        var fragmentUrl = fragmentPath + '?section=' + encodeURIComponent(key)
+            + (view ? '&view=' + encodeURIComponent(view) : '');
+        fetch(fragmentUrl, { credentials: 'same-origin', headers: headers })
             .then(function (response) {
                 if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
                     throw new Error('section ' + key + ': ' + response.status);
@@ -343,7 +350,9 @@
         updateSectionFields();
     }
     function updateSectionFields() {
-        record.querySelectorAll('[data-case-section-field]').forEach(function (field) { field.value = activeKey; });
+        // The refresh partial's replay input carries the generic hook; the
+        // Case's own forms carry the Case-named one.
+        record.querySelectorAll('[data-case-section-field], [data-refresh-field="section"]').forEach(function (field) { field.value = activeKey; });
     }
     window.pegasusCaseJumpTo = jumpTo;
 
@@ -378,7 +387,8 @@
         selectTab(all[nextIndex].getAttribute('data-section-link'));
     });
     document.addEventListener('click', function (event) {
-        var jump = event.target.closest('[data-section-jump]');
+        // An empty jump (the Inspection view's Next action) is an ordinary link.
+        var jump = event.target.closest('[data-section-jump]:not([data-section-jump=""])');
         if (!jump || !record.contains(jump)) {
             return;
         }
@@ -419,10 +429,12 @@
     }
 
     // ---- the edit session: dirty guard, heartbeat, expiry ------------------
-    function announce(isDirty) {
+    function setDirty(isDirty) {
         dirty = isDirty;
+        if (!isDirty) { estimateTouched = false; }
         document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: isDirty } }));
     }
+    function estimateIsDirty() { return estimateTouched && dirtyEditors.has('case-edit-form'); }
     function editorFor(control) {
         var form = control.form || (control.closest ? control.closest('form') : null);
         return form && editorLabels[form.getAttribute('id')] ? form : null;
@@ -431,12 +443,14 @@
         var id = form.getAttribute('id');
         dirtyEditors.set(id, (dirtyEditors.get(id) || 0) + 1);
         activeEditor = id;
-        announce(true);
+        setDirty(true);
     }
     ['input', 'change'].forEach(function (name) {
         document.addEventListener(name, function (event) {
             var form = editorFor(event.target);
-            if (form) { markDirty(form); }
+            if (!form) { return; }
+            markDirty(form);
+            if (event.target.closest && event.target.closest('[data-estimate-form]')) { estimateTouched = true; }
         });
     });
     document.addEventListener('focusin', function (event) {
@@ -542,7 +556,7 @@
             var form = activeDirtyForm();
             var label = form ? editorLabels[form.getAttribute('id')] : 'Case';
             confirmDialog.querySelector('h2').textContent = 'Unsaved ' + Array.from(dirtyEditors.keys()).map(function (id) { return editorLabels[id]; }).join(', ') + ' changes';
-            confirmDialog.querySelector('[data-edit-finish-save]').textContent = label === 'Valuation' ? 'Apply valuation' : 'Save ' + label;
+            confirmDialog.querySelector('[data-edit-finish-save]').textContent = 'Save ' + label;
             confirmDialog.hidden = false;
             var keep = confirmDialog.querySelector('[data-edit-finish-keep]');
             if (keep) { keep.focus(); }
@@ -591,11 +605,14 @@
         if (!host) {
             return;
         }
-        window.scrollBy({ top: host.getBoundingClientRect().top - saved.top, behavior: 'auto' });
+        // Instant, never 'auto': the page's smooth scroll-behavior would paint
+        // the swapped page at the old offset first and then glide back — the
+        // jump to the top and back on Edit. This lands before the first paint.
+        window.scrollBy({ top: host.getBoundingClientRect().top - saved.top, behavior: 'instant' });
     }
 
     var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
-    function swap(html, command) {
+    function swap(html, command, preferred) {
         var parsed = new DOMParser().parseFromString(html, 'text/html');
         var incoming = parsed.querySelector('[data-case-record]');
         if (!incoming) {
@@ -641,7 +658,9 @@
         // A refusal or unknown outcome must not replace any draft or its original
         // authority. Server notices can still explain the failed command.
         var noticesOnly = dirtyEditors.size > 0 && !confirmed;
-        var saved = anchor();
+        // The section a head Edit was pressed on keeps its place; any other
+        // swap keeps the section at the reading line.
+        var saved = preferred || anchor();
         var collapsed = {};
         sections().forEach(function (host) { collapsed[host.getAttribute('data-section')] = host.classList.contains('is-collapsed'); });
         if (!noticesOnly) {
@@ -677,18 +696,12 @@
             });
             current.replaceWith(next);
         });
-        (noticesOnly ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current']).forEach(function (name) {
+        (noticesOnly ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current', 'data-case-view']).forEach(function (name) {
             var value = incoming.getAttribute(name);
             if (value === null) { record.removeAttribute(name); } else { record.setAttribute(name, value); }
         });
         record.setAttribute('data-layout', layout);
         main = document.getElementById('case-main');
-        var mainAttributes = parsed.querySelector('main[data-record-kind]');
-        var liveMain = document.querySelector('main#main-content');
-        if (mainAttributes && liveMain) {
-            var glyph = mainAttributes.getAttribute('data-record-glyph');
-            if (glyph) { liveMain.setAttribute('data-record-glyph', glyph); } else { liveMain.removeAttribute('data-record-glyph'); }
-        }
         // Dialogs first so the openers in the swapped roots find them.
         ['[data-case-dialogs]', '[data-case-viewer-host]', '[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]'].forEach(function (selector) {
             var root = document.querySelector(selector);
@@ -706,7 +719,7 @@
         updateSectionFields();
         measure();
         keep(saved);
-        announce(dirtyEditors.size > 0);
+        setDirty(dirtyEditors.size > 0);
         if (confirmed && dirtyEditors.size > 0 && !mayAdvance) {
             showActionError('The save completed, but the Case changed again or editing expired. Your other unsaved changes still use their original version.');
         }
@@ -739,6 +752,10 @@
         }
     }
     function submitInPlace(form, submitter) {
+        // A section-head Edit keeps its own section where it is on screen.
+        var editKey = submitter ? submitter.getAttribute('data-section-edit') : null;
+        var editHost = editKey ? sectionFor(editKey) : null;
+        var preferred = editHost ? { key: editKey, top: editHost.getBoundingClientRect().top } : null;
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
         var isImport = form.hasAttribute('data-estimate-import-form');
         var command = editorLabels[form.getAttribute('id')] || isImport ? {
@@ -783,7 +800,7 @@
             if (html === null) {
                 return;
             }
-            if (!swap(html, command)) {
+            if (!swap(html, command, preferred)) {
                 throw new Error('The server did not return the Case.');
             }
         }).catch(function (error) {
@@ -872,7 +889,6 @@
                 return Boolean(event.dataTransfer)
                     && Array.prototype.slice.call(event.dataTransfer.types || []).indexOf('Files') >= 0;
             };
-            function estimateIsDirty() { return dirtyEditors.has('case-estimate-form'); }
             function canAccept() {
                 return !submitting && !confirmResolve && form.dataset.inplaceSubmitting !== 'true';
             }
@@ -983,6 +999,13 @@
         if (form.hasAttribute('data-glass-window')) {
             return false;
         }
+        // A write lands on the default view (v29), so one posted from the
+        // Inspection view navigates rather than swapping that view in place.
+        // Razor renders the attribute empty on every other Case, so its value
+        // decides, not its presence.
+        if (record.getAttribute('data-case-view') && (form.getAttribute('method') || 'get').toLowerCase() === 'post') {
+            return false;
+        }
         var dialogs = document.querySelector('[data-case-dialogs]');
         return record.contains(form) || (dialogs && dialogs.contains(form));
     }
@@ -999,7 +1022,7 @@
         event.preventDefault();
         var isImport = form.hasAttribute('data-estimate-import-form');
         if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') { return; }
-        if (isImport && dirtyEditors.has('case-estimate-form')) {
+        if (isImport && estimateIsDirty()) {
             showActionError(form.dataset.estimateImportDirty
                 || 'Save or cancel the estimate changes before importing another estimate.');
             return;
@@ -1009,20 +1032,15 @@
             submitting = true;
             if (isSave && !dirtyEditors.has(form.getAttribute('id'))) { markDirty(form); }
             form.dataset.inplaceSubmitting = 'true';
-            // The ribbon Save ends edit mode, unless another editor still
-            // holds unsaved changes: the session stays open to keep them.
-            var othersDirty = Array.from(dirtyEditors.keys()).some(function (editor) {
-                return editor !== form.getAttribute('id');
-            });
-            submitInPlace(form, submitter && submitter.name === 'finishEditing' && othersDirty ? null : submitter);
+            submitInPlace(form, submitter);
         };
-        // A command that reads what the Case records (Apply adopts the saved
-        // guide card) saves the Case's own unsaved changes first and follows
-        // in the same press. Its section renders afresh after the save, so it
-        // reads the card as saved; its choices ride across (again()).
+        // A command that reads what the Case records (Apply and Remove scaling
+        // work on the saved repair spec) saves the Case's own unsaved changes
+        // first and follows in the same press. Its section renders afresh
+        // after the save, so it reads the spec as saved; its choices ride
+        // across (again()).
         var caseForm = document.getElementById('case-edit-form');
         if (form.hasAttribute('data-case-save-first') && caseForm && dirtyEditors.has('case-edit-form')) {
-            dirtyEditors.delete(form.getAttribute('id'));
             saveThen(caseForm, again(form, submitter));
             return;
         }
@@ -1040,20 +1058,20 @@
                     return;
                 }
                 dirtyEditors.clear();
-                announce(false);
+                setDirty(false);
                 proceed();
             });
             return;
         }
         if (isCancel) {
             dirtyEditors.clear();
-            announce(false);
+            setDirty(false);
         }
         proceed();
     });
 
     // The frame owns this shortcut even inside a field; site.js handles it on
-    // other pages. Each editor retains its distinct Save/Apply command.
+    // other pages. It saves the Case and keeps editing (no finishEditing).
     document.addEventListener('keydown', function (event) {
         if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') { return; }
         event.preventDefault();
@@ -1066,7 +1084,7 @@
         var link = event.target.closest('a[href]');
         if (!dirty || !link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey
             || link.hasAttribute('target') || link.hasAttribute('download') || link.hasAttribute('data-section-link')
-            || link.hasAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
+            || link.getAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
             || link.getAttribute('href').startsWith('#')) { return; }
         event.preventDefault();
         if (submitting || confirmResolve) { return; }
@@ -1078,7 +1096,7 @@
                 }
             } else if (answer === 'discard') {
                 dirtyEditors.clear();
-                announce(false);
+                setDirty(false);
                 window.location.assign(link.href);
             }
         });
@@ -1838,35 +1856,51 @@
 // --- Valuation: the calculator's preview, basis cards and additions -----------
 // The lines are Core's arithmetic: every change posts the selection to the
 // PreviewValuation handler and the returned partial replaces the lines. The
-// Apply submit itself is the frame's in-place post. Without script the
-// calculator still posts and the applied calculation shows after the redirect.
+// calculator's controls and the Basis radios belong to the Case form, so the
+// ribbon Save adopts a changed calculation (one Save, 23 September 2026).
 (function () {
     'use strict';
 
+    // The Case form's own fields that a request carries, chosen by name.
+    function caseFields(keep) {
+        var body = new FormData();
+        var caseForm = document.getElementById('case-edit-form');
+        if (caseForm) {
+            new FormData(caseForm).forEach(function (value, name) {
+                if (keep(name)) { body.append(name, value); }
+            });
+        }
+        return body;
+    }
+    function isSelection(name) { return typeof name === 'string' && name.indexOf('selection.') === 0; }
+
     function bind(root) {
-        root.querySelectorAll('[data-valuation-form]').forEach(function (form) {
-            if (form.dataset.valuationBound === 'true') {
+        root.querySelectorAll('[data-valuation-form]').forEach(function (calc) {
+            if (calc.dataset.valuationBound === 'true') {
                 return;
             }
-            form.dataset.valuationBound = 'true';
-            var section = form.closest('.record-section') || document;
+            calc.dataset.valuationBound = 'true';
+            var section = calc.closest('.record-section') || document;
             var host = section.querySelector('[data-valuation-lines-host]');
-            var stamp = form.querySelector('[data-valuation-stamp]');
             var basisName = section.querySelector('[data-valuation-basis-name]');
-            var apply = section.querySelector('[data-valuation-apply]');
-            var previewUrl = form.getAttribute('data-preview-url');
+            var previewUrl = calc.getAttribute('data-preview-url');
             var timer = null;
             var inFlight = null;
 
+            // A calculator control: one of this section's selection fields of
+            // the Case form (the guide cards' own boxes are the Case's too, but
+            // they are the cards, not the calculation).
             function belongs(control) {
-                return control && control.form === form;
+                return !!control && isSelection(control.name);
             }
 
             function preview() {
                 if (!previewUrl || !host) {
                     return;
                 }
-                var body = new FormData(form);
+                var body = caseFields(function (name) {
+                    return name === '__RequestVerificationToken' || isSelection(name);
+                });
                 if (inFlight) {
                     inFlight.abort();
                 }
@@ -1885,8 +1919,8 @@
                 }).then(function (html) {
                     host.innerHTML = html;
                 }).catch(function () {
-                    // The lines keep their last state; a refused preview
-                    // shows on Apply, which Core answers.
+                    // The lines keep their last state; a refused calculation
+                    // shows on Save, which Core answers.
                 });
             }
             function schedule() {
@@ -1899,14 +1933,8 @@
                     var own = card.querySelector('[data-valuation-basis]');
                     card.classList.toggle('sel', own === radio);
                 });
-                if (stamp) {
-                    stamp.value = radio.getAttribute('data-stamp') || '';
-                }
                 if (basisName) {
                     basisName.textContent = 'from ' + (radio.getAttribute('data-source-name') || 'guide') + ' retail';
-                }
-                if (apply) {
-                    apply.disabled = false;
                 }
             }
 
@@ -1988,13 +2016,8 @@
                     return;
                 }
                 var notice = card.querySelector('[data-valuation-notice]');
-                var body = new FormData();
-                ['__RequestVerificationToken', 'id', 'expectedVersion', 'operationKey', 'editLeaseToken'].forEach(function (name) {
-                    var field = caseForm.querySelector('[name="' + name + '"]');
-                    if (field) {
-                        body.append(name, field.value);
-                    }
-                });
+                var authority = ['__RequestVerificationToken', 'id', 'expectedVersion', 'operationKey', 'editLeaseToken'];
+                var body = caseFields(function (name) { return authority.indexOf(name) >= 0; });
                 var month = card.querySelector('[data-valuation-entry-month]');
                 if (month) {
                     body.append('guideMonth', month.value);
@@ -2012,7 +2035,6 @@
                     if (answer && answer.status === 'ok') {
                         fill(card, '[data-valuation-retail]', answer.retail);
                         fill(card, '[data-valuation-trade]', answer.trade);
-                        fill(card, '[data-valuation-mileage]', answer.mileage);
                         fill(card, '[data-valuation-entry-month]', answer.guideMonth);
                         return;
                     }
@@ -2147,18 +2169,15 @@
             });
         }
 
-        // A phantom row that is still blank at submit is dropped here as well
-        // as by the save, so a removeLine redraw never counts it.
-        form.addEventListener('submit', function () {
-            body.querySelectorAll('tr[data-estimate-phantom]').forEach(function (row) { row.remove(); });
-            window.setTimeout(appendPhantom, 0);
-        });
-
+        // The editor's controls belong to the Case form; the save drops a
+        // blank line, so the phantom row posts as nothing.
         function renumber() {
             body.querySelectorAll('tr[data-estimate-line] button[name="removeLine"]').forEach(function (button, index) {
                 button.value = String(index);
             });
-            form.dispatchEvent(new Event('input', { bubbles: true }));
+            // The frame's dirty guard listens for input on the Case form's
+            // controls: a removed line is an unsaved change of the spec.
+            form.querySelector('input[name="estimateId"]').dispatchEvent(new Event('input', { bubbles: true }));
             appendPhantom();
         }
 
@@ -2494,7 +2513,7 @@
             }
             section.dataset.estimateBound = 'true';
             bindExpand(section);
-            var form = section.querySelector('form[data-estimate-form]');
+            var form = section.querySelector('[data-estimate-form]');
             if (form) {
                 bindGrid(form);
                 bindVat(form);
@@ -3267,9 +3286,10 @@
     // ---- Correspondence: a message in a dialog -----------------------------------
     // Open message opens its row's dialog through the shell's dialog binding;
     // the first open fetches the message from the Inbox record's Content
-    // handler. A failure says so and the next open tries again. Both listeners
-    // are on the document, so a lazily mounted or swapped Files section needs
-    // no binding of its own.
+    // handler, and the record's Reply, Reply all and Forward, where it offers
+    // them, join the dialog's foot. A failure says so and the next open tries
+    // again. Both listeners are on the document, so a lazily mounted or
+    // swapped Files section needs no binding of its own.
     function messageSpinner() {
         var spinner = document.createElement('div');
         spinner.className = 'spinner';
@@ -3294,9 +3314,13 @@
                 return response.text();
             })
             .then(function (html) {
-                var content = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-message-content]');
+                var fragment = new DOMParser().parseFromString(html, 'text/html');
+                var content = fragment.querySelector('[data-message-content]');
                 if (!content) { throw new Error('message: no content'); }
                 body.replaceChildren(document.importNode(content, true));
+                var actions = fragment.querySelector('[data-message-actions]');
+                var foot = dialog.querySelector('[data-case-message-foot]');
+                if (actions && foot) { foot.prepend(document.importNode(actions, true)); }
                 body.removeAttribute('aria-busy');
                 dialog.dataset.caseMessageState = 'loaded';
             })
@@ -3312,9 +3336,10 @@
     });
     // Capture, ahead of the shell's dialog opener and the edit session's
     // unsaved-changes guard. A modified click on Open message stays a link
-    // click (a new tab or window) rather than opening the dialog. Open full
-    // message closes the dialog first, so that question is not left behind
-    // this dialog's inert backdrop.
+    // click (a new tab or window) rather than opening the dialog. A link to
+    // the record (Open full message, Reply, Reply all, Forward) closes the
+    // dialog first, so that question is not left behind this dialog's inert
+    // backdrop.
     document.addEventListener('click', function (event) {
         var target = event.target instanceof Element ? event.target : null;
         if (!target) { return; }
@@ -3323,7 +3348,7 @@
             event.stopPropagation();
             return;
         }
-        var link = target.closest('[data-case-message-full]');
+        var link = target.closest('[data-case-message-record]');
         if (!link || modified) { return; }
         var dialog = link.closest('[data-case-message-dialog]');
         if (dialog && typeof dialog.pegasusClose === 'function') { dialog.pegasusClose(); }

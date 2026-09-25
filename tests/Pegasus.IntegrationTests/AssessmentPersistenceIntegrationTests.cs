@@ -65,7 +65,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         counter.Reset();
 
         var workspace = await new EfAssessmentWorkspaceSource(harness.Factory)
-            .GetAsync(outcome.Identity.CaseId);
+            .GetAsync(outcome.Identity.CaseId, CaseWorkSelector.Current);
 
         Assert.NotNull(workspace);
         Assert.Equal(6, counter.ExecutedReaderCommands);
@@ -90,7 +90,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         var input = await source.GetAsync(
             outcome.Identity.CaseId,
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), CaseWorkSelector.Current);
 
         Assert.NotNull(input);
         Assert.Null(input.Signatory);
@@ -109,7 +109,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await SeedReportReadyAssessmentAsync(harness.Factory, outcome.Identity.CaseId);
         input = await source.GetAsync(
             outcome.Identity.CaseId,
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), CaseWorkSelector.Current);
         Assert.NotNull(input);
         await using (var verificationContext = await harness.Factory.CreateDbContextAsync())
         {
@@ -123,6 +123,19 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var ready = AssessmentReportProjection.Project(
             input with { ReportDate = new DateOnly(2026, 8, 19) });
         Assert.True(ready.IsReady, string.Join("; ", ready.Reasons.Select(reason => reason.Requirement)));
+        // The printed Case facts are read through the production projection:
+        // the Assessed date is the Case's confirmed Inspection date (not the
+        // intake's 2031-05-20), the claimant and Your Ref are the Case's own,
+        // and instructions were received on the Case's received date (its
+        // receipt's received date).
+        var printed = Assert.IsType<AssessmentReportSnapshot>(ready.Snapshot);
+        Assert.Equal(new DateOnly(2031, 5, 6), input.Assessment.CaseOwned.InspectionDate);
+        Assert.Equal(new DateOnly(2031, 5, 6), printed.Assessed);
+        Assert.Equal("Mrs Jane Example", input.Assessment.CaseOwned.ClaimantName);
+        Assert.Equal("Mrs Jane Example", printed.ClaimantName);
+        Assert.Equal("ABC/DEF/12345/1", input.Assessment.CaseOwned.ClaimNumber);
+        Assert.Equal("ABC/DEF/12345/1", printed.YourReference);
+        Assert.Equal(Pegasus.Core.LondonCalendar.DateAt(StartUtc), printed.InstructionsReceived);
         var pdf = "%PDF-1.4 report-ready"u8.ToArray();
         var draft = await new GenerateAssessmentReportDraft(new TestReportRenderer(pdf))
             .ExecuteAsync(ready.Snapshot!, CaseReportArtifactKind.AssessmentReport);
@@ -192,13 +205,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             (CaseDataFieldNames.VehicleMileage, CaseDataCodes.Integer, "80000"),
             (CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, "miles"),
             (CaseDataFieldNames.IncidentDate, CaseDataCodes.Date, "2031-04-01"),
-            (CaseDataFieldNames.InstructionDate, CaseDataCodes.Date, "2031-05-01"),
             (CaseDataFieldNames.InspectionMode, CaseDataCodes.InspectionMode,
                 ProviderInspectionModePolicy.ImageBasedAssessmentCode),
-            (CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, "1 Test Street, London")
+            (CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, "1 Test Street, London"),
+            (CaseDataFieldNames.InspectionDate, CaseDataCodes.Date, "2031-05-06")
         };
         var existingConfirmed = await context.Set<CaseDataFieldEntity>()
-            .Where(field => field.CaseId == caseId
+            .Where(field => field.WorkId == caseId
                 && field.ValueKind == CaseDataCodes.Confirmed
                 && caseData.Select(value => value.Name).Contains(field.FieldName))
             .ToArrayAsync();
@@ -206,7 +219,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         context.Set<CaseDataFieldEntity>().AddRange(caseData.Select(field =>
             new CaseDataFieldEntity
             {
-                CaseId = caseId,
+                WorkId = caseId,
                 FieldName = field.Name,
                 ValueKind = CaseDataCodes.Confirmed,
                 ValueType = field.Type,
@@ -224,13 +237,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             [AssessmentVocabulary.VehicleType] = "car",
             [AssessmentVocabulary.VehicleMileageSource] = "owner",
             [AssessmentVocabulary.VehicleCondition] = "good",
-            [AssessmentVocabulary.IncidentAssessed] = "2031-05-06",
             [AssessmentVocabulary.ImpactSeverity] = "moderate",
             [AssessmentVocabulary.ImpactLocation] = "right_rear",
             [AssessmentVocabulary.ValueRetail] = "5000.00",
             [AssessmentVocabulary.ValueTrade] = "4000.00",
             [AssessmentVocabulary.ValueEngineer] = "5000.00",
-            [AssessmentVocabulary.CostRepairerVatRegistered] = "true",
             [AssessmentVocabulary.Outcome] = "repairable",
             [AssessmentVocabulary.LegalStatus] = "roadworthy",
             [AssessmentVocabulary.HistoryCheck] = "History clear",
@@ -242,7 +253,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         context.CaseAssessmentFields.AddRange(values.Select(value =>
             new CaseAssessmentFieldEntity
             {
-                CaseId = caseId,
+                WorkId = caseId,
                 FieldPath = value.Key,
                 Value = value.Value,
                 RecordedByKind = ActorKind.Staff.ToString(),
@@ -279,7 +290,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         context.Set<CaseRepairSpecificationEntity>().Add(new()
         {
             Id = Guid.NewGuid(),
-            CaseId = caseId,
+            WorkId = caseId,
             Version = 1,
             State = RepairSpecificationState.Accepted.ToString(),
             SourceRoute = RepairSpecificationSourceRoute.Manual.ToString(),
@@ -365,7 +376,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(canOpen, access.CanOpen);
         Assert.Equal(isReadOnly, access.IsReadOnly);
         var workspace = Assert.IsType<AssessmentWorkspace>(
-            await new EfAssessmentWorkspaceSource(harness.Factory).GetAsync(outcome.Identity.CaseId));
+            await new EfAssessmentWorkspaceSource(harness.Factory).GetAsync(outcome.Identity.CaseId, CaseWorkSelector.Current));
         Assert.Equal(state, workspace.Header.State);
         Assert.Equal(outcome.Identity.CaseId, workspace.Data.Identity.CaseId);
         Assert.Equal(outcome.Identity.CaseId, workspace.Assessment.CaseId);
@@ -399,13 +410,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     ["vehicle.condition"] = "good",
                     ["assessment.outcome"] = "total_loss",
                     ["assessment.category"] = "S",
-                    ["assessment.salvage_value"] = "1500.00",
-                    ["assessment.values.retail"] = "12000",
-                    ["assessment.values.trade"] = "10500"
-                    // assessment.values.engineer is deliberately absent: the
-                    // Engineer's Value is adopted only by the valuation Apply
-                    // command (B03), and a field save that posted it
-                    // is now refused rather than recorded.
+                    ["assessment.salvage_value"] = "1500.00"
+                    // The valuation values are deliberately absent: the
+                    // Engineer's Value and its basis card's retail and trade
+                    // are recorded only by a Case Save's adoption, and a field
+                    // save that posted them is refused.
                 },
                 [
                     new("repair", null, "Repair nearside door", 3.5m, null, false, null, null,
@@ -862,7 +871,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededGenerationId:D}'"));
         Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
         Assert.Equal(CaseReportStaleReasons.EstimateChanged, await LatestStaleReasonAsync(harness, caseId));
-        var listed = await list.ExecuteAsync(caseId, CancellationToken.None);
+        var listed = await list.ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(3, listed.Count);
         Assert.Single(listed, item => item.IsCurrent);
         Assert.Equal(RepairSpecificationState.Accepted,
@@ -936,7 +945,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.All(currentAi.Lines, line => Assert.Equal(engineer.SubjectId, line.ConfirmedBy));
         Assert.Equal(AiJobState.Completed, (await jobs.GetAsync(job.JobId, CancellationToken.None))!.State);
 
-        Assert.Equal(4, (await list.ExecuteAsync(caseId, CancellationToken.None)).Count);
+        Assert.Equal(4, (await list.ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)).Count);
         Assert.Equal(version, (await harness.AcquireLeaseAsync(caseId, version, engineer, "estimate-lease-final")).Version);
     }
 
@@ -994,8 +1003,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 CancellationToken.None));
         Assert.Contains("read-only", estimateRefusal.Message, StringComparison.Ordinal);
 
-        Assert.Empty(await harness.Valuations.ListForCaseAsync(caseId, CancellationToken.None));
-        Assert.Empty(await harness.RepairSpecifications.ListEstimatesAsync(caseId, CancellationToken.None));
+        Assert.Empty(await harness.Valuations.ListForCaseAsync(caseId, CaseWorkSelector.Current, CancellationToken.None));
+        Assert.Empty(await harness.RepairSpecifications.ListEstimatesAsync(caseId, CaseWorkSelector.Current, CancellationToken.None));
     }
 
     [Fact]
@@ -1031,7 +1040,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             var saveRefusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 harness.RepairSpecifications.SaveImportedEstimateAsync(request, default));
             Assert.Contains("read-only", saveRefusal.Message, StringComparison.Ordinal);
-            Assert.Empty(await harness.RepairSpecifications.ListEstimatesAsync(caseId, default));
+            Assert.Empty(await harness.RepairSpecifications.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default));
             Assert.Equal(0, (await setup.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
             Assert.False(await setup.ActionHistory.AnyAsync(row => row.CorrelationId == request.OperationKey));
         }
@@ -1116,7 +1125,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var accepted = await use.ExecuteAsync(useRequest, default);
         Assert.True(accepted.IsCurrent);
         Assert.All(accepted.Lines, line => Assert.Equal(engineer.SubjectId, line.ConfirmedBy));
-        Assert.Single(await harness.RepairSpecifications.ListEstimatesAsync(caseId, default));
+        Assert.Single(await harness.RepairSpecifications.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default));
         Assert.Equal(2, (await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
     }
 
@@ -1688,6 +1697,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             {
                 Id = supersededId,
                 CaseId = caseId,
+                WorkId = caseId,
                 CaseVersion = 0,
                 SnapshotHash = new string('1', 64),
                 SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "seed-generation-superseded"),
@@ -1701,6 +1711,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             {
                 Id = currentId,
                 CaseId = caseId,
+                WorkId = caseId,
                 CaseVersion = 0,
                 SnapshotHash = new string('2', 64),
                 SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "seed-generation-current"),
@@ -1848,7 +1859,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(edited.LastEditedAtUtc!.Value, currentField.RecordedAtUtc);
         Assert.Equal(edited.LastEditedAtUtc, currentField.ConfirmedAtUtc);
 
-        var valuations = await list.ExecuteAsync(caseId, CancellationToken.None);
+        var valuations = await list.ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(4, valuations.Count);
         Assert.Equal(edited.ValuationId, valuations[0].ValuationId);
         Assert.Equal(42125, edited.Details.Mileage);
@@ -1965,6 +1976,27 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     10000m)),
             CancellationToken.None);
         Assert.NotNull(await ReadEngineersValueAsync(harness, caseId));
+        // The retail and trade an adoption records beside the Engineer's Value.
+        await using (var seedContext = await harness.Factory.CreateDbContextAsync())
+        {
+            seedContext.CaseAssessmentFields.AddRange(
+                new[]
+                {
+                    (Path: AssessmentVocabulary.ValueRetail, Value: "12000.00"),
+                    (Path: AssessmentVocabulary.ValueTrade, Value: "10000.00")
+                }.Select(value => new CaseAssessmentFieldEntity
+                {
+                    WorkId = caseId,
+                    FieldPath = value.Path,
+                    Value = value.Value,
+                    RecordedByKind = nameof(ActorKind.Staff),
+                    RecordedBy = engineer.SubjectId,
+                    RecordedAtUtc = StartUtc,
+                    ConfirmedBy = engineer.SubjectId,
+                    ConfirmedAtUtc = StartUtc
+                }));
+            await seedContext.SaveChangesAsync();
+        }
 
         harness.Advance(TimeSpan.FromMinutes(5));
         var editLease = await harness.AcquireLeaseAsync(
@@ -1985,6 +2017,14 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
 
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var remaining = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(field => field.WorkId == caseId)
+            .Select(field => field.FieldPath)
+            .ToArrayAsync();
+        Assert.DoesNotContain(AssessmentVocabulary.ValueEngineer, remaining);
+        Assert.DoesNotContain(AssessmentVocabulary.ValueRetail, remaining);
+        Assert.DoesNotContain(AssessmentVocabulary.ValueTrade, remaining);
     }
 
     [Fact]
@@ -2081,7 +2121,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             complete.ExecuteAsync(command with { RetailValue = 12001m }, CancellationToken.None));
 
         await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(1, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(1, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         await Assert.ThrowsAnyAsync<DbException>(async () =>
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -2157,7 +2197,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         Assert.Equal(AiJobState.Taken.ToString(), await context.AiJobs
             .Where(item => item.JobId == taken.JobId)
@@ -2230,7 +2270,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(taken.TakenBy, unchanged.TakenBy);
         Assert.Equal(taken.LeaseExpiresAtUtc, unchanged.LeaseExpiresAtUtc);
         Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
     }
 
@@ -2296,7 +2336,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         var unchanged = await context.AiJobs.AsNoTracking()
             .SingleAsync(item => item.JobId == taken.JobId);
@@ -2367,7 +2407,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         Assert.Equal(0, content.StoreCount);
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         var unchanged = await context.AiJobs.AsNoTracking()
             .SingleAsync(item => item.JobId == taken.JobId);
@@ -2449,7 +2489,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(1, content.DeleteCount);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
-        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.CaseId == caseId));
+        Assert.Equal(0, await context.CaseValuations.CountAsync(item => item.WorkId == caseId));
         Assert.Equal(0, await context.Set<DocumentOccurrenceEntity>().CountAsync(item => item.CaseId == caseId));
         var unchanged = await context.AiJobs.AsNoTracking()
             .SingleAsync(item => item.JobId == taken.JobId);

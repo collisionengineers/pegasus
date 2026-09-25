@@ -431,8 +431,9 @@ internal sealed class EfStaffMailSendStore(
             .Where(item => item.SpecificationId == estimate.SpecificationId)
             .OrderByDescending(item => item.Number)
             .FirstOrDefaultAsync(cancellationToken);
+        // The Sent version is frozen in the work the report was made from.
         EfRepairSpecificationSnapshotStore.Freeze(
-            db, estimate, actor, RepairSpecificationSnapshotKind.Sent,
+            db, generation.WorkId, estimate, actor, RepairSpecificationSnapshotKind.Sent,
             origin, observedAtUtc, latest);
     }
 
@@ -600,9 +601,17 @@ internal sealed class EfStaffMailSendStore(
         Guid? caseId = null;
         if (entity.Purpose == StaffMailPurpose.CaseReport)
         {
+            // A report is sent only while its work is the Case's current
+            // work: the Inspection's report no longer drives the Case once the
+            // Audit exists. A send already under way when the Audit was created
+            // is still observed against its Case, so it can finish as Sent;
+            // evidence sent before the Audit is never linked to it.
+            var currentWorkIds = CaseWorkScope.CurrentWorkIds(db);
             caseId = await db.Set<CaseReportGenerationEntity>().AsNoTracking()
                 .Where(value => value.Id == entity.ContextId
-                    && (!requireFrozenGenerationVersion || value.Version == entity.ContextVersion))
+                    && (!requireFrozenGenerationVersion
+                        || (value.Version == entity.ContextVersion
+                            && currentWorkIds.Contains(value.WorkId))))
                 .Select(value => (Guid?)value.CaseId)
                 .SingleOrDefaultAsync(cancellationToken);
             if (caseId is not null)

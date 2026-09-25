@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -161,7 +162,7 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
-    public async Task ApplyFreezesTheOutgoingDraftSavesTheScaledSpecAndFreezesItAgain()
+    public async Task ApplyScalesTheSavedSpecWithTheConfirmedEngineersValue()
     {
         var specification = Estimate(
             Header(rate: 80m),
@@ -170,26 +171,21 @@ public sealed class RepairSpecificationActTests
         var store = new RecordingStore(specification);
         var assessment = new RecordingAssessment(10_000m);
 
-        await new SaveAndScaleRepairSpecification(assessment, store).ExecuteAsync(
+        // The page saves the Case, the spec with it, before it asks (one
+        // Save, 23 September 2026): the request carries intent only.
+        await new ScaleRepairSpecification(assessment, store).ExecuteAsync(
             new(
-                new SaveEstimateRequest(
-                    CaseId, 3, Engineer, "op-scale", "Repair spec scaled", new string('l', 32),
-                    specification.SpecificationId, specification.Details,
-                    specification.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
-                    specification.Source,
-                    ExistingLineIds: specification.Lines.Select(line => (Guid?)line.Id).ToArray()),
+                CaseId, 3, Engineer, "op-scale", new string('l', 32), specification.SpecificationId,
                 40m,
                 ScalingFloors.Default),
             CancellationToken.None);
 
         var saved = Assert.Single(store.ScaleSaves);
+        Assert.Equal(specification.SpecificationId, saved.SpecificationId);
         Assert.Equal(40m, saved.TargetPercentOfValue);
         Assert.Equal(10_000m, saved.EngineerValue);
         Assert.Equal(ScalingFloors.Default, saved.Floors);
-        // The saved lines keep every line identity, so nothing is re-created.
-        Assert.Equal(
-            specification.Lines.Select(line => (Guid?)line.Id),
-            saved.Save.ExistingLineIds!);
+        Assert.Empty(store.Saves);
     }
 
     [Fact]
@@ -198,13 +194,9 @@ public sealed class RepairSpecificationActTests
         var specification = Estimate(Header(rate: 80m), Line("new_part", price: 500m));
         var store = new RecordingStore(specification);
 
-        await new SaveAndScaleRepairSpecification(new RecordingAssessment(10_000m, 4_500m), store).ExecuteAsync(
+        await new ScaleRepairSpecification(new RecordingAssessment(10_000m, 4_500m), store).ExecuteAsync(
             new(
-                new SaveEstimateRequest(
-                    CaseId, 3, Engineer, "op-contract-scale", "Repair spec scaled", new string('l', 32),
-                    specification.SpecificationId, specification.Details,
-                    specification.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
-                    specification.Source),
+                CaseId, 3, Engineer, "op-contract-scale", new string('l', 32), specification.SpecificationId,
                 37m,
                 ScalingFloors.Default),
             CancellationToken.None);
@@ -275,13 +267,9 @@ public sealed class RepairSpecificationActTests
         var automation = ActionActor.Automation("pegasus-automation");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new SaveAndScaleRepairSpecification(new RecordingAssessment(10_000m), store).ExecuteAsync(
+            new ScaleRepairSpecification(new RecordingAssessment(10_000m), store).ExecuteAsync(
                 new(
-                    new SaveEstimateRequest(
-                        CaseId, 3, automation, "op", "Scale", new string('l', 32), specification.SpecificationId,
-                        specification.Details,
-                        specification.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
-                        specification.Source),
+                    CaseId, 3, automation, "op", new string('l', 32), specification.SpecificationId,
                     40m,
                     ScalingFloors.Default),
                 CancellationToken.None));
@@ -316,7 +304,7 @@ public sealed class RepairSpecificationActTests
     private sealed class RecordingStore(RepairSpecificationVersion specification) : IRepairSpecificationStore
     {
         public List<SaveEstimateRequest> Saves { get; } = [];
-        public List<SaveAndScaleRepairSpecificationRequest> ScaleSaves { get; } = [];
+        public List<ScaleRepairSpecificationRequest> ScaleSaves { get; } = [];
         public List<RemoveRepairSpecificationScalingRequest> Removals { get; } = [];
         public List<RestoreRepairSpecificationSnapshotRequest> Restores { get; } = [];
         public RepairSpecificationVersion RestoreResult { get; set; } = null!;
@@ -335,8 +323,8 @@ public sealed class RepairSpecificationActTests
             });
         }
 
-        public Task<RepairSpecificationVersion> SaveAndScaleAsync(
-            SaveAndScaleRepairSpecificationRequest request, CancellationToken cancellationToken)
+        public Task<RepairSpecificationVersion> ScaleAsync(
+            ScaleRepairSpecificationRequest request, CancellationToken cancellationToken)
         {
             ScaleSaves.Add(request);
             return Task.FromResult(specification);
@@ -382,7 +370,7 @@ public sealed class RepairSpecificationActTests
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> SetCurrentEstimateAsync(SetCurrentEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
             Guid caseId, int? afterVersion, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>
@@ -451,7 +439,7 @@ public sealed class RepairSpecificationActTests
                 null,
                 fields,
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 9, 21), null, null, null, null, null));
         }
 
         public Task<CaseAssessmentProjection> SaveAsync(

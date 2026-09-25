@@ -109,7 +109,6 @@ public sealed class CaseTasksWebTests
             "contactName",
             "contactEmailAddress",
             "contactPhoneNumber",
-            "instructionDate",
             "vatStatus",
             "inspectionDate",
             "inspectionDeadline",

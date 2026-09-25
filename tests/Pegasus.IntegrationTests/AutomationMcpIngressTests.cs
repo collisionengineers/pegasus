@@ -148,6 +148,14 @@ public sealed class AutomationMcpIngressTests
         Assert.Equal(
             ExpectedTools.OrderBy(name => name, StringComparer.Ordinal).ToArray(),
             toolNames);
+        var updateDetails = toolsDocument.RootElement
+            .GetProperty("result")
+            .GetProperty("tools")
+            .EnumerateArray()
+            .Single(tool => tool.GetProperty("name").GetString() == "pegasus_case_update_details");
+        var properties = updateDetails.GetProperty("inputSchema").GetProperty("properties");
+        Assert.True(properties.TryGetProperty("inspectionDate", out _));
+        Assert.False(properties.TryGetProperty("instructionDate", out _));
     }
 
     [Fact]

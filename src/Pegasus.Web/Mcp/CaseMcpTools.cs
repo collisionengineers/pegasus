@@ -19,7 +19,6 @@ internal sealed record CaseSearchToolItem(
     string? Claimant,
     string? ClaimNumber,
     DateTimeOffset ReceivedAtUtc,
-    DateOnly? InstructionDate,
     string Origin);
 
 internal sealed record CaseSearchToolResult(
@@ -385,6 +384,5 @@ internal sealed class CaseMcpTools(
         item.Claimant,
         item.ClaimNumber,
         item.ReceivedAtUtc,
-        item.InstructionDate,
         item.Origin);
 }

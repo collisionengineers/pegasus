@@ -169,6 +169,7 @@ public static class DependencyInjection
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<ITriageQueries>(provider => provider.GetRequiredService<EfTriageStore>());
+        services.AddScoped<ITriagePrincipalGate>(provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<ITriageResponseEvidenceCandidateQueries>(
             provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<IListTriage, ListTriage>();
@@ -178,7 +179,6 @@ public static class DependencyInjection
         services.AddScoped<ITriageCasePairing, TriageCasePairing>();
         services.AddScoped<IAssignTriage, AssignTriage>();
         services.AddScoped<IAssignTriageToMe, AssignTriageToMe>();
-        services.AddScoped<ISetTriagePrincipal, SetTriagePrincipal>();
         services.AddScoped<IAddTriageNote, AddTriageNote>();
         services.AddScoped<IUnassignTriage, UnassignTriage>();
         services.AddScoped<IAwaitTriageInformation, AwaitTriageInformation>();
@@ -453,6 +453,9 @@ public static class DependencyInjection
         services.AddScoped<EfCaseQueryStore>();
         services.AddScoped<ICaseQueryStore>(
             provider => provider.GetRequiredService<EfCaseQueryStore>());
+        services.AddScoped<ICaseKindQueries>(
+            provider => provider.GetRequiredService<EfCaseQueryStore>());
+        services.AddScoped<IGetCaseKind, GetCaseKind>();
         services.AddScoped<ISearchCases, SearchCases>();
         services.AddScoped<ISearchCasesByCursor, SearchCasesByCursor>();
         services.AddScoped<IListCaseDocumentsByCursor, ListCaseDocumentsByCursor>();
@@ -486,7 +489,7 @@ public static class DependencyInjection
         services.AddScoped<IRepairSpecificationSnapshotStore, EfRepairSpecificationSnapshotStore>();
         services.AddScoped<IUnroadworthyReasonBankStore, EfUnroadworthyReasonBankStore>();
         services.AddScoped<ISaveUnroadworthyReason, SaveUnroadworthyReason>();
-        services.AddScoped<ISaveAndScaleRepairSpecification, SaveAndScaleRepairSpecification>();
+        services.AddScoped<IScaleRepairSpecification, ScaleRepairSpecification>();
         services.AddScoped<IRemoveRepairSpecificationScaling, RemoveRepairSpecificationScaling>();
         services.AddScoped<IRestoreRepairSpecificationSnapshot, RestoreRepairSpecificationSnapshot>();
         // Every retained-source caller uses this same format set. One PDF
@@ -538,7 +541,6 @@ public static class DependencyInjection
         services.AddScoped<ISaveValuationPreset, SaveValuationPreset>();
         services.AddScoped<IRemoveValuationPreset, RemoveValuationPreset>();
         services.AddScoped<IPreviewValuationCalculation, PreviewValuationCalculation>();
-        services.AddScoped<IApplyValuationCalculation, ApplyValuationCalculation>();
         services.AddScoped<IListAppliedValuations, ListAppliedValuations>();
         services.AddScoped<ISaveValuation, SaveValuation>();
         services.AddScoped<IEditValuation, EditValuation>();
@@ -592,12 +594,8 @@ public static class DependencyInjection
         services.AddScoped<ILinkedCaseReplacementStore>(
             provider => provider.GetRequiredService<EfLinkedCaseReplacementStore>());
         services.AddScoped<ICreateLinkedReplacement, CreateLinkedReplacement>();
-        services.AddScoped<EfCreateAuditCaseStore>();
-        services.AddScoped<ICreateAuditCaseStore>(provider => provider.GetRequiredService<EfCreateAuditCaseStore>());
-        services.AddScoped<ICaseAuditLinkQueries>(provider => provider.GetRequiredService<EfCreateAuditCaseStore>());
-        services.AddScoped<ICaseReportGeneratedQueries>(provider => provider.GetRequiredService<EfCreateAuditCaseStore>());
-        services.AddScoped<ICreateAuditCase, CreateAuditCase>();
-        services.AddScoped<IRecordEngineerFinding, EfRecordEngineerFinding>();
+        services.AddScoped<ICreateAuditStore, EfCreateAuditStore>();
+        services.AddScoped<ICreateAudit, CreateAudit>();
         services.AddScoped<IPutCaseOnHold, PutCaseOnHold>();
         services.AddScoped<IReleaseCaseHold, ReleaseCaseHold>();
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();

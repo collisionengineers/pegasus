@@ -23,7 +23,7 @@ public sealed partial class QdosTriageIntegrationTests
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-link-guards.eml");
         _ = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var triage = (await GetOnlyTriageAsync(factory.Services)).Record;
-        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin.ReceiptId);
+        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin!.ReceiptId);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var store = services.GetRequiredService<ITriageStore>();
@@ -49,7 +49,7 @@ public sealed partial class QdosTriageIntegrationTests
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
             store.LinkAutomaticallyAsync(candidate, worker, CancellationToken.None));
         candidate = Assert.Single(await store.ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
-        var competitorId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin.ReceiptId, 2);
+        var competitorId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin!.ReceiptId, 2);
         Assert.False(await store.LinkAutomaticallyAsync(candidate, worker, CancellationToken.None));
         Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
 
@@ -76,35 +76,36 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
         await context.CaseWorkflows.Where(item => item.CaseId == caseId)
             .ExecuteUpdateAsync(update => update.SetProperty(item => item.EditLeaseExpiresAtUtc, DateTimeOffset.UnixEpoch));
-        await context.Triage.Where(item => item.Id == triage.Id)
+        await context.Triage.Where(item => item.CaseId == triage.CaseId)
             .ExecuteUpdateAsync(update => update.SetProperty(item => item.State, "cancelled"));
         Assert.False(await store.LinkAutomaticallyAsync(candidate, worker, CancellationToken.None));
-        await context.Triage.Where(item => item.Id == triage.Id)
+        await context.Triage.Where(item => item.CaseId == triage.CaseId)
             .ExecuteUpdateAsync(update => update.SetProperty(item => item.State, "open"));
         Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
         Assert.False(await store.LinkAutomaticallyAsync(candidate, worker, CancellationToken.None));
 
-        var linked = await GetTriageAsync(factory.Services, triage.Id);
+        var linked = await GetTriageAsync(factory.Services, triage.CaseId);
         Assert.Equal(triage.Reference, linked.Record.Reference);
         Assert.Equal(triage.State, linked.Record.State);
-        Assert.Equal(caseId, linked.Record.LinkedCaseId);
+        Assert.Equal(caseId, linked.Record.LinkedInstructionCaseId);
         var unlinkLease = await ClaimCaseLeaseAsync(factory.Services, caseId, 2, staff, "automatic-link-manual-unlink");
         var unlinkTriageLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.Triage, triage.Id, linked.Record.Version, staff,
+            new(EditScopeKind.Triage, triage.CaseId, linked.Record.Version, staff,
                 "automatic-link-manual-unlink-edit"),
             CancellationToken.None);
         await services.GetRequiredService<IUnlinkTriageCase>().ExecuteAsync(new(
-            triage.Id, caseId, linked.Record.Version, 2, staff, "deliberate-unlink",
+            triage.CaseId, caseId, linked.Record.Version, 2, staff, "deliberate-unlink",
             "Keep this Triage separate.", unlinkLease.Token)
         {
             EditLeaseToken = unlinkTriageLease.Token
         }, CancellationToken.None);
         Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
-        var unlinked = await GetTriageAsync(factory.Services, triage.Id);
-        Assert.Null(unlinked.Record.LinkedCaseId);
+        var unlinked = await GetTriageAsync(factory.Services, triage.CaseId);
+        Assert.Null(unlinked.Record.LinkedInstructionCaseId);
         Assert.Single(unlinked.History, item => item.EventType == "triage_case_linked" && item.ActorKind == nameof(ActorKind.SystemWorker));
         Assert.Single(unlinked.History, item => item.EventType == "triage_case_unlinked");
-        Assert.Equal(2, await context.Cases.CountAsync());
+        // The two seeded instructed Cases; the Triage Case is a Case too.
+        Assert.Equal(2, await context.Cases.CountAsync(item => item.Type != CaseTypeCodes.Triage));
         Assert.Equal(initialExternalWorkCount, await context.ExternalWorkItems.CountAsync());
         Assert.False(string.IsNullOrWhiteSpace(lease.Token));
     }
@@ -118,16 +119,23 @@ public sealed partial class QdosTriageIntegrationTests
         await using var context = await scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
         var triage = await context.Triage.AsNoTracking().SingleAsync(item => item.OriginReceiptId == originReceiptId);
-        var principal = await context.Principals.AsNoTracking().SingleAsync(item => item.Id == triage.PrincipalId);
+        var principalId = await context.Cases.AsNoTracking()
+            .Where(item => item.Id == triage.CaseId)
+            .Select(item => item.PrincipalId)
+            .SingleAsync();
+        var principal = await context.Principals.AsNoTracking().SingleAsync(item => item.Id == principalId);
         var draft = await context.InstructionDrafts.AsNoTracking().SingleAsync(item => item.IntakeReceiptId == originReceiptId);
         var policy = new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy());
         var keys = policy.DeriveIndexKeys(new(draft.ClaimNumber, triage.NormalizedVehicleRegistration,
             draft.ClaimantName, draft.DateOfIncident));
         var caseId = Guid.NewGuid();
+        // The Triage Case already took its number from this Principal's 2031
+        // sequence, so the fixture Case stands well clear of the allocator.
+        var fixtureSequence = 900 + sequence;
         context.Cases.Add(new()
         {
             Id = caseId, PrincipalId = principal.Id, SequenceLineageId = principal.SequenceLineageId,
-            Year = 2031, Sequence = sequence, Reference = $"QDOS31{sequence:D3}",
+            Year = 2031, Sequence = fixtureSequence, Reference = $"QDOS31{fixtureSequence:D3}",
             Type = "inspection", InitialState = "review", CustodyState = "pending",
             OriginIntakeReceiptId = originReceiptId, InstructionComplete = true, ImagesComplete = true,
             CreatedAtUtc = DateTimeOffset.UtcNow
@@ -152,7 +160,7 @@ public sealed partial class QdosTriageIntegrationTests
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-case-association.eml");
         var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var initial = await GetOnlyTriageAsync(factory.Services);
-        var triageId = initial.Record.Id;
+        var triageId = initial.Record.CaseId;
         var actor = ActionActor.Staff(
             DevelopmentOfflineIdentity.AdministratorId,
             [StaffRole.Administrator]);
@@ -203,7 +211,7 @@ public sealed partial class QdosTriageIntegrationTests
                 CancellationToken.None));
 
         var linked = await GetTriageAsync(factory.Services, triageId);
-        Assert.Equal(caseId, linked.Record.LinkedCaseId);
+        Assert.Equal(caseId, linked.Record.LinkedInstructionCaseId);
         Assert.Equal(1, linked.Record.Version);
         var afterLink = await ReadCaseAssociationPersistenceAsync(factory.Database, caseId);
         Assert.Equal(SeededCaseEntityVersion, afterLink.CaseEntityVersion);
@@ -279,7 +287,7 @@ public sealed partial class QdosTriageIntegrationTests
                 CancellationToken.None));
 
         var final = await GetTriageAsync(factory.Services, triageId);
-        Assert.Null(final.Record.LinkedCaseId);
+        Assert.Null(final.Record.LinkedInstructionCaseId);
         Assert.Equal(2, final.Record.Version);
         Assert.Collection(
             final.History,
@@ -421,14 +429,14 @@ public sealed partial class QdosTriageIntegrationTests
                     ActionActor.SystemWorker("test-worker"),
                     $"triage-association-arrangement:{receipt.Id:N}"),
                 CancellationToken.None);
-            triageId = triage.Id;
+            triageId = triage.CaseId;
             initialVersion = triage.Version;
         }
 
         var initialTriage = await GetTriageAsync(factory.Services, triageId);
 
         Assert.Equal(TriageState.Open, initialTriage.Record.State);
-        Assert.Equal(caseFirst, initialTriage.Record.LinkedCaseId is not null);
+        Assert.Equal(caseFirst, initialTriage.Record.LinkedInstructionCaseId is not null);
         Assert.Equal(normalizedVrm, initialTriage.Record.NormalizedVehicleRegistration);
 
         instructionReceiptId ??= IntakeWebDriver.ReceiptId(
@@ -449,7 +457,7 @@ public sealed partial class QdosTriageIntegrationTests
 
         var remainingTriage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(TriageState.Open, remainingTriage.Record.State);
-        Assert.Equal(formalCaseId, remainingTriage.Record.LinkedCaseId);
+        Assert.Equal(formalCaseId, remainingTriage.Record.LinkedInstructionCaseId);
         Assert.Equal(initialVersion + 1, remainingTriage.Record.Version);
         Assert.Equal(initialTriage.Record.Reference, remainingTriage.Record.Reference);
         Assert.Equal(initialTriage.Findings, remainingTriage.Findings);
@@ -458,7 +466,7 @@ public sealed partial class QdosTriageIntegrationTests
         var pairing = replayScope.ServiceProvider.GetRequiredService<ITriageCasePairing>();
         await using var acceptedContext = await replayScope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
-        Assert.Equal(1, await acceptedContext.Cases.CountAsync());
+        Assert.Equal(1, await acceptedContext.Cases.CountAsync(item => item.Type != CaseTypeCodes.Triage));
         Assert.Equal(new TriageCasePairingResult(0, 0, 0),
             await pairing.PairTriageAsync(triageId, CancellationToken.None));
         Assert.Equal(new TriageCasePairingResult(0, 0, 0),

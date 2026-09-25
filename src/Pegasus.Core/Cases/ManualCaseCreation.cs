@@ -60,16 +60,27 @@ public sealed class CreateManualCase(
             data.VehicleMileage,
             data.AccidentCircumstances,
             data.IncidentDate,
-            data.InstructionDate,
             data.InspectionAddress,
             data.InspectionDate);
-        var missingIdentity = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
+        // A Triage Case asks only for its Principal and the vehicle
+        // registration; every other Case needs the identity-critical fields.
+        IReadOnlyList<string> missingIdentity;
+        if (request.CaseType == CaseType.Triage)
+        {
+            missingIdentity = string.IsNullOrWhiteSpace(data.VehicleRegistration)
+                ? ["Vehicle registration"]
+                : [];
+        }
+        else
+        {
+            missingIdentity = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
+        }
         if (missingIdentity.Count > 0)
         {
             throw new InvalidOperationException(
                 $"A manual case needs {string.Join(", ", missingIdentity)}.");
         }
-        if (request.CaseType == CaseType.Audit)
+        if (request.CaseType is CaseType.Audit)
         {
             throw new InvalidOperationException("The case type is invalid.");
         }

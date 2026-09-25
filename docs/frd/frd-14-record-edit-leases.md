@@ -4,8 +4,9 @@
 
 ## Short version
 
-- To change a Case, Triage item or Image Intake record, staff press **Edit**
-  and get a lease. Everyone else sees who is editing and can only read.
+- To change a Case, a Triage Case or an Image Intake record, staff press
+  **Edit** and get a lease. Everyone else sees who is editing and can only
+  read.
 - A lease lasts five minutes. The browser renews it every minute while the
   editing screen is open, so editing lasts as long as the session. Leave, and
   it expires by server time.
@@ -21,7 +22,7 @@
 
 One rule for who may change a record at a time, so two people never
 silently overwrite each other. It covers the Case edit lease and the
-record-scoped edit scopes used by Triage and Image Intake. Administration
+record-scoped edit scopes used by Triage Cases and Image Intake. Administration
 settings use expected-version checks without edit leases
 ([FRD-17](frd-17-administration-workspace.md#administration)).
 
@@ -47,7 +48,9 @@ non-holder is told who is editing and is never given a time.
 **Every save carries proof.** Each save, transition, assignment,
 association, evidence change or other staff change sends both the lease token
 and the Case version the editor loaded. Core checks both inside the
-transaction.
+transaction. Create audit advances the Case version, so a change prepared
+before it is refused as stale; every change after it edits the Audit
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)).
 
 **Same guard everywhere.** Web pages and MCP Automation Actor calls use the
 same check. Background records that only append, such as receipts, dispatch
@@ -61,10 +64,13 @@ only.
 
 ### Record edit scopes
 
-An existing Triage item or Image Intake record opens read-only. Its Edit
+An existing Triage Case or Image Intake record opens read-only. Its Edit
 action claims a scope for that one record, with the same five-minute lease
 and one-minute heartbeat as a Case. The scope covers the record only, not its
-queue or a linked Case.
+queue or a linked Case. A Triage Case has no Case edit lease: its Triage edit
+scope and Triage version are its edit authority wherever a Case needs one,
+including Case custody and upload association, and a custody completion by
+the system never invalidates it.
 
 - Save checks the holder token and the expected version inside the change
   transaction, applies the change, and releases the scope in the same
@@ -72,7 +78,8 @@ queue or a linked Case.
 - Cancel releases the scope and changes nothing.
 - A new record that has not been saved has no scope.
 - The holder is shown by staff account name, never by an internal identifier.
-- A command that touches both a Triage item and a Case checks both scopes.
+- A command that touches both a Triage Case and an instruction Case checks
+  both: the Triage edit scope and the Case edit lease.
 - On a Vehicle images record, a Principal change, staff closure or
   staff-directed merge checks the holder, token and lifecycle version in its
   own transaction. Automatic image processing runs as the system worker; it

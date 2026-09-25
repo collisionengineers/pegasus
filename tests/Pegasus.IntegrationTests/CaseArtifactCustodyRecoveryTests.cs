@@ -108,6 +108,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
         Assert.Equal("confirmed", stored.CustodyStatus);
         Assert.Equal(confirmed.BoxFileId, stored.BoxFileId);
         Assert.Equal(confirmed.BoxVersionId, stored.BoxVersionId);
+        Assert.Equal(HoldingBox.HoldingFolderId, stored.BoxParentFolderId);
 
         var wrongReceipt = request with
         {
@@ -694,7 +695,7 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 Year = 2031,
                 Sequence = 1,
                 Reference = "QDOS001",
-                Type = "Inspection",
+                Type = "inspection",
                 InitialState = "NotReady",
                 CustodyState = "confirmed",
                 OriginIntakeReceiptId = receiptId,

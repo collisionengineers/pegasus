@@ -63,7 +63,7 @@ public sealed class WorkCentreLabelTests
     [InlineData(NeedsAttentionKind.ReviewCase, "/Cases/Details")]
     [InlineData(NeedsAttentionKind.UnassignedEngineer, "/Cases/Details")]
     [InlineData(NeedsAttentionKind.Unidentified, "/Unidentified/Details")]
-    [InlineData(NeedsAttentionKind.Triage, "/Triage/Details")]
+    [InlineData(NeedsAttentionKind.Triage, "/Cases/Details")]
     public void EveryRecordPageNamesARealPage(NeedsAttentionKind kind, string expected)
     {
         Assert.Equal(expected, NeedsAttentionPresentation.RecordPage(kind));

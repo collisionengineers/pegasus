@@ -197,7 +197,16 @@ internal static partial class CaseWebTestSupport
         }
     }
 
-    internal static async Task<string> ReadCaseAsync(RecordingCaseDetailsStore store)
+    /// <summary>
+    /// The Case as an operator who holds no edit lease reads it, with
+    /// <paramref name="substitutePorts"/> replacing further ports after the
+    /// store's. Without a lease a lazy section (Vehicle among them) is a
+    /// placeholder unless <paramref name="section"/> addresses it.
+    /// </summary>
+    internal static async Task<string> ReadCaseAsync(
+        RecordingCaseDetailsStore store,
+        Action<IServiceCollection>? substitutePorts = null,
+        string? section = null)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -210,6 +219,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
+                substitutePorts?.Invoke(services);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -217,7 +227,9 @@ internal static partial class CaseWebTestSupport
             BaseAddress = new Uri("https://localhost")
         });
 
-        return await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        return await GetHtmlAsync(
+            client,
+            section is null ? $"/Cases/{store.CaseId:D}" : $"/Cases/{store.CaseId:D}?section={section}");
     }
 
     /// <summary>
@@ -901,6 +913,7 @@ internal static partial class CaseWebTestSupport
             GetCaseSectionQuery query,
             CancellationToken cancellationToken)
         {
+            PageFrameQueries.Add(query);
             if (query.CaseId != CaseId)
             {
                 return Task.FromResult<CasePageFrame?>(null);
@@ -911,8 +924,7 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments,
                 AvailableReportSentEvidence,
                 RecordNotes,
-                DataOverride ?? CreateData(),
-                AuditOfCaseId));
+                DataOverride ?? CreateData()));
         }
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
@@ -973,7 +985,8 @@ internal static partial class CaseWebTestSupport
                     CaseCustodyState.Pending,
                     CorrespondenceEmails,
                     StandaloneAuditEvidenceId,
-                    AuditOfCaseId)
+                    AuditCustodyState: AuditCustodyState,
+                    AuditCustodyFolderRemoteId: AuditCustodyFolderRemoteId)
                 : null);
         }
 
@@ -997,7 +1010,6 @@ internal static partial class CaseWebTestSupport
             "Case claimant",
             "CLM-42",
             _now.AddDays(-2),
-            new DateOnly(2031, 5, 5),
             "Email",
             _now.AddDays(-2));
 
@@ -1008,14 +1020,14 @@ internal static partial class CaseWebTestSupport
         private CaseSectionFrame FocusedFrame()
         {
             var workflow = CreateWorkflow();
-            return new(CreateSummary(workflow), workflow, ActiveLease());
+            return new(CreateSummary(workflow), workflow, ActiveLease(), Works: Works);
         }
 
         /// <summary>
         /// The same case the details surface serves, through the port the data-reading
         /// case pages (the EVA send page) use.
         /// </summary>
-        public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(caseId == CaseId ? DataOverride ?? CreateData() : null);
 
         Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(
@@ -1030,7 +1042,7 @@ internal static partial class CaseWebTestSupport
 
         Task<InspectionAddressChoicesData?> IInspectionAddressChoicesQueries.GetAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<InspectionAddressChoicesData?>(
                 caseId == CaseId ? InspectionChoices : null);
 
@@ -1065,7 +1077,7 @@ internal static partial class CaseWebTestSupport
                 VehicleFields(),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
-                new(Empty<DateOnly>(), Confirmed("Standard")),
+                new(CaseDataPolicy.ReceivedDate(_now.AddDays(-2), _now.AddDays(-2)), Confirmed("Standard")),
                 new(
                     Empty<DateOnly>(),
                     Empty<DateOnly>(),
@@ -1180,14 +1192,19 @@ internal static partial class CaseWebTestSupport
                 CaseId,
                 new(CaseId, "QDOS", 2031, 42, "QDOS3100042"),
                 State,
+                AssignedEngineerId,
                 null,
-                null,
-                null,
+                ReportSentEvidence,
                 _dueWork,
                 null,
                 null,
                 null,
-                CaseVersion) with { HoldReviewOn = HoldReviewOn };
+                CaseVersion) with
+            {
+                HoldReviewOn = HoldReviewOn,
+                AssignedEngineerId = AssignedEngineerId,
+                ReportSentEvidence = ReportSentEvidence
+            };
 
         Task<CaseDueWork> IRecordManualCaseChase.ExecuteAsync(
             ManualChaseRecord request,

@@ -82,6 +82,8 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             command.ExpectedCaseVersion,
             command.EditLeaseToken,
             now);
+        // The researched card belongs to the current work.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, command.CaseId, cancellationToken);
         var pending = await EfDocumentCustodyStore.PrepareAddAsync(
             context,
             contentStore,
@@ -94,13 +96,12 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
         {
             // Research for a month that already has a card replaces that card
             // (ValuationPolicy.Replaces); the earlier figures stay in the history.
-            var replaced = await EfValuationStore.FindReplacedAsync(context, command.CaseId, details, cancellationToken);
+            var replaced = await EfValuationStore.FindReplacedAsync(context, workId, details, cancellationToken);
             var before = replaced is null ? null : EfValuationStore.Map(replaced);
             var valuationEntity = replaced ?? new CaseValuationEntity
             {
                 Id = Guid.NewGuid(),
-                CaseId = command.CaseId,
-                Case = workflow.Case,
+                WorkId = workId,
                 Source = details.Source.ToString(),
                 RecordedBy = command.Actor.SubjectId,
                 RecordedAtUtc = now

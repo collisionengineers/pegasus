@@ -63,7 +63,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "contactName",
         "contactEmailAddress",
         "contactPhoneNumber",
-        "instructionDate",
         "vatStatus",
         "inspectionDate",
         "inspectionDeadline",
@@ -322,6 +321,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             ? operationId.ToString("N")
             : throw new ArgumentException("The operation key is invalid.", nameof(value));
 
+    /// <summary>The refusal a command on the case itself states when Core gives no reason of its own.</summary>
+    protected const string CaseCommandRefused =
+        "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.";
+
     /// <summary>A command on the case itself; a refusal names the case as the reason.</summary>
     protected Task<IActionResult> ExecuteCaseCommandAsync(
         Guid id,
@@ -337,7 +340,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             commandName,
             execute,
             successMessage,
-            "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.",
+            CaseCommandRefused,
             redirect,
             keepEditing);
 

@@ -175,7 +175,7 @@
                 <div class="dv-readout" data-damage-readout aria-live="polite"></div>
                 @if (editable)
                 {
-                    <button type="button" class="btn btn--small" data-damage-reset><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>@DamageLabels.Reset</span></button>
+                        <button type="button" class="btn btn--small" data-damage-reset><svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>@DamageLabels.Reset</span></button>
                 }
                 <div class="dv-legend" aria-label="@DamageLabels.Severity">
                     @foreach (var severity in AssessmentVocabulary.DamageSeverities.OrderBy(entry => entry.Value.Rank))
@@ -309,7 +309,7 @@
                             <input id="edit-@AssessmentVocabulary.DamageUnrelatedDeduction" class="fi mono" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelatedDeduction)" form="case-edit-form" type="number" step="0.01" min="0" value="@deduction" />
                         }
                     </div>
-                    <div class="fc ro span4"><span class="lbl">@EngineerLabels.IncidentNarrative</span><div class="fv derived @(Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident) == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)" data-damage-narrative>@Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident)</div></div>
+                    <div class="fc ro span4"><span class="lbl">@EngineerLabels.IncidentNarrative</span><div class="fv derived @(Model.IncidentNarrative is null ? "empty" : null)" data-damage-narrative>@(Model.IncidentNarrative ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>
                 </div>
             </div>
         </div>

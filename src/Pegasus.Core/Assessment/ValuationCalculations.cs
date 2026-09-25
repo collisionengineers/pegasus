@@ -1,4 +1,5 @@
 using System.Globalization;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -142,8 +143,8 @@ public sealed record ValuationAddition(
 
 /// <summary>
 /// Everything the Engineer chose on the calculator, and nothing else. The
-/// preview and the Apply command carry exactly this shape, so what is shown
-/// and what is adopted can never be two different selections.
+/// preview and the Case Save's adoption carry exactly this shape, so what is
+/// shown and what is adopted can never be two different selections.
 /// </summary>
 public sealed record ValuationCalculationSelection(
     Guid GuideValuationId,
@@ -199,14 +200,9 @@ public sealed record ValuationCalculation(
     decimal ConditionDeduction,
     decimal Proposal);
 
-/// <summary>
-/// What the calculator shows before anything is adopted. It carries the guide
-/// card's stamp so the Apply that follows pins itself to the very card the
-/// figures were prepared from.
-/// </summary>
+/// <summary>What the calculator shows before anything is adopted.</summary>
 public sealed record ValuationPreview(
     Guid GuideValuationId,
-    DateTimeOffset GuideValuationStampUtc,
     ValuationCalculation Calculation);
 
 public sealed record PreviewValuationRequest(
@@ -236,23 +232,6 @@ public sealed record AppliedValuation(
     string Reason,
     string CalculationPolicyVersion);
 
-/// <summary>
-/// Adopts a calculated value as the Case's Engineer's Value.
-/// <see cref="GuideValuationStampUtc"/> is the basis card's own last-written
-/// stamp: the card carries no separate version number, so its edit stamp is
-/// what proves the Engineer applied the card they were shown.
-/// </summary>
-public sealed record ApplyValuationRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    ValuationCalculationSelection Selection,
-    DateTimeOffset GuideValuationStampUtc)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
 public interface IAppliedValuationStore
 {
     Task<ValuationCalculationBasis> ReadBasisAsync(
@@ -260,12 +239,9 @@ public interface IAppliedValuationStore
         Guid guideValuationId,
         CancellationToken cancellationToken);
 
-    Task<AppliedValuation> ApplyAsync(
-        ApplyValuationRequest request,
-        CancellationToken cancellationToken);
-
     Task<IReadOnlyList<AppliedValuation>> ListAppliedAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 
@@ -276,24 +252,18 @@ public interface IPreviewValuationCalculation
         CancellationToken cancellationToken);
 }
 
-public interface IApplyValuationCalculation
-{
-    Task<AppliedValuation> ExecuteAsync(
-        ApplyValuationRequest request,
-        CancellationToken cancellationToken);
-}
-
 public interface IListAppliedValuations
 {
     Task<IReadOnlyList<AppliedValuation>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 
 /// <summary>
 /// The one owner of valuation arithmetic and of the rules that decide which
-/// additions may be selected. The Case preview and the Apply command call
-/// exactly these members, so what staff see and what is recorded can
+/// additions may be selected. The Case preview and the Case Save's adoption
+/// call exactly these members, so what staff see and what is recorded can
 /// never be two calculations.
 /// </summary>
 public static class ValuationCalculationPolicy
@@ -313,6 +283,9 @@ public static class ValuationCalculationPolicy
     public static readonly IReadOnlyList<decimal> PriorTotalLossPercentages = [0.10m, 0.20m];
 
     public static string PolicyStamp => $"{PolicyKey}/v{PolicyVersion}";
+
+    /// <summary>The reason an adoption by the Case Save records.</summary>
+    public const string AppliedReason = "Engineer's Value applied.";
 
     /// <summary>
     /// Printed currency. The value itself stays decimal; only what is shown
@@ -415,7 +388,7 @@ public static class ValuationCalculationPolicy
     }
 
     /// <summary>
-    /// The selection rules both the preview and the Apply command apply, so a
+    /// The selection rules both the preview and the adoption apply, so a
     /// figure that would be refused on adoption is refused while it is still
     /// being previewed.
     /// </summary>
@@ -460,27 +433,13 @@ public static class ValuationCalculationPolicy
         };
     }
 
-    public static ApplyValuationRequest ValidateApply(ApplyValuationRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        CaseLifecycleRules.ValidateMutation(request);
-        AssessmentPolicy.RequireFindingConfirmationAuthority(request.Actor);
-        return request with
-        {
-            Selection = ValidateSelection(request.Selection, nameof(request))
-        };
-    }
-
     /// <summary>
     /// The calculated proposal adopted as the professional finding.
     /// It must be a value the confirmed field can hold, so a zero adoption is
     /// refused here rather than at the field write.
     /// </summary>
-    public static decimal AcceptedValue(
-        ApplyValuationRequest request,
-        ValuationCalculation calculation)
+    public static decimal AcceptedValue(ValuationCalculation calculation)
     {
-        ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(calculation);
         var accepted = calculation.Proposal;
         if (accepted <= 0m)
@@ -490,6 +449,34 @@ public static class ValuationCalculationPolicy
         }
 
         return accepted;
+    }
+
+    /// <summary>
+    /// The report's Retail value and Trade value an adoption records beside the
+    /// Engineer's Value (operator, 24 September 2026): the basis retail the
+    /// calculation started from, and the basis card's trade as the Save leaves
+    /// it. A card without a positive trade records none (null clears the
+    /// field), so the report stays blocked on Trade value until trade is
+    /// entered on that card and the Case saved.
+    /// </summary>
+    public static IReadOnlyList<KeyValuePair<string, string?>> AdoptedBasisFields(
+        ValuationCalculation calculation,
+        decimal? basisTradeValue)
+    {
+        ArgumentNullException.ThrowIfNull(calculation);
+        // GuideRetailValue is always above zero, because Calculate refuses
+        // anything else.
+        return
+        [
+            new(AssessmentVocabulary.ValueRetail, AssessmentPolicy.NormalizeFieldValue(
+                AssessmentVocabulary.ValueRetail,
+                calculation.GuideRetailValue.ToString(CultureInfo.InvariantCulture))),
+            new(AssessmentVocabulary.ValueTrade, basisTradeValue is { } trade && trade > 0m
+                ? AssessmentPolicy.NormalizeFieldValue(
+                    AssessmentVocabulary.ValueTrade,
+                    trade.ToString(CultureInfo.InvariantCulture))
+                : null),
+        ];
     }
 
     private static ValuationAddition Resolve(
@@ -737,7 +724,8 @@ public sealed class RemoveValuationPreset(IValuationPresetStore store) : IRemove
 /// <summary>
 /// Shows the Engineer what the selection comes to. It reads the same basis
 /// and runs the same arithmetic the adoption will, and writes nothing: an
-/// Engineer's Value changes only when Apply is pressed.
+/// Engineer's Value changes only when a Case Save adopts a changed
+/// calculation.
 /// </summary>
 public sealed class PreviewValuationCalculation(IAppliedValuationStore store)
     : IPreviewValuationCalculation
@@ -753,27 +741,16 @@ public sealed class PreviewValuationCalculation(IAppliedValuationStore store)
             cancellationToken);
         return new(
             basis.GuideValuationId,
-            basis.GuideValuationStampUtc,
             ValuationCalculationPolicy.Calculate(
                 ValuationCalculationPolicy.Resolve(request.Selection, basis)));
     }
-}
-
-public sealed class ApplyValuationCalculation(IAppliedValuationStore store)
-    : IApplyValuationCalculation
-{
-    public Task<AppliedValuation> ExecuteAsync(
-        ApplyValuationRequest request,
-        CancellationToken cancellationToken) =>
-        store.ApplyAsync(
-            ValuationCalculationPolicy.ValidateApply(request),
-            cancellationToken);
 }
 
 public sealed class ListAppliedValuations(IAppliedValuationStore store) : IListAppliedValuations
 {
     public Task<IReadOnlyList<AppliedValuation>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -781,6 +758,6 @@ public sealed class ListAppliedValuations(IAppliedValuationStore store) : IListA
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
 
-        return store.ListAppliedAsync(caseId, cancellationToken);
+        return store.ListAppliedAsync(caseId, work, cancellationToken);
     }
 }

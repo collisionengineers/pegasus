@@ -617,7 +617,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         target.OtherName = source.Category?.OtherName;
         target.OtherReasoning = source.Category?.OtherReasoning;
         target.CaseType = source.CaseType is { } caseType
-            ? EfIntakeReceiptStore.ToCode(caseType)
+            ? CaseTypeCodes.ToCode(caseType)
             : null;
         target.StandaloneAuditReportAssetSourceLabel = source.StandaloneAuditReport?.AssetSourceLabel;
         target.StandaloneAuditReportAssessment = source.StandaloneAuditReport is { } report

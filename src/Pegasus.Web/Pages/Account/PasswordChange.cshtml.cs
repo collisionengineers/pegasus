@@ -16,11 +16,14 @@ public sealed class PasswordChangeModel(
     // names and CLR type talk at the operator — "'ConfirmPassword' and
     // 'NewPassword' do not match.", "must be a string or array type with a
     // minimum length of '8'".
+
+    // Required only for a voluntary change. Under the gate the field is not
+    // rendered: the account replaces an issued password rather than proving it.
+    // The rule depends on the account's state, so it is enforced in OnPost.
     [BindProperty]
     [Display(Name = "Current password")]
-    [Required(ErrorMessage = "Enter your current password.")]
     [DataType(DataType.Password), StringLength(256)]
-    public string CurrentPassword { get; set; } = string.Empty;
+    public string? CurrentPassword { get; set; }
 
     [BindProperty]
     [Display(Name = "New password")]
@@ -69,6 +72,10 @@ public sealed class PasswordChangeModel(
         {
             ModelState.AddModelError(string.Empty, "The form has expired. Retry the password change.");
         }
+        if (!Forced && string.IsNullOrEmpty(CurrentPassword))
+        {
+            ModelState.AddModelError(nameof(CurrentPassword), "Enter your current password.");
+        }
         if (!ModelState.IsValid)
         {
             ResetSensitiveInput();
@@ -78,7 +85,7 @@ public sealed class PasswordChangeModel(
         try
         {
             await changeStaffPassword.ExecuteAsync(
-                new(actor, staffId, CurrentPassword, NewPassword, OperationKey),
+                new(actor, staffId, Forced ? null : CurrentPassword, NewPassword, OperationKey),
                 cancellationToken);
         }
         catch (StaffPasswordChangeException exception)
@@ -95,7 +102,7 @@ public sealed class PasswordChangeModel(
             {
                 case StaffPasswordChangeError.CurrentPasswordInvalid:
                     ModelState.AddModelError(
-                        nameof(CurrentPassword),
+                        Forced ? string.Empty : nameof(CurrentPassword),
                         "The current password is incorrect.");
                     break;
                 case StaffPasswordChangeError.PasswordUnchanged:
@@ -127,7 +134,9 @@ public sealed class PasswordChangeModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "The password could not be changed. Check the current password and the new password requirements.");
+                Forced
+                    ? "The password could not be changed. Check the new password requirements."
+                    : "The password could not be changed. Check the current password and the new password requirements.");
             ResetSensitiveInput();
             return Page();
         }
@@ -162,7 +171,7 @@ public sealed class PasswordChangeModel(
 
     private void ResetSensitiveInput()
     {
-        CurrentPassword = string.Empty;
+        CurrentPassword = null;
         NewPassword = string.Empty;
         ConfirmPassword = string.Empty;
         OperationKey = NewOperationKey();

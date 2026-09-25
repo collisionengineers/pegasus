@@ -1,11 +1,10 @@
 /* Work Centre (v26): page-specific rules composed on the shared shell tokens.
    Linked from Pages/Index.cshtml only. */
 
-.work-centre .metric-strip--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .work-centre .metric-section { margin-bottom: 12px; }
 
 .wc-updated { font-size: 12px; color: var(--muted); margin-right: 4px; white-space: nowrap; }
-.wc-refresh-form { margin: 0; }
+.wc-refresh { display: flex; align-items: center; gap: 8px; }
 
 .wc-panes .pane-head { gap: 10px; }
 .wc-panes .pane-head .meta { font-size: 12px; color: var(--muted); margin-left: auto; }
@@ -55,9 +54,6 @@
 }
 
 @media (max-width: 760px) {
-    .work-centre .metric-strip--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .work-centre .metric-strip--4 .metric:nth-child(2n) { border-right: 0; }
-    .work-centre .metric-strip--4 .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
     .wc-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .wc-facts .fact:nth-child(3n) { border-right: 1px solid var(--line); }
     .wc-facts .fact:nth-child(2n) { border-right: 0; }

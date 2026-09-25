@@ -9,6 +9,34 @@
     var sinceAttribute = Model.DividerUtc is { } dividerAt
         ? Html.Raw($" data-wc-since=\"{dividerAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture)}\"")
         : Html.Raw(string.Empty);
+    // The refresh button replays the address that produced this screen:
+    // scope, the kinds actually on, both pages, the selected row and the
+    // "since" line. Kinds repeat one key, so the replay is a pair sequence
+    // rather than a dictionary.
+    var refreshFields = new List<KeyValuePair<string, string?>>
+    {
+        new("scope", IndexModel.ScopeSlug(Model.Scope)),
+        new("refresh", "true")
+    };
+    refreshFields.AddRange(Model.Kinds.Select(kind =>
+        new KeyValuePair<string, string?>("kind", NeedsAttentionPresentation.KindSlug(kind))));
+    if (Model.CurrentPage > 1)
+    {
+        refreshFields.Add(new("page", Model.CurrentPage.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+    if (Model.Selected is { } refreshSelected)
+    {
+        refreshFields.Add(new("selected", refreshSelected.Id.ToString("D")));
+    }
+    if (Model.NewCasesPage > 1)
+    {
+        refreshFields.Add(new("newPage", Model.NewCasesPage.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+    if (Model.DividerUtc is { } refreshSince)
+    {
+        refreshFields.Add(new("since", refreshSince.ToString("O", System.Globalization.CultureInfo.InvariantCulture)));
+    }
+    ViewData["RefreshFields"] = refreshFields;
 }
 
 <div class="work-centre" data-work-centre data-wc-scope="@IndexModel.ScopeSlug(Model.Scope)" data-wc-scope-named="@(Model.ScopeNamed ? "true" : "false")" data-wc-refresh-outcome="@Model.RefreshOutcome" @sinceAttribute>
@@ -18,41 +46,19 @@
         <h1>@Labels.Title</h1>
     </div>
     <div class="page-actions">
-        <span class="meta wc-refresh-outcome" data-wc-refresh-outcome-label>@Model.RefreshOutcomeLabel</span>
+        @* The outcome and the busy state share one region, so a background
+           refresh can never report an outcome the operator's own click does
+           not see. A plain GET: the page works without script. The script
+           refreshes the same regions in place on focus and every five
+           minutes (P5). *@
+        <div class="wc-refresh">
+            <span class="meta wc-refresh-outcome" data-wc-refresh-outcome-label>@Model.RefreshOutcomeLabel</span>
+            <partial name="Shared/_RefreshButton" />
+        </div>
         <a class="btn btn--primary" asp-page="/Cases/Create">
             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
             <span>@Labels.CreateCase</span>
         </a>
-        @* A plain GET: the page works without script. The script refreshes the
-           same regions in place on focus and every five minutes (P5). *@
-        <form method="get" action="/" class="wc-refresh-form">
-            <input type="hidden" name="scope" value="@IndexModel.ScopeSlug(Model.Scope)" />
-            <input type="hidden" name="refresh" value="true" />
-            @foreach (var kind in Model.Kinds)
-            {
-                <input type="hidden" name="kind" value="@NeedsAttentionPresentation.KindSlug(kind)" />
-            }
-            @if (Model.CurrentPage > 1)
-            {
-                <input type="hidden" name="page" value="@Model.CurrentPage" />
-            }
-            @if (Model.Selected is { } refreshSelected)
-            {
-                <input type="hidden" name="selected" value="@refreshSelected.Id" />
-            }
-            @if (Model.NewCasesPage > 1)
-            {
-                <input type="hidden" name="newPage" value="@Model.NewCasesPage" />
-            }
-            @if (Model.DividerUtc is { } refreshSince)
-            {
-                <input type="hidden" name="since" value="@refreshSince.ToString("O", System.Globalization.CultureInfo.InvariantCulture)" />
-            }
-            <button type="submit" class="btn" data-wc-refresh>
-                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                <span>@Labels.Refresh</span>
-            </button>
-        </form>
     </div>
 </header>
 
@@ -87,7 +93,7 @@ else
     var metrics = Model.Metrics;
     <section class="metric-section" aria-label="Work requiring attention">
         <span class="meta wc-freshness" data-wc-freshness data-wc-freshness-state="current">@(Model.LoadedAtUtc is { } attentionLoaded ? Labels.Updated(attentionLoaded) : "Current")</span>
-        <div class="metric-strip metric-strip--4 wc-metrics">
+        <div class="metric-strip metric-strip--5 wc-metrics">
             @* Every metric opens the exact Cases tab behind it; 0 renders as 0.
                Blocked is not an operator concept any more (D7). *@
             <a class="metric" data-value="not_ready" asp-page="/Cases/Index" asp-route-tab="not_ready">
@@ -105,6 +111,10 @@ else
             <a class="metric" data-value="unidentified" asp-page="/Cases/Index" asp-route-tab="unidentified">
                 <span class="metric-label"><span>Unidentified</span></span>
                 <span class="metric-value">@metrics.Unidentified</span>
+            </a>
+            <a class="metric" data-value="triage" asp-page="/Cases/Index" asp-route-tab="triage">
+                <span class="metric-label"><span>@Labels.Triages</span></span>
+                <span class="metric-value">@metrics.Triages</span>
             </a>
         </div>
     </section>

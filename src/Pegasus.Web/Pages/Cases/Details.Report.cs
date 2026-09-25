@@ -59,6 +59,16 @@ public sealed partial class DetailsModel
     public OperatorLabels.SourceTagWord? AssessmentSourceTag(string path) =>
         OperatorLabels.SourceTag(ShownAssessment(path));
 
+    /// <summary>
+    /// The section of this Case a report blocker links to: the one that clears
+    /// it when this Case shows it (Original report is a standalone Audit's
+    /// only); null otherwise.
+    /// </summary>
+    public string? BlockerSectionKey(AssessmentReadinessItem item) =>
+        CaseWorkspaceLabels.Report.BlockerSection(item) is { } key && (key != "original-report" || IsAuditCase)
+            ? key
+            : null;
+
     /// <summary>The same reading over any raw value the vocabulary defines at <paramref name="path"/>.</summary>
     public static string DisplayAssessmentValue(string path, string? raw)
     {
@@ -109,7 +119,8 @@ public sealed partial class DetailsModel
             return recorded;
         }
 
-        return Assessment?.Field(path) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false } field
+        return CaseFieldProposalPolicy.DecisionPaths.Contains(path)
+            && Assessment?.Field(path) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false } field
             ? new CaseFieldProposal(path, field.Value, field.RecordedBy, field.RecordedAtUtc, CaseFieldProposalStatus.Awaiting, null, null)
             : null;
     }
@@ -172,7 +183,8 @@ public sealed partial class DetailsModel
     /// freezes, so the form states what pressing Prepare delivery will send.
     /// </summary>
     public string ReportDeliveryFileName => CaseReportDeliveryNaming.ReportName(
-        Case?.Summary.Reference ?? "—",
+        // The generation's own reference: a. + the Case/PO for an Audit report.
+        CurrentReportGeneration?.Snapshot.CaseReference ?? Case?.Summary.Reference ?? "—",
         Case?.Summary.Registration,
         RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
         ReportSendHistory.SentCount) + ".pdf";
@@ -209,10 +221,24 @@ public sealed partial class DetailsModel
                 : string.Equals(outcome, "total_loss", StringComparison.Ordinal)
                     ? "Total Loss"
                     : CodeWords(outcome);
-            var registration = Case?.Summary.Registration;
-            return string.IsNullOrWhiteSpace(registration) ? $"{kind} Report" : $"{kind} Report — {registration}";
+            return TitleOf(kind, Case?.Summary.Registration);
         }
     }
+
+    /// <summary>
+    /// The Inspection's sent report's title (v29 P4), read from its frozen
+    /// generation by the same rule as <see cref="ReportTitle"/>.
+    /// </summary>
+    public string? InspectionReportTitle => InspectionReportGeneration?.Snapshot.Report is { } report
+        ? TitleOf(
+            report.Outcome == AssessmentReportOutcome.TotalLoss
+                ? "Total Loss"
+                : OperatorLabels.Humanise(report.Outcome.ToString()),
+            report.Vehicle.Registration)
+        : null;
+
+    private static string TitleOf(string kind, string? registration) =>
+        string.IsNullOrWhiteSpace(registration) ? $"{kind} Report" : $"{kind} Report — {registration}";
 
     /// <summary>The Report content line the three switches read as: "Guide source disclosed · valuation commentary · unrelated damage".</summary>
     public string ReportContentSummary

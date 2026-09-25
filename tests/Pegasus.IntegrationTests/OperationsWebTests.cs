@@ -11,6 +11,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Operations;
 using Pegasus.Web.Authentication;
 
@@ -288,14 +289,19 @@ public sealed partial class OperationsWebTests
 
         var html = await GetHtmlAsync(client, "/Operations");
 
-        // An estimate draft is reviewed on the Assessment page, and is closed
-        // there by Use estimate — never by hand from this table. The Case
-        // reference alone is ambiguous (the MarketResearch fixture shares it
-        // and renders newer, hence first), so the row is found by the
-        // estimate job's own instruction text instead.
+        // An estimate draft is reviewed on the Case's Repair Spec section, the
+        // route the Work Centre and the Case Next action open (Core's
+        // AiDraftRoute), and is closed there by Use repair spec, never by hand
+        // from this table. The Case reference alone is ambiguous (the
+        // MarketResearch fixture shares it and renders newer, hence first), so
+        // the row is found by the estimate job's own instruction text instead.
         var estimateRow = RowContaining(html, RecordingAiWorkStore.EstimateInstruction);
         Assert.Contains("Review estimate", estimateRow, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/{aiWork.SubjectCaseId:D}/Assessment", estimateRow, StringComparison.Ordinal);
+        Assert.Contains(
+            $"href=\"{StaffNotificationPolicy.CaseRoute(aiWork.SubjectCaseId, "estimate")}\"",
+            estimateRow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("/Assessment", estimateRow, StringComparison.Ordinal);
         Assert.DoesNotContain("Complete job", estimateRow, StringComparison.Ordinal);
 
         // A queue pass draft is the opposite: nothing to open, closed by hand.
@@ -671,7 +677,7 @@ public sealed partial class OperationsWebTests
     {
         public Guid CaseId { get; } = Guid.NewGuid();
         public Guid IntakeId { get; } = Guid.NewGuid();
-        public Guid TriageId { get; } = Guid.NewGuid();
+        public Guid TriageCaseId { get; } = Guid.NewGuid();
         public Guid ExternalWorkId { get; } = Guid.NewGuid();
         public string ReceivedMailboxId { get; } = "approved-inbox";
         public string MailboxFailureCode { get; } = "source_unavailable";
@@ -697,7 +703,7 @@ public sealed partial class OperationsWebTests
                     Email("received-unknown", EmailOperationDirection.Received, EmailOperationState.Unknown)),
                 ImmutableArray.Create(
                     Email("sent-failed", EmailOperationDirection.Sent, EmailOperationState.Failed, "sent_source_unavailable", "approved-sent", FixedUtcNow.AddMinutes(10)),
-                    Email("sent-triage", EmailOperationDirection.Sent, EmailOperationState.Succeeded, triageId: TriageId),
+                    Email("sent-triage", EmailOperationDirection.Sent, EmailOperationState.Succeeded, triageCaseId: TriageCaseId),
                     Email("sent-case", EmailOperationDirection.Sent, EmailOperationState.Succeeded, caseId: CaseId, caseReference: "QD31001", principalCode: "QD")),
                 ReceivedLimitReached: false,
                 SentLimitReached: false));
@@ -738,7 +744,7 @@ public sealed partial class OperationsWebTests
             string? retryMailboxId = null,
             DateTimeOffset? retryDueAtUtc = null,
             Guid? intakeId = null,
-            Guid? triageId = null,
+            Guid? triageCaseId = null,
             Guid? caseId = null,
             string? caseReference = null,
             string? principalCode = null) => new(
@@ -748,7 +754,7 @@ public sealed partial class OperationsWebTests
                 "operations@example.invalid",
                 FixedUtcNow,
                 intakeId,
-                triageId,
+                triageCaseId,
                 caseId,
                 caseReference,
                 principalCode,

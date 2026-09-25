@@ -9,9 +9,10 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// MI-02's periods: per Principal and London month, the confirmed report and
 /// fee-note artifacts produced, the reports sent, and the agreed fees on the
-/// Cases whose first reports were produced in the selected period (each Case's
-/// fee counted once, in the month of its first qualifying report globally). Reads the same
-/// records as the per-Principal report so the two agree.
+/// works whose first reports were produced in the selected period (each work's
+/// fee counted once, in the month of its first qualifying report globally), each
+/// with its Audit share. Reads the same records as the per-Principal report so
+/// the two agree.
 /// </summary>
 internal sealed class EfMonthlyReportActivityQueries(
     IDbContextFactory<PegasusDbContext> factory) : IMonthlyReportActivityQueries
@@ -32,6 +33,7 @@ internal sealed class EfMonthlyReportActivityQueries(
             join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
                 on artifact.VersionId equals (Guid?)documentVersion.Id
             join @case in db.Cases.AsNoTracking() on generation.CaseId equals @case.Id
+            join work in db.CaseWorks.AsNoTracking() on generation.WorkId equals work.Id
             where generation.GeneratedAtUtc >= fromUtc && generation.GeneratedAtUtc < toUtc
                 && artifact.Sha256 != null
                 && artifact.Sha256 == documentVersion.Sha256
@@ -39,9 +41,11 @@ internal sealed class EfMonthlyReportActivityQueries(
             select new ArtifactRow(
                 @case.PrincipalId,
                 @case.Principal.Code,
-                @case.Id,
+                generation.WorkId,
                 generation.GeneratedAtUtc,
-                artifact.Kind))
+                artifact.Kind,
+                @case.Type,
+                work.Kind))
             .ToListAsync(cancellationToken));
 
         var sent = await db.Set<StaffMailSendOperationEntity>().AsNoTracking()
@@ -53,12 +57,21 @@ internal sealed class EfMonthlyReportActivityQueries(
                 operation => operation.ContextId,
                 generation => generation.Id,
                 (operation, generation) => new { operation, generation })
+            .Join(db.CaseWorks.AsNoTracking(), x => x.generation.WorkId, work => work.Id,
+                (x, work) => new { x.operation, x.generation, WorkKind = work.Kind })
             .Join(db.Cases.AsNoTracking(), x => x.generation.CaseId, @case => @case.Id,
-                (x, @case) => new SentRow(@case.PrincipalId, @case.Principal.Code, x.operation.ObservedSentAtUtc!.Value))
+                (x, @case) => new SentRow(
+                    @case.PrincipalId,
+                    @case.Principal.Code,
+                    x.operation.ObservedSentAtUtc!.Value,
+                    @case.Type,
+                    x.WorkKind))
             .ToListAsync(cancellationToken);
 
-        var caseIds = artifacts.Select(x => x.CaseId).Distinct().ToArray();
-        var firstReports = caseIds.Length == 0
+        // The fee belongs to each work's first confirmed report: an
+        // Inspection + Audit Case's Audit carries its own fee.
+        var workIds = artifacts.Select(x => x.WorkId).Distinct().ToArray();
+        var firstReports = workIds.Length == 0
             ? []
             : await (
                 from generation in db.Set<CaseReportGenerationEntity>().AsNoTracking()
@@ -66,50 +79,68 @@ internal sealed class EfMonthlyReportActivityQueries(
                     on generation.Id equals artifact.GenerationId
                 join documentVersion in db.Set<DocumentVersionEntity>().AsNoTracking()
                     on artifact.VersionId equals (Guid?)documentVersion.Id
-                where caseIds.Contains(generation.CaseId)
+                where workIds.Contains(generation.WorkId)
                     && artifact.Kind == nameof(CaseReportArtifactKind.AssessmentReport)
                     && artifact.Sha256 != null
                     && artifact.Sha256 == documentVersion.Sha256
                     && documentVersion.CustodyStatus == Pegasus.Core.Documents.DocumentCustodyStatus.Confirmed
                 select new FrozenReportRow(
-                    generation.CaseId,
+                    generation.WorkId,
                     generation.Id,
                     generation.GeneratedAtUtc,
                     generation.SnapshotJson))
                 .ToListAsync(cancellationToken);
 
-        var firstReportByCase = firstReports
-            .GroupBy(x => x.CaseId)
+        var firstReportByWork = firstReports
+            .GroupBy(x => x.WorkId)
             .Select(group => group
                 .OrderBy(x => x.GeneratedAtUtc)
                 .ThenBy(x => x.GenerationId)
                 .First())
             .Where(first => FirstReportFeeAttribution.InPeriod(first.GeneratedAtUtc, fromUtc, toUtc))
-            .ToDictionary(first => first.CaseId);
-        var fees = firstReportByCase.ToDictionary(
+            .ToDictionary(first => first.WorkId);
+        var fees = firstReportByWork.ToDictionary(
             pair => pair.Key,
             pair => FrozenFeeOf(pair.Value));
-        var feeMonthByCase = firstReportByCase.ToDictionary(
+        var feeMonthByWork = firstReportByWork.ToDictionary(
             pair => pair.Key,
             pair => MonthOf(pair.Value.GeneratedAtUtc));
+        var auditWorkIds = artifacts
+            .Where(x => x.IsAudit)
+            .Select(x => x.WorkId)
+            .ToHashSet();
 
         var keys = artifacts.Select(x => (x.PrincipalId, x.Code, Month: MonthOf(x.GeneratedAtUtc)))
             .Concat(sent.Select(x => (x.PrincipalId, x.Code, Month: MonthOf(x.ObservedSentAtUtc))))
             .Distinct();
-        return keys.Select(key => new MonthlyReportActivity(
-                key.PrincipalId,
-                key.Code,
-                key.Month.Year,
-                key.Month.Month,
-                artifacts.Count(x => x.PrincipalId == key.PrincipalId && MonthOf(x.GeneratedAtUtc) == key.Month
-                    && x.Kind == nameof(CaseReportArtifactKind.AssessmentReport)),
-                artifacts.Count(x => x.PrincipalId == key.PrincipalId && MonthOf(x.GeneratedAtUtc) == key.Month
-                    && x.Kind == nameof(CaseReportArtifactKind.FeeNote)),
-                sent.Count(x => x.PrincipalId == key.PrincipalId && MonthOf(x.ObservedSentAtUtc) == key.Month),
-                feeMonthByCase
+        return keys.Select(key =>
+            {
+                var feeWorkIds = feeMonthByWork
                     .Where(pair => pair.Value == key.Month
-                        && artifacts.Any(x => x.CaseId == pair.Key && x.PrincipalId == key.PrincipalId))
-                    .Sum(pair => fees[pair.Key])))
+                        && artifacts.Any(x => x.WorkId == pair.Key && x.PrincipalId == key.PrincipalId))
+                    .Select(pair => pair.Key)
+                    .ToList();
+                var reports = artifacts
+                    .Where(x => x.PrincipalId == key.PrincipalId && MonthOf(x.GeneratedAtUtc) == key.Month
+                        && x.Kind == nameof(CaseReportArtifactKind.AssessmentReport))
+                    .ToList();
+                var sends = sent
+                    .Where(x => x.PrincipalId == key.PrincipalId && MonthOf(x.ObservedSentAtUtc) == key.Month)
+                    .ToList();
+                return new MonthlyReportActivity(
+                    key.PrincipalId,
+                    key.Code,
+                    key.Month.Year,
+                    key.Month.Month,
+                    reports.Count,
+                    artifacts.Count(x => x.PrincipalId == key.PrincipalId && MonthOf(x.GeneratedAtUtc) == key.Month
+                        && x.Kind == nameof(CaseReportArtifactKind.FeeNote)),
+                    sends.Count,
+                    feeWorkIds.Sum(workId => fees[workId]),
+                    reports.Count(x => x.IsAudit),
+                    sends.Count(x => x.IsAudit),
+                    feeWorkIds.Where(auditWorkIds.Contains).Sum(workId => fees[workId]));
+            })
             .OrderByDescending(x => x.Year).ThenByDescending(x => x.Month)
             .ThenBy(x => x.PrincipalCode, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -154,15 +185,29 @@ internal sealed class EfMonthlyReportActivityQueries(
     private sealed record ArtifactRow(
         Guid PrincipalId,
         string Code,
-        Guid CaseId,
+        Guid WorkId,
         DateTimeOffset GeneratedAtUtc,
-        string Kind);
+        string Kind,
+        string CaseType,
+        string WorkKind)
+    {
+        /// <summary>MI-02's split: an Audit report (<see cref="CaseWorkKinds.IsAuditReport"/>) or an Inspection report.</summary>
+        public bool IsAudit => CaseWorkKinds.IsAuditReport(CaseType, WorkKind);
+    }
 
     private sealed record FrozenReportRow(
-        Guid CaseId,
+        Guid WorkId,
         Guid GenerationId,
         DateTimeOffset GeneratedAtUtc,
         string SnapshotJson);
 
-    private sealed record SentRow(Guid PrincipalId, string Code, DateTimeOffset ObservedSentAtUtc);
+    private sealed record SentRow(
+        Guid PrincipalId,
+        string Code,
+        DateTimeOffset ObservedSentAtUtc,
+        string CaseType,
+        string WorkKind)
+    {
+        public bool IsAudit => CaseWorkKinds.IsAuditReport(CaseType, WorkKind);
+    }
 }

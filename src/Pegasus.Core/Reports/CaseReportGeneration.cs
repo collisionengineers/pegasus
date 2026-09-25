@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -252,6 +253,11 @@ public sealed record CaseReportGenerationRecord(
     Guid? SupersededById,
     IReadOnlyList<CaseReportArtifactRecord> Artifacts)
 {
+    /// <summary>The work the report was made from; always set by the store.</summary>
+    public Guid WorkId { get; init; }
+
+    public CaseWorkKind WorkKind { get; init; }
+
     [JsonIgnore]
     public bool IsFullyConfirmed =>
         Artifacts.Count > 0
@@ -370,11 +376,12 @@ public interface ICaseReportGenerationStore
     Task<CaseReportGenerationRecord?> GetAsync(
         ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken);
 
+    /// <summary>The selected work's current generation.</summary>
     Task<CaseReportGenerationRecord?> GetCurrentAsync(
-        ActionActor actor, Guid caseId, CancellationToken cancellationToken);
+        ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
-        ActionActor actor, Guid caseId, CancellationToken cancellationToken);
+        ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 
     /// <summary>
     /// Marks the Case's current generation stale. Superseded generations are
@@ -412,7 +419,13 @@ public sealed record CaseReportFreezeInputs(
     AssessmentReportProjectionInput Projection,
     CaseReportReadinessInput Readiness,
     string CaseReference,
-    long CaseVersion);
+    long CaseVersion)
+{
+    /// <summary>The work the inputs were read from.</summary>
+    public Guid WorkId { get; init; }
+
+    public CaseWorkKind WorkKind { get; init; }
+}
 
 /// <summary>
 /// The one read model a freeze loads. It is composed from the same accepted
@@ -421,7 +434,7 @@ public sealed record CaseReportFreezeInputs(
 public interface ICaseReportSnapshotSource
 {
     Task<CaseReportFreezeInputs?> GetAsync(
-        Guid caseId, ActionActor actor, CancellationToken cancellationToken);
+        Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -506,21 +519,38 @@ public sealed record CaseReportReadinessResult(
 /// <summary>
 /// The one owner of "may this Case's report be generated". It reloads only
 /// persisted facts, never re-decides Review-entry lifecycle gates, and never
-/// asks about EVA. The retired D18 Engineer name/qualification/signature
-/// items are gone: the selected sign-off account owns those facts.
+/// asks about EVA. The Case facts the report prints are
+/// <see cref="AssessmentPolicy"/> post-review items, which this rail and
+/// <see cref="AssessmentReportProjection.Prepare"/> both compose. The retired
+/// D18 Engineer name/qualification/signature items are gone: the selected
+/// sign-off account owns those facts.
 /// </summary>
 public static class CaseReportReadiness
 {
     public const string SignatoryRequirement = "Sign-off Engineer";
-    public const string CurrentEstimateRequirement = "Current estimate required";
-    public const string LabourRateRequirement = "Current estimate labour rate";
+    public const string CurrentEstimateRequirement = "Current repair spec";
+    public const string LabourRateRequirement = "Repair spec labour rate";
     public const string EngineerValueRequirement = "Accepted Engineer's Value";
     public const string CloseUpImageRequirement = "Close-up image";
     public const string OverviewImageRequirement = "Overview image";
     public const string ImageSourceRequirement = "Report image sources";
-    public const string ReportDateRequirement = "Report date";
     public const string ValuationCommentaryRequirement = "Valuation commentary";
     public const string UnrelatedDamageRequirement = "Unrelated damage";
+
+    internal static readonly AssessmentReadinessItem SignatoryMissing = new(
+        SignatoryRequirement, "Case sign-off account",
+        "The Case has no eligible sign-off Engineer with a complete signature on file.",
+        "Select a Sign-off Engineer with a signature on file on the Case details section.");
+
+    internal static readonly AssessmentReadinessItem CurrentEstimateMissing = new(
+        CurrentEstimateRequirement, "Estimates",
+        "No repair spec is Current on the Case.",
+        "Make one repair spec Current with Use repair spec on the Repair Spec section.");
+
+    internal static readonly AssessmentReadinessItem LabourRateMissing = new(
+        LabourRateRequirement, "Estimates",
+        "The Current repair spec has no labour rate, and the report prints the hourly rate.",
+        "Record the labour rate on the Repair Spec section.");
 
     public static CaseReportReadinessResult Evaluate(CaseReportReadinessInput input)
     {
@@ -529,11 +559,11 @@ public static class CaseReportReadiness
         var reasons = new List<AssessmentReadinessItem>(
             AssessmentPolicy.EvaluatePostReviewReadiness(assessment));
 
-        void Require(bool ok, string requirement, string source, string why, string how)
+        void Require(bool ok, AssessmentReadinessItem item)
         {
             if (!ok)
             {
-                reasons.Add(new(requirement, source, why, how));
+                reasons.Add(item);
             }
         }
 
@@ -541,66 +571,64 @@ public static class CaseReportReadiness
             input.PersistedSignOffEngineerId,
             input.AssignedEngineerId,
             input.EligibleSignOffEngineers);
-        Require(
-            signatory is not null && IsComplete(signatory),
-            SignatoryRequirement, "Case sign-off account",
-            "The Case has no eligible sign-off Engineer with a complete signature on file.",
-            "Select an eligible sign-off Engineer with a signature on file.");
+        Require(signatory is not null && IsComplete(signatory), SignatoryMissing);
 
-        Require(
-            input.CurrentEstimate is not null,
-            CurrentEstimateRequirement, "Estimates",
-            "No estimate is marked Current on the case (EXT-09).",
-            "Use an estimate on the Assessment page.");
+        Require(input.CurrentEstimate is not null, CurrentEstimateMissing);
         Require(
             input.CurrentEstimate is null || input.CurrentEstimate.Details.HourlyRate > 0m,
-            LabourRateRequirement, "Estimates",
-            "The Current estimate has no labour rate, and the report prints the hourly rate.",
-            "Record the labour rate on the Current estimate.");
+            LabourRateMissing);
 
+        // One missing Engineer's Value is one blocker: the post-review item
+        // already names a Case with no adoption at all, so this names only an
+        // adoption whose applied valuation is missing.
         Require(
-            input.AppliedValuation is { AcceptedEngineerValue: > 0m },
-            EngineerValueRequirement, "Valuation",
-            "No accepted Engineer's Value has been applied from a valuation.",
-            "Apply a valuation calculation to accept the Engineer's Value.");
+            input.AppliedValuation is { AcceptedEngineerValue: > 0m }
+                || reasons.Any(reason => reason.Field == AssessmentVocabulary.ValueEngineer),
+            new(
+                EngineerValueRequirement, "Valuation",
+                "No Engineer's Value has been adopted from a valuation calculation.",
+                "Save a valuation calculation on the Valuation section to adopt the Engineer's Value.",
+                Field: AssessmentVocabulary.ValueEngineer));
 
         var images = CaseAssetPreparationPolicy.ForReport(input.Preparations);
         Require(
             images.Count(image => image.Role == CaseAssetReportRole.CloseUp) == 1,
-            CloseUpImageRequirement, "Case files",
-            "The report requires exactly one Close-up image.",
-            "Mark one confirmed case image as the Close-up.");
+            new(
+                CloseUpImageRequirement, "Case files",
+                "The report requires exactly one Close-up image.",
+                "Mark one confirmed Case image as the Close-up on the Files section."));
         Require(
             images.Count(image => image.Role == CaseAssetReportRole.Overview) == 1,
-            OverviewImageRequirement, "Case files",
-            "The report requires exactly one Overview image.",
-            "Mark one confirmed case image as the Overview.");
+            new(
+                OverviewImageRequirement, "Case files",
+                "The report requires exactly one Overview image.",
+                "Mark one confirmed Case image as the Overview on the Files section."));
         Require(
             images.All(image => MatchesConfirmedSource(image, input.ConfirmedImageSources)),
-            ImageSourceRequirement, "Case files",
-            "A selected report image no longer matches its custody-confirmed source version.",
-            "Re-select the affected image after its custody version settles.");
+            new(
+                ImageSourceRequirement, "Case files",
+                "A selected report image no longer matches its custody-confirmed source version.",
+                "Re-select the affected image on the Files section once its custody version settles."));
 
         var content = ContentOf(assessment);
         var overridden = Flag(assessment, AssessmentVocabulary.ReportDateOverride);
         var recordedDate = Date(assessment, AssessmentVocabulary.ReportDate);
         Require(
-            !overridden || recordedDate is not null,
-            ReportDateRequirement, "Report",
-            "The report date is overridden but no date is recorded.",
-            "Record the report date, or clear the override so generation sets it.");
-        Require(
             !content.IncludeValuationCommentary
                 || AssessmentReportProjection.ValuationCommentaryOf(assessment, input.AppliedValuation?.Reason) is not null,
-            ValuationCommentaryRequirement, "Valuation",
-            "Valuation commentary is selected for the report but none is recorded.",
-            "Write the valuation commentary in the Report section, or turn the choice off.");
+            new(
+                ValuationCommentaryRequirement, "Valuation",
+                "Valuation commentary is selected for the report but none is recorded.",
+                "Write the valuation commentary on the Report section, or turn off Valuation commentary under On the report on the Valuation section.",
+                Field: AssessmentVocabulary.ReportValuationCommentaryText));
         Require(
             !content.IncludeUnrelatedDamage
                 || !string.IsNullOrWhiteSpace(Value(assessment, AssessmentVocabulary.DamageUnrelated)),
-            UnrelatedDamageRequirement, "Report",
-            "Unrelated damage is selected for the report but none is recorded.",
-            "Record the unrelated damage, or turn the choice off.");
+            new(
+                UnrelatedDamageRequirement, "Report",
+                "Unrelated damage is selected for the report but none is recorded.",
+                "Record the unrelated damage on the Damage section, or turn off Unrelated damage under On the report on the Valuation section.",
+                Field: AssessmentVocabulary.DamageUnrelated));
 
         return new(reasons, signatory, images, content, recordedDate, overridden);
     }
@@ -746,7 +774,11 @@ public sealed class GenerateCaseReport(
                 MediaType: "application/pdf",
                 ContentLength: rendered.Pdf.LongLength,
                 Sha256: rendered.Sha256,
-                Content: content),
+                Content: content,
+                // The Audit work's report is filed in the a. folder.
+                Folder: generation.WorkKind == CaseWorkKind.Audit
+                    ? CaseCustodyFolder.Audit
+                    : CaseCustodyFolder.Case),
             cancellationToken).ConfigureAwait(false);
 
         if (retained.Disposition == CaseArtifactCustodyDisposition.Confirmed)

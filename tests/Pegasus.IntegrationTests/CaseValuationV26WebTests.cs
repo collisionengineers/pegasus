@@ -68,7 +68,9 @@ public sealed class CaseValuationV26WebTests
                 $"name=\"guideEntries[{index}].Source\" value=\"{name}\" form=\"case-edit-form\"",
                 card,
                 StringComparison.Ordinal);
-            foreach (var box in new[] { "RetailValue", "TradeValue", "Mileage", "GuideMonth" })
+            // A guide card carries no mileage: the Case's own is used (operator, 24 September 2026).
+            Assert.DoesNotContain($"guideEntries[{index}].Mileage", card, StringComparison.Ordinal);
+            foreach (var box in new[] { "RetailValue", "TradeValue", "GuideMonth" })
             {
                 var input = Regex.Match(
                     card,
@@ -205,53 +207,47 @@ public sealed class CaseValuationV26WebTests
     }
 
     /// <summary>
-    /// The calculator's form carries the basis card, its stamp and the lease
-    /// envelope; Apply posts the selection as the screen offers it (a prior
-    /// total loss of 10 per cent) and Core's port receives the policy shape
-    /// (a fraction of 0.10). Decision F: an immediate post keeps the session.
+    /// One Save (23 September 2026): the calculator's controls and the Basis
+    /// radios belong to the Case form, beside the calculation the page opened
+    /// on; there is no Apply of its own. A Save whose calculation differs from
+    /// the opening one carries it to Core as the policy shape (a prior total
+    /// loss of 10 per cent is a fraction of 0.10) for adoption.
     /// </summary>
     [Theory]
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public async Task ApplyValuationPostsTheSelectionToThePortAsThePolicyShape(StaffRole role)
+    public async Task TheCaseSaveAdoptsAChangedCalculationAsThePolicyShape(StaffRole role)
     {
-        var store = new RecordingCaseDetailsStore();
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
         var valuation = new RecordingValuationSection(store.CaseId);
         var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
         var preset = valuation.AddPreset("Tow bar", 150m);
-        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register, role);
-        var stamp = Pegasus.Web.Pages.Cases.DetailsModel.StampOf(glasses).ToString("o", CultureInfo.InvariantCulture);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        }, role);
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
-        var applyForm = Regex.Match(
-            html,
-            "<form[^>]*id=\"case-valuation-form\"[^>]*>(?<body>(?:(?!</form>).)*)</form>",
-            RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        Assert.True(applyForm.Success, "The Valuation section must render the calculator's form while editing.");
-        Assert.Contains("handler=ApplyValuation", applyForm.Value, StringComparison.Ordinal);
-        Assert.Contains("data-valuation-form", applyForm.Value, StringComparison.Ordinal);
-        Assert.Equal(store.LeaseToken, InputValue(applyForm.Groups["body"].Value, "editLeaseToken"));
-        Assert.Equal(stamp, InputValue(applyForm.Groups["body"].Value, "guideValuationStampUtc"));
+        Assert.DoesNotContain("id=\"case-valuation-form\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-valuation-apply", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ApplyValuation", html, StringComparison.Ordinal);
+        Assert.Matches(
+            $"name=\"selection.GuideValuationId\" value=\"{glasses.ValuationId:D}\"\\s+form=\"case-edit-form\"",
+            html);
         Assert.Contains(
-            $"name=\"selection.GuideValuationId\" value=\"{glasses.ValuationId:D}\"",
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains("name=\"selection.PriorTotalLossPercentage\"", html, StringComparison.Ordinal);
-        Assert.Contains($"name=\"selection.AdditionPresetId\" value=\"{preset.Id:D}\"", html, StringComparison.Ordinal);
-        var apply = ButtonTagByHook(html, "data-valuation-apply");
-        Assert.DoesNotContain("disabled", apply, StringComparison.Ordinal);
-        const string operationKey = "4f4e4d4c4b4a49484746454443424140";
+            "name=\"selection.PriorTotalLossPercentage\" form=\"case-edit-form\"", html, StringComparison.Ordinal);
+        Assert.Contains($"name=\"selection.AdditionPresetId\" value=\"{preset.Id:D}\" form=\"case-edit-form\"", html, StringComparison.Ordinal);
+        var opening = WebUtility.HtmlDecode(InputValue(html, "selection.Opening"));
+        Assert.Contains(glasses.ValuationId.ToString("D"), opening, StringComparison.Ordinal);
 
         using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ApplyValuation",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", operationKey),
-                ("editLeaseToken", store.LeaseToken),
-                ("guideValuationStampUtc", stamp),
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                DetailsModelOperationKey,
+                "Applied the calculation",
+                ("selection.Opening", opening),
                 ("selection.GuideValuationId", glasses.ValuationId.ToString("D")),
                 ("selection.PriorTotalLossPercentage", "10"),
                 ("selection.CommercialVat", "true"),
@@ -263,31 +259,104 @@ public sealed class CaseValuationV26WebTests
                 ("selection.AdditionLabel[0]", ""),
                 ("selection.AdditionAmount[0]", "175")));
 
-        AssertValuationPrg(response, store.CaseId);
-        var applied = Assert.Single(valuation.Applied);
-        Assert.True(applied.Actor.IsInRole(role));
-        Assert.Equal(store.CaseId, applied.CaseId);
-        Assert.Equal(store.CaseVersion, applied.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, applied.EditLeaseToken);
-        Assert.Equal(operationKey, applied.OperationKey);
-        Assert.Equal(DateTimeOffset.Parse(stamp, CultureInfo.InvariantCulture), applied.GuideValuationStampUtc);
-        Assert.Equal(glasses.ValuationId, applied.Selection.GuideValuationId);
-        Assert.Equal(0.10m, applied.Selection.PriorTotalLossPercentage);
-        Assert.True(applied.Selection.CommercialVat);
-        Assert.Equal(250m, applied.Selection.ConditionDeduction);
-        var addition = Assert.Single(applied.Selection.Additions);
+        AssertPrg(response, store.CaseId);
+        var saved = Assert.Single(store.Saves);
+        Assert.True(saved.Actor.IsInRole(role));
+        var adoption = Assert.IsType<ValuationCalculationSelection>(saved.Valuation!.Adoption);
+        Assert.Equal(glasses.ValuationId, adoption.GuideValuationId);
+        Assert.Equal(0.10m, adoption.PriorTotalLossPercentage);
+        Assert.True(adoption.CommercialVat);
+        Assert.Equal(250m, adoption.ConditionDeduction);
+        var addition = Assert.Single(adoption.Additions);
         Assert.Equal(preset.Id, addition.PresetId);
         Assert.Equal(preset.Version, addition.PresetVersion);
         Assert.Equal(175m, addition.Amount);
-        var claimant = store.Claims[0].Actor;
-        Assert.Equal(claimant.SubjectId, applied.Actor.SubjectId);
+        Assert.Empty(saved.Valuation.GuideEntries!);
+    }
 
-        // v25 decision F: the immediate post reclaims the session rather than ending it.
-        Assert.Equal(2, store.Claims.Count);
-        var after = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
-        Assert.Contains("data-case-editing=\"true\"", after, StringComparison.Ordinal);
-        Assert.Equal(store.LeaseToken, InputValue(after, "editLeaseToken"));
-        AssertEditorCommit(after, "case-valuation-form", operationKey, applied.ExpectedVersion);
+    /// <summary>
+    /// The Save adopts only a calculation that changed since the page opened
+    /// (operator, 23 September 2026): an untouched calculator adopts nothing,
+    /// and a changed figure on the basis card is a changed calculation.
+    /// </summary>
+    [Fact]
+    public async Task AnUntouchedCalculatorAdoptsNothingAndAChangedBasisFigureAdopts()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        valuation.AddPreset("Tow bar", 150m);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        var opening = WebUtility.HtmlDecode(InputValue(html, "selection.Opening"));
+        // The opening names the basis card's trade as shown, since the
+        // adoption records it (operator, 24 September 2026).
+        Assert.Contains("\"trade\":\"10250.00\"", opening, StringComparison.Ordinal);
+        (string, string)[] Untouched(params (string, string)[] more) =>
+        [
+            ("selection.Opening", opening),
+            ("selection.GuideValuationId", glasses.ValuationId.ToString("D")),
+            ("selection.PriorTotalLossPercentage", ""),
+            ("selection.ConditionDeduction", ""),
+            ("selection.AdditionPresetId[0]", valuation.Presets[0].Id.ToString("D")),
+            ("selection.AdditionPresetVersion[0]", valuation.Presets[0].Version.ToString(CultureInfo.InvariantCulture)),
+            ("selection.AdditionLabel[0]", ""),
+            ("selection.AdditionAmount[0]", "150"),
+            .. more,
+        ];
+
+        using var untouched = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(DetailsModelOperationKey, "Saved the claim", Untouched(("claimNumber", "CLM-42"))));
+        AssertPrg(untouched, store.CaseId);
+        Assert.Null(Assert.Single(store.Saves).Valuation);
+
+        using var changedCard = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "5f5e5d5c5b5a59585756555453525150",
+                "Corrected the Glass's retail",
+                Untouched(
+                    ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
+                    ("guideEntries[0].GuideMonth", "2031-05"),
+                    ("guideEntries[0].RetailValue", "13000.00"),
+                    ("guideEntries[0].TradeValue", "10250.00"))));
+        AssertPrg(changedCard, store.CaseId);
+        var saved = store.Saves[1];
+        Assert.Equal(13_000m, Assert.Single(saved.Valuation!.GuideEntries!).RetailValue);
+        Assert.Equal(glasses.ValuationId, saved.Valuation.Adoption!.GuideValuationId);
+
+        // A changed trade on the basis card is a changed calculation too.
+        using var changedTrade = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "6f6e6d6c6b6a69686766656463626160",
+                "Corrected the Glass's trade",
+                Untouched(
+                    ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
+                    ("guideEntries[0].GuideMonth", "2031-05"),
+                    ("guideEntries[0].RetailValue", "12500.00"),
+                    ("guideEntries[0].TradeValue", "10500.00"))));
+        AssertPrg(changedTrade, store.CaseId);
+        Assert.Equal(glasses.ValuationId, store.Saves[2].Valuation!.Adoption!.GuideValuationId);
+
+        // The basis card echoed as recorded is no change.
+        using var echoedCard = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "7f7e7d7c7b7a79787776757473727170",
+                "Saved the valuation unchanged",
+                Untouched(
+                    ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
+                    ("guideEntries[0].GuideMonth", "2031-05"),
+                    ("guideEntries[0].RetailValue", "12500.00"),
+                    ("guideEntries[0].TradeValue", "10250.00"))));
+        AssertPrg(echoedCard, store.CaseId);
+        Assert.Null(store.Saves[3].Valuation);
     }
 
     [Fact]
@@ -393,12 +462,10 @@ public sealed class CaseValuationV26WebTests
                 "Recorded the Brego figure",
                 ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
                 ("guideEntries[0].GuideMonth", "2031-05"),
-                ("guideEntries[0].Mileage", "42000"),
                 ("guideEntries[0].RetailValue", "12500.00"),
                 ("guideEntries[0].TradeValue", "10250.00"),
                 ("guideEntries[1].Source", nameof(ValuationSource.Brego)),
                 ("guideEntries[1].GuideMonth", "2031-05"),
-                ("guideEntries[1].Mileage", "42000"),
                 ("guideEntries[1].RetailValue", "13250.00"),
                 ("guideEntries[1].TradeValue", "11000.00")));
 
@@ -509,7 +576,8 @@ public sealed class CaseValuationV26WebTests
         Assert.Equal("ok", figures.GetProperty("status").GetString());
         Assert.Equal("13250.00", figures.GetProperty("retail").GetString());
         Assert.Equal("11000.00", figures.GetProperty("trade").GetString());
-        Assert.Equal("42000", figures.GetProperty("mileage").GetString());
+        // The card has no mileage box to fill; the lookup asked with the Case's own.
+        Assert.False(figures.TryGetProperty("mileage", out _));
         Assert.Equal("2026-08", figures.GetProperty("guideMonth").GetString());
         var asked = Assert.Single(provider.Requests);
         Assert.Equal("AB12CDE", asked.Registration);
@@ -589,10 +657,7 @@ public sealed class CaseValuationV26WebTests
         var start = html.LastIndexOf("<div", hook, StringComparison.Ordinal);
         var next = html.IndexOf("class=\"valuation-card", hook, StringComparison.Ordinal);
         var calc = html.IndexOf("data-valuation-calc", hook, StringComparison.Ordinal);
-        // The calculator's Apply form follows the last card while editing.
-        var applyForm = html.IndexOf("id=\"case-valuation-form\"", hook, StringComparison.Ordinal);
-        var apply = applyForm < 0 ? -1 : html.LastIndexOf("<form", applyForm, StringComparison.Ordinal);
-        var end = new[] { next, calc, apply }.Where(index => index > hook).DefaultIfEmpty(html.Length).Min();
+        var end = new[] { next, calc }.Where(index => index > hook).DefaultIfEmpty(html.Length).Min();
         return html[start..end];
     }
 
@@ -645,8 +710,7 @@ public sealed class CaseValuationV26WebTests
         IListAppliedValuations,
         IListValuationPresets,
         IMarketResearchQueries,
-        IStartMarketResearch,
-        IApplyValuationCalculation
+        IStartMarketResearch
     {
         private static readonly DateTimeOffset RecordedAt = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private readonly List<CaseValuation> guides = [];
@@ -655,7 +719,7 @@ public sealed class CaseValuationV26WebTests
 
         public List<StartMarketResearchRequest> Started { get; } = [];
 
-        public List<ApplyValuationRequest> Applied { get; } = [];
+        public List<ValuationPreset> Presets => presets;
 
         private AppliedValuation? adopted;
 
@@ -667,7 +731,6 @@ public sealed class CaseValuationV26WebTests
             Substitute<IListValuationPresets>(services, this);
             Substitute<IMarketResearchQueries>(services, this);
             Substitute<IStartMarketResearch>(services, this);
-            Substitute<IApplyValuationCalculation>(services, this);
         }
 
         /// <summary>
@@ -687,7 +750,7 @@ public sealed class CaseValuationV26WebTests
                 caseId,
                 4,
                 basis.ValuationId,
-                Pegasus.Web.Pages.Cases.DetailsModel.StampOf(basis),
+                basis.LastEditedAtUtc ?? basis.RecordedAtUtc,
                 calculation,
                 calculation.Proposal,
                 "test",
@@ -746,10 +809,10 @@ public sealed class CaseValuationV26WebTests
             return pending;
         }
 
-        Task<IReadOnlyList<CaseValuation>> IListCaseValuations.ExecuteAsync(Guid forCase, CancellationToken cancellationToken) =>
+        Task<IReadOnlyList<CaseValuation>> IListCaseValuations.ExecuteAsync(Guid forCase, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseValuation>>(forCase == caseId ? guides.ToArray() : []);
 
-        Task<IReadOnlyList<AppliedValuation>> IListAppliedValuations.ExecuteAsync(Guid forCase, CancellationToken cancellationToken) =>
+        Task<IReadOnlyList<AppliedValuation>> IListAppliedValuations.ExecuteAsync(Guid forCase, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AppliedValuation>>(forCase == caseId && adopted is not null ? [adopted] : []);
 
         public Task<IReadOnlyList<ValuationPreset>> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken) =>
@@ -762,29 +825,6 @@ public sealed class CaseValuationV26WebTests
         {
             Started.Add(request);
             return Task.FromResult(pending ?? SetPending(request.GuideMonth));
-        }
-
-        public Task<AppliedValuation> ExecuteAsync(ApplyValuationRequest request, CancellationToken cancellationToken)
-        {
-            Applied.Add(request);
-            var basis = guides.Single(guide => guide.ValuationId == request.Selection.GuideValuationId);
-            var basisRetail = basis.Details.RetailValue!.Value;
-            var calculation = new ValuationCalculation(
-                basisRetail, false, 0m, basisRetail,
-                request.Selection.PriorTotalLossPercentage, 0m, [], 0m, request.Selection.ConditionDeduction,
-                basisRetail);
-            return Task.FromResult(new AppliedValuation(
-                Guid.NewGuid(),
-                request.CaseId,
-                request.ExpectedVersion + 1,
-                request.Selection.GuideValuationId,
-                request.GuideValuationStampUtc,
-                calculation,
-                calculation.Proposal,
-                request.Actor.SubjectId,
-                RecordedAt,
-                request.Reason,
-                "test"));
         }
     }
 }

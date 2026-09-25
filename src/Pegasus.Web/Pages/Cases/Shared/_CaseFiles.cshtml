@@ -10,6 +10,11 @@
     var correspondenceEmails = Model.FilesSection?.CorrespondenceEmails ?? [];
     var custodyConfirmed = custodyState == CaseCustodyState.Confirmed
         && !string.IsNullOrWhiteSpace(custodyFolderRemoteId);
+    // The Audit's a. folder (v29 P6), present once the Case has its Audit;
+    // its chip mirrors the Case folder's.
+    var auditCustodyState = Model.FilesSection?.AuditCustodyState;
+    var auditCustodyConfirmed = auditCustodyState == CaseCustodyState.Confirmed
+        && !string.IsNullOrWhiteSpace(Model.FilesSection?.AuditCustodyFolderRemoteId);
     var documentCount = Model.CaseDocumentFiles.Count;
     var imageCount = Model.CaseImageFiles.Count + Model.ImageIntakes.Sum(intake => Model.ImagesByIntake.GetValueOrDefault(intake.Id, []).Count);
     var correspondenceCount = correspondenceEmails.Count;
@@ -32,6 +37,14 @@
         else
         {
             <span class="status @(custodyState == CaseCustodyState.Failed ? "status--red" : "status--amber") status--plain" data-custody-chip>@OperatorLabels.CustodyFolderState(custodyState)</span>
+        }
+        @if (auditCustodyConfirmed)
+        {
+            <span class="status status--green status--plain" data-audit-custody-chip>@FilesLabels.BoxAuditConfirmed</span>
+        }
+        else if (auditCustodyState is { } auditState)
+        {
+            <span class="status @(auditState == CaseCustodyState.Failed ? "status--red" : "status--amber") status--plain" data-audit-custody-chip>@OperatorLabels.AuditCustodyFolderState(auditState)</span>
         }
         <div class="panel-actions">
             <a class="btn btn--small btn--primary" asp-page="/Upload" data-add-evidence>

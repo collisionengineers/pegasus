@@ -420,7 +420,11 @@ public sealed class CaseWorkflowMigrationTests
                 "20260922224715_ProblemReportDispatchIdentity",
                 "20260922225349_ReleaseNoteCreateIdentity",
                 "20260923120000_StaffAccountDeletionRuntimePermissions",
-                "20260923180000_ValuationCardFiguresOptional"
+                "20260923180000_ValuationCardFiguresOptional",
+                "20260924090000_IntakeAssetBoxParentFolder",
+                "20260924180000_CaseWorksAndTriageCases",
+                "20260925090000_VehicleLookupDerivedFacts",
+                "20260925120000_RetireInstructionDate"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

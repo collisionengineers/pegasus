@@ -3,9 +3,10 @@
     the Decisions strip with its radio groups (v28 P29: the select stays the
     posted control and the buttons drive it, so the live show-and-hide rules
     still fire), the salvage share slider (P14), the firm's unroadworthy
-    reason bank (P15), the computed repair reserve (P30) and the
-    "Salvage · Not applicable" line (P29) while the outcome is not a total
-    loss. Historic head comment follows.
+    reason bank (P15), the temporary repair rows for an unroadworthy vehicle,
+    the computed repair reserve (P30) and the "Salvage · Not applicable" line
+    (P29) while the outcome is not a total loss. Historic head comment
+    follows.
 
     Settlement (v26 § Settlement). The figures strip, then the Decisions strip
     (manager's v24 decision folded in: Outcome, Engineer's Value, Salvage
@@ -55,14 +56,14 @@
         <div class="metric-strip" data-settlement-figures>
             @if (isTotalLoss)
             {
-                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.ApplyInValuationMeta</span>}</div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.SetInValuationMeta</span>}</div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.SalvageValue</span><span class="metric-value">@Money(salvage)</span></div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.Equity</span><span class="metric-value red">@Money(equity)</span><span class="metric-meta">@SettlementLabels.EquityMeta</span></div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.RepairCostIncVat</span><span class="metric-value">@Money(repairCost)</span><span class="metric-meta">@(repairCost is { } cost && engineerValue is { } value && cost > value ? SettlementLabels.ExceedsEngineersValue : SettlementLabels.FromCurrentEstimate)</span></div>
             }
             else
             {
-                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.ApplyInValuationMeta</span>}</div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.SetInValuationMeta</span>}</div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.LabourHours</span><span class="metric-value">@(Model.LabourHours is { } hours ? hours.ToString("0.00", CultureInfo.InvariantCulture) : "—")</span></div>
                 <div class="metric"><span class="metric-label">@(outcome == "cash_in_lieu" ? SettlementLabels.CashInLieu : SettlementLabels.RepairCostIncVat)</span><span class="metric-value red">@Money(repairCost)</span><span class="metric-meta">@SettlementLabels.FromCurrentEstimate</span></div>
                 <div class="metric"><span class="metric-label">@SettlementLabels.RepairCostOfValue</span><span class="metric-value">@(repairCost is { } c && engineerValue is { } v && v > 0 ? $"{Math.Round(c / v * 100)}%" : "—")</span></div>
@@ -102,7 +103,7 @@
                             <span class="status @Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusClass(valueProposal.Status)">@Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusWord(valueProposal.Status)</span>
                             @if (editing && valueProposal.Status == CaseFieldProposalStatus.Awaiting)
                             {
-                                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ApplyInValuation</a>
+                                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.SetInValuation</a>
                             }
                         }
                     </div>
@@ -111,7 +112,7 @@
                     <span class="lbl">@SettlementLabels.EngineersValue</span>
                     <div class="fv mono" data-decision-engineer-value data-engineer-value="@(engineerValue?.ToString("0.##", CultureInfo.InvariantCulture))">
                         <span>@Money(engineerValue)</span>
-                        <a class="src-tag" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ValuationLink</a>
+                        <a class="src-tag" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-route-view="@Model.ViewRoute" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ValuationLink</a>
                     </div>
                 </div>
             </div>
@@ -148,6 +149,13 @@
                     </div>
                 }
             </div>
+            @* Temporary repairs are the unroadworthy vehicle's: they follow the reason and
+               show only while Roadworthiness is Unroadworthy, as the salvage rows show
+               only on a total loss (operator, 24 September 2026). *@
+            @{ await DecisionRow(AssessmentVocabulary.VehicleTemporaryRepairsPossible, labels[AssessmentVocabulary.VehicleTemporaryRepairsPossible], !isUnroadworthy, "unroadworthy");
+                await DecisionRow(AssessmentVocabulary.VehicleTemporaryRepairMethod, labels[AssessmentVocabulary.VehicleTemporaryRepairMethod], !isUnroadworthy, "unroadworthy");
+                await DecisionRow(AssessmentVocabulary.VehicleTemporaryRepairCost, labels[AssessmentVocabulary.VehicleTemporaryRepairCost], !isUnroadworthy, "unroadworthy");
+            }
         </div>
 
         <div class="fg g4">
@@ -196,14 +204,18 @@
 
 @functions {
     // One decision row: the label column, the Proposed column when the strip
-    // carries proposals, and the cell itself.
+    // carries proposals, and the cell itself. The strip hides the cell's own
+    // label, so a row that is not a decision (a temporary repair) carries its
+    // value's source tag in the label column; a decision's AI value shows its
+    // tag in the Proposed column instead.
     private async Task DecisionRow(string path, string label, bool hidden, string? shownWhen = null, bool share = false)
     {
         var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
         var radios = definition.Type == AssessmentFieldType.Enumerated;
+        var rowTag = CaseFieldProposalPolicy.DecisionPaths.Contains(path) ? null : Model.AssessmentSourceTag(path);
         <div class="dec" data-decision="@path" data-shown-when="@shownWhen" hidden="@(hidden ? "hidden" : null)">
-            <span class="dl">@label</span>
+            <span class="dl">@label @(rowTag?.Render())</span>
             @{ Proposal(path); }
             @{ await Field(path, label, radios: radios); }
             @if (share)
@@ -222,7 +234,7 @@
                 <div class="salvage-share" data-salvage-share>
                     @if (engineerValueForShare is null)
                     {
-                        <span class="muted">@SettlementLabels.ApplyInValuation</span>
+                        <span class="muted">@SettlementLabels.SetInValuation</span>
                     }
                     else
                     {

@@ -93,7 +93,7 @@ public sealed class IndexModel(
         new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), WorkflowGroup, "icon-user"),
         new("complete", OperatorLabels.CaseStage(CaseLifecycleState.PostReportComplete), WorkflowGroup, "icon-check"),
         new("query", OperatorLabels.CaseStage(CaseLifecycleState.Query), WorkflowGroup, "icon-reply"),
-        new("triage", "Triage", PreCaseGroup, "icon-file-text"),
+        new("triage", "Triage", WorkflowGroup, "icon-file-text"),
         new("awaiting", "Awaiting instruction", PreCaseGroup, "icon-image"),
         new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), ExceptionsGroup, "icon-pause", IsException: true),
         new("unidentified", "Unidentified", ExceptionsGroup, "icon-alert-triangle", IsException: true)
@@ -106,7 +106,7 @@ public sealed class IndexModel(
     private static readonly string[] SearchOnlyParameters =
     [
         "case", "registration", "claimant", "claimNumber", "engineerId",
-        "receivedDate", "instructionDate", "fromDate", "toDate", "query"
+        "receivedDate", "fromDate", "toDate", "query"
     ];
 
     /// <summary>
@@ -794,21 +794,20 @@ public sealed class IndexModel(
 
     private static QueueRow TriageRow(TriageSummary item, string? assignee)
     {
-        var facts = new List<(string Label, string Value)>();
-        if (item.Reference is { } reference)
+        var facts = new List<(string Label, string Value)>
         {
-            facts.Add(("Reference", reference));
-        }
+            ("Reference", item.Reference)
+        };
         facts.Add(("Registration", item.NormalizedVehicleRegistration));
         facts.Add(("Principal", item.Provider ?? "Not known"));
         facts.Add(("Assigned to", assignee ?? "Unassigned"));
         facts.Add(("Opened", OperatorLabels.OfficeDate(item.CreatedAtUtc)));
         return new QueueRow(
             RowKind.Triage,
-            item.Id,
+            item.CaseId,
             Join(item.Reference, item.NormalizedVehicleRegistration),
             [
-                new Cell(item.Reference ?? item.NormalizedVehicleRegistration, CellKind.Link),
+                new Cell(item.Reference, CellKind.Link),
                 new Cell(item.NormalizedVehicleRegistration, CellKind.Mono),
                 Cell.Of(item.Provider),
                 new Cell(OperatorLabels.OfficeDate(item.CreatedAtUtc), CellKind.Date),
@@ -816,7 +815,7 @@ public sealed class IndexModel(
                 new Cell(OperatorLabels.TriageState(item.State), CellKind.Chip)
             ],
             item.CreatedAtUtc,
-            $"/Triage/{item.Id:D}",
+            $"/Cases/{item.CaseId:D}",
             facts,
             Chip: OperatorLabels.TriageState(item.State));
     }

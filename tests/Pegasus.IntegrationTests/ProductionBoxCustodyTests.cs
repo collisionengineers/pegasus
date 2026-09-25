@@ -326,55 +326,6 @@ public sealed class ProductionBoxCustodyTests
     }
 
     [Fact]
-    public async Task LinkedAuditRootIsResolvedAndRetainedOnlyThroughItsOriginalCase()
-    {
-        var box = new StatefulBox();
-        var sourceBytes = Encoding.UTF8.GetBytes("linked audit source");
-        var custody = new BoxCaseCustody(new MemoryArtifactStore(sourceBytes), CreateClient(box));
-        var originalCaseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
-        var auditCaseId = Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10");
-        var original = await custody.CreateCaseRootAsync(
-            originalCaseId, "QDOS31001", "0123456789ABCDEFGHJKMNPQRS", "case-create", default);
-        var audit = await custody.CreateLinkedAuditCaseRootAsync(
-            auditCaseId,
-            "a.QDOS31001",
-            originalCaseId,
-            original.Reference,
-            "123456789ABCDEFGHJKMNPQRS0",
-            "audit-create",
-            null,
-            default);
-
-        var resolved = await custody.GetExistingCaseRootAsync(
-            auditCaseId,
-            "a.QDOS31001",
-            default,
-            originalCaseId,
-            original.Reference);
-        var source = new IntakeSourceCustodyReference(
-            Guid.NewGuid(),
-            "audit instruction.eml",
-            "message/rfc822",
-            Sha256(sourceBytes),
-            "source",
-            sourceBytes.Length);
-        await custody.RetainAcceptedIntakeSourceAsync(resolved, source, "audit-retain", default);
-
-        Assert.Equal(audit.RemoteId, resolved.RemoteId);
-        Assert.Equal(originalCaseId, resolved.ParentCaseId);
-        Assert.Equal(original.Reference, resolved.ParentReference);
-        Assert.True(box.PathExists("QDOS31001/a.QDOS31001/001 audit instruction.eml"));
-
-        var mutations = box.MutationCount;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => custody.RetainAcceptedIntakeSourceAsync(
-            new CaseCustodyRoot(auditCaseId, audit.RemoteId, "a.QDOS31001"),
-            source,
-            "audit-retain-without-parent",
-            default));
-        Assert.Equal(mutations, box.MutationCount);
-    }
-
-    [Fact]
     public async Task WrongTypeAndAncestryFailClosedWithoutMutation()
     {
         var caseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
@@ -595,8 +546,9 @@ public sealed class ProductionBoxCustodyTests
         Assert.False(box.PathExists("AB12CDE-02"));
     }
 
+    /// <summary>A standalone Audit's folder is named by its own a. Case/PO, like every Case root.</summary>
     [Fact]
-    public async Task MergeFoldsImageFilesIntoALinkedAuditRoot()
+    public async Task MergeFoldsImageFilesIntoAStandaloneAuditRoot()
     {
         var box = new StatefulBox { AllowDeletes = true };
         var imageBytes = Encoding.UTF8.GetBytes("retained image bytes");
@@ -613,22 +565,13 @@ public sealed class ProductionBoxCustodyTests
             Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10"),
             "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
         await custody.RetainImageCaseAssetAsync(imageRoot, source, 1, "image-retain", default);
-        var originalCaseId = Guid.Parse("30213243-5465-7687-98a9-bacbdcedfe11");
-        var original = await custody.CreateCaseRootAsync(
-            originalCaseId, "QDOS31001", "123456789ABCDEFGHJKMNPQRS0", "case-root", default);
-        var auditRoot = await custody.CreateLinkedAuditCaseRootAsync(
+        var auditRoot = await custody.CreateCaseRootAsync(
             Guid.Parse("40213243-5465-7687-98a9-bacbdcedfe12"),
-            "a.QDOS31001",
-            originalCaseId,
-            original.Reference,
-            "23456789ABCDEFGHJKMNPQRS01",
-            "audit-root",
-            null,
-            default);
+            "a.QDOS31001", "23456789ABCDEFGHJKMNPQRS01", "audit-root", default);
 
         await custody.MergeImageCaseContentsAsync(imageRoot, auditRoot, "fold", default);
 
-        Assert.True(box.PathExists("QDOS31001/a.QDOS31001/001 photo one.jpg"));
+        Assert.True(box.PathExists("a.QDOS31001/001 photo one.jpg"));
         Assert.False(box.PathExists("AB12CDE-01"));
     }
 

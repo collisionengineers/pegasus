@@ -581,7 +581,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 VehicleMileage = draft.InstructionDraft.VehicleMileage,
                 AccidentCircumstances = draft.InstructionDraft.AccidentCircumstances,
                 DateOfIncident = draft.InstructionDraft.DateOfIncident,
-                InstructionDate = draft.InstructionDraft.InstructionDate,
                 InspectionDate = draft.InstructionDraft.InspectionDate,
                 InspectionAddress = draft.InstructionDraft.InspectionAddress,
                 VehicleMileageUnit = draft.InstructionDraft.VehicleMileageUnit,
@@ -733,7 +732,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.VehicleMileage,
         entity.AccidentCircumstances,
         entity.DateOfIncident,
-        entity.InstructionDate,
         entity.InspectionAddress,
         entity.InspectionDate,
         entity.VehicleMileageUnit,
@@ -778,7 +776,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 ? category.Name
                 : null,
             Subtype = decision.Category?.Subtype,
-            CaseType = decision.CaseType is null ? null : ToCode(decision.CaseType.Value),
+            CaseType = decision.CaseType is null ? null : CaseTypeCodes.ToCode(decision.CaseType.Value),
             IsReplyContext = decision.Category?.IsReplyContext ?? false,
             OtherName = decision.Category?.OtherName,
             OtherReasoning = decision.Category?.OtherReasoning,
@@ -848,7 +846,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.Reason,
             entity.PolicyKey,
             entity.PolicyVersion,
-            entity.CaseType is null ? null : ParseCaseType(entity.CaseType),
+            entity.CaseType is null ? null : CaseTypeCodes.Parse(entity.CaseType),
             hasCompleteAuditReport
                 ? new(
                     entity.StandaloneAuditReportAssetSourceLabel!,
@@ -1001,7 +999,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.VehicleMileage = draft.VehicleMileage;
         entity.AccidentCircumstances = draft.AccidentCircumstances;
         entity.DateOfIncident = draft.DateOfIncident;
-        entity.InstructionDate = draft.InstructionDate;
         entity.InspectionAddress = draft.InspectionAddress;
         entity.InspectionDate = draft.InspectionDate;
         entity.VehicleMileageUnit = draft.VehicleMileageUnit;
@@ -1318,22 +1315,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "ambiguous" => MailClassificationOutcome.Ambiguous,
         "unclassified" => MailClassificationOutcome.Unclassified,
         _ => throw UnknownCode("mail-classification outcome", value)
-    };
-
-    internal static string ToCode(CaseType value) => value switch
-    {
-        CaseType.Inspection => "inspection",
-        CaseType.Audit => "audit",
-        CaseType.InspectionAndAudit => "inspection_and_audit",
-        _ => throw UnknownEnum(value)
-    };
-
-    private static CaseType ParseCaseType(string value) => value switch
-    {
-        "inspection" => CaseType.Inspection,
-        "audit" => CaseType.Audit,
-        "inspection_and_audit" => CaseType.InspectionAndAudit,
-        _ => throw UnknownCode("case type", value)
     };
 
     internal static string ToCode(AuditAssessment value) => AuditAssessmentCode.ToCode(value);

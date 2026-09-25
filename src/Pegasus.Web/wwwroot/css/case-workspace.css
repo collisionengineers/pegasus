@@ -12,7 +12,6 @@
 .case-record .case-edit-badge{margin-right:2px}
 .case-record .ribbon-actions form{display:contents}
 .case-record .ribbon-actions .menu-body form{display:contents}
-.case-record .section-tools .icon--spin{width:15px;height:15px}
 .stale-bar{position:relative;display:flex;align-items:center;gap:8px;padding:6px 38px 6px 12px;border-top:1px solid var(--line);background:var(--amber-bg);color:var(--amber);font-size:12px;font-weight:600}
 .stale-bar .icon{width:14px;height:14px;flex:none}
 .stale-bar .btn{margin-left:auto}
@@ -20,7 +19,7 @@
 
 /* Sections are panels; the head carries the title, an optional meta and the
    actions cluster (primary, menu, Edit, availability, collapse). */
-.record-section.panel{scroll-margin-top:calc(var(--utility-h) + var(--tabs-h) + var(--sticky-h,97px) + 8px)}
+.record-section.panel{scroll-margin-top:calc(var(--utility-h) + var(--sticky-h,97px) + 8px)}
 .record-section>.panel-head>.meta{font-size:12px;color:var(--quiet);font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .record-section .panel-actions form{display:contents}
 .record-section .panel-actions .btn--small .icon{width:13px;height:13px}
@@ -43,6 +42,10 @@
 .next-row+.next-row{margin-top:8px}
 .next-row.ai-next{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
 .next-row .src-tag{margin-right:4px}
+/* Views (v29 option 4): the aside's first card once the Case has its Audit;
+   the current view reads plain and strong, the other is a link. */
+[data-case-views] .next-row{gap:8px}
+[data-case-views] [aria-current="page"]{font-weight:600;color:var(--ink)}
 
 /* Overview */
 /* Nested sections (v28 P26): Damage and Valuation read inside Vehicle, one rule apart. */
@@ -401,7 +404,7 @@
 /* Full-screen presentation (v25 C4): the section covers the viewport and the
    shell's fixed rows hide behind it; Escape restores. */
 body.has-expanded{overflow:hidden}
-body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded .workspace-tabs,body.has-expanded .app-rail{visibility:hidden}
+body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded .app-rail{visibility:hidden}
 #section-estimate.is-expanded{background:var(--surface)}
 #section-estimate.is-expanded>.panel-head{background:var(--surface-2)}
 #section-estimate.is-expanded .grid table{min-width:0}
@@ -449,6 +452,9 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 #section-report .pv-meta .pt{font-weight:700}
 #section-report .pv-meta .ps{font-size:12px;color:var(--muted);margin-top:2px}
 #section-report .pv .cluster{display:flex;gap:6px;flex-wrap:wrap}
+/* v29 P4: the Inspection's sent report above the Audit's, its view link at the row's end. */
+#section-report [data-inspection-report]{align-items:center}
+#section-report [data-inspection-report]>.btn{margin-left:auto;flex:none}
 #section-report .detail-list{display:grid;gap:4px;margin:0}
 #section-report .detail-list>div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;font-size:12.5px;margin:0}
 #section-report .detail-list dt{color:var(--quiet);font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;align-self:center}

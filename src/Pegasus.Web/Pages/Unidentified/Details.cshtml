@@ -24,12 +24,7 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to Cases</span>
         </a>
-        <form method="get">
-            <button type="submit" class="btn btn--small">
-                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                <span>Refresh</span>
-            </button>
-        </form>
+        <partial name="Shared/_RefreshButton" />
     </div>
 </header>
 
@@ -241,12 +236,12 @@
                         @if (Model.Context.Triage is { } triage)
                         {
                             <div class="button-row">
-                                <a class="btn" asp-page="/Triage/Details" asp-route-id="@triage.Id">Open the Triage</a>
+                                <a class="btn" asp-page="/Cases/Details" asp-route-id="@triage.CaseId">Open the Triage</a>
                             </div>
                         }
                         <div class="button-row">
                             <a class="btn btn--primary" href="?dialog=@Record.ReopenDialog" data-dialog-open="unidentified-reopen-dialog" data-unidentified-action="reopen">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Reopen</span>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>Reopen</span>
                             </a>
                         </div>
                     </div>
@@ -348,7 +343,7 @@
                                     <td class="mono">@candidate.Reference</td>
                                     <td class="mono">@(candidate.Registration ?? "—")</td>
                                     <td>@(candidate.Claimant ?? "—")</td>
-                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(candidate.State)" /></td>
+                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.AssociationDestinationState(candidate)" /></td>
                                     <td>
                                         <form method="post" asp-page-handler="LinkCase" asp-route-id="@Model.Item.Id">
                                             <input type="hidden" name="caseId" value="@candidate.CaseId" />

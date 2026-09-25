@@ -58,37 +58,29 @@ public sealed class IntakeAssociationDestinationTests
             Receipt(IntakeDecision.ImageIntakeRegistered, channel: channel, assets: [ImageAsset()])));
     }
 
+    /// <summary>
+    /// Staff "Link to case" reaches every Case in any lifecycle state (operator,
+    /// 24 September 2026); only an archived Case is refused.
+    /// </summary>
     [Theory]
-    [InlineData(CaseLifecycleState.Review, false, false, true)]
-    [InlineData(CaseLifecycleState.Review, true, false, false)]
-    [InlineData(CaseLifecycleState.PostReportComplete, false, false, true)]
-    [InlineData(CaseLifecycleState.Query, false, false, true)]
-    [InlineData(CaseLifecycleState.PostReportComplete, true, false, false)]
-    public void StandardMaterialRequiresAnUnarchivedNonterminalDestination(
-        CaseLifecycleState state,
-        bool archived,
-        bool hasReportSentEvidence,
-        bool expected)
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void AStaffDestinationIsViableInAnyStateUnlessArchived(bool archived, bool expected)
     {
-        Assert.Equal(expected, IntakeAssociationDestinationPolicy.IsViable(
-            Receipt(IntakeDecision.NeedsSorting), state, archived, hasReportSentEvidence));
+        Assert.Equal(expected, IntakeAssociationDestinationPolicy.IsViable(archived));
     }
 
-    [Theory]
-    [InlineData(CaseLifecycleState.NotReady, false, true)]
-    [InlineData(CaseLifecycleState.ReportPreparation, false, true)]
-    [InlineData(CaseLifecycleState.PostReport, false, false)]
-    [InlineData(CaseLifecycleState.Review, true, false)]
-    public void RegisteredImageMaterialRequiresAnEligiblePreReportDestination(
-        CaseLifecycleState state,
-        bool hasReportSentEvidence,
-        bool expected)
+    [Fact]
+    public void ATriageCaseDestinationCarriesItsTriageStateInsteadOfACaseStage()
     {
-        Assert.Equal(expected, IntakeAssociationDestinationPolicy.IsViable(
-            Receipt(IntakeDecision.ImageIntakeRegistered, assets: [ImageAsset()]),
-            state,
-            archived: false,
-            hasReportSentEvidence: hasReportSentEvidence));
+        var destination = new IntakeAssociationDestination(
+            Guid.NewGuid(), "t.QDOS26001", "AB12CDE", null, null, 3)
+        {
+            TriageState = Pegasus.Core.Triage.TriageState.Completed
+        };
+
+        Assert.True(destination.IsTriageCase);
+        Assert.Null(destination.State);
     }
 
     private static IntakeReceipt Receipt(

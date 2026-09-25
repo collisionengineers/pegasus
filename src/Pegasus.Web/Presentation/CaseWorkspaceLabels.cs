@@ -2,6 +2,7 @@
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Web.Presentation;
 
@@ -29,7 +30,6 @@ public static class CaseWorkspaceLabels
         public const string Save = "Save";
         public const string Actions = "Actions";
         public const string More = "More";
-        public const string Refresh = "Refresh";
         public const string Scroll = "Scroll";
         public const string Tabs = "Tabs";
         public const string CollapseSection = "Collapse section";
@@ -40,6 +40,18 @@ public static class CaseWorkspaceLabels
         public const string Editing = "Editing";
         public const string Archived = "Archived";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
+        /// <summary>The Inspection view's section heads once the Case has its Audit (v29 P3).</summary>
+        public const string ReadOnlyAuditCreated = "Read-only · Audit created";
+        /// <summary>The aside's Views card and its two rows, present once the Case has its Audit (v29 option 4).</summary>
+        public const string Views = "Views";
+        public const string InspectionView = "Inspection";
+        public const string AuditView = "Audit";
+        public const string Sent = "Sent";
+        /// <summary>The Audit view's sent Inspection report line links to its own view (v29 P4).</summary>
+        public const string InspectionViewLink = "Inspection view";
+        /// <summary>The Create audit dialog's facts (v29 P5).</summary>
+        public const string AuditDialogCase = "Case";
+        public const string AuditReference = "Audit reference";
         public const string Figures = "Figures";
         public const string MatterLine = "Matter line";
         public const string Claim = "Claim";
@@ -66,7 +78,6 @@ public static class CaseWorkspaceLabels
         public const string ReturnToEngineer = "Return to Engineer";
         public const string ArchiveCase = "Archive case";
         public const string AssignToMe = "Assign to me";
-        public const string AuditCase = "Audit case";
         public const string OriginalCase = "Original case";
         public const string ReplacementCase = "Replacement case";
         public const string LifecycleActions = "Lifecycle actions";
@@ -105,8 +116,11 @@ public static class CaseWorkspaceLabels
         public const string LeaseExpires = "Lease expires";
     }
 
-    // Presentation membership only; types, allowed codes and authority remain
-    // owned by AssessmentVocabulary and the workspace command.
+    // The Case editor's assessment-field membership and labels. Types, allowed
+    // codes and finding authority remain owned by AssessmentVocabulary and the
+    // workspace command. The Automation MCP write reuses this membership
+    // (IsStaffConfirmable, FRD-10), so adding an editor here widens what
+    // automation may write.
     public static class Editors
     {
         public static IReadOnlyDictionary<string, string> Settlement { get; } = new Dictionary<string, string>
@@ -116,6 +130,9 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SalvageValue] = "Salvage value",
             [AssessmentVocabulary.LegalStatus] = "Roadworthiness",
             [AssessmentVocabulary.UnroadworthyReason] = "Unroadworthy reason",
+            [AssessmentVocabulary.VehicleTemporaryRepairsPossible] = "Temporary repairs possible",
+            [AssessmentVocabulary.VehicleTemporaryRepairMethod] = "Temporary repair method",
+            [AssessmentVocabulary.VehicleTemporaryRepairCost] = "Temporary repair cost",
             [AssessmentVocabulary.SettlementExcess] = "Excess",
             [AssessmentVocabulary.SettlementBetterment] = "Betterment",
             [AssessmentVocabulary.SettlementClaimantVatRegistered] = "Claimant VAT registered",
@@ -170,15 +187,21 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.DamageCentreBelt] = "Centre belt",
             [AssessmentVocabulary.DamageUnrelated] = "Unrelated damage",
             [AssessmentVocabulary.DamageUnrelatedDeduction] = "Unrelated-damage deduction",
-            [AssessmentVocabulary.DamageMaterialTransfer] = "Material transfer"
+            [AssessmentVocabulary.DamageMaterialTransfer] = "Material transfer",
+            [AssessmentVocabulary.VehicleAirbagsDeployed] = "Airbags deployed"
         };
 
-        /// <summary>The vehicle's identity the Vehicle section edits beside the registration.</summary>
+        /// <summary>
+        /// The vehicle facts the Vehicle section edits in place: its identity
+        /// beside the registration, and the transmission no approved lookup
+        /// returns.
+        /// </summary>
         public static IReadOnlyDictionary<string, string> Vehicle { get; } = new Dictionary<string, string>
         {
             [AssessmentVocabulary.VehicleVin] = "VIN",
             [AssessmentVocabulary.VehicleType] = "Vehicle type",
-            [AssessmentVocabulary.VehicleBody] = "Body type"
+            [AssessmentVocabulary.VehicleBody] = "Body type",
+            [AssessmentVocabulary.VehicleTransmission] = "Transmission"
         };
 
         public static string FormName(string path) => $"assessmentFields[{path}]";
@@ -205,6 +228,60 @@ public static class CaseWorkspaceLabels
             Settlement.ContainsKey(path) || OriginalReport.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
             || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck
             || path == AssessmentVocabulary.VehicleCondition;
+
+        /// <summary>
+        /// Every assessment path a staff member records, and so confirms or
+        /// clears, through the Case editor: the editor fields above and the
+        /// paths a section writes through its own typed member.
+        /// pegasus_assessment_update accepts only these (FRD-10).
+        /// </summary>
+        public static bool IsStaffConfirmable(string path) =>
+            IsAssessmentField(path) || CaseWorkspacePolicy.TypedPaths.Contains(path);
+
+        /// <summary>
+        /// The Case section whose controls record <paramref name="field"/> (an
+        /// assessment path or a Case data field name), for a readiness
+        /// blocker's link (FRD-13); null when no section records it.
+        /// </summary>
+        public static string? SectionOf(string field)
+        {
+            // Fields shown outside the section their editor list names: the
+            // claimant's VAT answer is on Claim, and the report content
+            // switches are Valuation's On the report switches.
+            var shownElsewhere = field switch
+            {
+                AssessmentVocabulary.SettlementClaimantVatRegistered => "claim",
+                AssessmentVocabulary.ReportDiscloseGuideSource
+                    or AssessmentVocabulary.ReportValuationCommentary
+                    or AssessmentVocabulary.ReportIncludeUnrelatedDamage => "valuation",
+                _ => null
+            };
+            if (shownElsewhere is not null) return shownElsewhere;
+            if (Settlement.ContainsKey(field)) return "settlement";
+            if (OriginalReport.ContainsKey(field)) return "original-report";
+            if (Report.ContainsKey(field)) return "report";
+            if (Damage.ContainsKey(field)) return "damage";
+            if (Vehicle.ContainsKey(field)) return "vehicle";
+            if (AssessmentVocabulary.LookupDerivedPaths.Contains(field)) return "vehicle";
+            return field switch
+            {
+                AssessmentVocabulary.HistoryCheck or AssessmentVocabulary.VehicleCondition
+                    or AssessmentVocabulary.VehicleMileageSource or CaseDataFieldNames.VehicleRegistration
+                    or CaseDataFieldNames.VehicleMake or CaseDataFieldNames.VehicleModel
+                    or CaseDataFieldNames.VehicleYear or CaseDataFieldNames.VehicleMileage => "vehicle",
+                AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactSeverity
+                    or AssessmentVocabulary.ImpactLocation => "damage",
+                AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade
+                    or AssessmentVocabulary.ValueEngineer => "valuation",
+                AssessmentVocabulary.ReportDate => "report",
+                AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge
+                    or CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
+                    or CaseDataFieldNames.InspectionAddress => "inspection",
+                CaseDataFieldNames.ClaimantName => "claim",
+                CaseDataFieldNames.ClaimNumber or CaseDataFieldNames.IncidentDate => "overview",
+                _ => null
+            };
+        }
     }
 
     /// <summary>
@@ -264,7 +341,7 @@ public static class CaseWorkspaceLabels
         public const string Corrected = "Corrected";
         public const string Accept = "Accept";
         public const string AcceptAll = "Accept all";
-        public const string ApplyInValuation = "Apply in Valuation";
+        public const string SetInValuation = "Set in Valuation";
         public const string ValuationLink = "Valuation";
         public const string EngineersValue = "Engineer's Value";
         public const string SalvageValue = "Salvage value";
@@ -277,7 +354,7 @@ public static class CaseWorkspaceLabels
         public const string ExceedsEngineersValue = "Exceeds Engineer's Value";
         public const string FromCurrentEstimate = "From current repair spec";
         public const string CurrentEstimate = "current estimate";
-        public const string ApplyInValuationMeta = "Apply in Valuation";
+        public const string SetInValuationMeta = "Set in Valuation";
         public const string CostsHireDelays = "Costs, hire & delays";
         public const string Salvage = "Salvage";
         public const string StorageCharge = "Storage charge";
@@ -321,6 +398,25 @@ public static class CaseWorkspaceLabels
         public const string ReviewedRecipients = "Reviewed recipients";
         public const string AddTo = "Add To recipient";
         public const string AddCc = "Add Cc recipient";
+
+        /// <summary>
+        /// The section that clears a report blocker (FRD-13): the one
+        /// recording the fact it names, else the one owning the material it
+        /// names; null when none does.
+        /// </summary>
+        public static string? BlockerSection(AssessmentReadinessItem item) => item switch
+        {
+            { Field: { } field } => Editors.SectionOf(field),
+            { EstimateLine: not null } => "estimate",
+            { Requirement: CaseReportReadiness.SignatoryRequirement } => "overview",
+            { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
+            {
+                Requirement: CaseReportReadiness.CloseUpImageRequirement
+                    or CaseReportReadiness.OverviewImageRequirement
+                    or CaseReportReadiness.ImageSourceRequirement
+            } => "files",
+            _ => null
+        };
     }
 
     /// <summary>
@@ -511,9 +607,9 @@ public static class CaseWorkspaceLabels
         };
 
         /// <summary>
-        /// A lookup-sourced assessment value as a read value: a date in the
-        /// office's short form, an enumerated code as words, everything else
-        /// as recorded.
+        /// A Vehicle-section assessment value as a read value: a date in the
+        /// office's short form, an enumerated code in the words the report
+        /// prints, everything else as recorded.
         /// </summary>
         public static string AssessmentValue(string path, string value)
         {
@@ -525,7 +621,7 @@ public static class CaseWorkspaceLabels
             }
             if (definition.Type == AssessmentFieldType.Enumerated)
             {
-                return OperatorLabels.Humanise(value);
+                return AssessmentReportPresentation.AssessmentCode(value);
             }
             return path == AssessmentVocabulary.VehicleEngineCc ? value + " cc" : value;
         }
@@ -597,7 +693,6 @@ public static class CaseWorkspaceLabels
         public const string ClaimantVatRegistered = "Claimant is VAT registered";
         public const string ValueIncreases = "Value increases";
         public const string OtherAddition = "Other…";
-        public const string ApplyAsEngineersValue = "Apply as Engineer's Value";
         public const string AppliedEngineersValue = "Applied Engineer's Value";
         public const string NoneYet = "None yet";
         public const string AppliedBy = "Applied by";
@@ -606,7 +701,6 @@ public static class CaseWorkspaceLabels
         public const string Applied = "Applied";
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
-        public const string Mileage = "Mileage";
         public const string Listings = "listings";
         public const string ChooseBasis = "Choose a basis card to calculate.";
         public const string GuideRetail = "Guide retail";
@@ -975,6 +1069,7 @@ public static class CaseWorkspaceLabels
     {
         public const string CorrespondenceTab = "Correspondence";
         public const string BoxConfirmed = "Box · confirmed";
+        public const string BoxAuditConfirmed = "Box audit · confirmed";
         public const string OpenInBox = "Open in Box";
         public const string View = "View";
         public const string Remove = "Remove";

@@ -1317,6 +1317,12 @@ public sealed class StaffCorrespondenceWebTests
         Assert.DoesNotContain("compose=reply", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("compose=forward", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("name=\"CorrespondenceOperationKey\"", html, StringComparison.OrdinalIgnoreCase);
+        // The Case's dialog offers what the record offers.
+        using var content = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?handler=Content");
+        Assert.Equal(HttpStatusCode.OK, content.StatusCode);
+        var fragment = await content.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("compose=reply", fragment, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("compose=forward", fragment, StringComparison.OrdinalIgnoreCase);
         using var response = await client.PostAsync(
             $"/Inbox/{seeded.MessageId:D}?handler=Reply",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -1328,6 +1334,47 @@ public sealed class StaffCorrespondenceWebTests
             }));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Empty(send.Commands);
+    }
+
+    [Fact]
+    public async Task CaseDialogContentOffersTheRecordsReplyAndForwardWithItsCaseChosen()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var seedClient = IntakeWebDriver.CreateClient(baseFactory);
+        var associatedCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 ASSOCIATED", "SC08-MSG-DIALOG-ASSOCIATED");
+        var dialogCaseId = await SeedSupportedCaseAsync(
+            baseFactory, seedClient, "SC08 DIALOG", "SC08-MSG-DIALOG");
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, associatedCaseId);
+        using var factory = Configure(baseFactory, send);
+        using var client = CreateClient(factory);
+        var dialogReference = await CaseReferenceAsync(factory, dialogCaseId);
+        Assert.NotEqual(await CaseReferenceAsync(factory, associatedCaseId), dialogReference);
+
+        using var content = await client.GetAsync(
+            $"/Inbox/{seeded.MessageId:D}?handler=Content&correspondenceCaseReference={dialogReference}");
+        Assert.Equal(HttpStatusCode.OK, content.StatusCode);
+        var fragment = await content.Content.ReadAsStringAsync();
+        Assert.Contains("data-message-actions", fragment, StringComparison.Ordinal);
+        foreach (var (mode, label) in new[] { ("reply", "Reply"), ("reply-all", "Reply all"), ("forward", "Forward") })
+        {
+            Assert.Contains(
+                $"href=\"/Inbox/{seeded.MessageId:D}?compose={mode}&amp;correspondenceCaseReference={dialogReference}\"",
+                fragment,
+                StringComparison.Ordinal);
+            Assert.Contains($">{label}</a>", fragment, StringComparison.Ordinal);
+        }
+        Assert.DoesNotContain("<form", fragment, StringComparison.OrdinalIgnoreCase);
+
+        // Reply opens the record's composer with the dialog's Case chosen.
+        using var composer = await client.GetAsync(
+            $"/Inbox/{seeded.MessageId:D}?compose=reply&correspondenceCaseReference={dialogReference}");
+        Assert.Equal(HttpStatusCode.OK, composer.StatusCode);
+        var html = await composer.Content.ReadAsStringAsync();
+        Assert.Equal(dialogReference, InputValue(html, "CorrespondenceCaseReference"));
+        Assert.Contains("reply@example.invalid", html, StringComparison.Ordinal);
+        Assert.Equal(0, send.SendCalls);
     }
 
     [Fact]

@@ -18,7 +18,7 @@ enablement and external connector authentication.
 
 ## Current applicability
 
-Direct unconfirmed working-data writes are permitted within the current FRD-10 guards. AiWork push and ADR-0035’s AiJobs pull are distinct transports; neither grants confirmation or outward dispatch.
+Direct unconfirmed working-data writes are permitted within the current FRD-10 guards, which admit only fields a staff Save of the Case record can confirm or clear. AiWork push and ADR-0035’s AiJobs pull are distinct transports; neither grants confirmation or outward dispatch.
 
 ## Context
 

@@ -164,7 +164,7 @@ public sealed class SendCaseToAi(
             return new(SendCaseToAiOutcome.NotEligible, null, reasons);
         }
 
-        var projection = await _caseData.GetAsync(request.CaseId, cancellationToken);
+        var projection = await _caseData.GetAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken);
         if (projection is null)
         {
             reasons.Add("The case was not found.");

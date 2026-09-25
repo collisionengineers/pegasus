@@ -316,7 +316,6 @@ public sealed class CaseReportApprovalWebTests
                 "Case claimant",
                 "CLM-42",
                 now.AddDays(-2),
-                new DateOnly(2031, 5, 5),
                 "Email",
                 now.AddDays(-2));
             CaseDetails details = new(
@@ -350,7 +349,7 @@ public sealed class CaseReportApprovalWebTests
             null,
             [],
             [],
-            new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
 
         private CaseSectionFrame Frame()
         {

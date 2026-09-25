@@ -5,7 +5,8 @@
 ## Short version
 
 - Every repair estimate is an immutable version. Each Case has exactly one
-  current accepted version.
+  current accepted version, and once an Inspection + Audit Case has its
+  Audit, the Inspection and the Audit each have one.
 - Imported or AI material stays a Draft until an enabled human staff member accepts it with
   **Use estimate**. Importing never changes Current.
 - An import is keyed by Case plus source hash. The same hash replays the same
@@ -35,7 +36,14 @@ leases are owned by
 
 **One current version.** Every accepted repair specification is an
 immutable, versioned Core aggregate. Each Case has exactly one current
-accepted version, shared by all of the Case's report projections.
+accepted version, shared by all of the Case's report projections. Create
+audit copies every live estimate, with its lines and its Current choice,
+into the Audit; discarded estimates and revision snapshots are not copied
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+From then on the Inspection and the Audit each have their own current
+version, feeding their own report. Every estimate edit, import, Glass's
+return and Use estimate acts on the Audit's estimates; the Inspection's stay
+as its report was sent.
 
 Each version keeps its stable identity, ordered technical lines, source
 route, source artifact identity, version and hash, mapping evidence, raw
@@ -93,9 +101,10 @@ assume another Case-version increment.
 value scales a Draft down under the Engineer's hand: one factor lowers every
 part price, every materials figure and the labour rate, each to its floor
 (£50 an hour and 65 % of price unless the Engineer sets others); hours never
-move. Apply freezes the outgoing draft, saves the scaled specification and
-freezes it again as the scaled version; Remove scaling returns the Draft to
-the version frozen before. A contract repair's agreed sum is Case data the
+move. Apply saves the Case first (the one Save, which records the Draft as
+edited), then freezes the saved draft, saves the scaled specification and
+freezes it again as the scaled version; Remove scaling likewise saves first
+and returns the Draft to the version frozen before. A contract repair's agreed sum is Case data the
 Engineer records beside the specification; recording it sets the outcome to
 Contract repair, and a different sum is a scaling target. Every import,
 scale, removal, restore and sent report freezes a numbered version with how
@@ -113,8 +122,11 @@ one calculation basis. The three assessment-report lists (new parts, repairs
 and additional operations) are one deterministic names-only projection of
 those ordered lines, not a second renderer-owned specification.
 
-**Replay in the estimate editor.** The editor saves the Case version and line
-identities the staff member submitted. Retrying the same operation keeps that
+**Replay in the estimate editor.** The editor has no save of its own: the
+Case's one Save carries the specification with the rest of the Case
+(operator, 23 September 2026), and a specification it leaves unchanged is not
+rewritten. The Save keeps the Case version and line identities the staff
+member submitted. Retrying the same operation keeps that
 intent: source evidence and amendment timestamps are resolved only for a new
 operation, not rebuilt before replay detection. A prior successful operation
 returns the same estimate identity in its current state, even after later
@@ -165,10 +177,13 @@ confirmed fact by itself. The full inspection address rules are in
 
 Repair cost figures come from external estimate imports (including Audatex
 and Glass's), AI estimates returned through MCP, or staff file import. Manual
-repair totals are never invented to get around the estimate contract. An
-unknown repairer VAT status needs an explicit status or category before
-totals are accepted. Supplied, observed, derived and professionally accepted
-values keep their distinctions.
+repair totals are never invented to get around the estimate contract. The
+repairer's VAT status is recorded on each repair specification, the one
+owner of that fact; an `Unknown` status never blocks **Use repair spec**, and
+the specification's selected VAT categories govern its totals
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report)).
+Report readiness asks no separate repairer VAT question. Supplied, observed,
+derived and professionally accepted values keep their distinctions.
 
 ### Retained PDF estimate import
 

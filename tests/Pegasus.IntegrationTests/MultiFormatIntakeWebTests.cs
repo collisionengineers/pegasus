@@ -6,6 +6,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ImageIntake;
 using Pegasus.IntegrationTests.DocumentExtraction;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 
@@ -32,6 +33,15 @@ public sealed partial class MultiFormatIntakeWebTests
         var pdf = CreateImagePdf(placements);
         var result = await UploadAsync(factory, client, "photo-evidence.pdf", "application/pdf", pdf);
         var receiptId = ReceiptId(result);
+        if (registration is not null)
+        {
+            // A registered Vehicle images record files its photographs in its
+            // own folder instead of the holding folder; they serve once that
+            // folder's custody has run.
+            Assert.All(InstructionEvidenceImages.Select((await GetReceiptAsync(factory, receiptId)).AssetRecords),
+                photo => Assert.NotEqual(IncomingArtifactCustodyState.Confirmed, photo.CustodyState));
+            await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
+        }
         var receipt = await GetReceiptAsync(factory, receiptId);
         var photos = InstructionEvidenceImages.Select(receipt.AssetRecords);
 

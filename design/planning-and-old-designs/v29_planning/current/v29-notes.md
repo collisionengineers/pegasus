@@ -1,121 +1,294 @@
-# v29 Upload options and sign-off
+# v29 notes: Case referencing and structure
 
-Temporary Stage 1 review artifact for [issue #830](https://github.com/collisionengineers/pegasus/issues/830),
-24 September 2026. These offline captures show proposed presentation with
-synthetic files. They are not application, deployment, or acceptance evidence.
+Round opened 23 September 2026 for the combined rework of PR 803 (Triage as a
+Case type) and issue 814 (Inspection + Audit on one Case). The operator's
+decisions and every pass are in [discussion-log.md](discussion-log.md). Stage 2
+follows the approved plan once this list is settled.
 
-## Five alternatives
+## 1. What changes and why
 
-| Option | Decision view | Processing view | Tradeoff |
-| --- | --- | --- | --- |
-| A · split | [A](v29-shots/a-decision-1580.png) | [A](v29-shots/a-processing-1580.png) | Files and action both visible on desktop; decision goes first at 760 px. |
-| B · guided | [B](v29-shots/b-decision-1580.png) | [B](v29-shots/b-processing-1580.png) | Clear sequence; uses more vertical space. |
-| C · destination first | [C](v29-shots/c-decision-1580.png) | [C](v29-shots/c-processing-1580.png) | Fastest access to action; compact file index needs careful failure visibility. |
-| D · operations table | [D](v29-shots/d-decision-1580.png) | [D](v29-shots/d-processing-1580.png) | Best comparison for mixed results; wide action area can feel sparse. |
-| E · gallery | [E](v29-shots/e-decision-1580.png) | [E](v29-shots/e-processing-1580.png) | Helps only if real thumbnail content adds recognition; JPEG placeholders cannot prove that. |
+| Today (live) | Proposed | Shots |
+| --- | --- | --- |
+| Create audit makes a second, linked Audit Case with its own page, row and working-set tab (ADR-0051) | The Audit lives on the same Case. **Create audit** stays in the Actions menu, offered once the Inspection report is sent, and moves the Case to With Engineer with the same Engineer | p10, p11 |
+| The working-set strip under the utility bar holds a tab per open record | The strip goes from every page. On an Inspection + Audit Case whose Audit exists, the same strip holds the Case's two **views**, each tab naming its report's reference: Inspection `QDOS31001` and Audit `a.QDOS31001`. Scroll/Tabs is unchanged | p01, p03, p07, p08, p12 |
+| The Audit's values live on the second Case | Create audit copies every Case value into the Audit. The Audit view edits only that copy. The Inspection view shows the Inspection's values and its sent report, read-only, each head labelled **Read-only · Audit created** | p01, p03, p05 |
+| The Audit report is the second Case's report, `a.{Case/PO}` | The Audit report carries `a.QDOS31001`. The Inspection's sent report stays one line in the Audit view's Report, with a link to its own view | p02, p05 |
+| The Audit's Box folder is the second Case's root under the original's folder | The same `a.` folder under the Case folder, named in Files as **Box audit folder: preparing** beside the Case folder | p04 |
+| Search finds an Inspection + Audit Case once | Search lists it twice, `QDOS31001` and `a.QDOS31001`, and both go to the same Case | p20 |
+| Triage is a separate record at `/Triage/{id}` with a `T-00001` reference | A Triage is a Case at `/Cases/{id}` with a `t.` Case/PO from the Principal's shared sequence. Its page keeps the live Triage layout and gains the Case's Files with upload, as PR 803's approved plan requires | p13 |
+| The Work Centre counts Not ready, Review, Held and Unidentified | A fifth metric, **Triages** | p14, p15 |
+| Cases lists Triage under Pre-Case work | Triage sits in the Workflow group, after Query | p16 |
+| Create case offers Inspection and Inspection and Audit | Create case also offers **Triage**, asking only for Principal and registration | p17 |
+| Search does not find a Triage | Search finds the Triage Case by its Case/PO and registration | s11, p21 |
 
-The [page README](../pages/upload/README.md) links all three widths. The
-query strip exposes the remaining states without changing business data.
+## 1a. Five ways to show the Audit and Inspection views (item AA)
 
-## Source and frame rules
+Third pass, 24 September 2026, at the operator's request. Each option is
+switchable in the Case record family with `opt=auditview:…`, and each has
+presets under the `case-record` states.
 
-The shell is taken from the v28 server capture of `/Upload/Group/{id}`. Current
-`origin/dev` `site.css` and Inter font files are inlined into each HTML file.
-The rail is 220 px on desktop, the utility bar 48 px, body type 13.5 px,
-controls 36 px, dense file rows about 40 px, and content is capped at 1580 px.
-At 760 px the real shell reflows and the active decision precedes the file
-list. The footer strip is mockup control only.
+In every option:
 
-FRD-18 owns the 100 MiB per-file, 20-file and 200 MiB submission limits, the
-single submission decision, member outcomes and explicit destination review.
-The options do not implement a second custody or policy path. A live single
-file still has its own status route; `?state=single` shows the proposed visual
-result only.
+- the working set is gone (item A);
+- Scroll/Tabs is unchanged;
+- the Inspection view is read-only with the approved label;
+- the Audit report and the Inspection's sent report sit in Report as in P4.
 
-## Deliberate departures from live
+| # | Option (`opt=auditview:`) | What it is | Shots | For | Against |
+| --- | --- | --- | --- | --- | --- |
+| 1 | View tabs in the strip (`strip`, default) | The strip that held the working set carries Inspection `QDOS31001` and Audit `a.QDOS31001` tabs, in the working-set tab's own markup | p01, p03, p07 | Always visible; each tab names its report's reference, so the ribbon stays as live; room for the working set's state glyphs (A) | Keeps a 40px strip for one Case type only; looks like the working set it replaces |
+| 2 | Ribbon switch (`ribbon`) | A "View" item after the reference in the ribbon holds an Inspection · Audit segmented switch | p22, p23, p24 | Sits with the Case's identity and travels with the sticky ribbon; no strip | The ribbon has no spare room. In the edit session the claimant and Engineer shorten to "Jane Ex…", "develop…" (p24). The Audit reference is not shown unless C adds it |
+| 3 | Section-row switch (`sectionrow`) | The same switch at the start of the section row's tools, before Refresh and Scroll/Tabs | p25, p26 | No change to the ribbon or strip; always visible in the sticky row | Two segmented controls side by side (views and Scroll/Tabs) read alike; the switch sits among page tools rather than with the Case's identity |
+| 4 | Views card in the aside (`aside`) | A "Views" card heads the aside: each view with its reference and its report state (Sent, With Engineer); the current one is plain, the other a link | p27, p28 | Shows the state of both reports at a glance; uses the existing context-card pattern | Below 1441px the aside folds above the sections and is no longer sticky (p27 at 1440), so switching back means scrolling up; the aside grows by a card |
+| 5 | Compare in place (`compare`) | No switch and no Inspection view. The page is the Audit; a value the Audit changed shows the Inspection's value under it ("Inspection 2"), and its section head says "Changed from Inspection". Two changes are illustrated | p29, p30 | The Audit's differences are visible where the work happens; no second page to keep in mind | The Inspection's full copy is never shown as a whole, only its sent report and the changed values; "Changed from Inspection" is new copy needing approval; B's read-only view no longer applies |
 
-- The legalistic discard checkbox and repeated prose are replaced in the
-  proposals by one sentence and a danger action. This changes FRD-18's
-  page-shape clause and needs operator sign-off.
-- The open decision is put before the file list at 760 px; option C also puts
-  it first on desktop. Current P11 says files first and wide, so placement
-  needs operator sign-off.
-- “vehicle-image case” becomes Vehicle images and Image reference in the
-  proposals, per `CONTEXT.md`. The current code and FRD still use the older
-  words in places.
-- Thumbnail boxes during processing are removed. E explores a contact sheet
-  after processing but has no actual images in this artifact.
+## 2. Live rules the mockup mirrors
 
-## Sign-off list
+- **The view tabs** are the working-set strip's own markup and classes
+  (`nav.workspace-tabs`, `.workspace-tab`, `.workspace-tab-link`, `.ref`, `.reg`,
+  `is-active`), as `site.js` builds them. There is no close button, because a
+  view cannot be closed. The strip keeps its 40px geometry and
+  `body.has-working-set`.
+- **Create audit.**
+  - The item sits where `Details.cshtml` places it, after Correct principal.
+  - The dialog is the live `_CaseDialogs.cshtml` markup: `dialog--compact`,
+    `audit-facts`, one primary button.
+  - The item is offered only inside an edit session, as `offersActionsMenu`
+    requires today.
+- **The Report card.** The Inspection's sent-report line and the Audit card are
+  the live `.pv` report card from `_CaseReport.cshtml`. The title format is
+  `Model.ReportTitle`, "Repairable Report — AB12CDE".
+- **Section heads.** The read-only label uses the live `.gated` availability
+  label in the section head.
+- **Files.** The Audit folder chip follows the live custody chip, "Box case
+  folder: preparing" (`data-custody-chip`).
+- **Search.** The Audit entry is the live results row, cloned. Its link opens
+  the Audit view; the Inspection entry opens the Inspection view.
+- **The Triages metric** is the live `.metric` in `.metric-strip--5`; the
+  five-wide rules already exist in `site.css`.
+- **The Triage Case's Files** is the Case page's Files head: the custody chip,
+  Add evidence and the Documents empty state.
 
-Layout items remain **open**. Item E is rejected and replaced below.
+## 3. Frame rules
 
-**A.** Confirm A, B, C, D or E as the Upload layout, or identify elements to
-combine. A is the current recommendation because the compact file ledger
-and decision stay visible together on desktop.
+These are unchanged:
 
-**B.** Confirm removal of the discard checkbox and the repeated consequence
-copy, or specify the exact confirmation required. FRD-18 currently mandates
-the checkbox.
+- utility bar 48px;
+- strip 40px, now holding views;
+- ribbon 56px;
+- section row 40px, with Scroll/Tabs kept;
+- 285px aside from 1441px.
 
-**C.** Confirm the short operator labels “Vehicle images”, “Image reference”,
-“Leave undecided” and “Upload more files”, or give replacement words. These
-change current visible copy.
+A Case with one view has no strip, so its page starts 40px higher. See item A.
 
-**D.** Confirm placing the decision above the file list at 760 px, and in C
-on desktop, or retain the current files-first P11 placement.
+## 4. Decisions taken and their authority
 
-**E. Rejected — 24 September 2026.** Manual Vehicle images registration was
-the wrong primary flow. FRD-18 registers usable image identity automatically.
-Matching Cases must be offered first, with explicit selection and confirmation.
+Operator, 23 September 2026 (see [discussion-log.md](discussion-log.md)):
 
-**F.** Confirm whether real image thumbnails merit the E contact sheet, or
-drop E after reviewing the other four. The JPEG tiles are placeholders.
+- **Create audit** can be selected at any point after the Inspection report is
+  sent. A Held Case never has a sent report, so it is never offered there.
+- **Case state.** There is one state. Create audit goes straight to With
+  Engineer with the same Engineer, and the Audit then drives the Case.
+  Completion stays available without an Audit.
+- **The Audit reference** is `a.{Case/PO}`, with files in an `a.` Box subfolder.
+  Fees: the Audit report has its own fee note, counted separately.
+- **Separate Audit values.** Create audit duplicates everything, and changes
+  affect only the Audit. Files and Notes are shared.
+- **The working-set tabs are replaced** by views, e.g. Inspection and Audit.
+  Scroll/Tabs is not the feature meant.
+- **Triage Cases** need nothing beyond their prior requirements, which are PR
+  803's `SESSION_PLAN.md` and FRD-03.
+- **Search** surfaces the Inspection and the Audit as separate entries that go
+  to the same Case.
+- **The on-screen wording is approved:** "Read-only · Audit created" and "Box
+  audit folder: preparing".
 
-**G.** Confirm applying the selected presentation to the single-file status
-page as well, or keep its existing distinct layout.
+## 5. Deliberate departures from live
 
-## Verification and limits
+- **The working set is removed from every page.** Open records no longer
+  collect as tabs; the view tabs are all that remains of the strip (item A).
+- **The Inspection view omits every Edit** and states why once per head with
+  the approved label.
+- **A Triage Case keeps the live Triage page as it is** (page header, record
+  bar, panels, Set principal, labels) apart from its `t.` Case/PO and the added
+  Files section.
 
-The 24 September 2026 self-check returned `RESULT {"fail":[],"okCount":705}`
-after rendering every option and state. `shoot.ps1` generated 195 captures:
-five options, thirteen states, and three widths. There is no server, file upload,
-Case search, Worker, saved
-receipt, or live confirmation behind these mockups. File names, Case/PO and
-Image reference are synthetic. E has placeholders rather than real thumbnails.
-Shell navigation and account controls are visual context in this offline file;
-the upload controls and state presets are the active review surface.
-Stage 2 has not started.
+## 6. Sign-off list
 
-## Refinement — 24 September 2026
+Each item reads "Confirm, or …". The proposed default is what the mockup shows
+unless the item names a variant. Settled items keep their letter.
 
-All five options retain the actual Pegasus shell, typography and colour tokens.
-The second pass increases panel spacing, aligns fields and file metadata, uses
-consistent image icons and quieter status badges, and makes Upload more files
-a secondary action. A keeps the split workspace; B refines the step indicator;
-C keeps per-file failures visible; D aligns the decision above a dense ledger;
-E uses evenly spaced JPEG tiles instead of numbered boxes.
+- **A. The working set goes, and views take its strip.**
+  - The open-records tabs are removed from every page.
+  - On an Inspection + Audit Case whose Audit exists, the strip holds
+    Inspection `QDOS31001` and Audit `a.QDOS31001`, and Audit is the default.
+  - A Case with one view (no Audit yet, a standalone Audit, a Triage Case) and
+    every other page have no strip.
+  - Confirm, or give a one-view Case its single tab (`opt=singleview:tab`,
+    p09).
+  - **Consequences to confirm:**
+    - Nothing replaces the working set's way back to recently opened records.
+      Search and the Ctrl K palette remain.
+    - The states a working-set tab shows lose their home (FRD-12: unsaved edits,
+      a Glass's session open, a colleague holding the record). The ribbon
+      already shows Editing and "{name} is editing". Should a view tab carry
+      the unsaved-edits dot and the Glass's glyph for its view?
+    - Closing the current record no longer returns to the Work Centre, because
+      a view cannot be closed.
+- **B.** *Settled 23 September:* the Inspection view is read-only after Create
+  audit, and each head carries "Read-only · Audit created". Files and Notes stay
+  usable; Actions and Next action follow the Audit.
+- **C. The Audit reference is carried by the Audit view's tab.** The ribbon
+  heading stays the Case/PO. Confirm, or also name it on the ribbon
+  (`opt=auditref:audit`, p06). That costs width on the "Case workspace ·
+  registration" line.
+- **D. Create audit dialog.**
+  - Facts: Case, Audit reference, Engineer. No reason is asked.
+  - The live Outcome row and the recorded-outcome requirement go, because a
+    sent report implies an outcome.
+  - Confirm, or keep the Outcome row.
+- **E.** *Settled 23 September:* not offered on a Held Case, because a Held Case
+  would not have a report sent. It is not offered on closed dispositions either.
+- **F. No assigned Engineer.** Create audit is refused, with the refusal Return
+  to Engineer uses today. Confirm, or allow it and assign in the dialog.
+- **G. The Inspection report after Create audit** can be opened and downloaded,
+  but not regenerated or sent again (p05). Confirm.
+- **H. Report image choices** (Include in report, Close-up, Overview) stay
+  shared, because they belong to the Case's files. Confirm, or make them per
+  report.
+- **J.** *Settled 23 September for Search:* two entries, `QDOS31001` and
+  `a.QDOS31001`, both to the same Case (p20). The Inspection entry opens the
+  Inspection view and the Audit entry the Audit view.
+  - Still open for the **Cases lists and queues**: one row per Case, showing
+    the Inspection's claimant, Principal and registration. Confirm, or follow
+    Search with two rows.
+  - Still open for **intake matching**: it matches on the Inspection's values.
+    Confirm.
+- **K. Image intake association and evidence promotion.** While the Audit is
+  prepared, these reopen as for any Case before its report is sent. Confirm, or
+  keep them closed once the Inspection report is sent.
+- **L. What Create audit copies.**
+  - Copied: live estimates with their lines, guide valuations with the applied
+    Engineer's Value, report wording blocks, the fee, and confirmed values
+    (which stay confirmed).
+  - Not copied: open AI proposals, discarded estimates and estimate revision
+    snapshots.
+  - Confirm, or name what else to copy or leave.
+- **M. Deadlines and MI.**
+  - The Inspection deadline and completeness stay Case-level.
+  - MI-01 turnaround for an Audit report runs from Create audit.
+  - MI-02 gains an Inspection/Audit split.
+  - Confirm each.
+- **N. Correct principal after Create audit.** The replacement Case starts from
+  the Inspection's values only. Confirm, or refuse Correct principal once an
+  Audit exists.
+- **O.** *Settled 23 September:* "Box audit folder: preparing".
+- **P.** *Settled 23 September:* a Triage Case changes only as its prior
+  requirements say (p13). The mockup draws two of them: the `t.` Case/PO and the
+  Case's Files with upload. The page is otherwise live.
+- **Q. Placement.**
+  - The Triages metric goes last. Variant `opt=metric:afterheld` puts it after
+    Held (p15).
+  - On the Cases rail, Triage goes after Query in Workflow.
+  - Confirm, or place them elsewhere.
+- **R. Create case with Triage** asks only for Principal code and Registration
+  (p17). Confirm.
+- **S. Open the Triage** stays the live dialog (p18). The Triage takes the
+  receipt's Principal and is refused when the receipt has none, as the prior
+  requirements say. Confirm, or add a Principal pick (`opt=principal:on`, p19).
+- **T. Set principal on a Triage Case.** The live button stays (item P). A Triage
+  Case's Principal is now part of its `t.` Case/PO, which never changes. Should
+  Set principal go, with a wrong Principal handled by Correct principal like any
+  Case? This is a Stage 2 question either way.
+- **U. Provider API.** A declared Triage's result returns its `t.` Case/PO, as
+  FRD-09 already promises. No Case intake link is written for the Triage's
+  origin receipt. Confirm.
+- **V. MCP Triage tools** identify a Triage by its Case id (`triageId` becomes
+  `caseId`). Confirm, as this changes the Automation contract.
+- **W. Search** finds a Triage Case by its `t.` Case/PO and by registration, and
+  shows the Triage state (p21). Confirm.
+- **X. Re-send naming.** The Audit report's re-send dot suffix counts only Audit
+  sends. Confirm.
+- **Y. The Cases list's Triage quick detail** keeps its "Open Triage" button,
+  which now opens `/Cases/{id}` (p16). Confirm.
+- *Z (first pass, "Our ref" on the Triage page) is withdrawn under P.*
+- **AA.** *Settled 24 September:* option 4, the **Views** card at the head of
+  the aside (p27, p28).
+  - The card, and so any way to switch, exists only once a Case has more than
+    one view, that is once its Audit has been created. Before that the Case
+    shows no card.
+  - No strip replaces the working set.
+  - The "View" and "Changed from Inspection" wording belonged to options 2 and 5
+    and is not used.
 
-The duplicate Upload eyebrow and repeated discard explanation are removed.
-The retention consequence appears once in the confirmation. Mobile badges no
-longer stretch across a row. Uploading does not claim a fabricated stored count.
-This remains a visual proposal; the sign-off items above remain open.
+## 7. Self-check
 
-## Process correction — 24 September 2026
+- **Third pass, 24 September 2026:** `RESULT {"fail":[],"okCount":444}` across 11
+  captured states and 30 proposal presets, each checked at 1580 and 1440. That
+  includes the four alternative view options (item AA).
+- **Captures are unchanged since the first pass.** That pass's live parity
+  check still stands: all 10 directly addressable states matched the running
+  application element for element.
+- **The screenshot run had 0 page errors:** 30 presets at three widths.
+- **Not application evidence.** None of this is application evidence.
 
-Operator: “It should propose a case if that is possible but this is shown akin
-to more of a secondary option.” This settles the hierarchy across all five
-options. The prior form-first interpretation was incorrect.
+## 8. Known limits
 
-- A viable proposed Case is visible first, with Case/PO, registration, claimant
-  and stage. Review and add leads to explicit confirmation; nothing auto-links.
-- Multiple viable Cases appear together, with none selected by default.
-- No match opens Case lookup without inventing a proposal.
-- Automatic Vehicle images registration is secondary context for these image
-  fixtures. The manual registration and Reason form are removed.
-- Confirmation reports the selected Case. Discard and Leave undecided remain
-  secondary.
+- **The fixture Case was worked through the live edit session.** Damage areas
+  and guide valuation cards were not entered, because those controls changed
+  after v28's script was written.
+- **The Inspection-report-sent state (`stage=sent`) reuses the capture in
+  report preparation.** Only the Create audit item and the sent report status
+  are drawn, so its Actions menu still lists Return to Review.
+- **The fixture's Unidentified item does not qualify for Open the Triage.** The
+  action and dialog are drawn from the live markup.
+- **The Triage Case's number, `t.QDOS31003`, is illustrative.** It is the next
+  number in the fixture's QDOS 2031 sequence.
+- **Option 5's two changed values are illustrative mockup data:** Repair delays
+  2 → 3 and an amended Engineer's comment. The fixture holds no Audit edit.
+- **The Inspection and Audit copies hold the same values** in the fixture,
+  because no Audit edit was made after the copy. This is why the Search Audit
+  entry shows the same claimant.
+- **In the mockup, a view tab or search entry lands on the captured page.** The
+  mockup has no server, so the view each should open is not carried into the
+  page it lands on.
+- **Not drawn:**
+  - the Triage Case in its edit session;
+  - the Audit report after generation (file name `A_QDOS31001_assessment.pdf`).
 
-The fixtures remain images. Eligible non-image material uses the existing
-extracted new-Case proposal screen under FRD-18; this pass does not invent
-an image-to-new-Case form. Verification: 705 offline checks passed.
+## 9. Found in the live read (for the operator; not part of this round)
+
+The page documentation for this round (see [pages](../pages/README.md))
+found these differences between live and the FRDs:
+
+- **Triage completion needs exactly one linked response.**
+  `EfTriageStore.cs:1207-1215` refuses completion unless exactly one
+  response-evidence link exists, but FRD-03 says sending is never a gate.
+- **`/Triage` redirects to `/Cases`,** not `?tab=triage` (FRD-12).
+- **Return to Review is offered in With Engineer** (`Details.cshtml:65-66`),
+  but FRD-16 says Completed or Query.
+- **The Search results table** has no type or due column (FRD-15), and its
+  preview's "Our ref" shows the claim number.
+- **The Unidentified record's panels are headed "Resolve" and "Resolution",**
+  which FRD-15 forbids.
+- **Create case's "created" message is never shown.** It writes
+  `TempData["CaseDetailsStatus"]`, but the Case record reads `CaseStatus`.
+- **The Web gate for Create audit ignores the recorded outcome;** Core refuses
+  without one.
+- **The combined type has three spellings:** "Inspection + Audit", "Inspection
+  and audit" and "Inspection and Audit".
+- **Triage "Link case" asks for the Case's GUID.**
+- **The Cases rail counts every Triage;** the Work Centre counts Open and
+  Awaiting information.
+
+## 10. Rounds
+
+- 23 September 2026, first pass: the views replaced Scroll/Tabs. Corrected by
+  the operator.
+- 23 September 2026, second pass (this document): the views replace the
+  working-set strip; Triage keeps its prior requirements; B, E, J (Search), O
+  and P are settled.
+- 24 September 2026, third pass: four other ways to show the views, set out
+  beside the strip tabs as item AA (section 1a).
+- 24 September 2026: the operator chose option 4 (AA settled) and asked Stage 2
+  to proceed.

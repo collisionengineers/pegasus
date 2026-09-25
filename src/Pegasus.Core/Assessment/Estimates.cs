@@ -8,10 +8,11 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Assessment;
 
 /// <summary>
-/// Which repairer VAT position the estimate stands on (B04). Unknown is a
-/// real state, not a missing value: it blocks Use as Current until the
-/// operator records an explicit status or explicitly selects the VAT
-/// categories. The claimant's VAT position never controls estimate VAT.
+/// Which repairer VAT position the repair spec stands on (B04), recorded on
+/// the spec itself, the only owner of the fact. Unknown is a real state: its
+/// totals charge VAT on nothing until the operator records the status or
+/// selects the categories, and it never gates Use repair spec (v28 P10). The
+/// claimant's VAT position never controls estimate VAT.
 /// </summary>
 public enum RepairerVatStatus
 {
@@ -110,7 +111,7 @@ public sealed record EstimateRateSnapshot(
 /// repairer's VAT position: an estimate that records no <see cref="Vat"/>
 /// policy stands on <see cref="RepairerVatStatus.Unknown"/> and charges VAT
 /// on nothing until an Engineer records the status or selects the
-/// categories, which is also what blocks it from being made Current.
+/// categories; that never gates Use repair spec (v28 P10).
 /// </remarks>
 public sealed record EstimateDetails(
     string Name,
@@ -600,6 +601,46 @@ public static class EstimatePolicy
     }
 
     /// <summary>
+    /// Whether an editor save, with its evidence carried and its rate card
+    /// resolved, is the estimate exactly as recorded: the same lines in the
+    /// same order, no line amended, the same header and the same supplementary
+    /// statement. The one Case Save posts the whole editor every time, so an
+    /// estimate nobody touched is left as it is rather than rewritten — which
+    /// would confirm its unconfirmed lines and stale a report it pinned.
+    /// </summary>
+    public static bool IsUnchanged(SaveEstimateRequest evidenced, RepairSpecificationVersion? existing)
+    {
+        ArgumentNullException.ThrowIfNull(evidenced);
+        if (existing is null
+            || evidenced.EstimateId != existing.SpecificationId
+            || evidenced.ExistingLineIds is not { } identities
+            || evidenced.Lines.Count != existing.Lines.Count
+            || identities.Count != existing.Lines.Count)
+        {
+            return false;
+        }
+        for (var index = 0; index < existing.Lines.Count; index++)
+        {
+            if (identities[index] != existing.Lines[index].Id
+                || !IsAmendmentUnchanged(evidenced.Lines[index], existing.Lines[index]))
+            {
+                return false;
+            }
+        }
+        var posted = evidenced.Details;
+        var recorded = existing.Details;
+        return string.Equals(posted.Name, recorded.Name, StringComparison.Ordinal)
+            && posted.LabourRate == recorded.LabourRate
+            && posted.Rate == recorded.Rate
+            && posted.RegionalUplift == recorded.RegionalUplift
+            && posted.OtherCosts == recorded.OtherCosts
+            && posted.VatPercent == recorded.VatPercent
+            && posted.AppliedDiscounts == recorded.AppliedDiscounts
+            && posted.VatPolicy == recorded.VatPolicy
+            && evidenced.Supplementary == existing.Supplementary;
+    }
+
+    /// <summary>
     /// The eight values an operator can change on a line. The operation is
     /// compared in the editor's vocabulary, because no editor offers a finer
     /// choice than <see cref="EstimateOperation"/>: an imported
@@ -718,6 +759,18 @@ public static class EstimatePolicy
     public static SaveEstimateRequest ValidateSave(SaveEstimateRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
+        return ValidateContent(request);
+    }
+
+    /// <summary>
+    /// The estimate's own content: its header, lines, line identities, source
+    /// and author. The Case save carries an estimate inside its own envelope,
+    /// so it checks this part alone; <see cref="ValidateSave"/> adds the
+    /// command's envelope.
+    /// </summary>
+    public static SaveEstimateRequest ValidateContent(SaveEstimateRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Lines);
         if (request.ExistingLineIds is { } identities)
         {
@@ -1026,7 +1079,10 @@ public interface ISetCurrentEstimate
 
 public interface IListCaseEstimates
 {
-    Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(Guid caseId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
+        Guid caseId,
+        CaseWorkSelector work,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -1150,13 +1206,14 @@ public sealed class ListCaseEstimates(IRepairSpecificationStore store) : IListCa
 {
     public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
         {
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
-        return store.ListEstimatesAsync(caseId, cancellationToken);
+        return store.ListEstimatesAsync(caseId, work, cancellationToken);
     }
 }
 

@@ -6,9 +6,14 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// The one place a case assessment field row is materialised with its
 /// provenance. The assessment save writes the whole surface through it, and
-/// the Engineer's Value valuation writes the single confirmed
-/// <c>assessment.values.engineer</c> field through it, so the row shape and
-/// the provenance stamped on it have exactly one owner.
+/// the valuation adoption writes the confirmed
+/// <c>assessment.values.engineer</c>, <c>assessment.values.retail</c> and
+/// <c>assessment.values.trade</c> fields through it, and the vehicle lookup
+/// writes the Vehicle type unconfirmed and the facts it alone derives
+/// (<see cref="AssessmentVocabulary.LookupDerivedPaths"/>) confirmed by
+/// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.RecorderId"/>
+/// through it, so the row shape and the provenance stamped on it have
+/// exactly one owner.
 /// </summary>
 internal static class AssessmentFieldWriter
 {
@@ -20,8 +25,7 @@ internal static class AssessmentFieldWriter
     /// </summary>
     public static CaseAssessmentFieldEntity Write(
         PegasusDbContext context,
-        CaseEntity owningCase,
-        Guid caseId,
+        Guid workId,
         CaseAssessmentFieldEntity? existing,
         string path,
         string value,
@@ -31,13 +35,12 @@ internal static class AssessmentFieldWriter
         string? confirmedBy)
     {
         ArgumentNullException.ThrowIfNull(context);
-        CaseFieldProposalWriter.Track(context, caseId, path, value, recordedByKind, recordedBy, recordedAtUtc);
+        CaseFieldProposalWriter.Track(context, workId, path, value, recordedByKind, recordedBy, recordedAtUtc);
         if (existing is null)
         {
             var created = new CaseAssessmentFieldEntity
             {
-                CaseId = caseId,
-                Case = owningCase,
+                WorkId = workId,
                 FieldPath = path,
                 Value = value,
                 RecordedByKind = recordedByKind.ToString(),
@@ -121,8 +124,7 @@ internal static class AssessmentWriteSet
     /// </summary>
     public static (Dictionary<string, object?> Before, Dictionary<string, object?> After) Apply(
         PegasusDbContext context,
-        CaseEntity owningCase,
-        Guid caseId,
+        Guid workId,
         List<CaseAssessmentFieldEntity> fields,
         IReadOnlyDictionary<string, string?> toWrite,
         ActionActor actor,
@@ -145,7 +147,7 @@ internal static class AssessmentWriteSet
             {
                 if (existing is not null)
                 {
-                    CaseFieldProposalWriter.Track(context, caseId, path, null, actor.Kind, actor.SubjectId, now);
+                    CaseFieldProposalWriter.Track(context, workId, path, null, actor.Kind, actor.SubjectId, now);
                     context.CaseAssessmentFields.Remove(existing);
                     fields.Remove(existing);
                 }
@@ -169,8 +171,7 @@ internal static class AssessmentWriteSet
             {
                 var written = AssessmentFieldWriter.Write(
                     context,
-                    owningCase,
-                    caseId,
+                    workId,
                     existing,
                     path,
                     value,

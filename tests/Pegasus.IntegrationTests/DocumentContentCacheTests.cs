@@ -109,6 +109,66 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public async Task IntakeAssetFiledOnItsCaseOpensFromTheCaseFolderWithoutACaseRequest()
+    {
+        var bytes = "case-filed intake custody"u8.ToArray();
+        var estate = await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            // Case custody filed the asset: its confirmed copy is in the Case
+            // folder, and no holding copy exists.
+            estate.Box.FileParent = "case-root";
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<IntakeAssetEntity>().SingleAsync()).BoxParentFolderId = "case-root";
+                await db.SaveChangesAsync();
+            }
+
+            await using var content = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None);
+
+            Assert.Equal(bytes, await ReadAsync(content.Content));
+        }
+    }
+
+    [Fact]
+    public async Task IntakeAssetOutsideItsRecordedFolderCannotOpen()
+    {
+        var estate = await Estate.CreateAsync("misplaced intake custody"u8.ToArray());
+        await using (estate)
+        {
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<IntakeAssetEntity>().SingleAsync()).BoxParentFolderId = "case-root";
+                await db.SaveChangesAsync();
+            }
+
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => estate.Reader.OpenAsync(estate.Request, CancellationToken.None));
+
+            Assert.Equal(0, estate.Box.Downloads);
+        }
+    }
+
+    [Fact]
+    public async Task IntakeAssetWithoutARecordedFolderCannotOpen()
+    {
+        var estate = await Estate.CreateAsync("unplaced intake custody"u8.ToArray());
+        await using (estate)
+        {
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<IntakeAssetEntity>().SingleAsync()).BoxParentFolderId = null;
+                await db.SaveChangesAsync();
+            }
+
+            await Assert.ThrowsAsync<IntakeCustodyUnavailableException>(
+                () => estate.Reader.OpenAsync(estate.Request, CancellationToken.None));
+
+            Assert.Equal(0, estate.Box.Downloads);
+        }
+    }
+
     [Theory]
     [InlineData("unknown")]
     [InlineData("failed")]
@@ -905,7 +965,8 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                     Id=assetId, IntakeReceiptId=receiptId, SourceLabel="source", FileName="source.bin",
                     MediaType="application/octet-stream", Kind="source", Disposition="source",
                     ContentLength=bytes.Length, ContentHash=hash, StorageKey="staging",
-                    BoxFileId="box-file-1", BoxVersionId="box-version-1", CustodyStatus="confirmed"
+                    BoxFileId="box-file-1", BoxVersionId="box-version-1", BoxParentFolderId="holding",
+                    CustodyStatus="confirmed"
                 });
                 await db.SaveChangesAsync();
             }
@@ -955,7 +1016,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 db.Add(new CaseEntity
                 {
                     Id = caseId, PrincipalId = principal.Id, SequenceLineageId = principal.SequenceLineageId,
-                    Year = 2031, Sequence = 91, Reference = "QDOS091", Type = "Inspection",
+                    Year = 2031, Sequence = 91, Reference = "QDOS091", Type = "inspection",
                     InitialState = "NotReady", CustodyState = "confirmed", OriginIntakeReceiptId = receiptId,
                     CustodyRootRemoteId = "holding", CreatedAtUtc = DateTimeOffset.UtcNow,
                     ConcurrencyToken = Guid.NewGuid()
@@ -1136,14 +1197,16 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     private sealed class BoxHandler(byte[] bytes) : HttpMessageHandler
     {
         public int Downloads { get; private set; } public string? RequestedVersion { get; private set; } public bool Unavailable { get; set; }
+        /// <summary>The folder Box reports as the file's parent: the holding folder unless a test files it elsewhere.</summary>
+        public string FileParent { get; set; } = "holding";
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken token)
         {
             var path=request.RequestUri!.AbsolutePath;
             if(path.EndsWith("/content",StringComparison.Ordinal)){ Downloads++; RequestedVersion=System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["version"]; if(Unavailable)return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)); return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new ByteArrayContent(bytes)}); }
             var body=path.Contains("/files/",StringComparison.Ordinal)
-                ? """{"id":"box-file-1","type":"file","parent":{"id":"holding"}}"""
-                : path.Contains("/folders/holding",StringComparison.Ordinal)
-                    ? """{"id":"holding","type":"folder","parent":{"id":"405543781910"}}"""
+                ? $$$"""{"id":"box-file-1","type":"file","parent":{"id":"{{{FileParent}}}"}}"""
+                : path.Contains($"/folders/{FileParent}",StringComparison.Ordinal)
+                    ? $$$"""{"id":"{{{FileParent}}}","type":"folder","parent":{"id":"405543781910"}}"""
                     : """{"id":"405543781910","type":"folder"}""";
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(body,Encoding.UTF8,"application/json")});
         }

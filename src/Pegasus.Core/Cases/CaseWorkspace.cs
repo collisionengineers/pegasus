@@ -179,7 +179,6 @@ public sealed record CaseWorkspaceOverview(
     string? ContactPhoneNumber,
     DateOnly? IncidentDate,
     string? AccidentCircumstances,
-    DateOnly? InstructionDate,
     string? VatStatus,
     string? RepairerAddress,
     CaseWorkspaceClaimSource? ClaimSource,
@@ -229,21 +228,62 @@ public sealed record CaseWorkspaceImagePreparation(
     IReadOnlyList<CaseAssetPreparationEdit>? Edits);
 
 /// <summary>
-/// The valuation working inputs the Case save may retain, and the guide
-/// source cards it records (23 September 2026: a source card has no Save of
-/// its own; the Case save is its writer, and the same source and guide month
-/// replaces the earlier card). Adopting a value is the separate Apply
-/// command's act, so a finding path here fails closed.
+/// The guide source cards the Case save records and the calculation it adopts
+/// (23 September 2026: one Save). A source card has no Save of its own, and
+/// the same source and guide month replaces the earlier card. The
+/// <see cref="Adoption"/> is present only when the operator changed the
+/// calculation since the page opened; the save then adopts its result as the
+/// Engineer's Value, calculated from the basis card as this save leaves it,
+/// and records that card's retail and trade as the report's Retail value and
+/// Trade value.
 /// </summary>
-public sealed record CaseWorkspaceValuationDraft(
-    IReadOnlyDictionary<string, string?>? DraftInputs,
-    // Appended, never inserted: this record is constructed positionally.
-    IReadOnlyList<ValuationDetails>? GuideEntries = null);
+public sealed record CaseWorkspaceValuation(
+    IReadOnlyList<ValuationDetails>? GuideEntries,
+    ValuationCalculationSelection? Adoption = null);
 
+/// <summary>
+/// The repair specification the editor shows, whole: its header, its lines
+/// with the identities they were read at, what it says about the
+/// specification it supplements, and a newly chosen labour-rate card. A null
+/// <see cref="EstimateId"/> creates the specification (New repair spec). The
+/// Case save writes it through the estimate store's own editor routine, so a
+/// specification saved here and one saved by the estimate command cannot
+/// mean different things.
+/// </summary>
 public sealed record CaseWorkspaceEstimate(
     Guid? EstimateId,
-    EstimateDetails? Details,
-    IReadOnlyList<EstimateLineInput>? Lines);
+    EstimateDetails Details,
+    IReadOnlyList<EstimateLineInput> Lines,
+    IReadOnlyList<Guid?>? ExistingLineIds = null,
+    RepairSpecificationSupplementary? Supplementary = null)
+{
+    public Guid? SelectedRateCardId { get; init; }
+
+    public long? SelectedRateCardVersion { get; init; }
+
+    /// <summary>The editor save this section is, inside the Case save's envelope.</summary>
+    public SaveEstimateRequest ToSaveEstimateRequest(SaveCaseWorkspaceRequest owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        return new(
+            owner.CaseId,
+            owner.ExpectedVersion,
+            owner.Actor,
+            owner.OperationKey,
+            owner.Reason ?? string.Empty,
+            owner.EditLeaseToken,
+            EstimateId,
+            Details,
+            Lines,
+            new(RepairSpecificationSourceRoute.Manual, null, null, null),
+            ExistingLineIds: ExistingLineIds)
+        {
+            SelectedRateCardId = SelectedRateCardId,
+            SelectedRateCardVersion = SelectedRateCardVersion,
+            Supplementary = Supplementary,
+        };
+    }
+}
 
 public sealed record CaseWorkspaceSettlement(
     IReadOnlyDictionary<string, string?>? AssessmentFields);
@@ -275,8 +315,8 @@ public sealed record CaseWorkspaceCompleteness(
 /// <summary>
 /// One Case edit. Every section is optional: a null section was not submitted
 /// and is left exactly as persisted, while a submitted section replaces its
-/// own members — a null member inside it clears that value. Engineer notes and
-/// Case notes are separately attributed append commands and are deliberately
+/// own members — a null member inside it clears that value. Case notes are a
+/// separately attributed append command (AddCaseNote) and are deliberately
 /// absent from this replace-style payload.
 ///
 /// The save needs no reason (planning decision A, 13 September): its history
@@ -302,7 +342,7 @@ public sealed record SaveCaseWorkspaceRequest(
 
     public CaseWorkspaceImagePreparation? ImagePreparation { get; init; }
 
-    public CaseWorkspaceValuationDraft? Valuation { get; init; }
+    public CaseWorkspaceValuation? Valuation { get; init; }
 
     public CaseWorkspaceEstimate? Estimate { get; init; }
 
@@ -412,7 +452,8 @@ public static class CaseWorkspaceChangeSummary
         int imagesPrepared,
         string? reason,
         bool wordingChanged = false,
-        IReadOnlyList<ValuationDetails>? valuationsRecorded = null)
+        IReadOnlyList<ValuationDetails>? valuationsRecorded = null,
+        bool valuationAdopted = false)
     {
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(after);
@@ -474,6 +515,11 @@ public static class CaseWorkspaceChangeSummary
         foreach (var valuation in valuationsRecorded ?? [])
         {
             parts.Add($"Valuation: {ValuationPolicy.SourceName(valuation.Source)} {valuation.GuideMonth?.ToString("MMM yyyy", CultureInfo.InvariantCulture)}");
+        }
+
+        if (valuationAdopted)
+        {
+            parts.Add("Engineer's Value applied");
         }
 
         var summary = parts.Count == 0 ? "No field changed" : string.Join(", ", parts);
@@ -591,8 +637,23 @@ public static class CaseWorkspacePolicy
             };
         }
 
+        // Adopting the Engineer's Value is a professional finding: the same
+        // authority and the same selection rules the calculator's preview
+        // checks.
+        if (validated.Valuation is { Adoption: { } adoption } adopting)
+        {
+            AssessmentPolicy.RequireFindingConfirmationAuthority(validated.Actor);
+            validated = validated with
+            {
+                Valuation = adopting with
+                {
+                    Adoption = ValuationCalculationPolicy.ValidateSelection(adoption, nameof(request))
+                }
+            };
+        }
+
         return validated.Estimate is { } estimate
-            ? validated with { Estimate = ValidateEstimate(estimate, validated.Actor) }
+            ? validated with { Estimate = ValidateEstimate(estimate, validated) }
             : validated;
     }
 
@@ -689,22 +750,6 @@ public static class CaseWorkspacePolicy
         AddAll(request.Settlement?.AssessmentFields, "Settlement");
         AddAll(request.Report?.AssessmentFields, "Report");
 
-        if (request.Valuation is { DraftInputs: { } draftInputs })
-        {
-            foreach (var (path, rawValue) in draftInputs)
-            {
-                if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition)
-                    || definition.IsFinding)
-                {
-                    throw new InvalidOperationException(
-                        $"The valuation section retains working inputs only; '{path}' is a "
-                        + "professional finding and is recorded by the valuation Apply command.");
-                }
-
-                Add(path, rawValue);
-            }
-        }
-
         if (request.Vehicle?.Odometer is { } odometer)
         {
             Add(AssessmentVocabulary.VehicleMileageSource, odometer.Source);
@@ -771,7 +816,6 @@ public static class CaseWorkspacePolicy
                 PrincipalNotes = overview.PrincipalNotes,
                 ClaimSourceNotes = overview.ClaimSourceNotes,
                 ClientNotes = overview.ClientNotes,
-                InstructionDate = overview.InstructionDate,
                 VatStatus = overview.VatStatus,
                 RepairerAddress = overview.RepairerAddress,
                 RepairerName = overview.Repairer?.Name,
@@ -856,9 +900,10 @@ public static class CaseWorkspacePolicy
     /// <summary>
     /// Paths a section owns through a typed member. Accepting them again as
     /// free-form assessment fields would give one fact two spellings in one
-    /// payload.
+    /// payload. The Case editor records each of these through its section's
+    /// typed member, so each is a path a staff member can confirm.
     /// </summary>
-    private static readonly HashSet<string> TypedPaths = new(
+    public static IReadOnlySet<string> TypedPaths { get; } = new HashSet<string>(
         StringComparer.Ordinal)
     {
         AssessmentVocabulary.DamageImpacts,
@@ -868,33 +913,21 @@ public static class CaseWorkspacePolicy
         AssessmentVocabulary.ReportDate
     };
 
+    /// <summary>
+    /// The specification the save carries, checked by the estimate policy
+    /// that owns an editor save (its header, lines, line identities and
+    /// author) inside this save's own envelope.
+    /// </summary>
     private static CaseWorkspaceEstimate ValidateEstimate(
         CaseWorkspaceEstimate estimate,
-        ActionActor actor)
+        SaveCaseWorkspaceRequest request)
     {
-        if (estimate.EstimateId == Guid.Empty)
-        {
-            throw new ArgumentException(
-                "An estimate identifier cannot be empty when supplied.",
-                nameof(estimate));
-        }
-
-        if (estimate.Details is null && estimate.Lines is null)
-        {
-            throw new ArgumentException(
-                "A submitted estimate section requires its header, its lines, or both.",
-                nameof(estimate));
-        }
-
-        RepairSpecificationPolicy.RequireStaffAuthor(actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
+        var validated = EstimatePolicy.ValidateContent(estimate.ToSaveEstimateRequest(request));
         return estimate with
         {
-            Details = estimate.Details is null
-                ? null
-                : EstimatePolicy.ValidateDetails(estimate.Details),
-            Lines = estimate.Lines is null
-                ? null
-                : AssessmentPolicy.NormalizeRepairSpecificationLines(estimate.Lines)
+            Details = validated.Details,
+            Lines = validated.Lines,
         };
     }
 

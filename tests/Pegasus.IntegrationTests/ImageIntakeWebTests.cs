@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -87,7 +88,7 @@ public sealed class ImageIntakeWebTests
         Assert.DoesNotContain("Open in Box", imageIntakePage, StringComparison.Ordinal);
         // This receipt never opened a Triage, so the record has nothing to link to.
         Assert.DoesNotContain("Open Triage", imageIntakePage, StringComparison.Ordinal);
-        Assert.Contains("data-record-kind=\"image\"", imageIntakePage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-record-kind", imageIntakePage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -362,6 +363,30 @@ internal static class MultiFormatFixture
 internal static class ImageIntakeTestData
 {
     /// <summary>
+    /// Runs the queued Vehicle images custody the Worker would run: a
+    /// registered record's photographs are read from its own folder, never
+    /// from a holding copy (operator, 23 September 2026).
+    /// </summary>
+    public static async Task ProcessImageCaseCustodyAsync(IntakeWebApplicationFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        Guid[] workIds;
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            workIds = await context.ExternalWorkItems.AsNoTracking()
+                .Where(item => item.Kind == ExternalWorkKinds.CreateImageCaseCustody)
+                .Select(item => item.Id)
+                .ToArrayAsync();
+        }
+        Assert.NotEmpty(workIds);
+        foreach (var workId in workIds)
+        {
+            await scope.ServiceProvider.GetRequiredService<IProcessQueuedCustody>()
+                .ExecuteAsync(workId, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
     /// Inserts one principal with the given code and active flag, together
     /// with the organization and sequence lineage its foreign keys require.
     /// The remaining principal columns all carry database defaults, so this
@@ -506,12 +531,13 @@ internal static class ImageIntakeTestData
         await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
             context.Database,
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {"not_ready"}, {"pending"}, {originReceiptId}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
             context.Database,
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {workflowState}, {0L}, {Guid.NewGuid()})");
         await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlInterpolatedAsync(
             context.Database,
-            $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {now}, {"image-intake-test-reader"}, {"1"}, {"image-intake-fixture"}, {1}, {reference}, {1}, {true}, {now})");
+            $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {now}, {"image-intake-test-reader"}, {"1"}, {"image-intake-fixture"}, {1}, {reference}, {1}, {true}, {now})");
         return caseId;
     }
 }

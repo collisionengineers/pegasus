@@ -352,7 +352,6 @@ public sealed class CaseDetailsWebTests
             "contactName",
             "contactEmailAddress",
             "contactPhoneNumber",
-            "instructionDate",
             "vatStatus",
             "inspectionDate",
             "inspectionDeadline",
@@ -363,6 +362,7 @@ public sealed class CaseDetailsWebTests
         {
             Assert.Equal(1, Occurrences(html, $"name=\"{field}\""));
         }
+        Assert.Equal(0, Occurrences(html, "name=\"instructionDate\""));
         Assert.Contains(
             "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\">",
             html,
@@ -466,7 +466,10 @@ public sealed class CaseDetailsWebTests
         Assert.DoesNotContain("presence-strip", html, StringComparison.Ordinal);
         var refresh = RefreshForm(html);
         Assert.Contains("name=\"section\"", refresh, StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Refresh\"", refresh, StringComparison.Ordinal);
+        // The shared refresh button: the label the "Refreshing" rewrite
+        // targets is the button's accessible name (issue 831).
+        Assert.Contains("title=\"Refresh\"", refresh, StringComparison.Ordinal);
+        Assert.Contains("data-refresh-label", refresh, StringComparison.Ordinal);
 
         // The ribbon's actions: Cancel and Save beside the Editing badge and
         // the one Actions menu; no reason dialog stands between Save and the
@@ -527,7 +530,7 @@ public sealed class CaseDetailsWebTests
                 "vehicle-lookup",
                 new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero))],
             [],
-            new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
         store.FocusedAssessment = assessment;
         var assessmentWorkspace = new CountingAssessmentWorkspace(
             AssessmentWorkspaceTestData.Create(assessment));
@@ -765,25 +768,6 @@ public sealed class CaseDetailsWebTests
         Assert.Equal(
             requirementExpected,
             html.Contains("Original report missing", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task LinkedAuditDoesNotRenderTheStandaloneOriginalReportRequirementOrAction()
-    {
-        var store = new RecordingCaseDetailsStore
-        {
-            SummaryCaseType = CaseType.Audit,
-            AuditOfCaseId = Guid.NewGuid()
-        };
-        using var workspace = await EnterEditModeAsync(store, _ => { });
-
-        var fullPage = await workspace.GetWorkspaceAsync();
-        var files = await GetHtmlAsync(
-            workspace.Client,
-            $"/Cases/{store.CaseId:D}?section=files");
-
-        Assert.DoesNotContain("Original report missing", fullPage, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.MarkAsOriginalReport, files, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -67,7 +67,7 @@ Preserve the current design-system values unless the task explicitly changes the
 - Dense operational rows: 40px.
 - Rail: 220px expanded, 64px collapsed.
 - Utility bar: 48px.
-- Working-set strip: 40px when present.
+- No working-set strip: it was removed from every page (operator, 24 September 2026).
 - Main page padding: 18px desktop.
 - Content cap: 1580px and centred.
 - Base radius: 3px; large radius: 4px.
@@ -89,8 +89,8 @@ large shadows, marketing illustrations, oversized typography, or a new spacing s
 - Keep bounded forms aligned. Do not stretch controls merely because width is available.
 - Use wide desktop space for useful panes, evidence, comparison or tables, not empty decoration.
 - Reflow before hiding. Supported narrower widths must retain information and actions.
-- Do not change rail order, shell geometry, content width, breakpoints, or working-set behaviour
-  as a side effect of a page feature.
+- Do not change rail order, shell geometry, content width or breakpoints as a side effect of a
+  page feature. Do not reintroduce a working-set strip or any other strip of record tabs.
 - Do not create a second shell, second page-header convention, or second record-frame convention.
 - A page-local overflow problem must be fixed locally. Do not broaden a global selector to solve
   one component's sizing problem.
@@ -216,7 +216,7 @@ Pegasus has no decorative motion system.
 JavaScript enhances established server-rendered controls; it does not create a new visual
 language.
 
-- Reuse existing `data-menu`, dialog, toast, dirty-state, working-set and viewer conventions.
+- Reuse existing `data-menu`, dialog, toast, dirty-state and viewer conventions.
 - Escape/outside-click behaviour must match sibling components.
 - Do not add a custom menu/dropdown interaction when the existing frame convention fits.
 - Preserve keyboard operation and focus restoration.
@@ -237,10 +237,10 @@ request that touches the area:
 
 - shell route order or rail structure;
 - design tokens, font, palette, radii or global density;
-- utility bar or working-set model;
+- utility bar model, or bringing back a working-set strip;
 - Case ribbon, section-row or section ordering;
 - Scroll/Tabs default behaviour;
-- Figures/Next action aside model;
+- Views card, Figures and Next action aside model;
 - established ownership of a fact/action between Case sections;
 - table-to-card or card-to-table presentation family;
 - action hierarchy/placement;

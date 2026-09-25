@@ -347,31 +347,28 @@ internal sealed class CachedDocumentContentStore(
             {
                 throw new UnauthorizedAccessException("The intake source does not belong to the authorized receipt.");
             }
-            string expectedParentId = box.HoldingFolderId;
             if (request.CaseId is { } caseId)
             {
-                var associatedCase = await db.Cases.AsNoTracking()
-                    .Where(
+                var associatedWithCase = await db.Cases.AsNoTracking()
+                    .AnyAsync(
                     value => value.Id == caseId
                         && (value.OriginIntakeReceiptId == asset.IntakeReceiptId
-                            || value.IntakeLinks.Any(link => link.IntakeReceiptId == asset.IntakeReceiptId)))
-                    .Select(value => value.CustodyRootRemoteId)
-                    .SingleOrDefaultAsync(cancellationToken);
+                            || value.IntakeLinks.Any(link => link.IntakeReceiptId == asset.IntakeReceiptId)),
+                    cancellationToken);
                 var manuallyAssociated = await db.Set<IntakeManualAssociationEntity>().AnyAsync(
                     value => value.CaseId == caseId
                         && value.IntakeReceiptId == asset.IntakeReceiptId
                         && value.IsActive,
                     cancellationToken);
-                if (associatedCase is null && !manuallyAssociated)
+                if (!associatedWithCase && !manuallyAssociated)
                 {
                     throw new UnauthorizedAccessException("The intake source is not associated with the authorized Case.");
                 }
-                expectedParentId = associatedCase
-                    ?? await db.Cases.Where(value => value.Id == caseId)
-                        .Select(value => value.CustodyRootRemoteId)
-                        .SingleAsync(cancellationToken)
-                    ?? throw new FileNotFoundException("The authorized Case custody root is unavailable.");
             }
+            // The confirmed copy is wherever custody filed it: the holding
+            // folder, the Case folder or the Vehicle images folder. Box then
+            // checks the file really sits there.
+            var expectedParentId = asset.BoxParentFolderId;
             if (!string.Equals(asset.CustodyStatus, "confirmed", StringComparison.Ordinal)
                 || string.IsNullOrWhiteSpace(asset.BoxFileId)
                 || string.IsNullOrWhiteSpace(asset.BoxVersionId)
@@ -406,7 +403,10 @@ internal sealed class CachedDocumentContentStore(
             select new
             {
                 Version = documentVersion,
-                CaseRootRemoteId = caseEntity.CustodyRootRemoteId
+                // The document's own folder: the a. folder for an Audit report.
+                CaseRootRemoteId = document.CustodyFolder == CaseCustodyFolders.Audit
+                    ? caseEntity.AuditCustodyRemoteId
+                    : caseEntity.CustodyRootRemoteId
             }).SingleOrDefaultAsync(cancellationToken)
             ?? throw new FileNotFoundException("The authorized document version is unavailable.");
         return ResolvedSource.Create(

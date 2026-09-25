@@ -10,7 +10,7 @@
   its own identity and history and no management powers.
 - Lists page by cursor, 50 by default and 100 at most. Documents are checked
   for permission before any content is read.
-- The Actor can work Unidentified items, Triage, AI jobs and estimates. It
+- The Actor can work Unidentified items, Triage Cases, AI jobs and estimates. It
   cannot send mail on its own or touch Glass's credentials.
 - A tool counts as delivered only after a real caller has proved success,
   authorisation failure, validation failure and history.
@@ -69,9 +69,24 @@ Documents scope again and keeps the original lease, version and operation
 identity. ZIP output streams in order, without ranges. An invalid, expired or
 foreign export ticket gets the same non-disclosing unavailable response.
 
-**Assessment writes.** A generic assessment update refuses valuation,
-estimate, signatory and accepted-finding fields. Named Core commands own
-those, with the same actor, lease, version and replay checks as the Case UI
+**Assessment writes.** `pegasus_assessment_update` writes only non-finding
+assessment fields a staff member records, and so confirms or clears, on the
+Case: the fields a Case section's editor posts and those a section writes
+through its own typed member (damage entries, mileage source, storage per
+day, recovery charge and report date). Any other field is refused and named,
+so every unconfirmed Automation value is one the next staff Save of its
+section confirms or clears (operator, 24 September 2026). Professional
+findings (including the Engineer's Value and its basis card's retail and
+trade), Case-owned facts, fields derived from damage entries and the facts
+the DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry)
+are refused. Case facts, including the Inspection date the report prints as
+the date the damage was assessed, change through
+`pegasus_case_update_details`, and `pegasus_assessment_get` returns them
+under `caseOwned`. The Case's Received date, which is its instruction date,
+is read-only: `caseOwned.receivedDate` and the Case summary's
+`receivedAtUtc` carry it, and no tool accepts an instruction date.
+Estimates go through the named estimate tools, with the same actor, lease,
+version and replay checks as the Case UI
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Unidentified reason
 codes on the wire are the Core list under `unidentified`. The tool list has
 no autonomous Send and never exposes Glass's credentials or sessions.
@@ -102,9 +117,10 @@ Triage is ordinary `PerformCasework`. The Actor may list and inspect a
 Triage, retrieve its retained origin source, mark it Awaiting information,
 record or supersede a finding, link or unlink exact response evidence,
 complete, cancel or reopen it, and link or unlink a Case under the normal
-Case edit lease and version guards. Each action calls the same Core query or
-command staff use, supplies the resolved Automation identity rather than
-caller-provided actor data, and keeps Triage distinct from Unidentified.
+Case edit lease and version guards. The tools identify a Triage by its Case
+id (`caseId`) and return its `t.` Case/PO. Each action calls the same Core
+query or command staff use, supplies the resolved Automation identity rather
+than caller-provided actor data, and keeps Triage distinct from Unidentified.
 
 Assignment names a selected staff assignee, separate from the acting principal.
 An actor-relative `Assign to me` is not part of the Automation contract and
@@ -134,15 +150,15 @@ stopped automation client is refused before any tool runs.
 | `pegasus_estimate_list` | `automation.assessment` | List a Case's estimates with their state and source |
 | `pegasus_estimate_import` | `automation.assessment` | Import one retained raw estimate through the canonical Core command using its name, Case and document occurrence/version identities, SHA-256, typed actor, expected Case version, edit lease and operation key; return the estimate identity or the same structured refusal as the Case caller |
 
-`pegasus_estimate_import` and the Assessment page's drop are two callers of
-one Core command. Both use the same parser types, the same fail-closed
-provider detection, the same provider-plus-sequence Draft naming and the same
-replay rule. The caller does not choose a trusted provider route. Even a
-source-hash replay needs the current actor, version and lease authority and
-the exact retained source tuple. An unsupported estimate document is refused
-without OCR or partial rows. The import stays an unconfirmed Draft with no AI
-job reference and cannot become Current through MCP. These contracts do not
-prove live provider acceptance.
+`pegasus_estimate_import` and **Import estimate** on the Repair Spec section
+are two callers of one Core command. Both use the same parser types, the same
+fail-closed provider detection, the same provider-plus-sequence Draft naming
+and the same replay rule. The caller does not choose a trusted provider
+route. Even a source-hash replay needs the current actor, version and lease
+authority and the exact retained source tuple. An unsupported estimate
+document is refused without OCR or partial rows. The import stays an
+unconfirmed Draft with no AI job reference and cannot become Current through
+MCP. These contracts do not prove live provider acceptance.
 
 **Scopes.** `automation.jobs` is its own scope with a consent description on
 the Administrator consent page; a token without it cannot see the ledger. The
@@ -166,7 +182,9 @@ FRD-03, Cases in FRD-13, AI jobs in FRD-11.
 - A foreign or oversize cursor, export ticket or document request gets a
   non-disclosing failure.
 - A stopped automation client is refused by the kill switch.
-- A generic assessment update that touches a protected field is refused.
+- A generic assessment update that names a finding, a Case-owned or derived
+  field, or a field no Case section records is refused, naming the field, and
+  writes nothing.
 - Missing production signing or encryption keys fail closed.
 
 ## Acceptance evidence

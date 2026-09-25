@@ -1,9 +1,19 @@
 namespace Pegasus.Core.Identity;
 
+/// <summary>
+/// A staff member replacing their own password.
+/// </summary>
+/// <remarks>
+/// <paramref name="CurrentPassword"/> is <see langword="null"/> when the account
+/// is completing a forced change: the password it holds was issued by an
+/// Administrator, so proving it adds nothing and the account only chooses the
+/// replacement. The store refuses a missing current password for an account
+/// that is not in forced-change state.
+/// </remarks>
 public sealed record ChangeStaffPasswordRequest(
     ActionActor Actor,
     Guid StaffId,
-    string CurrentPassword,
+    string? CurrentPassword,
     string NewPassword,
     string OperationKey);
 
@@ -51,18 +61,21 @@ public sealed class ChangeStaffPassword(IStaffPasswordChangeStore store)
             request.Actor,
             StaffAccessRight.AccessStaffApplication);
         StaffAccountAdministrationPolicy.ValidateTemporaryPassword(
-            request.CurrentPassword,
-            nameof(request.CurrentPassword));
-        StaffAccountAdministrationPolicy.ValidateTemporaryPassword(
             request.NewPassword,
             nameof(request.NewPassword));
-        if (string.Equals(
-                request.CurrentPassword,
-                request.NewPassword,
-                StringComparison.Ordinal))
+        if (request.CurrentPassword is not null)
         {
-            throw new StaffPasswordChangeException(
-                StaffPasswordChangeError.PasswordUnchanged);
+            StaffAccountAdministrationPolicy.ValidateTemporaryPassword(
+                request.CurrentPassword,
+                nameof(request.CurrentPassword));
+            if (string.Equals(
+                    request.CurrentPassword,
+                    request.NewPassword,
+                    StringComparison.Ordinal))
+            {
+                throw new StaffPasswordChangeException(
+                    StaffPasswordChangeError.PasswordUnchanged);
+            }
         }
 
         return _store.ChangeAsync(

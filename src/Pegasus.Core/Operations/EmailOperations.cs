@@ -24,7 +24,7 @@ public sealed record EmailOperationProjection(
     string? MailboxIdentity,
     DateTimeOffset LastActivityAtUtc,
     Guid? IntakeId,
-    Guid? TriageId,
+    Guid? TriageCaseId,
     Guid? CaseId,
     string? CaseReference,
     string? PrincipalCode,

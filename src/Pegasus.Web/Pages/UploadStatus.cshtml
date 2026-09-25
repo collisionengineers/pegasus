@@ -4,6 +4,12 @@
     ViewData["Title"] = "Upload status";
     ViewData["UploadCaseConfirmation"] = Model.UploadCaseConfirmation;
     ViewData["UploadCaseDraft"] = Model.UploadCaseDraft;
+    // The id is in the path; only the duplicate marker needs replaying so a
+    // refresh keeps reporting the resubmission outcome.
+    ViewData["RefreshFields"] = new Dictionary<string, string?>
+    {
+        ["duplicate"] = Model.IsDuplicate ? "true" : null
+    };
 }
 
 @* The state is the heading; the values are the panel. Nothing beneath the
@@ -14,13 +20,7 @@
         <h1>@Model.Heading</h1>
     </div>
     <div class="page-actions">
-        <a class="btn"
-           asp-page="/UploadStatus"
-           asp-route-id="@Model.Status.StagedReceiptId"
-           asp-route-duplicate="@(Model.IsDuplicate ? "true" : null)">
-            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-            <span>@OperatorLabels.Upload.Refresh</span>
-        </a>
+        <partial name="Shared/_RefreshButton" />
         <a class="btn btn--primary" asp-page="/Upload">
             <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
             <span>@OperatorLabels.Upload.Another</span>

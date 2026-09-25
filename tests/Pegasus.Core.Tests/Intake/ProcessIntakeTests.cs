@@ -443,6 +443,31 @@ public sealed class ProcessIntakeTests
         Assert.Single(receiptStore.Drafts);
     }
 
+    [Theory]
+    [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.NotApplicable, true)]
+    [InlineData(false, IntakeDecision.CaseCreated, AutomaticCaseEvidencePromotionOutcome.NotApplicable, true)]
+    [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.Failed, true)]
+    [InlineData(true, IntakeDecision.CaseCreated, AutomaticCaseEvidencePromotionOutcome.NotApplicable, false)]
+    [InlineData(false, IntakeDecision.ImageIntakeRegistered, AutomaticCaseEvidencePromotionOutcome.NotApplicable, false)]
+    [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.Confirmed, false)]
+    [InlineData(false, IntakeDecision.NeedsSorting, AutomaticCaseEvidencePromotionOutcome.Pending, false)]
+    public async Task OnlyIntakeNoAutomaticDestinationFilesIsHeld(
+        bool allocated,
+        IntakeDecision decision,
+        AutomaticCaseEvidencePromotionOutcome promotion,
+        bool held)
+    {
+        var receipt = await CreateSut(new StubReader(Readable()), new RecordingStore())
+            .ExecuteAsync(CreateSource());
+        var settled = receipt with
+        {
+            Decision = decision,
+            AcceptedCaseId = allocated ? Guid.NewGuid() : null
+        };
+
+        Assert.Equal(held, ProcessIntake.RequiresHolding(settled, promotion));
+    }
+
     [Fact]
     public async Task ConfirmedHoldingCustodyDoesNotReadStagingAgainDuringRepair()
     {
@@ -758,7 +783,7 @@ public sealed class ProcessIntakeTests
             InstructionPolicyApplicability.Applicable,
             [],
             [],
-            new("OTHER", null, null, null, null, null, null, null, null, null, null),
+            new("OTHER", null, null, null, null, null, null, null, null, null),
             [],
             "adversarial_policy",
             1));
@@ -1278,7 +1303,7 @@ public sealed class ProcessIntakeTests
             applicability,
             [],
             [new("Claimant name", "Review Claimant", [], false, false)],
-            new("SHOULD_NOT_PERSIST", null, null, null, null, null, null, null, null, null, null),
+            new("SHOULD_NOT_PERSIST", null, null, null, null, null, null, null, null, null),
             ["Claim number"],
             "adversarial_policy",
             1));
@@ -1374,7 +1399,7 @@ public sealed class ProcessIntakeTests
         Assert.Equal(12345L, typed.VehicleMileage);
         Assert.Equal("Controlled fixture circumstances", typed.AccidentCircumstances);
         Assert.Equal(new DateOnly(2031, 3, 4), typed.DateOfIncident);
-        Assert.Equal(new DateOnly(2031, 3, 5), typed.InstructionDate);
+        Assert.DoesNotContain(draft.Fields, field => field.Name == "Instruction date");
         Assert.Equal("Image Based Assessment", typed.InspectionAddress);
         Assert.Equal(
             "AB12 CDE",

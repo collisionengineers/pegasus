@@ -47,13 +47,16 @@ public sealed class GetUnidentifiedItemContext(
     IIntakeReceiptQueries receipts,
     IVrmSuggestionStore vrmSuggestions,
     IImageIntakeQueries imageIntakes,
-    ITriageQueries triages) : IGetUnidentifiedItemContext
+    ITriageQueries triages,
+    ITriagePrincipalGate triagePrincipalGate) : IGetUnidentifiedItemContext
 {
     private readonly IUnidentifiedStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly IIntakeReceiptQueries _receipts = receipts ?? throw new ArgumentNullException(nameof(receipts));
     private readonly IVrmSuggestionStore _vrmSuggestions = vrmSuggestions ?? throw new ArgumentNullException(nameof(vrmSuggestions));
     private readonly IImageIntakeQueries _imageIntakes = imageIntakes ?? throw new ArgumentNullException(nameof(imageIntakes));
     private readonly ITriageQueries _triages = triages ?? throw new ArgumentNullException(nameof(triages));
+    private readonly ITriagePrincipalGate _triagePrincipalGate =
+        triagePrincipalGate ?? throw new ArgumentNullException(nameof(triagePrincipalGate));
 
     public async Task<UnidentifiedItemContext?> ExecuteAsync(
         ActionActor actor,
@@ -91,6 +94,12 @@ public sealed class GetUnidentifiedItemContext(
             ? await _vrmSuggestions.ListForReceiptAsync(receipt.Id, cancellationToken)
             : [];
         var open = item.State == UnidentifiedState.Open;
+        // Open the Triage opens a Triage Case, which takes the receipt's
+        // Principal: without an established one it is not offered.
+        var canOpenTriage = open && triage is null
+            && receipt.Decision == IntakeDecision.NeedsSorting
+            && receipt.Evidence.Count(evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch) == 1
+            && await _triagePrincipalGate.GetEstablishedPrincipalIdAsync(receipt.Id, cancellationToken) is not null;
         return new(
             item,
             receipt,
@@ -98,8 +107,6 @@ public sealed class GetUnidentifiedItemContext(
             imageIntake,
             triage,
             CanRegisterImages: open && isImageEligible && imageIntake is null && receipt.Decision == IntakeDecision.NeedsSorting,
-            CanOpenTriage: open && triage is null
-                && receipt.Decision == IntakeDecision.NeedsSorting
-                && receipt.Evidence.Count(evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch) == 1);
+            CanOpenTriage: canOpenTriage);
     }
 }

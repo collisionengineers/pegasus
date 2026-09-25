@@ -46,13 +46,6 @@ public static class OperatorLabels
     public const string PrincipalNotKnown = "Not known";
 
     /// <summary>
-    /// The Triage compact-dialog trigger and title for setting or correcting
-    /// the known principal — the one Image Intake action its inline editor has
-    /// no separate button for, because Triage exposes it as a dialog instead.
-    /// </summary>
-    public const string SetPrincipal = "Set principal";
-
-    /// <summary>
     /// The Triage's own permanent reference, distinct from the originating
     /// provider claim number.
     /// </summary>
@@ -193,6 +186,19 @@ public static class OperatorLabels
         Pegasus.Core.Triage.TriageState.Cancelled => "Cancelled",
         _ => throw new InvalidOperationException($"Unknown triage state '{(int)state}'.")
     };
+
+    /// <summary>
+    /// The state a staff "Link to case" destination shows: a Case's stage, or
+    /// a Triage Case's Triage state.
+    /// </summary>
+    public static string AssociationDestinationState(IntakeAssociationDestination destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        return destination.TriageState is { } triageState
+            ? TriageState(triageState)
+            : CaseStage(destination.State
+                ?? throw new InvalidOperationException("A Case destination has no lifecycle state."));
+    }
 
     /// <summary>
     /// What the retained-instruction analysis concluded, in the operator's own
@@ -369,7 +375,7 @@ public static class OperatorLabels
         };
     }
 
-    /// <summary>The shell's own words (v26 shell): the rail foot, the bell and the working set.</summary>
+    /// <summary>The shell's own words (v26 shell): the rail foot and the bell.</summary>
     public static class Shell
     {
         public const string Collapse = "Collapse";
@@ -381,7 +387,6 @@ public static class OperatorLabels
         public const string NoNotifications = "No notifications";
         public const string MarkAllRead = "Mark all read";
         public const string Unread = "Unread";
-        public const string OpenRecords = "Open records";
         public const string AccessDenied = "Access denied";
         public const string AccessDeniedSentence = "Your account does not have access to this page.";
         public const string AdministrationDenied = "Administration is available to Administrators only.";
@@ -555,6 +560,7 @@ public static class OperatorLabels
         CaseType.Inspection => "Inspection",
         CaseType.Audit => "Audit",
         CaseType.InspectionAndAudit => "Inspection and audit",
+        CaseType.Triage => "Triage",
         _ => Humanise(type.ToString())
     };
 
@@ -632,10 +638,11 @@ public static class OperatorLabels
     /// </summary>
     public static class WorkCentre
     {
+        /// <summary>The metric of the active Triage Cases, last in the strip.</summary>
+        public const string Triages = "Triages";
         public const string Eyebrow = "Office-wide work";
         public const string Title = "Work Centre";
         public const string CreateCase = "Create Case";
-        public const string Refresh = "Refresh";
         public const string NeedsAttention = "Needs attention";
         public const string Today = "Today";
         public const string SelectedWork = "Selected work";
@@ -956,6 +963,17 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The Audit's <c>a.</c> Box folder state, mirroring
+    /// <see cref="CustodyFolderState"/> for the cases where there is no
+    /// confirmed folder to name.
+    /// </summary>
+    public static string AuditCustodyFolderState(CaseCustodyState state) => state switch
+    {
+        CaseCustodyState.Pending => "Box audit folder: preparing",
+        _ => "Box audit folder: unavailable"
+    };
+
+    /// <summary>
     /// The Service health table's area grouping, in the operator's language.
     /// </summary>
     /// <remarks>
@@ -1099,7 +1117,6 @@ public static class OperatorLabels
         "merged_into_instruction_case" => "Merged into Instruction-initiated Case",
         "staff_closed" => "Staff-closed",
         "image_initiated_case_merged" => "Image-initiated Case merged in",
-        "engineer_finding_recorded" => "Engineer finding recorded",
         "report_evidence_auto_linked" => "Sent report linked automatically",
         "standalone_audit_evidence_confirmed" => "Audit evidence confirmed",
         "audit_custody_confirmed" => "Audit evidence stored",
@@ -1597,6 +1614,9 @@ public static class OperatorLabels
     public static class StaffMail
     {
         public const string Reconcile = "Reconcile";
+        public const string Reply = "Reply";
+        public const string ReplyAll = "Reply all";
+        public const string Forward = "Forward";
 
         public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
         {
@@ -2060,7 +2080,6 @@ public static class OperatorLabels
             public const string CompareEstimates = "Compare repair specs";
             public const string State = "State";
             public const string UseEstimate = "Use repair spec";
-            public const string SaveEstimate = "Save repair spec";
             public const string AddLine = "Add line";
             public const string DeleteAllLines = "Delete all lines";
             public const string LinesWord = "lines";
@@ -2118,7 +2137,6 @@ public static class OperatorLabels
             public const string SalvageValue = "Salvage value";
             public const string RecoveryCharge = "Recovery charge";
             public const string StorageCharge = "Storage charge";
-            public const string RepairerVatRegistered = "Repairer VAT registered";
 
             public const string Report = "Report";
             public const string EngineersComments = "Engineer's comments";
@@ -2177,7 +2195,6 @@ public static class OperatorLabels
         public const string Submit = "Upload";
         public const string Clear = "Clear";
         public const string Another = "Upload another file";
-        public const string Refresh = "Refresh";
         public static string AcceptedFiles(long maximumFileBytes, int maximumFileCount) =>
             string.Create(
                 CultureInfo.InvariantCulture,
@@ -2295,7 +2312,7 @@ public static class OperatorLabels
         {
             IntakeLogBecameKind.Case => $"/Cases/{became.Id:D}",
             IntakeLogBecameKind.Unidentified => $"/Unidentified/{became.Id:D}",
-            IntakeLogBecameKind.Triage => $"/Triage/{became.Id:D}",
+            IntakeLogBecameKind.Triage => $"/Cases/{became.Id:D}",
             IntakeLogBecameKind.ImageIntake => $"/VehicleImages/{became.Id:D}",
             _ => "/"
         };

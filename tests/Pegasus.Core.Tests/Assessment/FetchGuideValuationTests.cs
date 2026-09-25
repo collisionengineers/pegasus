@@ -57,7 +57,7 @@ public sealed class FetchGuideValuationTests
     {
         public int Reads { get; private set; }
 
-        public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken)
+        public Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken)
         {
             Reads++;
             return Task.FromResult<CaseDataProjection?>(null);

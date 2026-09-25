@@ -8,8 +8,9 @@
   is a new reasoned version, never an edit of the old one.
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
-- Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources. Engineer's Value
-  is adopted only by an explicit Apply, in a fixed order.
+- Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
+  Engineer's Value is adopted, with its basis card's retail and trade values,
+  by a staff member's Save when the calculation changed, in a fixed order.
 - Settlement saves with the Case's single workspace Save. Equity is derived,
   never typed in.
 - AI and Market Research only propose. An authorised person decides.
@@ -39,7 +40,10 @@ Roadworthiness (`Roadworthy` or `Unroadworthy`) and Assessment
 (`Repairable` or `Total loss`) are separate professional findings. Neither is
 derived from the other, and Triage findings never fill or change either one.
 Every enabled human staff role may record or correct these findings under the
-existing state, lease and version rules.
+existing state, lease and version rules. On an Inspection + Audit Case with
+an Audit, the Audit's findings, damage, valuation and settlement are
+recorded on the Audit's values; the Inspection's stay as its report was
+sent ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 
 **Corrections.** A correction never edits an accepted or issued finding in
 place. It creates a reasoned superseding report, finding or addendum with
@@ -55,8 +59,9 @@ on a source or an estimate version are evidence only. No finding, figure,
 outcome, deduction or settlement meaning is derived from them. They are shown
 as recorded.
 
-**No money effects.** Triage findings and their corrections have no Case,
-report, Audit-reference, fee or invoice effect. Invoicing is deferred
+**No money effects.** Triage findings and their corrections have no effect
+on a linked instruction Case or on any report, Audit reference, fee or
+invoice. Invoicing is deferred
 separately: a finding correction must not create, alter, credit or void an
 invoice. Any later financial consequence needs the separately accepted,
 versioned finance contract.
@@ -95,10 +100,13 @@ no wider than half the vehicle. Every disc is clipped to the vehicle's body,
 on the workspace and on the report alike.
 
 The record also carries tyres and seat belts per corner, the spare tyre, the
-centre belt, unrelated damage with its deduction, and paint or material
-transfer. `impact_location` and `impact_severity` are derived from the areas
-by `Pegasus.Core`, never typed in: one distinct area reads as itself, more
-read Multiple. The report prints the marked diagram
+centre belt, which airbags deployed in the Engineer's words (for example
+`None` or `Driver and passenger front`, recorded under Tyres & seat belts and
+printed in the report's Vehicle Details), unrelated damage with its
+deduction, and paint or material transfer. `impact_location` and
+`impact_severity` are derived from the areas by `Pegasus.Core`, never typed
+in: one distinct area reads as itself, more read Multiple. The report prints
+the marked diagram
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
 
 ### Valuation sources
@@ -111,8 +119,11 @@ and while the source has no working provider the card answers `{Source}
 valuation is unavailable. Contact an administrator or report a problem.`
 (23 September 2026). The card has no Save of its own: the Case's single
 workspace Save records every changed card with whatever was entered, and any
-of its month, mileage, retail and trade may be left blank (operator, 23
-September 2026); a card with every box blank, or unchanged, records nothing.
+of its month, retail and trade may be left blank (operator, 23 September
+2026); a card with every box blank, or unchanged, records nothing. A guide
+card carries no mileage (operator, 24 September 2026): the Case's own
+accepted mileage is the one a valuation uses, both for the lookup and for the
+Engineer's Value.
 The basis is chosen by clicking a card (or Enter or Space on it), and only a
 card with a retail value can be the basis, since the calculation starts from
 retail; there is no Basis control beside the figures ([FRD-16](frd-16-case-record-workspace.md#case-workspace)). AI
@@ -120,30 +131,43 @@ market research is automation-only. No guide provider is
 connected today; connecting one needs its own accepted decision
 ([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
 
-Every entry keeps its date and time, and the mileage, retail and trade
-values and guide month it was given; a guide card may hold any of them blank,
-while an Engineer's Value or AI market research entry always carries its
-figures. Glass's valuation and Glass's repair estimating are two systems
+Every entry keeps its date and time, and the retail and trade values and
+guide month it was given; a guide card may hold any of them blank. An
+Engineer's Value or AI market research entry always carries its figures and a
+mileage: an adopted Engineer's Value takes the Case's accepted mileage in
+miles, so a Save that would adopt one while the Case has no mileage is
+refused, as the lookup is. Glass's valuation and Glass's repair estimating are two systems
 and both are used: the valuation source and the estimate import source keep
 separate label entries and are never merged. An AI market research entry is
 the proposal recorded by the `MarketResearch` job
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
 it never becomes the Engineer's Value by itself.
 
-**Engineer's Value** is adopted only by an explicit Apply by an enabled human
-staff member, in this order:
+**Engineer's Value** is adopted only by an enabled human staff member's Case
+Save, and only when the valuation calculation changed since the page opened
+(a different basis card, the basis card's retail or trade, or any calculator
+control; operator, 23 September 2026), in this order:
 commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
-condition deduction, rounding to whole pounds away from zero. A generic
-assessment save never writes the adopted value. This calculation is current
-required behaviour. Extra rationale or revaluation-history scope needs its
-own accepted contract.
+condition deduction, rounding to whole pounds away from zero. No field of the
+Save writes the adopted value directly; an unchanged calculation adopts
+nothing. The adoption also records the basis card's retail and trade as the
+Case's retail and trade values, which the report prints beside the
+Engineer's Value; a later adoption replaces all three together. A basis card
+without a trade figure records no trade value, and report readiness names
+Trade value until trade is entered on that card and the Case saved, which
+adopts again
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+This calculation is current required behaviour. Extra rationale or
+revaluation-history scope needs its own accepted contract.
 
 ### Settlement
 
-The settlement fields are outcome, category, salvage value, excess,
-betterment, claimant VAT registered, reserve, equity (derived), repair
-delays, report delay, storage per day, recovery, hire start and daily
-cost, diminution, and salvage logistics. Equity is derived, never typed in.
+The settlement fields are outcome, category, salvage value, roadworthiness
+and the unroadworthy reason, for an unroadworthy vehicle whether temporary
+repairs are possible with their method and cost, excess, betterment,
+claimant VAT registered, reserve, equity (derived), repair delays, report
+delay, storage per day, recovery, hire start and daily cost, diminution, and
+salvage logistics. Equity is derived, never typed in.
 Financial ratio lines are allowed, not required; the "no percentage" rule in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review) applies
 only to completeness. Outcome meanings are owned by
@@ -156,8 +180,13 @@ control, so a browser without script picks the same value from it. Salvage
 value carries a slider reading the share of the Engineer's Value, with 5,
 10, 15, 20 and 25 % snaps: the amount and the share are one fact and the
 last touch wins. While the outcome is not a total loss the salvage rows are
-absent and a "Salvage · Not applicable" line stands in their place. Beside
-the typed reserve, a computed **Repair reserve** reads the Current repair
+absent and a "Salvage · Not applicable" line stands in their place. While
+Roadworthiness is Unroadworthy, Temporary repairs possible (Yes or No),
+Temporary repair method and Temporary repair cost follow the unroadworthy
+reason; otherwise they are absent (operator, 24 September 2026), and the
+report's Vehicle Details prints their values only for an unroadworthy vehicle;
+for any other vehicle those rows read —. Beside the typed
+reserve, a computed **Repair reserve** reads the Current repair
 specification's VAT-inclusive cost rounded up to the next £50 on a
 Repairable outcome, and Not applicable otherwise; it is never written.
 
@@ -207,8 +236,9 @@ circular readiness gate is acceptable.
 - A correction never edits an accepted or issued finding in place.
 - Equity is absent when its accepted inputs are incomplete, never a made-up
   zero.
-- A generic assessment save never writes the Engineer's Value; only an
-  explicit Apply does.
+- No assessment field writes the Engineer's Value or its basis card's retail
+  and trade; only a staff Save whose valuation calculation changed adopts
+  them.
 - A valuation source with no connected provider shows the card's notice and
   still lets the figures be typed by hand; the Case Save records them.
 - Research evidence and an AI valuation proposal never become the Engineer's
@@ -217,8 +247,12 @@ circular readiness gate is acceptable.
 
 ## Acceptance evidence
 
-Core tests cover the Engineer's Value order. Live Glass's evidence is a
-separate tier ([engineering](../engineering.md#required-evidence-tiers)).
+Core tests cover the Engineer's Value order. Integration tests cover an
+adoption recording its basis card's retail and trade and a basis card without
+trade leaving Trade value outstanding. Web tests cover Airbags deployed and
+the temporary repair rows in read and edit and through the Case Save. Live
+Glass's evidence is a separate tier
+([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 

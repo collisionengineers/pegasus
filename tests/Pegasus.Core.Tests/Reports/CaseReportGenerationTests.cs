@@ -4,6 +4,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Tests.Reports;
@@ -123,7 +124,7 @@ public sealed class CaseReportGenerationTests
         var result = CaseReportReadiness.Evaluate(ReadyInput() with { CurrentEstimate = null });
 
         var reason = AssertBlocked(result, CaseReportReadiness.CurrentEstimateRequirement);
-        Assert.Contains("EXT-09", reason.WhyOutstanding, StringComparison.Ordinal);
+        Assert.Equal(CaseReportReadiness.CurrentEstimateMissing, reason);
     }
 
     [Fact]
@@ -210,7 +211,178 @@ public sealed class CaseReportGenerationTests
         var result = CaseReportReadiness.Evaluate(
             input with { Assessment = input.Assessment with { Fields = fields } });
 
-        AssertBlocked(result, CaseReportReadiness.ReportDateRequirement);
+        AssertBlocked(result, "Report date");
+    }
+
+    /// <summary>
+    /// The report prints the trade value of the Engineer's Value basis card,
+    /// recorded by the adoption, so a Case without one is not generated.
+    /// </summary>
+    [Fact]
+    public void AMissingTradeValueBlocksGeneration()
+    {
+        var input = ReadyInput();
+        var withoutTrade = input.Assessment.Fields
+            .Where(field => field.Path != AssessmentVocabulary.ValueTrade)
+            .ToArray();
+
+        var result = CaseReportReadiness.Evaluate(
+            input with { Assessment = input.Assessment with { Fields = withoutTrade } });
+
+        var reason = AssertBlocked(result, "Trade value");
+        Assert.Equal("Valuation", reason.Source);
+    }
+
+    /// <summary>
+    /// The report says the damage was assessed on the Case's Inspection date,
+    /// and entry to Review does not prove one is recorded.
+    /// </summary>
+    [Fact]
+    public void AMissingInspectionDateBlocksGeneration()
+    {
+        var input = ReadyInput();
+
+        var result = CaseReportReadiness.Evaluate(input with
+        {
+            Assessment = input.Assessment with
+            {
+                CaseOwned = input.Assessment.CaseOwned with { InspectionDate = null }
+            }
+        });
+
+        Assert.False(result.IsReady);
+        Assert.Equal("Inspection date", Assert.Single(result.Reasons).Requirement);
+    }
+
+    /// <summary>
+    /// A total loss prints only Category S, so any other category is refused
+    /// before the freeze rather than at render.
+    /// </summary>
+    [Fact]
+    public void ANonPrintableSalvageCategoryBlocksGeneration()
+    {
+        var input = ReadyInput();
+        AssessmentFieldValue[] fields =
+        [
+            .. input.Assessment.Fields.Select(field => field.Path == AssessmentVocabulary.Outcome
+                ? field with { Value = "total_loss" }
+                : field),
+            Field(AssessmentVocabulary.SalvageCategory, "B"),
+            Field(AssessmentVocabulary.SalvageValue, "500.00"),
+        ];
+
+        var result = CaseReportReadiness.Evaluate(
+            input with { Assessment = input.Assessment with { Fields = fields } });
+
+        var reason = AssertBlocked(result, "Salvage category");
+        Assert.Equal(AssessmentVocabulary.SalvageCategory, reason.Field);
+    }
+
+    /// <summary>
+    /// A report-level blocker about one recorded fact names that fact, so the
+    /// Case page can send the operator to the section that records it; one
+    /// about other material (the sign-off account, the Current repair spec,
+    /// the report images) names neither a field nor a line.
+    /// </summary>
+    [Fact]
+    public void ReportLevelBlockersNameTheirField()
+    {
+        var input = ReadyInput();
+        AssessmentFieldValue[] fields =
+        [
+            .. input.Assessment.Fields.Where(field => field.Path != AssessmentVocabulary.DamageUnrelated),
+            Field(AssessmentVocabulary.ReportDateOverride, "true"),
+            Field(AssessmentVocabulary.ReportValuationCommentary, "true"),
+            Field(AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),
+        ];
+
+        var reasons = CaseReportReadiness.Evaluate(input with
+        {
+            Assessment = input.Assessment with { Fields = fields },
+            PersistedSignOffEngineerId = null,
+            AssignedEngineerId = null,
+            EligibleSignOffEngineers = [],
+            CurrentEstimate = null,
+            AppliedValuation = null,
+            Preparations = [],
+        }).Reasons;
+
+        string? FieldOf(string requirement) =>
+            Assert.Single(reasons, reason => reason.Requirement == requirement).Field;
+
+        Assert.Equal(AssessmentVocabulary.ValueEngineer, FieldOf(CaseReportReadiness.EngineerValueRequirement));
+        Assert.Equal(
+            AssessmentVocabulary.ReportValuationCommentaryText,
+            FieldOf(CaseReportReadiness.ValuationCommentaryRequirement));
+        Assert.Equal(AssessmentVocabulary.DamageUnrelated, FieldOf(CaseReportReadiness.UnrelatedDamageRequirement));
+        Assert.Equal(AssessmentVocabulary.ReportDate, FieldOf("Report date"));
+        foreach (var requirement in new[]
+        {
+            CaseReportReadiness.SignatoryRequirement,
+            CaseReportReadiness.CurrentEstimateRequirement,
+            CaseReportReadiness.CloseUpImageRequirement,
+            CaseReportReadiness.OverviewImageRequirement,
+        })
+        {
+            var material = Assert.Single(reasons, item => item.Requirement == requirement);
+            Assert.Null(material.Field);
+            Assert.Null(material.EstimateLine);
+        }
+    }
+
+    /// <summary>
+    /// Each report-level resolution names the Case section that clears it, and
+    /// the preview's Prepare names a missing sign-off Engineer and Current
+    /// repair spec with generation's own items.
+    /// </summary>
+    [Fact]
+    public void ReportReadinessResolutionsNameTheLiveCaseSections()
+    {
+        var nothingRecorded = ReadyInput() with
+        {
+            Assessment = AssessmentReportProjectionTests.ReadyAssessment() with { Fields = [], EstimateLines = [] },
+            PersistedSignOffEngineerId = null,
+            AssignedEngineerId = null,
+            EligibleSignOffEngineers = [],
+            CurrentEstimate = null,
+            AppliedValuation = null,
+            Preparations = [],
+            ConfirmedImageSources = new Dictionary<Guid, DocumentVersion>(),
+        };
+        var reasons = CaseReportReadiness.Evaluate(nothingRecorded).Reasons;
+
+        string HowToResolve(string requirement) =>
+            Assert.Single(reasons, reason => reason.Requirement == requirement).HowToResolve;
+
+        Assert.Contains(
+            "the Case details section",
+            HowToResolve(CaseReportReadiness.SignatoryRequirement),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "the Repair Spec section",
+            HowToResolve(CaseReportReadiness.CurrentEstimateRequirement),
+            StringComparison.Ordinal);
+        // With nothing adopted, the post-review Engineer's Value item is the
+        // one blocker for the missing value; the rail does not repeat it.
+        Assert.DoesNotContain(reasons, reason => reason.Requirement == CaseReportReadiness.EngineerValueRequirement);
+        var engineerValue = Assert.Single(reasons, reason => reason.Field == AssessmentVocabulary.ValueEngineer);
+        Assert.Contains("the Valuation section", engineerValue.HowToResolve, StringComparison.Ordinal);
+        Assert.Contains(
+            "the Files section",
+            HowToResolve(CaseReportReadiness.CloseUpImageRequirement),
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "the Files section",
+            HowToResolve(CaseReportReadiness.OverviewImageRequirement),
+            StringComparison.Ordinal);
+
+        var prepared = AssessmentReportProjection.Prepare(nothingRecorded.Assessment).Reasons;
+        Assert.Equal(
+            Assert.Single(reasons, reason => reason.Requirement == CaseReportReadiness.SignatoryRequirement),
+            Assert.Single(prepared, reason => reason.Requirement == CaseReportReadiness.SignatoryRequirement));
+        Assert.Equal(
+            Assert.Single(reasons, reason => reason.Requirement == CaseReportReadiness.CurrentEstimateRequirement),
+            Assert.Single(prepared, reason => reason.Requirement == CaseReportReadiness.CurrentEstimateRequirement));
     }
 
     [Fact]
@@ -739,11 +911,11 @@ public sealed class CaseReportGenerationTests
             Task.FromResult<CaseReportGenerationRecord?>(Record(CaseReportArtifactKind.AssessmentReport));
 
         public Task<CaseReportGenerationRecord?> GetCurrentAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportGenerationRecord?>(Record(CaseReportArtifactKind.AssessmentReport));
 
         public Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseReportGenerationRecord>>(
                 [Record(CaseReportArtifactKind.AssessmentReport)]);
 

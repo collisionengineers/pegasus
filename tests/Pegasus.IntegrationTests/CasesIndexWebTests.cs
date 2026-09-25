@@ -207,7 +207,7 @@ public sealed class CasesIndexWebTests
         var engineerId = Guid.NewGuid();
         var path = "/Search?case=QDOS3100042&registration=AB12CDE&claimant=Claimant&claimNumber=CLM42"
             + $"&principal=QDOS&state=Review&engineerId={engineerId:D}"
-            + "&receivedDate=2031-05-01&instructionDate=2031-05-02"
+            + "&receivedDate=2031-05-01"
             + "&fromDate=2031-04-01&toDate=2031-05-31&origin=Email&query=needle&page=2";
 
         using var response = await client.GetAsync(path);
@@ -231,7 +231,6 @@ public sealed class CasesIndexWebTests
         Assert.Equal(CaseLifecycleState.Review, query.Filters.State);
         Assert.Equal(engineerId, query.Filters.EngineerId);
         Assert.Equal(new DateOnly(2031, 5, 1), query.Filters.ReceivedDate);
-        Assert.Equal(new DateOnly(2031, 5, 2), query.Filters.InstructionDate);
         Assert.Equal(new DateOnly(2031, 4, 1), query.Filters.FromDate);
         Assert.Equal(new DateOnly(2031, 5, 31), query.Filters.ToDate);
         Assert.Equal("Email", query.Filters.Origin);
@@ -261,7 +260,7 @@ public sealed class CasesIndexWebTests
                      "case=QDOS3100042", "registration=AB12CDE", "claimant=Claimant",
                      "claimNumber=CLM42", "principal=QDOS", "state=Review",
                      $"engineerId={engineerId:D}", "receivedDate=2031-05-01",
-                     "instructionDate=2031-05-02", "fromDate=2031-04-01", "toDate=2031-05-31",
+                     "fromDate=2031-04-01", "toDate=2031-05-31",
                      "origin=Email", "query=needle", "page=3"
                  })
         {
@@ -328,6 +327,75 @@ public sealed class CasesIndexWebTests
         Assert.DoesNotContain("Copy Case/PO", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-copy-reference", html, StringComparison.Ordinal);
         Assert.Contains("name=\"selected\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Decision 8 and W: an Inspection + Audit Case with its Audit lists as
+    /// two entries of the same Case, <c>{Case/PO}</c> opening the Inspection
+    /// view and <c>a.{Case/PO}</c> the Audit view, each with its own preview
+    /// heading, while paging still counts Cases; a Triage Case lists with its
+    /// Triage state and opens <c>/Cases/{id}</c>.
+    /// </summary>
+    [Fact]
+    public async Task AnAuditedCaseListsTwoEntriesAndATriageCaseShowsItsTriageState()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases { WithAuditAndTriage = true };
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync("/Search?query=QDOS31000");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var query = Assert.Single(search.Queries, candidate => candidate.Filters.Query == "QDOS31000");
+        Assert.True(query.Filters.IncludeTriage);
+        Assert.Equal(25, query.PageSize); // Cases, not entries.
+
+        Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=inspection\">QDOS3100044</a>", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=audit\">a.QDOS3100044</a>", html, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Count(html, $"<tr[^>]*data-select-id=\"{search.AuditCaseId:D}\""));
+        Assert.Contains("<h2>QDOS3100044 &#xB7; AB12CDE</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<h2>a.QDOS3100044 &#xB7; AB12CDE</h2>", html, StringComparison.Ordinal);
+        Assert.Contains(">3 results<", html, StringComparison.Ordinal);
+        // With nothing selected the first entry is, and a refresh keeps it.
+        Assert.Matches("<tr[^>]*data-select-view=\"inspection\"[^>]*aria-selected=\"true\"", html);
+        Assert.Matches("<tr[^>]*data-select-view=\"audit\"[^>]*aria-selected=\"false\"", html);
+        Assert.Contains("name=\"selectedView\" value=\"inspection\"", html, StringComparison.Ordinal);
+
+        Assert.Contains($"href=\"/Cases/{search.TriageCaseId:D}\">t.QDOS3100045</a>", html, StringComparison.Ordinal);
+        Assert.Contains("<span class=\"status status--navy\">Open</span>", html, StringComparison.Ordinal);
+        // Razor keeps a data- attribute whose value is null, empty: a Case listed once names no view.
+        Assert.DoesNotMatch($"<tr[^>]*data-select-id=\"{search.TriageCaseId:D}\"[^>]*data-select-view=\"[^\"]", html);
+        // A Triage Case has no Case completeness requirements.
+        Assert.DoesNotContain("Outstanding (", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheSelectedEntryOfAnAuditedCaseIsReadServerSide()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var search = new RecordingSearchCases { WithAuditAndTriage = true };
+        using var factory = Configure(baseFactory, search);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync($"/Search?selected={search.AuditCaseId:D}&selectedView=audit");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Matches("<tr[^>]*data-select-view=\"audit\"[^>]*aria-selected=\"true\"", html);
+        Assert.Matches("<tr[^>]*data-select-view=\"inspection\"[^>]*aria-selected=\"false\"", html);
+        var pane = html[html.IndexOf("data-preview-target", StringComparison.Ordinal)..];
+        Assert.Contains("<h2>a.QDOS3100044 &#xB7; AB12CDE</h2>", pane, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{search.AuditCaseId:D}?view=audit\"", pane, StringComparison.Ordinal);
+        Assert.Contains("name=\"selectedView\" value=\"audit\"", html, StringComparison.Ordinal);
+        Assert.Contains($"selected={search.AuditCaseId:D}&amp;selectedView=audit", html, StringComparison.Ordinal);
+
+        // A link without the discriminator reads the Case's first entry.
+        using var caseOnly = await client.GetAsync($"/Search?selected={search.AuditCaseId:D}");
+        var caseOnlyHtml = await caseOnly.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, caseOnly.StatusCode);
+        Assert.Matches("<tr[^>]*data-select-view=\"inspection\"[^>]*aria-selected=\"true\"", caseOnlyHtml);
     }
 
     [Fact]
@@ -411,11 +479,20 @@ public sealed class CasesIndexWebTests
         /// <summary>A second result in a D3 terminal state, with the search projection fields.</summary>
         public Guid ClosedCaseId { get; } = Guid.NewGuid();
 
+        /// <summary>An Inspection + Audit Case with its Audit: two Search entries of one Case.</summary>
+        public Guid AuditCaseId { get; } = Guid.NewGuid();
+
+        /// <summary>A Triage Case, listed with its own Triage state.</summary>
+        public Guid TriageCaseId { get; } = Guid.NewGuid();
+
         public List<SearchCasesQuery> Queries { get; } = [];
 
         public bool ReturnEmpty { get; set; }
 
         public bool ThrowUnavailable { get; set; }
+
+        /// <summary>Answers with <see cref="AuditCaseId"/> and <see cref="TriageCaseId"/> instead of the default pair.</summary>
+        public bool WithAuditAndTriage { get; set; }
 
         public Task<SearchCasesResult> ExecuteAsync(
             SearchCasesQuery query,
@@ -425,6 +502,48 @@ public sealed class CasesIndexWebTests
             if (ThrowUnavailable)
             {
                 throw new InvalidOperationException("sensitive store failure");
+            }
+
+            if (WithAuditAndTriage)
+            {
+                var received = new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero);
+                IReadOnlyList<CaseSearchItem> auditAndTriage =
+                [
+                    new(
+                        AuditCaseId,
+                        "QDOS3100044",
+                        "a.QDOS3100044",
+                        CaseType.InspectionAndAudit,
+                        "QDOS",
+                        CaseLifecycleState.ReportPreparation,
+                        null,
+                        "AB12CDE",
+                        "Claimant",
+                        "CLM44",
+                        received,
+                        "Email",
+                        received),
+                    new(
+                        TriageCaseId,
+                        "t.QDOS3100045",
+                        null,
+                        CaseType.Triage,
+                        "QDOS",
+                        CaseLifecycleState.NotReady,
+                        null,
+                        "TR32AGE",
+                        null,
+                        null,
+                        received,
+                        "Email",
+                        received)
+                    {
+                        InstructionComplete = false,
+                        ImagesComplete = false,
+                        TriageState = Pegasus.Core.Triage.TriageState.Open
+                    }
+                ];
+                return Task.FromResult(new SearchCasesResult(auditAndTriage, query.Page, query.PageSize, false, false));
             }
 
             IReadOnlyList<CaseSearchItem> items = ReturnEmpty
@@ -443,7 +562,6 @@ public sealed class CasesIndexWebTests
                         "Claimant",
                         "CLM42",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero),
-                        new DateOnly(2031, 5, 2),
                         "Email",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero)),
                     new(
@@ -458,7 +576,6 @@ public sealed class CasesIndexWebTests
                         "Claimant",
                         "CLM43",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero),
-                        new DateOnly(2031, 5, 2),
                         "Email",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero))
                     {

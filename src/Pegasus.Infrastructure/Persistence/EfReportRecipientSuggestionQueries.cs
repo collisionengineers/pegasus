@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Reports;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -23,6 +24,10 @@ public sealed class EfReportRecipientSuggestionQueries(
                          select new
                          {
                              @case.Reference,
+                             @case.AuditReference,
+                             @case.Year,
+                             @case.Sequence,
+                             PrincipalCode = principal.Code,
                              principal.IncludeOriginalInstructionSender,
                              principal.ReportRecipientAddressesJson,
                              OriginalInstructionSender = route == null
@@ -35,12 +40,17 @@ public sealed class EfReportRecipientSuggestionQueries(
             return null;
         }
 
+        // The email names the current work's report.
+        var workKind = (await CaseWorkScope.LoadSetAsync(context, caseId, cancellationToken)).Current.Kind;
+        var reportReference = CaseReferenceFormat.ReportReference(
+            new CaseIdentity(caseId, row.PrincipalCode, row.Year, row.Sequence, row.Reference, row.AuditReference),
+            workKind);
         var settings = PrincipalReportRecipientSettings.Normalize(
             row.IncludeOriginalInstructionSender,
             JsonSerializer.Deserialize<string[]>(
                 row.ReportRecipientAddressesJson,
                 EfOrganizationAdministration.SerializerOptions));
-        return new(row.Reference, settings,
+        return new(reportReference, settings,
             settings.IncludeOriginalInstructionSender
                 ? row.OriginalInstructionSender
                 : null);

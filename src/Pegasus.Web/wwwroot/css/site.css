@@ -32,7 +32,7 @@
   --navy:#274f70;--navy-bg:#eaf1f6;--green:#2b643d;--green-bg:#e9f4ec;
   --blue:#285f88;--blue-bg:#eaf3f8;--danger:#98272c;--danger-bg:#fff0f1;
   --focus:#d3232a;--rail:220px;--content-max:1580px;--gap:12px;--page-pad:18px;
-  --row:40px;--control:36px;--utility-h:48px;--tabs-h:40px;--radius:3px;--radius-lg:4px;--shadow:0 8px 24px rgba(25,39,45,.09);
+  --row:40px;--control:36px;--utility-h:48px;--radius:3px;--radius-lg:4px;--shadow:0 8px 24px rgba(25,39,45,.09);
   --font:"Inter Variable",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
 }
@@ -115,49 +115,6 @@ main [id]{scroll-margin-top:92px}
 .utility-freshness .health-dot{box-shadow:none;width:7px;height:7px}
 .utility-bar .btn{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.3)}
 .utility-bar .btn--primary{background:var(--red);border-color:var(--red)}
-/* The working set (v26 § Working set): open records only, on the page ground
-   with one hairline, the active tab white with the red accent once, running
-   into the record card with no seam. site.js renders it from the browser's own
-   set (pegasus.workingSet) as .workspace-tab wrappers, each a .workspace-tab-link
-   (ref bold, reg mono, state glyph) and a .tab-close; with nothing open the
-   strip is absent and the sticky offset it would take (--tabs-h) is zero. */
-.workspace-tabs{height:var(--tabs-h);display:flex;align-items:flex-end;gap:2px;padding:6px var(--page-pad) 0;background:var(--bg);border-bottom:1px solid #cbd2d5;position:sticky;top:var(--utility-h);z-index:25;min-width:0}
-body:not(.has-working-set) .app-shell{--tabs-h:0px}
-.workspace-tab{flex:0 1 auto;min-width:0;max-width:240px;height:33px;padding:0 5px 0 0;border:1px solid transparent;border-bottom:0;border-radius:4px 4px 0 0;background:transparent;display:flex;align-items:center;gap:2px;color:var(--muted);font-size:12.5px;font-weight:500;white-space:nowrap;position:relative}
-.workspace-tab:hover{background:rgba(255,255,255,.55);color:var(--ink)}
-.workspace-tab.is-active{background:var(--surface);color:var(--ink);border-color:#cbd2d5;margin-bottom:-1px;height:34px;z-index:1}
-.workspace-tab.is-active::before{content:"";position:absolute;left:-1px;right:-1px;top:-1px;height:2px;background:var(--red);border-radius:4px 4px 0 0}
-.workspace-tab-link{display:flex;align-items:center;gap:7px;min-width:0;height:100%;padding:0 4px 0 11px;color:inherit;text-decoration:none}
-.workspace-tab-link:hover{text-decoration:none;color:inherit}
-.workspace-tab-link:focus-visible{outline-offset:-3px}
-.workspace-tab .icon{width:14px;height:14px;flex:none;opacity:.75}
-.workspace-tab .ref{font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.workspace-tab .reg{font:500 11px var(--mono);color:var(--quiet);overflow:hidden;text-overflow:ellipsis;min-width:0}
-.workspace-tab .st,.tabs-more .st{flex:none;display:inline-grid;place-items:center}
-.st--dirty{width:7px;height:7px;border-radius:50%;background:var(--amber)}
-.st--glass{color:var(--amber)}
-.st--held{color:var(--quiet)}
-.st--glass .icon,.st--held .icon{width:12px;height:12px;opacity:1}
-.workspace-tab .tab-close{display:grid;place-items:center;width:20px;height:20px;border:0;background:transparent;border-radius:3px;color:var(--quiet);padding:0;visibility:hidden;cursor:pointer;flex:none}
-.workspace-tab.is-active .tab-close,.workspace-tab:hover .tab-close,.workspace-tab:focus-within .tab-close{visibility:visible}
-.workspace-tab .tab-close:hover{background:var(--surface-3);color:var(--ink)}
-.workspace-tab .tab-close .icon{width:12px;height:12px;opacity:1}
-.tabs-more{position:relative;margin-left:4px;align-self:center;flex:none}
-.tabs-more>summary{list-style:none;display:flex;align-items:center;gap:4px;height:26px;padding:0 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:11.5px;cursor:pointer;white-space:nowrap}
-.tabs-more>summary::-webkit-details-marker{display:none}
-.tabs-more>summary .icon{width:12px;height:12px}
-.tabs-more .menu-body{min-width:250px;top:30px}
-.tabs-more .menu-body.menu-body--end{left:auto;right:0}
-.tabs-more .menu-body a{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:var(--radius);color:var(--ink);font-size:12.5px;white-space:nowrap;text-decoration:none}
-.tabs-more .menu-body a:hover{background:var(--surface-2)}
-.tabs-more .menu-body a[aria-current="page"]{background:var(--surface-3)}
-.tabs-more .menu-body a>span{overflow:hidden;text-overflow:ellipsis;min-width:0}
-.tabs-more .menu-body .icon{width:14px;height:14px;color:var(--quiet);flex:none}
-.tabs-more .menu-body .st{margin-left:auto}
-/* The record card under the strip is one surface with the active tab: its own
-   top edge goes and it rises through the page padding to meet the hairline,
-   which the active tab already covers. */
-body.has-working-set .content>.record:first-child{border-top:0;margin-top:calc(-1 * var(--page-pad))}
 .app-main{min-width:0;flex:1;padding:var(--page-pad);padding-bottom:50px}
 .content{width:min(100%,var(--content-max));margin-inline:auto;min-width:0}
 .kbd{display:inline-flex;min-width:22px;min-height:20px;padding:1px 5px;border:1px solid var(--line-strong);background:#fff;color:var(--ink);box-shadow:0 1px 0 #999;font-size:9px;font-weight:850;align-items:center;justify-content:center;border-radius:2px}
@@ -176,6 +133,7 @@ h1{font-size:20px;line-height:1.25;letter-spacing:-.01em;margin:0;font-weight:65
 .freshness{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:7px;white-space:nowrap}
 .freshness .health-dot{box-shadow:none;width:7px;height:7px}
 .freshness--actions-first{flex-direction:row-reverse;justify-content:flex-end}
+.refresh-button{display:inline-flex}
 h2{font-size:15px;line-height:1.25;margin:0;font-weight:650;letter-spacing:-.01em}
 h3{font-size:13px;line-height:1.25;margin:0;font-weight:650}
 p,dl,dd{margin:0}
@@ -450,7 +408,7 @@ tbody tr:hover{background:#f3f6f7}
 .case-more-actions-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:25;display:grid;gap:4px;min-width:190px;padding:6px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow)}
 .case-more-actions-menu form,.case-more-actions-menu .btn{width:100%}
 .case-more-actions-menu .btn{justify-content:flex-start}
-.case-sticky{position:sticky;top:calc(var(--utility-h) + var(--tabs-h));z-index:20;background:#fff;border-bottom:1px solid var(--line)}
+.case-sticky{position:sticky;top:var(--utility-h);z-index:20;background:#fff;border-bottom:1px solid var(--line)}
 .case-sticky .record-ribbon{margin-bottom:0;border:0;border-radius:0;box-shadow:none}
 .case-sticky .record-bar{border-bottom:0}
 /* WP6: three rows carry the whole frame — identity (with the record's own two
@@ -478,9 +436,9 @@ tbody tr:hover{background:#f3f6f7}
 @media(max-width:760px){.case-section-navigation{flex-wrap:wrap}.case-layout-switch{margin-block:4px}}
 .section-link .icon{width:16px;height:16px;flex:none}
 .case-workspace{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:10px;align-items:start;padding:14px}
-.case-context{position:sticky;top:calc(var(--utility-h) + var(--tabs-h) + var(--case-sticky-h,190px) + 10px)}
+.case-context{position:sticky;top:calc(var(--utility-h) + var(--case-sticky-h,190px) + 10px)}
 .case-main{min-width:0;display:grid;gap:10px}
-.case-section{scroll-margin-top:calc(var(--utility-h) + var(--tabs-h) + var(--case-sticky-h,190px) + 8px)}
+.case-section{scroll-margin-top:calc(var(--utility-h) + var(--case-sticky-h,190px) + 8px)}
 .section-placeholder{min-height:320px;border:1px dashed var(--line);background:repeating-linear-gradient(45deg,transparent 0 11px,#f4f6f7 11px 22px)}
 .blocker-list{list-style:none;padding:0;margin:0;display:grid;gap:7px}
 .blocker{padding:9px 10px;border:1px solid var(--line);border-left:4px solid var(--amber);background:var(--amber-bg)}
@@ -741,7 +699,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .admin-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:10px;align-items:start}
 .admin-layout > .stack{min-width:0}
 .admin-content{min-width:0}
-.admin-nav{position:sticky;top:calc(var(--utility-h) + var(--tabs-h) + 12px);border-radius:var(--radius);overflow:hidden;padding:6px}
+.admin-nav{position:sticky;top:calc(var(--utility-h) + 12px);border-radius:var(--radius);overflow:hidden;padding:6px}
 .admin-nav__group + .admin-nav__group{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
 .admin-nav__label{display:block;padding:8px 9px 4px;color:var(--quiet);font-size:10px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
 .admin-nav a{display:flex;align-items:center;gap:8px;min-height:36px;padding:7px 9px;border-left:3px solid transparent;border-radius:var(--radius);color:var(--ink);text-decoration:none;font-size:12px;font-weight:500;transition:background-color .13s ease}
@@ -1078,7 +1036,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
    --sticky-h on the block's parent, so every offset below reads the real
    height. The aside is 285px at 1441px and above and folds into a two-up
    strip above the sections below that. */
-.sticky-block{position:sticky;top:calc(var(--utility-h) + var(--tabs-h));z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.sticky-block{position:sticky;top:var(--utility-h);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
 .ribbon{display:flex;align-items:stretch;min-height:56px;min-width:0;border-bottom:1px solid var(--line)}
 .ribbon-facts{flex:1 1 auto;display:flex;align-items:stretch;min-width:0}
 .ribbon .ribbon-item{flex:1 1 0;min-width:0;min-height:0;padding:5px 11px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
@@ -1103,9 +1061,9 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .layout-switch button[aria-pressed="true"]{background:var(--nav-2);color:var(--nav-text)}
 .workspace{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:10px;align-items:start;padding:12px}
 .workspace-main{min-width:0;display:grid;gap:10px}
-.workspace-aside{position:sticky;top:calc(var(--utility-h) + var(--tabs-h) + var(--sticky-h,97px) + 10px);display:grid;gap:10px;min-width:0}
+.workspace-aside{position:sticky;top:calc(var(--utility-h) + var(--sticky-h,97px) + 10px);display:grid;gap:10px;min-width:0}
 .workspace-aside .panel-body{padding:10px 12px}
-.record-section{scroll-margin-top:calc(var(--utility-h) + var(--tabs-h) + var(--sticky-h,97px) + 8px)}
+.record-section{scroll-margin-top:calc(var(--utility-h) + var(--sticky-h,97px) + 8px)}
 .record[data-layout="tabs"] .record-section:not(.is-active){display:none}
 .figures{display:grid;gap:6px;margin:0}
 .figure{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12.5px;margin:0}
@@ -1291,7 +1249,6 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .primary-nav .nav-link{font-size:12px;padding-inline:7px}
   .primary-nav .nav-link .icon{width:18px;height:18px}
   .utility-bar{flex-wrap:wrap;padding-block:5px}.utility-search{order:2;flex-basis:100%;max-width:none}.utility-freshness{display:none}
-  .workspace-tabs{padding-inline:7px}.workspace-tab{flex:1 1 auto;max-width:170px;padding-right:2px}.workspace-tab-link{padding-left:8px;gap:5px}.workspace-tab .ref{flex:1 1 auto;min-width:5ch}.workspace-tab .reg{flex:0 1 auto;min-width:4ch}
   .page-header{flex-direction:column;align-items:stretch;gap:10px;padding-bottom:10px}.page-actions{width:100%;justify-content:flex-start}.page-actions .btn{flex:none;width:auto}
   .grid-2,.grid-3,.admin-grid,.fact-grid,.definition-list{grid-template-columns:1fr}
   .account-settings-facts,.account-signoff-fields{grid-template-columns:1fr}
@@ -1340,9 +1297,9 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .nav-link[aria-current="page"],.tab[aria-selected="true"],.section-link[aria-current="true"]{outline:2px solid CanvasText}
   .btn--primary,.btn--dark{border:2px solid ButtonText}
   .app-rail::before,.brand::after,.record-head::after,.page-title h1::after{display:none}
-  .app-rail,.brand,.utility-bar,.workspace-tabs,.record-head,.toast,.utility-search input,.utility-bar .btn,.btn--primary,.btn--dark,.nav-link,.nav-link[aria-current="page"],.nav-count,.rail-health,.avatar,.workspace-tab,.shortcut-hint,.estimate-totals .estimate-total{background:Canvas;color:CanvasText;text-shadow:none}
+  .app-rail,.brand,.utility-bar,.record-head,.toast,.utility-search input,.utility-bar .btn,.btn--primary,.btn--dark,.nav-link,.nav-link[aria-current="page"],.nav-count,.rail-health,.avatar,.shortcut-hint,.estimate-totals .estimate-total{background:Canvas;color:CanvasText;text-shadow:none}
   .brand-copy span,.nav-label,.rail-health,.rail-user small,.utility-freshness,.shortcut-hint,.record-identity,.record-identity b,.estimate-totals .estimate-total dt{color:CanvasText}
-  .app-rail,.utility-bar,.workspace-tab,.nav-link[aria-current="page"],.rail-health,.utility-search input{border-color:CanvasText}
+  .app-rail,.utility-bar,.nav-link[aria-current="page"],.rail-health,.utility-search input{border-color:CanvasText}
   .utility-search:focus-within>.icon{color:CanvasText}
   .nav-link .icon,.scope-visual-icon,.admin-nav a .icon{border:1px solid CanvasText;background:Canvas;color:CanvasText}
   .nav-link[aria-current="page"] .icon,.scope-button[aria-pressed="true"] .scope-visual-icon,.admin-nav a[aria-current="page"] .icon{background:Highlight;color:HighlightText}
@@ -1772,28 +1729,6 @@ label.choice input { flex: 0 0 auto; margin: 0; }
   color: var(--ce-red-dark);
 }
 
-.freshness-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-5);
-  padding: var(--sp-2) var(--sp-4);
-  border: 1px solid var(--state-line);
-  border-radius: var(--radius);
-  background: var(--panel);
-}
-
-.freshness-banner .updated { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
-/* The only animation in the product. It decorates refresh feedback that is
-   already carried by the button label, so reduced motion loses nothing. */
-@keyframes pegasus-spin { to { transform: rotate(360deg); } }
-.freshness-banner.is-refreshing { --state-line: var(--navy-line); background: var(--navy-bg); }
-.freshness-banner.is-refreshing .icon--spin { animation: pegasus-spin 900ms linear infinite; }
-.freshness-banner--loading { --state-line: var(--navy-line); background: var(--navy-bg); }
-.freshness-banner--stale { --state-line: var(--amber-line); background: var(--amber-bg); }
-.freshness-banner--failed { --state-line: var(--ce-red); background: var(--ce-red-tint); }
-
 .reason-dialog-backdrop {
   position: fixed;
   z-index: 90;
@@ -2158,7 +2093,7 @@ table tfoot th {
 }
 
 @media (forced-colors: active) {
-  .queue-card, .metric-tile, .acceptance-boundary, .status-card, .status-chip, .freshness-banner { border: 1px solid CanvasText; }
+  .queue-card, .metric-tile, .acceptance-boundary, .status-card, .status-chip { border: 1px solid CanvasText; }
   .queue-icon, .metric-tile > span { forced-color-adjust: none; background: Canvas; color: CanvasText; }
 }
 .validation-summary__heading {
@@ -2360,6 +2295,8 @@ table tfoot th {
 .refresh .icon { width: .875rem; height: .875rem; }
 .is-refreshing .icon--spin { animation: pegasus-spin 1s linear infinite; }
 
+/* The only animation in the product. It decorates refresh feedback that is
+   already carried by the button label, so reduced motion loses nothing. */
 @keyframes pegasus-spin { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) {

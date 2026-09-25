@@ -52,7 +52,7 @@ public sealed class CaseWorkspaceTests
             request.CaseId, request.ExpectedVersion, request.Actor, request.OperationKey, reason, request.EditLeaseToken)
         {
             Overview = new(
-                "A Claimant", null, null, null, null, null, null, null, null, null, null, null, null)
+                "A Claimant", null, null, null, null, null, null, null, null, null, null, null)
         });
 
         var normalized = CaseWorkspacePolicy.ValidateAndNormalize(request);
@@ -78,34 +78,28 @@ public sealed class CaseWorkspaceTests
             CaseWorkspaceChangeSummary.Describe(before, before, beforeFields, beforeFields, false, 0, "  Checked with the repairer "));
     }
 
-    [Fact]
-    public void TheWorkspaceRefusesTheAcceptedEngineerValuePath()
+    [Theory]
+    [InlineData(AssessmentVocabulary.ValueEngineer)]
+    [InlineData(AssessmentVocabulary.ValueRetail)]
+    [InlineData(AssessmentVocabulary.ValueTrade)]
+    public void TheWorkspaceRefusesTheAdoptedValuationPaths(string path)
     {
-        // Adopting the Engineer's value is the valuation Apply
-        // command's act, which records the suggested and the chosen amount
-        // together. A Case save can neither record nor clear it.
-        var record = Assert.Throws<InvalidOperationException>(() =>
-            CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
-            {
-                Valuation = new(new Dictionary<string, string?>(StringComparer.Ordinal)
-                {
-                    [AssessmentVocabulary.ValueEngineer] = "4500.00"
-                })
-            })));
-        Assert.Contains("Apply", record.Message, StringComparison.Ordinal);
-
+        // The Engineer's Value and the retail and trade of its basis card are
+        // recorded only by the adoption, which records them with the
+        // calculation (one Save, 23 September 2026; operator, 24 September
+        // 2026). As free fields a Case save can neither record nor clear them.
         var clear = Assert.Throws<InvalidOperationException>(() =>
             CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
             {
                 Report = new(
                     new Dictionary<string, string?>(StringComparer.Ordinal)
                     {
-                        [AssessmentVocabulary.ValueEngineer] = null
+                        [path] = null
                     },
                     null,
                     null)
             })));
-        Assert.Contains("Apply", clear.Message, StringComparison.Ordinal);
+        Assert.Contains("adopts an Engineer's Value", clear.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -122,7 +116,7 @@ public sealed class CaseWorkspaceTests
 
         var normalized = CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
         {
-            Valuation = new(null, [glasses, brego])
+            Valuation = new([glasses, brego])
         }));
 
         Assert.Equal([glasses, brego], normalized.Valuation!.GuideEntries);
@@ -130,22 +124,59 @@ public sealed class CaseWorkspaceTests
         Assert.Throws<InvalidOperationException>(() =>
             CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
             {
-                Valuation = new(null, [glasses, glasses with { RetailValue = 1m }])
+                Valuation = new([glasses, glasses with { RetailValue = 1m }])
             })));
         Assert.Throws<InvalidOperationException>(() =>
             CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
             {
-                Valuation = new(null, [GuideCard(ValuationSource.EngineersValue, april)])
+                Valuation = new([GuideCard(ValuationSource.EngineersValue, april)])
             })));
         // Any box of a card may be blank (operator, 23 September 2026).
         var partly = CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
         {
-            Valuation = new(null, [GuideCard(ValuationSource.Glasses, null) with { TradeValue = null, Mileage = null }])
+            Valuation = new([GuideCard(ValuationSource.Glasses, null) with { TradeValue = null, Mileage = null }])
         }));
         var card = Assert.Single(partly.Valuation!.GuideEntries!);
         Assert.Null(card.GuideMonth);
         Assert.Null(card.TradeValue);
         Assert.Null(card.Mileage);
+    }
+
+    /// <summary>
+    /// A calculation the Case save adopts (one Save, 23 September 2026) passes
+    /// the rules the calculator's preview applies, and is a professional
+    /// finding only staff record.
+    /// </summary>
+    [Fact]
+    public void AnAdoptedCalculationIsCheckedByTheValuationRules()
+    {
+        var calculation = new ValuationCalculationSelection(Guid.NewGuid(), false, 0.10m, [], 0m);
+        var normalized = CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
+        {
+            Valuation = new([], calculation)
+        }));
+        Assert.Equal(0.10m, normalized.Valuation!.Adoption!.PriorTotalLossPercentage);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
+            {
+                Valuation = new([], calculation with { PriorTotalLossPercentage = 0.15m })
+            })));
+        Assert.Throws<InvalidOperationException>(() =>
+            CaseWorkspacePolicy.ValidateAndNormalize(Request(
+                request => request with { Valuation = new([], calculation) },
+                ActionActor.Automation("case-save"))));
+    }
+
+    [Fact]
+    public void TheHistoryLineNamesAnAdoptedEngineersValue()
+    {
+        var data = new CaseEditableData();
+        var fields = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        Assert.Equal(
+            "Engineer's Value applied",
+            CaseWorkspaceChangeSummary.Describe(data, data, fields, fields, false, 0, null, valuationAdopted: true));
     }
 
     [Fact]
@@ -297,7 +328,7 @@ public sealed class CaseWorkspaceTests
             Request(request => request with
             {
                 Overview = new(
-                    null, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, null, null,
                     new CaseWorkspaceClaimSource(
                         sourceId, 4, "Acme Claims", "Directory Handler", "0113 000 0000", null,
                         OverrideContactName: " Directory Handler ",
@@ -449,12 +480,12 @@ public sealed class CaseWorkspaceTests
     }
 
     [Fact]
-    public void AnEstimateSectionWithoutAHeaderOrLinesIsRefused()
+    public void AnEstimateSectionIsCheckedByTheEstimatePolicy()
     {
         Assert.Throws<ArgumentException>(() =>
             CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
             {
-                Estimate = new(null, null, null)
+                Estimate = new(null, new EstimateDetails(" ", null, null, 20m), [])
             })));
     }
 
@@ -468,12 +499,12 @@ public sealed class CaseWorkspaceTests
             Request(
                 request => request with
                 {
-                    Estimate = new(null, null, [])
+                    Estimate = new(null, new EstimateDetails("Estimate 1", null, null, 20m), [])
                 },
                 ActionActor.Staff(Guid.NewGuid(), [role])));
 
         Assert.NotNull(normalized.Estimate);
-        Assert.Empty(normalized.Estimate.Lines!);
+        Assert.Empty(normalized.Estimate.Lines);
     }
 
     private static CaseWorkspaceInspection Inspection(

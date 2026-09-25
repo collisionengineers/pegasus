@@ -30,6 +30,52 @@ public static class AssessmentReportContract
     public const string StatementOfTruthGuide = "We have used Glass's Evaluator to assist with the valuation of the vehicle and Thatcham and/or manufacturer's data to compile the repair specification.";
     public const string StatementOfTruth3 = "Parts prices are subject to fluctuation and further damage may be found upon dismantling the vehicle. Our valuation is based on the mileage information provided and assuming that the vehicle has a valid MOT certificate (where applicable) to support such.";
     public const string StatementOfTruth4 = "We appreciate your instructions and enclose our fee note for your kind attention, which we confirm remains payable irrespective of the outcome of this case. Please ensure this is passed to your accounts department.";
+
+    /// <summary>
+    /// Whether the accepted Glass's guide-disclosure sentence prints: the
+    /// operator turned "Disclose guide source" on <em>and</em> a Glass's
+    /// valuation guide was actually used. No sentence is substituted for
+    /// another guide — the approved v3 specification supplies none.
+    /// </summary>
+    public static bool PrintsGuideDisclosure(CaseReportContentSwitches content, ReportGuideSources guides)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(guides);
+        return content.DiscloseGuideSource && guides.UsesGlassesValuationGuide;
+    }
+
+    /// <summary>
+    /// The accepted statement of truth in print order: the one owner. The PDF
+    /// prints it and the Case's Report section shows it read-only; no Case
+    /// edits it.
+    /// </summary>
+    public static IReadOnlyList<string> StatementOfTruth(CaseReportContentSwitches content, ReportGuideSources guides) =>
+        PrintsGuideDisclosure(content, guides)
+            ? [StatementOfTruth1, StatementOfTruth2, StatementOfTruthGuide, StatementOfTruth3, StatementOfTruth4]
+            : [StatementOfTruth1, StatementOfTruth2, StatementOfTruth3, StatementOfTruth4];
+
+    /// <summary>
+    /// The statement this Case's report prints, from the content switches and
+    /// guide sources a generation freezes; available before a report can be
+    /// projected.
+    /// </summary>
+    public static IReadOnlyList<string> StatementOfTruthOf(AssessmentReportProjectionInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        return StatementOfTruth(CaseReportReadiness.ContentOf(input.Assessment), input.Guides ?? ReportGuideSources.None);
+    }
+
+    /// <summary>
+    /// The one salvage category a total-loss report prints: the active
+    /// total-loss template has accepted wording for Category S only (operator,
+    /// 24 September 2026). Readiness names any other category before a report
+    /// is projected.
+    /// </summary>
+    public const string PrintableSalvageCategory = "S";
+
+    /// <summary>Whether the active total-loss template has accepted wording for <paramref name="category"/>.</summary>
+    public static bool PrintsSalvageCategory(string? category) =>
+        string.Equals(category, PrintableSalvageCategory, StringComparison.Ordinal);
 }
 
 public enum AssessmentReportOutcome
@@ -86,14 +132,12 @@ public sealed record ReportVehicle(
     string? Vin,
     string? Engine,
     string? Fuel,
-    bool? VinChecked,
     string? Transmission,
     string? Colour,
     string? Body,
     DateOnly? TaxExpiry,
     DateOnly? MotExpiry,
     string? AirbagsDeployed,
-    string? FaultCodes,
     bool? TemporaryRepairsPossible,
     string? TemporaryRepairMethod,
     decimal? TemporaryRepairCost);
@@ -138,7 +182,8 @@ public sealed record ReportSettlement(
 /// One prepared report image: the confirmed custody bytes plus the report
 /// role, supporting order, rotation and crop an Engineer chose through
 /// <see cref="CaseAssetPreparationPolicy"/>. The preparation values are
-/// carried, never re-decided here, and the bytes are never re-encoded.
+/// carried, never re-decided here. The retained source bytes are never
+/// modified; the renderer prints a re-encoded print-resolution copy.
 /// </summary>
 public sealed record ReportImageEvidence(
     string CustodyReference,
@@ -168,8 +213,6 @@ public sealed record ReportImageEvidence(
         {
             throw new ReportRenderRejectedException("Every report image requires accepted image bytes and content type.");
         }
-        // The byte bound is AssessmentReportRenderPolicy's, and it is applied
-        // by RequireBoundedImages before any image is validated individually.
         AppliedCrop.Validate();
         if (!Enum.IsDefined(Rotation))
         {
@@ -185,41 +228,15 @@ public sealed record ReportImageEvidence(
 }
 
 /// <summary>
-/// The one owner of the renderer's fail-closed operational bounds. The
-/// renderer adapter and the snapshot both read these; neither keeps a second
-/// copy.
+/// The one owner of the renderer's wall-clock budget: the renderer adapter
+/// and generation both cancel a render that runs past it, and neither keeps a
+/// second copy. It bounds time only; every image the Engineer includes prints,
+/// whatever their number or source file size (operator, 24 September 2026).
 /// </summary>
 public static class AssessmentReportRenderPolicy
 {
-    /// <summary>The largest single image a rendered report will embed.</summary>
-    public const long MaximumImageBytes = 8L * 1024 * 1024;
-
-    /// <summary>The most images one rendered report will embed.</summary>
-    public const int MaximumImages = 24;
-
     /// <summary>The wall-clock budget for one render.</summary>
     public static readonly TimeSpan RenderTimeout = TimeSpan.FromMinutes(2);
-
-    /// <summary>
-    /// Fails closed on an unbounded image set, naming the offending image.
-    /// </summary>
-    public static void RequireBoundedImages(IReadOnlyList<ReportImageEvidence> photos)
-    {
-        ArgumentNullException.ThrowIfNull(photos);
-        if (photos.Count > MaximumImages)
-        {
-            throw new ReportRenderRejectedException(
-                $"A rendered report carries at most {MaximumImages} images; {photos.Count} were selected.");
-        }
-        foreach (var photo in photos)
-        {
-            if (photo.Content.LongLength > MaximumImageBytes)
-            {
-                throw new ReportRenderRejectedException(
-                    $"Report image '{photo.CustodyReference}' is larger than the {MaximumImageBytes} byte limit for a rendered report.");
-            }
-        }
-    }
 }
 
 /// <summary>
@@ -400,15 +417,13 @@ public sealed record AssessmentReportSnapshot(
     public IReadOnlyList<ReportWordingBlock> PrintedWording =>
         ReportWordingComposition.Compose(this, Wording ?? []);
 
-    /// <summary>
-    /// Whether the accepted Glass's guide-disclosure sentence prints: the
-    /// operator turned "Disclose guide source" on <em>and</em> a Glass's
-    /// valuation guide was actually used. No sentence is substituted for
-    /// another guide — the approved v3 specification supplies none.
-    /// </summary>
+    /// <summary>Whether this report prints the Glass's guide-disclosure sentence (H5).</summary>
     [JsonIgnore]
-    public bool PrintsGuideDisclosure =>
-        Content.DiscloseGuideSource && Guides.UsesGlassesValuationGuide;
+    public bool PrintsGuideDisclosure => AssessmentReportContract.PrintsGuideDisclosure(Content, Guides);
+
+    /// <summary>The accepted statement of truth this report prints, in order.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> StatementOfTruth => AssessmentReportContract.StatementOfTruth(Content, Guides);
 
     /// <summary>
     /// The images in printed order: Close-up first, Overview second, then
@@ -458,7 +473,7 @@ public sealed record AssessmentReportSnapshot(
                 "Unrelated damage was selected for the report but none is recorded.");
         }
         if (Outcome == AssessmentReportOutcome.TotalLoss &&
-            (!string.Equals(SalvageCategory, "S", StringComparison.Ordinal) || SalvageValue is null or < 0))
+            (!AssessmentReportContract.PrintsSalvageCategory(SalvageCategory) || SalvageValue is null or < 0))
         {
             throw new ReportRenderRejectedException("The active total-loss report requires accepted Category S wording and salvage value.");
         }
@@ -475,7 +490,6 @@ public sealed record AssessmentReportSnapshot(
         {
             source.Validate();
         }
-        AssessmentReportRenderPolicy.RequireBoundedImages(Photos);
         foreach (var photo in Photos)
         {
             photo.Validate();

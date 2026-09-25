@@ -706,7 +706,7 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> RecordReportApprovalAsync(
         RecordCaseReportApprovalRequest request,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, "case_report_approved", (context, workflow, now) =>
+        MutateAsync(request, "case_report_approved", async (context, workflow, now) =>
         {
             if (workflow.State != nameof(CaseLifecycleState.ReportPreparation))
             {
@@ -715,6 +715,23 @@ public sealed class EfCaseWorkflowStore(
             }
 
             var approval = request.Approval;
+            // A generated report of a work that is no longer current (the
+            // Inspection once the Audit exists) is never approved again.
+            var approvedSha256 = approval.ArtifactSha256.ToLowerInvariant();
+            var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
+            if (await (
+                    from artifact in context.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
+                    join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+                        on artifact.GenerationId equals generation.Id
+                    where generation.CaseId == workflow.CaseId
+                        && artifact.Sha256 == approvedSha256
+                        && generation.WorkId != currentWorkId
+                    select artifact.Id)
+                .AnyAsync(cancellationToken))
+            {
+                throw new InvalidOperationException("The case report generation is unavailable.");
+            }
+
             var entity = new CaseReportApprovalEntity
             {
                 Id = approval.ApprovalId,
@@ -729,7 +746,6 @@ public sealed class EfCaseWorkflowStore(
             context.CaseReportApprovals.Add(entity);
             workflow.ReportApprovalId = approval.ApprovalId;
             workflow.ReportApproval = entity;
-            return Task.CompletedTask;
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
@@ -1303,13 +1319,30 @@ public sealed class EfCaseWorkflowStore(
                 "Retained Sent evidence cannot predate the current report approval.");
         }
 
+        // Create audit is itself a transition into Report preparation, and the
+        // Audit's report is sent after it: evidence older than the Audit work
+        // belongs to the Inspection.
+        var auditCreatedAtUtc = await context.CaseWorks
+            .AsNoTracking()
+            .Where(item => item.CaseId == workflow.CaseId && item.Kind == CaseWorkKinds.Audit)
+            .Select(item => (DateTimeOffset?)item.CreatedAtUtc)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (auditCreatedAtUtc is { } auditCreated && evidence.SentAtUtc < auditCreated)
+        {
+            return new(
+                null,
+                "evidence_predates_audit",
+                "Retained Sent evidence must follow the creation of the Audit.");
+        }
+
         var followsReportPreparation = await context.CaseWorkflowEvents
             .AsNoTracking()
             .AnyAsync(
                 item => item.CaseId == workflow.CaseId
                     && item.OccurredAtUtc <= evidence.SentAtUtc
                     && (item.EventType == "state_ReportPreparation"
-                        || item.EventType == "case_reopened_ReportPreparation"),
+                        || item.EventType == "case_reopened_ReportPreparation"
+                        || item.EventType == "audit_created"),
                 cancellationToken);
         if (!followsReportPreparation)
         {
@@ -1372,7 +1405,11 @@ public sealed class EfCaseWorkflowStore(
     }
 
 
-    private static async Task AcquireWorkflowMutationLockAsync(
+    /// <summary>
+    /// Takes the Case's workflow row <c>UPDLOCK, HOLDLOCK</c> for the rest of the
+    /// caller's transaction, so concurrent Case mutations serialize on it.
+    /// </summary>
+    internal static async Task AcquireWorkflowMutationLockAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
@@ -1426,9 +1463,16 @@ public sealed class EfCaseWorkflowStore(
         CaseEntity caseEntity,
         CancellationToken cancellationToken)
     {
+        // A Case with an Audit work also needs its Audit's a. folder confirmed;
+        // a standalone Audit keeps its files in its own Case folder.
+        var hasAuditWork = await context.CaseWorks
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.CaseId == caseEntity.Id && item.Kind == CaseWorkKinds.Audit,
+                cancellationToken);
         var isCustodyConfirmed =
             string.Equals(caseEntity.CustodyState, "confirmed", StringComparison.Ordinal)
-            && (!string.Equals(caseEntity.Type, "audit", StringComparison.Ordinal)
+            && (!hasAuditWork
                 || (!string.IsNullOrWhiteSpace(caseEntity.AuditCustodyRemoteId)
                     && caseEntity.AuditCustodyConfirmedAtUtc is not null));
         var hasBlockingExternalWork = await context.ExternalWorkItems
@@ -1699,15 +1743,7 @@ public sealed class EfCaseWorkflowStore(
             entity.Case.AuditReference),
         Enum.Parse<CaseLifecycleState>(entity.State),
         entity.AssignedEngineerId,
-        entity.ReportApproval is null ? null : new ReportApprovalEvidence(
-            entity.ReportApproval.Id,
-            entity.ReportApproval.ArtifactIdentity,
-            entity.ReportApproval.ArtifactSha256,
-            Actor(
-                entity.ReportApproval.ApprovedByKind,
-                entity.ReportApproval.ApprovedBySubjectId,
-                entity.ReportApproval.ApprovedByRolesJson),
-            entity.ReportApproval.ApprovedAtUtc),
+        entity.ReportApproval is null ? null : MapReportApproval(entity.ReportApproval),
         entity.ReportSentEvidence is null
             ? null
             : MapReportSentEvidence(entity.ReportSentEvidence),
@@ -1725,6 +1761,16 @@ public sealed class EfCaseWorkflowStore(
         HoldReviewOn = entity.HoldReviewOn,
         StateEnteredAtUtc = entity.StateEnteredAtUtc
     };
+    internal static ReportApprovalEvidence MapReportApproval(CaseReportApprovalEntity approval) => new(
+        approval.Id,
+        approval.ArtifactIdentity,
+        approval.ArtifactSha256,
+        Actor(
+            approval.ApprovedByKind,
+            approval.ApprovedBySubjectId,
+            approval.ApprovedByRolesJson),
+        approval.ApprovedAtUtc);
+
     private static CaseArchive? MapArchive(CaseWorkflowEntity entity)
     {
         if (entity.ArchivedAtUtc is not { } archivedAtUtc)
@@ -1763,7 +1809,7 @@ public sealed class EfCaseWorkflowStore(
             entity.ArchiveReason,
             entity.Version);
 
-    private static ApprovedMailboxReportSentEvidence? MapReportSentEvidence(
+    internal static ApprovedMailboxReportSentEvidence? MapReportSentEvidence(
         CaseReportSentEvidenceEntity entity)
     {
         if (string.Equals(

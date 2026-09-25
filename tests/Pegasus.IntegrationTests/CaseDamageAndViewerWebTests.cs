@@ -327,7 +327,8 @@ public sealed class CaseDamageAndViewerWebTests
                     DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow)
             ],
             [],
-            new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,
+                null, "Alex Example", "P-100"));
 
         private CaseDetails Details()
         {
@@ -337,7 +338,7 @@ public sealed class CaseDamageAndViewerWebTests
                 new CaseSearchItem(
                     CaseId, workflow.Identity.Reference, null, CaseType.Inspection, "Approved Principal",
                     workflow.State, null, "AB12CDE", "Alex Example", "P-100", DateTimeOffset.UtcNow,
-                    new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow),
+                    "Email", DateTimeOffset.UtcNow),
                 workflow,
                 null,
                 [],
@@ -385,17 +386,18 @@ public sealed class CaseDamageAndViewerWebTests
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
             Guid caseId,
+            CaseWorkSelector work,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>([]);
 
         public Task<CaseReportFreezeInputs?> GetAsync(
             Guid caseId,
             ActionActor actor,
-            CancellationToken cancellationToken)
+            CaseWorkSelector work, CancellationToken cancellationToken)
         {
             var assessment = Assessment();
             return Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
-                new(assessment, "Alex Example", assessment.Reference, "P-100", [], null, [], []),
+                new(assessment, assessment.Reference, [], null, [], []),
                 new(assessment, null, null, [], null, null, [], new Dictionary<Guid, DocumentVersion>()),
                 assessment.Reference, Workflow.Version));
         }

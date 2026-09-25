@@ -26,7 +26,7 @@ public sealed class CaseVehicleWebTests
     public async Task CaseOverviewUsesAcceptedFactsAndLeavesVehicleFactsInVehicleSection()
     {
         var store = new RecordingCaseDetailsStore();
-        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+        var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
         var make = data.Vehicle.Make.Confirmed
             ?? throw new InvalidOperationException("The vehicle fixture has no confirmed make.");
@@ -95,7 +95,7 @@ public sealed class CaseVehicleWebTests
     public async Task TheSourceDescriptionStaysOnTheRecordAndLeavesTheVehicleSection()
     {
         var store = new RecordingCaseDetailsStore();
-        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+        var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
         store.DataOverride = data with
         {
@@ -123,7 +123,7 @@ public sealed class CaseVehicleWebTests
             workspace.Client,
             $"/Cases/{store.CaseId:D}?section=vehicle");
 
-        var held = await store.GetAsync(store.CaseId, CancellationToken.None);
+        var held = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal("SEAT LEON SPORT TDI 105", held!.Vehicle.Description.Fact!.Value);
 
         Assert.DoesNotContain("Source vehicle description", html, StringComparison.Ordinal);
@@ -218,7 +218,7 @@ public sealed class CaseVehicleWebTests
     public async Task MileageShowsOneBoxWithItsProvenance()
     {
         var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
-        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+        var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
         store.DataOverride = data with
         {
@@ -256,7 +256,7 @@ public sealed class CaseVehicleWebTests
     public async Task LookupFilledValuesRenderWithLookupProvenance()
     {
         var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
-        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+        var data = await store.GetAsync(store.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
         store.DataOverride = data with
         {
@@ -318,7 +318,7 @@ public sealed class CaseVehicleWebTests
         }
 
         var lookupStore = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
-        var data = await lookupStore.GetAsync(lookupStore.CaseId, CancellationToken.None)
+        var data = await lookupStore.GetAsync(lookupStore.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
         lookupStore.DataOverride = data with
         {
@@ -410,7 +410,7 @@ public sealed class CaseVehicleWebTests
     public async Task LookupUsesAnAcceptedFactButNeverARegistrationSuggestion()
     {
         var acceptedStore = new RecordingCaseDetailsStore();
-        var acceptedData = await acceptedStore.GetAsync(acceptedStore.CaseId, CancellationToken.None)
+        var acceptedData = await acceptedStore.GetAsync(acceptedStore.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
         var acceptedRegistration = acceptedData.Vehicle.Registration.Confirmed
             ?? throw new InvalidOperationException("The vehicle fixture has no confirmed registration.");
@@ -437,7 +437,7 @@ public sealed class CaseVehicleWebTests
         Assert.DoesNotContain("disabled", acceptedLookup, StringComparison.Ordinal);
 
         var suggestedStore = new RecordingCaseDetailsStore();
-        var suggestedData = await suggestedStore.GetAsync(suggestedStore.CaseId, CancellationToken.None)
+        var suggestedData = await suggestedStore.GetAsync(suggestedStore.CaseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
         suggestedStore.DataOverride = suggestedData with
         {

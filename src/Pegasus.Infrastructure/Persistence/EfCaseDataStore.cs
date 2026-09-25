@@ -23,6 +23,7 @@ public sealed class EfCaseDataStore(
 
     public async Task<CaseDataProjection?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -31,8 +32,9 @@ public sealed class EfCaseDataStore(
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workId = await CaseWorkScope.ResolveIdAsync(context, caseId, work, cancellationToken);
         var snapshot = await SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken);
         if (snapshot is null)
         {
             return null;
@@ -85,7 +87,7 @@ public sealed class EfCaseDataStore(
                 cancellationToken);
         }
 
-        var (snapshot, workflow) = await GetRequiredForMutationAsync(
+        var workflow = await GetRequiredWorkflowForMutationAsync(
             context,
             request.CaseId,
             cancellationToken);
@@ -101,20 +103,30 @@ public sealed class EfCaseDataStore(
                 "Completeness can be changed only before Engineer assignment on a Not ready or Review case.");
         }
 
+        var snapshot = await GetCurrentSnapshotForMutationAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        // The completeness gate is the Case's, so only the primary work drives it.
+        var isPrimary = snapshot.WorkId == request.CaseId;
+
         var before = new CaseCompleteness(
-            snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete);
+            snapshot.Work.Case.InstructionComplete,
+            snapshot.Work.Case.ImagesComplete);
         evaluation = CaseCompletenessPolicy.Evaluate(request.Completeness,
             await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken));
         var beforeJson = JsonSerializer.Serialize(before, JsonOptions);
-        snapshot.Case.InstructionComplete = request.Completeness.InstructionComplete;
-        snapshot.Case.ImagesComplete = request.Completeness.ImagesComplete;
+        if (isPrimary)
+        {
+            snapshot.Work.Case.InstructionComplete = request.Completeness.InstructionComplete;
+            snapshot.Work.Case.ImagesComplete = request.Completeness.ImagesComplete;
+        }
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
 
         var now = UtcNow();
-        if (evaluation.SatisfiesPolicy)
+        if (isPrimary && evaluation.SatisfiesPolicy)
         {
             var enteringReview = workflow.State != nameof(CaseLifecycleState.Review);
             workflow.State = nameof(CaseLifecycleState.Review);
@@ -126,7 +138,7 @@ public sealed class EfCaseDataStore(
                     context, workflow, checked(workflow.Version + 1), now);
             }
         }
-        else
+        else if (isPrimary)
         {
             if (workflow.State != nameof(CaseLifecycleState.NotReady))
             {
@@ -134,7 +146,7 @@ public sealed class EfCaseDataStore(
             }
 
             workflow.State = nameof(CaseLifecycleState.NotReady);
-            await CaseDueWorkScheduler.ScheduleAsync(context, workflow, snapshot.Case.AcceptedInspectionDeadline, now, cancellationToken);
+            await CaseDueWorkScheduler.ScheduleAsync(context, workflow, snapshot.Work.Case.AcceptedInspectionDeadline, now, cancellationToken);
         }
 
         var beforeVersion = workflow.Version;
@@ -200,7 +212,7 @@ public sealed class EfCaseDataStore(
                 cancellationToken);
         }
 
-        var (snapshot, workflow) = await GetRequiredForMutationAsync(
+        var workflow = await GetRequiredWorkflowForMutationAsync(
             context,
             request.CaseId,
             cancellationToken);
@@ -215,43 +227,57 @@ public sealed class EfCaseDataStore(
                 "Case data can be saved only before Engineer assignment on a Not ready or Review case.");
         }
 
+        var snapshot = await GetCurrentSnapshotForMutationAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        // Matching, the accepted deadline, due work and the completeness gate
+        // are the Case's: only a primary-work edit moves them (decision M).
+        var isPrimary = snapshot.WorkId == request.CaseId;
+
         var before = CaseDataFieldWriter.ReadEditable(snapshot);
         var completenessBefore = new CaseCompleteness(
-            snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete);
+            snapshot.Work.Case.InstructionComplete,
+            snapshot.Work.Case.ImagesComplete);
         if (before == data)
         {
             throw new InvalidOperationException("SaveCase requires at least one changed confirmed value.");
         }
 
         var now = UtcNow();
+        var registrationBefore = CaseDataFieldWriter.Registration(snapshot);
         CaseDataFieldWriter.ApplyEditableData(context, snapshot, data, request.Actor, now);
-        CaseMatchIndexProjector.Apply(
-            context,
-            await context.CaseMatchIndex.SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId,
-                cancellationToken),
-            CaseMatchIndexProjector.Project(
-                snapshot.Case,
-                snapshot.Fields,
-                caseMatchPolicies ?? [],
-                now));
-        snapshot.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
-        snapshot.Case.InstructionComplete = false;
+        await CaseDataFieldWriter.RemoveLookupFactsOnRegistrationChangeAsync(
+            context, snapshot, registrationBefore, cancellationToken);
         snapshot.CompletenessPolicySatisfied = false;
-        if (workflow.State != nameof(CaseLifecycleState.NotReady))
+        if (isPrimary)
         {
-            workflow.StateEnteredAtUtc = now;
-        }
+            CaseMatchIndexProjector.Apply(
+                context,
+                await context.CaseMatchIndex.SingleOrDefaultAsync(
+                    item => item.CaseId == request.CaseId,
+                    cancellationToken),
+                CaseMatchIndexProjector.Project(
+                    snapshot.Work.Case,
+                    snapshot.Fields,
+                    caseMatchPolicies ?? [],
+                    now));
+            snapshot.Work.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
+            snapshot.Work.Case.InstructionComplete = false;
+            if (workflow.State != nameof(CaseLifecycleState.NotReady))
+            {
+                workflow.StateEnteredAtUtc = now;
+            }
 
-        workflow.State = nameof(CaseLifecycleState.NotReady);
-        await CaseDueWorkScheduler.ScheduleAsync(context, workflow, data.InspectionDeadline, now, cancellationToken);
+            workflow.State = nameof(CaseLifecycleState.NotReady);
+            await CaseDueWorkScheduler.ScheduleAsync(context, workflow, data.InspectionDeadline, now, cancellationToken);
+        }
 
         var beforeVersion = workflow.Version;
         workflow.Version++;
         var completenessAfter = new CaseCompleteness(
-            snapshot.Case.InstructionComplete,
-            snapshot.Case.ImagesComplete);
+            snapshot.Work.Case.InstructionComplete,
+            snapshot.Work.Case.ImagesComplete);
         ClearLease(workflow);
         CaseMutationHistory.Add(
             context,
@@ -295,22 +321,28 @@ public sealed class EfCaseDataStore(
         return ApplyConfiguration(Map(snapshot, workflow), await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken));
     }
 
-    private static async Task<(CaseDataSnapshotEntity Snapshot, CaseWorkflowEntity Workflow)>
-        GetRequiredForMutationAsync(
-            PegasusDbContext context,
-            Guid caseId,
-            CancellationToken cancellationToken)
-    {
-        var snapshot = await SnapshotQuery(context, tracking: true)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
-        var workflow = await context.CaseWorkflows
+    private static async Task<CaseWorkflowEntity> GetRequiredWorkflowForMutationAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken) =>
+        await context.CaseWorkflows
             .Include(item => item.Case).ThenInclude(item => item.Principal)
             .Include(item => item.DueWork)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
+
+    // Resolved after the caller's guards: Create audit takes the same workflow
+    // lock and bumps the version, so a stale write never reaches the old work.
+    private static async Task<CaseDataSnapshotEntity> GetCurrentSnapshotForMutationAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
+        return await SnapshotQuery(context, tracking: true)
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
             ?? throw new InvalidDataException(
-                "The accepted case data snapshot has no workflow record.");
-        return (snapshot, workflow);
+                "The accepted case has no typed data snapshot for its current work.");
     }
 
     private static async Task<CaseDataProjection> GetRequiredProjectionAsync(
@@ -319,8 +351,9 @@ public sealed class EfCaseDataStore(
         bool tracking,
         CancellationToken cancellationToken)
     {
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var snapshot = await SnapshotQuery(context, tracking)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => item.WorkId == workId, cancellationToken)
             ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
         var workflowQuery = tracking
             ? context.CaseWorkflows
@@ -341,7 +374,8 @@ public sealed class EfCaseDataStore(
         bool tracking)
     {
         var query = context.CaseDataSnapshots
-            .Include(item => item.Case)
+            .Include(item => item.Work)
+            .ThenInclude(item => item.Case)
             .ThenInclude(item => item.Principal)
             .Include(item => item.Fields);
         return tracking ? query : query.AsNoTracking();
@@ -365,12 +399,12 @@ public sealed class EfCaseDataStore(
         CaseDataSnapshotEntity snapshot,
         CaseWorkflowEntity workflow) => new(
         new(
-            snapshot.CaseId,
-            snapshot.Case.Principal.Code,
-            snapshot.Case.Year,
-            snapshot.Case.Sequence,
-            snapshot.Case.Reference,
-            snapshot.Case.AuditReference),
+            snapshot.Work.CaseId,
+            snapshot.Work.Case.Principal.Code,
+            snapshot.Work.Case.Year,
+            snapshot.Work.Case.Sequence,
+            snapshot.Work.Case.Reference,
+            snapshot.Work.Case.AuditReference),
         new(
             snapshot.OriginIntakeReceiptId,
             snapshot.OriginSourceChannel is null
@@ -388,8 +422,8 @@ public sealed class EfCaseDataStore(
         ParseLifecycleState(workflow.State),
         new(
             new(
-                snapshot.Case.InstructionComplete,
-                snapshot.Case.ImagesComplete),
+                snapshot.Work.Case.InstructionComplete,
+                snapshot.Work.Case.ImagesComplete),
             new(
                 snapshot.CompletenessPolicySatisfied,
                 snapshot.CompletenessPolicyKey,
@@ -418,7 +452,7 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.ContactEmailAddress),
             TextField(snapshot, CaseDataFieldNames.ContactPhoneNumber)),
         new(
-            DateField(snapshot, CaseDataFieldNames.InstructionDate),
+            CaseDataPolicy.ReceivedDate(snapshot.OriginReceivedAtUtc, snapshot.Work.Case.CreatedAtUtc),
             TextField(snapshot, CaseDataFieldNames.VatStatus)),
         new(
             DateField(snapshot, CaseDataFieldNames.InspectionDate),
@@ -429,7 +463,7 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.RepairerAddress),
             TextField(snapshot, CaseDataFieldNames.RepairerName)),
         Workspace(snapshot),
-        snapshot.Case.StandaloneAuditEvidenceId);
+        snapshot.Work.Case.StandaloneAuditEvidenceId);
 
     /// <summary>
     /// The v1 workspace facts. Each is entered by staff through the one Case
@@ -653,7 +687,6 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.ContactName, data.ContactName);
         Text(CaseDataFieldNames.ContactEmailAddress, data.ContactEmailAddress);
         Text(CaseDataFieldNames.ContactPhoneNumber, data.ContactPhoneNumber);
-        Day(CaseDataFieldNames.InstructionDate, data.InstructionDate);
         Text(CaseDataFieldNames.VatStatus, data.VatStatus);
         Day(CaseDataFieldNames.InspectionDate, data.InspectionDate);
         Day(CaseDataFieldNames.InspectionDeadline, data.InspectionDeadline);
@@ -706,6 +739,46 @@ internal static class CaseDataFieldWriter
         snapshot.ClaimSourceOverrideContactEmailAddress = data.ClaimSourceOverrideContactEmailAddress;
     }
 
+    /// <summary>
+    /// The work's registration as the vehicle lookup reads it
+    /// (<see cref="EfVehicleWorkflowStore.CurrentRegistration"/>).
+    /// </summary>
+    public static string? Registration(CaseDataSnapshotEntity snapshot) =>
+        EfVehicleWorkflowStore.CurrentRegistration(
+            snapshot.Fields
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration)
+                .Select(item => (item.ValueKind, item.Value)));
+
+    /// <summary>
+    /// The facts only the vehicle lookup records
+    /// (<see cref="Pegasus.Core.Assessment.AssessmentVocabulary.LookupDerivedPaths"/>)
+    /// describe the vehicle it looked up. A save that changed the work's
+    /// registration from <paramref name="registrationBefore"/> removes them in
+    /// its own transaction, so the registration it now names never inherits
+    /// the previous vehicle's facts; a lookup of that registration records them
+    /// again. Returns the removed rows. A report that printed them is staled by
+    /// the save's own freshness check, because the registration it printed
+    /// changed too.
+    /// </summary>
+    public static async Task<IReadOnlyList<CaseAssessmentFieldEntity>> RemoveLookupFactsOnRegistrationChangeAsync(
+        PegasusDbContext context,
+        CaseDataSnapshotEntity snapshot,
+        string? registrationBefore,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(Registration(snapshot), registrationBefore, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        string[] paths = [.. Pegasus.Core.Assessment.AssessmentVocabulary.LookupDerivedPaths];
+        var facts = await context.CaseAssessmentFields
+            .Where(item => item.WorkId == snapshot.WorkId && paths.Contains(item.FieldPath))
+            .ToListAsync(cancellationToken);
+        context.CaseAssessmentFields.RemoveRange(facts);
+        return facts;
+    }
+
     public static CaseEditableData ReadEditable(CaseDataSnapshotEntity snapshot) => new(
         ConfirmedText(snapshot, CaseDataFieldNames.ClaimantName),
         ConfirmedText(snapshot, CaseDataFieldNames.ClaimNumber),
@@ -719,7 +792,6 @@ internal static class CaseDataFieldWriter
         ConfirmedText(snapshot, CaseDataFieldNames.ContactName),
         ConfirmedText(snapshot, CaseDataFieldNames.ContactEmailAddress),
         ConfirmedText(snapshot, CaseDataFieldNames.ContactPhoneNumber),
-        ConfirmedDate(snapshot, CaseDataFieldNames.InstructionDate),
         ConfirmedText(snapshot, CaseDataFieldNames.VatStatus),
         ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDate),
         ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDeadline),
@@ -805,7 +877,7 @@ internal static class CaseDataFieldWriter
         {
             existing = new()
             {
-                CaseId = snapshot.CaseId,
+                WorkId = snapshot.WorkId,
                 Snapshot = snapshot,
                 FieldName = fieldName,
                 ValueKind = CaseDataCodes.Confirmed,
