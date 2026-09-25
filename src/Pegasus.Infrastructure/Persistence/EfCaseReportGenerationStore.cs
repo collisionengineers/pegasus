@@ -856,24 +856,15 @@ public sealed class EfCaseReportGenerationStore(
         {
             return;
         }
-        var value = reportDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        if (existing is null)
-        {
-            context.CaseAssessmentFields.Add(new()
-            {
-                WorkId = workId,
-                FieldPath = AssessmentVocabulary.ReportDate,
-                Value = value,
-                RecordedByKind = request.Actor.Kind.ToString(),
-                RecordedBy = request.Actor.SubjectId,
-                RecordedAtUtc = now
-            });
-            return;
-        }
-        existing.Value = value;
-        existing.RecordedByKind = request.Actor.Kind.ToString();
-        existing.RecordedBy = request.Actor.SubjectId;
-        existing.RecordedAtUtc = now;
+        AssessmentFieldWriter.Write(
+            context,
+            workId,
+            existing,
+            AssessmentVocabulary.ReportDate,
+            reportDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            request.Actor.Kind,
+            request.Actor.SubjectId,
+            now);
     }
 
     private static bool SignatoryMatches(

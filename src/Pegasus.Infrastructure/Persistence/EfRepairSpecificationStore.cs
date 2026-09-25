@@ -160,7 +160,7 @@ public sealed class EfRepairSpecificationStore(
         ArgumentNullException.ThrowIfNull(request);
         if (request.EngineerValue is not { } engineerValue || engineerValue <= 0m)
         {
-            throw new InvalidOperationException("A confirmed Engineer's Value is required before scaling.");
+            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);

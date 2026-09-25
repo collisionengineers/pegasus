@@ -393,7 +393,7 @@ public sealed partial class SendToAiIntegrationTests
     }
 
     /// <summary>
-    /// Core owns the refusal (no confirmed Engineer's Value, wrong state,
+    /// Core owns the refusal (no Engineer's Value, wrong state,
     /// switch off); the page surfaces the sentence it is given rather than
     /// rewriting it.
     /// </summary>
@@ -403,7 +403,7 @@ public sealed partial class SendToAiIntegrationTests
         var caseId = Guid.NewGuid();
         using var factory = Compose(
             caseId,
-            refusal: "An estimate job needs a confirmed Engineer's Value on the case.");
+            refusal: "An estimate job needs an Engineer's Value on the case.");
         using var client = CreateClient(factory);
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
@@ -420,7 +420,7 @@ public sealed partial class SendToAiIntegrationTests
         // the claim is that Core's sentence reaches the operator unrewritten.
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.Contains(
-            "An estimate job needs a confirmed Engineer's Value on the case.",
+            "An estimate job needs an Engineer's Value on the case.",
             WebUtility.HtmlDecode(afterHtml),
             StringComparison.Ordinal);
     }

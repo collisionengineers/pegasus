@@ -604,11 +604,9 @@ public static class CaseWorkspacePolicy
                 nameof(request));
         }
 
-        var fields = AssessmentFields(request);
-        if (fields.Keys.Any(path => AssessmentVocabulary.Definitions[path].IsFinding))
-        {
-            AssessmentPolicy.RequireFindingAuthority(request.Actor);
-        }
+        // Every assessment path passes the field gate (finding authority
+        // included) before the transaction opens.
+        _ = AssessmentFields(request);
 
         if (request.Inspection is { } inspection)
         {
@@ -717,7 +715,7 @@ public static class CaseWorkspacePolicy
 
         void Add(string path, string? rawValue)
         {
-            if (!fields.TryAdd(path, AssessmentPolicy.NormalizeWritableField(path, rawValue)))
+            if (!fields.TryAdd(path, AssessmentPolicy.NormalizeWritableField(path, rawValue, request.Actor)))
             {
                 throw new InvalidOperationException(
                     $"The field '{path}' was submitted by more than one section of the Case save.");

@@ -457,24 +457,20 @@ internal sealed class AssessmentMcpTools(
     }
 
     /// <summary>
-    /// Refuses a generic automation write staff could not change or clear on
-    /// the Case (FRD-10): a professional finding, or a path with no staff
-    /// editor on the Case. Unknown, case-owned, impact-derived and
-    /// lookup-derived paths fall through to Core's NormalizeWritableField,
-    /// which names each.
+    /// Refuses a generic automation write of a path with no staff editor on
+    /// the Case (FRD-10), the one rule only the Web can answer because it owns
+    /// the editor list. A professional finding, an unknown, case-owned,
+    /// impact-derived or lookup-derived path falls through to Core's
+    /// NormalizeWritableField, which names each.
     /// </summary>
     internal static void RequireGenericWrite(string path)
     {
         if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition)
+            || definition.IsFinding
             || AssessmentVocabulary.DerivedPaths.Contains(path)
             || AssessmentVocabulary.LookupDerivedPaths.Contains(path))
         {
             return;
-        }
-        if (definition.IsFinding)
-        {
-            throw new McpException(
-                $"The field '{path}' is a professional finding; only staff record it on the Case.");
         }
         if (!CaseWorkspaceLabels.Editors.HasStaffEditor(path))
         {

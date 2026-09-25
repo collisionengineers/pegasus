@@ -58,16 +58,9 @@ public static class AssessmentPolicy
         }
 
         var normalizedFields = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var touchesFinding = false;
         foreach (var (path, rawValue) in request.Fields)
         {
-            normalizedFields[path] = NormalizeWritableField(path, rawValue);
-            touchesFinding |= AssessmentVocabulary.Definitions[path].IsFinding;
-        }
-
-        if (touchesFinding)
-        {
-            RequireFindingAuthority(request.Actor);
+            normalizedFields[path] = NormalizeWritableField(path, rawValue, request.Actor);
         }
 
         var normalizedLines = request.EstimateLines is null
@@ -78,11 +71,11 @@ public static class AssessmentPolicy
 
     /// <summary>
     /// The one owner of who may record a professional finding: an
-    /// authenticated staff member, never the Automation actor (the MCP write
-    /// refuses the same paths by name). The assessment save applies it to any
-    /// save that touches a finding; a caller that writes a finding field
-    /// outside that save - the Engineer's Value valuation - applies it on its
-    /// own.
+    /// authenticated staff member, never the Automation actor. The field gate
+    /// (<see cref="NormalizeWritableField"/>) applies it to every finding path
+    /// a field save writes, naming the field; a caller that writes a finding
+    /// outside a field save - the Engineer's Value valuation - applies it on
+    /// its own.
     /// </summary>
     public static void RequireFindingAuthority(ActionActor actor)
     {
@@ -97,15 +90,17 @@ public static class AssessmentPolicy
     /// <summary>
     /// The one gate every generic field save passes: the path must be part of
     /// the vocabulary, must not be derived from the damage impacts or recorded
-    /// by the vehicle lookup, must not be owned by the accepted case record, and
-    /// must not be a finding a named command adopts. The value is then
-    /// canonicalized against its own definition. Both the assessment save and
-    /// the Case workspace save call it, so an unwritable path fails the same
-    /// way on either route.
+    /// by the vehicle lookup, must not be owned by the accepted case record,
+    /// must not be a finding a named command adopts, and a professional
+    /// finding is written only by staff. The value is then canonicalized
+    /// against its own definition. Both the assessment save and the Case
+    /// workspace save call it, so an unwritable path fails the same way on
+    /// either route.
     /// </summary>
-    public static string? NormalizeWritableField(string path, string? rawValue)
+    public static string? NormalizeWritableField(string path, string? rawValue, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(actor);
         if (AssessmentVocabulary.DerivedPaths.Contains(path))
         {
             throw new InvalidOperationException(
@@ -134,9 +129,22 @@ public static class AssessmentPolicy
                 $"The field path '{path}' is not part of the assessment vocabulary.",
                 nameof(path));
         }
+        if (definition.IsFinding && actor.Kind != ActorKind.Staff)
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is a professional finding; only staff record it on the Case.");
+        }
 
         return NormalizeValue(definition, rawValue);
     }
+
+    /// <summary>
+    /// Whether an automated fill (the original-report extraction, the vehicle
+    /// lookup's Vehicle type) lands on a cell: only where staff have not
+    /// recorded a value. A value staff typed is never overwritten; a value an
+    /// automation recorded takes the newer reading.
+    /// </summary>
+    public static bool FillLands(ActorKind? recordedByKind) => recordedByKind != ActorKind.Staff;
 
     public static void RequireOriginalReportScope(IEnumerable<string> paths, CaseType caseType)
     {
@@ -530,10 +538,7 @@ public static class AssessmentPolicy
             }
         }
 
-        if (string.Equals(
-                fields.GetValueOrDefault(AssessmentVocabulary.Outcome),
-                "contract_repair",
-                StringComparison.Ordinal)
+        if (string.Equals(outcome, "contract_repair", StringComparison.Ordinal)
             && !fields.ContainsKey(AssessmentVocabulary.SettlementContractSum))
         {
             items.Add(new(

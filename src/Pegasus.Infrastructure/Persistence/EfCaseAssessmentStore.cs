@@ -461,11 +461,20 @@ internal static class CaseDataFieldValues
         CurrentField(fields, fieldName)?.Value;
 
     /// <summary>The accepted value: confirmed, else the intake fact; never a suggestion.</summary>
-    internal static string? Accepted(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
+    internal static string? Accepted(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName) =>
+        AcceptedField(fields, fieldName)?.Value;
+
+    /// <summary>
+    /// The accepted row itself: the staff-confirmed row, else the intake fact,
+    /// never a suggestion. The value the Case shows and the one Save posts
+    /// back, so the editable-data reader and the field writer both read it
+    /// (#837).
+    /// </summary>
+    internal static CaseDataFieldEntity? AcceptedField(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
     {
         var values = fields.Where(item => item.FieldName == fieldName).ToArray();
-        return (values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
-            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact))?.Value;
+        return values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
+            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact);
     }
 
     /// <summary>

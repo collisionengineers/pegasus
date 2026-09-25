@@ -111,8 +111,8 @@ public sealed class VehicleLookupGapFillTests
 
     /// <summary>
     /// Engine capacity, fuel, colour, tax expiry and MOT expiry are the
-    /// lookup's own facts: it records each confirmed by itself, so none waits
-    /// on staff review and the readiness rail names none of them.
+    /// lookup's own facts: it records each with its own provenance, and the
+    /// readiness rail names none of them.
     /// </summary>
     [Fact]
     public async Task RecordOutcomeWritesTheLookupsOwnFacts()

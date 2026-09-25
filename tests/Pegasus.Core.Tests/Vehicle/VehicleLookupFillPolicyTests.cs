@@ -14,9 +14,9 @@ public sealed class VehicleLookupFillPolicyTests
     [InlineData(true, true, false)]
     public void ALookupFillsOnlyWhatTheCaseDoesNotAlreadyHold(
         bool hasFact,
-        bool hasStaffValue,
+        bool hasConfirmed,
         bool expected) =>
-        Assert.Equal(expected, VehicleLookupFillPolicy.Fills(hasFact, hasStaffValue));
+        Assert.Equal(expected, VehicleLookupFillPolicy.Fills(hasFact, hasConfirmed));
 
     [Fact]
     public void TheModelComesFromDvsaBesideTheDvlaDescription()

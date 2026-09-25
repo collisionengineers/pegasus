@@ -40,9 +40,9 @@ public sealed record OriginalReportReading(
 /// disagreement between the two leaves the cell blank.
 ///
 /// A fill never overwrites a cell staff recorded; a cell the extraction
-/// recorded takes the newer reading. There is no per-field review (operator,
-/// 25 September 2026): a filled cell is the Case's value, tagged Extracted
-/// until staff change it.
+/// recorded takes the newer reading (<see cref="AssessmentPolicy.FillLands"/>).
+/// There is no per-field review (operator, 25 September 2026): a filled cell
+/// is the Case's value, tagged Extracted until staff change it.
 /// </summary>
 public static class OriginalReportPrefillPolicy
 {
@@ -151,9 +151,6 @@ public static class OriginalReportPrefillPolicy
         Add(writes, AssessmentVocabulary.OriginalReportOutcome, outcome);
         return writes;
     }
-
-    /// <summary>A fill lands only where staff have not recorded the cell.</summary>
-    public static bool Fills(bool staffRecorded) => !staffRecorded;
 
     private static (string? Code, bool Unreadable) Outcome(ThirdPartyReportFact<string?>? fact) =>
         fact switch

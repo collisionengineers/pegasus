@@ -70,7 +70,7 @@ public sealed class EfValuationStore(
 
         // The Valuations table stays the one entry surface of
         // assessment.values.engineer: the adoption writes an Engineer's Value
-        // row and the existing field owner resolves the confirmed field from
+        // row and the existing field owner resolves the field from
         // it, so applying a calculation and typing a value cannot become two
         // owners of the same number.
         var adopted = new CaseValuationEntity

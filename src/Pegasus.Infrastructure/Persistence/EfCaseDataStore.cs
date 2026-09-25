@@ -724,8 +724,7 @@ internal static class CaseDataFieldWriter
 
         // A section save also carries unedited accepted values. Keeping one
         // must not manufacture a confirmation or rewrite its attribution.
-        var accepted = existing ?? snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Fact);
+        var accepted = CaseDataFieldValues.AcceptedField(snapshot.Fields, fieldName);
         if (accepted is not null && accepted.ValueType == valueType
             && string.Equals(accepted.Value, value, StringComparison.Ordinal))
         {
@@ -817,16 +816,12 @@ internal static class CaseDataFieldWriter
             : null;
 
     /// <summary>
-    /// The accepted row: the staff-confirmed value, else the intake fact —
-    /// the value the Case shows and the one Save posts back (#837). Reading
-    /// the same rule on both sides of a save means an untouched fact reads
-    /// equal and is neither rewritten nor named as changed.
+    /// The accepted row (<see cref="CaseDataFieldValues.AcceptedField"/>):
+    /// reading the same rule on both sides of a save means an untouched fact
+    /// reads equal and is neither rewritten nor named as changed (#837).
     /// </summary>
     private static CaseDataFieldEntity? Accepted(CaseDataSnapshotEntity snapshot, string name) =>
-        snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == name && item.ValueKind == CaseDataCodes.Confirmed)
-        ?? snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == name && item.ValueKind == CaseDataCodes.Fact);
+        CaseDataFieldValues.AcceptedField(snapshot.Fields, name);
 
     private static string? Integer(long? value) =>
         value?.ToString(CultureInfo.InvariantCulture);

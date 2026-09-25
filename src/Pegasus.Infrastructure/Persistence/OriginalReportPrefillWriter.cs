@@ -42,7 +42,7 @@ internal static class OriginalReportPrefillWriter
         foreach (var (path, value) in writes)
         {
             var existing = rows.SingleOrDefault(item => item.FieldPath == path);
-            if (!OriginalReportPrefillPolicy.Fills(AssessmentFieldWriter.IsStaffRecorded(existing))
+            if (!AssessmentPolicy.FillLands(AssessmentFieldWriter.RecordedByKind(existing))
                 || string.Equals(existing?.Value, value, StringComparison.Ordinal))
             {
                 continue;

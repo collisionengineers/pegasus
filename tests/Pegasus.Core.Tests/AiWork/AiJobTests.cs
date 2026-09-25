@@ -173,7 +173,7 @@ public sealed class AiJobTests
             harness.Create.ExecuteAsync(EstimateCommand(harness.CaseId), CancellationToken.None));
         Assert.Contains("With Engineer", refused.Message, StringComparison.Ordinal);
 
-        harness = new Harness { EngineerValue = null };
+        harness = new Harness();
         var absent = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             harness.Create.ExecuteAsync(EstimateCommand(harness.CaseId), CancellationToken.None));
         Assert.Contains("Engineer's Value", absent.Message, StringComparison.Ordinal);

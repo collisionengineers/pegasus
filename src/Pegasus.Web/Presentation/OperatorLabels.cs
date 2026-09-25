@@ -2026,7 +2026,7 @@ public static class OperatorLabels
 
             public const string ReadOnlyOnceComplete = "Read-only once Complete";
             public const string SendingToAiDisabled = "Sending to AI is disabled by an Administrator";
-            public const string ConfirmedEngineerValueRequired = "A confirmed Engineer's Value is required";
+            public const string EngineerValueRequired = "An Engineer's Value is required";
             public const string NotAvailableForCase = "Not available for this case";
             public const string NotReady = "Not ready";
 

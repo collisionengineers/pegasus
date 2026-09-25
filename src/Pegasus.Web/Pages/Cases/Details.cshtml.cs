@@ -1137,7 +1137,7 @@ public sealed partial class DetailsModel(
         }
         else if (EngineerValue is null)
         {
-            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.ConfirmedEngineerValueRequired;
+            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.EngineerValueRequired;
         }
 
         ReportDraftCondition = !AssessmentCanOpen || ReportDraftPreparation is null

@@ -120,10 +120,4 @@ public sealed class OriginalReportPrefillPolicyTests
             new Dictionary<string, string> { ["original_report.roadworthiness"] = "roadworthy" },
             writes);
     }
-
-    [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    public void AFillNeverLandsOnACellStaffRecorded(bool staffRecorded, bool fills) =>
-        Assert.Equal(fills, OriginalReportPrefillPolicy.Fills(staffRecorded));
 }

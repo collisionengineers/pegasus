@@ -1,6 +1,5 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
-using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Web.Presentation;
 
@@ -16,16 +15,6 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed partial class DetailsModel
 {
     private static readonly CultureInfo Pounds = CultureInfo.GetCultureInfo("en-GB");
-
-    /// <summary>The five decision fields the Decisions strip carries, in order.</summary>
-    public static readonly IReadOnlyList<string> DecisionPaths =
-    [
-        AssessmentVocabulary.Outcome,
-        AssessmentVocabulary.ValueEngineer,
-        AssessmentVocabulary.SalvageCategory,
-        AssessmentVocabulary.SalvageValue,
-        AssessmentVocabulary.LegalStatus
-    ];
 
     /// <summary>
     /// The recorded value a field's box and its control both show, reading and
@@ -135,7 +124,7 @@ public sealed partial class DetailsModel
 
     public string ReportDeliveryMessage => CaseReportDeliveryNaming.Message(ReportSendHistory);
 
-    /// <summary>The recorded outcome code, confirmed or proposed, else null.</summary>
+    /// <summary>The recorded outcome code, else null.</summary>
     public string? RecordedOutcome => Assessment?.Field(AssessmentVocabulary.Outcome)?.Value;
 
     public bool IsTotalLoss => string.Equals(RecordedOutcome, "total_loss", StringComparison.Ordinal);

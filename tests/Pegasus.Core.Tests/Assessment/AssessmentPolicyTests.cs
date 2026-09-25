@@ -133,7 +133,7 @@ public sealed class AssessmentPolicyTests
 
         Assert.False(AssessmentVocabulary.Definitions.ContainsKey(obsoletePath));
         Assert.Throws<ArgumentException>(() =>
-            AssessmentPolicy.NormalizeWritableField(obsoletePath, "3"));
+            AssessmentPolicy.NormalizeWritableField(obsoletePath, "3", Automation));
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(Request(new() { [obsoletePath] = "3" })));
     }
@@ -629,6 +629,13 @@ public sealed class AssessmentPolicyTests
         Assert.True(AssessmentPolicy.MaximumFieldsPerSave >= AssessmentVocabulary.Definitions.Count);
     }
 
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData(ActorKind.Automation, true)]
+    [InlineData(ActorKind.Staff, false)]
+    public void AFillLandsOnlyWhereStaffHaveNotRecordedAValue(ActorKind? recordedByKind, bool lands) =>
+        Assert.Equal(lands, AssessmentPolicy.FillLands(recordedByKind));
+
     [Fact]
     public void AutomationCannotRecordAFindingField()
     {
@@ -636,7 +643,7 @@ public sealed class AssessmentPolicyTests
         // actor never records one, so no AI value can be a finding.
         var refused = Assert.Throws<InvalidOperationException>(() => AssessmentPolicy.ValidateAndNormalize(
             Request(new() { ["assessment.legal_status"] = "roadworthy" })));
-        Assert.Contains("authenticated staff", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("professional finding", refused.Message, StringComparison.Ordinal);
 
         var normalized = AssessmentPolicy.ValidateAndNormalize(
             Request(new() { ["vehicle.condition"] = "good" }));

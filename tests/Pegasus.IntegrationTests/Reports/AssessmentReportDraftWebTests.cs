@@ -666,9 +666,9 @@ public sealed partial class AssessmentReportDraftWebTests
     /// </summary>
     internal static CaseAssessmentProjection FullAssessmentProjection(Guid caseId)
     {
-        var confirmedAt = DateTimeOffset.UtcNow;
+        var recordedAt = DateTimeOffset.UtcNow;
         AssessmentFieldValue Field(string path, string value) => new(
-            path, value, ActorKind.Staff, "engineer-1", confirmedAt);
+            path, value, ActorKind.Staff, "engineer-1", recordedAt);
 
         var fields = new[]
         {

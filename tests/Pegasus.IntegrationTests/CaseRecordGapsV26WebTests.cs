@@ -20,9 +20,8 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// Phase 5b, the five Case record gaps and the first-paint preferences:
-/// Notes from client, the claim source chosen in Overview, Settlement's
-/// Proposed column with Awaiting / Accepted / Corrected, the valuation
-/// commentary text, the vehicle's VIN / type / body, and the rail, layout and
+/// Notes from client, the claim source chosen in Overview, the Settlement
+/// decisions, the valuation commentary text, the vehicle's VIN / type / body, and the rail, layout and
 /// folded panels painted by the server from their cookies. Issue #834 adds
 /// the editors for report facts that had no writer (the transmission in the
 /// Vehicle section, the airbags beside the belts and an unroadworthy
@@ -303,7 +302,7 @@ public sealed class CaseRecordGapsV26WebTests
         ];
         foreach (var fact in facts)
         {
-            ports.LookupDerived(fact.Path, fact.Recorded);
+            ports.Lookup(fact.Path, fact.Recorded);
         }
         using var workspace = await EnterEditModeAsync(store, ports.Register);
 
@@ -689,9 +688,6 @@ public sealed class CaseRecordGapsV26WebTests
 
         public void Lookup(string path, string value) =>
             Fields.Add(new(path, value, ActorKind.Automation, Pegasus.Core.Vehicle.VehicleLookupFillPolicy.RecorderId, At));
-
-        /// <summary>A fact only the lookup records.</summary>
-        public void LookupDerived(string path, string value) => Lookup(path, value);
 
         public void Staff(string path, string value) =>
             Fields.Add(new(path, value, ActorKind.Staff, "recorded-engineer", At));
