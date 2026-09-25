@@ -904,6 +904,14 @@ A recovery, restore, failover, or retirement exercise requires exact target appr
 
 ## Glass's editor startup and recovery
 
+For the deterministic browser regression, run
+`node scripts/Test-GlassBrowser.mjs` with Chrome installed, or pass the absolute
+Chrome/Edge executable path as its first argument. It uses isolated browser
+profiles and local scripted responses, exercises the production workspace and
+handoff scripts, and records JSON under `artifacts/issue-861/browser/`. It makes
+no provider requests. This check covers browser behavior; the .NET suites run
+in CI and the live provider journey has its own acceptance below.
+
 Use the Case's Repair Spec Glass's controls. Launch/Resume saves pending Case
 edits first. An issued estimator URL is a transport milestone; it does not
 prove the provider editor loaded. Session/version identifies the attempt in

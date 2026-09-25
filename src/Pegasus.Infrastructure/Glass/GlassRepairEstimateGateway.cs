@@ -751,7 +751,7 @@ public sealed partial class GlassRepairEstimateGateway(
     /// </summary>
     private static void RequireSameVehicle(GlassEstimateExport export, ProviderState provider)
     {
-        if (!GlassMvaClient.SameRegistration(export.Identity.RegistrationPlate, provider.Registration))
+        if (!GlassRepairEstimateSessionPolicy.SameRegistration(export.Identity.RegistrationPlate, provider.Registration))
         {
             throw new GlassMvaStageException(GlassFailure.IdentityRegistration);
         }
@@ -951,8 +951,8 @@ public sealed partial class GlassRepairEstimateGateway(
         {
             if (logger.IsEnabled(LogLevel.Information))
             {
-                LogStage(logger, session.Id, session.CaseId, session.Version, stage, outcome,
-                    Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                LogStage(logger, session.Id, session.CaseId, session.Version, stage, outcome, elapsedMs);
             }
         }
     }

@@ -282,7 +282,7 @@ internal sealed partial class GlassMvaClient(
 
         var vrm = Text(created, "vrm");
         var id = Text(created, "id");
-        if (!SameRegistration(vrm, registration)
+        if (!GlassRepairEstimateSessionPolicy.SameRegistration(vrm, registration)
             || !long.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var numeric)
             || numeric <= 0)
         {
@@ -352,7 +352,7 @@ internal sealed partial class GlassMvaClient(
                 throw new GlassMvaStageException(GlassFailure.DetailsProfile);
             }
             if (string.IsNullOrWhiteSpace(natCode) || Field("id") != vehicleId || Field("natcode") != natCode
-                || !SameRegistration(Field("registration_number"), registration)
+                || !GlassRepairEstimateSessionPolicy.SameRegistration(Field("registration_number"), registration)
                 || !long.TryParse(Field("mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
                 || mileage != mileageMiles)
             {
@@ -937,14 +937,6 @@ internal sealed partial class GlassMvaClient(
         long.TryParse(Text(element, name), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : null;
-
-    /// <summary>
-    /// Whether two registrations are the same plate. Glass's prints its own
-    /// spacing and casing, so neither decides identity; nothing else about the
-    /// characters is normalised away.
-    /// </summary>
-    internal static bool SameRegistration(string? left, string? right) =>
-        GlassRepairEstimateSessionPolicy.SameRegistration(left, right);
 
     [GeneratedRegex(@"<!--.*?-->|<(script|style)\b[^>]*>.*?</\1\s*>",
         RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
