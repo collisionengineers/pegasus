@@ -3,9 +3,10 @@
     the Decisions strip with its radio groups (v28 P29: the select stays the
     posted control and the buttons drive it, so the live show-and-hide rules
     still fire), the salvage share slider (P14), the firm's unroadworthy
-    reason bank (P15), the computed repair reserve (P30) and the
-    "Salvage · Not applicable" line (P29) while the outcome is not a total
-    loss. Historic head comment follows.
+    reason bank (P15), the temporary repair rows for an unroadworthy vehicle,
+    the computed repair reserve (P30) and the "Salvage · Not applicable" line
+    (P29) while the outcome is not a total loss. Historic head comment
+    follows.
 
     Settlement (v26 § Settlement). The figures strip, then the Decisions strip
     (manager's v24 decision folded in: Outcome, Engineer's Value, Salvage
@@ -148,6 +149,13 @@
                     </div>
                 }
             </div>
+            @* Temporary repairs are the unroadworthy vehicle's: they follow the reason and
+               show only while Roadworthiness is Unroadworthy, as the salvage rows show
+               only on a total loss (operator, 24 September 2026). *@
+            @{ await DecisionRow(AssessmentVocabulary.VehicleTemporaryRepairsPossible, labels[AssessmentVocabulary.VehicleTemporaryRepairsPossible], !isUnroadworthy, "unroadworthy");
+                await DecisionRow(AssessmentVocabulary.VehicleTemporaryRepairMethod, labels[AssessmentVocabulary.VehicleTemporaryRepairMethod], !isUnroadworthy, "unroadworthy");
+                await DecisionRow(AssessmentVocabulary.VehicleTemporaryRepairCost, labels[AssessmentVocabulary.VehicleTemporaryRepairCost], !isUnroadworthy, "unroadworthy");
+            }
         </div>
 
         <div class="fg g4">

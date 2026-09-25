@@ -23,6 +23,23 @@ public sealed class VehicleLookupGapFillTests
     private static readonly DateTimeOffset FixedUtcNow =
         new(2026, 8, 22, 18, 47, 0, TimeSpan.Zero);
 
+    private static readonly DateOnly FixtureTaxDueDate = new(2027, 3, 1);
+
+    private static readonly DateOnly FixtureMotExpiry = new(2026, 9, 24);
+
+    /// <summary>
+    /// The facts only the lookup records, in the vocabulary's canonical form,
+    /// as the fixture's answer carries them.
+    /// </summary>
+    private static readonly (string Path, string Value)[] FixtureDerivedFacts =
+    [
+        (AssessmentVocabulary.VehicleEngineCc, "1461"),
+        (AssessmentVocabulary.VehicleFuel, "DIESEL"),
+        (AssessmentVocabulary.VehicleColour, "BLUE"),
+        (AssessmentVocabulary.VehicleTaxExpiry, "2027-03-01"),
+        (AssessmentVocabulary.VehicleMotExpiry, "2026-09-24")
+    ];
+
     [Fact]
     public async Task ALookupFillsAMileageTheDocumentsNeverCarried()
     {
@@ -80,6 +97,169 @@ public sealed class VehicleLookupGapFillTests
             $"SELECT Wheelplan FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
         Assert.Equal(1_800, await database.ScalarAsync<int>(
             $"SELECT RevenueWeightKg FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
+    }
+
+    /// <summary>
+    /// Engine capacity, fuel, colour, tax expiry and MOT expiry are the
+    /// lookup's own facts: it records each confirmed by itself, so none waits
+    /// on staff review and the readiness rail names none of them.
+    /// </summary>
+    [Fact]
+    public async Task RecordOutcomeWritesTheLookupsOwnFactsConfirmedByTheLookup()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+
+        await RecordLookupAsync(database, caseId);
+
+        var rows = await DerivedFactRowsAsync(database, caseId);
+        Assert.Equal(FixtureDerivedFacts.Length, rows.Count);
+        foreach (var (path, value) in FixtureDerivedFacts)
+        {
+            var row = Assert.Single(rows, item => item.FieldPath == path);
+            Assert.Equal(value, row.Value);
+            Assert.Equal(ActorKind.Automation.ToString(), row.RecordedByKind);
+            Assert.Equal("vehicle-lookup", row.RecordedBy);
+            Assert.Equal("vehicle-lookup", row.ConfirmedBy);
+            Assert.NotNull(row.ConfirmedAtUtc);
+        }
+        Assert.Equal("BLUE", await database.ScalarAsync<string>(
+            $"SELECT Colour FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
+        Assert.Equal("2027-03-01", await database.ScalarAsync<string>(
+            $"SELECT CONVERT(char(10), TaxDueDate, 23) FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
+
+        // The store only projects; the readiness rail is Core's to evaluate.
+        await using var scope = database.CreateAsyncScope();
+        var projection = Assert.IsType<CaseAssessmentProjection>(
+            await scope.ServiceProvider.GetRequiredService<ICaseAssessmentStore>()
+                .GetAsync(caseId, CancellationToken.None));
+        Assert.DoesNotContain(
+            AssessmentPolicy.EvaluateReadiness(projection),
+            item => item.Field is { } field && AssessmentVocabulary.LookupDerivedPaths.Contains(field));
+    }
+
+    [Fact]
+    public async Task AnUnchangedDerivedFactIsNotRestampedAndDoesNotStale()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        var (currentId, _) = await SeedGenerationsAsync(database, caseId);
+
+        await RecordLookupAsync(database, caseId, recordedAtUtc: FixedUtcNow.AddMinutes(1));
+
+        var rows = await DerivedFactRowsAsync(database, caseId);
+        Assert.Equal(FixtureDerivedFacts.Length, rows.Count);
+        Assert.All(rows, row => Assert.Equal(FixedUtcNow, row.RecordedAtUtc));
+        Assert.Equal("Confirmed", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal(0, await StaleRowCountAsync(database, caseId));
+    }
+
+    [Fact]
+    public async Task AChangedDerivedFactReplacesTheEarlierAndStalesTheReport()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        var (currentId, _) = await SeedGenerationsAsync(database, caseId);
+        var changedAtUtc = FixedUtcNow.AddMinutes(1);
+
+        await RecordLookupAsync(database, caseId, colour: "RED", recordedAtUtc: changedAtUtc);
+
+        var colour = Assert.Single(
+            await DerivedFactRowsAsync(database, caseId),
+            item => item.FieldPath == AssessmentVocabulary.VehicleColour);
+        Assert.Equal("RED", colour.Value);
+        Assert.Equal(changedAtUtc, colour.RecordedAtUtc);
+        Assert.Equal("vehicle-lookup", colour.ConfirmedBy);
+        Assert.Equal("Stale", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal(1, await StaleRowCountAsync(database, caseId));
+        Assert.Equal(
+            CaseReportStaleReasons.AssessmentFactsChanged,
+            await database.ScalarAsync<string>(
+                $"SELECT Reason FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId:D}' AND EventKind = 'case_report_generation_stale'"));
+    }
+
+    /// <summary>
+    /// A complete answer describes the vehicle as it now stands, so a fact it
+    /// no longer carries is cleared rather than left behind from an earlier
+    /// answer.
+    /// </summary>
+    [Fact]
+    public async Task ACompleteAnswerClearsADerivedFactItNoLongerCarries()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        var (currentId, _) = await SeedGenerationsAsync(database, caseId);
+
+        await RecordLookupAsync(
+            database,
+            caseId,
+            engineCapacityCc: null,
+            clearMot: true,
+            recordedAtUtc: FixedUtcNow.AddMinutes(1));
+
+        var paths = (await DerivedFactRowsAsync(database, caseId)).Select(item => item.FieldPath).ToArray();
+        Assert.DoesNotContain(AssessmentVocabulary.VehicleEngineCc, paths);
+        Assert.DoesNotContain(AssessmentVocabulary.VehicleMotExpiry, paths);
+        Assert.Equal(3, paths.Length);
+        Assert.Equal("Stale", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal(1, await StaleRowCountAsync(database, caseId));
+    }
+
+    /// <summary>
+    /// A partial answer is silent about what its failed provider would have
+    /// said, and that silence never erases an earlier answer.
+    /// </summary>
+    [Fact]
+    public async Task APartialAnswerLeavesWhatItDoesNotCarry()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+
+        await RecordLookupAsync(
+            database,
+            caseId,
+            engineCapacityCc: null,
+            fuel: "Diesel",
+            colour: null,
+            clearTax: true,
+            outcome: VehicleLookupOutcome.Partial,
+            failure: new("dvla_not_found", Retryable: false),
+            recordedAtUtc: FixedUtcNow.AddMinutes(1));
+
+        var rows = await DerivedFactRowsAsync(database, caseId);
+        Assert.Equal("1461", Assert.Single(rows, item => item.FieldPath == AssessmentVocabulary.VehicleEngineCc).Value);
+        Assert.Equal("BLUE", Assert.Single(rows, item => item.FieldPath == AssessmentVocabulary.VehicleColour).Value);
+        Assert.Equal("2027-03-01", Assert.Single(rows, item => item.FieldPath == AssessmentVocabulary.VehicleTaxExpiry).Value);
+        Assert.Equal("Diesel", Assert.Single(rows, item => item.FieldPath == AssessmentVocabulary.VehicleFuel).Value);
+    }
+
+    [Fact]
+    public async Task ALookupReplacesAnotherRecordersValueOnItsOwnFact()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleColour}, {"Green"}, {ActorKind.Automation.ToString()}, {"automation"}, {FixedUtcNow})");
+        }
+
+        await RecordLookupAsync(database, caseId, recordedAtUtc: FixedUtcNow.AddMinutes(1));
+
+        var colour = Assert.Single(
+            await DerivedFactRowsAsync(database, caseId),
+            item => item.FieldPath == AssessmentVocabulary.VehicleColour);
+        Assert.Equal("BLUE", colour.Value);
+        Assert.Equal("vehicle-lookup", colour.RecordedBy);
+        Assert.Equal("vehicle-lookup", colour.ConfirmedBy);
+        Assert.NotNull(colour.ConfirmedAtUtc);
     }
 
     [Fact]
@@ -290,6 +470,7 @@ public sealed class VehicleLookupGapFillTests
             }
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
+            await SeedFixtureDerivedFactsAsync(context, caseId);
         }
 
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
@@ -322,9 +503,11 @@ public sealed class VehicleLookupGapFillTests
                     $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"vehicle_lookup"}, {"existing-lookup"}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
             }
             // The fixture's type approval would otherwise derive a Vehicle type,
-            // which is a printed assessment fact and would stale the report.
+            // and its answer would record the lookup's own facts; both are
+            // printed assessment facts and would stale the report.
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
+            await SeedFixtureDerivedFactsAsync(context, caseId);
         }
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
 
@@ -384,16 +567,87 @@ public sealed class VehicleLookupGapFillTests
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId:D}' AND EventKind = 'case_report_generation_stale'");
 
     /// <summary>
+    /// The fixture's own facts as an earlier lookup recorded them, so an answer
+    /// that repeats them changes nothing the report prints.
+    /// </summary>
+    private static async Task SeedFixtureDerivedFactsAsync(PegasusDbContext context, Guid caseId)
+    {
+        foreach (var (path, value) in FixtureDerivedFacts)
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {path}, {value}, {ActorKind.Automation.ToString()}, {"vehicle-lookup"}, {FixedUtcNow}, {"vehicle-lookup"}, {FixedUtcNow})");
+        }
+    }
+
+    private static async Task<List<CaseAssessmentFieldEntity>> DerivedFactRowsAsync(
+        LocalDbTestDatabase database,
+        Guid caseId)
+    {
+        string[] paths = [.. AssessmentVocabulary.LookupDerivedPaths];
+        await using var context = await database.CreateContextAsync();
+        return await context.CaseAssessmentFields
+            .AsNoTracking()
+            .Where(item => item.WorkId == caseId && paths.Contains(item.FieldPath))
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// The fill runs on the Worker, whose least-privilege role must be able to
     /// read the confirmed mileage source (report freshness) and write the derived
-    /// Vehicle type. LocalDB tests otherwise run as dbo and never see a missing
-    /// grant; Release 54 shipped exactly that gap.
+    /// Vehicle type and the lookup's own facts. LocalDB tests otherwise run as
+    /// dbo and never see a missing grant; Release 54 shipped exactly that gap.
     /// </summary>
     [Fact]
     public async Task TheWorkerRuntimeRoleCanRecordALookupAndWriteTheVehicleType()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
+
+        await AsWorkerRuntimeRoleAsync(
+            database,
+            store => RecordLookupAsync(database, caseId, typeApproval: "N1", store: store));
+
+        Assert.Equal("RENAULT", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+        Assert.Equal("van", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal("BLUE", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleColour}'"));
+    }
+
+    /// <summary>
+    /// A complete answer that no longer carries one of the lookup's own facts
+    /// deletes its row, so the Worker's role needs DELETE on the assessment
+    /// fields, which dbo would never miss.
+    /// </summary>
+    [Fact]
+    public async Task TheWorkerRuntimeRoleCanClearALookupDerivedFact()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+
+        await AsWorkerRuntimeRoleAsync(
+            database,
+            store => RecordLookupAsync(
+                database,
+                caseId,
+                engineCapacityCc: null,
+                recordedAtUtc: FixedUtcNow.AddMinutes(1),
+                store: store));
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleEngineCc}'"));
+    }
+
+    /// <summary>
+    /// Records through a work store whose connection runs as a member of the
+    /// Worker's runtime role rather than as dbo.
+    /// </summary>
+    private static async Task AsWorkerRuntimeRoleAsync(
+        LocalDbTestDatabase database,
+        Func<IVehicleLookupWorkStore, Task> record)
+    {
         await database.ExecuteAsync("""
             CREATE USER [pegasus_test_lookup_worker] WITHOUT LOGIN;
             ALTER ROLE [pegasus_worker_runtime_role] ADD MEMBER [pegasus_test_lookup_worker];
@@ -406,22 +660,13 @@ public sealed class VehicleLookupGapFillTests
         try
         {
             var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
-            await RecordLookupAsync(
-                database,
-                caseId,
-                typeApproval: "N1",
-                store: new EfVehicleLookupWorkStore(new ConnectedContextFactory(options)));
+            await record(new EfVehicleLookupWorkStore(new ConnectedContextFactory(options)));
         }
         finally
         {
             impersonation.CommandText = "REVERT;";
             await impersonation.ExecuteNonQueryAsync();
         }
-
-        Assert.Equal("RENAULT", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
-        Assert.Equal("van", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
     }
 
     private sealed class ConnectedContextFactory(DbContextOptions<PegasusDbContext> options)
@@ -437,6 +682,13 @@ public sealed class VehicleLookupGapFillTests
         string? typeApproval = "M1",
         string? wheelplan = "2 AXLE RIGID BODY",
         int? revenueWeightKg = 1_800,
+        int? engineCapacityCc = 1_461,
+        string? fuel = "DIESEL",
+        string? colour = "BLUE",
+        bool clearTax = false,
+        bool clearMot = false,
+        VehicleLookupOutcome outcome = VehicleLookupOutcome.Current,
+        VehicleLookupFailure? failure = null,
         DateTimeOffset? recordedAtUtc = null,
         IVehicleLookupWorkStore? store = null)
     {
@@ -460,7 +712,7 @@ public sealed class VehicleLookupGapFillTests
                 CancellationToken.None));
         var result = new VehicleLookupResult(
             "ST66BCE",
-            VehicleLookupOutcome.Current,
+            outcome,
             "offline-replay",
             "fixture-v1",
             $"gap-fill-response-{workItemId:N}",
@@ -471,13 +723,15 @@ public sealed class VehicleLookupGapFillTests
                 "RENAULT",
                 "CAPTUR",
                 2016,
-                1_461,
-                "DIESEL",
+                engineCapacityCc,
+                fuel,
                 typeApproval,
                 wheelplan,
-                revenueWeightKg),
-            [new(new(2025, 9, 25), "PASSED", new(2026, 9, 24), mileage, VehicleMileageUnit.Miles)],
-            null);
+                revenueWeightKg,
+                Colour: colour,
+                TaxDueDate: clearTax ? null : FixtureTaxDueDate),
+            [new(new(2025, 9, 25), "PASSED", clearMot ? null : FixtureMotExpiry, mileage, VehicleMileageUnit.Miles)],
+            failure);
         await workStore.RecordOutcomeAsync(
             workItemId,
             claimed.LeaseToken!,

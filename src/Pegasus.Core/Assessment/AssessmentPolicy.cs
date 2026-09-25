@@ -94,11 +94,12 @@ public static class AssessmentPolicy
 
     /// <summary>
     /// The one gate every generic field save passes: the path must be part of
-    /// the vocabulary, must not be derived from the damage impacts, must not
-    /// be owned by the accepted case record, and must not be a finding a named
-    /// command adopts. The value is then canonicalized against its
-    /// own definition. Both the assessment save and the Case workspace save
-    /// call it, so an unwritable path fails the same way on either route.
+    /// the vocabulary, must not be derived from the damage impacts or recorded
+    /// by the vehicle lookup, must not be owned by the accepted case record, and
+    /// must not be a finding a named command adopts. The value is then
+    /// canonicalized against its own definition. Both the assessment save and
+    /// the Case workspace save call it, so an unwritable path fails the same
+    /// way on either route.
     /// </summary>
     public static string? NormalizeWritableField(string path, string? rawValue)
     {
@@ -107,6 +108,11 @@ public static class AssessmentPolicy
         {
             throw new InvalidOperationException(
                 $"The field '{path}' is derived from damage.impacts and cannot be written directly.");
+        }
+        if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is filled by the DVLA/DVSA vehicle lookup and cannot be written directly.");
         }
         if (AssessmentVocabulary.CaseOwnedPaths.Contains(path))
         {

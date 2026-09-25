@@ -573,22 +573,22 @@ public sealed class CaseWorkspacePersistenceTests
             harness.Factory,
             harness.TimeProvider,
             new EfRepairSpecificationStore(harness.Factory, harness.TimeProvider));
-        var noteLease = await harness.AcquireLeaseAsync(
+        var unprintedLease = await harness.AcquireLeaseAsync(
             initial.Version,
             actor,
-            "direct-assessment-note-lease");
+            "direct-assessment-unprinted-lease");
 
-        var noted = await assessmentStore.SaveAsync(
+        var unprinted = await assessmentStore.SaveAsync(
             new(
                 harness.CaseId,
                 initial.Version,
                 actor,
-                "direct-assessment-note-save",
-                "Recorded an unprinted Engineer note.",
-                noteLease.Token,
+                "direct-assessment-unprinted-save",
+                "Recorded an unprinted rate card.",
+                unprintedLease.Token,
                 new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
-                    [AssessmentVocabulary.VehicleEngineerNotes] = "Check the trim on return.",
+                    [AssessmentVocabulary.RateCard] = "standard",
                 }),
             CancellationToken.None);
 
@@ -598,21 +598,21 @@ public sealed class CaseWorkspacePersistenceTests
             CaseReportGenerationState.Confirmed,
             expectedStaleEvents: 0);
 
-        var colourLease = await harness.AcquireLeaseAsync(
-            noted.CaseVersion,
+        var bodyLease = await harness.AcquireLeaseAsync(
+            unprinted.CaseVersion,
             actor,
-            "direct-assessment-colour-lease");
+            "direct-assessment-body-lease");
         await assessmentStore.SaveAsync(
             new(
                 harness.CaseId,
-                noted.CaseVersion,
+                unprinted.CaseVersion,
                 actor,
-                "direct-assessment-colour-save",
-                "Corrected the printed vehicle colour.",
-                colourLease.Token,
+                "direct-assessment-body-save",
+                "Corrected the printed body type.",
+                bodyLease.Token,
                 new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
-                    [AssessmentVocabulary.VehicleColour] = "Blue",
+                    [AssessmentVocabulary.VehicleBody] = "Hatchback",
                 }),
             CancellationToken.None);
 

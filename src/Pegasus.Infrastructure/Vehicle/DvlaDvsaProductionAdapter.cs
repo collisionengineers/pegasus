@@ -176,7 +176,9 @@ internal sealed class DvlaDvsaProductionAdapter(
                     Text(root, "fuelType"),
                     Text(root, "typeApproval"),
                     Text(root, "wheelplan"),
-                    Number(root, "revenueWeight")),
+                    Number(root, "revenueWeight"),
+                    Text(root, "colour"),
+                    ParseProviderDate(Text(root, "taxDueDate"))),
                 false,
                 null,
                 identity,
@@ -385,6 +387,8 @@ internal sealed class DvlaDvsaProductionAdapter(
                     Text(value, "fuelType"),
                     null,
                     null,
+                    null,
+                    Text(value, "primaryColour"),
                     null),
                 null);
 

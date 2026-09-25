@@ -50,14 +50,12 @@ public static class AssessmentVocabulary
     public const string VehicleFuel = "vehicle.fuel";
     public const string VehicleMileageSource = "vehicle.mileage_source";
     public const string VehicleCondition = "vehicle.condition";
-    public const string VehicleVinChecked = "vehicle.vin_checked";
     public const string VehicleTransmission = "vehicle.transmission";
     public const string VehicleColour = "vehicle.colour";
     public const string VehicleBody = "vehicle.body";
     public const string VehicleTaxExpiry = "vehicle.tax_expiry";
     public const string VehicleMotExpiry = "vehicle.mot_expiry";
     public const string VehicleAirbagsDeployed = "vehicle.airbags_deployed";
-    public const string VehicleFaultCodes = "vehicle.fault_codes";
     public const string VehicleTemporaryRepairsPossible = "vehicle.temporary_repairs_possible";
     public const string VehicleTemporaryRepairMethod = "vehicle.temporary_repair_method";
     public const string VehicleTemporaryRepairCost = "vehicle.temporary_repair_cost";
@@ -77,7 +75,6 @@ public static class AssessmentVocabulary
     public const string DamageUnrelated = "damage.unrelated";
     public const string DamageUnrelatedDeduction = "damage.unrelated_deduction";
     public const string DamageMaterialTransfer = "damage.material_transfer";
-    public const string NatureOfIncident = "narrative.nature_of_incident";
     public const string ValueRetail = "assessment.values.retail";
     public const string ValueTrade = "assessment.values.trade";
     public const string ValueEngineer = "assessment.values.engineer";
@@ -92,9 +89,6 @@ public static class AssessmentVocabulary
     public const string UnroadworthyReason = "assessment.unroadworthy_reason";
     public const string SalvageCategory = "assessment.category";
     public const string SalvageValue = "assessment.salvage_value";
-    public const string VehicleModifications = "vehicle.modifications";
-    public const string VehicleHistoryNotes = "vehicle.history_notes";
-    public const string VehicleEngineerNotes = "vehicle.engineer_notes";
     public const string HistoryCheck = "narrative.history_check";
     public const string EngineersComments = "narrative.engineers_comments";
     public const string ReportDiscloseGuideSource = "report.disclose_guide_source";
@@ -113,7 +107,6 @@ public static class AssessmentVocabulary
     public const string EngineerSignature = "engineer.signature";
     public const string AgreedFee = "fee.agreed_fee";
     public const string FeeDescriptionLines = "fee.description_lines";
-    public const string StatementOfTruth = "statement_of_truth";
     public const string SettlementExcess = "settlement.excess";
     public const string SettlementBetterment = "settlement.betterment";
     public const string SettlementClaimantVatRegistered = "settlement.claimant_vat_registered";
@@ -201,7 +194,6 @@ public static class AssessmentVocabulary
             Codes: ["online_data", "owner", "repairer", "principal", "average", "tbc"]),
         new(VehicleCondition, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: ["poor", "below_average", "average", "good", "excellent"]),
-        new(VehicleVinChecked, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(VehicleTransmission, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: ["manual", "automatic", "semi_automatic", "cvt", "unknown"]),
         new(VehicleColour, AssessmentFieldType.Text, 40, IsFinding: false),
@@ -209,13 +201,9 @@ public static class AssessmentVocabulary
         new(VehicleTaxExpiry, AssessmentFieldType.Date, 10, IsFinding: false),
         new(VehicleMotExpiry, AssessmentFieldType.Date, 10, IsFinding: false),
         new(VehicleAirbagsDeployed, AssessmentFieldType.Text, 200, IsFinding: false),
-        new(VehicleFaultCodes, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(VehicleTemporaryRepairsPossible, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(VehicleTemporaryRepairMethod, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(VehicleTemporaryRepairCost, AssessmentFieldType.Money, 20, IsFinding: false),
-        new(VehicleModifications, AssessmentFieldType.Text, 2000, IsFinding: false),
-        new(VehicleHistoryNotes, AssessmentFieldType.Text, 4000, IsFinding: false),
-        new(VehicleEngineerNotes, AssessmentFieldType.Text, 4000, IsFinding: false),
         new(ImpactSeverity, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: DamageSeverities.Keys.ToArray()),
         new(ImpactLocation, AssessmentFieldType.Enumerated, 20, IsFinding: false,
@@ -234,7 +222,6 @@ public static class AssessmentVocabulary
         new(DamageUnrelated, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(DamageUnrelatedDeduction, AssessmentFieldType.Money, 20, IsFinding: false),
         new(DamageMaterialTransfer, AssessmentFieldType.Text, 2000, IsFinding: false),
-        new(NatureOfIncident, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(ValueRetail, AssessmentFieldType.Money, 20, IsFinding: true, MustBePositive: true),
         new(ValueTrade, AssessmentFieldType.Money, 20, IsFinding: true, MustBePositive: true),
         new(ValueEngineer, AssessmentFieldType.Money, 20, IsFinding: true, MustBePositive: true),
@@ -260,7 +247,6 @@ public static class AssessmentVocabulary
         new(EngineerSignature, AssessmentFieldType.Text, 200, IsFinding: false),
         new(AgreedFee, AssessmentFieldType.Money, 20, IsFinding: false, MustBePositive: true),
         new(FeeDescriptionLines, AssessmentFieldType.Text, 2000, IsFinding: false),
-        new(StatementOfTruth, AssessmentFieldType.Text, 4000, IsFinding: false),
         new(ReportDiscloseGuideSource, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(ReportValuationCommentary, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(ReportValuationCommentaryText, AssessmentFieldType.Text, 4000, IsFinding: false),
@@ -297,10 +283,27 @@ public static class AssessmentVocabulary
     public static IReadOnlyDictionary<string, AssessmentFieldDefinition> Definitions { get; } =
         DefinitionList.ToDictionary(definition => definition.Path, StringComparer.Ordinal);
 
+    /// <summary>Derived from damage.impacts by the save's write set (AssessmentWriteSet); a field save never writes one.</summary>
     public static IReadOnlySet<string> DerivedPaths { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         ImpactLocation,
         ImpactSeverity
+    };
+
+    /// <summary>
+    /// Facts only the DVLA/DVSA vehicle lookup records (operator, 24 September
+    /// 2026): engine capacity, fuel, colour, tax expiry and MOT expiry, each set by
+    /// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.DerivedAssessmentWrites"/>
+    /// and recorded confirmed by the lookup, so none awaits review. The Vehicle
+    /// section shows them read-only; no field save records or clears one.
+    /// </summary>
+    public static IReadOnlySet<string> LookupDerivedPaths { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        VehicleEngineCc,
+        VehicleFuel,
+        VehicleColour,
+        VehicleTaxExpiry,
+        VehicleMotExpiry
     };
 
     /// <summary>
@@ -419,10 +422,12 @@ public sealed record CaseEstimateLineRecord(
 
 /// <summary>
 /// One recorded assessment field value with its provenance. A value written
-/// by the Automation actor is stored unconfirmed; a staff save records a
-/// confirmed value, and confirmation of a professional-finding field is
-/// staff-only. The permanent action history carries every before and
-/// after value, so the current row never erases evidence.
+/// by the Automation actor is stored unconfirmed, except the facts the vehicle
+/// lookup alone records (AssessmentVocabulary.LookupDerivedPaths), which it
+/// records confirmed by itself; a staff save records a confirmed value, and
+/// confirmation of a professional-finding field is staff-only. The permanent
+/// action history carries every before and after value, so the current row
+/// never erases evidence.
 /// </summary>
 public sealed record AssessmentFieldValue(
     string Path,

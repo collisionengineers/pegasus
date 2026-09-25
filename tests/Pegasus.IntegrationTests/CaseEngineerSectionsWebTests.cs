@@ -68,6 +68,16 @@ public sealed class CaseEngineerSectionsWebTests
         Assert.DoesNotContain("data-salvage-snap", html, StringComparison.Ordinal);
         Assert.DoesNotContain("staff-reviewed", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("reviewed by staff", html, StringComparison.OrdinalIgnoreCase);
+        // The Incident narrative and the statement of truth are Core's, composed
+        // wherever the assessment opens; neither is a recorded field.
+        if (AssessmentAccessPolicy.CanOpen(new AssessmentAccessState(state)))
+        {
+            Assert.Contains(
+                $"data-damage-narrative>{ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear")}</div>",
+                html,
+                StringComparison.Ordinal);
+            Assert.Contains(AssessmentReportContract.StatementOfTruth1, html, StringComparison.Ordinal);
+        }
 
         if (!AssessmentPolicy.IsWritableState(state))
         {
@@ -261,7 +271,6 @@ public sealed class CaseEngineerSectionsWebTests
             [
                 Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
                 Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
-                Field(AssessmentVocabulary.NatureOfIncident, "Rear impact"),
                 Field(AssessmentVocabulary.Outcome, "repairable"),
                 Field(AssessmentVocabulary.SalvageCategory, "S"),
                 Field(AssessmentVocabulary.SalvageValue, "750.00"),
@@ -271,7 +280,6 @@ public sealed class CaseEngineerSectionsWebTests
                 Field(AssessmentVocabulary.HistoryCheck, "History clear"),
                 Field(AssessmentVocabulary.AgreedFee, "120.00"),
                 Field(AssessmentVocabulary.FeeDescriptionLines, "Engineering assessment"),
-                Field(AssessmentVocabulary.StatementOfTruth, "I confirm this report is true"),
                 Field(AssessmentVocabulary.ValueEngineer, "5000.00")
             ];
         }

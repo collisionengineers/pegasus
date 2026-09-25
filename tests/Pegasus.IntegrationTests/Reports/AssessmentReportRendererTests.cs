@@ -88,6 +88,8 @@ public sealed partial class AssessmentReportRendererTests
         Assert.Contains(presentation.SettlementText, text, StringComparison.Ordinal);
         Assert.Contains(AssessmentReportContract.StatementOfTruth1, text, StringComparison.Ordinal);
         Assert.Contains(AssessmentReportContract.StatementOfTruth4, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("VIN Checked", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fault Codes", text, StringComparison.Ordinal);
         Assert.Contains($"{snapshot.Signatory.PrintedName} — {snapshot.Signatory.Qualifications}", text, StringComparison.Ordinal);
         Assert.DoesNotContain("TOTAL DUE", text, StringComparison.Ordinal);
         for (var page = 1; page <= pages.Length; page++)

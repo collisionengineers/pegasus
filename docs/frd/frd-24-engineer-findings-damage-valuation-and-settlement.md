@@ -100,10 +100,13 @@ no wider than half the vehicle. Every disc is clipped to the vehicle's body,
 on the workspace and on the report alike.
 
 The record also carries tyres and seat belts per corner, the spare tyre, the
-centre belt, unrelated damage with its deduction, and paint or material
-transfer. `impact_location` and `impact_severity` are derived from the areas
-by `Pegasus.Core`, never typed in: one distinct area reads as itself, more
-read Multiple. The report prints the marked diagram
+centre belt, which airbags deployed in the Engineer's words (for example
+`None` or `Driver and passenger front`, recorded under Tyres & seat belts and
+printed in the report's Vehicle Details), unrelated damage with its
+deduction, and paint or material transfer. `impact_location` and
+`impact_severity` are derived from the areas by `Pegasus.Core`, never typed
+in: one distinct area reads as itself, more read Multiple. The report prints
+the marked diagram
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
 
 ### Valuation sources
@@ -159,10 +162,12 @@ revaluation-history scope needs its own accepted contract.
 
 ### Settlement
 
-The settlement fields are outcome, category, salvage value, excess,
-betterment, claimant VAT registered, reserve, equity (derived), repair
-delays, report delay, storage per day, recovery, hire start and daily
-cost, diminution, and salvage logistics. Equity is derived, never typed in.
+The settlement fields are outcome, category, salvage value, roadworthiness
+and the unroadworthy reason, for an unroadworthy vehicle whether temporary
+repairs are possible with their method and cost, excess, betterment,
+claimant VAT registered, reserve, equity (derived), repair delays, report
+delay, storage per day, recovery, hire start and daily cost, diminution, and
+salvage logistics. Equity is derived, never typed in.
 Financial ratio lines are allowed, not required; the "no percentage" rule in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review) applies
 only to completeness. Outcome meanings are owned by
@@ -175,8 +180,12 @@ control, so a browser without script picks the same value from it. Salvage
 value carries a slider reading the share of the Engineer's Value, with 5,
 10, 15, 20 and 25 % snaps: the amount and the share are one fact and the
 last touch wins. While the outcome is not a total loss the salvage rows are
-absent and a "Salvage · Not applicable" line stands in their place. Beside
-the typed reserve, a computed **Repair reserve** reads the Current repair
+absent and a "Salvage · Not applicable" line stands in their place. While
+Roadworthiness is Unroadworthy, Temporary repairs possible (Yes or No),
+Temporary repair method and Temporary repair cost follow the unroadworthy
+reason; otherwise they are absent, and the report prints them only for an
+unroadworthy vehicle (operator, 24 September 2026). Beside the typed
+reserve, a computed **Repair reserve** reads the Current repair
 specification's VAT-inclusive cost rounded up to the next £50 on a
 Repairable outcome, and Not applicable otherwise; it is never written.
 
@@ -239,8 +248,10 @@ circular readiness gate is acceptable.
 
 Core tests cover the Engineer's Value order. Integration tests cover an
 adoption recording its basis card's retail and trade and a basis card without
-trade leaving Trade value outstanding. Live Glass's evidence is a separate
-tier ([engineering](../engineering.md#required-evidence-tiers)).
+trade leaving Trade value outstanding. Web tests cover Airbags deployed and
+the temporary repair rows in read and edit and through the Case Save. Live
+Glass's evidence is a separate tier
+([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 

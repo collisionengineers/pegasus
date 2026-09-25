@@ -238,7 +238,47 @@ public sealed class AssessmentPolicyTests
     {
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { [AssessmentVocabulary.VehicleTaxExpiry] = "03/08/2026" })));
+                Request(new() { [AssessmentVocabulary.SettlementHireStart] = "03/08/2026" })));
+    }
+
+    /// <summary>
+    /// Only the DVLA/DVSA vehicle lookup records these facts (operator, 24
+    /// September 2026), so every field save refuses one before its value is
+    /// read, whoever saves it.
+    /// </summary>
+    [Theory]
+    [InlineData(AssessmentVocabulary.VehicleEngineCc, "1461")]
+    [InlineData(AssessmentVocabulary.VehicleFuel, "DIESEL")]
+    [InlineData(AssessmentVocabulary.VehicleColour, "BLUE")]
+    [InlineData(AssessmentVocabulary.VehicleTaxExpiry, "2027-03-01")]
+    [InlineData(AssessmentVocabulary.VehicleMotExpiry, "2026-09-24")]
+    public void LookupDerivedFactsAreRefusedOnEveryFieldSave(string path, string value)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = value })));
+        Assert.Contains("filled by the DVLA/DVSA vehicle lookup", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Paths that had no owner, or duplicated another owner's fact, are retired
+    /// from the vocabulary (operator decision, 24 September 2026): no save
+    /// records one.
+    /// </summary>
+    [Theory]
+    [InlineData("narrative.nature_of_incident")]
+    [InlineData("statement_of_truth")]
+    [InlineData("vehicle.history_notes")]
+    [InlineData("vehicle.vin_checked")]
+    [InlineData("vehicle.fault_codes")]
+    [InlineData("vehicle.modifications")]
+    [InlineData("vehicle.engineer_notes")]
+    public void AnOwnerlessOrDuplicateAssessmentPathIsRetired(string path)
+    {
+        Assert.False(AssessmentVocabulary.Definitions.ContainsKey(path));
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = "value" })));
+        Assert.Contains("not part of the assessment vocabulary", exception.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -254,7 +294,8 @@ public sealed class AssessmentPolicyTests
             var dateFields = AssessmentVocabulary.Definitions.Values
                 .Where(definition => definition.Type == AssessmentFieldType.Date
                     && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                    && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path))
+                    && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)
+                    && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path))
                 .ToArray();
             Assert.NotEmpty(dateFields);
             foreach (var definition in dateFields)
@@ -286,7 +327,8 @@ public sealed class AssessmentPolicyTests
     {
         foreach (var definition in AssessmentVocabulary.Definitions.Values
             .Where(definition => !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)))
+                && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)
+                && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path)))
         {
             var value = definition.Type switch
             {
