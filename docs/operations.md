@@ -34,6 +34,22 @@ Release 64 deployed [PR 836](https://github.com/collisionengineers/pegasus/pull/
 | Production smoke | Passed at 18:43:28Z. Active Web package `20260924183614.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-09-24T18:43:11Z`, and the active Graph subscription expires `2026-09-28T14:30:00Z`. Smoke is unauthenticated; the new Case page (views, Create audit) and the Triage Case await a signed-in look. |
 | Evidence | Exact artifacts retained at ignored `artifacts/releases/release-64-773a9787`. The phase drivers and logs are under `artifacts/releases/release-64-driver`. |
 
+## Intake data wipe — 24 September 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped for the maintenance window, then resumed and read back `Running`.
+  The wipe cleared 92 blobs (38,474,936 bytes) from
+  `pegcustody252ow37gij/transient-intake` and deleted 758 rows from 93
+  non-preserved tables in `pegasus` (759 affected rows including the mail
+  boundary update). The committed mail cutoff is
+  `2026-09-24T13:17:38.8851348+00:00`; 38 effective tables and 584 rows
+  remain preserved. Every value in `CaseSequences` (12 rows),
+  `ImageIntakeSequences` (9 rows), `TriageSequences` (3 rows), and
+  `UnidentifiedSequences` (1 row) was unchanged; `ValuationPresets` remained
+  0/0. `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook,
+  and Box were untouched. Post-run verification reported zero blobs remaining
+  and zero wiped tables holding rows.
+
 ## Release 63 — 23 September 2026 (deployment live)
 
 Release 63 deployed [PR 825](https://github.com/collisionengineers/pegasus/pull/825), two operator requests on the Case's Correspondence tab. **Open message** stays on one line. It now opens the message in a dialog over the Case, with sender, received time, recipients, text and attachment names, fetched on first open from a new read-only Content handler on the Inbox message record. **Open full message** leads to the record. The route was the approved normal route with the migration identity unchanged. Web and Worker are Running on the approved release, and full production smoke passed.
