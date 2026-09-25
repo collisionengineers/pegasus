@@ -84,7 +84,6 @@ internal sealed class MapiPropertyReader
 {
     private const ushort MultiValueFlag = 0x1000;
     private const string Windows1252Controls = "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ";
-    private readonly MsgReadLimits _limits;
     private readonly List<MsgIssue> _issues;
     private readonly CancellationToken _cancellationToken;
     private readonly MsgReadState _state;
@@ -94,19 +93,16 @@ internal sealed class MapiPropertyReader
 
     internal MapiPropertyReader(
         CompoundFile file,
-        MsgReadLimits limits,
         List<MsgIssue> issues,
         MsgReadState state,
         CancellationToken cancellationToken)
     {
-        _limits = limits;
         _issues = issues;
         _cancellationToken = cancellationToken;
         _state = state;
         _childrenByParent = BuildChildrenIndex(file);
     }
 
-    internal ImmutableDictionary<ushort, NamedPropertyIdentity> NamedProperties => _namedProperties;
     internal MsgReadState State => _state;
 
     internal void ReadNamedProperties(uint ownerStorageId)

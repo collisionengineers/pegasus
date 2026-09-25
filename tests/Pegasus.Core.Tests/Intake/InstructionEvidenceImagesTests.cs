@@ -201,20 +201,6 @@ public sealed class InstructionEvidenceImagesTests
     }
 
     [Fact]
-    public async Task AssetMetadataNumbersEachRetainedFileWithinItsReceipt()
-    {
-        var harness = new DownloadHarness();
-
-        var attachment = await new GetIntakeAssetMetadata(harness.Receipts).ExecuteAsync(
-            new(harness.Receipt.Id, harness.AttachmentAsset.Id, StaffActor));
-
-        Assert.NotNull(attachment);
-        Assert.Equal(1, attachment!.Occurrence);
-        Assert.Equal(harness.AttachmentAsset.ContentHash, attachment.Sha256);
-        Assert.Equal(harness.Receipt.Version, attachment.ReceiptVersion);
-    }
-
-    [Fact]
     public async Task MetadataAndBytesRefuseTheSameActorsAtTheSameBoundary()
     {
         var harness = new DownloadHarness();
@@ -229,9 +215,6 @@ public sealed class InstructionEvidenceImagesTests
             await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
                 new GetIntakeSourceMetadata(harness.Receipts).ExecuteAsync(
                     new(harness.Receipt.Id, actor)));
-            await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-                new GetIntakeAssetMetadata(harness.Receipts).ExecuteAsync(
-                    new(harness.Receipt.Id, harness.SourceAsset.Id, actor)));
             await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
                 harness.Download().ExecuteAsync(
                     new(harness.Receipt.Id, harness.SourceAsset.Id, actor)));
@@ -290,8 +273,6 @@ public sealed class InstructionEvidenceImagesTests
         var harness = new DownloadHarness();
 
         Assert.Null(await harness.Download().ExecuteAsync(
-            new(harness.Receipt.Id, Guid.NewGuid(), StaffActor)));
-        Assert.Null(await new GetIntakeAssetMetadata(harness.Receipts).ExecuteAsync(
             new(harness.Receipt.Id, Guid.NewGuid(), StaffActor)));
     }
 
@@ -435,21 +416,8 @@ public sealed class InstructionEvidenceImagesTests
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new IntakeQueueCounts(0));
 
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeListPage([], page, pageSize, 0));
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(id == receipt.Id ? receipt : null);
-
-        public Task<IntakeAssetRecord?> GetAssetAsync(
-            Guid receiptId,
-            Guid assetId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IntakeAssetRecord?>(null);
     }
 
     private static IntakeAssetRecord Asset(

@@ -190,14 +190,6 @@ public interface IIntakeWorkStore
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
 
-    /// <summary>
-    /// The work item for a staged receipt, whoever holds it. Read-only: this
-    /// asks whether the work is still in hand, it does not claim it.
-    /// </summary>
-    Task<IntakeWorkItem?> FindWorkItemAsync(
-        Guid stagedReceiptId,
-        CancellationToken cancellationToken);
-
     Task MarkDispatchedAsync(
         Guid workItemId,
         string leaseToken,

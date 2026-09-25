@@ -10,7 +10,6 @@
 secrets.json
 appsettings.*.local.json
 /.azure/*
-!/.azure/deployment-plan.md
 **/local.settings.json
 *.user
 # .NET build and test output
@@ -32,7 +31,6 @@ appsettings.*.local.json
 /.repoplugin/
 node_modules/
 .bicep/
-/src/Pegasus.Web/wwwroot/lib/
 # Imported source-workspace outputs and local/private material
 /workspaces/**/.git/
 /workspaces/**/node_modules/
@@ -68,14 +66,6 @@ Thumbs.db
 /workspaces/ai-centre/skills/tools/__pycache__/
 /.worktrees/
 
-# design-sync (Claude Design converter): staged scripts, build output, machine state
-.ds-sync/
-ds-bundle/
-.design-sync/.cache/
-.design-sync/learnings/
-.design-sync/node_modules/
-docs/design/system/node_modules/
-docs/design/system/dist/
 ~$*
 .mcp.json
 opencode.json

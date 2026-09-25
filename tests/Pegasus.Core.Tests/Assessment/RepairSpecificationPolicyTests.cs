@@ -83,58 +83,6 @@ public sealed class RepairSpecificationPolicyTests
         Assert.Equal(147m, accepted.Total);
     }
 
-    [Fact]
-    public void AcceptedLinesMapOnceToTheThreeOrderedDisplaySections()
-    {
-        var accepted = Draft() with
-        {
-            State = RepairSpecificationState.Accepted,
-            Lines =
-            [
-                Line("repair", 2, "Repair door"),
-                Line("new_part", 1, "Door skin"),
-                Line("paint_repair", 3, "Paint repaired area"),
-                Line("specialist_fixed", 4, "Geometry check"),
-            ],
-        };
-        var lists = RepairSpecificationPolicy.ToDisplayLists(accepted);
-        Assert.Equal(["Door skin"], lists.NewParts);
-        Assert.Equal(["Repair door"], lists.Repairs);
-        Assert.Equal(["Paint repaired area", "Geometry check"], lists.AdditionalOperations);
-    }
-
-    [Fact]
-    public void TheSevenOperationsDeriveTheThreeWorkListsWithNoIndependentTextList()
-    {
-        var accepted = Draft() with
-        {
-            State = RepairSpecificationState.Accepted,
-            Lines =
-            [
-                Line("new_part", 1, "Door skin"),
-                Line("rnr", 2, "Remove and refit door"),
-                Line("repair", 3, "Repair door"),
-                Line("paint_new", 4, "Paint new part"),
-                Line("paint_prep", 5, "Prepare panel"),
-                Line("paint_blend", 6, "Blend adjacent panel"),
-                Line("specialist_fixed", 7, "Geometry check"),
-                Line("specialist_wu", 8, "ADAS calibration"),
-                Line("check_labour", 9, "Diagnostic check"),
-            ],
-        };
-
-        var lists = RepairSpecificationPolicy.ToDisplayLists(accepted);
-
-        Assert.Equal(["Door skin"], lists.NewParts);
-        Assert.Equal(["Remove and refit door", "Repair door"], lists.Repairs);
-        Assert.Equal(
-            [
-                "Paint new part", "Prepare panel", "Blend adjacent panel",
-                "Geometry check", "ADAS calibration", "Diagnostic check",
-            ],
-            lists.AdditionalOperations);
-    }
-
     /// <summary>
     /// B04's printed projection: the accepted basis is checked against its own
     /// printed components, not against the unrounded arithmetic behind them.

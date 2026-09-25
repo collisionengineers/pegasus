@@ -81,6 +81,7 @@ else
                         {
                             <form method="post" asp-page="/Cases/Custody" asp-page-handler="MarkAsOriginalReport" asp-route-id="@workflow.CaseId">
                                 <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
+                                <input type="hidden" name="versionId" value="@version.Id" />
                                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                                 <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                                 <input type="hidden" name="editLeaseToken" value="@leaseToken" />

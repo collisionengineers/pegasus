@@ -139,7 +139,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     "valuation-preset-stale"),
                 CancellationToken.None));
         Assert.Equal(ValuationPresetError.VersionConflict, stale.Error);
-        Assert.Equal(2, stale.CurrentVersion);
 
         var missing = await Assert.ThrowsAsync<ValuationPresetException>(() =>
             save.ExecuteAsync(
@@ -288,23 +287,32 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             await harness.AcquireLeaseAsync(caseId, version, engineer, key);
 
         var guideLease = await LeaseAsync("valuation-apply-guide-lease");
-        var guide = await new SaveValuation(harness.Valuations).ExecuteAsync(
-            new(
+        await workspace.SaveAsync(
+            new SaveCaseWorkspaceRequest(
                 caseId,
                 guideLease.Version,
                 engineer,
                 "valuation-apply-guide",
-                "Recorded the Glass's guide figure.",
-                guideLease.Token,
-                new(
-                    ValuationSource.Glasses,
-                    new DateOnly(2031, 5, 8),
-                    new TimeOnly(9, 0),
-                    42000,
-                    3100m,
-                    2800m,
-                    new DateOnly(2031, 5, 1))),
+                null,
+                guideLease.Token)
+            {
+                Valuation = new(
+                [
+                    new(
+                        ValuationSource.Glasses,
+                        new DateOnly(2031, 5, 8),
+                        new TimeOnly(9, 0),
+                        42000,
+                        3100m,
+                        2800m,
+                        new DateOnly(2031, 5, 1))
+                ])
+            },
             CancellationToken.None);
+        var guide = Assert.Single(await harness.Valuations.ListForCaseAsync(
+            caseId,
+            CaseWorkSelector.Current,
+            CancellationToken.None));
         version++;
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
         var guideStamp = (await harness.Valuations.ReadBasisAsync(
@@ -345,7 +353,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 AdoptRequest(applyLease, selection, "valuation-apply-stale"),
                 CancellationToken.None));
         Assert.Equal(ValuationPresetError.VersionConflict, stale.Error);
-        Assert.Equal(2, stale.CurrentVersion);
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
 
         // The refusal left the Case exactly as it was, edit lease and version

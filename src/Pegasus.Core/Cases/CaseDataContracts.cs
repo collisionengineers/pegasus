@@ -284,16 +284,6 @@ public sealed record CaseEditableData(
     string? ClaimSourceOverrideContactTelephone = null,
     string? ClaimSourceOverrideContactEmailAddress = null);
 
-public sealed record ConfirmCompletenessRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    CaseCompleteness Completeness)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
 public sealed record SaveCaseRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -311,20 +301,8 @@ public interface ICaseDataQueries
 
 public interface ICaseDataStore : ICaseDataQueries
 {
-    Task<CaseDataProjection> ConfirmCompletenessAsync(
-        ConfirmCompletenessRequest request,
-        CaseCompletenessEvaluation evaluation,
-        CancellationToken cancellationToken);
-
     Task<CaseDataProjection> SaveAsync(
         SaveCaseRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IConfirmCompleteness
-{
-    Task<CaseDataProjection> ExecuteAsync(
-        ConfirmCompletenessRequest request,
         CancellationToken cancellationToken);
 }
 

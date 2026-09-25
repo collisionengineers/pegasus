@@ -25,8 +25,8 @@
                        tag-helper format writes seconds and milliseconds into the value,
                        which the picker then shows. The CSV link below already formats to
                        minutes, so the two agree. *@
-                    <div class="field"><label for="report-from">From London</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" /></div>
-                    <div class="field"><label for="report-to">To London</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" /></div>
+                    <div class="field"><label for="report-from">From</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" /></div>
+                    <div class="field"><label for="report-to">To</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" /></div>
                     <div class="field"><label for="report-engineer">Person</label><select id="report-engineer" asp-for="EngineerId" name="engineerId"><option value="">All people</option>@foreach (var person in Model.People) { <option value="@person.Id">@person.UserName</option> }</select></div>
                     <div class="cluster">
                         <button class="btn btn--dark" type="submit">Apply</button>

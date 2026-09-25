@@ -77,16 +77,6 @@ public static class ImageTagVocabulary
     public const string ReflectionName = "Reflection";
     public const string MarketResearchName = "Market research";
 
-    /// <summary>The seeded entries, in the order the picker lists them.</summary>
-    public static readonly IReadOnlyList<ImageTag> BuiltIn =
-    [
-        new(OverviewId, OverviewName, ImageTagColour.Blue, IsBuiltIn: true, Version: 1),
-        new(CloseUpId, CloseUpName, ImageTagColour.Green, IsBuiltIn: true, Version: 1),
-        new(ThirdPartyId, ThirdPartyName, ImageTagColour.Amber, IsBuiltIn: true, Version: 1),
-        new(ReflectionId, ReflectionName, ImageTagColour.Navy, IsBuiltIn: true, Version: 1),
-        new(MarketResearchId, MarketResearchName, ImageTagColour.Grey, IsBuiltIn: true, Version: 1)
-    ];
-
     /// <summary>
     /// The stored spelling of a supplied name: trimmed, with every interior
     /// run of Unicode whitespace (including a non-breaking space) collapsed

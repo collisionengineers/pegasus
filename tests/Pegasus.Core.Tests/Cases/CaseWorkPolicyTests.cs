@@ -40,18 +40,6 @@ public sealed class CaseWorkPolicyTests
         Assert.Equal(CaseWorkSelector.Current, default(CaseWorkSelector));
     }
 
-    [Fact]
-    public void OnlyTheCurrentWorkIsEditableOnceAnAuditExists()
-    {
-        var withoutAudit = new CaseWorkSet(Primary(), null);
-        var withAudit = new CaseWorkSet(Primary(), Audit());
-
-        Assert.True(CaseWorkPolicy.IsEditable(withoutAudit, CaseWorkSelector.Current));
-        Assert.True(CaseWorkPolicy.IsEditable(withoutAudit, CaseWorkSelector.Primary));
-        Assert.True(CaseWorkPolicy.IsEditable(withAudit, CaseWorkSelector.Current));
-        Assert.False(CaseWorkPolicy.IsEditable(withAudit, CaseWorkSelector.Primary));
-    }
-
     [Theory]
     [InlineData(CaseType.Audit, CaseWorkKind.Primary, true)]
     [InlineData(CaseType.InspectionAndAudit, CaseWorkKind.Audit, true)]

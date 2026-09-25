@@ -1,8 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Lifecycle;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Assessment;
 
@@ -70,27 +68,6 @@ public sealed record CaseValuation(
     string? LastEditedBy = null,
     DateTimeOffset? LastEditedAtUtc = null);
 
-public sealed record SaveValuationRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    ValuationDetails Details)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
-public sealed record EditValuationRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    Guid ValuationId,
-    ValuationDetails Details)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
 public static class ValuationPolicy
 {
     public const string PolicyKey = "case-valuation";
@@ -108,26 +85,6 @@ public static class ValuationPolicy
         ValuationSource.Cap => "CAP",
         _ => source.ToString(),
     };
-
-    public static SaveValuationRequest ValidateSave(SaveValuationRequest request)
-    {
-        CaseLifecycleRules.ValidateMutation(request);
-        RequireManuallyRecordableSource(request.Details.Source);
-        RequireActor(request.Actor, request.Details);
-        return request with { Details = ValidateDetails(request.Details) };
-    }
-
-    public static EditValuationRequest ValidateEdit(EditValuationRequest request)
-    {
-        CaseLifecycleRules.ValidateMutation(request);
-        RequireManuallyRecordableSource(request.Details.Source);
-        RequireActor(request.Actor, request.Details);
-        if (request.ValuationId == Guid.Empty)
-        {
-            throw new ArgumentException("A valuation identifier is required.", nameof(request));
-        }
-        return request with { Details = ValidateDetails(request.Details) };
-    }
 
     public static ValuationDetails ValidateDetails(ValuationDetails details)
     {
@@ -170,8 +127,7 @@ public static class ValuationPolicy
     /// Brego, Super CAP, CAP and Cazana guides and records the figure by hand
     /// (v28 P8 and P13, 18 September 2026): none of them has a live provider
     /// here, and the guide is evidence rather than a call. AI market research
-    /// is written only by the automation completion, so it is not offered to
-    /// the staff save and edit actions.
+    /// is written only by the automation completion, so staff never record it.
     /// </summary>
     public static bool IsManuallyRecordable(ValuationSource source) =>
         source is ValuationSource.Glasses
@@ -207,7 +163,7 @@ public static class ValuationPolicy
         if (!IsManuallyRecordable(source))
         {
             throw new InvalidOperationException(
-                "This valuation source cannot be recorded through the staff valuation action.");
+                "This valuation source cannot be recorded as a guide card.");
         }
     }
 
@@ -275,7 +231,7 @@ public static class ValuationPolicy
         if (actor.Kind != ActorKind.Staff)
         {
             throw new InvalidOperationException(
-                "Valuations entered through the staff save and edit actions require a staff actor.");
+                "A guide card is recorded by a staff actor.");
         }
         if (details.Source == ValuationSource.EngineersValue)
         {
@@ -312,31 +268,9 @@ public static class ValuationPolicy
 
 public interface IValuationStore
 {
-    Task<CaseValuation> SaveAsync(
-        SaveValuationRequest request,
-        CancellationToken cancellationToken);
-
-    Task<CaseValuation> EditAsync(
-        EditValuationRequest request,
-        CancellationToken cancellationToken);
-
     Task<IReadOnlyList<CaseValuation>> ListForCaseAsync(
         Guid caseId,
         CaseWorkSelector work,
-        CancellationToken cancellationToken);
-}
-
-public interface ISaveValuation
-{
-    Task<CaseValuation> ExecuteAsync(
-        SaveValuationRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IEditValuation
-{
-    Task<CaseValuation> ExecuteAsync(
-        EditValuationRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -346,22 +280,6 @@ public interface IListCaseValuations
         Guid caseId,
         CaseWorkSelector work,
         CancellationToken cancellationToken);
-}
-
-public sealed class SaveValuation(IValuationStore store) : ISaveValuation
-{
-    public Task<CaseValuation> ExecuteAsync(
-        SaveValuationRequest request,
-        CancellationToken cancellationToken) =>
-        store.SaveAsync(ValuationPolicy.ValidateSave(request), cancellationToken);
-}
-
-public sealed class EditValuation(IValuationStore store) : IEditValuation
-{
-    public Task<CaseValuation> ExecuteAsync(
-        EditValuationRequest request,
-        CancellationToken cancellationToken) =>
-        store.EditAsync(ValuationPolicy.ValidateEdit(request), cancellationToken);
 }
 
 public sealed class ListCaseValuations(IValuationStore store) : IListCaseValuations

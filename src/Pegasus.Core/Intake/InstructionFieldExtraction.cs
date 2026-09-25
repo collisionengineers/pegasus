@@ -818,16 +818,6 @@ internal static partial class InstructionFieldEngine
         && MakeModelCharsetRegex().IsMatch(value);
 
     /// <summary>
-    /// Whether a value is a current-format UK registration once spacing and hyphens
-    /// are removed. Used to let a well-formed registration candidate beat free text.
-    /// </summary>
-    internal static bool IsCurrentFormatRegistration(string value) =>
-        !string.IsNullOrWhiteSpace(value)
-        && CurrentFormatRegistrationRegex().IsMatch(
-            WhitespaceHyphenRegex().Replace(value, string.Empty)
-                .ToUpperInvariant());
-
-    /// <summary>
     /// Whether a value is a plausible UK registration in the current
     /// (AB12 CDE), prefix (L100 YDR), or suffix (ABC 123L) format once
     /// spacing and hyphens are removed. Labelled registration fields and the
@@ -930,9 +920,6 @@ internal static partial class InstructionFieldEngine
 
     [GeneratedRegex(@"\b[A-Z]{2}[0-9]{2} ?[A-Z]{3}\b", RegexOptions.CultureInvariant, 100)]
     private static partial Regex UnlabelledRegistrationRegex();
-
-    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z]{3}$", RegexOptions.CultureInvariant, 100)]
-    private static partial Regex CurrentFormatRegistrationRegex();
 
     [GeneratedRegex("^(?:[A-Z]{2}[0-9]{2}[A-Z]{3}|[A-Z][0-9]{1,3}[A-Z]{3}|[A-Z]{3}[0-9]{1,3}[A-Z])$", RegexOptions.CultureInvariant, 100)]
     private static partial Regex UkRegistrationRegex();

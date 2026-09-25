@@ -6,8 +6,7 @@ public enum VehicleLookupWorkState
     Processing,
     RetryScheduled,
     Completed,
-    Failed,
-    Poisoned
+    Failed
 }
 
 public sealed record VehicleLookupWorkItem(

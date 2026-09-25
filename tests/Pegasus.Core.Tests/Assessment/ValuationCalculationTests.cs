@@ -271,7 +271,6 @@ public sealed class ValuationCalculationTests
                     recordedAdditions: [Addition(TowBar with { Version = 3 }, 300m)])));
 
         Assert.Equal(ValuationPresetError.VersionConflict, exception.Error);
-        Assert.Equal(2, exception.CurrentVersion);
     }
 
     [Fact]
@@ -286,12 +285,12 @@ public sealed class ValuationCalculationTests
     }
 
     /// <summary>
-    /// A preset that moved after the form was rendered is refused with the
-    /// version that is now current, so the Engineer re-reads the maintained
-    /// amount rather than applying the one they were shown.
+    /// A preset that moved after the form was rendered is refused, so the
+    /// Engineer re-reads the maintained amount rather than applying the one
+    /// they were shown.
     /// </summary>
     [Fact]
-    public void APresetThatMovedUnderTheFormIsRefusedWithItsCurrentVersion()
+    public void APresetThatMovedUnderTheFormIsRefused()
     {
         var exception = Assert.Throws<ValuationPresetException>(() =>
             ValuationCalculationPolicy.Resolve(
@@ -299,7 +298,6 @@ public sealed class ValuationCalculationTests
                 Basis(3100m, presets: [TowBar with { Version = 2, SuggestedAmount = 350m }])));
 
         Assert.Equal(ValuationPresetError.VersionConflict, exception.Error);
-        Assert.Equal(2, exception.CurrentVersion);
     }
 
     /// <summary>

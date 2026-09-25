@@ -19,7 +19,6 @@ public sealed class EfOrganizationAdministration(
     : IOrganizationAdministrationStore,
       IOrganizationAdministrationQueries
 {
-    private const string CreatePrincipalKind = "create_principal";
     private const string UpdatePrincipalReportSettingsKind = "update_principal_report_settings";
     private const string UpdatePrincipalDefaultInspectionLocationKind =
         "update_principal_default_inspection_location";
@@ -32,13 +31,6 @@ public sealed class EfOrganizationAdministration(
         contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
-
-    public Task<Principal> CreatePrincipalAsync(
-        CreatePrincipalRequest request,
-        CancellationToken cancellationToken) =>
-        ExecuteWithConcurrencyRetryAsync(
-            token => CreatePrincipalOnceAsync(request, token),
-            cancellationToken);
 
     public Task<Principal> ReplacePrincipalAsync(
         ReplacePrincipalRequest request,
@@ -60,115 +52,6 @@ public sealed class EfOrganizationAdministration(
         ExecuteWithConcurrencyRetryAsync(
             token => UpdatePrincipalDefaultInspectionLocationOnceAsync(request, token),
             cancellationToken);
-
-    private async Task<Principal> CreatePrincipalOnceAsync(
-        CreatePrincipalRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        var requestHash = HashRequest(new
-        {
-            command = CreatePrincipalKind,
-            actor = ActorMaterial(request.Actor),
-            request.Name,
-            request.Code,
-            inspectionMode = ProviderInspectionModePolicy.ToCode(request.InspectionMode),
-            request.ReportGenerationPolicy,
-            request.ReportRecipients
-        });
-
-        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
-        if (receipt is not null)
-        {
-            var replay = ReadReplay<Principal>(receipt, CreatePrincipalKind, requestHash);
-            await transaction.CommitAsync(cancellationToken);
-            return replay;
-        }
-
-        var normalizedName = request.Name.ToUpperInvariant();
-        OrganizationAdministrationPolicy.RequireUniqueOrganizationName(
-            await context.Organizations.AnyAsync(item => item.NormalizedName == normalizedName, cancellationToken));
-        var organization = new OrganizationEntity
-        {
-            Id = Guid.NewGuid(),
-            Name = request.Name,
-            Version = 0
-        };
-        organization.Roles.Add(new OrganizationRoleEntity
-        {
-            OrganizationId = organization.Id,
-            Role = ToCode(OrganizationRole.WorkProvider)
-        });
-        organization.ContactRoles.Add(new ContactRoleEntity
-        {
-            OrganizationId = organization.Id,
-            Role = "principal"
-        });
-        var codeAlreadyExists = await context.Principals
-            .AsNoTracking()
-            .AnyAsync(
-                item => item.Code == request.Code,
-                cancellationToken);
-        var now = _timeProvider.GetUtcNow();
-        var lineageId = Guid.NewGuid();
-        var result = OrganizationAdministrationPolicy.PlanPrincipalCreation(
-            Guid.NewGuid(),
-            lineageId,
-            ToOrganization(organization),
-            request.Code,
-            codeAlreadyExists,
-            request.InspectionMode,
-            request.ReportGenerationPolicy,
-            request.ReportRecipients);
-        var lineage = new PrincipalSequenceLineageEntity
-        {
-            Id = lineageId,
-            CreatedAtUtc = now
-        };
-        var entity = new PrincipalEntity
-        {
-            Id = result.Id,
-            OrganizationId = result.OrganizationId,
-            Code = result.Code,
-            SequenceLineageId = result.SequenceLineageId,
-            PredecessorId = result.PredecessorId,
-            SuccessorId = result.SuccessorId,
-            IsActive = result.IsActive,
-            InspectionMode = ProviderInspectionModePolicy.ToCode(result.InspectionMode),
-            ReportGenerationPolicy = result.ReportGenerationPolicy.ToString(),
-            IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender,
-            ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions),
-            Version = result.Version
-        };
-        context.PrincipalSequenceLineages.Add(lineage);
-        context.Organizations.Add(organization);
-        context.Principals.Add(entity);
-        AddReceipt(
-            context,
-            request.OperationKey,
-            CreatePrincipalKind,
-            requestHash,
-            result,
-            now);
-        AddHistory(
-            context,
-            "principal",
-            entity.Id,
-            "principal_created",
-            request.Actor,
-            request.OperationKey,
-            now,
-            reason: null,
-            before: null,
-            after: result);
-        await SaveChangesAsync(context, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return result;
-    }
 
     /// <summary>
     /// Changes a principal's report route and report-recipient suggestions.
@@ -476,25 +359,6 @@ public sealed class EfOrganizationAdministration(
         return result;
     }
 
-    public async Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalsAsync(
-        int offset, int limit, CancellationToken cancellationToken)
-    {
-        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = await context.Principals.AsNoTracking()
-            .OrderBy(item => item.Organization.Name).ThenBy(item => item.Code)
-            .Skip(offset).Take(limit)
-            .Select(item => new
-            {
-                Principal = item,
-                item.Organization.Name,
-                item.Organization.NotesOnEveryCase,
-                AllocatedCount = context.Cases.Count(caseItem => caseItem.PrincipalId == item.Id)
-            })
-            .ToArrayAsync(cancellationToken);
-        return rows.Select(row => new PrincipalAdministrationDetails(
-            row.Name, ToSummary(row.Principal, row.AllocatedCount, row.NotesOnEveryCase))).ToArray();
-    }
-
     public async Task<PrincipalAdministrationDetails?> GetPrincipalAsync(
         Guid principalId, CancellationToken cancellationToken)
     {
@@ -539,13 +403,6 @@ public sealed class EfOrganizationAdministration(
             entity.DefaultInspectionSourceVersion,
             notesOnEveryCase);
 
-    private static Organization ToOrganization(OrganizationEntity entity) =>
-        new(
-            entity.Id,
-            entity.Name,
-            entity.Roles.Select(role => ParseRole(role.Role)).OrderBy(role => role).ToArray(),
-            entity.Version);
-
     internal static Principal ToPrincipal(PrincipalEntity entity) =>
         new(
             entity.Id,
@@ -586,20 +443,6 @@ public sealed class EfOrganizationAdministration(
     {
         contact.Version = checked(contact.Version + 1);
     }
-
-    private static OrganizationRole ParseRole(string role) => role switch
-    {
-        "work_provider" => OrganizationRole.WorkProvider,
-        "instruction_intermediary" => OrganizationRole.InstructionIntermediary,
-        _ => throw new InvalidOperationException("The persisted organization role is invalid.")
-    };
-
-    private static string ToCode(OrganizationRole role) => role switch
-    {
-        OrganizationRole.WorkProvider => "work_provider",
-        OrganizationRole.InstructionIntermediary => "instruction_intermediary",
-        _ => throw new ArgumentOutOfRangeException(nameof(role))
-    };
 
     internal static Task<OrganizationAdministrationOperationEntity?> FindReceiptAsync(
         PegasusDbContext context,

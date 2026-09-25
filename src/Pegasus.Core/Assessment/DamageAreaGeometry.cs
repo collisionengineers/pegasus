@@ -51,22 +51,6 @@ public static class DamageAreaGeometry
             ["left_rear"] = new(0.18, 0.84), ["right_rear"] = new(0.82, 0.84)
         };
 
-    /// <summary>The area under a unit-plan point, or null off the plan.</summary>
-    public static string? AreaAt(double x, double y)
-    {
-        if (x < 0 || x > 1 || y < 0 || y > 1)
-        {
-            return null;
-        }
-        var band = y < FrontBand ? "front" : y > RearBand ? "rear" : "side";
-        var lateral = x < LeftBand ? "left" : x > RightBand ? "right" : "centre";
-        if (band == "side")
-        {
-            return (lateral == "centre" ? (x < 0.5 ? "left" : "right") : lateral) + "_side";
-        }
-        return lateral == "centre" ? band : lateral + "_" + band;
-    }
-
     /// <summary>
     /// The disc drawn for a damage recorded by area alone, in unit-plan terms
     /// (centre as fractions of the plan, radius as a fraction of its width):

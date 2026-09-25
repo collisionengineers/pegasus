@@ -2,6 +2,8 @@
 using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Web.Authentication;
 
@@ -79,7 +81,7 @@ public sealed class IntakeStablePersistenceTests
         var countsError = await Assert.ThrowsAsync<InvalidDataException>(
             () => queries.GetCountsAsync(CancellationToken.None));
         var unfilteredListError = await Assert.ThrowsAsync<InvalidDataException>(
-            () => queries.ListAsync(null, 1, 100, CancellationToken.None));
+            () => queries.ListByCursorAsync(null, null, 100, CancellationToken.None));
 
         Assert.Contains("future_decision", countsError.Message, StringComparison.Ordinal);
         Assert.Contains("future_decision", unfilteredListError.Message, StringComparison.Ordinal);
@@ -95,13 +97,12 @@ public sealed class IntakeStablePersistenceTests
         // case-linked receipt is invisible to both. Recovering the throw here
         // would mean scanning every receipt on every page load, which is the
         // defect this filter fixed.
-        var filtered = await queries.ListAsync(
+        var filtered = await queries.ListByCursorAsync(
             IntakeDecision.Unsupported,
-            1,
+            null,
             100,
             CancellationToken.None);
         Assert.Empty(filtered.Items);
-        Assert.Equal(0, filtered.TotalCount);
     }
 
     [Fact]
@@ -175,12 +176,18 @@ public sealed class IntakeStablePersistenceTests
             services.GetRequiredService<IIntakeReceiptQueries>(),
             protector);
 
-        // The order the offset list already promises, so the two views can
-        // never disagree about what "newest first" means.
-        var offset = await services.GetRequiredService<IIntakeReceiptQueries>()
-            .ListAsync(null, 1, 50, CancellationToken.None);
-        var offsetOrder = offset.Items.Select(item => item.Id).ToArray();
-        Assert.Equal(5, offsetOrder.Length);
+        // The stored order, read straight from the table: newest first, the id
+        // breaking a tie. Every page size must walk exactly this sequence.
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var storedOrder = await context.IntakeReceipts
+            .AsNoTracking()
+            .OrderByDescending(r => r.ReceivedAtUtc)
+            .ThenByDescending(r => r.Id)
+            .Select(r => r.Id)
+            .ToArrayAsync();
+        Assert.Equal(5, storedOrder.Length);
 
         foreach (var pageSize in new[] { 1, 2, 5 })
         {
@@ -198,7 +205,7 @@ public sealed class IntakeStablePersistenceTests
             }
             while (cursor is not null);
 
-            Assert.Equal(offsetOrder, seen);
+            Assert.Equal(storedOrder, seen);
             Assert.Equal(seen.Count, seen.Distinct().Count());
         }
     }

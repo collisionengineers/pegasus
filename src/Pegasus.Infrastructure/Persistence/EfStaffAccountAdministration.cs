@@ -924,20 +924,6 @@ public sealed class EfStaffAccountAdministration(
         return string.Equals(actual, expected, StringComparison.Ordinal);
     }
 
-    private static string SignOffSnapshot(
-        PegasusIdentityUser user,
-        Guid? defaultSignOffEngineerId) =>
-        JsonSerializer.Serialize(new
-        {
-            user.IsSignOffEngineer,
-            user.SignOffPrintedName,
-            user.SignOffQualifications,
-            HasSignOffSignature = user.SignOffSignature is { Length: > 0 },
-            user.SignOffSignatureDigest,
-            user.IsDefaultSignOffEngineer,
-            DefaultSignOffEngineerId = defaultSignOffEngineerId
-        });
-
     private static string SignatureDigest(byte[] signature) =>
         Convert.ToHexString(SHA256.HashData(signature)).ToLowerInvariant();
 

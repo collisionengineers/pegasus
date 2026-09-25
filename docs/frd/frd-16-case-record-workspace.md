@@ -233,8 +233,26 @@ which the Decisions section no longer repeats.
 On an Audit Case only: who wrote the original report (the assessors Core's
 third-party report profiles know are offered, any other is typed), its date,
 its roadworthiness and its repairable status. They are Case data, edited in
-the page-wide session; a filed original report's extraction is their source
-once wired (v28 P51, ruled 20 September 2026).
+the page-wide session (v28 P51, ruled 20 September 2026).
+
+A filed original report fills them (#840). Pegasus reads the report file
+itself, never the e-mail it arrived in:
+
+- when a standalone Audit is accepted, from the report retained at intake;
+- when staff **Mark as original report**, from that document.
+
+A filled cell is tagged **Extracted** until a staff Save confirms it. A fill
+lands only on a cell staff have not confirmed and never clears one, so a
+staff-entered value is never overwritten. A cell stays blank for staff when
+the report prints no value for it, prints two different values, or prints a
+word the cell's list does not hold. Roadworthiness reads a printed Yes/No or
+Roadworthy/Unroadworthy. Repairable status reads a printed Repairable,
+Repair or Total loss; the report never fills Cash in lieu or Contract repair.
+
+Repairable status alone falls back to the Audit's intake verdict — the
+report's literal repairable or total-loss wording, or the Provider API's
+declared verdict — when the report prints no outcome or cannot be read. When
+the report and the verdict disagree, the cell stays blank.
 
 ### Inspection
 
@@ -387,7 +405,8 @@ confirmed**, **Box audit folder: preparing** while it is being created, or
 recorded time and custody-state chip, with Preview, Save as and, while
 editing, delete. When an Audit lists **Original report missing**, each
 non-image row also offers **Mark as original report** while editing. That
-action assigns the Audit report role and clears the requirement.
+action assigns the Audit report role, clears the requirement and fills the
+[Original report](#original-report) cells from that document.
 
 **Images** is one grid of every image occurrence: the Case's own image
 documents plus, for each vehicle-images record associated with the Case, its

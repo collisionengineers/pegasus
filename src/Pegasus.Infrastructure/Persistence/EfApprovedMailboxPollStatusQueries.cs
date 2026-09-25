@@ -21,16 +21,8 @@ internal sealed class EfApprovedMailboxPollStatusQueries(
             .Include(item => item.ApprovedMailbox)
             .OrderBy(item => item.MailboxAddress)
             .ToListAsync(cancellationToken);
-        var subscriptions = await context.ApprovedMailboxSubscriptions
-            .AsNoTracking()
-            .ToDictionaryAsync(item => item.ApprovedMailboxId, cancellationToken);
         return rows.Select(item =>
         {
-            subscriptions.TryGetValue(item.ApprovedMailboxId, out var subscription);
-            if (subscription?.Generation != item.Generation)
-            {
-                subscription = null;
-            }
             var capabilities = new List<ApprovedMailboxRouteScope>(3);
             if (item.ApprovedMailbox.AllowInboundIntake)
             {
@@ -52,10 +44,6 @@ internal sealed class EfApprovedMailboxPollStatusQueries(
                 item.LastFailureCode,
                 item.StartBoundaryUtc,
                 item.Generation,
-                subscription?.ExpiresAtUtc,
-                subscription is null
-                    ? null
-                    : Enum.Parse<ApprovedMailboxSubscriptionLifecycleState>(subscription.LifecycleState),
                 capabilities);
         }).ToArray();
     }

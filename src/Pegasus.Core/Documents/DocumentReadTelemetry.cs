@@ -43,7 +43,6 @@ public static class DocumentReadTelemetry
         "web.case.fragment.notes",
         "document.preview",
         "document.preparation.lookup",
-        "document.preparation.write",
         "document.thumbnail.open",
         "document.original.open",
         "document.provider.gate",

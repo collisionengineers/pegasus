@@ -139,7 +139,7 @@ technical actions that apply
 
 ### Reports
 
-**Reports** shares one London period filter across MI-01 Engineer activity,
+**Reports** shares one period filter across MI-01 Engineer activity,
 MI-02 Reports by Principal (per-Principal report counts by type) and MI-03
 Turnaround (current holding age, and instruction-to-produced, ready and sent
 turnaround). Each has its own totals and a downloadable CSV, and **Download

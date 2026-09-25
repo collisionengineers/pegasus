@@ -36,12 +36,6 @@ public sealed partial class DetailsModel
         !ViewerHoldsEditAuthority && CurrentEditLease is not null && EditAuthorityHolder is not null;
 
     /// <summary>
-    /// The one control that can end this viewer's own second window's lease:
-    /// the lease is theirs but this browser no longer carries the token.
-    /// </summary>
-    public bool OwnLeaseHeldElsewhere => ViewerHoldsEditAuthority && !IsEditing && CanRecoverLease;
-
-    /// <summary>
     /// Create audit (v29 P5): offered where Core's shared Audit policy finds
     /// no refusal (an Inspection + Audit Case whose report is sent, with no
     /// Audit yet and an assigned Engineer). The command carries the edit

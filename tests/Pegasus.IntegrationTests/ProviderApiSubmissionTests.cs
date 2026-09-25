@@ -994,13 +994,25 @@ public sealed class ProviderApiSubmissionTests
     {
         await using var scope = api.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var principal = await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
-            new("Other Provider", "OTHER", Administrator, "provider-api:principal:other"),
+        await services.GetRequiredService<IContactDirectoryAdministration>().SaveAsync(
+            new SaveContactRequest(
+                Administrator, Guid.NewGuid(), 0, "Other Provider", null, null, null, null, null, true,
+                [ContactRole.Principal], "OTHER", CaseInspectionMode.PhysicalAddress, [],
+                "provider-api:principal:other"),
             default);
+        Guid principalId;
+        await using (var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            principalId = await context.Principals.AsNoTracking()
+                .Where(item => item.Code == "OTHER" && item.IsActive)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
         var issued = await services.GetRequiredService<IIssuePrincipalCredential>().ExecuteAsync(
             await CredentialRequestAsync(
                 services,
-                principal.Id,
+                principalId,
                 0,
                 "provider-api:issue:other",
                 "provider api test"),

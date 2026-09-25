@@ -175,7 +175,7 @@ Do not leak implementation/vendor-development wording into the UI.
 ## Icons and imagery
 
 - Lucide glyphs name inline actions/states. One glyph means one thing everywhere.
-- Approved Pegasus marks identify a whole surface and remain decorative beside text.
+- The refined Pegasus mark is the only brand imagery; it stays decorative beside text that names the product.
 - Do not invent substitute marks, generated brand art, emoji icons, or a second icon family.
 - Do not use a decorative mark as an action or state.
 - Do not remove or replace the Pegasus logo unless explicitly instructed.

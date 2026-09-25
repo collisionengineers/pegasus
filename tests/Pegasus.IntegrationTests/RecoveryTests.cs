@@ -280,7 +280,7 @@ public sealed class RecoveryTests
         await processor.ExecuteAsync(received.StagedReceiptId);
 
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
-        var retained = Assert.Single((await receipts.ListAsync(null, 1, 100, CancellationToken.None)).Items);
+        var retained = Assert.Single((await receipts.ListByCursorAsync(null, null, 100, CancellationToken.None)).Items);
         Assert.Equal(IntakeDecision.CaseCreated, retained.Decision);
         var evaluation = Assert.IsType<IntakeEvaluationRevision>(
             await store.GetCompletedEvaluationAsync(
@@ -420,9 +420,9 @@ public sealed class RecoveryTests
             .ExecuteAsync(received.StagedReceiptId);
 
         Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled, outcome);
-        var work = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(
-            received.StagedReceiptId,
-            CancellationToken.None));
+        var work = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(
+            services,
+            received.StagedReceiptId));
         Assert.Equal(IntakeWorkState.RetryScheduled, work.State);
         Assert.Equal("intake_processing_failure", work.FailureCode);
         var status = Assert.IsType<QueuedIntakeStatus>(
@@ -468,9 +468,9 @@ public sealed class RecoveryTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => processor.ExecuteAsync(received.StagedReceiptId));
 
-        var work = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(
-            received.StagedReceiptId,
-            CancellationToken.None));
+        var work = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(
+            services,
+            received.StagedReceiptId));
         Assert.Equal(IntakeWorkState.Failed, work.State);
         Assert.Equal("unexpected_intake_processing_failure", work.FailureCode);
 
@@ -594,9 +594,9 @@ public sealed class RecoveryTests
             clock.Advance(TimeSpan.FromHours(3));
         }
 
-        var work = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(
-            received.StagedReceiptId,
-            CancellationToken.None));
+        var work = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(
+            services,
+            received.StagedReceiptId));
         Assert.Equal(5, work.AttemptCount);
         Assert.Equal(IntakeWorkState.Failed, work.State);
         Assert.Null(await store.ClaimDispatchAsync(
