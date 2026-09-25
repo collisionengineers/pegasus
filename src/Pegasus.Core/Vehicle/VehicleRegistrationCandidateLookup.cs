@@ -26,10 +26,7 @@ public sealed record VehicleRegistrationCandidateLookupResult(
     IReadOnlyList<string> Candidates,
     IReadOnlyList<VehicleRegistrationCandidateAttempt> Attempts,
     string? AcceptedRegistration,
-    VehicleLookupResult? AcceptedResult)
-{
-    public bool IsAmbiguous => AcceptedResult is null;
-}
+    VehicleLookupResult? AcceptedResult);
 
 /// <summary>
 /// Resolves only bounded machine-reading substitutions through the existing

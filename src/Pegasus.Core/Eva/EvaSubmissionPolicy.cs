@@ -148,16 +148,6 @@ public static class EvaSubmissionPolicy
     }
 
     /// <summary>
-    /// Whether the principal's settings authorise the act being attempted.
-    /// The explicit manual action consults the principal's manual setting.
-    /// </summary>
-    public static bool Allows(EvaSubmissionModes modes)
-    {
-        ArgumentNullException.ThrowIfNull(modes);
-        return AllowsManualSubmission(modes);
-    }
-
-    /// <summary>
     /// The state a send leaves the case in.
     ///
     /// <paramref name="isDelivered"/> defaults to true so a pre-flight check

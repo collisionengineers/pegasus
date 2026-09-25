@@ -363,11 +363,6 @@ public sealed class ImageIntakeCasePairingTests
                 summary.RegisteredAtUtc, summary.AssociatedCaseId, summary.AssociatedCaseReference));
         }
 
-        public Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
-            Guid submissionGroupId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         Task<IntakeReceipt?> IIntakeReceiptQueries.GetAsync(Guid id, CancellationToken cancellationToken)
         {
             var summary = Unassociated.SingleOrDefault(item => item.OriginReceiptId == id);
@@ -387,13 +382,6 @@ public sealed class ImageIntakeCasePairingTests
         }
 
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IntakeListPage> ListAsync(IntakeDecision? decision, int page, int pageSize, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IntakeAssetRecord?> GetAssetAsync(Guid receiptId, Guid assetId, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
-            IReadOnlyCollection<Guid> intakeReceiptIds,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,

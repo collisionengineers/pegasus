@@ -180,8 +180,7 @@ public sealed class EfApprovedMailboxStore(
             if (entity is not null)
             {
                 throw new ApprovedMailboxUpdateException(
-                    ApprovedMailboxUpdateError.VersionConflict,
-                    entity.Version);
+                    ApprovedMailboxUpdateError.VersionConflict);
             }
 
             entity = new ApprovedMailboxEntity
@@ -209,8 +208,7 @@ public sealed class EfApprovedMailboxStore(
             if (entity.Version != request.ExpectedVersion)
             {
                 throw new ApprovedMailboxUpdateException(
-                    ApprovedMailboxUpdateError.VersionConflict,
-                    entity.Version);
+                    ApprovedMailboxUpdateError.VersionConflict);
             }
 
             before = Snapshot(entity);
@@ -391,7 +389,7 @@ public sealed class EfApprovedMailboxStore(
         if (target.Version != request.ExpectedVersion)
         {
             throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.VersionConflict, target.Version);
+                ApprovedMailboxUpdateError.VersionConflict);
         }
 
         var previousDefault = await context.Set<ApprovedMailboxEntity>()
@@ -401,7 +399,7 @@ public sealed class EfApprovedMailboxStore(
             || previousDefault?.Version != request.ExpectedPreviousDefaultMailboxVersion)
         {
             throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.VersionConflict, previousDefault?.Version);
+                ApprovedMailboxUpdateError.VersionConflict);
         }
         if (!IsStaffSendEligible(target))
         {

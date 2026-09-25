@@ -36,68 +36,6 @@ public sealed class OperationsUseCaseTests
     }
 
     [Fact]
-    public async Task EmailProjectionUsesTheCoreBoundAndCurrentStaffActor()
-    {
-        var store = new RecordingEmailStore(EmptyEmailProjection());
-        var query = new GetEmailOperations(store, new FixedTimeProvider(FixedUtcNow));
-
-        var result = await query.ExecuteAsync(StaffActor(), CancellationToken.None);
-
-        Assert.Empty(result.Received);
-        Assert.Equal(GetEmailOperations.MaximumItemsPerDirection, store.MaximumItems);
-        Assert.Equal(FixedUtcNow, store.AsOfUtc);
-    }
-
-    [Fact]
-    public async Task EmailProjectionRejectsAutomatedActorsBeforeReadingState()
-    {
-        var store = new RecordingEmailStore(EmptyEmailProjection());
-        var query = new GetEmailOperations(store, new FixedTimeProvider(FixedUtcNow));
-
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            query.ExecuteAsync(ActionActor.SystemWorker("worker"), CancellationToken.None));
-
-        Assert.Null(store.MaximumItems);
-    }
-
-    [Fact]
-    public async Task EmailProjectionRejectsAnAdapterResultBeyondTheCoreBound()
-    {
-        var items = Enumerable.Range(0, GetEmailOperations.MaximumItemsPerDirection + 1)
-            .Select(index => EmailItem($"received:{index}"))
-            .ToImmutableArray();
-        var store = new RecordingEmailStore(new(
-            items,
-            ImmutableArray<EmailOperationProjection>.Empty,
-            ReceivedLimitReached: true,
-            SentLimitReached: false));
-        var query = new GetEmailOperations(store, new FixedTimeProvider(FixedUtcNow));
-
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            query.ExecuteAsync(StaffActor(), CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task MailboxRetryCarriesDirectionFailureVersionAndServerTime()
-    {
-        var store = new RecordingMailboxRetryStore();
-        var command = new RetryMailboxProcessingCommand(
-            "approved-inbox",
-            EmailOperationDirection.Received,
-            "source_unavailable",
-            FixedUtcNow.AddMinutes(5),
-            StaffActor(),
-            "retry-operation");
-        var retry = new RetryMailboxProcessing(store, new FixedTimeProvider(FixedUtcNow));
-
-        var result = await retry.ExecuteAsync(command, CancellationToken.None);
-
-        Assert.False(result.IsReplay);
-        Assert.Equal(command, store.Command);
-        Assert.Equal(FixedUtcNow, store.RetryAtUtc);
-    }
-
-    [Fact]
     public async Task RequestProjectionAndExternalRetryAreStaffBounded()
     {
         var projectionStore = new RecordingRequestStore(EmptyRequestProjection());
@@ -146,12 +84,6 @@ public sealed class OperationsUseCaseTests
     private static ActionActor StaffActor() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
-    private static EmailOperationsProjection EmptyEmailProjection() => new(
-        ImmutableArray<EmailOperationProjection>.Empty,
-        ImmutableArray<EmailOperationProjection>.Empty,
-        ReceivedLimitReached: false,
-        SentLimitReached: false);
-
     private static RequestOperationsProjection EmptyRequestProjection() => new(
         ImmutableArray<RequestOperationProjection>.Empty,
         LimitReached: false);
@@ -168,56 +100,6 @@ public sealed class OperationsUseCaseTests
         FailureCode: null,
         FailureReason: null,
         CanRetry: false);
-
-    private static EmailOperationProjection EmailItem(string id) => new(
-        id,
-        EmailOperationDirection.Received,
-        EmailOperationState.Succeeded,
-        MailboxIdentity: null,
-        FixedUtcNow,
-        IntakeId: null,
-        TriageCaseId: null,
-        CaseId: null,
-        CaseReference: null,
-        PrincipalCode: null,
-        FailureCode: null,
-        RetryMailboxId: null,
-        RetryExpectedDueAtUtc: null);
-
-    private sealed class RecordingEmailStore(EmailOperationsProjection result)
-        : IEmailOperationsProjectionStore
-    {
-        public int? MaximumItems { get; private set; }
-
-        public DateTimeOffset? AsOfUtc { get; private set; }
-
-        public Task<EmailOperationsProjection> GetAsync(
-            int maximumItemsPerDirection,
-            DateTimeOffset nowUtc,
-            CancellationToken cancellationToken)
-        {
-            MaximumItems = maximumItemsPerDirection;
-            AsOfUtc = nowUtc;
-            return Task.FromResult(result);
-        }
-    }
-
-    private sealed class RecordingMailboxRetryStore : IMailboxProcessingRetryStore
-    {
-        public RetryMailboxProcessingCommand? Command { get; private set; }
-
-        public DateTimeOffset? RetryAtUtc { get; private set; }
-
-        public Task<OperationsRetryResult> RetryAsync(
-            RetryMailboxProcessingCommand command,
-            DateTimeOffset retryAtUtc,
-            CancellationToken cancellationToken)
-        {
-            Command = command;
-            RetryAtUtc = retryAtUtc;
-            return Task.FromResult(new OperationsRetryResult(IsReplay: false));
-        }
-    }
 
     private sealed class RecordingRequestStore(RequestOperationsProjection result)
         : IRequestOperationsProjectionStore

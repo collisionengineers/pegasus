@@ -37,22 +37,11 @@ public sealed record RetainApprovedMailboxReportSentEvidenceRequest(
     ActionActor DiscoveredBy,
     string OperationKey);
 
-public interface IApprovedMailboxReportSentEvidenceQueries
-{
-    Task<RetainedApprovedMailboxReportSentEvidence?> GetAsync(
-        Guid evidenceId,
-        CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<RetainedApprovedMailboxReportSentEvidence>> ListUnlinkedAsync(
-        int maximumResults,
-        CancellationToken cancellationToken);
-}
-
 /// <summary>
-/// Trusted persistence boundary used by approved-mailbox ingestion. Staff Web callers
-/// receive only the query interface and cannot manufacture retained evidence.
+/// Trusted persistence boundary used by approved-mailbox ingestion. Only the Sent-evidence
+/// poll retains evidence through it; no staff caller manufactures retained evidence.
 /// </summary>
-public interface IApprovedMailboxReportSentEvidenceStore : IApprovedMailboxReportSentEvidenceQueries
+public interface IApprovedMailboxReportSentEvidenceStore
 {
     Task<RetainedApprovedMailboxReportSentEvidence> RetainAsync(
         RetainApprovedMailboxReportSentEvidenceRequest request,

@@ -107,9 +107,7 @@ internal sealed class EfVehicleWorkflowStore(
             .ToArrayAsync(cancellationToken);
         if (confirmedRegistrations.Length > 1)
         {
-            throw new AcceptedVehicleRegistrationRequiredException(
-                command.CaseId,
-                confirmedRegistrations.Length);
+            throw new AcceptedVehicleRegistrationRequiredException(command.CaseId);
         }
 
         var acceptedRegistrations = confirmedRegistrations.Length == 1
@@ -125,18 +123,13 @@ internal sealed class EfVehicleWorkflowStore(
                 .ToArrayAsync(cancellationToken);
         if (acceptedRegistrations.Length != 1)
         {
-            throw new AcceptedVehicleRegistrationRequiredException(
-                command.CaseId,
-                acceptedRegistrations.Length);
+            throw new AcceptedVehicleRegistrationRequiredException(command.CaseId);
         }
 
         var acceptedRegistration = acceptedRegistrations[0];
         if (!string.Equals(acceptedRegistration, command.Registration, StringComparison.Ordinal))
         {
-            throw new AcceptedVehicleRegistrationConflictException(
-                command.CaseId,
-                acceptedRegistration,
-                command.Registration);
+            throw new AcceptedVehicleRegistrationConflictException(command.CaseId);
         }
 
         var nowUtc = UtcNow();
@@ -228,16 +221,6 @@ internal sealed class EfVehicleWorkflowStore(
             .ToArray();
         var observationsById = observations.ToDictionary(item => item.Id);
 
-        var confirmationEntities = await context.Set<VehicleConfirmationEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .OrderBy(item => item.AfterCaseVersion)
-            .ThenBy(item => item.Id)
-            .ToArrayAsync(cancellationToken);
-        var confirmationHistory = confirmationEntities
-            .Select(MapHistory)
-            .ToArray();
-
         // Confirmed vehicle facts are the current work's, as the Case data
         // they are read beside is.
         var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
@@ -252,8 +235,7 @@ internal sealed class EfVehicleWorkflowStore(
             caseId,
             confirmed,
             observations.LastOrDefault(),
-            observations,
-            confirmationHistory);
+            observations);
     }
 
     private DateTimeOffset UtcNow()
@@ -371,37 +353,6 @@ internal sealed class EfVehicleWorkflowStore(
         && observations.TryGetValue(observationId, out var observation)
             ? observation.Provenance
             : null;
-
-    private static VehicleConfirmationHistory MapHistory(VehicleConfirmationEntity entity)
-    {
-        var roleNames = JsonSerializer.Deserialize<string[]>(entity.ActorRolesJson, JsonOptions)
-            ?? throw new InvalidDataException("Persisted vehicle confirmation roles are missing.");
-        var roles = roleNames
-            .Select(name => Enum.Parse<StaffRole>(name, ignoreCase: false))
-            .ToArray();
-        if (!string.Equals(entity.ActorKind, ActorKind.Staff.ToString(), StringComparison.Ordinal)
-            || !Guid.TryParse(entity.ActorSubjectId, out var actorId))
-        {
-            throw new InvalidDataException("Persisted vehicle confirmation actor is invalid.");
-        }
-        VehicleMileageUnit? unit = entity.MileageUnit is null
-            ? null
-            : Enum.Parse<VehicleMileageUnit>(entity.MileageUnit, ignoreCase: false);
-        return new(
-            entity.Id,
-            entity.CaseId,
-            entity.LookupObservationId,
-            entity.Decision,
-            new(entity.Registration, entity.Make, entity.Model, entity.Mileage, unit),
-            ActionActor.Staff(actorId, roles),
-            entity.Reason,
-            entity.OperationKey,
-            entity.OccurredAtUtc,
-            entity.BeforeCaseVersion,
-            entity.AfterCaseVersion,
-            entity.PolicyKey,
-            entity.PolicyVersion);
-    }
 
     /// <summary>
     /// One automatic-lookup sweep pass: every active case whose

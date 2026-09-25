@@ -2104,14 +2104,6 @@ public sealed class MessageModel(
     public static string DecisionLabel(MailCategory category) =>
         OperatorLabels.MailClassification(category);
 
-    public static string QueueLabel(MailRouteDisposition? disposition) => disposition switch
-    {
-        MailRouteDisposition.Accepted => "Accepted",
-        MailRouteDisposition.NoMatch => "No match",
-        MailRouteDisposition.NeedsSorting => "Unidentified",
-        _ => "Not yet processed"
-    };
-
     /// <summary>
     /// The one label for a message's Case association when it has no Case:
     /// the preview pane, its JSON projection and the message page must all

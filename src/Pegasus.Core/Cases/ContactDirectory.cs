@@ -98,7 +98,6 @@ public enum ContactDirectoryError
     ContactNotFound,
     DuplicateOrganizationName,
     DuplicatePrincipalCode,
-    PrincipalNotFound,
     InvalidPrincipalAssociation,
     StaleVersion,
     OperationConflict

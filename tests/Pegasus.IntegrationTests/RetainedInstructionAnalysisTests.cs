@@ -9,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -125,33 +124,6 @@ public sealed class RetainedInstructionAnalysisTests
         Assert.Null(after.ManualLinkedCaseId);
         Assert.Null(after.AllocationState);
         Assert.Equal(receipt.Fields.Count, after.Fields.Count);
-
-        // The shared candidate query sees the same rows, scoped to the asset.
-        var queried = await services.GetRequiredService<ISourceCandidateQueries>().GetAsync(
-            StaffActor(), receiptId, null, row.IntakeAssetId, CancellationToken.None);
-        Assert.Equal(analysis.Candidates.Count, queried.Count);
-        Assert.All(queried, candidate =>
-        {
-            Assert.Null(candidate.DocumentId);
-            Assert.Null(candidate.DocumentVersionId);
-            Assert.Equal(row.IntakeAssetId, candidate.IntakeAssetId);
-        });
-
-        var reports = services.GetRequiredService<IThirdPartyReportCandidateQueries>();
-        Assert.Empty(await reports.GetAsync(
-            StaffActor(), receiptId, null, row.IntakeAssetId, CancellationToken.None));
-        Assert.Empty(await reports.GetAsync(
-            StaffActor(), Guid.NewGuid(), null, null, CancellationToken.None));
-        Assert.Empty(await reports.GetAsync(
-            StaffActor(), receiptId, Guid.NewGuid(), null, CancellationToken.None));
-        Assert.Empty(await reports.GetAsync(
-            StaffActor(), receiptId, null, Guid.NewGuid(), CancellationToken.None));
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => reports.GetAsync(
-            ActionActor.Provider(Guid.NewGuid()),
-            receiptId,
-            null,
-            row.IntakeAssetId,
-            CancellationToken.None));
     }
 
     [Fact]

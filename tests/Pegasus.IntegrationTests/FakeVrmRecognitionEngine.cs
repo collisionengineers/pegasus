@@ -9,16 +9,12 @@ namespace Pegasus.IntegrationTests;
 /// covered by its own loading/abstention tests.
 /// </summary>
 internal sealed class FakeVrmRecognitionEngine(
-    string? registration = null,
-    double confidence = 0.95) : IVrmRecognitionEngine
+    string? registration = null) : IVrmRecognitionEngine
 {
-    public int Calls { get; private set; }
-
     public Task<VrmRecognitionResult> RecognizeAsync(
         ReadOnlyMemory<byte> imageBytes,
         CancellationToken cancellationToken)
     {
-        Calls++;
         return Task.FromResult(registration is null
             ? new VrmRecognitionResult(
                 VrmRecognitionOutcomeKind.NoReadableResult,
@@ -28,7 +24,7 @@ internal sealed class FakeVrmRecognitionEngine(
                 "plate-detection=fake;plate-recognition=fake")
             : new VrmRecognitionResult(
                 VrmRecognitionOutcomeKind.Suggested,
-                [new(registration, registration, confidence, null)],
+                [new(registration, registration, 0.95, null)],
                 "fake-engine",
                 "1",
                 "plate-detection=fake;plate-recognition=fake"));

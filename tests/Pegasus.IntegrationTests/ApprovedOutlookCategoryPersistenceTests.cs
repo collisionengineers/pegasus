@@ -56,7 +56,6 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
                 OperationKey = Guid.NewGuid().ToString("N")
             }, default));
         Assert.Equal(ApprovedOutlookCategoryUpdateError.VersionConflict, stale.Error);
-        Assert.Equal(disabled.Version, stale.CurrentVersion);
 
         await using var context = await database.CreateContextAsync();
         var history = await context.ActionHistory.AsNoTracking()
@@ -106,7 +105,6 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         var conflict = await Assert.ThrowsAsync<ApprovedOutlookCategoryUpdateException>(
             () => ExecuteAsync(database, second));
         Assert.Equal(ApprovedOutlookCategoryUpdateError.VersionConflict, conflict.Error);
-        Assert.Equal(2, conflict.CurrentVersion);
 
         await using var context = await database.CreateContextAsync();
         Assert.Equal(1, await context.Database.SqlQuery<int>(

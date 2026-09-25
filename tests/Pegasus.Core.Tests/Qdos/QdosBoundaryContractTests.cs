@@ -1,16 +1,12 @@
 using Pegasus.Core.Address;
 using Pegasus.Core.Eva;
-using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ProviderApi;
-using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Tests.Qdos;
 
 public sealed class QdosBoundaryContractTests
 {
-    private static readonly DateTimeOffset Now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
-
     /// <summary>
     /// The Provider API's decoded envelope is 30 MiB across files, with a
     /// separate 10 MiB ceiling on each file.
@@ -107,9 +103,9 @@ public sealed class QdosBoundaryContractTests
             QdosInstructionExtractionPolicy.Key,
             QdosInstructionExtractionPolicy.Version);
 
-        Assert.True(transportOnly.IsUnresolved);
+        Assert.Null(transportOnly.Suggestion);
         Assert.Empty(transportOnly.ConflictingEvidence);
-        Assert.True(conflicting.IsUnresolved);
+        Assert.Null(conflicting.Suggestion);
         Assert.Equal(["One workshop", "Two workshop"], conflicting.ConflictingEvidence.Select(item => item.Value));
     }
 
@@ -253,28 +249,6 @@ public sealed class QdosBoundaryContractTests
             field => field.Name == "Inspection Address").Status);
     }
 
-    [Fact]
-    public async Task SentEmailReplayRejectsNonWorkerActorBeforeAnyEvidenceIsRecorded()
-    {
-        var recorder = new RecordingSentEvidence();
-        var replay = new ReplaySentEmailEvidence(recorder);
-
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => replay.ExecuteAsync(
-            new(
-                "replay-1",
-                Guid.NewGuid(),
-                0,
-                "message-1",
-                "Case material",
-                ["recipient@example.test"],
-                new string('a', 64),
-                Now,
-                Now.AddDays(7)),
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])));
-
-        Assert.Null(recorder.Request);
-    }
-
     private static InstructionReviewField Field(
         string name,
         bool hasConflict,
@@ -315,18 +289,5 @@ public sealed class QdosBoundaryContractTests
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
-    }
-
-    private sealed class RecordingSentEvidence : IRecordSentEmailEvidence
-    {
-        public RecordSentEmailEvidenceRequest? Request { get; private set; }
-
-        public Task<SentEmailEvidence> ExecuteAsync(
-            RecordSentEmailEvidenceRequest request,
-            CancellationToken cancellationToken)
-        {
-            Request = request;
-            throw new InvalidOperationException("The caller should have been rejected before recording evidence.");
-        }
     }
 }

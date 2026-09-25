@@ -1143,14 +1143,6 @@ public sealed class AnalyzeRetainedInstructionTests
             Task.FromResult(Records.FirstOrDefault(item =>
                 string.Equals(item.OperationKey, operationKey.Trim(), StringComparison.Ordinal)));
 
-        public Task<RetainedInstructionAnalysis?> FindLatestForReceiptAsync(
-            Guid receiptId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(Records
-                .Where(item => item.ReceiptId == receiptId)
-                .OrderByDescending(item => item.CompletedAtUtc)
-                .FirstOrDefault());
-
         public Task<(RetainedInstructionAnalysis Analysis, bool IsReplay)> RecordAsync(
             RetainedInstructionAnalysis analysis,
             CancellationToken cancellationToken = default)
@@ -1180,20 +1172,7 @@ public sealed class AnalyzeRetainedInstructionTests
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new IntakeQueueCounts(0));
 
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeListPage([], page, pageSize, 0));
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(receipts.TryGetValue(id, out var receipt) ? receipt : null);
-
-        public Task<IntakeAssetRecord?> GetAssetAsync(
-            Guid receiptId,
-            Guid assetId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IntakeAssetRecord?>(null);
     }
 }

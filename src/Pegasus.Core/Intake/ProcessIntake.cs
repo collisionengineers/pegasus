@@ -431,8 +431,8 @@ public sealed class ProcessIntake(
     ///
     /// Retention is the right place for it: the role is a property of the bytes
     /// that were just retained, not of anything a member of staff does later,
-    /// and reading it here means the Received page has the candidates the first
-    /// time it is opened. It changes no receipt decision, allocates nothing and
+    /// and recording it here keeps the candidates beside the retained source
+    /// from the start. It changes no receipt decision, allocates nothing and
     /// writes no Engineer value — a report remains third-party evidence until
     /// Stream B's own command accepts a figure from it.
     ///
@@ -551,7 +551,7 @@ public sealed class ProcessIntake(
         {
             // Source evidence is supplementary. A receipt that has already been
             // stored must not fail because a report reading could not be
-            // written beside it; the Received page offers analysis on demand.
+            // written beside it.
             //
             // The failure is named on the span rather than swallowed. The
             // intake itself succeeded, so the span's own status stays as the

@@ -8,19 +8,6 @@ using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Custody;
 
-public enum CustodyWorkKind
-{
-    CreateCaseRoot,
-    RetainAcceptedIntakeSource,
-    CreateAuditReferenceFolder
-}
-
-public sealed record CustodyWork(
-    Guid Id,
-    CustodyWorkKind Kind,
-    Guid CaseId,
-    string OperationKey);
-
 public sealed record CaseCustodyRoot(
     Guid CaseId,
     string RemoteId,

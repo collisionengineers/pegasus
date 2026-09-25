@@ -83,7 +83,7 @@
                     <div class="field"><label asp-for="Postcode">Postcode</label><input asp-for="Postcode" autocomplete="postal-code" /><span asp-validation-for="Postcode"></span></div>
                     @if (role == ContactRole.Principal)
                     {
-                        <div class="field"><label class="req" asp-for="PrincipalCode">Principal code</label><input asp-for="PrincipalCode" autocomplete="off" /><span asp-validation-for="PrincipalCode"></span></div>
+                        <div class="field"><label class="req" asp-for="PrincipalCode">@OperatorLabels.PrincipalAdministration.Code</label><input asp-for="PrincipalCode" autocomplete="off" /><span asp-validation-for="PrincipalCode"></span></div>
                         <div class="field"><label asp-for="PrincipalInspectionMode">Default inspection</label><select asp-for="PrincipalInspectionMode"><option value="@CaseInspectionMode.PhysicalAddress">Physical address</option><option value="@CaseInspectionMode.ImageBasedAssessment">Image based assessment</option></select></div>
                     }
                     @if (Model.CanAssociateSelectedType)

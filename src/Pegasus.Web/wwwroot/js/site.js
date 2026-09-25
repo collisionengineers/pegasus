@@ -99,37 +99,9 @@
         });
     });
 
-    // Reason dialogs: a focus trap so a modal that asks for a required reason
-    // cannot be tabbed out of while it is open.
+    // Native <dialog> openers ([data-dialog-open]) and closers
+    // ([data-dialog-close]); showModal supplies the focus containment.
     function bindNativeDialogs(root) {
-        root.querySelectorAll('dialog[data-focus-trap]').forEach(function (dialog) {
-            if (dialog.dataset.focusTrapBound === 'true') {
-                return;
-            }
-            dialog.dataset.focusTrapBound = 'true';
-            dialog.addEventListener('keydown', function (event) {
-                if (event.key !== 'Tab') {
-                    return;
-                }
-
-                var focusable = dialog.querySelectorAll(
-                    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-                if (focusable.length === 0) {
-                    return;
-                }
-
-                var first = focusable[0];
-                var last = focusable[focusable.length - 1];
-                if (event.shiftKey && document.activeElement === first) {
-                    event.preventDefault();
-                    last.focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
-            });
-        });
-
         // Buttons that open their own dialog, so an action can carry its fields
         // without the page shipping a permanently open form for every action.
         root.querySelectorAll('[data-dialog-open]').forEach(function (trigger) {
@@ -199,7 +171,7 @@
                     return;
                 }
 
-                window.fetch(form.getAttribute('data-edit-heartbeat-url') || form.action, {
+                window.fetch(form.action, {
                     method: 'POST',
                     body: new FormData(form),
                     credentials: 'same-origin'
@@ -294,8 +266,7 @@
         // batch, so there is no per-file fraction to report and inventing one
         // would be a state this page cannot know. It stays hidden, and the
         // state placeholder stays empty, until a submission is actually under
-        // way (see the upload-progress block below), so a page whose form has
-        // no progress enhancement (Uploads/Request) renders as it always did.
+        // way (see the upload-progress block below).
         var describe = function () {
             var files = input.files ? Array.from(input.files) : [];
             zone.classList.toggle('has-file', files.length > 0);
@@ -402,10 +373,7 @@
             });
         }
 
-        // Per-file upload progress: opt-in via data-upload-progress on the
-        // form, so this only changes behaviour on the one form that owns the
-        // contract below (Upload.cshtml) and never touches the document
-        // request form, which keeps its plain native submit.
+        // Per-file upload progress: opt-in via data-upload-progress on the form (Upload.cshtml).
         if (form
             && form.hasAttribute('data-upload-progress')
             && typeof fetch === 'function'
@@ -450,7 +418,7 @@
                 // Every row enters the same state together here: a single
                 // POST stores the whole batch, so there is no per-file signal
                 // to show yet, and showing one anyway would be a state this
-                // page cannot actually know (see research.md).
+                // page cannot actually know.
                 setRowStatus('uploading', 'Uploading');
 
                 fetch(form.getAttribute('action') || window.location.href, {
@@ -690,97 +658,8 @@
         });
     });
 
-    // Live character counters for reason fields whose limit is policy.
-    document.querySelectorAll('[data-counter-for]').forEach(function (counter) {
-        var field = document.getElementById(counter.getAttribute('data-counter-for'));
-        if (!field) {
-            return;
-        }
-
-        var limit = field.getAttribute('maxlength');
-        var render = function () {
-            counter.textContent = field.value.length + '/' + limit + ' characters';
-        };
-
-        field.addEventListener('input', render);
-        render();
-    });
-
 }());
 
-
-// Finishing edit mode with unsaved changes asks first. Dirty means
-// any input owned by a lease-carrying form changed since load; Save submits the
-// form that changed, Discard releases the lease as posted.
-(function () {
-    var toggle = document.querySelector('[data-edit-toggle-off]');
-    var dialog = document.getElementById('edit-finish-confirm');
-    if (!toggle || !dialog) {
-        return;
-    }
-    var dirtyForm = null;
-    // Resolve the owning form from the control at event time. Native input
-    // events follow the DOM tree, not a control's `form=` association, so a
-    // listener on the form cannot see associated controls rendered elsewhere.
-    document.addEventListener('input', function (event) {
-        var control = event.target;
-        var form = control.form || (control.closest ? control.closest('form') : null);
-        if (!form
-            || form === toggle
-            || !form.querySelector('input[name="editLeaseToken"]')) {
-            return;
-        }
-        dirtyForm = form;
-    });
-    // Root-scoped and idempotent so a lazily mounted Case section's
-    // lease-carrying forms join the guard instead of escaping it.
-    function bind(root) {
-        root.querySelectorAll('form').forEach(function (form) {
-            if (form === toggle
-                || form.dataset.dirtyGuardBound === 'true'
-                || !form.querySelector('input[name="editLeaseToken"]')) {
-                return;
-            }
-            form.dataset.dirtyGuardBound = 'true';
-            form.addEventListener('submit', function () { dirtyForm = null; });
-        });
-    }
-    bind(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
-
-    // Ctrl+S submits the Case form that changed, not the document's first
-    // [data-edit-save] form.
-    window.pegasusDirtyEditForm = function () { return dirtyForm; };
-    var allowed = false;
-    toggle.addEventListener('submit', function (event) {
-        if (allowed || !dirtyForm) {
-            return;
-        }
-        event.preventDefault();
-        dialog.hidden = false;
-    });
-    dialog.querySelector('[data-edit-finish-keep]').addEventListener('click', function () {
-        dialog.hidden = true;
-    });
-    dialog.querySelector('[data-edit-finish-discard]').addEventListener('click', function () {
-        dialog.hidden = true;
-        allowed = true;
-        toggle.requestSubmit();
-    });
-    dialog.querySelector('[data-edit-finish-save]').addEventListener('click', function () {
-        dialog.hidden = true;
-        if (dirtyForm && dirtyForm.id === 'case-edit-form') {
-            var saveReason = document.querySelector('[data-case-save-reason]');
-            if (saveReason) {
-                saveReason.click();
-                return;
-            }
-        }
-        if (dirtyForm) {
-            dirtyForm.requestSubmit();
-        }
-    });
-})();
 
 // Inspect-at choices fill the ordinary form-associated address
 // input. The input remains the no-script editing path. The cells stay where
@@ -813,73 +692,6 @@
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
-})();
-
-// An open editor keeps its own lease alive, so a real editing session
-// is never timed out mid-edit. The beat posts the rendered form, whose
-// antiforgery token rides in the FormData exactly as the upload enhancement
-// above does. With script the manual "Renew editing" button is redundant, so it
-// is hidden here; without script it stays and is the only way to keep editing.
-(function () {
-    var form = document.querySelector('[data-edit-heartbeat]');
-    if (!form) {
-        return;
-    }
-
-    var renew = document.querySelector('[data-edit-renew]');
-    if (renew) {
-        renew.hidden = true;
-    }
-
-    var seconds = parseInt(form.getAttribute('data-heartbeat-seconds'), 10);
-    if (!(seconds > 0)) {
-        // The interval is a server value; without it, leave the Renew button
-        // showing rather than beat on a guessed one.
-        if (renew) {
-            renew.hidden = false;
-        }
-        return;
-    }
-
-    // A live timer is what "still beating" means; visibilitychange checks it too,
-    // because it calls beat() directly rather than through the interval.
-    var timer = null;
-    var stop = function () {
-        window.clearInterval(timer);
-        timer = null;
-    };
-
-    var beat = function () {
-        if (timer === null) {
-            return;
-        }
-
-        fetch(form.getAttribute('action') || window.location.href, {
-            method: 'POST',
-            body: new FormData(form)
-        }).then(function (response) {
-            // A 409 or 403 is the server refusing the lease itself: it was
-            // released, expired, or is now someone else's - and the page the
-            // operator lands on next already shows the record's real edit
-            // state, so nothing is said here. Any other answer says nothing
-            // about the lease, and the next beat settles it.
-            if (response.status === 409 || response.status === 403) {
-                stop();
-            }
-        }).catch(function () {
-            // A single failed beat is not a lost lease: there are several more
-            // before the lease could lapse, so keep beating.
-        });
-    };
-
-    timer = window.setInterval(beat, seconds * 1000);
-    // A hidden tab has its timers throttled, so the phase on return is
-    // unknowable; one beat on becoming visible again settles it.
-    document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) {
-            beat();
-        }
-    });
 })();
 
 // A filter form marked data-auto-submit submits itself when any of
@@ -1096,19 +908,18 @@
         });
     });
 
-    // Dialogs built as div backdrops ([data-dialog="<id>"]; [data-reason-dialog]
-    // is the older alias and still works): open from any
-    // [data-dialog-open="<id>"] control, close on [data-dialog-close] (or the
-    // older [data-dialog-dismiss]), Escape, or a backdrop click, contain focus
-    // while open, set `inert` on the application shell so nothing behind the
-    // dialog is reachable, and return focus to the invoking control. This
-    // lives here rather than beside the markup because the deployed
-    // Content-Security-Policy discards inline scripts.
+    // Dialogs built as div backdrops ([data-dialog="<id>"]): open from any
+    // [data-dialog-open="<id>"] control, close on [data-dialog-close], Escape,
+    // or a backdrop click, contain focus while open, set `inert` on the
+    // application shell so nothing behind the dialog is reachable, and return
+    // focus to the invoking control. This lives here rather than beside the
+    // markup because the deployed Content-Security-Policy discards inline
+    // scripts.
     // While a dialog is open everything outside it is inert. A dialog may be
     // rendered anywhere in the page (a Case page's reason dialogs live inside
     // the shell), so inert is set on the siblings of each of its ancestors up
     // to body - never on an ancestor - and exactly those elements are
-    // released on close. Other [data-dialog]/[data-reason-dialog] elements
+    // released on close. Other [data-dialog] elements
     // and native <dialog> elements are never inerted by this: a dialog that
     // auto-opens on load (a settings dialog) is commonly a sibling of further
     // action dialogs it triggers (the Accounts Delete confirmation is a
@@ -1127,7 +938,7 @@
         for (var node = dialog; node && node !== document.body; node = node.parentElement) {
             Array.prototype.forEach.call(node.parentElement.children, function (sibling) {
                 if (sibling !== node && !sibling.hasAttribute('inert') && sibling.tagName !== 'SCRIPT'
-                    && !sibling.matches('[data-dialog], [data-reason-dialog], dialog')) {
+                    && !sibling.matches('[data-dialog], dialog')) {
                     sibling.setAttribute('inert', '');
                     made.push(sibling);
                 }
@@ -1142,7 +953,7 @@
     var openDialogStack = [];
 
     function bindBackdropDialogs(root) {
-        root.querySelectorAll('[data-dialog], [data-reason-dialog]').forEach(function (dialog) {
+        root.querySelectorAll('[data-dialog]').forEach(function (dialog) {
             if (dialog.dataset.dialogBound === 'true') {
                 return;
             }
@@ -1272,10 +1083,10 @@
                 }
             }
 
-            dialog.querySelectorAll('[data-dialog-dismiss], [data-dialog-close]').forEach(function (control) {
+            dialog.querySelectorAll('[data-dialog-close]').forEach(function (control) {
                 // A nested dialog's own controls close only that dialog; the
                 // parent must keep its unsaved values when a confirmation is cancelled.
-                if (control.closest('[data-dialog], [data-reason-dialog]') !== dialog) {
+                if (control.closest('[data-dialog]') !== dialog) {
                     return;
                 }
                 control.addEventListener('click', close);
@@ -1344,7 +1155,6 @@
         var caption = viewer.querySelector('[data-evidence-name]');
         var position = viewer.querySelector('[data-evidence-position]');
         var download = viewer.querySelector('[data-evidence-download]');
-        var crop = viewer.querySelector('[data-evidence-crop]');
         var previous = viewer.querySelector('[data-evidence-previous]');
         var following = viewer.querySelector('[data-evidence-next]');
 
@@ -1421,9 +1231,6 @@
             position.textContent = (index + 1) + ' / ' + items.length;
             download.href = item.getAttribute('data-download-href') || href;
             download.setAttribute('download', fileName);
-            crop.hidden = kind !== 'image'
-                || !item.hasAttribute('data-evidence-preparation-occurrence')
-                || typeof window.pegasusOpenCaseCrop !== 'function';
             previous.disabled = index === 0;
             following.disabled = index === items.length - 1;
             showPreCase(item, kind);
@@ -1787,15 +1594,6 @@
         video.addEventListener('error', settle);
         previous.addEventListener('click', function () { step(-1); });
         following.addEventListener('click', function () { step(1); });
-        crop.addEventListener('click', function () {
-            var item = items[index];
-            var occurrenceId = item && item.getAttribute('data-evidence-preparation-occurrence');
-            if (!occurrenceId || typeof window.pegasusOpenCaseCrop !== 'function') {
-                return;
-            }
-            close();
-            window.pegasusOpenCaseCrop(occurrenceId);
-        });
         viewer.querySelectorAll('[data-evidence-close]').forEach(function (control) {
             control.addEventListener('click', close);
         });
@@ -1886,7 +1684,7 @@
     // The Other classification name and reasoning fields exist only while an
     // Other option is selected; the select drives their visibility.
     document.querySelectorAll('[data-other-toggle]').forEach(function (select) {
-        var scope = select.closest('[data-reason-dialog]') || document;
+        var scope = select.closest('[data-dialog]') || document;
         function sync() {
             var isOther = select.value === 'other-received' || select.value === 'other-sent';
             scope.querySelectorAll('[data-other-field]').forEach(function (field) {
@@ -2074,10 +1872,8 @@
         // Escape behave exactly as for every other dialog. The invoker the
         // dialog records for focus-return is the element that actually asked
         // for the palette (the search box on Enter, whatever had focus on
-        // Ctrl+K) -- not the generic workspace "open another record" trigger,
-        // which merely provides the dialog's open/close plumbing.
-        var trigger = document.querySelector('[data-dialog-open="command-dialog"]');
-        var source = opener || document.activeElement || trigger;
+        // Ctrl+K).
+        var source = opener || document.activeElement;
         if (!dialog.hidden) {
             input.value = seed || '';
             filter();
@@ -2086,8 +1882,6 @@
         }
         if (dialog.pegasusOpen) {
             dialog.pegasusOpen(source);
-        } else if (trigger) {
-            trigger.click();
         }
         input.value = seed || '';
         filter();
@@ -2211,7 +2005,7 @@ window.pegasusPreferences = (function () {
     });
 })();
 
-// --- Menus, dismissable notices, collapsible panels, sticky measure ---------------
+// --- Menus, dismissable notices, collapsible panels ----------------------------
 // Frame helpers every page composes (v26 frame rules). Each works on data
 // attributes so the markup stays a plain <details>, <button> or <section>:
 //   details[data-menu]       one open at a time; Escape or an outside click closes
@@ -2219,7 +2013,6 @@ window.pegasusPreferences = (function () {
 //   [data-collapse="key"]    a panel whose [data-collapse-toggle] folds its body,
 //                            remembered in the "pegasus-collapsed" cookie (the
 //                            folded keys joined by "|", served in the first paint)
-//   [data-sticky-block]      measured into --sticky-h on its parent element
 (function () {
     'use strict';
 
@@ -2330,19 +2123,6 @@ window.pegasusPreferences = (function () {
     }
     bindCollapsible(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindCollapsible);
-
-    var block = document.querySelector('[data-sticky-block]');
-    if (block && !block.closest('[data-case-record]')) {
-        var host = block.parentElement;
-        var measure = function () {
-            host.style.setProperty('--sticky-h', block.offsetHeight + 'px');
-        };
-        measure();
-        window.addEventListener('resize', measure);
-        if ('ResizeObserver' in window) {
-            new ResizeObserver(measure).observe(block);
-        }
-    }
 })();
 
 // --- Keyboard shortcuts ----------------------------------------------------
@@ -2379,13 +2159,6 @@ window.pegasusPreferences = (function () {
             if (save) {
                 event.preventDefault();
                 var saveForm = save.tagName === 'FORM' ? save : save.closest('form');
-                if (saveForm && saveForm.id === 'case-edit-form') {
-                    var saveReason = document.querySelector('[data-case-save-reason]');
-                    if (saveReason) {
-                        saveReason.click();
-                        return;
-                    }
-                }
                 saveForm.requestSubmit();
             }
         } else if (event.key === 'F5' && !control) {
@@ -2401,7 +2174,7 @@ window.pegasusPreferences = (function () {
 // --- Row lists: ArrowUp/Down roving focus -------------------------------------
 (function () {
     'use strict';
-    var ROW = '.row-button, .work-item, .scope-button, tr[data-action], tr[data-select-href]';
+    var ROW = '.row-button, tr[data-select-href]';
     document.querySelectorAll('[data-row-list]').forEach(function (list) {
         list.addEventListener('keydown', function (event) {
             if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
@@ -2457,8 +2230,7 @@ window.pegasusPreferences = (function () {
     }
 
     function select(row, moveFocus) {
-        var template = row.querySelector('template')
-            || document.getElementById(row.getAttribute('data-preview-template') || '');
+        var template = row.querySelector('template');
         if (!template || !('content' in template)) {
             return;
         }
@@ -2537,50 +2309,6 @@ window.pegasusPreferences = (function () {
                 sync(next);
                 next.focus();
             }
-        });
-    });
-})();
-
-// --- Range output ----------------------------------------------------------------
-// input[type=range][data-range-output="<output id>"] writes its percentage
-// and, when [data-range-base] carries an amount and
-// [data-range-amount-output] names a second output, that amount x percentage.
-(function () {
-    'use strict';
-    document.querySelectorAll('input[type="range"][data-range-output]').forEach(function (range) {
-        var output = document.getElementById(range.getAttribute('data-range-output'));
-        if (!output) {
-            return;
-        }
-        var amountOutput = range.hasAttribute('data-range-amount-output')
-            ? document.getElementById(range.getAttribute('data-range-amount-output'))
-            : null;
-        function render() {
-            var percent = Number(range.value);
-            output.textContent = percent + '%';
-            var base = Number(range.getAttribute('data-range-base'));
-            if (amountOutput && Number.isFinite(base)) {
-                amountOutput.textContent = (base * percent / 100).toLocaleString('en-GB', {
-                    style: 'currency', currency: 'GBP', maximumFractionDigits: 0
-                });
-            }
-        }
-        range.addEventListener('input', render);
-        render();
-    });
-})();
-
-// --- Assessment evidence rail collapse ----------------------------------------------
-(function () {
-    'use strict';
-    document.querySelectorAll('[data-rail-toggle]').forEach(function (toggle) {
-        var layout = toggle.closest('.assessment-v3');
-        if (!layout) {
-            return;
-        }
-        toggle.addEventListener('click', function () {
-            var collapsed = layout.classList.toggle('assessment-v3-evidence-collapsed');
-            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
         });
     });
 })();

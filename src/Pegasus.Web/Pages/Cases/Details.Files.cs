@@ -64,10 +64,6 @@ public sealed partial class DetailsModel
         }
     }
 
-    /// <summary>The images whose bytes can be read: the viewer's set and the Report strip.</summary>
-    public IReadOnlyList<CaseFile> ViewableCaseImages =>
-        [.. CaseImageFiles.Where(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)];
-
     /// <summary>
     /// Whether a file is one of the Case's images: the image role and a media
     /// type the tile can render. SVG stays a document because it is never

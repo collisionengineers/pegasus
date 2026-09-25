@@ -610,13 +610,9 @@ public sealed partial class OperationsWebTests
                     services.RemoveAll<IEvaSubmissionQueries>();
                     services.AddSingleton<IEvaSubmissionQueries>(evaSubmissions);
                 }
-                services.RemoveAll<IEmailOperationsProjectionStore>();
                 services.RemoveAll<IRequestOperationsProjectionStore>();
-                services.RemoveAll<IMailboxProcessingRetryStore>();
                 services.RemoveAll<IExternalWorkRetryStore>();
-                services.AddSingleton<IEmailOperationsProjectionStore>(store);
                 services.AddSingleton<IRequestOperationsProjectionStore>(store);
-                services.AddSingleton<IMailboxProcessingRetryStore>(store);
                 services.AddSingleton<IExternalWorkRetryStore>(store);
             }));
 
@@ -670,43 +666,19 @@ public sealed partial class OperationsWebTests
     private static partial Regex ValueRegex();
 
     private sealed class RecordingOperationsStore :
-        IEmailOperationsProjectionStore,
         IRequestOperationsProjectionStore,
-        IMailboxProcessingRetryStore,
         IExternalWorkRetryStore
     {
         public Guid CaseId { get; } = Guid.NewGuid();
-        public Guid IntakeId { get; } = Guid.NewGuid();
-        public Guid TriageCaseId { get; } = Guid.NewGuid();
         public Guid ExternalWorkId { get; } = Guid.NewGuid();
-        public string ReceivedMailboxId { get; } = "approved-inbox";
-        public string MailboxFailureCode { get; } = "source_unavailable";
-        public DateTimeOffset MailboxFailureDueAtUtc { get; } = FixedUtcNow.AddMinutes(5);
         public int ExternalAttemptCount { get; } = 5;
         public bool LimitReached { get; init; }
-        public RetryMailboxProcessingCommand? MailboxRetry { get; private set; }
         public RetryExternalWorkCommand? ExternalRetry { get; private set; }
 
         public Task<int> CountRetryableExternalFailuresAsync(
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) =>
             Task.FromResult(1);
-
-        public Task<EmailOperationsProjection> GetAsync(
-            int maximumItemsPerDirection,
-            DateTimeOffset nowUtc,
-            CancellationToken cancellationToken) => Task.FromResult(new EmailOperationsProjection(
-                ImmutableArray.Create(
-                    Email("received-failed", EmailOperationDirection.Received, EmailOperationState.Failed, MailboxFailureCode, ReceivedMailboxId, MailboxFailureDueAtUtc),
-                    Email("received-pending", EmailOperationDirection.Received, EmailOperationState.Pending),
-                    Email("received-intake", EmailOperationDirection.Received, EmailOperationState.Succeeded, intakeId: IntakeId),
-                    Email("received-unknown", EmailOperationDirection.Received, EmailOperationState.Unknown)),
-                ImmutableArray.Create(
-                    Email("sent-failed", EmailOperationDirection.Sent, EmailOperationState.Failed, "sent_source_unavailable", "approved-sent", FixedUtcNow.AddMinutes(10)),
-                    Email("sent-triage", EmailOperationDirection.Sent, EmailOperationState.Succeeded, triageCaseId: TriageCaseId),
-                    Email("sent-case", EmailOperationDirection.Sent, EmailOperationState.Succeeded, caseId: CaseId, caseReference: "QD31001", principalCode: "QD")),
-                ReceivedLimitReached: false,
-                SentLimitReached: false));
 
         Task<RequestOperationsProjection> IRequestOperationsProjectionStore.GetAsync(
             int maximumItems,
@@ -719,15 +691,6 @@ public sealed partial class OperationsWebTests
                 LimitReached));
 
         public Task<OperationsRetryResult> RetryAsync(
-            RetryMailboxProcessingCommand command,
-            DateTimeOffset retryAtUtc,
-            CancellationToken cancellationToken)
-        {
-            MailboxRetry = command;
-            return Task.FromResult(new OperationsRetryResult(IsReplay: false));
-        }
-
-        public Task<OperationsRetryResult> RetryAsync(
             RetryExternalWorkCommand command,
             DateTimeOffset retryAtUtc,
             CancellationToken cancellationToken)
@@ -735,32 +698,6 @@ public sealed partial class OperationsWebTests
             ExternalRetry = command;
             return Task.FromResult(new OperationsRetryResult(IsReplay: false));
         }
-
-        private static EmailOperationProjection Email(
-            string id,
-            EmailOperationDirection direction,
-            EmailOperationState state,
-            string? failureCode = null,
-            string? retryMailboxId = null,
-            DateTimeOffset? retryDueAtUtc = null,
-            Guid? intakeId = null,
-            Guid? triageCaseId = null,
-            Guid? caseId = null,
-            string? caseReference = null,
-            string? principalCode = null) => new(
-                id,
-                direction,
-                state,
-                "operations@example.invalid",
-                FixedUtcNow,
-                intakeId,
-                triageCaseId,
-                caseId,
-                caseReference,
-                principalCode,
-                failureCode,
-                retryMailboxId,
-                retryDueAtUtc);
 
         private RequestOperationProjection Request(
             Guid id,
@@ -1032,10 +969,6 @@ public sealed partial class OperationsWebTests
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<UnidentifiedResolveResult> ResolveAsync(
-            ResolveUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 

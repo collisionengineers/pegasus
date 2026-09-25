@@ -146,14 +146,6 @@ public sealed record InstructionPolicySelection(
     public static InstructionPolicySelection Ambiguous(
         IReadOnlyList<IInstructionExtractionPolicy> matches) =>
         new(InstructionPolicySelectionOutcome.Ambiguous, null, matches, []);
-
-    /// <summary>
-    /// True when the profile is settled but WHICH of its accepted templates
-    /// the document used is not - the two PCH footers co-occur in four of the
-    /// five recorded originals. The principal is not in doubt; the template is,
-    /// and staff are shown both rather than one picked by order.
-    /// </summary>
-    public bool HasAmbiguousVariant => this.MatchedVariantKeys.Count > 1;
 }
 
 /// <summary>
