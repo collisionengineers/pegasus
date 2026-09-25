@@ -165,10 +165,6 @@ public sealed class ReadOriginalReportTests
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision, int page, int pageSize, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
