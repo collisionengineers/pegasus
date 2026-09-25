@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pegasus v30 walkthrough</title>
+<!--
+  v30 walkthrough. A frame around the surface files: the bar at the top is demo
+  control, not product UI. Temporary design review artifact: not application
+  code, not design authority, not implementation evidence.
+-->
+<style>
+  html,body{height:100%;margin:0;background:#2a2f32;font:12px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:#e7e9ea}
+  body{display:grid;grid-template-rows:auto 1fr}
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:6px 10px;background:#1b1e20;border-bottom:1px solid #33383b}
+  .bar strong{font-weight:600}
+  .bar label{display:inline-flex;align-items:center;gap:6px;color:#9aa0a3}
+  .bar select,.bar button,.bar a.button{font:inherit;background:#2a2f32;color:#e7e9ea;border:1px solid #454b4f;border-radius:3px;padding:3px 8px;text-decoration:none;cursor:pointer}
+  .bar select{max-width:46ch}
+  .bar button[aria-pressed="true"]{background:#e7e9ea;color:#1b1e20}
+  .bar button:disabled{opacity:.4;cursor:default}
+  .bar .note{color:#9aa0a3;font-style:italic}
+  .bar .opts{display:inline-flex;gap:10px;flex-wrap:wrap}
+  .bar .opts span[role="group"]{display:inline-flex;gap:2px;align-items:center}
+  .stage{display:flex;justify-content:center;overflow:auto;min-height:0}
+  iframe{border:0;background:#fff;height:100%;width:100%;flex:none}
+</style>
+</head>
+<body>
+  <div class="bar" role="group" aria-label="Mockup controls (demo control, not product UI)">
+    <strong>v30 walkthrough</strong>
+    <label>Area <select id="area"></select></label>
+    <label>State <select id="state"></select></label>
+    <span role="group" aria-label="Layer" id="layers"><button type="button" data-layer="proposal" aria-pressed="true">Proposal</button><button type="button" data-layer="baseline" aria-pressed="false">Baseline</button></span>
+    <span class="opts" id="opts"></span>
+    <span role="group" aria-label="Width" id="widths"><button type="button" data-width="" aria-pressed="true">Fit</button><button type="button" data-width="1580" aria-pressed="false">1580</button><button type="button" data-width="1440" aria-pressed="false">1440</button><button type="button" data-width="760" aria-pressed="false">760</button></span>
+    <a class="button" id="alone" href="#" target="_blank" rel="noopener">Open alone</a>
+    <span class="note" id="note"></span>
+  </div>
+  <div class="stage"><iframe id="view" title="Mockup"></iframe></div>
+<script>
+const areas=[{"key":"signin","file":"pegasus_signin_v30.html","title":"Sign in","states":[{"id":"default","label":"Sign in"},{"id":"error","label":"Sign in · invalid credentials"},{"id":"signed-out","label":"Signed out"},{"id":"forced-password","label":"Set a new password (forced)"},{"id":"access-denied","label":"Access denied"}],"layers":["baseline","proposal"],"opts":[{"key":"brand","label":"Brand row","values":["current","compact"],"item":"H"},{"key":"title","label":"Title","values":["current","short"],"item":"I"},{"key":"reveal","label":"Show password","values":["off","on"],"item":"J"}]},{"key":"inbox","file":"pegasus_inbox_v30.html","title":"Inbox","states":[{"id":"default","label":"Messages with a selected row (three panes)"},{"id":"list","label":"Messages, nothing selected (two panes)"},{"id":"empty","label":"No mail"},{"id":"stale","label":"Freshness stale"},{"id":"dismissed","label":"Dismissed scope"},{"id":"deleted","label":"Deleted Items search"},{"id":"search","label":"Search with matches"}],"layers":["baseline","proposal"],"opts":[]},{"key":"work-centre","file":"pegasus_work_centre_v30.html","title":"Work Centre","states":[{"id":"default","label":"Office, Unassigned item selected"},{"id":"mine","label":"Mine scope"},{"id":"filtered","label":"Held and Review chips on"},{"id":"empty","label":"Nothing needs attention"},{"id":"unavailable","label":"Attention unavailable"},{"id":"assign","label":"Assign Engineer dialog"}],"layers":["baseline","proposal"],"opts":[{"key":"metrics","label":"Metric tiles","values":["plain","toned"],"item":"R"}]},{"key":"accounts","file":"pegasus_admin_accounts_v30.html","title":"Administration · Staff accounts","states":[{"id":"list","label":"Staff accounts list"},{"id":"settings-self","label":"Settings · own account (alex)"},{"id":"settings-other","label":"Settings · another enabled account"},{"id":"settings-disabled","label":"Settings · a disabled account"},{"id":"error","label":"Settings · validation error"},{"id":"create","label":"Create staff account"},{"id":"temporary-password","label":"Temporary password revealed"},{"id":"delete","label":"Delete confirmation"}],"layers":["baseline","proposal"],"opts":[]},{"key":"upload-a","file":"pegasus_upload_a_v30.html","title":"Upload · A Decision beside files","states":[{"id":"select","label":"select"},{"id":"chosen","label":"chosen"},{"id":"storing","label":"storing"},{"id":"processing","label":"processing"},{"id":"decision","label":"decision"},{"id":"registered","label":"registered"},{"id":"mixed","label":"mixed"},{"id":"single","label":"single"},{"id":"failed","label":"failed"},{"id":"discarded","label":"discarded"},{"id":"no-match","label":"no-match"},{"id":"multiple","label":"multiple"},{"id":"attached","label":"attached"}],"layers":["proposal"],"opts":[]},{"key":"upload-b","file":"pegasus_upload_b_v30.html","title":"Upload · B Guided sequence","states":[{"id":"select","label":"select"},{"id":"chosen","label":"chosen"},{"id":"storing","label":"storing"},{"id":"processing","label":"processing"},{"id":"decision","label":"decision"},{"id":"registered","label":"registered"},{"id":"mixed","label":"mixed"},{"id":"single","label":"single"},{"id":"failed","label":"failed"},{"id":"discarded","label":"discarded"},{"id":"no-match","label":"no-match"},{"id":"multiple","label":"multiple"},{"id":"attached","label":"attached"}],"layers":["proposal"],"opts":[]},{"key":"upload-c","file":"pegasus_upload_c_v30.html","title":"Upload · C Destination first","states":[{"id":"select","label":"select"},{"id":"chosen","label":"chosen"},{"id":"storing","label":"storing"},{"id":"processing","label":"processing"},{"id":"decision","label":"decision"},{"id":"registered","label":"registered"},{"id":"mixed","label":"mixed"},{"id":"single","label":"single"},{"id":"failed","label":"failed"},{"id":"discarded","label":"discarded"},{"id":"no-match","label":"no-match"},{"id":"multiple","label":"multiple"},{"id":"attached","label":"attached"}],"layers":["proposal"],"opts":[]},{"key":"upload-d","file":"pegasus_upload_d_v30.html","title":"Upload · D Operations table","states":[{"id":"select","label":"select"},{"id":"chosen","label":"chosen"},{"id":"storing","label":"storing"},{"id":"processing","label":"processing"},{"id":"decision","label":"decision"},{"id":"registered","label":"registered"},{"id":"mixed","label":"mixed"},{"id":"single","label":"single"},{"id":"failed","label":"failed"},{"id":"discarded","label":"discarded"},{"id":"no-match","label":"no-match"},{"id":"multiple","label":"multiple"},{"id":"attached","label":"attached"}],"layers":["proposal"],"opts":[]},{"key":"upload-e","file":"pegasus_upload_e_v30.html","title":"Upload · E Evidence gallery","states":[{"id":"select","label":"select"},{"id":"chosen","label":"chosen"},{"id":"storing","label":"storing"},{"id":"processing","label":"processing"},{"id":"decision","label":"decision"},{"id":"registered","label":"registered"},{"id":"mixed","label":"mixed"},{"id":"single","label":"single"},{"id":"failed","label":"failed"},{"id":"discarded","label":"discarded"},{"id":"no-match","label":"no-match"},{"id":"multiple","label":"multiple"},{"id":"attached","label":"attached"}],"layers":["proposal"],"opts":[]}];
+const areaSelect=document.getElementById('area'),stateSelect=document.getElementById('state'),view=document.getElementById('view'),alone=document.getElementById('alone'),note=document.getElementById('note'),optsHost=document.getElementById('opts');
+const params=()=>new URLSearchParams(location.hash.slice(1));
+const setHash=(next)=>{const q=params();for(const [k,v] of Object.entries(next)){if(v==null||v==='')q.delete(k);else q.set(k,v);}location.hash=q.toString();};
+areaSelect.innerHTML=areas.map(a=>'<option value="'+a.key+'">'+a.title+'</option>').join('');
+function render(){
+  const q=params();
+  const area=areas.find(a=>a.key===q.get('area'))||areas[0];
+  areaSelect.value=area.key;
+  stateSelect.innerHTML=area.states.map(s=>'<option value="'+s.id+'">'+s.label+'</option>').join('');
+  const state=area.states.some(s=>s.id===q.get('state'))?q.get('state'):area.states[0].id;
+  stateSelect.value=state;
+  const layer=area.layers.includes(q.get('layer'))?q.get('layer'):area.layers[0];
+  document.querySelectorAll('#layers button').forEach(b=>{b.setAttribute('aria-pressed',b.dataset.layer===layer?'true':'false');b.disabled=!area.layers.includes(b.dataset.layer);});
+  const opt=Object.fromEntries((q.get('opt')||'').split(',').filter(Boolean).map(p=>p.split(':')));
+  optsHost.innerHTML=area.opts.map(o=>'<span role="group" aria-label="'+o.label+'"><label>'+o.label+(o.item?' ('+o.item+')':'')+'</label>'+o.values.map(v=>'<button type="button" data-opt="'+o.key+'" data-value="'+v+'" aria-pressed="'+((opt[o.key]||o.values[0])===v?'true':'false')+'"'+(layer==='baseline'?' disabled':'')+'>'+v+'</button>').join('')+'</span>').join('');
+  const width=q.get('w')||'';
+  document.querySelectorAll('#widths button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.width===width?'true':'false'));
+  view.style.width=width?width+'px':'100%';
+  const optString=Object.entries(opt).map(([k,v])=>k+':'+v).join(',');
+  const src=area.file+'?state='+state+'&layer='+layer+(optString?'&opt='+optString:'');
+  if(view.dataset.src!==src+'|embed'){view.src=src+'&embed=1';view.dataset.src=src+'|embed';}
+  alone.href=src;
+  note.textContent=area.states.find(s=>s.id===state).label+(area.layers.length===1?' · proposals only':'');
+}
+areaSelect.addEventListener('change',()=>setHash({area:areaSelect.value,state:null,opt:null}));
+stateSelect.addEventListener('change',()=>setHash({state:stateSelect.value}));
+document.getElementById('layers').addEventListener('click',e=>{const b=e.target.closest('button');if(b&&!b.disabled)setHash({layer:b.dataset.layer});});
+document.getElementById('widths').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setHash({w:b.dataset.width});});
+optsHost.addEventListener('click',e=>{const b=e.target.closest('button[data-opt]');if(!b||b.disabled)return;const q=params();const opt=Object.fromEntries((q.get('opt')||'').split(',').filter(Boolean).map(p=>p.split(':')));opt[b.dataset.opt]=b.dataset.value;setHash({opt:Object.entries(opt).map(([k,v])=>k+':'+v).join(',')});});
+window.addEventListener('hashchange',render);
+render();
+</script>
+</body>
+</html>

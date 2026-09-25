@@ -1,8 +1,17 @@
-# v30 Upload options and sign-off
+# v30 notes: five surfaces, polished
 
-Temporary Stage 1 review artifact for [issue #830](https://github.com/collisionengineers/pegasus/issues/830),
-24 September 2026. These offline captures show proposed presentation with
-synthetic files. They are not application, deployment, or acceptance evidence.
+Temporary Stage 1 review artifact. Opened 24 September 2026 for the Upload
+flow ([issue #830](https://github.com/collisionengineers/pegasus/issues/830))
+and widened on 25 September 2026 to the sign-in frame, the Inbox, the Work
+Centre and Administration → Staff accounts. These offline mockups show
+proposed presentation with synthetic fixtures. They are not application,
+deployment, or acceptance evidence.
+
+Part 1 is the Upload pass of 24 September (items A to G). Part 2, appended
+on 25 September, is the polish pass over the other four surfaces (items H to
+Z) and the shell correction that applies to every file.
+
+# Part 1 · Upload (24 September 2026)
 
 ## Five alternatives
 
@@ -46,7 +55,7 @@ result only.
 - Thumbnail boxes during processing are removed. E explores a contact sheet
   after processing but has no actual images in this artifact.
 
-## Sign-off list
+## Sign-off list (A to G)
 
 Layout items remain **open**. Item E is rejected and replaced below.
 
@@ -119,3 +128,172 @@ options. The prior form-first interpretation was incorrect.
 The fixtures remain images. Eligible non-image material uses the existing
 extracted new-Case proposal screen under FRD-18; this pass does not invent
 an image-to-new-Case form. Verification: 705 offline checks passed.
+
+# Part 2 · Sign in, Inbox, Work Centre, Staff accounts (25 September 2026)
+
+Operator, 25 September 2026: "add polish and improvement to: the login
+screen, the Inbox page, the Work Centre page, the administration pages
+(editing a staff account), and the already existing Upload flow", with the
+latest `dev` changes factored in and one combined walkthrough. No
+screenshot set was asked for; the mockups are for examination first.
+
+## 1. What changed and why
+
+| Surface | Today (live, `origin/dev` `32dabfc59`) | Proposed | Item |
+| --- | --- | --- | --- |
+| Every file | The Upload mockups framed the v28 capture, which still carried the working-set strip removed on 24 September | The shell is rebuilt from `_Layout.cshtml`: no strip, the one Refresh partial, the refined marks, the current rail | — (correction, not a decision) |
+| Sign in | 96px mark beside PEGASUS; h1 "Sign in to Pegasus" | The brand row offered as the rail lockup (64px mark, PEGASUS, "Case management"); the h1 offered as "Sign in" | H, I |
+| Sign in | Password is typed blind | A show-password control (`eye`) inside the field | J |
+| Forced password change | One explanatory paragraph under the h1 | The paragraph goes (page economy); h1, two fields, one button | K |
+| Inbox | Sort toggle draws a Unicode arrow | The `arrow-up-down` glyph beside "Received" | L |
+| Inbox | Search input and a separate Search button share the filter row | The Search field is the wide cell with its button attached | M |
+| Inbox | "N attachments" text; loose meta line | `paperclip` and the count; fixed time column; chip · classification · Case reference | N |
+| Inbox | Dismiss × at full weight on every row | Quiet until the row is hovered or focused, never hidden | O |
+| Inbox | Empty state explains retention in three sentences | "No mail has been received." | P |
+| Work Centre | "Updated HH:MM" floats above the metric strip | It sits in the header beside Refresh, as FRD-15 reads | Q |
+| Work Centre | Metric tiles are label and figure | Unchanged by default; a `metrics:toned` switch adds a 3px top bar in the state tone | R |
+| Work Centre | Row right column widths vary; three heads carry their metas differently | Fixed right column, tabular figures; one right-aligned meta group per head | S |
+| Work Centre | "Select an item" as a bordered line | The shared `pane-empty` treatment | T |
+| Staff accounts | Dialog body opens with a Username/State fact grid under a head that already names the account | The state chip joins the head; the fact grid goes | U |
+| Staff accounts | Role is a disabled select on one's own account | Role renders as a greyed value box in the same cell | V |
+| Staff accounts | Printed name half width; Qualifications full width below | Both share the second row of the two-column grid | W |
+| Staff accounts | A native file input labelled "Replace signature" | A settings line like the Glass's line: "Signature image · On file" and **Replace signature** | X |
+| Staff accounts | Two foot rows on another account's dialog | One foot: Disable/Enable, Force logout, Reset password, a gap, Delete; then Cancel, Save settings | Y |
+| Staff accounts | The temporary password is a panel below the table | A success notice at the top of the list's stack, the password in mono | Z |
+
+## 2. Live rules the mockups mirror
+
+| Rule | Source |
+| --- | --- |
+| Rail order, counts absent when unqueried, the bell's unread count, no working-set strip | `Pages/Shared/_Layout.cshtml`; design authority § Authenticated shell |
+| The auth card: 440px, 4px red top border, 96px mark | `site.css` `.external-shell`, `.auth-card`, `.auth-brand` |
+| The invalid-credentials sentence | `Pages/Account/SignIn.cshtml.cs` |
+| Inbox scopes, in order, with counts | `Pages/Mail/Index.cshtml.cs` `ScopeDefinitions` |
+| Outcome chip words (Case created, Creating case, Case not created, Triage, Unidentified) and their tones | `Pages/Mail/Message.cshtml.cs` `OutcomeLabel`; `Shared/_StatusChip.cshtml` |
+| Date above time in a row; the row's link carries `aria-current` | `Pages/Mail/Index.cshtml` |
+| Five metrics in order, Triages last; kind chips in order; group heads with counts; "Kind · reference · subject" | `Pages/_WorkCentreBody.cshtml`; `Presentation/NeedsAttentionPresentation.cs`; `OperatorLabels.WorkCentre` |
+| Due text words (Overdue, N days overdue, Due today, Due Fri, Due 2 Oct) | `OperatorLabels.WorkCentre.DueText` |
+| Arrival chips (Manual, E-mail, Provider API, Automation) and tones | `OperatorLabels.WorkCentre.Arrival`, `ArrivalTone` |
+| Administration nav groups and labels | `Pages/Administration/Shared/_AdminNav.cshtml`; `OperatorLabels.Admin` |
+| Staff account labels (Sign-off Engineer, Printed name, Qualifications, Signature image, On file, Replace signature, Default sign-off Engineer) | `OperatorLabels.StaffAccounts` |
+| Every Administration action posts on the click; Delete alone confirms, in a native dialog | `Pages/Administration/Accounts/Index.cshtml` |
+
+## 3. Frame rules
+
+Unchanged from Part 1 and the design authority: rail 220px (64px collapsed),
+utility bar 48px, body 13.5px, controls 36px, dense rows 40px, content
+capped at 1580px with 18px page padding, no working-set strip, dialogs in
+`.dialog-backdrop` with focus on the first control and Escape to close.
+Below 980px the rail lies down; below 760px every layout is one column.
+
+## 4. Decisions taken and their authority
+
+- The shell rebuild is a correction to the live contract (design
+  authority, "There is no working-set strip", operator 24 September 2026),
+  not a proposal.
+- L follows the icon rule (Lucide only; no Unicode dingbats).
+- Q follows FRD-15 § Work Centre ("Its head reads 'Updated HH:MM' with
+  Create Case and Refresh").
+- U follows the guardrail "one fact, one home".
+- V follows the guardrails "never use mystery-disabled controls" and "read
+  and edit look the same" (operator, 23 September 2026).
+- K and P follow the page-economy rule (operator direction, 20 August 2026).
+  Both remove sentences; neither adds one.
+
+## 5. Deliberate departures from live
+
+Every departure is a lettered item above. No label, grouping or column was
+renamed; no route, control or workflow was added beyond the show-password
+control (J) and the metric tone switch (R), both of which the operator may
+reject.
+
+## Sign-off list
+
+Items A to G are in Part 1. Every item below is **open**; each is phrased
+"Confirm, or …". The mockup shows each as a layer or a switch so the two
+readings can be compared side by side.
+
+**H.** Sign in: confirm the brand row as the rail lockup (64px mark,
+PEGASUS, "Case management"), or keep the 96px mark and PEGASUS as today.
+Switch `brand:compact`.
+
+**I.** Sign in: confirm the h1 "Sign in", or keep "Sign in to Pegasus".
+Switch `title:short`.
+
+**J.** Sign in: confirm a show-password control inside the password field
+(also on the forced-change card's new password), or leave the field as it
+is. Switch `reveal:on`.
+
+**K.** Forced password change: confirm removing the explanatory paragraph,
+or keep it.
+
+**L.** Inbox: confirm the `arrow-up-down` glyph beside "Received" in place
+of the Unicode arrow, or specify another treatment.
+
+**M.** Inbox: confirm the Search field as the wide filter cell with its
+button attached, or keep the separate Search button.
+
+**N.** Inbox: confirm the row meta (paperclip and count, fixed time column,
+chip · classification · Case reference), or keep "N attachments" in words.
+
+**O.** Inbox: confirm the quiet Dismiss/Restore button until hover or focus,
+or keep it at full weight.
+
+**P.** Inbox: confirm "No mail has been received." as the one Inbox empty
+sentence, or keep the retention explanation.
+
+**Q.** Work Centre: confirm "Updated HH:MM" in the header beside Refresh,
+or keep it above the metric strip.
+
+**R.** Work Centre: confirm plain metric tiles (the default), or adopt the
+toned top bar. Switch `metrics:toned`.
+
+**S.** Work Centre: confirm the fixed right column on attention rows and
+one meta group per head, or keep today's flow.
+
+**T.** Work Centre: confirm the shared `pane-empty` treatment for "Select
+an item", or keep the bordered line.
+
+**U.** Staff accounts: confirm the state chip in the dialog head and the
+removal of the Username/State fact grid, or keep the grid.
+
+**V.** Staff accounts: confirm Role as a greyed value box on one's own
+account, or keep the disabled select.
+
+**W.** Staff accounts: confirm Printed name and Qualifications side by side,
+or keep Qualifications full width.
+
+**X.** Staff accounts: confirm the signature settings line ("Signature
+image · On file", Replace signature / Upload signature), or keep the native
+file input.
+
+**Y.** Staff accounts: confirm one foot row (Disable/Enable, Force logout,
+Reset password, gap, Delete; then Cancel, Save settings), or keep the two
+rows.
+
+**Z.** Staff accounts: confirm the temporary password as a success notice
+at the top of the list, or keep the panel below the table.
+
+## Self-check
+
+25 September 2026: `RESULT {"fail":[],"okCount":1743}` over every surface ×
+state × layer, the switches, the dialog open/close mechanics and the 65
+Upload option × state combinations (their Part 1 checks are carried
+forward). Headless Chromium, file access allowed, virtual time budget
+120 s. No console error on any rendered state.
+
+## Known limits
+
+- No screenshot set for Part 2 (not requested). Twelve verification
+  captures at 1580 and one at 760 are in `v30-shots/`; the 195 Upload
+  captures predate the shell rebuild and show the strip.
+- Fixtures are synthetic: addresses end in `.example`, names and references
+  are invented, counts are chosen to exercise the layouts.
+- The Compose dialog, the message record, the Case record, Search and the
+  other Administration areas are links that go nowhere.
+- Rail collapse, dialogs, the show-password control and the toast region
+  work; Refresh, Search, Assign, Save and every post are inert.
+- Select controls show their options collapsed; the Category select's two
+  optgroups carry a representative subset of the live options.
+- Font fallback: Inter Variable is inlined, so the capture matches the
+  live face; a browser that refuses data-URI fonts falls back to Segoe UI.
