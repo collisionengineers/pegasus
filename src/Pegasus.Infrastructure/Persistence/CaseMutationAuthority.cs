@@ -27,8 +27,6 @@ internal sealed class CaseMutationAuthority
 
     public TriageEntity? Triage { get; }
 
-    public bool IsTriage => Triage is not null;
-
     /// <summary>The version a staff write is checked against: the workflow's, or the Triage's.</summary>
     public long Version => Workflow?.Version ?? Triage!.Version;
 
