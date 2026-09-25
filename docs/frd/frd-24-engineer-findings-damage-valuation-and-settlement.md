@@ -183,8 +183,9 @@ last touch wins. While the outcome is not a total loss the salvage rows are
 absent and a "Salvage · Not applicable" line stands in their place. While
 Roadworthiness is Unroadworthy, Temporary repairs possible (Yes or No),
 Temporary repair method and Temporary repair cost follow the unroadworthy
-reason; otherwise they are absent, and the report prints them only for an
-unroadworthy vehicle (operator, 24 September 2026). Beside the typed
+reason; otherwise they are absent (operator, 24 September 2026), and the
+report's Vehicle Details prints their values only for an unroadworthy vehicle;
+for any other vehicle those rows read —. Beside the typed
 reserve, a computed **Repair reserve** reads the Current repair
 specification's VAT-inclusive cost rounded up to the next £50 on a
 Repairable outcome, and Not applicable otherwise; it is never written.

@@ -13,7 +13,8 @@ namespace Pegasus.Core.Vehicle;
 /// the DVSA-derived MOT reading fills only where the Case holds no mileage of
 /// its own. A lookup never overwrites what the Case already knows, except the
 /// facts only it records (<see cref="AssessmentVocabulary.LookupDerivedPaths"/>),
-/// which each answer sets (<see cref="DerivedAssessmentWrites"/>).
+/// which each answer for the registration the Case now names sets
+/// (<see cref="DerivedAssessmentWrites"/>).
 /// </remarks>
 public static class VehicleLookupFillPolicy
 {
@@ -84,18 +85,23 @@ public static class VehicleLookupFillPolicy
     /// What one answer sets on the facts only the lookup records
     /// (<see cref="AssessmentVocabulary.LookupDerivedPaths"/>), keyed by path, each
     /// in the vocabulary's canonical form (operator, 24 September 2026). A fact the
-    /// answer carries is its value. A complete answer (no provider failure; both
-    /// providers' not-found included) maps a fact it does not carry to null, which
-    /// clears the earlier value: the vehicle as now described has none. A partial or
-    /// failed answer omits what it does not carry, so a failed provider's silence
-    /// never erases an earlier answer. A provider value the vocabulary cannot hold
-    /// is not carried.
+    /// answer carries is its value. A complete answer, where each provider either
+    /// described the vehicle or said it holds no such vehicle, maps a fact it does
+    /// not carry to null, which clears the earlier value: the vehicle as now
+    /// described has none. A provider's not-found beside the other's description
+    /// (<see cref="VehicleLookupFailure.DvlaNotFound"/>,
+    /// <see cref="VehicleLookupFailure.DvsaNotFound"/>) is such a definite reply,
+    /// reported only when no provider failed. An answer with a failed provider
+    /// omits what it does not carry, so a failed provider's silence never erases
+    /// an earlier answer. A provider value the vocabulary cannot hold is not
+    /// carried.
     /// </summary>
     public static IReadOnlyDictionary<string, string?> DerivedAssessmentWrites(VehicleLookupResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
         var vehicle = result.Vehicle;
-        var complete = result.Failure is null;
+        var complete = result.Failure is null
+            or { Code: VehicleLookupFailure.DvlaNotFound or VehicleLookupFailure.DvsaNotFound };
         var writes = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var path in AssessmentVocabulary.LookupDerivedPaths)
         {

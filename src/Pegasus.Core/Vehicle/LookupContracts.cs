@@ -63,7 +63,22 @@ public sealed record MotTestObservation(
 public sealed record VehicleLookupFailure(
     string Code,
     bool Retryable,
-    TimeSpan? RetryAfter = null);
+    TimeSpan? RetryAfter = null)
+{
+    /// <summary>
+    /// DVLA holds no such vehicle while DVSA described it. It rides in the
+    /// failure slot of a partial answer, but it is DVLA's definite reply, not
+    /// its silence.
+    /// </summary>
+    public const string DvlaNotFound = "dvla_not_found";
+
+    /// <summary>
+    /// DVSA holds no MOT history for the vehicle while DVLA described it. It
+    /// rides in the failure slot of a partial answer, but it is DVSA's
+    /// definite reply, not its silence.
+    /// </summary>
+    public const string DvsaNotFound = "dvsa_not_found";
+}
 
 public sealed record VehicleLookupResult(
     string Registration,

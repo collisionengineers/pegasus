@@ -572,13 +572,14 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// The Damage section's Incident narrative: the report's Nature of Incident
     /// block as Core composes it for this view's work (operator, 24 September
-    /// 2026). Null while there is none or the assessment cannot open.
+    /// 2026), in every state the workspace loads. Null while there is none.
     /// </summary>
     public string? IncidentNarrative { get; private set; }
 
     /// <summary>
     /// The accepted statement of truth this Case's report prints, from Core, shown
-    /// read-only in the Report section. Empty while the assessment cannot open.
+    /// read-only in the Report section in every state the workspace loads. Empty
+    /// only when the report inputs cannot be read.
     /// </summary>
     public IReadOnlyList<string> StatementOfTruth { get; private set; } = [];
 
@@ -993,22 +994,29 @@ public sealed partial class DetailsModel(
                 ? null
                 : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
         }
-        if (AssessmentCanOpen)
+        // Readiness is the current work's: it drives the Next action, and only
+        // while the assessment can open. The wording is the view's own (v29 P3),
+        // read in every state so the Incident narrative and the statement of
+        // truth show what the report prints even on a Held, Query or closed
+        // Case; only the editable wording blocks wait for the assessment.
+        var inputs = AssessmentCanOpen
+            ? await reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, cancellationToken)
+            : null;
+        if (inputs is not null)
         {
-            // Readiness is the current work's: it drives the Next action. The
-            // wording is the view's own (v29 P3).
-            var inputs = await reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, cancellationToken);
-            if (inputs is not null)
-            {
-                var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
-                ReportDraftPreparation = new(readiness.Reasons);
-                EligibleSignOffEngineers = inputs.Readiness.EligibleSignOffEngineers;
-                SelectedSignOffEngineerId = readiness.Signatory?.StaffId;
-            }
-            var wordingInputs = IsInspectionView
-                ? await reportSnapshotSource.GetAsync(id, actor, WorkSelector, cancellationToken)
-                : inputs;
-            if (wordingInputs is not null)
+            var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
+            ReportDraftPreparation = new(readiness.Reasons);
+            EligibleSignOffEngineers = inputs.Readiness.EligibleSignOffEngineers;
+            SelectedSignOffEngineerId = readiness.Signatory?.StaffId;
+        }
+        var wordingInputs = IsInspectionView || !AssessmentCanOpen
+            ? await reportSnapshotSource.GetAsync(id, actor, WorkSelector, cancellationToken)
+            : inputs;
+        if (wordingInputs is not null)
+        {
+            IncidentNarrative = ReportWordingComposition.NatureOfIncidentOf(wordingInputs.Projection);
+            StatementOfTruth = AssessmentReportContract.StatementOfTruthOf(wordingInputs.Projection);
+            if (AssessmentCanOpen)
             {
                 var wording = WordingOf(wordingInputs.Projection);
                 ReportWording = wording.Offered;
@@ -1019,8 +1027,6 @@ public sealed partial class DetailsModel(
                             block.Key, wordingSnapshot, wordingSnapshot.Presentation()),
                         StringComparer.Ordinal)
                     : new Dictionary<string, string>(StringComparer.Ordinal);
-                IncidentNarrative = ReportWordingComposition.NatureOfIncidentOf(wordingInputs.Projection);
-                StatementOfTruth = AssessmentReportContract.StatementOfTruthOf(wordingInputs.Projection);
             }
         }
         CurrentReportGeneration = await reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, cancellationToken);

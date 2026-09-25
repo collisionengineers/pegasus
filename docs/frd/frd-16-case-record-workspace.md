@@ -257,7 +257,8 @@ editable unit, each with its source tag (a staff value untagged). VIN,
 Vehicle type and Body type follow, edited in place like the registration. The
 facts only the DVLA/DVSA lookup records (engine, fuel, colour, tax and MOT
 expiry) are always drawn, read-only with the Lookup tag, and read Not
-recorded until a lookup answers; no Save writes them
+recorded until a lookup answers; no Save writes them, and a Save that changes
+the registration clears them until the new vehicle is looked up
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
 Transmission keeps its place among them and is edited in place, picked from
 Manual, Automatic, Semi-automatic, CVT or Unknown, because no approved lookup

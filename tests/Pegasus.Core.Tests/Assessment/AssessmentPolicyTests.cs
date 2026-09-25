@@ -921,6 +921,42 @@ public sealed class AssessmentPolicyTests
             item => item.Requirement.Contains("values await review", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("unroadworthy", true)]
+    [InlineData("roadworthy", false)]
+    [InlineData(null, false)]
+    public void AnUnconfirmedTemporaryRepairAwaitsReviewOnlyForAnUnroadworthyVehicle(string? legalStatus, bool awaits)
+    {
+        // The report prints temporary repairs only for an unroadworthy vehicle
+        // and Decisions shows their rows only then, so for any other vehicle an
+        // AI-written one blocks nothing.
+        AssessmentFieldValue Unconfirmed(string path, string value) =>
+            Field(path, value) with
+            {
+                RecordedByKind = ActorKind.Automation,
+                RecordedBy = "pegasus-automation",
+                ConfirmedBy = null,
+                ConfirmedAtUtc = null
+            };
+        var temporaryRepairs = new[]
+        {
+            Unconfirmed(AssessmentVocabulary.VehicleTemporaryRepairsPossible, "true"),
+            Unconfirmed(AssessmentVocabulary.VehicleTemporaryRepairMethod, "Tape the lamp"),
+            Unconfirmed(AssessmentVocabulary.VehicleTemporaryRepairCost, "45.00")
+        };
+        var readiness = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
+            legalStatus is null
+                ? temporaryRepairs
+                : [Field(AssessmentVocabulary.LegalStatus, legalStatus), .. temporaryRepairs]));
+
+        foreach (var field in temporaryRepairs)
+        {
+            Assert.Equal(
+                awaits,
+                readiness.Any(item => item.Requirement == $"{field.Path} awaits review" && item.Field == field.Path));
+        }
+    }
+
     /// <summary>
     /// Entry to Review proves only instruction and image completeness, so each
     /// Case fact the report prints is a post-Review blocker naming its Case
