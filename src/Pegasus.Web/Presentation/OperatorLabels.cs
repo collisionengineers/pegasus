@@ -2065,16 +2065,6 @@ public static class OperatorLabels
         public const string CheckFiles = "Check the selected files";
         public const string Remove = "Remove";
 
-        // The empty aside beside an empty picker.
-        public const string AsideTitle = "One upload. One decision.";
-        public const string AsideSentence = "Add related files together, then choose the Case they belong to.";
-        public static readonly IReadOnlyList<(string Title, string Detail)> AsideSteps =
-        [
-            ("Choose files", "Check your selection before uploading."),
-            ("Review the result", "See the outcome for every file."),
-            ("Confirm the Case", "Check the exact destination before adding.")
-        ];
-
         // The decision panel.
         public const string PendingEyebrow = "Files received";
         public const string PendingTitle = "Processing your files";

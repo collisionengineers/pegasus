@@ -71,7 +71,6 @@
         var submitLabel = form.querySelector('[data-select-submit-label]');
         var errors = form.querySelector('[data-select-errors]');
         var errorList = form.querySelector('[data-select-error-list]');
-        var aside = select.querySelector('[data-select-aside]');
         var panel = select.querySelector('[data-select-files]');
         var count = select.querySelector('[data-select-count]');
         var list = select.querySelector('[data-select-list]');
@@ -100,7 +99,6 @@
             actions.hidden = !any;
             summary.textContent = any ? files(chosen.length) + ' · ' + mib(total) : '';
             submitLabel.textContent = 'Upload ' + files(chosen.length);
-            aside.hidden = any;
             panel.hidden = !any;
             count.textContent = any ? files(chosen.length) + ' · ' + mib(total) : '';
             revoke();
