@@ -195,9 +195,18 @@ every table pressed against the rail. Below the cap nothing moves. Every page
 carries the skip link, the toast region and the dialog root.
 
 `_LayoutAuth` remains the navless frame: sign-in, the signed-out
-confirmation, access denied and the error family are not places in the
-application (see
+confirmation, the forced password change, access denied, the consent screen
+and the error family are not places in the application (see
 [Shell and routes](../frd/frd-12-operator-experience.md#shell-and-routes)).
+Since v30 (sign-in B, 25 September 2026) it is two planes on a common centre
+line: `auth-identity`, the charcoal `--nav` panel with the 3px `--red` top
+stripe, the 96px refined mark, "PEGASUS", "Case management" and the
+"Collision Engineers" caption (`auth-company`); and `auth-panel`, the white
+panel holding the page's `auth-card` (360px; `auth-card--wide` 720px for the
+consent screen) with a 23px h1, 20px field gap and one full-width primary
+button. Below 980px the identity panel becomes a strip above the card with
+the 64px mark. The sign-in password field carries a Show / Hide control
+(`password-reveal`), shipped hidden and revealed by `site.js`.
 
 ### Keyboard and dialog contract
 
@@ -472,7 +481,7 @@ prototype's effective media queries:
 
 | Max width | Reflow |
 | --- | --- |
-| 1360px | Work Centre panes narrow; `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns |
+| 1360px | `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns. The Work Centre ledger keeps its five columns to 600px, tightening its padding below 980px |
 | 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
 | 980px | The rail lies down into a horizontal bar; `admin-nav` becomes a horizontal scroller; `--content-max` is released |
@@ -846,7 +855,7 @@ deleted in wave 5.
 | `utility-bar`, `utility-freshness`, `utility-search` | Dark bar |
 | `rail-collapsed` (on `app-shell`), `[data-rail-toggle]` | Collapsed 64px rail and its Collapse/Expand control |
 | `bell-wrap`, `bell-count`, `row-list`, `row-form`, `row-button`, `row-button--unread` | The bell with its unread count, and the Notifications dialog's one-button rows |
-| `external-shell`, `auth-card`, `auth-brand` | Navless frames |
+| `external-shell`, `auth-identity`, `auth-brand`, `auth-company`, `auth-panel`, `auth-card`, `auth-card--wide`, `password-reveal` | Navless frame: identity panel beside the page's card |
 | `skip-link`, `sr-only` | Accessibility |
 
 ### Page
@@ -856,7 +865,7 @@ deleted in wave 5.
 | `page-header`, `page-title`, `eyebrow`, `page-actions` | Header row |
 | `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (dismiss, section fold) |
 | `freshness`, `freshness-status`, `health-dot`, `refresh-button` (`Shared/_RefreshButton`) | Page freshness line and the one Refresh control every surface composes; the label becomes "Refreshing" and the icon spins while a refresh runs (`prefers-reduced-motion` keeps the label and disabled state) |
-| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=` (the Work Centre's five, Triages last) |
+| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |

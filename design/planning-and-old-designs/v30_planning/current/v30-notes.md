@@ -393,3 +393,69 @@ Evidence covers local mockups only. Assignments and AI-job completion
 mutate synthetic in-memory fixtures; linked application destinations end
 at an explicit preview boundary. Server policy, data access, concurrency,
 idempotency, multi-page retrieval and automatic refresh are not executed.
+
+
+## Part 5 — decisions and Stage 2, 25 September 2026
+
+The operator selected **B** for both surfaces and asked for the full
+end-to-end implementation, replacing the current pages' function and
+design, in one PR.
+
+### Sign in
+
+| Item | Outcome |
+| --- | --- |
+| H2 | **B — Brand split.** The charcoal identity panel (96px mark, PEGASUS, Case management, Collision Engineers) beside the white form panel, 42 / 58, stacking below 980px. |
+| H / H3 | Settled by B: the vertical lockup and the company caption. |
+| I | **"Sign in"**; the identity panel names the product. |
+| J | **Show / Hide password**, shipped hidden and revealed by script. |
+| K | Not decided; the forced-change page keeps its paragraph and renders in the new frame. |
+| Frame scope | **Whole navless family** (operator, 25 September 2026): sign in, signed out, forced password change, access denied, the error family and the consent screen all render in `_LayoutAuth`'s split frame. |
+
+### Work Centre
+
+| Item | Outcome |
+| --- | --- |
+| WA | **B — Office ledger.** A full-width table; the chosen row opens its facts and next action in place; nothing opens by itself. |
+| WB | **Accepted.** Find in Needs attention: a term on the Core query, matched on reference, title, detail and owner before paging; chip counts stay over the scope. |
+| WC | Not applicable to B (no Selected work heading); the open row carries the kind eyebrow. |
+| WD | **Accepted.** Needs attention, New cases and AI jobs as tabs with counts; AI jobs as compact rows. |
+| WE | **Accepted.** Create Case once, in the page header; the utility bar's New case is omitted on this page. |
+| WF | **Accepted.** The compact five-count strip. |
+| WG | Settled earlier: empty due groups, sections and tabs are omitted; an unavailable section keeps its tab with a dash; a wholly empty page reads "No work to show." |
+| Q–T | Superseded by B (Q lands as "Updated HH:MM" in the head; R, S, T fall away with the pane layout). |
+
+### Where it landed
+
+`Pages/Shared/_LayoutAuth.cshtml`, `Pages/Account/SignIn.cshtml`,
+`wwwroot/css/site.css` (external frames block), `wwwroot/js/site.js`
+(password reveal); `Core/Operations/OperationsSnapshot.cs` (`Search`,
+`NeedsAttentionPolicy.Matches`), `Pages/Index.cshtml(.cs)`,
+`Pages/_WorkCentreBody.cshtml`, `Presentation/NeedsAttentionPresentation.cs`,
+`Presentation/OperatorLabels.cs`, `wwwroot/css/work-centre.css`,
+`wwwroot/js/work-centre.js`, `Pages/Shared/_Layout.cshtml`. FRD-15's Work
+Centre section, FRD-12's shell sentences and the design README's navless
+and class tables were updated in the same change. Inbox, Staff accounts and
+Upload (items A–G, L–P, U–Z) remain open in this folder.
+
+### Stage 2 evidence
+
+Focused verification (`scripts/Invoke-Verification.ps1`): Release build clean;
+`DashboardBoundaryTests`, `ShellAndStatusPageWebTests`,
+`StaffSignInSecurityTests` and `WorkCentreWebTests` green (20 Core, 33 web).
+Routed walk on the synthetic hosts (auto-Administrator on 5240, real sign in
+on 5241) with [walk-v30-b.py](v30-live-shots/walk-v30-b.py):
+`RESULT checks=63 failed=0 shots=33`, record in
+[walk.json](v30-live-shots/walk.json), captures in `v30-live-shots/` at
+1580, 1440 and 760 for sign in (default, required fields, refusal, signed
+out), the 404 and access-denied family, and the Work Centre (default, open
+row, Mine, no match, New cases tab). Behaviours proven on the routed page:
+Show / Hide, refusal notice with username kept, a row opening and closing in
+place, Clear filters clearing kinds and term, tabs switching in place with
+the address updated, Home key returning to the first tab, no console errors,
+no horizontal spill at any width. Three defects the walk caught were fixed
+before commit: the focused input painted over the Show button (global
+focus-visible z-index), the narrow identity strip hid "Case management"
+(shell rule), and the tab click handler matched the root's `data-wc-tab`
+attribute and swallowed row links. The fixture host had no Unassigned row,
+so the Assign Engineer dialog is covered by the web tests, not the walk.

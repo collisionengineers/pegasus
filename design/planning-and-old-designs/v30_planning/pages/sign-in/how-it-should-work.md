@@ -35,3 +35,26 @@ Collision Engineers caption. See the
 All three retain the same initial-login fields and exact validation
 messages. A selected layout must be reconciled with the other navless
 pages before a shared auth-frame implementation begins.
+
+
+## Decided — 25 September 2026: B, whole navless family
+
+Operator: design B (Brand split), "slight visual improvement/aesthetic, show
+password button"; the frame applies to every `_LayoutAuth` page.
+
+1. `_LayoutAuth` is two planes on a common centre line: the charcoal
+   identity panel (3px red stripe, 96px refined mark, PEGASUS, Case
+   management, Collision Engineers) at 42%, the white panel at 58% holding
+   the page's card (360px; 720px for the consent screen). Below 980px the
+   identity panel is a strip above the card with the 64px mark.
+2. The heading is "Sign in" (I). Fields, labels, autocomplete, the exact
+   required and refusal messages and the one primary button are unchanged;
+   the refusal reads as the shared danger notice above the form.
+3. The password field carries Show / Hide (J), shipped hidden and revealed
+   by `site.js`; without script it is a password field.
+4. Signed out, forced password change, access denied, the error family and
+   the consent screen render in the same frame with their markup unchanged
+   (K stays open: the forced-change paragraph remains).
+
+Implemented in the Stage 2 PR from this branch; FRD-12 and the design
+README carry the frame.

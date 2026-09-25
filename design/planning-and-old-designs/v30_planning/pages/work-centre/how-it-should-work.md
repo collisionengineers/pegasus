@@ -61,3 +61,40 @@ section should simply be invisible/not shown".
 This settles WG in the design proposals. FRD-15's current requirement for
 per-group empty sentences is superseded for these mockups; its implementation
 handoff must reflect the accepted omission rule.
+
+
+## Decided — 25 September 2026: B, with WB, WD, WE and WF
+
+Operator: design B (Office ledger), "a full end to end wiring this into the
+active codebase, replacing the current pages function and design"; asked
+and confirmed: Find, the section tabs, the compact strip and Create Case
+once all ship.
+
+1. The head reads "Updated HH:MM" beside Refresh and Create Case (Q lands
+   here); the utility bar's New case is omitted on this page (WE).
+2. The five queue totals are one compact strip, label and figure on one
+   line (WF), in their own refresh section; a failed read draws no figure.
+3. One panel carries the tabs Needs attention, New cases and AI jobs with
+   counts (WD). A tab is omitted when its section is empty (WG); a section
+   that could not be read keeps its tab with a dash and its notice. On Mine
+   the Needs attention section stays even when empty, so Office is one click
+   away. A wholly empty page reads "No work to show." The tab travels in
+   `?tab=`.
+4. Needs attention is a table: Next action (kind beneath), Record / detail
+   (subject beneath), Owner, Due, Received. Group rows Overdue / Due today /
+   Later appear only when the group has rows on the page.
+5. Find in Needs attention (WB) is a term on the Core query, matched
+   case-insensitively on reference, title, detail and owner before paging;
+   chip counts stay over the scope; Clear filters clears kinds and term;
+   no match reads "No work matches these filters."
+6. Choosing a task opens the row in place beneath it: kind eyebrow, an
+   Overdue or Due today chip, title, the six facts and the next action
+   (Assign Engineer dialog, Review Case, Open Triage, the AI draft's action,
+   Assign to me). Choosing it again closes it; nothing opens by itself.
+7. AI jobs are compact rows with every fact and action FRD-27 names.
+8. Refresh, F5 and the background refresh keep scope, kinds, term, tab,
+   pages and the open row; the four sections (metrics, attention, new-cases,
+   ai-jobs) are retained independently on a partial failure as before.
+
+R, S and T fall away with the pane layout. Implemented in the Stage 2 PR
+from this branch; FRD-15's Work Centre section owns the behaviour.

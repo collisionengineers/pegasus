@@ -119,3 +119,22 @@ attention dataset omits that section and the selected-work panel. Filters
 with no matches retain their recovery controls, while unavailable data
 retains its failure notice. Added the `quiet` preset and focused checks.
 WG is settled by this instruction, independently of the open layout choice.
+
+
+## 25 September 2026 — B selected for sign in and the Work Centre; Stage 2
+
+Operator: "Implement design changes for: Signin screen — selected design:
+pegasus_signin_b_v30.html. Primary differences: slight visual
+improvement/aesthetic. Show password button. Work Centre —
+pegasus_work_centre_b_v30.html. This should be a full end to end wiring this
+into the active codebase, replacing the current pages function and design.
+Submit a PR once implemented."
+
+Asked and answered before implementation: the split frame applies to the
+whole navless family, not sign in alone; Work Centre B ships with Find (WB),
+the section tabs (WD), the compact strip (WF) and Create Case once (WE), on
+top of the settled empty-section rule (WG).
+
+Implemented on `task/upload-flow-five-designs` and recorded under Part 5 of
+the notes. The planning folder stays while the Inbox, Staff accounts and
+Upload items remain open.

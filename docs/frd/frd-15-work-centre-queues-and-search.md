@@ -4,8 +4,8 @@
 
 ## Short version
 
-- The Work Centre (`/`) shows the whole office's work: five counts, one
-  Needs attention list, a Today pane, New cases and AI jobs.
+- The Work Centre (`/`) shows the whole office's work: five counts, then one
+  panel whose tabs hold the Needs attention ledger, New cases and AI jobs.
 - Every count comes from a Core query. A failed read shows "unavailable",
   never `0`.
 - `/Cases` is one page of queues grouped as Workflow, Pre-Case work and
@@ -27,18 +27,31 @@ record is owned by [FRD-16](frd-16-case-record-workspace.md).
 
 ### Work Centre
 
-The Work Centre (`/`) shows office-wide work. Its head reads "Updated HH:MM"
-with **Create Case** and **Refresh**. The page refreshes itself when its
+The Work Centre (`/`) shows office-wide work in one ledger (v30 design B,
+25 September 2026). Its head reads "Updated HH:MM" with **Refresh** and
+**Create Case**; the utility bar's New case is omitted on this page and only
+this page, so the action has one home. The page refreshes itself when its
 browser tab regains focus after 30 seconds away, and every five minutes. It
 never refreshes while a dialog is open or a field has focus. A refresh does
 not mark New cases as seen.
 
-**Metrics.** Five counts, in this order: Not ready, Review, Held,
-Unidentified and Triages. Each is an exact link to its Cases tab
-(`/Cases?tab=…`) and counts everything regardless of paging. Triages counts
-the Triage Cases that are Open, Awaiting information or Finding recorded;
-Completed and Cancelled are not counted. A failed read shows its unavailable
-state, never `0`.
+**Metrics.** Five counts in one strip, label and figure on one line, in this
+order: Not ready, Review, Held, Unidentified and Triages. Each is an exact
+link to its Cases tab (`/Cases?tab=…`) and counts everything regardless of
+paging. Triages counts the Triage Cases that are Open, Awaiting information or
+Finding recorded; Completed and Cancelled are not counted. A failed read shows
+no figure and the section's unavailable notice, never `0`.
+
+**Sections.** Below the strip one panel carries three tabs: **Needs
+attention**, **New cases** and **AI jobs**, each with its count. A tab is
+omitted when its section is empty: Needs attention when the Office has no
+work and no filter is on (on Mine the section stays, so Office remains one
+click away), New cases when nothing arrived in the window, AI jobs when no
+job waits. A section that could not be read keeps its tab, shows a dash for
+its count and its notice inside. When every section is empty the page reads
+one line, "No work to show.", under the five zero counts. The chosen tab
+travels in the address (`?tab=`), so Refresh, F5 and the background refresh
+keep it.
 
 **Needs attention** is one list. Each item is exactly one of these kinds.
 Every kind comes from a Core query, never from fixture or placeholder data,
@@ -71,30 +84,38 @@ attention item. It is on Operations, whose rail badge counts retryable
 failed external work. Where a failure blocks a person's work, the record says
 so where it is used ("Lookup failed", "Storage not ready").
 
-**Office and Mine.** A switch above the list. Office is every item. Mine is
+**Office, Mine, kinds and Find.** The section's toolbar carries the Office /
+Mine switch and **Find in Needs attention**. Office is every item. Mine is
 the items the signed-in person owns plus unowned items of kinds they can
 take. Every staff role opens on Office, and the choice is remembered per
-browser. **Kind chips** (Case, Held, Review, Unassigned,
-Unidentified, Triage, AI draft) filter the list, several at once. Each chip
-shows its count over the whole scope before the filter. All kinds clears.
+browser. **Kind chips** (Case, Held, Review, Unassigned, Unidentified,
+Triage, AI draft) filter the list, several at once. Each chip shows its count
+over the whole scope before any filter. Find narrows the scoped list by a
+case-insensitive match on the row's reference, title, detail (principal,
+sender or instruction) and owner, before paging; Enter applies it and the
+term travels with every address on the page. **Clear filters** appears when a
+kind or a term is on and clears both. A filter that matches nothing keeps the
+toolbar and says "No work matches these filters."
 
-The list is grouped under **Overdue (n)**, **Due today (n)** and
-**Later (n)**, each with its own empty state ("Nothing overdue"). Order is by
-due instant, earliest first and undated last, then received, then reference.
-A row shows its title, kind, reference and detail; its due text in words
-("2 days overdue", "Due today", "Due Fri", "Due 24 Sep") coloured by group;
-its owner; and "Received 3 d ago". There is no priority chip. The list is
-paged at 50, reading "Page 1 of N · earliest due first" with Previous and
-Next. Nothing is silently dropped.
+**The ledger.** A table with five columns: Next action (the task, with its
+kind beneath), Record / detail (the reference, with the subject beneath),
+Owner, Due and Received. Rows are grouped under **Overdue (n)**, **Due today
+(n)** and **Later (n)**; a group with no rows is not drawn. Order is by due
+instant, earliest first and undated last, then received, then reference. The
+due text is in words ("2 days overdue", "Due today", "Due Fri", "Due 24 Sep")
+coloured by group; Received is the age ("3 d ago"). There is no priority
+chip. The list is paged at 50, reading "Page 1 of N · earliest due first"
+with Previous and Next. Nothing is silently dropped.
 
-**Today pane.** The selected item's kind and reference, title, a chip only
-when Overdue (red, with how late) or Due today (amber), its facts, and a next
-action that does the action. Assign Engineer opens the assignment dialog on
-the Work Centre. Review Case opens the Case. Open Triage opens the Triage
-Case page. An
-AI draft offers its per-kind action. **Assign to me** is offered to every
-enabled staff role on an Unassigned item and on a Triage item without an
-assignee, where Core would accept it.
+**The open row.** Choosing a task opens the row in place, beneath it: the
+kind, a chip only when Overdue (red, with how late) or Due today (amber), the
+title, its facts (reference, subject, principal or sender or instruction,
+owner, due, received) and a next action that does the action. Choosing the
+open task again closes it; nothing opens by itself. Assign Engineer opens the
+assignment dialog on the Work Centre. Review Case opens the Case. Open Triage
+opens the Triage Case page. An AI draft offers its per-kind action. **Assign
+to me** is offered to every enabled staff role on an Unassigned item and on
+a Triage item without an assignee, where Core would accept it.
 
 **New cases.** Every Case except a Triage Case created in the last 7 calendar
 days, newest first, whatever created it: reference, registration, claimant,
@@ -106,8 +127,9 @@ section is paged.
 
 **AI jobs.** The office's unfinished AI jobs (Queued, Taken with its lease
 expiry, Draft ready) and those that failed in the same 7 days, excluding
-Market research. Columns: kind and detail, record, started by, created,
-state, and the Draft ready action defined per kind in
+Market research, as compact rows: kind and state, the instruction, the
+record, who started it and when, then the lease expiry or failure reason and
+the Draft ready action defined per kind in
 [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
 (Review estimate, Open query, Review, Complete job). A failed job shows its
 reason with Open Case. Cancel stays on Operations.

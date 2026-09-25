@@ -117,23 +117,22 @@ public static class NeedsAttentionPresentation
         _ => item.Title
     };
 
-    /// <summary>"Kind · reference · subject": the row's second line.</summary>
-    public static string RowDetail(NeedsAttentionItem item)
+    /// <summary>
+    /// The row's subject, printed under the reference in the ledger's Record
+    /// column; null when the row has none beyond its reference.
+    /// </summary>
+    public static string? RowSubject(NeedsAttentionItem item)
     {
-        var parts = new List<string> { Labels.KindChip(item.Kind), ReferenceLabel(item) };
         var subject = item.Kind switch
         {
             NeedsAttentionKind.CaseChase => null,
             NeedsAttentionKind.AiDraft => item.Detail,
             _ => item.Title
         };
-        if (!string.IsNullOrWhiteSpace(subject)
-            && !string.Equals(subject, item.Reference, StringComparison.OrdinalIgnoreCase))
-        {
-            parts.Add(subject);
-        }
-
-        return string.Join(" · ", parts);
+        return !string.IsNullOrWhiteSpace(subject)
+            && !string.Equals(subject, item.Reference, StringComparison.OrdinalIgnoreCase)
+                ? subject
+                : null;
     }
 
     public static string OwnerLabel(NeedsAttentionItem item) =>
@@ -148,7 +147,7 @@ public static class NeedsAttentionPresentation
         _ => "later"
     };
 
-    /// <summary>The Today pane's six facts for the selected row.</summary>
+    /// <summary>The expanded row's six facts.</summary>
     public static IReadOnlyList<WorkCentreFact> Facts(NeedsAttentionItem item, DateTimeOffset now)
     {
         var subject = item.Kind switch
@@ -181,5 +180,5 @@ public static class NeedsAttentionPresentation
     }
 }
 
-/// <summary>One fact on the Today pane; an empty value reads "Not recorded".</summary>
+/// <summary>One fact on the expanded row; an empty value reads "Not recorded".</summary>
 public sealed record WorkCentreFact(string Label, string? Value, bool Mono = false);

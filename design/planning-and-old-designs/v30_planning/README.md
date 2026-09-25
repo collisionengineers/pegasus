@@ -20,6 +20,9 @@ or removes this folder as the operator instructs.
 | [current/](current/README.md) | The walkthrough, the nine surface files (Baseline and Proposal layers, every state as a query string), the notes with the lettered sign-off list, the discussion log, the build, the self-check and the screenshots |
 | [pages/](pages/README.md) | One folder per affected page: how it works today (read from `origin/dev`) and how it should work once the sign-off settles |
 
-Stage 1 stops at the sign-off list in [v30-notes.md](current/v30-notes.md).
-Stage 2, the implementation, starts only once every lettered item is settled
-and the operator has approved.
+**Decided, 25 September 2026:** sign-in **B** (Brand split, whole navless
+family) and Work Centre **B** (Office ledger, with Find, section tabs, the
+compact strip and one Create Case) were selected and implemented in the
+Stage 2 PR from this branch; see Part 5 of [v30-notes.md](current/v30-notes.md).
+Inbox, Staff accounts and Upload keep their open lettered items, so this
+folder stays until they settle.

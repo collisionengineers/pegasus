@@ -99,6 +99,28 @@
         });
     });
 
+    // Show / Hide a password (sign in, v30 item J). Without script the field
+    // is an ordinary password field, which is why the control ships hidden.
+    function bindPasswordReveal(root) {
+        root.querySelectorAll('[data-password-reveal]').forEach(function (button) {
+            var input = document.getElementById(button.getAttribute('aria-controls'));
+            if (!input || button.dataset.revealBound === 'true') {
+                return;
+            }
+            button.dataset.revealBound = 'true';
+            button.hidden = false;
+            button.addEventListener('click', function () {
+                var show = input.type === 'password';
+                input.type = show ? 'text' : 'password';
+                button.textContent = show ? 'Hide' : 'Show';
+                button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+                button.setAttribute('aria-pressed', String(show));
+            });
+        });
+    }
+    bindPasswordReveal(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindPasswordReveal);
+
     // Reason dialogs: a focus trap so a modal that asks for a required reason
     // cannot be tabbed out of while it is open.
     function bindNativeDialogs(root) {

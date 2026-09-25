@@ -49,7 +49,7 @@ authentication policy.
 Read on 25 September 2026 from `origin/dev` snapshot `32dabfc59`:
 `Account/SignIn.cshtml`, its PageModel, `Shared/_LayoutAuth.cshtml`,
 `wwwroot/css/site.css` and the approved font, mark and Lucide sprite.
-The earlier [baseline preview](pegasus_signin_v30.html?layer=baseline)
+The earlier [baseline preview](pegasus_signin_v30.html) (`?layer=baseline`)
 remains available beside these alternatives.
 
 | Current element or behaviour | Treatment in all three alternatives |

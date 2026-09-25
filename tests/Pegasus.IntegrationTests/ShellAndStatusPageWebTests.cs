@@ -216,6 +216,9 @@ public sealed class ShellAndStatusPageWebTests
         // would show a visitor the internal structure of the product.
         Assert.DoesNotContain("aria-label=\"Primary\"", html, StringComparison.Ordinal);
         Assert.Contains("auth-card", html, StringComparison.Ordinal);
+        // The whole navless family shares the v30 split frame.
+        Assert.Contains("class=\"auth-identity\"", html, StringComparison.Ordinal);
+        Assert.Contains("class=\"auth-panel\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>
