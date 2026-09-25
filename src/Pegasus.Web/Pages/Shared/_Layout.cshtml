@@ -152,7 +152,8 @@
                     <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
                 </form>
                 <div class="utility-actions">
-                    @if (inboxEnabled)
+                    @* The Work Centre's header already carries Create Case (v30 WE). *@
+                    @if (inboxEnabled && ViewData["HidesNewCase"] is not true)
                     {
                         <a class="btn btn--primary" asp-page="/Cases/Create">
                             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>

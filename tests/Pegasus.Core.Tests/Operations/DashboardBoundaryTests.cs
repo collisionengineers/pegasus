@@ -359,6 +359,32 @@ public sealed class DashboardBoundaryTests
     }
 
     /// <summary>
+    /// Find within Needs attention (v30 WB): the term narrows the scoped list
+    /// before paging, while every chip still counts the scope before it.
+    /// </summary>
+    [Fact]
+    public async Task FindNarrowsTheScopedListBeforePagingAndLeavesTheChipCountsAlone()
+    {
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var snapshot = await new GetOperationsSnapshot(
+            new StubIntakeReceiptQueries(),
+            new StubListTriage { Items = [NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open)] },
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries(),
+            new StubSearchCases(),
+            new StubUnidentifiedQueue { Rows = [NewUnidentified(Guid.NewGuid(), "U3001"), NewUnidentified(Guid.NewGuid(), "U3002")] },
+            new UnknownStaffAccounts(),
+            new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new FixedTimeProvider(NowUtc)).ExecuteAsync(
+                new NeedsAttentionQuery(administrator, Search: " u3002 "));
+
+        Assert.Equal(["U3002"], snapshot.Attention.Items.Select(item => item.Reference).ToArray());
+        Assert.Equal(1, snapshot.Attention.TotalCount);
+        Assert.Equal(2, snapshot.Attention.KindCounts[NeedsAttentionKind.Unidentified]);
+        Assert.Equal(1, snapshot.Attention.KindCounts[NeedsAttentionKind.Triage]);
+    }
+
+    /// <summary>
     /// The Triages metric (last in the strip) counts every active Triage Case:
     /// Open, Awaiting information and Finding recorded; Completed and
     /// Cancelled are not work.

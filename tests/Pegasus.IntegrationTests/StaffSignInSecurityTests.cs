@@ -70,6 +70,13 @@ public sealed partial class StaffSignInSecurityTests
             signInPage.StatusCode == HttpStatusCode.OK,
             $"Expected the anonymous sign-in page, but received {(int)signInPage.StatusCode} " +
             $"with Location '{signInPage.Headers.Location}'.");
+        // v30 sign-in B: the identity panel names the product and the company,
+        // the card reads "Sign in" and the password field carries Show / Hide.
+        Assert.Contains("class=\"auth-identity\"", signInHtml, StringComparison.Ordinal);
+        Assert.Contains("Collision Engineers", signInHtml, StringComparison.Ordinal);
+        Assert.Contains("<h1>Sign in</h1>", signInHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sign in to Pegasus", signInHtml, StringComparison.Ordinal);
+        Assert.Contains("data-password-reveal aria-controls=\"Password\"", signInHtml, StringComparison.Ordinal);
 
         using var signedOutPage = await client.GetAsync("/Account/SignIn?signedOut=true");
         signedOutPage.EnsureSuccessStatusCode();
@@ -84,6 +91,8 @@ public sealed partial class StaffSignInSecurityTests
         var deniedHtml = await deniedResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, deniedResponse.StatusCode);
         Assert.Contains("The username or password is incorrect.", deniedHtml, StringComparison.Ordinal);
+        // The refusal reads as the shared danger notice, once, above the form.
+        Assert.Contains("class=\"notice notice--danger auth-notice\" role=\"alert\"", deniedHtml, StringComparison.Ordinal);
 
         using var successResponse = await client.PostAsync(
             "/Account/SignIn",

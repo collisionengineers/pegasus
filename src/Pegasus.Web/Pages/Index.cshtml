@@ -2,6 +2,9 @@
 @model IndexModel
 @{
     ViewData["Title"] = "Work Centre";
+    // Create Case lives once, in this page's header (v30 WE): the utility bar's
+    // New case is omitted here and only here.
+    ViewData["HidesNewCase"] = true;
 }
 
 @section Styles {

@@ -100,7 +100,8 @@ down, there is no collapse.
 
 **The utility bar** carries the page freshness text, the global search input
 (Enter or Ctrl K opens the command palette), **New case**, and the bell.
-Upload and Inbox keep their named navigation.
+On the Work Centre, whose header carries Create Case, New case is omitted so
+the action has one home. Upload and Inbox keep their named navigation.
 
 **Create Case** opens direct staff creation with the identity-critical Case
 facts and no invented intake receipt or source provenance. When opened from
@@ -114,9 +115,14 @@ the Principal and the registration
 form opened from a receipt does not offer it.
 
 A skip link precedes the rail. Toasts announce in a live region. Every
-dialog traps focus and inerts the page behind it. Access denied renders in
-the navless frame with the rest of the error family: the area as the
-eyebrow, the refusal in one sentence and Return to Work Centre.
+dialog traps focus and inerts the page behind it. The navless frame is two
+planes: a charcoal identity panel (the Pegasus mark, the product name and the
+company) beside a white panel carrying the page's one card; below 980px the
+identity panel becomes a strip above the card. Sign in reads "Sign in" with
+Username, Password (with a Show / Hide control) and one Sign in button.
+Access denied renders in the navless frame with the rest of the error family:
+the area as the eyebrow, the refusal in one sentence and Return to Work
+Centre.
 
 **The bell** is the signed-in person's own notifications, never office-wide
 work or queue counts. It shows the unread count, absent at zero. A

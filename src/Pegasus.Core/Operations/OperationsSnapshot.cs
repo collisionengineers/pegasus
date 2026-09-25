@@ -58,7 +58,8 @@ public sealed record NeedsAttentionQuery(
     NeedsAttentionScope Scope = NeedsAttentionScope.Office,
     int Page = 1,
     IReadOnlyCollection<NeedsAttentionKind>? Kinds = null,
-    DateTimeOffset? AsOfUtc = null);
+    DateTimeOffset? AsOfUtc = null,
+    string? Search = null);
 
 public sealed record NeedsAttentionPage(
     IReadOnlyList<NeedsAttentionItem> Items,
@@ -175,6 +176,26 @@ public static class NeedsAttentionPolicy
         ArgumentNullException.ThrowIfNull(actor);
         return actor.Kind == ActorKind.Staff
             && kind is NeedsAttentionKind.UnassignedEngineer or NeedsAttentionKind.Triage;
+    }
+
+    /// <summary>
+    /// Find within Needs attention (v30 WB): a case-insensitive match on the
+    /// row's reference, title, detail or owner. Kinds are the chips' business,
+    /// so kind names are not searched.
+    /// </summary>
+    public static bool Matches(NeedsAttentionItem item, string? search)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        var term = search?.Trim();
+        if (string.IsNullOrEmpty(term))
+        {
+            return true;
+        }
+
+        return Contains(item.Reference) || Contains(item.Title) || Contains(item.Detail) || Contains(item.Owner);
+
+        bool Contains(string? value) =>
+            value is not null && value.Contains(term, StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsMine(NeedsAttentionItem item, ActionActor actor)
@@ -348,6 +369,9 @@ public sealed class GetOperationsSnapshot(
         {
             filtered = filtered.Where(item => kinds.Contains(item.Kind));
         }
+
+        // The search term narrows the whole scoped list before paging (v30 WB).
+        filtered = filtered.Where(item => NeedsAttentionPolicy.Matches(item, query.Search));
 
         var list = filtered.ToArray();
         var overdue = list.Count(item => NeedsAttentionPolicy.Priority(item.Due, asOfUtc, dayEndUtc) == NeedsAttentionPriority.Overdue);

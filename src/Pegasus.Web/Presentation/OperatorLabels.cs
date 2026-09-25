@@ -644,13 +644,23 @@ public static class OperatorLabels
         public const string Title = "Work Centre";
         public const string CreateCase = "Create Case";
         public const string NeedsAttention = "Needs attention";
-        public const string Today = "Today";
-        public const string SelectedWork = "Selected work";
         public const string Office = "Office";
         public const string Mine = "Mine";
-        public const string AllKinds = "All kinds";
+        /// <summary>Find within Needs attention (v30 WB): the field's label and its placeholder.</summary>
+        public const string FindInNeedsAttention = "Find in Needs attention";
+        public const string FindPlaceholder = "Find in this work";
+        public const string ClearFilters = "Clear filters";
         public const string NothingNeedsAttention = "Nothing needs attention";
-        public const string SelectAnItem = "Select an item";
+        public const string NoMatches = "No work matches these filters.";
+        /// <summary>The one line an entirely empty Work Centre shows (v30 WG).</summary>
+        public const string NoWorkToShow = "No work to show.";
+        public const string OfficeQueueTotals = "Office queue totals";
+        public const string Sections = "Work Centre sections";
+        public const string NextAction = "Next action";
+        public const string RecordDetail = "Record / detail";
+        public const string Owner = "Owner";
+        public const string Due = "Due";
+        public const string Received = "Received";
         public const string AssignToMe = "Assign to me";
         public const string AssignEngineer = "Assign Engineer";
         public const string Assign = "Assign";
@@ -693,6 +703,20 @@ public static class OperatorLabels
 
         public static string LeaseExpires(DateTimeOffset value) => $"Lease expires {OfficeTime(value)}";
 
+        public static string StartedBy(string name) => $"Started by {name}";
+
+        /// <summary>The Received column: the age alone, the column heading carrying the word.</summary>
+        public static string? ReceivedAge(DateTimeOffset? received, DateTimeOffset now)
+        {
+            if (received is not { } instant)
+            {
+                return null;
+            }
+
+            var days = LondonCalendar.DateAt(now).DayNumber - LondonCalendar.DateAt(instant).DayNumber;
+            return days <= 0 ? "Today" : string.Create(CultureInfo.InvariantCulture, $"{days} d ago");
+        }
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -712,14 +736,6 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => string.Create(CultureInfo.InvariantCulture, $"Overdue ({count})"),
             Pegasus.Core.Operations.NeedsAttentionPriority.Today => string.Create(CultureInfo.InvariantCulture, $"Due today ({count})"),
             _ => string.Create(CultureInfo.InvariantCulture, $"Later ({count})")
-        };
-
-        /// <summary>The group's empty state (P9): absence is visible good news.</summary>
-        public static string GroupEmpty(NeedsAttentionPriority priority) => priority switch
-        {
-            Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "Nothing overdue",
-            Pegasus.Core.Operations.NeedsAttentionPriority.Today => "Nothing due today",
-            _ => "Nothing later"
         };
 
         /// <summary>
