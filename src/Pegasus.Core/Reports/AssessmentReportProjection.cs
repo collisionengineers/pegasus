@@ -312,8 +312,8 @@ public static class AssessmentReportProjection
 
     /// <summary>
     /// The Case display and report share the same accepted settlement figures.
-    /// Incomplete or unconfirmed calculation inputs withhold the projection;
-    /// they never become zero-valued facts. Repair days belong to Current.
+    /// Incomplete calculation inputs withhold the projection; they never
+    /// become zero-valued facts. Repair days belong to Current.
     /// </summary>
     public static ReportSettlement? BuildSettlement(
         CaseAssessmentProjection assessment,
@@ -321,26 +321,13 @@ public static class AssessmentReportProjection
     {
         ArgumentNullException.ThrowIfNull(assessment);
         if (currentEstimate is not { IsCurrent: true, State: RepairSpecificationState.Accepted }
-            || assessment.Field(AssessmentVocabulary.ValueEngineer) is not { IsConfirmed: true } value
-            || ParseMoney(value.Value) is not { } engineerValue
-            || assessment.Field(AssessmentVocabulary.SettlementBetterment) is { IsConfirmed: false }
-            || (assessment.Field(AssessmentVocabulary.Outcome)?.Value == "total_loss"
-                && assessment.Field(AssessmentVocabulary.SalvageValue) is { IsConfirmed: false }))
-        {
-            return null;
-        }
-
-        if (string.Equals(
-                assessment.Field(AssessmentVocabulary.Outcome)?.Value,
-                "contract_repair",
-                StringComparison.Ordinal)
-            && assessment.Field(AssessmentVocabulary.SettlementContractSum) is not { IsConfirmed: true })
+            || assessment.Field(AssessmentVocabulary.ValueEngineer) is not { } value
+            || ParseMoney(value.Value) is not { } engineerValue)
         {
             return null;
         }
 
         var fields = assessment.Fields
-            .Where(field => field.IsConfirmed)
             .ToDictionary(field => field.Path, field => (string?)field.Value, StringComparer.Ordinal);
         var costs = ReportRepairCosts.For(currentEstimate);
         var betterment = ParseMoney(Field(fields, AssessmentVocabulary.SettlementBetterment));
@@ -378,10 +365,9 @@ public static class AssessmentReportProjection
 
     /// <summary>
     /// Groups the Current estimate's line descriptions for the report's
-    /// parts/repairs/operations lists. Every estimate line is already
-    /// confirmed by the time this runs — <see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/>
-    /// blocks the whole draft on the first unconfirmed line, of any type —
-    /// so this only has to group by type and drop blank descriptions.
+    /// parts/repairs/operations lists. The lines are the Current accepted
+    /// specification's — Use estimate is the acceptance — so this only has to
+    /// group by type and drop blank descriptions.
     /// </summary>
     private static string[] LinesOfType(
         IReadOnlyList<CaseEstimateLineRecord> lines, params ReadOnlySpan<string> types)

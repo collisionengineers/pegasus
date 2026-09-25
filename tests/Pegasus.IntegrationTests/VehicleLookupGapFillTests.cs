@@ -86,7 +86,7 @@ public sealed class VehicleLookupGapFillTests
     }
 
     [Fact]
-    public async Task RecordOutcomeWritesTheDerivedVehicleTypeAsUnconfirmedAutomation()
+    public async Task RecordOutcomeWritesTheDerivedVehicleTypeAsAutomation()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
@@ -100,7 +100,7 @@ public sealed class VehicleLookupGapFillTests
         Assert.Equal("vehicle-lookup", await database.ScalarAsync<string>(
             $"SELECT RecordedBy FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}' AND ConfirmedBy IS NULL AND ConfirmedAtUtc IS NULL"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}' AND RecordedByKind = 'Automation'"));
         Assert.Equal("M1", await database.ScalarAsync<string>(
             $"SELECT TypeApproval FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
         Assert.Equal("2 AXLE RIGID BODY", await database.ScalarAsync<string>(
@@ -115,7 +115,7 @@ public sealed class VehicleLookupGapFillTests
     /// on staff review and the readiness rail names none of them.
     /// </summary>
     [Fact]
-    public async Task RecordOutcomeWritesTheLookupsOwnFactsConfirmedByTheLookup()
+    public async Task RecordOutcomeWritesTheLookupsOwnFacts()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
@@ -130,8 +130,6 @@ public sealed class VehicleLookupGapFillTests
             Assert.Equal(value, row.Value);
             Assert.Equal(ActorKind.Automation.ToString(), row.RecordedByKind);
             Assert.Equal("vehicle-lookup", row.RecordedBy);
-            Assert.Equal("vehicle-lookup", row.ConfirmedBy);
-            Assert.NotNull(row.ConfirmedAtUtc);
         }
         Assert.Equal("BLUE", await database.ScalarAsync<string>(
             $"SELECT Colour FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
@@ -182,7 +180,6 @@ public sealed class VehicleLookupGapFillTests
             item => item.FieldPath == AssessmentVocabulary.VehicleColour);
         Assert.Equal("RED", colour.Value);
         Assert.Equal(changedAtUtc, colour.RecordedAtUtc);
-        Assert.Equal("vehicle-lookup", colour.ConfirmedBy);
         Assert.Equal("Stale", await database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
         Assert.Equal(1, await StaleRowCountAsync(database, caseId));
@@ -369,12 +366,10 @@ public sealed class VehicleLookupGapFillTests
             item => item.FieldPath == AssessmentVocabulary.VehicleColour);
         Assert.Equal("BLUE", colour.Value);
         Assert.Equal("vehicle-lookup", colour.RecordedBy);
-        Assert.Equal("vehicle-lookup", colour.ConfirmedBy);
-        Assert.NotNull(colour.ConfirmedAtUtc);
     }
 
     [Fact]
-    public async Task AStaffConfirmedVehicleTypeSurvivesRelookup()
+    public async Task AStaffRecordedVehicleTypeSurvivesRelookup()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
@@ -387,8 +382,6 @@ public sealed class VehicleLookupGapFillTests
             vehicleType.RecordedByKind = ActorKind.Staff.ToString();
             vehicleType.RecordedBy = "staff";
             vehicleType.RecordedAtUtc = FixedUtcNow;
-            vehicleType.ConfirmedBy = "staff";
-            vehicleType.ConfirmedAtUtc = FixedUtcNow;
             await context.SaveChangesAsync();
         }
 
@@ -401,11 +394,11 @@ public sealed class VehicleLookupGapFillTests
         Assert.Equal("car", await database.ScalarAsync<string>(
             $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
         Assert.Equal("staff", await database.ScalarAsync<string>(
-            $"SELECT ConfirmedBy FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+            $"SELECT RecordedBy FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
     }
 
     [Fact]
-    public async Task AnUnconfirmedVehicleTypeIsRestampedOnlyWhenTheCodeChanges()
+    public async Task ALookupRecordedVehicleTypeIsRestampedOnlyWhenTheCodeChanges()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
@@ -580,7 +573,7 @@ public sealed class VehicleLookupGapFillTests
                     $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"intake_evidence"}, {"instruction.pdf"}, {"page 1"}, {"extraction"}, {1})");
             }
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
+                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow})");
             await SeedFixtureDerivedFactsAsync(context, caseId);
         }
 
@@ -617,7 +610,7 @@ public sealed class VehicleLookupGapFillTests
             // and its answer would record the lookup's own facts; both are
             // printed assessment facts and would stale the report.
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
+                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow})");
             await SeedFixtureDerivedFactsAsync(context, caseId);
         }
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
@@ -686,7 +679,7 @@ public sealed class VehicleLookupGapFillTests
         foreach (var (path, value) in FixtureDerivedFacts)
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {path}, {value}, {ActorKind.Automation.ToString()}, {"vehicle-lookup"}, {FixedUtcNow}, {"vehicle-lookup"}, {FixedUtcNow})");
+                $"INSERT INTO CaseAssessmentFields (WorkId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc) VALUES ({caseId}, {path}, {value}, {ActorKind.Automation.ToString()}, {"vehicle-lookup"}, {FixedUtcNow})");
         }
     }
 

@@ -102,7 +102,6 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={store.LastCreatedEstimateId:D}");
         Assert.Contains(CaseWorkspaceLabels.EstimateImport.Imported, afterHtml, StringComparison.Ordinal);
-        Assert.All(store.CurrentDraft!.Lines, line => Assert.Null(line.ConfirmedBy));
         Assert.NotNull(store.ActiveLease);
         Assert.Contains("value=\"lease-3\"", afterHtml, StringComparison.Ordinal);
         Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
@@ -1381,7 +1380,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 new(
                     Guid.NewGuid(), 1, "new_part", "283", "FRONT BUMPER", null, 620.20m, false,
                     "51 11 8 067", "0%", "confirmed", "official", null,
-                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc, null, null,
+                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc,
                     PaintWorkUnits: null,
                     Quantity: 1,
                     Materials: 12.50m,
@@ -1395,7 +1394,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 new(
                     Guid.NewGuid(), 2, "repair", null, "REPAIR NEARSIDE DOOR", 2.5m, null, false,
                     null, null, "confirmed", "judgement", null,
-                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc, null, null,
+                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc,
                     PaintWorkUnits: 1.5m,
                     Quantity: null,
                     Materials: null,
@@ -1438,7 +1437,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new(
                 Guid.NewGuid(), 1, "new_part", "283", "FRONT BUMPER", null, 620.20m, false,
                 "51 11 8 067", "0%", "provisional", "case", null,
-                ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow),
+                ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow),
         ],
         null,
         "engineer-1",
@@ -1851,8 +1850,6 @@ public sealed partial class AssessmentEstimateImportWebTests
                     value.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
                     "engineer-1",
-                    DateTimeOffset.UtcNow,
-                    "engineer-1",
                     DateTimeOffset.UtcNow));
             }
             if (ContractSum is { } sum)
@@ -1862,15 +1859,11 @@ public sealed partial class AssessmentEstimateImportWebTests
                     "contract_repair",
                     ActorKind.Staff,
                     "engineer-1",
-                    DateTimeOffset.UtcNow,
-                    "engineer-1",
                     DateTimeOffset.UtcNow));
                 fields.Add(new(
                     AssessmentVocabulary.SettlementContractSum,
                     sum.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
-                    "engineer-1",
-                    DateTimeOffset.UtcNow,
                     "engineer-1",
                     DateTimeOffset.UtcNow));
             }
@@ -2197,8 +2190,6 @@ public sealed partial class AssessmentEstimateImportWebTests
                 ActorKind.Staff,
                 request.Actor.SubjectId,
                 DateTimeOffset.UtcNow,
-                null,
-                null,
                 line.PaintWorkUnits,
                 line.Quantity,
                 line.Materials,

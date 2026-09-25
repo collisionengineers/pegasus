@@ -258,9 +258,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Value = value.Value,
                 RecordedByKind = ActorKind.Staff.ToString(),
                 RecordedBy = engineer,
-                RecordedAtUtc = recordedAt,
-                ConfirmedBy = engineer,
-                ConfirmedAtUtc = recordedAt
+                RecordedAtUtc = recordedAt
             }));
         var recordedBreakdown = new EstimateCalculationBreakdown(
             RepairSpecificationPolicy.PolicyVersion,
@@ -384,14 +382,15 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task AutomationSaveIsUnconfirmedAttributedAndParityLoggedWithAStaffSave()
+    public async Task AutomationSaveIsAttributedAndParityLoggedWithAStaffSave()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-accept-1");
         var caseId = outcome.Identity.CaseId;
 
         // The Automation actor writes under the same lease and version
-        // guards as a staff save; its values land unconfirmed.
+        // guards as a staff save; its values are the Case's values, attributed
+        // to it (operator, 25 September 2026). It never records a finding.
         var automationLease = await harness.AcquireLeaseAsync(
             caseId,
             0,
@@ -408,13 +407,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     ["vehicle.condition"] = "good",
-                    ["assessment.outcome"] = "total_loss",
-                    ["assessment.category"] = "S",
-                    ["assessment.salvage_value"] = "1500.00"
-                    // The valuation values are deliberately absent: the
+                    ["damage.unrelated"] = "Kerbed nearside wheel",
+                    ["settlement.excess"] = "250.00"
+                    // The findings and the valuation values are deliberately
+                    // absent: a finding is recorded only by staff, and the
                     // Engineer's Value and its basis card's retail and trade
-                    // are recorded only by a Case Save's adoption, and a field
-                    // save that posted them is refused.
+                    // are recorded only by a Case Save's adoption.
                 },
                 [
                     new("repair", null, "Repair nearside door", 3.5m, null, false, null, null,
@@ -425,25 +423,20 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
 
         Assert.Equal(1, saved.CaseVersion);
-        Assert.All(saved.Fields, field =>
-        {
-            Assert.Equal(ActorKind.Automation, field.RecordedByKind);
-            Assert.False(field.IsConfirmed);
-        });
+        Assert.Equal(3, saved.Fields.Count);
+        Assert.All(saved.Fields, field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
         Assert.Equal(2, saved.EstimateLines.Count);
-        Assert.All(saved.EstimateLines, line => Assert.False(line.IsConfirmed));
-        Assert.Contains(
-            saved.Readiness,
-            item => item.Requirement == "vehicle.condition awaits review"
-                && item.Source.Contains("Automation", StringComparison.Ordinal));
-        Assert.Contains(
-            saved.Readiness,
-            item => item.Requirement == "Estimate line 1 (repair) awaits review");
+        Assert.All(saved.EstimateLines, line => Assert.Equal(ActorKind.Automation, line.RecordedByKind));
+        // No value waits for a review: nothing names a recorded field because
+        // of who recorded it.
+        Assert.DoesNotContain(saved.Readiness, item => item.Requirement.Contains("review", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(saved.Readiness, item => saved.Fields.Any(field => field.Path == item.Field));
 
-        // A staff Engineer re-saves one finding with the same value: the
-        // value flips to confirmed, and both saves left exactly the same
-        // shape of permanent evidence (logging parity, side by side). The
-        // clock advances so the two history rows order deterministically.
+        // A staff Engineer changes one value and re-posts another unchanged:
+        // the changed value takes staff provenance, the unchanged one keeps
+        // the automation's, and both saves left exactly the same shape of
+        // permanent evidence (logging parity, side by side). The clock
+        // advances so the two history rows order deterministically.
         harness.Advance(TimeSpan.FromMinutes(1));
         var staffLease = await harness.AcquireLeaseAsync(
             caseId,
@@ -456,17 +449,21 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 staffLease.Version,
                 harness.EngineerActor,
                 "staff-assessment-save-1",
-                "Engineer confirmed the recorded outcome.",
+                "Engineer corrected the condition.",
                 staffLease.Token,
                 new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
-                    ["assessment.outcome"] = "total_loss"
+                    ["vehicle.condition"] = "average",
+                    ["damage.unrelated"] = "Kerbed nearside wheel"
                 }),
             CancellationToken.None);
-        var confirmedOutcome = confirmed.Field("assessment.outcome");
-        Assert.NotNull(confirmedOutcome);
-        Assert.True(confirmedOutcome!.IsConfirmed);
-        Assert.Equal(ActorKind.Staff, confirmedOutcome.RecordedByKind);
+        var condition = confirmed.Field("vehicle.condition");
+        Assert.NotNull(condition);
+        Assert.Equal("average", condition!.Value);
+        Assert.Equal(ActorKind.Staff, condition.RecordedByKind);
+        var unrelated = confirmed.Field("damage.unrelated");
+        Assert.NotNull(unrelated);
+        Assert.Equal(ActorKind.Automation, unrelated!.RecordedByKind);
 
         await using var context = await harness.Factory.CreateDbContextAsync();
         var history = await context.ActionHistory.AsNoTracking()
@@ -713,7 +710,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(RepairSpecificationState.Draft, repairer.State);
         Assert.Equal("Repairer", repairer.Details.Name);
         Assert.Equal(3, repairer.Lines.Count);
-        Assert.All(repairer.Lines, line => Assert.True(line.IsConfirmed));
+        Assert.All(repairer.Lines, line => Assert.Equal(ActorKind.Staff, line.RecordedByKind));
         Assert.False(repairer.IsCurrent);
 
         var leaseB = await LeaseAsync(engineer, "estimate-lease-b");
@@ -822,8 +819,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal("Superfluous copy.", discarded.DiscardReason);
         Assert.Null(await harness.RepairSpecifications.GetCurrentDraftAsync(caseId, CancellationToken.None));
 
-        // AI draft: the Automation actor cites the Estimate job it holds; lines land unconfirmed;
-        // the Engineer's "Use estimate" confirms the lines and completes the Draft-ready job.
+        // AI draft: the Automation actor cites the Estimate job it holds; the lines carry its
+        // provenance; the Engineer's "Use estimate" accepts the Draft and completes the Draft-ready job.
         var job = await jobs.CreateAsync(
             new(AiJobKind.Estimate, AiJobSubjectKind.Case, caseId, outcome.Identity.Reference,
                 "Draft an estimate at 60 % of the Engineer's Value.", 60, 12000m, engineer,
@@ -850,7 +847,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         version++;
         Assert.Equal(RepairSpecificationSourceRoute.AiDraft, aiDraft.Source.Route);
         Assert.Equal(job.JobId, aiDraft.AiJobId);
-        Assert.All(aiDraft.Lines, line => Assert.False(line.IsConfirmed));
+        Assert.All(aiDraft.Lines, line => Assert.Equal(ActorKind.Automation, line.RecordedByKind));
         await jobs.TransitionAsync(
             new(job.JobId, taken.Version, AiJobState.DraftReady, harness.AutomationActor, "estimate-job-ready",
                 Result: new(AiJobResultKind.Estimate, aiDraft.SpecificationId.ToString("D"), null)),
@@ -863,7 +860,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         version++;
         Assert.True(currentAi.IsCurrent);
-        Assert.All(currentAi.Lines, line => Assert.Equal(engineer.SubjectId, line.ConfirmedBy));
+        Assert.All(currentAi.Lines, line => Assert.Equal(ActorKind.Automation, line.RecordedByKind));
         Assert.Equal(AiJobState.Completed, (await jobs.GetAsync(job.JobId, CancellationToken.None))!.State);
 
         Assert.Equal(4, (await list.ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)).Count);
@@ -987,7 +984,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             imported = await store.SaveImportedEstimateAsync(request, default);
             Assert.Equal(RepairSpecificationState.Draft, imported.State);
             Assert.False(imported.IsCurrent);
-            Assert.All(imported.Lines, line => Assert.False(line.IsConfirmed));
             Assert.Null(await store.GetCurrentAcceptedAsync(caseId, default));
             await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.RequireImportAuthorityAsync(authority, default));
             await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.SaveImportedEstimateAsync(request, default));
@@ -1050,7 +1046,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => use.ExecuteAsync(useRequest with { Actor = harness.AutomationActor }, default));
         var accepted = await use.ExecuteAsync(useRequest, default);
         Assert.True(accepted.IsCurrent);
-        Assert.All(accepted.Lines, line => Assert.Equal(engineer.SubjectId, line.ConfirmedBy));
         Assert.Single(await harness.RepairSpecifications.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default));
         Assert.Equal(2, (await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
     }

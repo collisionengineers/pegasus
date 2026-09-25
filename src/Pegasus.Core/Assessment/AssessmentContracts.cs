@@ -294,8 +294,8 @@ public static class AssessmentVocabulary
     /// Facts only the DVLA/DVSA vehicle lookup records (operator, 24 September
     /// 2026): engine capacity, fuel, colour, tax expiry and MOT expiry, each set by
     /// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.DerivedAssessmentWrites"/>
-    /// and recorded confirmed by the lookup, so none awaits review. The Vehicle
-    /// section shows them read-only; no field save records or clears one.
+    /// and recorded by the lookup. The Vehicle section shows them read-only;
+    /// no field save records or clears one.
     /// </summary>
     public static IReadOnlySet<string> LookupDerivedPaths { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -307,21 +307,10 @@ public static class AssessmentVocabulary
     };
 
     /// <summary>
-    /// The temporary-repair findings, which belong to an unroadworthy vehicle
-    /// (operator, 24 September 2026): Decisions shows them, the report prints
-    /// them and an unconfirmed one awaits review only while
-    /// <see cref="TemporaryRepairsApply"/> holds.
-    /// </summary>
-    public static IReadOnlySet<string> TemporaryRepairPaths { get; } = new HashSet<string>(StringComparer.Ordinal)
-    {
-        VehicleTemporaryRepairsPossible,
-        VehicleTemporaryRepairMethod,
-        VehicleTemporaryRepairCost
-    };
-
-    /// <summary>
     /// Whether the recorded roadworthiness makes the temporary repairs part of
-    /// the assessment: only an unroadworthy vehicle has them.
+    /// the assessment (operator, 24 September 2026): only an unroadworthy
+    /// vehicle has them, so Decisions shows them and the report prints them
+    /// only then.
     /// </summary>
     public static bool TemporaryRepairsApply(string? legalStatus) =>
         string.Equals(legalStatus, "unroadworthy", StringComparison.Ordinal);
@@ -424,8 +413,6 @@ public sealed record CaseEstimateLineRecord(
     ActorKind RecordedByKind,
     string RecordedBy,
     DateTimeOffset RecordedAtUtc,
-    string? ConfirmedBy,
-    DateTimeOffset? ConfirmedAtUtc,
     decimal? PaintWorkUnits = null,
     int? Quantity = null,
     decimal? Materials = null,
@@ -435,31 +422,22 @@ public sealed record CaseEstimateLineRecord(
     string? SourceDocumentSha256 = null,
     string? SourceRowIdentity = null,
     string? AmendedBy = null,
-    DateTimeOffset? AmendedAtUtc = null)
-{
-    public bool IsConfirmed => ConfirmedBy is not null;
-}
+    DateTimeOffset? AmendedAtUtc = null);
 
 /// <summary>
-/// One recorded assessment field value with its provenance. A value written
-/// by the Automation actor is stored unconfirmed, except the facts the vehicle
-/// lookup alone records (AssessmentVocabulary.LookupDerivedPaths), which it
-/// records confirmed by itself; a staff save records a confirmed value, and
-/// confirmation of a professional-finding field is staff-only. The permanent
-/// action history carries every before and after value, so the current row
-/// never erases evidence.
+/// One recorded assessment field value with its provenance. A recorded value
+/// is the Case's value whoever recorded it (operator, 25 September 2026):
+/// there is no per-field review, and the provenance is shown as the value's
+/// source tag. A professional finding is recorded only by staff. The
+/// permanent action history carries every before and after value, so the
+/// current row never erases evidence.
 /// </summary>
 public sealed record AssessmentFieldValue(
     string Path,
     string Value,
     ActorKind RecordedByKind,
     string RecordedBy,
-    DateTimeOffset RecordedAtUtc,
-    string? ConfirmedBy,
-    DateTimeOffset? ConfirmedAtUtc)
-{
-    public bool IsConfirmed => ConfirmedBy is not null;
-}
+    DateTimeOffset RecordedAtUtc);
 
 /// <summary>
 /// The case-owned fields the assessment surface reads without owning:
@@ -497,9 +475,8 @@ public sealed record AssessmentCaseOwnedData(
 /// One named blocker (FRD-13). <paramref name="Field"/> is the one recorded
 /// fact the blocker names: an <see cref="AssessmentVocabulary"/> path, or a
 /// <see cref="Pegasus.Core.Cases.CaseDataFieldNames"/> name for a Case fact.
-/// <paramref name="EstimateLine"/> is the position of the repair spec line the
-/// blocker names. Both are null when the blocker names other material (the
-/// sign-off account, the Current repair spec, report images);
+/// It is null when the blocker names other material (the sign-off account,
+/// the Current repair spec, report images);
 /// <see cref="Pegasus.Core.Reports.CaseReportReadiness"/> names those by its
 /// public requirement constants. The Web decides which section clears a
 /// blocker; Core holds no section list.
@@ -509,8 +486,7 @@ public sealed record AssessmentReadinessItem(
     string Source,
     string WhyOutstanding,
     string HowToResolve,
-    string? Field = null,
-    int? EstimateLine = null);
+    string? Field = null);
 
 public sealed record CaseAssessmentProjection(
     Guid CaseId,

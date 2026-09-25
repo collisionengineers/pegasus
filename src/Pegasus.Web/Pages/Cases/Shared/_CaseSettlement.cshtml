@@ -11,10 +11,9 @@
     Settlement (v26 § Settlement). The figures strip, then the Decisions strip
     (manager's v24 decision folded in: Outcome, Engineer's Value, Salvage
     category and value, Roadworthiness and the unroadworthy reason in one
-    place; the Proposed column only when a reviewed AI proposal exists), then
-    the settlement money, the costs/hire/delays sub-panel and the seven
-    salvage fields. One geometry for read and edit: every editable value is a
-    .fc cell whose control joins the record's one Save form.
+    place), then the settlement money, the costs/hire/delays sub-panel and
+    the seven salvage fields. One geometry for read and edit: every editable
+    value is a .fc cell whose control joins the record's one Save form.
 *@
 @using System.Globalization
 @using Pegasus.Core.Assessment
@@ -31,8 +30,6 @@
     var salvage = Model.SalvageValueFigure;
     var isTotalLoss = Model.IsTotalLoss;
     var isUnroadworthy = Model.IsUnroadworthy;
-    var hasProposal = Model.HasProposedDecisions;
-    var awaiting = Model.AwaitingDecisionCount;
     var outcome = Model.RecordedOutcome;
     var equity = engineerValue is { } ev ? ev - (salvage ?? 0m) : (decimal?)null;
 
@@ -70,44 +67,14 @@
             }
         </div>
 
-        @* The Decisions strip. The Proposed column draws only when a decision
-           field holds the Automation actor's unconfirmed value; Accept copies
-           it into the control (script) — without script the operator picks
-           the same value from the control beside it. *@
-        <div class="decisions @(hasProposal ? "has-proposal" : null)" data-decisions>
+        @* The Decisions strip. *@
+        <div class="decisions" data-decisions>
             <div class="dec-head">
                 <h3>@SettlementLabels.Decisions</h3>
-                @if (hasProposal)
-                {
-                    <span class="muted" data-decisions-meta>@awaiting @SettlementLabels.AwaitingReview · @SettlementLabels.AiProposal</span>
-                }
-                @if (hasProposal && editing && awaiting > 0)
-                {
-                    <button type="button" class="btn btn--small" data-accept-all-proposals>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                        <span>@SettlementLabels.AcceptAll</span>
-                    </button>
-                }
             </div>
             @{ await DecisionRow(AssessmentVocabulary.Outcome, labels[AssessmentVocabulary.Outcome], false); }
             <div class="dec" data-decision="@AssessmentVocabulary.ValueEngineer">
                 <span class="dl">@SettlementLabels.EngineersValue</span>
-                @if (hasProposal)
-                {
-                    var valueProposal = Model.ProposalFor(AssessmentVocabulary.ValueEngineer);
-                    <div class="prop" data-proposal="@AssessmentVocabulary.ValueEngineer" data-proposal-status="@valueProposal?.Status">
-                        @if (valueProposal is not null)
-                        {
-                            <span>@Pegasus.Web.Pages.Cases.DetailsModel.DisplayAssessmentValue(AssessmentVocabulary.ValueEngineer, valueProposal.ProposedValue)</span>
-                            <span class="src-tag src-tag--ai">AI</span>
-                            <span class="status @Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusClass(valueProposal.Status)">@Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusWord(valueProposal.Status)</span>
-                            @if (editing && valueProposal.Status == CaseFieldProposalStatus.Awaiting)
-                            {
-                                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.SetInValuation</a>
-                            }
-                        }
-                    </div>
-                }
                 <div class="fc ro">
                     <span class="lbl">@SettlementLabels.EngineersValue</span>
                     <div class="fv mono" data-decision-engineer-value data-engineer-value="@(engineerValue?.ToString("0.##", CultureInfo.InvariantCulture))">
@@ -130,8 +97,7 @@
             }
             <div class="dec wide" data-decision="@AssessmentVocabulary.UnroadworthyReason" data-shown-when="unroadworthy" hidden="@(isUnroadworthy ? null : "hidden")">
                 <span class="dl">@labels[AssessmentVocabulary.UnroadworthyReason]</span>
-                @{ Proposal(AssessmentVocabulary.UnroadworthyReason);
-                    await Field(AssessmentVocabulary.UnroadworthyReason, labels[AssessmentVocabulary.UnroadworthyReason], multi: true); }
+                @{ await Field(AssessmentVocabulary.UnroadworthyReason, labels[AssessmentVocabulary.UnroadworthyReason], multi: true); }
                 @if (editing && Model.CanEditAssessmentField(AssessmentVocabulary.UnroadworthyReason))
                 {
                     @* The firm's bank (P15): a wording is inserted into the reason,
@@ -203,20 +169,17 @@
 </section>
 
 @functions {
-    // One decision row: the label column, the Proposed column when the strip
-    // carries proposals, and the cell itself. The strip hides the cell's own
-    // label, so a row that is not a decision (a temporary repair) carries its
-    // value's source tag in the label column; a decision's AI value shows its
-    // tag in the Proposed column instead.
+    // One decision row: the label column and the cell itself. The strip hides
+    // the cell's own label, so the row carries its value's source tag in the
+    // label column.
     private async Task DecisionRow(string path, string label, bool hidden, string? shownWhen = null, bool share = false)
     {
         var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
         var radios = definition.Type == AssessmentFieldType.Enumerated;
-        var rowTag = CaseFieldProposalPolicy.DecisionPaths.Contains(path) ? null : Model.AssessmentSourceTag(path);
+        var rowTag = Model.AssessmentSourceTag(path);
         <div class="dec" data-decision="@path" data-shown-when="@shownWhen" hidden="@(hidden ? "hidden" : null)">
             <span class="dl">@label @(rowTag?.Render())</span>
-            @{ Proposal(path); }
             @{ await Field(path, label, radios: radios); }
             @if (share)
             {
@@ -252,31 +215,6 @@
                         <span class="read mono" data-salvage-read>@(salvageShare is { } read ? SettlementLabels.ShareOfValue(read, engineerValueText) : string.Empty)</span>
                     }
                 </div>
-            }
-        </div>
-    }
-
-    // The Proposed column's cell: the AI's value, its tag and the derived
-    // status (Awaiting / Accepted / Corrected); Accept only while it awaits a
-    // decision and the field edits. Drawn only when the strip carries proposals.
-    private void Proposal(string path)
-    {
-        if (!Model.HasProposedDecisions)
-        {
-            return;
-        }
-        var proposal = Model.ProposalFor(path);
-        var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
-        <div class="prop" data-proposal="@path" data-proposal-status="@proposal?.Status">
-            @if (proposal is not null)
-            {
-                <span data-proposal-value="@proposal.ProposedValue">@Pegasus.Web.Pages.Cases.DetailsModel.DisplayAssessmentValue(path, proposal.ProposedValue)</span>
-                <span class="src-tag src-tag--ai">AI</span>
-                <span class="status @Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusClass(proposal.Status)">@Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusWord(proposal.Status)</span>
-                @if (editable && proposal.Status == CaseFieldProposalStatus.Awaiting)
-                {
-                    <button type="button" class="btn btn--small" data-accept-proposal="@path"><span>@SettlementLabels.Accept</span></button>
-                }
             }
         </div>
     }

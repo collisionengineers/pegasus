@@ -605,10 +605,9 @@ public static class CaseWorkspacePolicy
         }
 
         var fields = AssessmentFields(request);
-        if (request.Actor.Kind == ActorKind.Staff
-            && fields.Keys.Any(path => AssessmentVocabulary.Definitions[path].IsFinding))
+        if (fields.Keys.Any(path => AssessmentVocabulary.Definitions[path].IsFinding))
         {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(request.Actor);
+            AssessmentPolicy.RequireFindingAuthority(request.Actor);
         }
 
         if (request.Inspection is { } inspection)
@@ -642,7 +641,7 @@ public static class CaseWorkspacePolicy
         // checks.
         if (validated.Valuation is { Adoption: { } adoption } adopting)
         {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(validated.Actor);
+            AssessmentPolicy.RequireFindingAuthority(validated.Actor);
             validated = validated with
             {
                 Valuation = adopting with

@@ -108,9 +108,9 @@ controls. The Overview and Inspection sections each show exactly one panel
 per mode. Each value carries its source tag in its label line in both modes
 (Extracted, AI, E-mail, Lookup, Principal, Automatic); a staff value carries
 none ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)).
-A control opens holding the value its box shows, except a decision's AI
-proposal awaiting review, which stays in the Decisions strip's Proposed
-column. The edit-mode Overview uses the label **Claim reference** for
+A control opens holding the value its box shows. A value keeps its tag
+until staff change it: a Save that reposts it unchanged leaves its
+provenance alone (operator, 25 September 2026). The edit-mode Overview uses the label **Claim reference** for
 the provider's claim number everywhere it appears. Our ref is the separate,
 immutable Case reference. The Registration, Make and Model inputs live in
 the Vehicle section's edit state, not on Overview.
@@ -241,8 +241,8 @@ itself, never the e-mail it arrived in:
 - when a standalone Audit is accepted, from the report retained at intake;
 - when staff **Mark as original report**, from that document.
 
-A filled cell is tagged **Extracted** until a staff Save confirms it. A fill
-lands only on a cell staff have not confirmed and never clears one, so a
+A filled cell is tagged **Extracted** until staff change it. A fill lands
+only on a cell staff have not recorded and never clears one, so a
 staff-entered value is never overwritten. A cell stays blank for staff when
 the report prints no value for it, prints two different values, or prints a
 word the cell's list does not hold. Roadworthiness reads a printed Yes/No or
@@ -282,7 +282,7 @@ Transmission keeps its place among them and is edited in place, picked from
 Manual, Automatic, Semi-automatic, CVT or Unknown, because no approved lookup
 returns it (operator, 24 September 2026). One **Look up DVLA & MOT** action
 (`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
-that staff have not confirmed, and records the lookup's own facts. It never
+that staff have not recorded, and records the lookup's own facts. It never
 overwrites an extracted or staff-entered value. There is no checks panel and
 no suggestion table. Run Experian check stays the disabled seam. A labelled
 Vehicle history area holds the history-check narrative as read-only text,

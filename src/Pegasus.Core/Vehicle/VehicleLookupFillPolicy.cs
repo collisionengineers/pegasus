@@ -29,9 +29,9 @@ public static class VehicleLookupFillPolicy
 
     /// <summary>
     /// A lookup fills a vehicle field only where the Case holds neither an
-    /// extracted fact nor a staff-confirmed value.
+    /// extracted fact nor a value staff recorded.
     /// </summary>
-    public static bool Fills(bool hasFact, bool hasConfirmed) => !hasFact && !hasConfirmed;
+    public static bool Fills(bool hasFact, bool hasStaffValue) => !hasFact && !hasStaffValue;
 
     /// <summary>
     /// DVLA answers first for every member, and DVSA fills each one DVLA left

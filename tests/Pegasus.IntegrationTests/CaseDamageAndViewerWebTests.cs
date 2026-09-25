@@ -320,11 +320,11 @@ public sealed class CaseDamageAndViewerWebTests
             null,
             [
                 new(AssessmentVocabulary.DamageImpacts, impacts, ActorKind.Staff, "engineer-1",
-                    DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow),
+                    DateTimeOffset.UtcNow),
                 new(AssessmentVocabulary.ImpactLocation, "rear", ActorKind.Staff, "engineer-1",
-                    DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow),
+                    DateTimeOffset.UtcNow),
                 new(AssessmentVocabulary.ImpactSeverity, "heavy", ActorKind.Staff, "engineer-1",
-                    DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow)
+                    DateTimeOffset.UtcNow)
             ],
             [],
             new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,

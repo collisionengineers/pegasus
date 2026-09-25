@@ -290,7 +290,8 @@ shared `.dismiss` × so it can be put away before it expires.
   visible word in a small `src-tag` pill in the cell's label line, the same in
   read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
   Provider API. Lookup reads blue, AI navy, every other source neutral. A value
-  staff typed or corrected carries no tag. There is no provenance icon or
+  staff typed or corrected carries no tag; a value staff left untouched keeps
+  its tag across a Save (operator, 25 September 2026). There is no provenance icon or
   hover tooltip (operator, 23 September 2026: one tag system, the Lookup
   chip's). Source labels, policy keys and provenance sentences do not appear
   in markup.

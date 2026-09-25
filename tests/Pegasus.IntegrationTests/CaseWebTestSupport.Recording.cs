@@ -256,7 +256,7 @@ internal static partial class CaseWebTestSupport
         private CaseAssessmentProjection EngineeringAssessment() => new(
             CaseId, "QDOS3100042", CaseVersion, State, null,
             [new(AssessmentVocabulary.ReportDate, "2031-05-06", ActorKind.Staff,
-                "recorded-engineer", _now, "recorded-engineer", _now)],
+                "recorded-engineer", _now)],
             [], new("AB12CDE", null, null, null, null, null, "tbc", null, DateOnly.FromDateTime(_now.UtcDateTime), null, null,
                 null, "Case claimant", "CLM-42"));
 

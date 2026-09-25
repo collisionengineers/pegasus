@@ -2791,9 +2791,9 @@
 
 // --- settlement: the Decisions strip -----------------------------------------
 // The outcome and roadworthiness selects show and hide the rows that only
-// apply to them; Accept copies an AI proposal into the row's own control.
-// Every control is a plain form field of #case-edit-form, so without script
-// the rows the server rendered stand and the operator picks the value.
+// apply to them. Every control is a plain form field of #case-edit-form, so
+// without script the rows the server rendered stand and the operator picks
+// the value.
 (function () {
     'use strict';
 
@@ -2828,11 +2828,6 @@
             function choose(button, focus) {
                 var choice = button.getAttribute('data-radio-value');
                 select.value = choice;
-                if (choice === '') {
-                    select.dataset.decisionExplicitUnset = 'true';
-                } else {
-                    delete select.dataset.decisionExplicitUnset;
-                }
                 select.dispatchEvent(new Event('input', { bubbles: true }));
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 paint();
@@ -2979,54 +2974,18 @@
                         + ' (' + reserveRead.getAttribute('data-rounded-up') + ')';
                 reserveRead.classList.toggle('empty', reserve === null);
             }
-            // An awaiting AI proposal leaves its control empty until accepted,
-            // so the rows it implies follow the proposal until a person decides.
-            function decided(path, control) {
-                if (control && (control.value || control.dataset.decisionExplicitUnset === 'true')) {
-                    return control.value;
-                }
-                var awaiting = section.querySelector('[data-proposal="' + path + '"][data-proposal-status="Awaiting"] [data-proposal-value]');
-                return awaiting ? awaiting.getAttribute('data-proposal-value') : '';
-            }
             function sync() {
                 if (outcome) {
-                    var outcomeValue = decided('assessment.outcome', outcome);
-                    show('total-loss', outcomeValue === 'total_loss');
-                    syncReserve(outcomeValue);
+                    show('total-loss', outcome.value === 'total_loss');
+                    syncReserve(outcome.value);
                 }
                 if (legal) {
-                    show('unroadworthy', decided('assessment.legal_status', legal) === 'unroadworthy');
+                    show('unroadworthy', legal.value === 'unroadworthy');
                 }
             }
             if (outcome) { outcome.addEventListener('change', sync); }
             if (legal) { legal.addEventListener('change', sync); }
             sync();
-
-            function accept(button) {
-                var path = button.getAttribute('data-accept-proposal');
-                var row = section.querySelector('[data-decision="' + path + '"]');
-                var proposal = row && row.querySelector('[data-proposal-value]');
-                var target = control(row);
-                if (!proposal || !target) {
-                    return;
-                }
-                target.value = proposal.getAttribute('data-proposal-value');
-                target.dispatchEvent(new Event('input', { bubbles: true }));
-                target.dispatchEvent(new Event('change', { bubbles: true }));
-                button.hidden = true;
-            }
-            section.querySelectorAll('[data-accept-proposal]').forEach(function (button) {
-                button.addEventListener('click', function () { accept(button); });
-            });
-            var all = section.querySelector('[data-accept-all-proposals]');
-            if (all) {
-                all.addEventListener('click', function () {
-                    section.querySelectorAll('[data-accept-proposal]').forEach(function (button) {
-                        if (!button.hidden) { accept(button); }
-                    });
-                    all.hidden = true;
-                });
-            }
         });
     }
     bind(document);

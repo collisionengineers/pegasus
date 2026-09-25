@@ -1157,7 +1157,7 @@ public sealed class CaseReportGenerationPersistenceTests
 
         var recordedAt = new DateTimeOffset(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
         AssessmentFieldValue Confirmed(string path, string value) => new(
-            path, value, ActorKind.Staff, "engineer-1", recordedAt, "engineer-1", recordedAt);
+            path, value, ActorKind.Staff, "engineer-1", recordedAt);
         harness.ReviseAssessment(assessment => assessment with
         {
             Fields =

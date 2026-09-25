@@ -71,10 +71,10 @@ With Engineer covers before and after the report
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A file
 occurrence must name the exact confirmed, non-removed document version; a
 correctly paired historical version is still valid evidence. The new Draft is
-guarded again in the save transaction. Importing never confirms rows or
-changes Current, even when a staff member started it. The human staff
-**Use estimate** action confirms and accepts the Draft once its source,
-mapping, rows and calculation basis pass the normal acceptance rules.
+guarded again in the save transaction. Importing never changes Current, even
+when a staff member started it. The human staff **Use estimate** action
+accepts the Draft once its source, mapping, rows and calculation basis pass
+the normal acceptance rules.
 
 **Glass's calculation PDFs.** These keep ordered Body, Auxiliary and Paint
 rows, included-operation context, source guide codes, unambiguous

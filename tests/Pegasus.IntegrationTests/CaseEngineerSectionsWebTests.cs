@@ -261,8 +261,6 @@ public sealed class CaseEngineerSectionsWebTests
                 value,
                 ActorKind.Staff,
                 "engineer-1",
-                DateTimeOffset.UtcNow,
-                "engineer-1",
                 DateTimeOffset.UtcNow);
             return
             [
@@ -291,7 +289,7 @@ public sealed class CaseEngineerSectionsWebTests
                 new(
                     Guid.NewGuid(), 1, "new_part", null, "FRONT BUMPER", null, 620.20m, false,
                     "51 11 8 067", null, null, null, null,
-                    ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow),
+                    ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow),
             ],
             null,
             "engineer-1",

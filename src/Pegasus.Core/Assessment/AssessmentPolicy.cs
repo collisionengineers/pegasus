@@ -14,11 +14,13 @@ namespace Pegasus.Core.Assessment;
 /// closed on unknown or case-owned paths; values are canonicalized before
 /// persistence; the required-when pairings from the screen's own hints are
 /// enforced against the merged state; and the actor rules implement the
-/// operator-decided direct-write model: staff saves record confirmed values,
-/// Automation saves record unconfirmed values, and a professional-finding
-/// field is confirmable only by an authenticated staff actor. Estimate
-/// derivation (totals, worklists) is deliberately absent until its formulas
-/// hold accepted authority (EXT-09, open decision D2).
+/// operator-decided direct-write model: a staff or Automation save records
+/// the Case's value with its provenance, and a professional-finding field is
+/// recorded only by an authenticated staff actor. There is no per-field
+/// review (operator, 25 September 2026): Review is a Case stage, and Hand to
+/// Engineer is the review. Estimate derivation (totals, worklists) is
+/// deliberately absent until its formulas hold accepted authority (EXT-09,
+/// open decision D2).
 /// </summary>
 public static class AssessmentPolicy
 {
@@ -63,9 +65,9 @@ public static class AssessmentPolicy
             touchesFinding |= AssessmentVocabulary.Definitions[path].IsFinding;
         }
 
-        if (touchesFinding && request.Actor.Kind == ActorKind.Staff)
+        if (touchesFinding)
         {
-            RequireFindingConfirmationAuthority(request.Actor);
+            RequireFindingAuthority(request.Actor);
         }
 
         var normalizedLines = request.EstimateLines is null
@@ -75,14 +77,14 @@ public static class AssessmentPolicy
     }
 
     /// <summary>
-    /// The one owner of who may confirm a professional finding: a staff
-    /// member only when that member is authenticated staff. The
-    /// assessment save applies it to its staff branch (the Automation actor
-    /// records unconfirmed working data instead); a caller that writes a
-    /// finding field as a confirmed value outside that save - the Engineer's
-    /// Value valuation - applies it on its own.
+    /// The one owner of who may record a professional finding: an
+    /// authenticated staff member, never the Automation actor (the MCP write
+    /// refuses the same paths by name). The assessment save applies it to any
+    /// save that touches a finding; a caller that writes a finding field
+    /// outside that save - the Engineer's Value valuation - applies it on its
+    /// own.
     /// </summary>
-    public static void RequireFindingConfirmationAuthority(ActionActor actor)
+    public static void RequireFindingAuthority(ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
         if (actor.Kind != ActorKind.Staff)
@@ -528,55 +530,25 @@ public static class AssessmentPolicy
             }
         }
 
-        var contractRepair = string.Equals(
-            fields.GetValueOrDefault(AssessmentVocabulary.Outcome),
-            "contract_repair",
-            StringComparison.Ordinal);
-        if (contractRepair
-            && projection.Field(AssessmentVocabulary.SettlementContractSum) is not { IsConfirmed: true })
+        if (string.Equals(
+                fields.GetValueOrDefault(AssessmentVocabulary.Outcome),
+                "contract_repair",
+                StringComparison.Ordinal)
+            && !fields.ContainsKey(AssessmentVocabulary.SettlementContractSum))
         {
             items.Add(new(
                 "Agreed contract sum",
                 "Assessment record",
-                "The outcome is Contract repair without a confirmed agreed contract sum.",
+                "The outcome is Contract repair without an agreed contract sum.",
                 "Record the agreed contract sum on the Decisions section and save it.",
                 Field: AssessmentVocabulary.SettlementContractSum));
         }
 
-        // Temporary repairs are the unroadworthy vehicle's: the report prints
-        // them only then and Decisions shows their rows only then. For any
-        // other vehicle an unconfirmed temporary repair would block the report
-        // on a value it does not print, from rows the operator cannot see, so
-        // it blocks nothing.
-        var temporaryRepairsApply = AssessmentVocabulary.TemporaryRepairsApply(
-            fields.GetValueOrDefault(AssessmentVocabulary.LegalStatus));
-
-        // One actionable blocker per unconfirmed value, naming the exact
-        // field or line and who recorded it. A single aggregate count is
-        // prohibited: an unmet requirement has to identify its own material,
-        // provenance, reason, and permitted resolution.
-        foreach (var field in projection.Fields.Where(field => !field.IsConfirmed
-            && !(contractRepair && field.Path == AssessmentVocabulary.SettlementContractSum)
-            && (temporaryRepairsApply || !AssessmentVocabulary.TemporaryRepairPaths.Contains(field.Path))))
-        {
-            items.Add(new(
-                $"{field.Path} awaits review",
-                $"Recorded by {field.RecordedByKind} ({field.RecordedBy})",
-                "The value is unconfirmed working data until a staff member confirms it.",
-                "Review the value on its Case section and save to confirm it, or clear it there.",
-                Field: field.Path));
-        }
-
-        foreach (var line in projection.EstimateLines.Where(line => !line.IsConfirmed))
-        {
-            items.Add(new(
-                $"Estimate line {line.Position} ({line.Type}) awaits review",
-                $"Recorded by {line.RecordedByKind} ({line.RecordedBy})",
-                "The line is unconfirmed working data until a staff member confirms it.",
-                "Review the line on the Repair Spec section; Use repair spec confirms the spec's lines.",
-                EstimateLine: line.Position));
-        }
-
+        // A recorded value is the Case's value whoever recorded it (operator,
+        // 25 September 2026): nothing here names a field because of who
+        // recorded it. Each requirement above identifies its own material,
+        // reason and permitted resolution; a single aggregate count is
+        // prohibited.
         return items;
     }
 

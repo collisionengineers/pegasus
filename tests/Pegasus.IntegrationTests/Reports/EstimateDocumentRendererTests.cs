@@ -208,7 +208,6 @@ public sealed partial class EstimateDocumentRendererTests
     private static CaseEstimateLineRecord Line(int position, string description) => new(
         Guid.NewGuid(), position, "repair", null, description, 0.1m, null, false,
         null, null, null, null, null, ActorKind.Staff, "engineer",
-        new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero), "engineer",
         new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero));
 
     private static string[] PageTexts(byte[] pdf)
