@@ -37,9 +37,20 @@ public sealed class PrincipalCredentialPersistenceTests
                 .Select(item => item.Organization.Version)
                 .SingleAsync();
         }
-        var other = await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
-            new("Alpha Provider", "OTHER", Administrator, "credential:principal:other"),
+        await services.GetRequiredService<IContactDirectoryAdministration>().SaveAsync(
+            new SaveContactRequest(
+                Administrator, Guid.NewGuid(), 0, "Alpha Provider", null, null, null, null, null, true,
+                [ContactRole.Principal], "OTHER", CaseInspectionMode.PhysicalAddress, [],
+                "credential:principal:other"),
             default);
+        Guid otherPrincipalId;
+        await using (var otherContext = await contextFactory.CreateDbContextAsync())
+        {
+            otherPrincipalId = await otherContext.Principals.AsNoTracking()
+                .Where(item => item.Code == "OTHER" && item.IsActive)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
 
         Assert.Null(await get.ExecuteAsync(Administrator, principalId, default));
 
@@ -152,11 +163,11 @@ public sealed class PrincipalCredentialPersistenceTests
 
         // Isolation: the other Principal has nothing, and its absence is not
         // confused with this Principal's credential.
-        Assert.Null(await get.ExecuteAsync(Administrator, other.Id, default));
+        Assert.Null(await get.ExecuteAsync(Administrator, otherPrincipalId, default));
         var status = await get.ExecuteAsync(Administrator, principalId, default);
         Assert.Equal(reissued.Credential, status);
         var absentCredentialRequest = await RequestAsync(
-            services, other.Id, 0, "credential:revoke:other", "none");
+            services, otherPrincipalId, 0, "credential:revoke:other", "none");
         Assert.Equal(
             PrincipalCredentialError.CredentialNotFound,
             (await Assert.ThrowsAsync<PrincipalCredentialException>(

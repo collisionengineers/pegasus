@@ -321,7 +321,7 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, performance.Outcome);
         Assert.Equal(["pch-performance"], performance.MatchedVariantKeys);
-        Assert.False(performance.HasAmbiguousVariant);
+        Assert.True(performance.MatchedVariantKeys.Count <= 1);
     }
 
     [Fact]
@@ -347,7 +347,7 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, selection.Outcome);
         Assert.Equal(["pch-lawshield", "pch-performance"], selection.MatchedVariantKeys);
-        Assert.True(selection.HasAmbiguousVariant);
+        Assert.True(selection.MatchedVariantKeys.Count > 1);
     }
 
     [Fact]
@@ -390,7 +390,7 @@ public sealed class InstructionExtractionPolicySelectorTests
         Assert.Equal(
             [PchInstructionExtractionPolicy.PerformanceVariantKey],
             performanceOnly.MatchedVariantKeys);
-        Assert.False(performanceOnly.HasAmbiguousVariant);
+        Assert.True(performanceOnly.MatchedVariantKeys.Count <= 1);
 
         // The audit body and Performance footer overlap inside PCH, so this
         // stays one selected profile rather than becoming cross-policy
@@ -400,14 +400,14 @@ public sealed class InstructionExtractionPolicySelectorTests
             + "Registration No: XS02ANG"));
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, auditOnly.Outcome);
         Assert.Empty(auditOnly.MatchedVariantKeys);
-        Assert.False(auditOnly.HasAmbiguousVariant);
+        Assert.True(auditOnly.MatchedVariantKeys.Count <= 1);
 
         var bothFooters = Select(selector, Readable(
             "URGENT NEW INSTRUCTION (Connexus Audit Report)\nVehicle Make: BMW 220i\n"
             + "Registration No: BD69NJY\n"
             + "Performance Car Hire Limited is an appointed representative of Lawshield UK Ltd"));
         Assert.Equal(InstructionPolicySelectionOutcome.Selected, bothFooters.Outcome);
-        Assert.True(bothFooters.HasAmbiguousVariant);
+        Assert.True(bothFooters.MatchedVariantKeys.Count > 1);
 
         // The assessor firms' own letters share the labels and are not PCH.
         var lookalike = Select(selector, Readable(

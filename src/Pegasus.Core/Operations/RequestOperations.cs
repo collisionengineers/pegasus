@@ -106,6 +106,8 @@ public sealed record RetryExternalWorkCommand(
     ActionActor Actor,
     string OperationKey);
 
+public sealed record OperationsRetryResult(bool IsReplay);
+
 public interface IExternalWorkRetryStore
 {
     Task<OperationsRetryResult> RetryAsync(

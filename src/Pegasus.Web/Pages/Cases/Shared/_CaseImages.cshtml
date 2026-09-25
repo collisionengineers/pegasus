@@ -85,7 +85,7 @@ else
                    data-thumb="@thumbnailHref"
                    data-tag="@firstTag?.Name"
                    data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
-                    <img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image data-tile-image />
+                    <img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image />
                     @if (firstTag is not null)
                     {
                         <span class="tag">@firstTag.Name</span>
@@ -253,7 +253,7 @@ else
                            data-media-type="@item.MediaType"
                            data-file-name="@item.FileName"
                            data-thumb="@href">
-                            <img src="@href" alt="@item.FileName" loading="lazy" data-gallery-image data-tile-image />
+                            <img src="@href" alt="@item.FileName" loading="lazy" data-gallery-image />
                             <span class="th-name">@item.FileName</span>
                         </a>
                         <div class="image-tile-source">

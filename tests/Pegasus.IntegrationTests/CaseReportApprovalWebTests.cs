@@ -270,13 +270,6 @@ public sealed class CaseReportApprovalWebTests
         IAcquireCaseEditLease,
         IRecordCaseReportApproval
     {
-        /// <summary>
-        /// Stands in for the resolved display name <c>GetCase</c> would compute
-        /// (see <see cref="Pegasus.Core.Actors.ActorDisplayNames"/>); this fake
-        /// bypasses <c>GetCase</c> entirely, so it supplies the projection itself.
-        /// </summary>
-        internal const string ApproverDisplayName = "alex";
-
         private readonly DateTimeOffset now =
             new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private string? leaseHolder;
@@ -330,8 +323,7 @@ public sealed class CaseReportApprovalWebTests
                 [],
                 [])
             {
-                Data = AssessmentWorkspaceTestData.Create(Assessment(workflow)).Data,
-                ReportApprovedByDisplayName = approval is null ? null : ApproverDisplayName
+                Data = AssessmentWorkspaceTestData.Create(Assessment(workflow)).Data
             };
             return details;
         }

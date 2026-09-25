@@ -86,11 +86,9 @@ public sealed class ResolveApprovedOutlookCategory(IApprovedOutlookCategoryResol
 public enum ApprovedOutlookCategoryUpdateError { NotFound, DuplicateDisplayName, VersionConflict, OperationConflict }
 
 public sealed class ApprovedOutlookCategoryUpdateException(
-    ApprovedOutlookCategoryUpdateError error,
-    int? currentVersion = null) : InvalidOperationException("The Outlook category policy could not be saved.")
+    ApprovedOutlookCategoryUpdateError error) : InvalidOperationException("The Outlook category policy could not be saved.")
 {
     public ApprovedOutlookCategoryUpdateError Error { get; } = error;
-    public int? CurrentVersion { get; } = currentVersion;
 }
 
 public sealed class ApprovedOutlookCategoryUnavailableException()

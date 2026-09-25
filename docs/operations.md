@@ -4,6 +4,21 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 65 — 25 September 2026 (deployment live)
+
+Release 65 deployed PRs 852, 854 and 855. Report fields now have one owning input path, vehicle lookup facts follow the Case's current registration, and the obsolete instruction-date field is retired in favour of the Case received date. The operator-approved ordinary intake wipe ran first, followed by the existing App Service destructive migration route. Web and Worker are Running on the approved release, and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and packages | Version `0.1.0-alpha.1`, application source `32dabfc59a2e13b8556c1ecfaa0590617422e8df`, promoted atomically to both `dev` and `main`. Manifest schema 3 SHA-256 `128A5AC50C2BB7FF64A4742576A882771D86C1746ECF30DBCA8E67ED6123E1B0`. `web.zip` SHA-256 `EB1DDC2385029C49D33DC69D0BF40E091AFEDD7D3A137ED1010E5C643061E2E8`. `worker.zip` SHA-256 `A47A4554448F16634E6F6A6447C643073F1EBB5C741493B8C87833E9FF808ACA`. Windows `efbundle.exe` SHA-256 `F177E96F469B7D51F585D4796F0152DC830544FFCCA1C1BCFDFFE34801CD78FE` (run). |
+| Review and verification | PRs 852, 854 and 855 passed their required CI and automated security review found no findings. The operator granted wipe, stop, merge and deployment approval for the fixed production targets and immediate window. The release build and Local, Artifact, PreDeploy, PreMigration and both PreProvision gates passed. |
+| Intake wipe | At 08:05Z, with Worker `Stopped`, the ordinary wipe cleared 0 blobs from `pegcustody252ow37gij/transient-intake` and 25 inventoried rows across 93 non-preserved tables in SQL `pegasus` on `pegasus-prod-sql-252ow37gij`; the batch reported 26 effects including its cutoff write. Post-run checks found zero blobs and zero wiped tables still holding rows. The committed mail cutoff is `2026-09-25T08:05:37.7098509+00:00`; 590 preserved rows remain. `CaseSequences` 14, `ImageIntakeSequences` 9 rows and `UnidentifiedSequences` 1 were unchanged; `ValuationPresets` remained 0/0. `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook and Box were untouched. No `-ResetTestEstate` was used. |
+| Containment | The canonical Worker Disabled census was set `true` and smoked, the approved `worker.zip` was staged disabled and smoked again, then Worker and Web both read back `Stopped`; `/health/live` was unserved. The immediate pre-SQL read-back repeated all three checks. The old Web reported the approved source `773a9787eab8b7caa11dab4a4a25bf0063b0dec5`. |
+| Schema and grants | Migration identity changed from `20260924180000_CaseWorksAndTriageCases` to `20260925120000_RetireInstructionDate`. The bundle applied additive `20260925090000_VehicleLookupDerivedFacts`, then destructive, forward-only `20260925120000_RetireInstructionDate`, which removed `instruction_date` Case data and dropped `InstructionDrafts.InstructionDate`. Bootstrap verified 715 catalogued permission/denial rows and 499 effective runtime DML rows. The live head read back exactly as the manifest identity. |
+| Web and Worker deployment | OneDeploy `63de4ec2-888f-45da-b28e-6f70718e69a4` succeeded against the stopped Web App with restart and status tracking disabled; the site remained `Stopped`. Disabled-Worker provisioning and explicit compatible activation provisioning both succeeded. Web then read back `Running`, `DOTNETCORE\|10.0`, HTTP 200 readiness and exact source/version. Worker read back `Running` with every Disabled value `false`. |
+| Production smoke | Passed after activation. Active Web package `20260925081308.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-09-25T08:20:33Z`, and the active Graph subscription expires `2026-09-28T14:30:00Z`. The wipe left no Case for a focused signed-in journey check, so CI is the behaviour evidence for the changed report-field and instruction-date journeys. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-65-32dabfc5`. |
+
 ## Release 64 — 24 September 2026 (deployment live)
 
 Release 64 deployed [PR 836](https://github.com/collisionengineers/pegasus/pull/836), the Case referencing rework: an Inspection + Audit Case keeps its Audit as a second work on the same Case, the Audit report carries the `a.` reference, and Triage is a Case type with a `t.` Case/PO. It also deployed [PR 838](https://github.com/collisionengineers/pegasus/pull/838) (one refresh button), [PR 827](https://github.com/collisionengineers/pegasus/pull/827) (Correspondence popup Reply, Reply all and Forward), [PR 828](https://github.com/collisionengineers/pegasus/pull/828) (forced password change asks only for the new password) and [PR 824](https://github.com/collisionengineers/pegasus/pull/824) (one Save for the Case page). The route was the approved destructive route: the old Web and Worker were stopped and read back before SQL, and the release was activated explicitly afterwards. Web and Worker are Running on the approved release, and full production smoke passed.
@@ -18,6 +33,22 @@ Release 64 deployed [PR 836](https://github.com/collisionengineers/pegasus/pull/
 | Worker deployment | The approved package staged before SQL was activated by configuration only. The Worker was started at 18:42:46Z and read back `Running` at 18:42:52Z with every Disabled value `false`. |
 | Production smoke | Passed at 18:43:28Z. Active Web package `20260924183614.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-09-24T18:43:11Z`, and the active Graph subscription expires `2026-09-28T14:30:00Z`. Smoke is unauthenticated; the new Case page (views, Create audit) and the Triage Case await a signed-in look. |
 | Evidence | Exact artifacts retained at ignored `artifacts/releases/release-64-773a9787`. The phase drivers and logs are under `artifacts/releases/release-64-driver`. |
+
+## Intake data wipe — 24 September 2026
+
+- Approved ordinary intake wipe: Worker `pegasus-prod-worker-252ow37gij`
+  stopped for the maintenance window, then resumed and read back `Running`.
+  The wipe cleared 92 blobs (38,474,936 bytes) from
+  `pegcustody252ow37gij/transient-intake` and deleted 758 rows from 93
+  non-preserved tables in `pegasus` (759 affected rows including the mail
+  boundary update). The committed mail cutoff is
+  `2026-09-24T13:17:38.8851348+00:00`; 38 effective tables and 584 rows
+  remain preserved. Every value in `CaseSequences` (12 rows),
+  `ImageIntakeSequences` (9 rows), `TriageSequences` (3 rows), and
+  `UnidentifiedSequences` (1 row) was unchanged; `ValuationPresets` remained
+  0/0. `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook,
+  and Box were untouched. Post-run verification reported zero blobs remaining
+  and zero wiped tables holding rows.
 
 ## Release 63 — 23 September 2026 (deployment live)
 

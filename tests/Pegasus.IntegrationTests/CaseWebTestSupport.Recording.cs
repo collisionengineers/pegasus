@@ -209,6 +209,7 @@ internal static partial class CaseWebTestSupport
 
         Task<OriginalReportRecorded> IMarkAsOriginalReportStore.MarkAsOriginalReportAsync(
             MarkAsOriginalReportCommand command,
+            OriginalReportReading? reading,
             CancellationToken cancellationToken)
         {
             ThrowNextFailure();

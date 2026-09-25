@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using System.Text;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -10,7 +9,6 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.IntegrationTests.Reports;
-using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
@@ -308,7 +306,7 @@ public sealed class CaseAssetPreparationWebTests
             $"/Cases/{store.CaseId:D}?handler=Save",
             workspace.MutationForm(
                 "0a0b0c0d0e0f01020304050607080903",
-                ReportImageLabels.SaveReason,
+                "Report images prepared.",
                 ("preparationEdits[0].OccurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
                 ("preparationEdits[0].ExpectedPreparationVersion", "4"),
                 ("preparationEdits[0].Role", nameof(CaseAssetReportRole.NotUsed)),
@@ -636,30 +634,6 @@ public sealed class CaseAssetPreparationWebTests
             {
                 Assert.Contains("data-preparation-order=", Card(panel, occurrenceId), StringComparison.Ordinal);
             }
-        }
-    }
-
-    /// <summary>
-    /// Every report-image card in a section and nothing around them, so an
-    /// assertion about the cards is never answered by the panel's other
-    /// controls. Cards do not nest, so the scan needs no depth count.
-    /// </summary>
-    private static string ReportImageCards(string panel)
-    {
-        var cards = new StringBuilder();
-        var index = 0;
-        while (true)
-        {
-            var start = panel.IndexOf("<article class=\"report-image\"", index, StringComparison.Ordinal);
-            if (start < 0)
-            {
-                return cards.ToString();
-            }
-            var end = panel.IndexOf("</article>", start, StringComparison.Ordinal);
-            Assert.True(end > start, "A report-image card is not closed.");
-            end += "</article>".Length;
-            cards.Append(panel[start..end]);
-            index = end;
         }
     }
 

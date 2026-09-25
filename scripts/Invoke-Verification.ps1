@@ -14,10 +14,16 @@ In order:
 
   1. The cheap invariants the change set touches, including the documentation
      link check, which always runs, as it does in CI.
-  2. Nothing build-relevant changed: stop, and say so.
-  3. Exact-head CI evidence. With a clean tree, a run at HEAD whose unit and SQL
-     lanes all succeeded is reused instead of repeated. A green run whose lanes
-     were deferred or skipped is not evidence. -Force overrides.
+  2. Nothing build- or infrastructure-relevant changed: stop, and say so.
+  3. Exact-head CI evidence. With a clean tree, a run at HEAD in which every
+     job the change set routes to succeeded is reused instead of repeated: the
+     unit job and every SQL shard for the build lane, the infrastructure job
+     for the infrastructure lane. A green run whose required jobs were deferred
+     or skipped is not evidence. A run whose build lane is green but whose
+     required infrastructure job did not run is reused for the build lane.
+     -Force overrides for the build lane. A change set whose build lane is
+     evidenced, or that routes only to the infrastructure lane, ends here,
+     pointed at the infrastructure job: only CI runs it.
   4. Otherwise a focused run over the test classes the changed files own,
      priced first from scripts/test-shard-durations.json; a focused run too
      expensive to be worth doing here is refused in favour of pushing.
@@ -141,7 +147,7 @@ if ($flags.Infrastructure) {
     Invoke-Step 'Migration runtime-grant check' { & (Join-Path $PSScriptRoot 'Test-MigrationGrants.ps1') }
 }
 
-if (-not $flags.Build -and -not $Full) {
+if (-not $flags.Build -and -not $flags.Infrastructure -and -not $Full) {
     Write-Heading 'No .NET verification required'
     Write-Host '  Nothing build-relevant changed, so there is nothing a restore, build'
     Write-Host '  or test run could establish (docs/engineering.md, Verification policy:'
@@ -151,7 +157,18 @@ if (-not $flags.Build -and -not $Full) {
 
 # --------------------------------------------------------- exact-head evidence
 
-if (-not $Force) {
+# Each lane is evidenced by its own jobs: the build lane by the unit job and
+# every SQL shard, the infrastructure lane by the infrastructure job, which CI
+# gates on its own path flag. With no build lane there is no local run to fall
+# back to, so -Force does not skip the lookup.
+$buildLaneRequired = [bool]($flags.Build -or $Full)
+$requiredJobs = @(
+    if ($buildLaneRequired) { 'the unit and SQL lanes' }
+    if ($flags.Infrastructure) { 'the infrastructure job' }
+) -join ' and '
+
+$buildLaneReused = $false
+if (-not $Force -or -not $buildLaneRequired) {
     Write-Heading 'Exact-head CI evidence'
     if ($uncommitted.Count -gt 0) {
         Write-Host "  not applicable: $($uncommitted.Count) uncommitted path(s) are in no run at HEAD."
@@ -169,30 +186,48 @@ if (-not $Force) {
         # A green run is not necessarily evidence. A stacked pull request's run is
         # green with the unit and SQL lanes deferred, and a skipped lane proves
         # nothing (docs/engineering.md: evidence "for that job only"). Only a run
-        # in which the unit job and every SQL shard themselves succeeded counts.
+        # in which every job this change set routes to itself succeeded counts.
         $qualifying = $null
+        $buildLaneRun = $null
         foreach ($run in @($runs | Where-Object { $_.status -eq 'completed' -and $_.conclusion -eq 'success' })) {
             $jobs = @(& gh run view $run.databaseId --json jobs 2>$null | ConvertFrom-Json |
                 ForEach-Object { $_.jobs } |
                 ForEach-Object { [pscustomobject]@{ Name = $_.name; Conclusion = $_.conclusion } })
             $lanes = @($jobs | Where-Object { $_.Name -eq 'unit' -or $_.Name -like 'sql-integration (*' })
-            if ($lanes.Count -gt 1 -and @($lanes | Where-Object { $_.Conclusion -ne 'success' }).Count -eq 0) {
+            $buildLaneGreen = $lanes.Count -gt 1 -and @($lanes | Where-Object { $_.Conclusion -ne 'success' }).Count -eq 0
+            $infrastructureGreen = @($jobs | Where-Object { $_.Name -eq 'infrastructure' -and $_.Conclusion -eq 'success' }).Count -gt 0
+            if ((-not $buildLaneRequired -or $buildLaneGreen) -and (-not $flags.Infrastructure -or $infrastructureGreen)) {
                 $qualifying = [pscustomobject]@{ Id = $run.databaseId; Jobs = $jobs }
                 break
+            }
+            # A stack's tip classifies only its own files, so its run can skip
+            # the infrastructure job a lower link routes to. Its green build
+            # lane is still evidence for that lane.
+            if ($buildLaneRequired -and $buildLaneGreen -and -not $buildLaneRun) {
+                $buildLaneRun = [pscustomobject]@{ Id = $run.databaseId; Jobs = $jobs }
             }
         }
 
         if ($qualifying) {
-            Write-Host "  run $($qualifying.Id) ran the unit and SQL lanes green at this exact commit."
+            Write-Host "  run $($qualifying.Id) ran $requiredJobs green at this exact commit."
             $qualifying.Jobs | ForEach-Object { Write-Host ('    {0,-10} {1}' -f $_.Conclusion, $_.Name) }
             Write-Host ''
             Write-Host '  Reusing it rather than repeating it (docs/engineering.md, Delivery'
-            Write-Host '  evidence). Pass -Force to run locally anyway.'
+            Write-Host "  evidence).$(if ($buildLaneRequired) { ' Pass -Force to run locally anyway.' })"
             exit 0
         }
+        elseif ($buildLaneRun) {
+            Write-Host "  run $($buildLaneRun.Id) ran the unit and SQL lanes green at this exact commit;"
+            Write-Host '  the infrastructure job this change set also routes to did not run there.'
+            $buildLaneRun.Jobs | ForEach-Object { Write-Host ('    {0,-10} {1}' -f $_.Conclusion, $_.Name) }
+            Write-Host ''
+            Write-Host '  Reusing it for the build lane rather than repeating it (docs/engineering.md,'
+            Write-Host '  Delivery evidence). Pass -Force to run locally anyway.'
+            $buildLaneReused = $true
+        }
         elseif (@($runs | Where-Object { $_.conclusion -eq 'success' }).Count -gt 0) {
-            Write-Host '  a run at this commit is green, but its unit and SQL lanes did not all'
-            Write-Host '  run (deferred on a stacked pull request, or path-skipped): not evidence.'
+            Write-Host "  a run at this commit is green, but $requiredJobs did not all run"
+            Write-Host '  (deferred on a stacked pull request, or path-skipped): not evidence.'
         }
         elseif ($runs.Count -eq 0) {
             Write-Host '  no run at this commit yet, so there is nothing to reuse.'
@@ -200,6 +235,15 @@ if (-not $Force) {
         else {
             Write-Host "  $($runs.Count) run(s) at this commit, none green."
         }
+    }
+
+    if (-not $buildLaneRequired -or $buildLaneReused) {
+        Write-Heading 'Infrastructure verification is CI-owned'
+        Write-Host "  $(if ($buildLaneReused) { 'The build lane is evidenced above, but the change set also routes to the' } else { 'Nothing build-relevant changed, but the change set routes to the' })"
+        Write-Host '  infrastructure lane, whose job only CI runs (.github/workflows/ci.yml).'
+        Write-Host '  It is unverified until the infrastructure job is green at the exact'
+        Write-Host '  commit you push; push, then read it with scripts/Get-CiStatus.ps1.'
+        exit 0
     }
 }
 

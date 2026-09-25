@@ -1,8 +1,6 @@
 ﻿using System.Data;
 using Microsoft.EntityFrameworkCore;
-using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Intake.ThirdPartyReports;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -11,13 +9,11 @@ namespace Pegasus.Infrastructure.Persistence;
 ///
 /// A pre-case receipt has no Case document to point at, so every candidate is
 /// keyed on the retained <c>IntakeAsset</c> and carries null document ids — the
-/// shape <see cref="SourceFieldCandidate"/> was widened for, and the shape the
-/// table's own check constraint enforces.
+/// shape the table's own check constraint enforces.
 /// </summary>
 public sealed class EfRetainedInstructionAnalysisStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
-    : IRetainedInstructionAnalysisStore, ISourceCandidateQueries,
-      IThirdPartyReportCandidateQueries
+    : IRetainedInstructionAnalysisStore
 {
     /// <summary>
     /// The unique index is on the (receipt, asset, key) TRIPLE, so an operation
@@ -38,26 +34,6 @@ public sealed class EfRetainedInstructionAnalysisStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var analysis = await context.Set<RetainedInstructionAnalysisEntity>().AsNoTracking()
             .Where(item => item.OperationKey == key)
-            .OrderByDescending(item => item.CompletedAtUtc)
-            .ThenByDescending(item => item.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        return analysis is null ? null : await MapAsync(context, analysis, cancellationToken);
-    }
-
-    public async Task<RetainedInstructionAnalysis?> FindLatestForReceiptAsync(
-        Guid receiptId,
-        CancellationToken cancellationToken = default)
-    {
-        if (receiptId == Guid.Empty)
-        {
-            return null;
-        }
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var analysis = await context.Set<RetainedInstructionAnalysisEntity>().AsNoTracking()
-            .Where(item => item.IntakeReceiptId == receiptId)
-            // Id breaks a tie between two analyses completed on the same tick,
-            // so "latest" is a total order rather than an arbitrary one.
             .OrderByDescending(item => item.CompletedAtUtc)
             .ThenByDescending(item => item.Id)
             .FirstOrDefaultAsync(cancellationToken);
@@ -147,141 +123,6 @@ public sealed class EfRetainedInstructionAnalysisStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return (analysis with { OperationKey = key }, false);
-    }
-
-    /// <summary>
-    /// Every recorded candidate of a receipt, optionally narrowed to one
-    /// document version or one retained asset. Pre-case candidates carry the
-    /// asset id and null document ids, so a caller filtering by document
-    /// version correctly sees none of them.
-    /// </summary>
-    public async Task<IReadOnlyList<SourceFieldCandidate>> GetAsync(
-        ActionActor actor,
-        Guid receiptId,
-        Guid? documentVersionId,
-        Guid? intakeAssetId,
-        CancellationToken cancellationToken)
-    {
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (receiptId == Guid.Empty)
-        {
-            return [];
-        }
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var rows = await (
-            from candidate in context.Set<IntakeSourceCandidateEntity>().AsNoTracking()
-            join analysis in context.Set<RetainedInstructionAnalysisEntity>().AsNoTracking()
-                on candidate.AnalysisId equals analysis.Id
-            where analysis.IntakeReceiptId == receiptId
-                && (documentVersionId == null || candidate.DocumentVersionId == documentVersionId)
-                && (intakeAssetId == null || candidate.IntakeAssetId == intakeAssetId)
-            orderby analysis.CompletedAtUtc, candidate.Field, candidate.Occurrence
-            select candidate)
-            .ToArrayAsync(cancellationToken);
-
-        return rows.Select(row =>
-        {
-            var (sourceLabel, page, locator) = AnalyzeRetainedInstruction.ReadLocator(row.LocatorJson);
-            return new SourceFieldCandidate(
-                row.Id,
-                receiptId,
-                // A pre-case candidate has no Case document. Both document ids
-                // stay null rather than being invented from the asset.
-                DocumentId: null,
-                row.DocumentVersionId,
-                row.IntakeAssetId,
-                row.SourceSha256,
-                row.Occurrence,
-                row.DocumentRole,
-                row.PartyRole ?? string.Empty,
-                row.ReferenceRole ?? string.Empty,
-                row.Field,
-                row.RawValue,
-                row.NormalizedValue,
-                row.Unit,
-                row.Currency,
-                sourceLabel,
-                page,
-                locator?.Cell,
-                locator?.FormField,
-                locator?.Region,
-                row.ReaderVersion,
-                row.PolicyVersion,
-                Enum.Parse<SourceCandidateDisposition>(row.Disposition));
-        }).ToArray();
-    }
-
-    async Task<IReadOnlyList<ThirdPartyReportCandidate>>
-        IThirdPartyReportCandidateQueries.GetAsync(
-        ActionActor actor,
-        Guid receiptId,
-        Guid? documentVersionId,
-        Guid? intakeAssetId,
-        CancellationToken cancellationToken)
-    {
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        if (receiptId == Guid.Empty)
-        {
-            return [];
-        }
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var analysisIds = await (
-                from candidate in context.Set<IntakeSourceCandidateEntity>().AsNoTracking()
-                join analysis in context.Set<RetainedInstructionAnalysisEntity>().AsNoTracking()
-                    on candidate.AnalysisId equals analysis.Id
-                where analysis.IntakeReceiptId == receiptId
-                    && (documentVersionId == null
-                        || candidate.DocumentVersionId == documentVersionId)
-                    && (intakeAssetId == null || candidate.IntakeAssetId == intakeAssetId)
-                select analysis.Id)
-            .Distinct()
-            .ToArrayAsync(cancellationToken);
-        if (analysisIds.Length == 0)
-        {
-            return [];
-        }
-
-        var analyses = await context.Set<RetainedInstructionAnalysisEntity>().AsNoTracking()
-            .Where(analysis => analysisIds.Contains(analysis.Id))
-            .OrderBy(analysis => analysis.CompletedAtUtc)
-            .ThenBy(analysis => analysis.Id)
-            .ToArrayAsync(cancellationToken);
-        var rows = await context.Set<IntakeSourceCandidateEntity>().AsNoTracking()
-            .Where(candidate => analysisIds.Contains(candidate.AnalysisId))
-            .OrderBy(candidate => candidate.Field)
-            .ThenBy(candidate => candidate.ReferenceRole)
-            .ThenBy(candidate => candidate.PartyRole)
-            .ThenBy(candidate => candidate.Id)
-            .ToArrayAsync(cancellationToken);
-        var rowsByAnalysis = rows.ToLookup(candidate => candidate.AnalysisId);
-        var result = new List<ThirdPartyReportCandidate>(analyses.Length);
-        foreach (var analysis in analyses)
-        {
-            var analysisRows = rowsByAnalysis[analysis.Id].ToArray();
-            var sourceRow = Array.Find(
-                analysisRows,
-                row => string.Equals(
-                    row.PolicyKey,
-                    ThirdPartyReportAnalysis.PolicyKey,
-                    StringComparison.Ordinal));
-            var candidate = ThirdPartyReportExtraction.Reconstruct(
-                analysisRows.Select(Map).ToArray(),
-                new(
-                    analysis.IntakeReceiptId,
-                    analysis.SourceSha256,
-                    sourceRow?.Occurrence ?? 0,
-                    DocumentId: null,
-                    DocumentVersionId: sourceRow?.DocumentVersionId,
-                    IntakeAssetId: sourceRow?.IntakeAssetId ?? analysis.IntakeAssetId));
-            if (candidate is not null)
-            {
-                result.Add(candidate);
-            }
-        }
-
-        return result;
     }
 
     private static async Task<RetainedInstructionAnalysis> MapAsync(

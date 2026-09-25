@@ -8,13 +8,6 @@ reference/eva_information/*.json text eol=lf
 reference/**/*.xlsm binary
 src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json binary
 reference/workproviders-and-repairers/principal-identification-corpus.v1.json binary
-# design-sync hashes these files as raw bytes for its render/source-key anchor;
-# force LF so a Windows checkout does not silently perturb every component hash.
-.design-sync/previews/*.tsx text eol=lf
-.design-sync/*.md text eol=lf
-docs/design/system/src/**/*.ts text eol=lf
-docs/design/system/src/**/*.tsx text eol=lf
-docs/design/system/docs/*.md text eol=lf
 *.doc binary
 *.docx binary
 *.ico binary

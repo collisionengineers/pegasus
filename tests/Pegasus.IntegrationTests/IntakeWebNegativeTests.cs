@@ -386,7 +386,7 @@ public sealed class IntakeWebNegativeTests
     {
         await using var scope = factory.Services.CreateAsyncScope();
         return (await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-            .ListAsync(null, 1, 100, CancellationToken.None)).Items;
+            .ListByCursorAsync(null, null, 100, CancellationToken.None)).Items;
     }
 
     private static async Task<IntakeReceipt> GetAsync(IntakeWebApplicationFactory factory, Guid id)

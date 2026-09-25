@@ -1606,26 +1606,6 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// The element carrying a v26 hook, widened to its enclosing form when it
-    /// sits in one, so a test can read which handler a control posts to.
-    /// </summary>
-    private static string ControlFor(string html, string hook)
-    {
-        var at = html.IndexOf(hook, StringComparison.Ordinal);
-        Assert.True(at >= 0, $"The page must render [{hook}].");
-        var formStart = html.LastIndexOf("<form", at, StringComparison.Ordinal);
-        var formEnd = formStart >= 0 ? html.IndexOf("</form>", formStart, StringComparison.Ordinal) : -1;
-        if (formStart >= 0 && formEnd > at)
-        {
-            return html[formStart..(formEnd + "</form>".Length)];
-        }
-
-        var start = html.LastIndexOf('<', at);
-        var end = html.IndexOf('>', at);
-        return html[start..(end + 1)];
-    }
-
-    /// <summary>
     /// The estimate header's VAT policy and discounts as the browser posts
     /// them (B08): each category box carries the hidden false companion that
     /// makes an unchecked box submit, and a discount is a percentage.
@@ -1743,8 +1723,6 @@ public sealed partial class AssessmentEstimateImportWebTests
         public List<CaseFile> RetainedDocuments { get; } = [];
         public CaseFile? RetainedDocument { get; private set; }
         public int DocumentMetadataReads { get; private set; }
-
-        public List<AcceptRepairSpecificationRequest> Acceptances { get; } = [];
 
         public List<ClaimCaseEditLeaseRequest> LeaseClaims { get; } = [];
 
@@ -1921,30 +1899,6 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         private static CaseSectionFrame CreateFrame(CaseDetails details) =>
             new(details.Summary, details.Workflow, details.ActiveEditLease);
-
-        public Task<RepairSpecificationVersion> StartDraftAsync(
-            StartRepairSpecificationDraftRequest request, CancellationToken cancellationToken)
-        {
-            var started = DraftSpecification(request.CaseId) with { Source = request.Source };
-            CurrentDraft = started;
-            return Task.FromResult(started);
-        }
-
-        public Task<RepairSpecificationVersion> AcceptAsync(
-            AcceptRepairSpecificationRequest request, CancellationToken cancellationToken)
-        {
-            Acceptances.Add(request);
-            var accepted = CurrentDraft! with
-            {
-                State = RepairSpecificationState.Accepted,
-                CalculationBasis = request.CalculationBasis,
-                AcceptedBy = request.Actor.SubjectId,
-                AcceptedAtUtc = DateTimeOffset.UtcNow,
-            };
-            CurrentDraft = null;
-            CurrentAccepted = accepted;
-            return Task.FromResult(accepted);
-        }
 
         public Task<RepairSpecificationVersion?> GetVersionAsync(
             Guid ownerCaseId, Guid specificationId, CancellationToken cancellationToken) =>

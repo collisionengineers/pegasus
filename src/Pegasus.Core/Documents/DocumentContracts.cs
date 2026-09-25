@@ -1,3 +1,4 @@
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Documents;
@@ -147,7 +148,6 @@ public static class CaseFiles
             .Where(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)
     ];
 }
-public sealed record CaseDocumentState(Guid CaseId, long CaseVersion);
 
 public sealed record AddCaseDocumentCommand(
     Guid CaseId,
@@ -258,20 +258,14 @@ public sealed record MarkAsOriginalReportCommand(
     ActionActor Actor,
     string OperationKey,
     string EditLeaseToken,
-    Guid DocumentOccurrenceId);
+    Guid DocumentOccurrenceId,
+    Guid DocumentVersionId);
 
 public sealed record OriginalReportRecorded(
     Guid CaseId,
     Guid DocumentOccurrenceId,
     string FileName,
     long CaseVersion);
-
-public interface ICaseDocumentStateQueries
-{
-    Task<CaseDocumentState?> GetAsync(
-        Guid caseId,
-        CancellationToken cancellationToken = default);
-}
 
 public interface IAddCaseDocument
 {
@@ -324,8 +318,14 @@ public interface ILogicallyRemoveDocument
 
 public interface IMarkAsOriginalReportStore
 {
+    /// <summary>
+    /// Records the role and fills the Original report cells from
+    /// <paramref name="reading"/> in the same transaction; a null reading
+    /// still records the role.
+    /// </summary>
     Task<OriginalReportRecorded> MarkAsOriginalReportAsync(
         MarkAsOriginalReportCommand command,
+        OriginalReportReading? reading,
         CancellationToken cancellationToken = default);
 }
 

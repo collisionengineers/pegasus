@@ -311,7 +311,7 @@ public sealed class CaseViewsWebTests
             $"<dt>{OperatorLabels.CaseWorkspace.RibbonEngineer}</dt><dd data-audit-engineer>Ed Mawdsley</dd>",
             dialog,
             StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.CaseWorkspace.EngineerSections.Outcome, dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("Outcome", dialog, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"reason\"", dialog, StringComparison.Ordinal);
     }
 

@@ -6,7 +6,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The Assessment screen's bounded relational projection. Six commands load
+/// The Assessment screen's bounded relational projection. Five commands load
 /// only what that screen and report generation share; general Case documents,
 /// history, tasks and custody preparation stay on the Case screen.
 /// </summary>
@@ -57,11 +57,6 @@ internal sealed class EfAssessmentWorkspaceSource(
             .OrderByDescending(item => item.RecordedAtUtc)
             .ThenByDescending(item => item.Id)
             .FirstOrDefaultAsync(cancellationToken);
-        var latestRequestEntity = await context.AiWorkRequests.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenByDescending(item => item.RequestId)
-            .FirstOrDefaultAsync(cancellationToken);
 
         // Named estimates: a case may hold several drafts and
         // several accepted estimates; the workspace shows the latest draft
@@ -97,7 +92,6 @@ internal sealed class EfAssessmentWorkspaceSource(
                 : EfVehicleLookupWorkStore.MapObservation(latestObservationEntity),
             assessment,
             draftEntity is null ? null : EfRepairSpecificationStore.Map(draftEntity),
-            acceptedEntity is null ? null : EfRepairSpecificationStore.Map(acceptedEntity),
-            latestRequestEntity is null ? null : EfAiWorkRequestStore.Map(latestRequestEntity));
+            acceptedEntity is null ? null : EfRepairSpecificationStore.Map(acceptedEntity));
     }
 }

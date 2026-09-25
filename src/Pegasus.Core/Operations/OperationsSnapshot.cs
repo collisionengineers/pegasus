@@ -251,9 +251,6 @@ public sealed class GetOperationsSnapshot(
     /// <summary>The list's page size (D4): paged, never cut.</summary>
     public const int PageSize = 50;
 
-    /// <summary>Kept for callers that still name the old bound; the list is paged at <see cref="PageSize"/> now.</summary>
-    public const int MaximumNeedsAttention = PageSize;
-
     /// <summary>
     /// The Today pane's bound: more than ten items in a pane is a list the
     /// operator cannot scan, so the same ordered rows are cut here.

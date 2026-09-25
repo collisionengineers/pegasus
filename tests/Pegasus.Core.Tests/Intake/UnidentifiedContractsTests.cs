@@ -131,10 +131,6 @@ public sealed class UnidentifiedContractsTests
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
-            ResolveUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
         public Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult<UnidentifiedItem?>(null);
 
@@ -261,7 +257,6 @@ public sealed class CloseUnidentifiedTests
                 false));
         }
 
-        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) => Task.FromResult<UnidentifiedResolveResult?>(null);
         public Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<UnidentifiedItem?> GetByReferenceAsync(string reference, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<UnidentifiedItem?> GetByOriginAsync(UnidentifiedOrigin origin, CancellationToken cancellationToken = default) => throw new NotSupportedException();

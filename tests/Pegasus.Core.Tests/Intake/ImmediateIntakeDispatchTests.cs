@@ -405,7 +405,6 @@ public sealed class ImmediateIntakeDispatchTests
             ReceivedReceiptIds.Add(receipt.Id);
             return Task.FromResult(new ReceivedIntake(receipt.Id, false));
         }
-        public Task<IntakeWorkItem?> FindWorkItemAsync(Guid stagedReceiptId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(Guid stagedReceiptId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IntakeEvaluationRevision> RecordEvaluationAsync(Guid workItemId, string leaseToken, Guid processedReceiptId, DateTimeOffset completedAtUtc, bool isReevaluation, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task CompleteProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();

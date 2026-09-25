@@ -233,7 +233,7 @@ public sealed class ProductionVehicleLookupTests
         var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
 
         Assert.Equal(VehicleLookupOutcome.Stale, result.Outcome);
-        Assert.Equal(TimeSpan.FromMinutes(30), result.SourceAge);
+        Assert.Equal(TimeSpan.FromMinutes(30), result.RetrievedAtUtc - result.SourceObservedAtUtc);
         Assert.Null(result.Failure);
     }
 

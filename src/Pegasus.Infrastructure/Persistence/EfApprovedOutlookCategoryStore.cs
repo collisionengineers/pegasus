@@ -59,7 +59,7 @@ public sealed class EfApprovedOutlookCategoryStore(
         if (request.ExpectedVersion == 0)
         {
             if (entity is not null)
-                throw new ApprovedOutlookCategoryUpdateException(ApprovedOutlookCategoryUpdateError.VersionConflict, entity.Version);
+                throw new ApprovedOutlookCategoryUpdateException(ApprovedOutlookCategoryUpdateError.VersionConflict);
             entity = new ApprovedOutlookCategoryEntity
             {
                 Id = request.CategoryId, DisplayName = request.DisplayName,
@@ -71,7 +71,7 @@ public sealed class EfApprovedOutlookCategoryStore(
         {
             if (entity is null) throw new ApprovedOutlookCategoryUpdateException(ApprovedOutlookCategoryUpdateError.NotFound);
             if (entity.Version != request.ExpectedVersion)
-                throw new ApprovedOutlookCategoryUpdateException(ApprovedOutlookCategoryUpdateError.VersionConflict, entity.Version);
+                throw new ApprovedOutlookCategoryUpdateException(ApprovedOutlookCategoryUpdateError.VersionConflict);
             before = TakeSnapshot(entity);
             entity.DisplayName = request.DisplayName;
             entity.NormalizedDisplayName = normalizedName;

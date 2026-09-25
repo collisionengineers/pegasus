@@ -87,9 +87,6 @@ public sealed class IntakeSourceAccessTests
                 new GetIntakeSourceMetadata(services.GetRequiredService<IIntakeReceiptQueries>())
                     .ExecuteAsync(new(receiptId, actor)));
             await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-                new GetIntakeAssetMetadata(services.GetRequiredService<IIntakeReceiptQueries>())
-                    .ExecuteAsync(new(receiptId, assetId, actor)));
-            await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
                 services.GetRequiredService<IDownloadIntakeAsset>()
                     .ExecuteAsync(new(receiptId, assetId, actor)));
             await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
@@ -124,8 +121,6 @@ public sealed class IntakeSourceAccessTests
         var secondAsset = Assert.Single(
             (await receipts.GetAsync(second, CancellationToken.None))!.AssetRecords).Id;
         Assert.Null(await services.GetRequiredService<IDownloadIntakeAsset>()
-            .ExecuteAsync(new(first, secondAsset, connector)));
-        Assert.Null(await new GetIntakeAssetMetadata(receipts)
             .ExecuteAsync(new(first, secondAsset, connector)));
     }
 }

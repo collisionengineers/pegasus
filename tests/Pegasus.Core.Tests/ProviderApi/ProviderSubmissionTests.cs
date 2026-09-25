@@ -1000,13 +1000,5 @@ public sealed class ProviderSubmissionTests
 
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision, int page, int pageSize, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IntakeAssetRecord?> GetAssetAsync(
-            Guid receiptId, Guid assetId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 }

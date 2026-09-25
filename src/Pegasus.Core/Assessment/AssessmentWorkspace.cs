@@ -1,4 +1,3 @@
-using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
@@ -96,8 +95,7 @@ public sealed record AssessmentWorkspace(
     VehicleLookupObservation? LatestVehicleObservation,
     CaseAssessmentProjection Assessment,
     RepairSpecificationVersion? DraftSpecification,
-    RepairSpecificationVersion? AcceptedSpecification,
-    AiWorkRequestRecord? LatestRequest);
+    RepairSpecificationVersion? AcceptedSpecification);
 
 public sealed record GetAssessmentWorkspaceQuery(
     Guid CaseId,

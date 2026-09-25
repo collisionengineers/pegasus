@@ -40,7 +40,7 @@ public sealed class EfCaseReportGenerationStore(
     ICaseReportSnapshotSource snapshotSource,
     IReadLogicalDocumentVersion documentReader,
     TimeProvider timeProvider)
-    : ICaseReportGenerationStore, ICaseReportGenerationQueries, IGeneratedCaseArtifactStore,
+    : ICaseReportGenerationStore, IGeneratedCaseArtifactStore,
       IEstimateDocumentPresentationStore
 {
     internal const string PolicyVersion = "case_report_generation/v1";
@@ -892,38 +892,6 @@ public sealed class EfCaseReportGenerationStore(
         && string.Equals(snapshot.SignatureContentType, profile.SignatureContentType, StringComparison.Ordinal)
         && string.Equals(snapshot.SignatureSha256,
             Convert.ToHexStringLower(SHA256.HashData(profile.Signature)), StringComparison.Ordinal);
-
-    async Task<CaseReportGeneration?> ICaseReportGenerationQueries.GetAsync(
-        ActionActor actor, Guid caseId, Guid generationId, CancellationToken cancellationToken)
-    {
-        var record = await GetAsync(actor, caseId, generationId, cancellationToken).ConfigureAwait(false);
-        if (record is null)
-        {
-            return null;
-        }
-
-        return new CaseReportGeneration(
-            record.Id,
-            record.CaseId,
-            record.CaseVersion,
-            record.Version,
-            record.SnapshotHash,
-            record.TemplateVersion,
-            record.Snapshot.CalculationPolicyVersion,
-            record.Snapshot.GeneratedBy.ToActor(),
-            record.GeneratedAtUtc,
-            record.Artifacts
-                .Where(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed)
-                .Select(artifact => new CaseReportArtifact(
-                    artifact.DocumentId!.Value,
-                    artifact.VersionId!.Value,
-                    artifact.Sha256!,
-                    artifact.ContentLength ?? 0,
-                    artifact.FileName ?? string.Empty,
-                    artifact.MediaType ?? "application/pdf",
-                    artifact.Kind.ToString()))
-                .ToArray());
-    }
 
     public async Task<LogicalDocumentContent> OpenAsync(
         ActionActor actor, Guid caseId, Guid generationId, Guid artifactId,

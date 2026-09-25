@@ -948,22 +948,6 @@ public sealed class EfImageIntakeStore(
             : await ToDetailAsync(context, entity, entity.Principal?.Code, cancellationToken);
     }
 
-    public async Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
-        Guid submissionGroupId,
-        CancellationToken cancellationToken)
-    {
-        if (submissionGroupId == Guid.Empty)
-        {
-            return null;
-        }
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await GetDetailAsync(
-            context,
-            item => item.SubmissionGroupId == submissionGroupId,
-            cancellationToken);
-    }
-
     /// <summary>
     /// Resolves the ImageIntake a receipt belongs to: its own origin
     /// registration, or — when the receipt is a member of a submission group
@@ -1023,24 +1007,6 @@ public sealed class EfImageIntakeStore(
                 on (Guid?)member.GroupId equals intake.SubmissionGroupId
             select intake)
         .FirstOrDefaultAsync(cancellationToken);
-
-    public async Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
-        IReadOnlyCollection<Guid> intakeReceiptIds,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(intakeReceiptIds);
-        if (intakeReceiptIds.Count == 0)
-        {
-            return [];
-        }
-
-        var ids = intakeReceiptIds.ToArray();
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await ProjectAsync(
-            context.ImageIntakes.AsNoTracking().Where(item => ids.Contains(item.OriginReceiptId)),
-            context,
-            cancellationToken);
-    }
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
         Guid caseId,

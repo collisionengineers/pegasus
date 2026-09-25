@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -43,7 +44,8 @@ public sealed class DocumentCustodyDurabilityTests
                     actor,
                     $"original-report:{Guid.NewGuid():N}",
                     lease.Token,
-                    firstOccurrenceId);
+                    firstOccurrenceId,
+                    await VersionIdAsync(database, firstOccurrenceId));
                 var mark = scope.ServiceProvider.GetRequiredService<MarkAsOriginalReport>();
 
                 await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -89,13 +91,179 @@ public sealed class DocumentCustodyDurabilityTests
                     ExpectedVersion = lease.Version,
                     OperationKey = $"second-original-report:{Guid.NewGuid():N}",
                     EditLeaseToken = lease.Token,
-                    DocumentOccurrenceId = secondOccurrenceId
+                    DocumentOccurrenceId = secondOccurrenceId,
+                    DocumentVersionId = await VersionIdAsync(database, secondOccurrenceId)
                 };
 
                 await Assert.ThrowsAsync<InvalidOperationException>(() =>
                     scope.ServiceProvider.GetRequiredService<MarkAsOriginalReport>()
                         .ExecuteAsync(second, CancellationToken.None));
             }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The marked document's own reading fills the Original report cells in
+    /// the Mark's transaction (v28 P51, #840): a cell staff confirmed keeps
+    /// its value, an unconfirmed one takes the reading, every filled cell is
+    /// recorded unconfirmed as the report extraction, the history keeps both
+    /// values, and a replay writes nothing more.
+    /// </summary>
+    [Fact]
+    public async Task MarkingFillsTheOriginalReportCellsStaffHaveNotConfirmed()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            var occurrenceId = await SeedCurrentDocumentAsync(database, caseId, 0, "laird-report.pdf");
+            var versionId = await VersionIdAsync(database, occurrenceId);
+            var seededAt = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+            await using (var context = await database.CreateContextAsync())
+            {
+                context.CaseAssessmentFields.AddRange(
+                    new CaseAssessmentFieldEntity
+                    {
+                        WorkId = caseId,
+                        FieldPath = AssessmentVocabulary.OriginalReportAssessor,
+                        Value = "Northside Assessors",
+                        RecordedByKind = nameof(ActorKind.Staff),
+                        RecordedBy = "staff-engineer",
+                        RecordedAtUtc = seededAt,
+                        ConfirmedBy = "staff-engineer",
+                        ConfirmedAtUtc = seededAt
+                    },
+                    new CaseAssessmentFieldEntity
+                    {
+                        WorkId = caseId,
+                        FieldPath = AssessmentVocabulary.OriginalReportRoadworthiness,
+                        Value = "unroadworthy",
+                        RecordedByKind = nameof(ActorKind.Automation),
+                        RecordedBy = "pegasus-automation",
+                        RecordedAtUtc = seededAt
+                    });
+                await context.SaveChangesAsync();
+            }
+
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var reading = new OriginalReportReading(
+                new string('a', 64), "Laird Assessors", "2026-09-01", "roadworthy", "repairable", false);
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(caseId, 0, actor, $"original-report-fill-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                var command = new MarkAsOriginalReportCommand(
+                    caseId,
+                    lease.Version,
+                    actor,
+                    $"original-report-fill:{Guid.NewGuid():N}",
+                    lease.Token,
+                    occurrenceId,
+                    versionId);
+                var store = scope.ServiceProvider.GetRequiredService<IMarkAsOriginalReportStore>();
+
+                await Assert.ThrowsAsync<InvalidOperationException>(() => store.MarkAsOriginalReportAsync(
+                    command with
+                    {
+                        OperationKey = $"original-report-other-version:{Guid.NewGuid():N}",
+                        DocumentVersionId = Guid.NewGuid()
+                    },
+                    reading,
+                    CancellationToken.None));
+
+                var recorded = await store.MarkAsOriginalReportAsync(command, reading, CancellationToken.None);
+                var replay = await store.MarkAsOriginalReportAsync(
+                    command, reading with { Assessor = "Connexus Vehicle Assessors" }, CancellationToken.None);
+
+                Assert.Equal(recorded, replay);
+            }
+
+            await using var verification = await database.CreateContextAsync();
+            var cells = await verification.CaseAssessmentFields
+                .Where(item => item.WorkId == caseId)
+                .ToDictionaryAsync(item => item.FieldPath);
+            Assert.Equal("Northside Assessors", cells[AssessmentVocabulary.OriginalReportAssessor].Value);
+            Assert.Equal("staff-engineer", cells[AssessmentVocabulary.OriginalReportAssessor].ConfirmedBy);
+            foreach (var (path, value) in new[]
+            {
+                (AssessmentVocabulary.OriginalReportDate, "2026-09-01"),
+                (AssessmentVocabulary.OriginalReportRoadworthiness, "roadworthy"),
+                (AssessmentVocabulary.OriginalReportOutcome, "repairable")
+            })
+            {
+                Assert.Equal(value, cells[path].Value);
+                Assert.Equal(nameof(ActorKind.Automation), cells[path].RecordedByKind);
+                Assert.Equal(OriginalReportPrefillPolicy.RecorderId, cells[path].RecordedBy);
+                Assert.Null(cells[path].ConfirmedBy);
+            }
+
+            var history = await verification.ActionHistory
+                .SingleAsync(item => item.EventKind == "original_report_recorded");
+            Assert.Contains("\"original_report.roadworthiness\":\"unroadworthy\"", history.BeforeJson, StringComparison.Ordinal);
+            Assert.Contains("\"original_report.roadworthiness\":\"roadworthy\"", history.AfterJson, StringComparison.Ordinal);
+            Assert.DoesNotContain(AssessmentVocabulary.OriginalReportAssessor, history.AfterJson, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A reading of bytes other than the marked version's fills nothing: the
+    /// role is still recorded and the cells stay hand-entered.
+    /// </summary>
+    [Fact]
+    public async Task AReadingOfOtherBytesFillsNoOriginalReportCell()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "audit");
+            var occurrenceId = await SeedCurrentDocumentAsync(database, caseId, 0, "other-report.pdf");
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(caseId, 0, actor, $"original-report-mismatch-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                await scope.ServiceProvider.GetRequiredService<IMarkAsOriginalReportStore>()
+                    .MarkAsOriginalReportAsync(
+                        new(
+                            caseId,
+                            lease.Version,
+                            actor,
+                            $"original-report-mismatch:{Guid.NewGuid():N}",
+                            lease.Token,
+                            occurrenceId,
+                            await VersionIdAsync(database, occurrenceId)),
+                        new(new string('b', 64), "Laird Assessors", "2026-09-01", "roadworthy", "repairable", false),
+                        CancellationToken.None);
+            }
+
+            await using var verification = await database.CreateContextAsync();
+            Assert.Equal(
+                DocumentSemanticRole.AuditReport,
+                (await verification.Set<DocumentOccurrenceEntity>().SingleAsync(item => item.Id == occurrenceId))
+                    .SemanticRole);
+            Assert.False(await verification.CaseAssessmentFields.AnyAsync(item => item.WorkId == caseId));
         }
         finally
         {
@@ -136,7 +304,8 @@ public sealed class DocumentCustodyDurabilityTests
                             actor,
                             $"first-original-report:{Guid.NewGuid():N}",
                             lease.Token,
-                            removedOccurrenceId),
+                            removedOccurrenceId,
+                            await VersionIdAsync(database, removedOccurrenceId)),
                         CancellationToken.None);
             }
 
@@ -175,6 +344,7 @@ public sealed class DocumentCustodyDurabilityTests
                             $"replacement-original-report-lease:{Guid.NewGuid():N}"),
                         CancellationToken.None);
                 var mark = scope.ServiceProvider.GetRequiredService<MarkAsOriginalReport>();
+                var remarkedVersionId = await VersionIdAsync(database, removedOccurrenceId);
                 await Assert.ThrowsAsync<InvalidOperationException>(() =>
                     mark.ExecuteAsync(
                         new(
@@ -183,7 +353,8 @@ public sealed class DocumentCustodyDurabilityTests
                             actor,
                             $"remark-removed-original-report:{Guid.NewGuid():N}",
                             lease.Token,
-                            removedOccurrenceId),
+                            removedOccurrenceId,
+                            remarkedVersionId),
                         CancellationToken.None));
 
                 replacement = await mark.ExecuteAsync(
@@ -193,7 +364,8 @@ public sealed class DocumentCustodyDurabilityTests
                         actor,
                         $"replacement-original-report:{Guid.NewGuid():N}",
                         lease.Token,
-                        replacementOccurrenceId),
+                        replacementOccurrenceId,
+                        await VersionIdAsync(database, replacementOccurrenceId)),
                     CancellationToken.None);
             }
 
@@ -550,7 +722,7 @@ public sealed class DocumentCustodyDurabilityTests
                 .GetRequiredService<IReadImageTagVocabulary>()
                 .ListAsync(CancellationToken.None);
             Assert.Equal(
-                [.. ImageTagVocabulary.BuiltIn.Select(tag => tag.Name).OrderBy(name => name, StringComparer.Ordinal)],
+                [.. new[] { ImageTagVocabulary.OverviewName, ImageTagVocabulary.CloseUpName, ImageTagVocabulary.ThirdPartyName, ImageTagVocabulary.ReflectionName, ImageTagVocabulary.MarketResearchName }.OrderBy(name => name, StringComparer.Ordinal)],
                 vocabulary.Where(tag => tag.IsBuiltIn).Select(tag => tag.Name).OrderBy(name => name, StringComparer.Ordinal));
             Assert.Contains(vocabulary, tag => tag.Id == created.Tag.Id);
         }
@@ -830,6 +1002,15 @@ public sealed class DocumentCustodyDurabilityTests
             });
         await context.SaveChangesAsync();
         return occurrenceId;
+    }
+
+    private static async Task<Guid> VersionIdAsync(LocalDbTestDatabase database, Guid occurrenceId)
+    {
+        await using var context = await database.CreateContextAsync();
+        return await context.Set<DocumentOccurrenceEntity>()
+            .Where(item => item.Id == occurrenceId)
+            .Select(item => item.VersionId)
+            .SingleAsync();
     }
 
     private static async Task<Guid> SeedCurrentImageAsync(LocalDbTestDatabase database, Guid caseId)

@@ -384,7 +384,7 @@ public sealed class CaseVehicleWebTests
         Assert.DoesNotContain("<button", seam, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=", seam, StringComparison.Ordinal);
         Assert.DoesNotContain("data-condition", seam, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.CaseWorkspace.RunExperianCheck, html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Run Experian check", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -608,7 +608,7 @@ public sealed class CaseVehicleWebTests
             null,
             null,
             recordedAtUtc);
-        return new(caseId, null, notFound, [notFound], []);
+        return new(caseId, null, notFound, [notFound]);
     }
 
     /// <summary>The v26 Experian seam: the head's `.gated` pill and its text.</summary>
@@ -702,7 +702,7 @@ public sealed class CaseVehicleWebTests
             null,
             new("rate_limited", Retryable: true),
             recordedAtUtc.AddHours(-1));
-        return new(caseId, null, answered, [answered, refused], []);
+        return new(caseId, null, answered, [answered, refused]);
     }
 
 

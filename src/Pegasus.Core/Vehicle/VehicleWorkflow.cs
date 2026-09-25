@@ -2,13 +2,6 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Vehicle;
 
-public sealed record VehicleConfirmationValues(
-    string Registration,
-    string? Make,
-    string? Model,
-    long? Mileage,
-    VehicleMileageUnit? MileageUnit);
-
 public sealed record VehicleEvidenceProvenance(
     string Provider,
     string ProviderVersion,
@@ -30,21 +23,6 @@ public sealed record VehicleLookupObservation(
     VehicleMileageCalculation? Mileage,
     VehicleLookupFailure? Failure,
     DateTimeOffset RecordedAtUtc);
-
-public sealed record VehicleConfirmationHistory(
-    Guid Id,
-    Guid CaseId,
-    Guid LookupObservationId,
-    string Decision,
-    VehicleConfirmationValues Values,
-    ActionActor Actor,
-    string Reason,
-    string OperationKey,
-    DateTimeOffset OccurredAtUtc,
-    long BeforeCaseVersion,
-    long AfterCaseVersion,
-    string PolicyKey,
-    int PolicyVersion);
 
 public sealed record ConfirmedVehicleField<T>(
     T Value,
@@ -72,8 +50,7 @@ public sealed record CaseVehicleEvidence(
     Guid CaseId,
     ConfirmedVehicleEvidence? Confirmed,
     VehicleLookupObservation? LatestObservation,
-    IReadOnlyList<VehicleLookupObservation> Observations,
-    IReadOnlyList<VehicleConfirmationHistory> ConfirmationHistory);
+    IReadOnlyList<VehicleLookupObservation> Observations);
 
 public sealed record RequestVehicleLookupCommand(
     Guid CaseId,
@@ -222,27 +199,13 @@ public sealed class VehicleOperationConflictException(Guid caseId, string operat
     public string OperationKey { get; } = operationKey;
 }
 
-public sealed class AcceptedVehicleRegistrationRequiredException(
-    Guid caseId,
-    int acceptedRegistrationCount)
+public sealed class AcceptedVehicleRegistrationRequiredException(Guid caseId)
     : InvalidOperationException(
-        $"Case '{caseId}' must have exactly one accepted canonical vehicle registration before lookup.")
-{
-    public Guid CaseId { get; } = caseId;
-    public int AcceptedRegistrationCount { get; } = acceptedRegistrationCount;
-}
+        $"Case '{caseId}' must have exactly one accepted canonical vehicle registration before lookup.");
 
-public sealed class AcceptedVehicleRegistrationConflictException(
-    Guid caseId,
-    string acceptedRegistration,
-    string proposedRegistration)
+public sealed class AcceptedVehicleRegistrationConflictException(Guid caseId)
     : InvalidOperationException(
-        $"Case '{caseId}' already has a different accepted vehicle registration. Use an explicit correction operation.")
-{
-    public Guid CaseId { get; } = caseId;
-    public string AcceptedRegistration { get; } = acceptedRegistration;
-    public string ProposedRegistration { get; } = proposedRegistration;
-}
+        $"Case '{caseId}' already has a different accepted vehicle registration. Use an explicit correction operation.");
 
 /// <summary>
 /// The store boundary for the automatic-lookup sweep: enqueue one lookup for

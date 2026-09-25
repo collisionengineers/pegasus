@@ -217,7 +217,7 @@ the 64px mark. The sign-in password field carries a Show / Hide control
 | Ctrl N | Create Case |
 | Ctrl S | Save and keep editing, only while a Case is in edit |
 | F5 | Refresh — re-query the current page, never a browser reload |
-| ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, `work-item`, result rows) |
+| ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, result rows) |
 | Escape | Close the open dialog |
 
 The Estimate section's keyboard-accessible **Import** button opens the native
@@ -232,58 +232,6 @@ initial focus on the first control, a focus trap, the rest of the document
 invoking control. Toasts live in `.toast-region`, are announced restrainedly,
 and never carry an action the page does not also offer. Every toast carries the
 shared `.dismiss` × so it can be put away before it expires.
-
-### The Pegasus marks
-
-**Commissioned by the operator; adopted 2026-08-17.** Ten purpose-drawn raster
-marks live in `src/Pegasus.Web/wwwroot/images/marks/`. Four further marks —
-`activity`, `brand`, `calendar` and `casefolder` — were supplied with the
-design and are **not in the tree**: their bytes were never copied, so they have
-no runtime mapping and no checksum row, and nothing may reference them until a
-ticket puts them in the tree and records them below.
-
-The marks are a second, deliberate class of imagery; the statement that no
-imagery is needed for the internal application still holds for marketing
-photography and for generated or substitute glyphs, neither of which these are.
-They do not replace the Lucide sprite and do not compete with it:
-
-- **A Lucide glyph names a thing inside a row** — an action or a state. It is
-  16px, inline, and one glyph means one thing everywhere. Where a value came
-  from is a text tag, not a glyph ([source tags](README.md#source-tags)).
-- **A mark names a whole surface** — an administration area, an empty result,
-  the product itself. It is 30–112px and sits beside text that already says
-  the same thing.
-
-Every mark is decorative: `aria-hidden`, empty `alt`, always beside text.
-None is used for a semantic action or state.
-
-Uses under the integrated design: the rail brand and the sign-in card
-(`pegasus-lockup`); the Administration area panel heads (`accounts`,
-`principals`, `configuration`, `mailboxes`, `automation`); the Cases rail
-empty state (`checkmark`). `roles`, `access` and `organisations` lose their
-surfaces when those areas fold into Staff accounts & roles and Principals
-([Removed surfaces](../frd/frd-12-operator-experience.md)); their bytes stay registered and
-their removal is proposed for the wave-5 removal ticket.
-
-#### Pegasus marks source-to-runtime mapping
-
-Upstream source: Claude Design project `710bb42f`, `assets/icons/` (1024×1024
-RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
-(128×128 Lanczos downscale, decorative `aria-hidden` with empty `alt`).
-
-| Mark | Upstream source & SHA-256 | Runtime destination & SHA-256 | Mapping & usage |
-| --- | --- | --- | --- |
-| `pegasus-lockup.png` | `PegasusDesign/assets/icons/pegasus-lockup.png`<br>`C8F3551841AACA26AAE4F959B263DBB2409EB44A327207F8078D85A1F33668A7` | `src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png`<br>`938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | Retired by v28 P1: the rail and the sign-in card carry `images/pegasus-mark-refined-128.png` and `-256.png`. |
-| `accounts.png` | `PegasusDesign/assets/icons/accounts.png`<br>`AFFA12B7C8609B253AAFB38304F503F83B868DD817902B53ADDFAE65A3E353A1` | `src/Pegasus.Web/wwwroot/images/marks/accounts.png`<br>`A8D467B827E0F19A6066640FA98A75D3673DA8A8C7642C4190D59BD5EDB718D5` | Administration → Staff accounts & roles. |
-| `roles.png` | `PegasusDesign/assets/icons/roles.png`<br>`D3B970330A7DDFE1BE3BD92AF8C8B682B63E2270BF5537F3D5CE60EA6B0A97C0` | `src/Pegasus.Web/wwwroot/images/marks/roles.png`<br>`D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | No integrated surface; proposed for the wave-5 removal ticket. |
-| `access.png` | `PegasusDesign/assets/icons/access.png`<br>`371C4EF84A9E91F8E6509ACCFF045C68121147C22CDCD12D6D6509EF244CEC7F` | `src/Pegasus.Web/wwwroot/images/marks/access.png`<br>`70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | No integrated surface; proposed for the wave-5 removal ticket. |
-| `organisations.png` | `PegasusDesign/assets/icons/organisations.png`<br>`ABAE832BE33CDEBFE1D80C8E47A1FFF4D1FEF644B02F2BD5D51FC9390C421204` | `src/Pegasus.Web/wwwroot/images/marks/organisations.png`<br>`804E77E33162BB09B0374058C6E6989B92A59224F813DDDA0BA6D410A69F6E8C` | No integrated surface; proposed for the wave-5 removal ticket. |
-| `principals.png` | `PegasusDesign/assets/icons/principals.png`<br>`B85E82694474D92F3C15106699786B2081F8E2AFDE66D4A1A78E07071786C967` | `src/Pegasus.Web/wwwroot/images/marks/principals.png`<br>`879055AD9A973F05E2BE49F5EA00EDD43111D323BDC8C8952FCA727A7C9C0496` | Administration → Principals. |
-| `configuration.png` | `PegasusDesign/assets/icons/configuration.png`<br>`B64DCBE7FD45B24A0D9BD687BF8E16BCB3E4E587ED16F93BF1BCE12370A6E921` | `src/Pegasus.Web/wwwroot/images/marks/configuration.png`<br>`86A311A3C1ACE78E5D5A407B289F901ED7C26860BCBBBDEF59EC93A71BAFA62E` | Administration → Workflow configuration. |
-| `mailboxes.png` | `PegasusDesign/assets/icons/mailboxes.png`<br>`179A5677C4B73587601F0AF79162F87217C2035D096D90341281E23BFD87F688` | `src/Pegasus.Web/wwwroot/images/marks/mailboxes.png`<br>`1B727ACBE0DCC114370E0D620DCB74E20A12866C85187689ABDB8A249B61C019` | Administration → Mail settings. |
-| `automation.png` | `PegasusDesign/assets/icons/automation.png`<br>`51F6970F9C0245E694D3562922A34AC5C3F2E762ACB5682FDF6DAA3FDFE10039` | `src/Pegasus.Web/wwwroot/images/marks/automation.png`<br>`1EABE2EF634065A1A76F78A6D520A366C49D469EBC3C92BA99F1DBA1A8F8B3FE` | Administration → Automation & AI. |
-| `checkmark.png` | `PegasusDesign/assets/icons/checkmark.png`<br>`6ECC9917585A85D7B8C7EC62DB3C167689FD0F210D9838EC0B9959F1238471F3` | `src/Pegasus.Web/wwwroot/images/marks/checkmark.png`<br>`5531CC893A5C7A1137F049CF0D77A9D19B73EB30AC1036985A902FFC44A0C30F` | Cases rail empty state. |
-| `activity`, `brand`, `calendar`, `casefolder` | Supplied with the design; not copied | **Not in the tree** — no destination, no checksum | Unplaced. A ticket that places one records both checksums here first. |
 
 ## Design principles
 
@@ -457,7 +405,7 @@ Rules:
 | `--radius-lg` | `4px` — panels, dialogs, panes |
 | Borders | `1px solid var(--line)`; controls `var(--line-strong)` |
 | Keyboard focus ring | `3px solid var(--focus)`, `outline-offset: 2px` (the prototype base rule); the utility search takes `--navy` on its dark ground |
-| Selection outline | Selected rows and tabs (`row-button`, `work-item`, `tab`) take `2px solid var(--navy)` |
+| Selection outline | Selected rows and tabs (`row-button`, `tab`) take `2px solid var(--navy)` |
 | Depth | Border-first. `--shadow` is applied where the prototype applies it: `gallery-item` and `admin-card` hover, the command-palette dropdown and the toast; dialogs and the sign-in card carry their own deeper raised shadow; selected rows and metrics use an inset red bar, not a shadow |
 
 There is no second radius pair. The 2px geometry of the previous design is
@@ -546,7 +494,7 @@ checksum-pinned repository copy is the durable source.
 
 | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
 | --- | --- | --- | --- |
-| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte governed copy retained for the renderer boundary; it is not embedded by the Web shell. |
+| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte governed copy kept in the Web runtime; no page or script references it. The report renderer embeds the master `docs/design/brand/logos/logo_no_margin.png` directly (`Pegasus.Infrastructure.csproj`). |
 | Refined rail mark (128px) | `docs/design/brand/logos/pegasus-mark-refined-128.png`<br>`1D6758A5F9D90EA4539DBB498BF0171A93C23B85E9C3868BDDC7D6ABC724A1CB` | `src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-128.png`<br>`1D6758A5F9D90EA4539DBB498BF0171A93C23B85E9C3868BDDC7D6ABC724A1CB` | Byte-for-byte copy embedded by `_Layout.cshtml` in the authenticated rail. |
 | Refined auth mark (256px) | `docs/design/brand/logos/pegasus-mark-refined-256.png`<br>`E3C9712DE05E18D93BD21857F3961A8832941D91D942FA1E34F513944B545E1D` | `src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-256.png`<br>`E3C9712DE05E18D93BD21857F3961A8832941D91D942FA1E34F513944B545E1D` | Byte-for-byte copy embedded by `_LayoutAuth.cshtml` as the `auth-brand` of the sign-in card. |
 
@@ -562,12 +510,13 @@ Lucide is the only approved Web/UI icon system:
 
 Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure
 symbols. The prototype's hand-drawn `iconPaths` are not adopted; every glyph
-it names maps to the Lucide id below, and the prototype's inline sparkle on
-Use the provider-neutral label `Send to AI`.
+it names maps to the Lucide id below, and the prototype's inline sparkle is
+not adopted. Use the provider-neutral label `Send to AI`.
 
-The checksummed sprite is `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`,
-inlined once per page by `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml`
-as `<symbol viewBox="0 0 24 24">` elements; pages reference glyphs as
+The checksummed sprite `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` is
+the governed glyph record; no page requests it.
+`src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml` inlines the glyphs once per
+page as `<symbol viewBox="0 0 24 24">` elements; pages reference glyphs as
 `<svg class="icon"><use href="#icon-…"/></svg>`. The `.icon` rule applies the
 stroke and caps because a `<use>` clone does not inherit them. The sprite
 holds the sixty glyphs below (the original seventeen plus the
@@ -705,9 +654,9 @@ uses).
 ### Imagery and evidence
 
 Upstream marketing photography is excluded, and no generated or substitute
-glyph is used anywhere. The one class of imagery the internal Web application
-carries is the [commissioned Pegasus marks](README.md#the-pegasus-marks): decorative,
-naming a surface, always beside text that says the same thing.
+glyph is used anywhere. The only imagery the internal Web application carries
+is the refined Pegasus mark ([Logo](README.md#logo)): decorative, always beside
+text that names the product.
 
 Genuine case images, emails and documents are operational evidence, not
 decorative assets. Use only authorised repository-provided evidence through
@@ -873,7 +822,7 @@ deleted in wave 5.
 | `pane-layout`, `pane-layout--2`, `pane-layout--3`, `pane`, `pane-head`, `pane-body`, `pane-scroll` | Multi-pane workspaces |
 | `queue-layout` | The Cases three-pane variant |
 | `scope-list`, `scope-button` | Left-pane scopes with icon well and count |
-| `row-button`, `work-item` | Selectable rows (arrow navigation) |
+| `row-button` | Selectable rows (arrow navigation) |
 | `fact-grid`, `fact`, `definition-list`, `definition` | Label/value cells |
 | `pagination` | Bounded pagination with current-page context |
 | `empty` | Empty result; renders only where an action exists |
@@ -906,7 +855,7 @@ deleted in wave 5.
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `mail-preview`, `decision-card` | Inbox preview and message decision |
-| `assessment-v3`, `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
+| `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `ai-jobs-panel` | Operations AI Job List |
 | `admin-layout`, `admin-nav` | Administration |
 | `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |

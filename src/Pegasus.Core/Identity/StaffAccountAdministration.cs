@@ -54,20 +54,6 @@ public sealed record GetStaffAccountRequest(
 
 public sealed record GetStaffAccountResult(StaffAccountSummary Account);
 
-public sealed record StaffHeldCaseEditLease(
-    Guid CaseId,
-    string CaseReference,
-    long LeaseGeneration,
-    DateTimeOffset ExpiresAtUtc);
-
-public sealed record GetStaffHeldCaseEditLeasesRequest(
-    ActionActor Actor,
-    Guid StaffId);
-
-public sealed record GetStaffHeldCaseEditLeasesResult(
-    Guid StaffId,
-    IReadOnlyList<StaffHeldCaseEditLease> Leases);
-
 public sealed record CreateStaffAccountRequest(
     ActionActor Actor,
     string UserName,
@@ -191,10 +177,6 @@ public interface IStaffAccountQueries
 
     Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
         CancellationToken cancellationToken);
-
-    Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-        Guid staffId,
-        CancellationToken cancellationToken);
 }
 
 public interface ICreateStaffAccountStore
@@ -222,13 +204,6 @@ public interface IEnableStaffAccountStore
 {
     Task<EnableStaffAccountResult> EnableAsync(
         EnableStaffAccountRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IStaffHeldCaseEditLeaseQueries
-{
-    Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
-        Guid staffId,
         CancellationToken cancellationToken);
 }
 
@@ -292,13 +267,6 @@ public interface IEnableStaffAccount
 {
     Task<EnableStaffAccountResult> ExecuteAsync(
         EnableStaffAccountRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IGetStaffHeldCaseEditLeases
-{
-    Task<GetStaffHeldCaseEditLeasesResult> ExecuteAsync(
-        GetStaffHeldCaseEditLeasesRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -457,26 +425,6 @@ public sealed class EnableStaffAccount(IEnableStaffAccountStore store)
         _store.EnableAsync(
             StaffAccountAdministrationPolicy.Normalize(request),
             cancellationToken);
-}
-
-public sealed class GetStaffHeldCaseEditLeases(IStaffHeldCaseEditLeaseQueries queries)
-    : IGetStaffHeldCaseEditLeases
-{
-    private readonly IStaffHeldCaseEditLeaseQueries _queries =
-        queries ?? throw new ArgumentNullException(nameof(queries));
-
-    public async Task<GetStaffHeldCaseEditLeasesResult> ExecuteAsync(
-        GetStaffHeldCaseEditLeasesRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageStaffAccounts);
-        StaffAccountAdministrationPolicy.RequireStaffId(request.StaffId);
-        return new(
-            request.StaffId,
-            await _queries.ListHeldCaseEditLeasesAsync(request.StaffId, cancellationToken));
-    }
 }
 
 public sealed class ForceStaffLogout(IForceStaffLogoutStore store) : IForceStaffLogout

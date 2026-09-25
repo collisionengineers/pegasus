@@ -88,7 +88,6 @@ public sealed class EvaCaseEvidenceReaderTests
             Guid.Parse("11111111-1111-1111-1111-111111111111"),
             new(null, make, model, null, null),
             null,
-            [],
             []);
 
     private static ConfirmedVehicleField<string> ConfirmedVehicleField(string value) => new(
