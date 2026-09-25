@@ -86,16 +86,6 @@
                 </div>
             </div>
         </form>
-        <aside class="up-empty-aside" data-select-aside>
-            <h3>@Labels.AsideTitle</h3>
-            <p>@Labels.AsideSentence</p>
-            <ol>
-                @foreach (var (title, detail) in Labels.AsideSteps)
-                {
-                    <li><div><strong>@title</strong><small>@detail</small></div></li>
-                }
-            </ol>
-        </aside>
         <section class="up-evidence" aria-labelledby="up-selected-title" hidden data-select-files>
             <header class="up-section-head">
                 <h2 id="up-selected-title">@Labels.SelectedFiles</h2>
