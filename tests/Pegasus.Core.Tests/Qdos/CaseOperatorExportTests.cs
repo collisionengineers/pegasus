@@ -44,6 +44,17 @@ public sealed class CaseOperatorExportTests
     }
 
     [Fact]
+    public void TheInstructionDateIsTheCasesReceivedDate()
+    {
+        var export = CaseEvaMapping.MapForOperatorExport(Evidence(), Today);
+        Assert.Equal("22/08/2026", export.Source.Fields.InstructionDate);
+        var field = Assert.Single(export.Source.Provenance, item => item.Name == "Instruction Date");
+        Assert.Equal(CaseEvaMapping.ReceivedDateSource, field.Source);
+        Assert.Equal(EvaEvidenceStatus.Accepted, field.Status);
+        Assert.DoesNotContain("Instruction Date", export.UnrecordedFields);
+    }
+
+    [Fact]
     public void ASuggestedValueTravelsAsSuggestedRatherThanAccepted()
     {
         var export = CaseEvaMapping.MapForOperatorExport(
@@ -109,7 +120,7 @@ public sealed class CaseOperatorExportTests
             Value("CX-5 SE-L D NAV"),
             Value("Mr Harry Sykes"),
             Value("19/08/2026"),
-            Value("22/08/2026"),
+            new DateOnly(2026, 8, 22),
             inspectionDate is null ? Missing() : Value(inspectionDate),
             new(EvaInspectionMode.ImageBasedAssessment, Value(CaseEvaMapping.ImageBasedAssessment)),
             Value("Rear-end collision on a slip road."),

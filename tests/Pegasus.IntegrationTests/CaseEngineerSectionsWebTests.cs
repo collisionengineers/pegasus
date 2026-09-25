@@ -177,7 +177,6 @@ public sealed class CaseEngineerSectionsWebTests
                 "Alex Example",
                 "P-100",
                 DateTimeOffset.UtcNow,
-                new DateOnly(2026, 8, 1),
                 "Email",
                 DateTimeOffset.UtcNow);
             var assessment = new CaseAssessmentProjection(

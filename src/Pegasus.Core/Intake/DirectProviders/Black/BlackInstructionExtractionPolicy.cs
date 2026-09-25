@@ -30,10 +30,6 @@ public sealed partial class BlackInstructionExtractionPolicy
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate,
             PartyRole: "claimant"),
-        new("Instruction date", ["Header date"],
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
-            CanonicalValue: InstructionFieldEngine.CanonicalDate,
-            PartyRole: "instruction"),
         new("Vehicle mileage", ["Mileage"], IsRequired: false,
             IsValidTyped: value => InstructionFieldEngine.ParseMileage(value) is not null,
             PartyRole: "claimant"),
@@ -91,7 +87,6 @@ public sealed partial class BlackInstructionExtractionPolicy
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Incident date"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]),
             null,
@@ -129,8 +124,6 @@ public sealed partial class BlackInstructionExtractionPolicy
 
         foreach (Match match in HeaderReferenceRegex().Matches(header))
             yield return Labelled(fragment, "Our ref", match.Groups["value"].Value);
-        foreach (Match match in HeaderDateRegex().Matches(header))
-            yield return Labelled(fragment, "Header date", match.Groups["value"].Value);
         foreach (Match match in ClaimantRegex().Matches(instruction))
             yield return Labelled(fragment, "Our client", match.Groups["value"].Value);
         foreach (Match match in AccidentDateRegex().Matches(instruction))
@@ -180,9 +173,6 @@ public sealed partial class BlackInstructionExtractionPolicy
 
     [GeneratedRegex(@"(?im)^.*?Our\s+ref\s*:[ \t]*(?<value>\S+)", RegexOptions.CultureInvariant, 100)]
     private static partial Regex HeaderReferenceRegex();
-
-    [GeneratedRegex(@"(?im)^.*?Date\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)]
-    private static partial Regex HeaderDateRegex();
 
     [GeneratedRegex(@"(?im)^\s*Our\s+client\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)]
     private static partial Regex ClaimantRegex();

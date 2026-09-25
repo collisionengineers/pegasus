@@ -858,14 +858,14 @@ public sealed class AdministrationSearchAccountWebTests
         var html = await search.Content.ReadAsStringAsync();
         Assert.Contains("No cases match these filters.", html, StringComparison.Ordinal);
 
-        // A real bookmark carries a whole filter set, including the two
-        // parameters the ported grid no longer draws. Every value survives the
-        // move byte for byte, in its original order, and the page it lands on
+        // A real bookmark carries a whole filter set, including the received
+        // date the ported grid does not draw. Every value survives the move
+        // byte for byte, in its original order, and the page it lands on
         // accepts all of them.
         const string wholeFilterSet =
             "?case=QDOS3100042&registration=AB12CDE&claimant=Claimant&claimNumber=CLM42"
             + "&principal=QDOS&state=Review&receivedDate=2031-05-01"
-            + "&instructionDate=2031-05-02&fromDate=2031-04-01&toDate=2031-05-31"
+            + "&fromDate=2031-04-01&toDate=2031-05-31"
             + "&origin=Email&query=" + keyword + "&page=2";
         using var wholeBookmark = await client.GetAsync("/Cases" + wholeFilterSet);
         Assert.Equal(HttpStatusCode.MovedPermanently, wholeBookmark.StatusCode);

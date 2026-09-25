@@ -44,7 +44,6 @@ public sealed class FwInstructionExtractionPolicyTests
         Assert.Null(draft.VehicleRegistration);
         Assert.Null(draft.VehicleMake);
         Assert.Null(draft.DateOfIncident);
-        Assert.Null(draft.InstructionDate);
         Assert.Null(draft.InspectionAddress);
         Assert.Null(draft.AccidentCircumstances);
         Assert.Empty(result.Fields.SelectMany(field => field.Candidates));
@@ -132,13 +131,13 @@ public sealed class FwInstructionExtractionPolicyTests
         string registration,
         string vehicle,
         string accidentDate,
-        string instructionDate,
+        string letterDate,
         string inspectionLocation,
         string circumstances,
         string thirdPartyName,
         string thirdPartyVehicle) => $"""
         New INSTRUCTIONS:
-        Date: {instructionDate}
+        Date: {letterDate}
         Our Ref: {reference}
         Our Insured: Name: {insured}
         Address: 44 Piccadilly Crescent, Tamworth B78 2EL

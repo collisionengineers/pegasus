@@ -452,7 +452,7 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.ContactEmailAddress),
             TextField(snapshot, CaseDataFieldNames.ContactPhoneNumber)),
         new(
-            DateField(snapshot, CaseDataFieldNames.InstructionDate),
+            CaseDataPolicy.ReceivedDate(snapshot.OriginReceivedAtUtc, snapshot.Work.Case.CreatedAtUtc),
             TextField(snapshot, CaseDataFieldNames.VatStatus)),
         new(
             DateField(snapshot, CaseDataFieldNames.InspectionDate),
@@ -687,7 +687,6 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.ContactName, data.ContactName);
         Text(CaseDataFieldNames.ContactEmailAddress, data.ContactEmailAddress);
         Text(CaseDataFieldNames.ContactPhoneNumber, data.ContactPhoneNumber);
-        Day(CaseDataFieldNames.InstructionDate, data.InstructionDate);
         Text(CaseDataFieldNames.VatStatus, data.VatStatus);
         Day(CaseDataFieldNames.InspectionDate, data.InspectionDate);
         Day(CaseDataFieldNames.InspectionDeadline, data.InspectionDeadline);
@@ -793,7 +792,6 @@ internal static class CaseDataFieldWriter
         ConfirmedText(snapshot, CaseDataFieldNames.ContactName),
         ConfirmedText(snapshot, CaseDataFieldNames.ContactEmailAddress),
         ConfirmedText(snapshot, CaseDataFieldNames.ContactPhoneNumber),
-        ConfirmedDate(snapshot, CaseDataFieldNames.InstructionDate),
         ConfirmedText(snapshot, CaseDataFieldNames.VatStatus),
         ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDate),
         ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDeadline),

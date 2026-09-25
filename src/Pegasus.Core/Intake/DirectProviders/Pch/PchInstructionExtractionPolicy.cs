@@ -146,6 +146,8 @@ public sealed partial class PchInstructionExtractionPolicy
 
     private const string DeadlineRole = "deadline";
 
+    private const string MessageDateBoundary = "PCH message date boundary";
+
     /// <summary>
     /// The synthesized labels: both the label written into a rewritten row and
     /// the definition's own label, so the two cannot be spelled differently.
@@ -210,21 +212,14 @@ public sealed partial class PchInstructionExtractionPolicy
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate,
             PartyRole: ClaimantRole),
-        // The instruction message's own "Date:" header, and nothing else. It
-        // is guarded against the two other date rows the template prints: the
-        // incident date above it and the replacement-vehicle "Hire Out Date:"
-        // below it, which is when a hire car was supplied and is neither an
-        // incident nor an instruction.
-        //
-        // There is deliberately no clock default: a PCH instruction that
-        // states no date has no instruction date, and today is not an
-        // extracted fact.
-        new("Instruction date", ["Date"],
-            AcceptsValue: value => InstructionFieldEngine.ParseDate(value) is not null,
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
-            CanonicalValue: InstructionFieldEngine.CanonicalDate,
-            GuardedPrefixes: ["Incident", "Out", "Hire", "Inspection", "Report", "Due", "Issue"],
-            PartyRole: InstructionRole),
+        // The message's own "Date:" header is not a Case fact: the Case's
+        // Received date is its instruction date (operator, 24 September
+        // 2026). It stays a label boundary so the rows around it segment as
+        // before; refusing every value means it yields no field (SBL's
+        // hire-date boundary precedent).
+        new(MessageDateBoundary, ["Date"],
+            IsRequired: false,
+            AcceptsValue: _ => false),
         new("Accident circumstances", ["Incident Circumstances", "Accident Circumstances"],
             PartyRole: ClaimantRole),
         // Only an explicitly appointed or completed inspection. No recorded
@@ -319,7 +314,7 @@ public sealed partial class PchInstructionExtractionPolicy
         new(FieldDefinitions);
 
     public IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; } =
-        FieldDefinitions.ToDictionary(
+        FieldDefinitions.Where(definition => definition.Name != MessageDateBoundary).ToDictionary(
             definition => definition.Name,
             definition => new InstructionFieldRole(definition.PartyRole, definition.ReferenceRole),
             StringComparer.Ordinal);
@@ -361,6 +356,7 @@ public sealed partial class PchInstructionExtractionPolicy
             FieldDefinitions,
             FieldRegexCache,
             timing);
+        fields = [.. fields.Where(field => field.Name != MessageDateBoundary)];
         evidence.AddRange(fieldEvidence);
         if (readResult.RequiresOcr)
         {
@@ -495,7 +491,6 @@ public sealed partial class PchInstructionExtractionPolicy
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Date of incident"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]),
             null,

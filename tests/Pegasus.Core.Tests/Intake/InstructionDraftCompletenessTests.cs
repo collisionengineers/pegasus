@@ -33,7 +33,6 @@ public sealed class InstructionDraftCompletenessTests
     [InlineData("Vehicle mileage")]
     [InlineData("Accident circumstances")]
     [InlineData("Date of incident")]
-    [InlineData("Instruction date")]
     [InlineData("Inspection address")]
     public void EachRequiredFieldMissingInTurnNamesExactlyThatField(string fieldName)
     {
@@ -57,9 +56,9 @@ public sealed class InstructionDraftCompletenessTests
     public void EveryMissingFieldIsNamed()
     {
         var missing = InstructionDraftCompleteness.MissingFieldNames(
-            new(null, null, null, null, null, null, null, null, null, null, null));
+            new(null, null, null, null, null, null, null, null, null, null));
 
-        Assert.Equal(10, missing.Count);
+        Assert.Equal(9, missing.Count);
     }
 
     [Fact]
@@ -94,7 +93,6 @@ public sealed class InstructionDraftCompletenessTests
     [InlineData("Vehicle mileage")]
     [InlineData("Accident circumstances")]
     [InlineData("Date of incident")]
-    [InlineData("Instruction date")]
     [InlineData("Inspection address")]
     public void ThinOrdinaryDetailDoesNotStopAllocation(string fieldName)
     {
@@ -110,7 +108,23 @@ public sealed class InstructionDraftCompletenessTests
         Assert.Equal(
             ["Claimant name", "Claim number", "Vehicle registration"],
             InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(
-                new(null, null, null, null, null, null, null, null, null, null, null)));
+                new(null, null, null, null, null, null, null, null, null, null)));
+
+    /// <summary>The Case's Received date is its instruction date (operator, 24 September 2026), so no profile reads one, and a label kept only as a boundary is never a field with a role.</summary>
+    [Fact]
+    public void NoInstructionProfileReadsAnInstructionDate()
+    {
+        var profiles = typeof(IInstructionFieldRoles).Assembly.GetTypes()
+            .Where(type => type is { IsClass: true, IsAbstract: false } && typeof(IInstructionFieldRoles).IsAssignableFrom(type))
+            .Select(type => (IInstructionFieldRoles)Activator.CreateInstance(type)!)
+            .ToArray();
+        Assert.NotEmpty(profiles);
+        Assert.All(profiles, profile =>
+        {
+            Assert.DoesNotContain("Instruction date", profile.FieldRoles.Keys);
+            Assert.DoesNotContain(profile.FieldRoles.Keys, key => key.EndsWith("boundary", StringComparison.Ordinal));
+        });
+    }
 
     private static InstructionDraft Complete() => new(
         "QDOS",
@@ -122,7 +136,6 @@ public sealed class InstructionDraftCompletenessTests
         12345L,
         "Controlled protocol circumstances",
         new DateOnly(2031, 3, 4),
-        new DateOnly(2031, 3, 5),
         "1 Example Street, Exampleton",
         new DateOnly(2031, 3, 20));
 
@@ -136,7 +149,6 @@ public sealed class InstructionDraftCompletenessTests
         "Vehicle mileage" => Complete() with { VehicleMileage = null },
         "Accident circumstances" => Complete() with { AccidentCircumstances = null },
         "Date of incident" => Complete() with { DateOfIncident = null },
-        "Instruction date" => Complete() with { InstructionDate = null },
         "Inspection address" => Complete() with { InspectionAddress = null },
         _ => throw new ArgumentOutOfRangeException(nameof(fieldName), fieldName, "Unknown field.")
     };

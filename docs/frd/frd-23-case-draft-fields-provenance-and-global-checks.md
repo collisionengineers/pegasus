@@ -101,8 +101,17 @@ Capture:
 | Vehicle Mileage | From the instruction when supplied; MOT-based estimation when available. |
 | Accident Circumstances | From the instruction. |
 | Date of Incident | From the instruction. |
-| Instruction Date | The document value; today's date if absent. |
 | Inspection Address | FRD-06 inspection-location rules. |
+
+The Case's instruction date is its Received date (operator, 24 September
+2026): the Europe/London date its instruction was received, or the date
+staff created the Case directly. It is not read from the instruction,
+entered by staff or stated over the Provider API, and there is no separate
+instruction-date field. EVA's `Instruction Date`
+([FRD-07](frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff))
+and the date the report says instructions were received
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness))
+print it.
 
 ## States and transitions
 
@@ -128,14 +137,14 @@ Capture:
 - The instruction's combined vehicle description is never split into make
   and model by guesswork, and a third-party vehicle is never treated as the
   claimant's.
-- Instruction Date is absent: today's date is used.
 
 ## Acceptance evidence
 
 Acceptance proves the value kinds and source kinds, the mileage tier order,
-the DVSA discrepancy display, and that a Case cannot enter Review without
-the three global checks or their recorded exceptions. Deployment and live
-evidence are separate tiers
+the DVSA discrepancy display, that the instruction date EVA and the report
+print is the Case's Received date, and that a Case cannot enter Review
+without the three global checks or their recorded exceptions. Deployment
+and live evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

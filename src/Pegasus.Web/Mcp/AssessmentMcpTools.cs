@@ -514,7 +514,6 @@ internal sealed class AssessmentMcpTools(
         [Description("Contact name.")] string? contactName = null,
         [Description("Contact email address.")] string? contactEmailAddress = null,
         [Description("Contact phone number.")] string? contactPhoneNumber = null,
-        [Description("Instruction date, yyyy-MM-dd.")] string? instructionDate = null,
         [Description("VAT status text.")] string? vatStatus = null,
         [Description("Inspection date, yyyy-MM-dd; the report prints it as the date the damage was assessed.")] string? inspectionDate = null,
         [Description("Inspection deadline, yyyy-MM-dd.")] string? inspectionDeadline = null,
@@ -556,8 +555,6 @@ internal sealed class AssessmentMcpTools(
                     contactName ?? current.Contact.Name.Confirmed?.Value,
                     contactEmailAddress ?? current.Contact.EmailAddress.Confirmed?.Value,
                     contactPhoneNumber ?? current.Contact.PhoneNumber.Confirmed?.Value,
-                    ParseDate(instructionDate, "instructionDate")
-                        ?? current.Instruction.InstructionDate.Confirmed?.Value,
                     vatStatus ?? current.Instruction.VatStatus.Confirmed?.Value,
                     ParseDate(inspectionDate, "inspectionDate")
                         ?? current.Inspection.InspectionDate.Confirmed?.Value,

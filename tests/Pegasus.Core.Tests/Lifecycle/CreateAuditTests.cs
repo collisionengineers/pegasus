@@ -288,7 +288,7 @@ public sealed class CreateAuditTests
         {
             var summary = new CaseSearchItem(
                 CaseId, "QDOS26214", null, CaseType.InspectionAndAudit, "QDOS", workflow.State, workflow.AssignedEngineerId,
-                "AB12CDE", "A Claimant", null, Now, null, "manual", Now);
+                "AB12CDE", "A Claimant", null, Now, "manual", Now);
             return Task.FromResult<CaseHeader?>(new CaseHeader(summary, workflow, null, 0, 0, 0, works));
         }
     }

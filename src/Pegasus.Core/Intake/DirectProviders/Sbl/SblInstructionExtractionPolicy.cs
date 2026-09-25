@@ -29,9 +29,6 @@ public sealed partial class SblInstructionExtractionPolicy
         new("Incident date", ["Incident date"],
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "claimant"),
-        new("Instruction date", ["Instruction date"],
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
-            CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "instruction"),
         new("Vehicle mileage", ["Mileage"], IsRequired: false,
             IsValidTyped: value => InstructionFieldEngine.ParseMileage(value) is not null, PartyRole: "claimant"),
         new("Inspection address", ["Current vehicle location"], IsRequired: false,
@@ -100,7 +97,6 @@ public sealed partial class SblInstructionExtractionPolicy
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Incident date"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]),
             null,
@@ -138,8 +134,7 @@ public sealed partial class SblInstructionExtractionPolicy
         var repairer = Section(text, "Repairer Details", "Insurance & Hire");
         var hire = Section(text, "Insurance & Hire", "Important Notes");
 
-        foreach (var item in ReadLabels(fragment, instruction,
-            ("Date", "Instruction date"), ("Introducer", "Introducer")))
+        foreach (var item in ReadLabels(fragment, instruction, ("Introducer", "Introducer")))
             yield return item;
         foreach (var item in ReadLabels(fragment, claim,
             ("Claim Number", "Claim number"), ("Incident Date", "Incident date"),

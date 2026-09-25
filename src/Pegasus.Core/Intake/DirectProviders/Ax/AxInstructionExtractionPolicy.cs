@@ -29,9 +29,6 @@ public sealed class AxInstructionExtractionPolicy
             AcceptsValue: InstructionFieldEngine.IsPlausibleVehicleMakeModel, PartyRole: "claimant"),
         new("Incident date", ["Accident Date"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "claimant"),
-        new("Instruction date", ["Instruction date"], IsRequired: false,
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
-            CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "instruction"),
         new("Inspection address", ["Inspection Location"], IsRequired: false, PartyRole: "instruction"),
         new(
             "Accident circumstances",
@@ -82,7 +79,6 @@ public sealed class AxInstructionExtractionPolicy
             InstructionFieldEngine.TypedString(values["Vehicle make"], 100), null, null,
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Incident date"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000), null, null,
             InstructionFieldEngine.TypedString(values["VAT status"], 100), null, null);
         var evidence = new List<IntakeEvidence>(fieldEvidence)
@@ -102,12 +98,9 @@ public sealed class AxInstructionExtractionPolicy
         var thirdParty = text.IndexOf("Third Party Details", StringComparison.OrdinalIgnoreCase);
         var clientEnd = NextSection(text.Length, client, bodyshop, thirdParty);
         var header = text[..client];
-        var headerDate = header.Split('\n').Select(line => line.Trim()).FirstOrDefault(line =>
-            InstructionFieldEngine.ParseDate(line) is not null);
         var deadline = header.Split('\n').FirstOrDefault(line => line.Contains("Report Due on", StringComparison.OrdinalIgnoreCase));
         yield return fragment with { Text = text[client..clientEnd] };
         yield return fragment with { Text = $"AX Reference: {FirstColumnValueAfter(header, "AX Reference")}" };
-        if (headerDate is not null) yield return fragment with { Text = $"Instruction date: {headerDate}" };
         if (deadline is not null && DateToken(deadline) is { } deadlineDate)
             yield return fragment with { Text = $"{DeadlineField}: {deadlineDate}" };
         if (Circumstances(text[client..clientEnd]) is { } circumstances)

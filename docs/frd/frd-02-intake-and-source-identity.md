@@ -68,10 +68,12 @@ fields Pegasus reads from the Tractable PDF is an
 **Direct Case creation** is a staff path. It uses the same permanent Case/PO
 allocator as intake acceptance. Staff must supply the identity-critical Case
 facts. The action is recorded. No intake receipt and no invented source
-provenance are created. Ordinary detail may still be missing, so the new
-Case starts in `Not ready` until its normal requirements are met. A Triage
-created this way needs only its Principal and registration, starts `Open`
-and follows the Triage states
+provenance are created. Its Received date, which is the Case's instruction
+date, is the date staff created it
+([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
+Ordinary detail may still be missing, so the new Case starts in `Not ready`
+until its normal requirements are met. A Triage created this way needs only
+its Principal and registration, starts `Open` and follows the Triage states
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
 A staff-created Case, and any other staff acceptance with no accepted mail
