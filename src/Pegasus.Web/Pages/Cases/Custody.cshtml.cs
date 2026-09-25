@@ -127,6 +127,7 @@ public sealed class CustodyModel(
     public Task<IActionResult> OnPostMarkAsOriginalReportAsync(
         Guid id,
         Guid occurrenceId,
+        Guid versionId,
         long expectedVersion,
         string operationKey,
         string editLeaseToken,
@@ -142,7 +143,8 @@ public sealed class CustodyModel(
                     actor,
                     operationKey,
                     editLeaseToken,
-                    occurrenceId),
+                    occurrenceId,
+                    versionId),
                 cancellationToken),
             "The original report was recorded.",
             RedirectToFiles,

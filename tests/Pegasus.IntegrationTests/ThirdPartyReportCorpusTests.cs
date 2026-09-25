@@ -2,6 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
 using Pegasus.Infrastructure.Intake;
@@ -185,6 +186,51 @@ public sealed class ThirdPartyReportCorpusTests(ITestOutputHelper output)
                         || row.Field == ThirdPartyReportFields.Net)
                     && row.Disposition != SourceCandidateDisposition.Missing);
         }
+    }
+
+    /// <summary>
+    /// What each report original fills on an Audit's Original report cells
+    /// (v28 P51, #840), read from the original's own printed text: the
+    /// assessor, the report date, the roadworthiness and the repairable
+    /// status, in the cells' own vocabulary. A dash is a cell the report
+    /// leaves blank — Montgomery prints no report date, and a Laird supplement
+    /// prints neither a roadworthiness nor a status.
+    /// </summary>
+    private static readonly (string File, string Assessor, string Date, string Roadworthiness, string Outcome)[]
+        OriginalReportCells =
+        [
+            ("Report 00077570.pdf", "Connexus Vehicle Assessors", "2026-03-09", "unroadworthy", "repairable"),
+            ("tpreportexample.pdf", "Laird Assessors", "2026-09-01", "roadworthy", "repairable"),
+            ("LairdRepairable1.pdf", "Laird Assessors", "2026-08-14", "-", "-"),
+            ("Bodyshopreport236502-V1-EVA-repairableSupp1.pdf", "Exclusive Vehicle Assessors", "2026-04-27", "roadworthy", "repairable"),
+            ("Bodyshopreport-V1.pdf", "Montgomery Assessors", "-", "unroadworthy", "total_loss"),
+            ("Bodyshopreport236502-V1-sPrintAssessors-repairable3.pdf", "sPrint Assessors", "2026-08-18", "roadworthy", "repairable")
+        ];
+
+    [ReferencePackFact]
+    public async Task EachOriginalFillsTheOriginalReportCellsItsPrintedTextStates()
+    {
+        var read = await Corpus.Value;
+        static string Cell(string? value) => value ?? "-";
+        var cells = read
+            .Where(entry => entry.Value.Candidate is not null)
+            .OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(entry =>
+            {
+                var reading = OriginalReportPrefillPolicy.Read(entry.Value.Candidate, entry.Value.Candidate!.Sha256);
+                return (File: entry.Key, Cells: (Cell(reading.Assessor), Cell(reading.ReportDate),
+                    Cell(reading.Roadworthiness), reading.OutcomeUnreadable ? "unreadable" : Cell(reading.Outcome)));
+            })
+            .ToDictionary(item => item.File, item => item.Cells, StringComparer.OrdinalIgnoreCase);
+
+        Report("original report cells", cells.Select(entry => $"{entry.Key} = {entry.Value}"));
+
+        var wrong = OriginalReportCells
+            .Where(expected => cells[expected.File]
+                != (expected.Assessor, expected.Date, expected.Roadworthiness, expected.Outcome))
+            .Select(expected => $"{expected.File}: recorded {(expected.Assessor, expected.Date, expected.Roadworthiness, expected.Outcome)}, read {cells[expected.File]}")
+            .ToList();
+        Assert.True(wrong.Count == 0, string.Join("; ", wrong));
     }
 
     [ReferencePackFact]

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -18,7 +19,8 @@ public sealed class AcceptIntake(
     IProviderInspectionModeStore inspectionModeStore,
     ICommittedExternalWorkPublisher committedExternalWorkPublisher,
     ITriageCasePairing triageCasePairing,
-    IImageIntakeCasePairing? imageIntakeCasePairing = null) : IAcceptIntake
+    IImageIntakeCasePairing? imageIntakeCasePairing = null,
+    IReadOriginalReport? originalReport = null) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
         AcceptIntakeRequest request,
@@ -94,7 +96,14 @@ public sealed class AcceptIntake(
             request.StandaloneAuditEvidenceId,
             request.AcceptedInspectionDeadline,
             request.AllocationAttemptId,
-            request.AllocationCompletedAtUtc);
+            request.AllocationCompletedAtUtc,
+            // A standalone Audit's original report is read before the
+            // acceptance transaction opens, so the Case is created with its
+            // Original report cells filled (v28 P51) and a slow or unreadable
+            // report never holds that transaction or refuses the Case.
+            request.StandaloneAuditEvidenceId is { } evidenceId && originalReport is not null
+                ? await originalReport.ForIntakeAsync(request.ReceiptId, evidenceId, cancellationToken)
+                : null);
 
         var outcome = await acceptanceStore.AcceptAsync(acceptance, cancellationToken);
         _ = CaseInitialWorkflowState.From(outcome.InitialState);

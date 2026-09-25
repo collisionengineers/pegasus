@@ -21,6 +21,8 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AutomaticVehicleLookupTests
 {
+    private static int principalCodeSequence;
+
     private static readonly DateTimeOffset FixedUtcNow =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
@@ -321,13 +323,16 @@ public sealed class AutomaticVehicleLookupTests
         var receiptId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
         var sequence = Math.Abs(caseId.GetHashCode() % 999) + 1;
+        // Each seeded Case gets its own Principal, and IX_Principals_Code is unique across the
+        // database, so the code comes from a counter rather than the Case id's hash: a test that
+        // seeds two Cases would otherwise collide about once in a thousand runs.
         await using var context = await database.CreateContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Automatic lookup test {organizationId:N}"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {FixedUtcNow})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {$"A{sequence % 997:D3}"}, {lineageId}, {true}, {0L})");
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {$"A{System.Threading.Interlocked.Increment(ref principalCodeSequence):D3}"}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"auto-lookup.eml"}, {"message/rfc822"}, {1L}, {1.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {"manual_upload"}, {receiptId.ToString("D")}, {FixedUtcNow}, {FixedUtcNow}, {"auto-lookup-reader"}, {"1"}, {0L}, {"case_created"}, {"Automatic lookup fixture"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"})");
         await context.Database.ExecuteSqlInterpolatedAsync(
