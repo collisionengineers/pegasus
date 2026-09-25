@@ -462,6 +462,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             LookupRequests.Add(command);
+            ConsumeLease();
             return Task.FromResult(new RequestedVehicleLookup(
                 Guid.NewGuid(),
                 CaseId,

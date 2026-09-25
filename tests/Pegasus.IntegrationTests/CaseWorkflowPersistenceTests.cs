@@ -1588,11 +1588,7 @@ public sealed class CaseWorkflowPersistenceTests
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
             harness.Store.ClaimAsync(
-                request with
-                {
-                    OperationKey = "claim-competing",
-                    Actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])
-                },
+                request with { OperationKey = "claim-competing" },
                 default));
         await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
             harness.Store.RenewAsync(
@@ -1691,39 +1687,32 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// The holder is the staff member, not the window: their own second claim, from another tab or
-    /// a page that went stale, hands back the same live lease. Nothing is rotated, so their other
-    /// window keeps working, and nothing is recorded as a takeover of themselves, whether or not
-    /// the page asked to take over.
+    /// A one-off command the holder makes elsewhere claims, and is refused while their lease is
+    /// live, so it can never take or end their open edit session. Taking their own lease back
+    /// explicitly rotates it but is not a takeover: nothing is recorded as history.
     /// </summary>
     [Fact]
-    public async Task TheHoldersOwnClaimResumesTheSameLeaseWithoutATakeover()
+    public async Task TheHoldersOwnClaimIsRefusedUnlessTakenBackAndIsNeverATakeover()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var held = await harness.Store.ClaimAsync(
             new(harness.CaseId, 0, holder, "own-first-claim"),
             default);
-        harness.TimeProvider.Advance(TimeSpan.FromMinutes(4));
 
-        var again = await harness.Store.ClaimAsync(
-            new(harness.CaseId, 0, holder, "own-second-claim"),
-            default);
-        var takenFromSelf = await harness.Store.ClaimAsync(
-            new(harness.CaseId, 0, holder, "own-takeover-claim") { TakeOver = true },
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new(harness.CaseId, 0, holder, "own-one-off-claim"),
+                default));
+        var takenBack = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "own-take-back") { TakeOver = true },
             default);
 
-        Assert.Equal(held.Token, again.Token);
-        Assert.Equal(held.Token, takenFromSelf.Token);
-        Assert.Equal(held.Generation, takenFromSelf.Generation);
-        Assert.Equal(harness.TimeProvider.GetUtcNow().AddMinutes(5), takenFromSelf.ExpiresAtUtc);
-        Assert.Equal(0, await harness.WorkflowEventCountAsync("own-second-claim"));
-        Assert.Equal(0, await harness.WorkflowEventCountAsync("own-takeover-claim"));
-        await harness.Store.HeartbeatAsync(new(harness.CaseId, holder, held.Token), default);
-        var replay = await harness.Store.ClaimAsync(
-            new(harness.CaseId, 0, holder, "own-second-claim"),
-            default);
-        Assert.Equal(held.Token, replay.Token);
+        Assert.NotEqual(held.Token, takenBack.Token);
+        Assert.Equal(holder.SubjectId, takenBack.Holder);
+        Assert.Equal(0, await harness.WorkflowEventCountAsync("own-take-back"));
+        var resumed = await harness.Store.ResumeAsync(new(harness.CaseId, holder), default);
+        Assert.Equal(takenBack.Token, resumed?.Token);
     }
 
     /// <summary>

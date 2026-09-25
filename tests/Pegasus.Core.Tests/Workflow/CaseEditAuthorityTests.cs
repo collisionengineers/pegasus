@@ -146,6 +146,7 @@ public sealed class CaseEditAuthorityTests
     /// <summary>
     /// The holder is the staff member, not the window: only their own live lease is resumed, and
     /// a colleague's, an expired one, or one whose kind was never recorded is not theirs to resume.
+    /// The Automation Actor never resumes, even its own lease: each session claims and fails closed.
     /// </summary>
     [Fact]
     public void OnlyTheHoldersOwnLiveLeaseIsResumed()
@@ -167,6 +168,12 @@ public sealed class CaseEditAuthorityTests
             Holder,
             live,
             ActionActor.Automation(Holder),
+            Now));
+        Assert.False(CaseEditAuthority.CanResume(
+            ActorKind.Automation,
+            "pegasus-automation",
+            live,
+            ActionActor.Automation("pegasus-automation"),
             Now));
     }
 

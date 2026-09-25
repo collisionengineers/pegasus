@@ -1031,7 +1031,7 @@ public sealed class CaseEditModeWebTests
     /// The QDOS26019 report: an editor who looks at another Case and comes back is still the
     /// holder on the server, though this browser forgot the token when the other Case rendered.
     /// They go straight back into edit mode on the same lease, never offered a takeover of
-    /// themselves, and nothing is claimed again.
+    /// themselves, and nothing is claimed again, even by an Edit on a page that went stale.
     /// </summary>
     [Fact]
     public async Task ReturningFromAnotherCaseResumesEditModeWithoutATakeover()
@@ -1071,7 +1071,7 @@ public sealed class CaseEditModeWebTests
         Assert.Equal(store.LeaseToken, InputValue(
             await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}"),
             "editLeaseToken"));
-        Assert.Empty(store.Resumes);
+        var resumesBeforeLeaving = store.Resumes.Count;
 
         var otherHtml = await GetHtmlAsync(client, $"/Cases/{otherStore.CaseId:D}");
         Assert.DoesNotContain("name=\"editLeaseToken\"", otherHtml, StringComparison.Ordinal);
@@ -1082,8 +1082,24 @@ public sealed class CaseEditModeWebTests
         Assert.Contains("data-case-release-beacon", returnedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Take over", RecordBar(returnedHtml), StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"takeOver\"", returnedHtml, StringComparison.Ordinal);
-        Assert.Equal(store.CaseId, Assert.Single(store.Resumes).CaseId);
+        Assert.Equal(resumesBeforeLeaving + 1, store.Resumes.Count);
+        Assert.Equal(store.CaseId, store.Resumes[^1].CaseId);
+
+        // The Edit on the page first loaded before any lease existed is now stale: it resumes.
+        using (var staleEdit = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", Guid.NewGuid().ToString("N")))))
+        {
+            AssertPrg(staleEdit, store.CaseId);
+        }
         Assert.Single(store.Claims);
+        Assert.Equal(store.LeaseToken, InputValue(
+            await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}"),
+            "editLeaseToken"));
     }
 
     /// <summary>

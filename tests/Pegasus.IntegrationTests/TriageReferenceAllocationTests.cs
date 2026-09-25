@@ -233,12 +233,12 @@ public sealed class TriageReferenceAllocationTests
     }
 
     /// <summary>
-    /// The holder is the staff member, not the window: their own second claim takes the live
-    /// scope back at once, with no "held elsewhere" refusal and no takeover of themselves in the
-    /// history. The earlier window's token is rotated out.
+    /// A one-off claim is refused while the holder's own scope is live, so it never rotates their
+    /// open window. The record page's Edit replaces their own scope explicitly: the earlier
+    /// window's token is rotated out, and no takeover of themselves is recorded.
     /// </summary>
     [Fact]
-    public async Task TheHoldersOwnSecondClaimTakesTheScopeBackWithoutATakeover()
+    public async Task TheHoldersOwnScopeIsReplacedExplicitlyWithoutATakeover()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -251,8 +251,15 @@ public sealed class TriageReferenceAllocationTests
             new(EditScopeKind.Triage, created.CaseId, created.Version, holder, "triage-own-first"),
             CancellationToken.None);
 
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, holder, "triage-own-one-off"),
+            CancellationToken.None));
         var again = await leases.ClaimAsync(
-            new(EditScopeKind.Triage, created.CaseId, created.Version, holder, "triage-own-second"),
+            new ClaimEditScopeRequest(
+                EditScopeKind.Triage, created.CaseId, created.Version, holder, "triage-own-second")
+            {
+                TakeOver = true
+            },
             CancellationToken.None);
 
         Assert.NotEqual(held.Token, again.Token);

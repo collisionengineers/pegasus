@@ -51,9 +51,10 @@ public sealed record ClaimEditScopeRequest(
     string OperationKey)
 {
     /// <summary>
-    /// An authorised editor explicitly replaces a live scope another staff
-    /// member holds. The old token is invalidated atomically. The caller's own
-    /// live scope needs no takeover: a claim takes it back silently.
+    /// An authorised editor explicitly replaces a live scope. The old token is
+    /// invalidated atomically. Replacing a colleague's scope is a takeover and
+    /// is recorded; replacing the caller's own is not. Without it, any live
+    /// scope refuses the claim.
     /// </summary>
     public bool TakeOver { get; init; }
 }

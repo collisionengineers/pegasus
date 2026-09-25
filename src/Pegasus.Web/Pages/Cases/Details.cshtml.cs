@@ -1352,6 +1352,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         ClaimLeaseAsync(
             acquireLease,
+            resumeLease,
             id,
             expectedVersion,
             operationKey,

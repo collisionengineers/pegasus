@@ -35,6 +35,11 @@ public sealed class TriageCaseView(TriageDetail triage)
     /// <summary>An authorised editor may replace a live scope held in another window.</summary>
     public bool CanTakeOverEdit { get; set; }
 
+    /// <summary>
+    /// The viewer holds a live scope from another window; Edit replaces it without a takeover.
+    /// </summary>
+    public bool ViewerHoldsEditScope { get; set; }
+
     /// <summary>Each evidence image's recorded crop and tags, by its asset (pre-Case crop and tag, v26).</summary>
     public IReadOnlyDictionary<Guid, Pegasus.Core.ImageIntake.PreCaseImagePreparation> Preparations { get; set; } =
         new Dictionary<Guid, Pegasus.Core.ImageIntake.PreCaseImagePreparation>();
@@ -222,9 +227,12 @@ public sealed partial class DetailsModel
         view.EngineerChoices = await ports.EngineerChoices.GetAsync(actor, cancellationToken);
         if (!view.IsEditing && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
         {
-            view.CanTakeOverEdit = await ports.EditScopes.GetActiveAsync(
-                    EditScopeKind.Triage, id, actor, cancellationToken) is { } active
-                && !EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
+            if (await ports.EditScopes.GetActiveAsync(
+                    EditScopeKind.Triage, id, actor, cancellationToken) is { } active)
+            {
+                view.ViewerHoldsEditScope = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
+                view.CanTakeOverEdit = !view.ViewerHoldsEditScope;
+            }
         }
 
         view.Message = TempData["TriageStatus"] as string;
@@ -521,7 +529,6 @@ public sealed partial class DetailsModel
         }
         catch (EditScopeConflictException)
         {
-            // Only a colleague's live scope refuses a claim; the viewer's own is claimed back.
             canTakeOver = true;
             ModelState.AddModelError(string.Empty,
                 await DescribeTriageHeldAsync(id, actor, ports, cancellationToken));
