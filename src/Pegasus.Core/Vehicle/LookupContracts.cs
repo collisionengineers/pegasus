@@ -36,6 +36,11 @@ public sealed record VehicleLookupRequest
     public string Registration { get; }
 }
 
+/// <summary>
+/// One provider's description of the vehicle. <paramref name="Colour"/> is DVLA
+/// VES <c>colour</c>, else DVSA MOT History <c>primaryColour</c>;
+/// <paramref name="TaxDueDate"/> is DVLA VES <c>taxDueDate</c>.
+/// </summary>
 public sealed record VehicleDetails(
     string? Make,
     string? Model,
@@ -44,7 +49,9 @@ public sealed record VehicleDetails(
     string? FuelType,
     string? TypeApproval = null,
     string? Wheelplan = null,
-    int? RevenueWeightKg = null);
+    int? RevenueWeightKg = null,
+    string? Colour = null,
+    DateOnly? TaxDueDate = null);
 
 public sealed record MotTestObservation(
     DateOnly TestDate,
@@ -154,6 +161,7 @@ public sealed record VehicleLookupResult(
             && ((vehicle.Make is not null && string.IsNullOrWhiteSpace(vehicle.Make))
                 || (vehicle.Model is not null && string.IsNullOrWhiteSpace(vehicle.Model))
                 || (vehicle.FuelType is not null && string.IsNullOrWhiteSpace(vehicle.FuelType))
+                || (vehicle.Colour is not null && string.IsNullOrWhiteSpace(vehicle.Colour))
                 || (vehicle.TypeApproval is not null && string.IsNullOrWhiteSpace(vehicle.TypeApproval))
                 || (vehicle.Wheelplan is not null && string.IsNullOrWhiteSpace(vehicle.Wheelplan))
                 || vehicle.ManufactureYear is <= 0

@@ -8,8 +8,12 @@ namespace Pegasus.Infrastructure.Persistence;
 /// provenance. The assessment save writes the whole surface through it, and
 /// the valuation adoption writes the confirmed
 /// <c>assessment.values.engineer</c>, <c>assessment.values.retail</c> and
-/// <c>assessment.values.trade</c> fields through it, so the row shape and
-/// the provenance stamped on it have exactly one owner.
+/// <c>assessment.values.trade</c> fields through it, and the vehicle lookup
+/// writes the Vehicle type unconfirmed and the facts it alone derives
+/// (<see cref="AssessmentVocabulary.LookupDerivedPaths"/>) confirmed by
+/// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.RecorderId"/>
+/// through it, so the row shape and the provenance stamped on it have
+/// exactly one owner.
 /// </summary>
 internal static class AssessmentFieldWriter
 {

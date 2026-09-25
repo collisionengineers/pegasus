@@ -569,6 +569,19 @@ public sealed partial class DetailsModel(
     public IReadOnlyDictionary<string, string> ReportWordingComposed { get; private set; } =
         new Dictionary<string, string>(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The Damage section's Incident narrative: the report's Nature of Incident
+    /// block as Core composes it for this view's work (operator, 24 September
+    /// 2026). Null while there is none or the assessment cannot open.
+    /// </summary>
+    public string? IncidentNarrative { get; private set; }
+
+    /// <summary>
+    /// The accepted statement of truth this Case's report prints, from Core, shown
+    /// read-only in the Report section. Empty while the assessment cannot open.
+    /// </summary>
+    public IReadOnlyList<string> StatementOfTruth { get; private set; } = [];
+
     public string? ReportDraftCondition { get; private set; }
 
     public bool ReportDraftNotReady =>
@@ -1006,6 +1019,8 @@ public sealed partial class DetailsModel(
                             block.Key, wordingSnapshot, wordingSnapshot.Presentation()),
                         StringComparer.Ordinal)
                     : new Dictionary<string, string>(StringComparer.Ordinal);
+                IncidentNarrative = ReportWordingComposition.NatureOfIncidentOf(wordingInputs.Projection);
+                StatementOfTruth = AssessmentReportContract.StatementOfTruthOf(wordingInputs.Projection);
             }
         }
         CurrentReportGeneration = await reportGenerations.GetCurrentAsync(actor, id, CaseWorkSelector.Current, cancellationToken);
@@ -1571,8 +1586,9 @@ public sealed partial class DetailsModel(
                 var damageFields = assessmentFields.Where(field => EditorLabels.Damage.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 var damageSubmitted = Posted(nameof(damageImpacts)) || damageFields.Count > 0;
-                // The vehicle's identity (VIN, type, body) is edited wherever the
-                // Vehicle section edits, like its registration — not an Engineer field.
+                // The vehicle's identity (VIN, type, body) and its transmission are
+                // edited wherever the Vehicle section edits, like its registration —
+                // not an Engineer field.
                 var vehicleIdentityFields = assessmentFields.Where(field => EditorLabels.Vehicle.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 // D4/FRD-12: an image preparation is not an engineering field.

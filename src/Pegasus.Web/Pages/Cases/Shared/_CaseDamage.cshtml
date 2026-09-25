@@ -309,7 +309,7 @@
                             <input id="edit-@AssessmentVocabulary.DamageUnrelatedDeduction" class="fi mono" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelatedDeduction)" form="case-edit-form" type="number" step="0.01" min="0" value="@deduction" />
                         }
                     </div>
-                    <div class="fc ro span4"><span class="lbl">@EngineerLabels.IncidentNarrative</span><div class="fv derived @(Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident) == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)" data-damage-narrative>@Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident)</div></div>
+                    <div class="fc ro span4"><span class="lbl">@EngineerLabels.IncidentNarrative</span><div class="fv derived @(Model.IncidentNarrative is null ? "empty" : null)" data-damage-narrative>@(Model.IncidentNarrative ?? OperatorLabels.CaseWorkspace.AbsentValue)</div></div>
                 </div>
             </div>
         </div>

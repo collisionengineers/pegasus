@@ -1,4 +1,5 @@
 using System.Globalization;
+using Pegasus.Core.Assessment;
 
 namespace Pegasus.Core.Reports;
 
@@ -102,7 +103,7 @@ public static class ReportWordingComposition
             var (key, title) = Standard[index];
             byKey.TryGetValue(key, out var change);
             var composed = ComposedText(key, snapshot, presentation);
-            var text = string.IsNullOrWhiteSpace(change?.Text) ? composed : change!.Text!.Trim();
+            var text = Worded(change, composed);
             var hasChange = change is not null
                 && (change.Title is not null || change.Text is not null
                     || change.Order is not null || !change.Included);
@@ -166,8 +167,7 @@ public static class ReportWordingComposition
         ArgumentNullException.ThrowIfNull(presentation);
         return key switch
         {
-            NatureOfIncident =>
-                $"The vehicle has suffered {Display(snapshot.ImpactSeverity)} collision/impact damage to the {Display(snapshot.ImpactLocation)}.",
+            NatureOfIncident => NatureOfIncidentSentence(snapshot.ImpactSeverity, snapshot.ImpactLocation),
             EngineersComments => Comments(snapshot),
             SupplementaryDamage => snapshot.SupplementaryStatement ?? string.Empty,
             ValuationCommentary => snapshot.Content.IncludeValuationCommentary
@@ -181,6 +181,32 @@ public static class ReportWordingComposition
             Salvage => SalvageText(snapshot),
             _ => string.Empty,
         };
+    }
+
+    /// <summary>The Nature of Incident block's composed sentence, from the headline impact severity and location codes.</summary>
+    public static string NatureOfIncidentSentence(string impactSeverity, string impactLocation) =>
+        $"The vehicle has suffered {Display(impactSeverity)} collision/impact damage to the {Display(impactLocation)}.";
+
+    /// <summary>
+    /// The Nature of Incident block's text whether or not a report can yet be
+    /// projected: the Engineer's own wording when written, else the sentence
+    /// composed from the recorded headline impact; null when there is neither.
+    /// The Damage section's Incident narrative reads it (operator, 24 September
+    /// 2026); whether the report carries the block is Report wording's choice and
+    /// does not change it.
+    /// </summary>
+    public static string? NatureOfIncidentOf(AssessmentReportProjectionInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        var severity = input.Assessment.Field(AssessmentVocabulary.ImpactSeverity)?.Value;
+        var location = input.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value;
+        var composed = string.IsNullOrWhiteSpace(severity) || string.IsNullOrWhiteSpace(location)
+            ? string.Empty
+            : NatureOfIncidentSentence(severity, location);
+        var change = (input.Wording ?? []).FirstOrDefault(item =>
+            !item.Manual && string.Equals(item.Key, NatureOfIncident, StringComparison.Ordinal));
+        var text = Worded(change, composed);
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
     /// <summary>
@@ -301,6 +327,10 @@ public static class ReportWordingComposition
                 + $" We suggest that the sale of the salvage will realise in the order of {Money(salvage)}."
                 + " We have not taken any action towards removal of the salvage at this time.";
     }
+
+    /// <summary>A block's text: the Engineer's own wording when written, else the composed sentence.</summary>
+    private static string Worded(CaseReportWording? change, string composed) =>
+        string.IsNullOrWhiteSpace(change?.Text) ? composed : change!.Text!.Trim();
 
     private static string Display(string value) =>
         CultureInfo.GetCultureInfo("en-GB").TextInfo.ToTitleCase(value.Replace('_', ' ').ToLowerInvariant());

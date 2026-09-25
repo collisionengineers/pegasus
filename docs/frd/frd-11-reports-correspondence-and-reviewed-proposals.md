@@ -57,8 +57,17 @@ The operator has supplied the report and correspondence templates. Pegasus
 uses those. Supplied templates, schemas, wording, designs and samples are
 evidence for this contract, not a second rule owner. Any wording that has not
 been accepted, such as a category treatment, storage paragraph,
-statement-of-truth text, qualification or signature, is unavailable. The
-renderer never fills a gap with a placeholder or a guess.
+qualification or signature, is unavailable. The renderer never fills a gap
+with a placeholder or a guess.
+
+The statement of truth is the accepted wording `Pegasus.Core` owns, printed
+in its accepted order. Its Glass's guide sentence prints only when Disclose
+guide source is on and a Glass's valuation guide was used; no sentence stands
+in for another guide. No Case edits the statement: its only per-Case inputs
+are that switch and the Sign-off Engineer who signs below it, and the Case's
+Report section shows the same paragraphs read-only
+([FRD-16](frd-16-case-record-workspace.md#report)). The Vehicle Details table
+prints no VIN-checked or fault-code row (operator, 24 September 2026).
 
 ### Report wording blocks
 
@@ -67,7 +76,12 @@ their order (v28 P30). The blocks are Nature of Incident, Engineer's
 Comments, Supplementary Damage, Valuation Commentary, Unrelated Damage,
 Vehicle History Check, Pre-Incident Condition, Settlement and Salvage, and
 that is their order until the Engineer moves one. The Damage and Tyres tables
-are not wording: they follow the Nature of Incident block.
+are not wording: they follow the Nature of Incident block. The Damage
+section's Incident narrative reads the Nature of Incident block from the same
+owner: the Engineer's wording when written, else the composed sentence. It is
+available once the damage record has a headline impact, before a report can
+be projected, whether or not the report carries the block; Damage keeps no
+narrative of its own (operator, 24 September 2026).
 
 A block tracks the Case's own facts until the Engineer writes wording in its
 place. The Engineer may rename a block, move it, take it off the report, put
@@ -331,7 +345,10 @@ date (operator, 24 September 2026); every Case has one, so it is never a
 blocker. On an Inspection + Audit Case each report prints its own work's
 Inspection date, and changing it makes the current generation stale. An
 Automation value stays a blocker until a staff Save of its section confirms
-or clears it. VAT comes only from the Current repair spec
+or clears it; the facts only the DVLA/DVSA lookup records
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment))
+are recorded confirmed and never wait for review. VAT comes only from the
+Current repair spec
 ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report));
 readiness asks no separate repairer VAT question.
 
@@ -420,8 +437,10 @@ The Case's own states are in
 ## Acceptance evidence
 
 Core tests cover outcome selection, the figure calculations and VAT table,
-snapshot freezing and staleness, and the fee-note rules. Integration tests
-cover Generate report, previews and downloads with their history events.
+snapshot freezing and staleness, and the fee-note rules. Core tests also
+cover that the Case's Incident narrative and Statement of truth read the
+owners the report prints. Integration tests cover Generate report, previews
+and downloads with their history events.
 Rendering against the supplied templates is verified by retained sample output.
 Deployment and live acceptance are separate evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
