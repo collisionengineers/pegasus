@@ -61,7 +61,12 @@ none of them has its own version of the rules.
 screen shows exactly which field or material is missing, where it should come
 from, why it is required, and what would clear it. Pegasus never shows an
 overall score, a percentage, or a summary such as "no unresolved field
-reviews".
+reviews". On the Case record each report blocker links to the section that
+clears it. Once the Case is With Engineer, while the report is not ready the
+Next action names the first blocker and links to its section (in Not ready
+and Review it names the outstanding requirement or Hand to Engineer)
+([FRD-16](frd-16-case-record-workspace.md#report),
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 
 **Required items are configuration.** Instruction completeness and image
 completeness are each a versioned list of items marked required or not

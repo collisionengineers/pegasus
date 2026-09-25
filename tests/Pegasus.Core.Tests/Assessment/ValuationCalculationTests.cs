@@ -370,6 +370,36 @@ public sealed class ValuationCalculationTests
     }
 
     /// <summary>
+    /// An adoption records the report's Retail value and Trade value beside
+    /// the Engineer's Value (operator, 24 September 2026): the basis retail
+    /// the calculation started from, never its proposal, and the basis card's
+    /// trade. A card without a positive trade records none, so the report
+    /// stays blocked on Trade value.
+    /// </summary>
+    [Fact]
+    public void AnAdoptionRecordsTheBasisRetailAndTrade()
+    {
+        var calculation = ValuationCalculationPolicy.Calculate(
+            Input(12500m, commercialVat: true, additions: [Addition(TowBar, 300m)]));
+        Assert.NotEqual(calculation.GuideRetailValue, calculation.Proposal);
+
+        KeyValuePair<string, string?>[] adopted =
+        [
+            new(AssessmentVocabulary.ValueRetail, "12500.00"),
+            new(AssessmentVocabulary.ValueTrade, "10250.00"),
+        ];
+        Assert.Equal(adopted, ValuationCalculationPolicy.AdoptedBasisFields(calculation, 10250m));
+
+        KeyValuePair<string, string?>[] withoutTrade =
+        [
+            new(AssessmentVocabulary.ValueRetail, "12500.00"),
+            new(AssessmentVocabulary.ValueTrade, null),
+        ];
+        Assert.Equal(withoutTrade, ValuationCalculationPolicy.AdoptedBasisFields(calculation, null));
+        Assert.Equal(withoutTrade, ValuationCalculationPolicy.AdoptedBasisFields(calculation, 0m));
+    }
+
+    /// <summary>
     /// Maintaining the presets is Administrator configuration, and the
     /// suggested amount is money like every other figure here.
     /// </summary>

@@ -18,7 +18,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// FRD-27 § AI Job List: the Assessment page's Send to Claude
+/// FRD-27 § AI Job List: the Repair Spec section's Send to AI
 /// queues an Estimate-kind AI job through <see cref="ICreateAiJob"/> (the
 /// pull-based ledger superseded the AI-09 push hand-off on this surface). The
 /// switch-off gate stays visible as the control's condition, and the
@@ -721,7 +721,7 @@ public sealed partial class SendToAiIntegrationTests
                     DateTimeOffset.UtcNow)
             ],
             [],
-            new(null, null, null, null, null, null, "tbc", null, null, null, null));
+            new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 1), null, null, null, null, null));
 
         private CaseDataProjection CreateData() => AssessmentWorkspaceTestData.Create(CreateAssessment()).Data;
 

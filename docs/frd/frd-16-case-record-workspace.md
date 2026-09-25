@@ -76,7 +76,9 @@ no workflow strip and no lifecycle panel; Return to Review, Unlink report
 evidence and Archive are items of the one Actions menu.
 
 An aside beside the sections holds **Figures** (three figures) and **Next action** (AI drafts ready on the Case with their
-per-kind action, and the next permitted action with a link to its section).
+per-kind action, and the next permitted action with a link to its section;
+With Engineer, while the report is not ready, its first blocker and how many
+follow, linking to the section that clears that blocker).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 Below 1441px the aside folds into a strip above the sections.
@@ -241,7 +243,9 @@ Image Based Assessment, Claimant address, Repairer location, Storage
 location, previous addresses used for this principal, Manual entry. An option
 without a value is disabled. Reading and editing show one row per fact
 not already implied by the row above it: Inspection type (the mode, read
-once), Inspect at, the recorded address or `Image Based Assessment` with its
+once), Inspection date (the date the report says the damage was assessed,
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)),
+Inspect at, the recorded address or `Image Based Assessment` with its
 source tag, Principal default only when it differs from the recorded value,
 Storage location, and Repairer
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
@@ -306,9 +310,12 @@ on each the latest adoption applied, and the calculator opens on that
 applied selection. The calculator has no Apply of its own (operator, 23
 September 2026): the ribbon Save adopts the Engineer's Value it shows when
 the calculation changed since the page opened — a different basis card, the
-basis card's figures, or any of its controls — and an unchanged calculation
-adopts nothing. The calculator applies presets and custom lines through
-Core. Valuation sources are owned by
+basis card's retail or trade, or any of its controls — and an unchanged
+calculation adopts nothing. The adoption records the basis card's retail and
+trade with the Engineer's Value
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+The calculator applies presets and custom lines through Core. Valuation
+sources are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources).
 
 ### Repair Spec
@@ -328,12 +335,15 @@ field meanings are owned by
 ### Report
 
 Image role, order, rotation and crop live on the image tile in Files. The
-Report section shows the readiness list, wording blocks and content switches,
-Generate / Preview report draft, and a separate Fee pane for the agreed fee,
-description lines and fee note preview
+Report section shows the readiness list — one row per blocker with the
+requirement, its source, why it is outstanding, what clears it and a link to
+the section that clears it
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness))
+— wording blocks, Generate / Preview report draft, and a separate Fee pane
+for the agreed fee, description lines and fee note preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
-The report renders the sign-off Engineer tuple and the marked damage
-diagram.
+The content switches are under **On the report** in Valuation. The report
+renders the sign-off Engineer tuple and the marked damage diagram.
 
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
@@ -420,9 +430,8 @@ chaser are on the Triage Case page
 ### Assessment
 
 The Engineer workbench is the Damage, Valuation, Repair Spec, Decisions and
-Report sections of the Case record. `/Cases/{id}/Assessment` is a permanent
-redirect to `/Cases/{id}?section=estimate`. The sections can always be read
-and are read-only in Completed. An image has one place (v28 P50): its report
+Report sections of the Case record. The sections can always be read and are
+read-only in Completed. An image has one place (v28 P50): its report
 role, its order and the tools that change them are on its tile under Files —
 a distinct `Close-up` first, `Overview` second, optional supporting images in
 explicit order, and non-destructive crops that leave the retained source and
@@ -549,14 +558,14 @@ read-only apart from Files' and Notes' actions that need no edit lease.
 
 ## Acceptance evidence
 
-Acceptance covers the ten sections and the `?section=` jump, the
-`/Cases/{id}/Assessment` redirect, the read-only rule in Completed, the
-Actions menu per state, and the one Save. It also covers the
-views: no Views card without an Audit; after Create audit the card and the
-Audit view by default; the Inspection view read-only with its label on each
-editable head, including for the lease holder; Report in each view; the
-audit folder chip in each state; the Create audit dialog; and a standalone
-Audit's single view with its Original report. Authenticated Web
+Acceptance covers the ten sections and the `?section=` jump, the Report
+readiness list and the Next action each linking a blocker to its section,
+the read-only rule in Completed, the Actions menu per state, and the one
+Save. It also covers the views: no Views card without an Audit; after Create
+audit the card and the Audit view by default; the Inspection view read-only
+with its label on each editable head, including for the lease holder; Report
+in each view; the audit folder chip in each state; the Create audit dialog;
+and a standalone Audit's single view with its Original report. Authenticated Web
 tests cover server-owned behaviour; they do not prove client-side interaction
 or visual correctness. Browser acceptance exercises the keyboard Import
 action, picker and section-scoped drop overlay. Deployment and live acceptance

@@ -2032,7 +2032,8 @@ public sealed partial class DetailsModel(
                 {
                     return EnhancedPreviewRefusal(detail);
                 }
-                return RedirectToEstimate(id, view: RequestedView);
+                // The Report section lists each blocker with its section.
+                return RedirectToReport(id, RequestedView);
             default:
                 // DOCS-014: an inline preview of the unretained working
                 // draft is a view, never a completed download — recorded

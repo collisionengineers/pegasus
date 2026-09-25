@@ -327,7 +327,8 @@ public sealed class CaseDamageAndViewerWebTests
                     DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow)
             ],
             [],
-            new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,
+                null, "Alex Example", "P-100"));
 
         private CaseDetails Details()
         {
@@ -396,7 +397,7 @@ public sealed class CaseDamageAndViewerWebTests
         {
             var assessment = Assessment();
             return Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
-                new(assessment, "Alex Example", assessment.Reference, "P-100", [], null, [], []),
+                new(assessment, assessment.Reference, [], null, [], []),
                 new(assessment, null, null, [], null, null, [], new Dictionary<Guid, DocumentVersion>()),
                 assessment.Reference, Workflow.Version));
         }

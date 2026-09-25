@@ -518,7 +518,8 @@ public sealed class EfCaseWorkspaceStore(
                 workflow,
                 fields,
                 lines,
-                snapshot.Fields.ToArray()),
+                snapshot.Fields.ToArray(),
+                snapshot.OriginReceivedAtUtc),
             estimate is null ? null : EfRepairSpecificationStore.Map(estimate),
             wasReplay);
     }
@@ -731,7 +732,7 @@ public sealed class EfCaseWorkspaceStore(
             VehicleMileage: CurrentLong(CaseDataFieldNames.VehicleMileage),
             VehicleMileageUnit: Current(CaseDataFieldNames.VehicleMileageUnit),
             IncidentDate: CurrentDate(CaseDataFieldNames.IncidentDate),
-            InstructionDate: CurrentDate(CaseDataFieldNames.InstructionDate),
+            InspectionDate: CurrentDate(CaseDataFieldNames.InspectionDate),
             InspectionAddress: Current(CaseDataFieldNames.InspectionAddress),
             InspectionMode: CurrentInspectionMode(),
             VehicleYear: Current(CaseDataFieldNames.VehicleYear));
