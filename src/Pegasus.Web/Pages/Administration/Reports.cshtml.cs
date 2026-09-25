@@ -143,7 +143,7 @@ public sealed class ReportsModel(
         }
         catch (ArgumentOutOfRangeException)
         {
-            ModelState.AddModelError(string.Empty, "Choose a valid London period.");
+            ModelState.AddModelError(string.Empty, "Choose a valid date range.");
         }
         catch (Exception exception) when (
             exception is not OperationCanceledException
