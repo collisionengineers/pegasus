@@ -1,5 +1,23 @@
 # v30 current: five surfaces, polished
 
+**25 September: [compare three Work Centre designs](pegasus_work_centre_designs_v30.html).**
+Open [A — Priority desk](pegasus_work_centre_a_v30.html),
+[B — Office ledger](pegasus_work_centre_b_v30.html), or
+[C — Due-date board](pegasus_work_centre_c_v30.html).
+The [proposals](work-centre-design-proposals.md) cover appearance,
+functionality, source coverage and decisions WA–WF. The companion
+[build](build-work-centre-designs.mjs), [self-check](v30-work-centre-selfcheck.html)
+and [runner](check-work-centre-designs.py) own this focused design pass.
+
+**25 September: [compare three initial login designs](pegasus_signin_designs_v30.html).**
+Open [A — Quiet focus](pegasus_signin_a_v30.html),
+[B — Brand split](pegasus_signin_b_v30.html), or
+[C — Charcoal frame](pegasus_signin_c_v30.html).
+The [proposals](signin-design-proposals.md) explain the choices and open
+decisions. These additional files use their own focused
+[build](build-signin-designs.mjs) and [self-check](v30-signin-selfcheck.html);
+the earlier walkthrough and baseline remain available for comparison.
+
 **Temporary design review artifact.** Created at the operator's request on
 24 September 2026 (the Upload flow, five alternatives) and widened on
 25 September 2026 to the sign-in frame, the Inbox, the Work Centre and

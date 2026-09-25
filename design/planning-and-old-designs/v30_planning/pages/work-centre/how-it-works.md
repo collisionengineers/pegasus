@@ -89,3 +89,18 @@ Complete job, a failed job's reason with Open Case).
   and Refresh; the page draws it above the metric strip.
 - Whether the metric tiles carry a tone or a glyph.
 - The Today pane's empty presentation.
+
+## Source recheck — 25 September 2026
+
+Fetched `origin/dev` for the three-design pass; its head remains
+`32dabfc59`. The PageModel selects the first available attention item when
+the requested selection is absent. Scope and kind changes reset paging;
+the browser remembers Office/Mine. `NeedsAttentionPolicy.IsMine` includes
+owned work and unowned Unassigned/Triage work that `CanTake` permits; it
+does not include unowned Held or Unidentified items.
+
+Assignment enters the existing edit-lease and command path. It has an
+explicit refusal message for changed/edited/unpermitted Cases. The AI
+section offers Complete job only where its current job kind and draft
+permit it. These current rules are mirrored by local fixtures in the
+[three-design proposal](../../current/work-centre-design-proposals.md).

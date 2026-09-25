@@ -1,5 +1,13 @@
 # v30 planning: five surfaces, polished
 
+**New: [three Work Centre designs](current/pegasus_work_centre_designs_v30.html)**
+— Priority desk, Office ledger and Due-date board, with
+[functionality proposals](current/work-centre-design-proposals.md).
+
+**New: [three initial login designs](current/pegasus_signin_designs_v30.html)**
+— Quiet focus, Brand split and Charcoal frame, with
+[proposals and tradeoffs](current/signin-design-proposals.md).
+
 **Temporary design review artifact.** Opened at the operator's request on
 24 September 2026 for the Upload flow ([issue 830](https://github.com/collisionengineers/pegasus/issues/830))
 and widened on 25 September 2026 to the sign-in frame, the Inbox, the Work

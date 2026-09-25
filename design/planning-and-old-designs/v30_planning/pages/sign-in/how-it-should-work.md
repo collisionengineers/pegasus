@@ -19,3 +19,19 @@ Stage 1 proposals, **not yet decided**. The lettered items are in
 
 Open: H (brand row), I (title), J (show password), K (forced-change
 paragraph).
+
+## Initial login alternatives — 25 September 2026
+
+The operator requested three complete aesthetic alternatives. The
+[comparison](../../current/pegasus_signin_designs_v30.html) presents an
+open light form, a split brand/form layout and a refined dark-surround card.
+These are additional proposals; nothing has been decided with the operator.
+
+Open: H2 selects the overall composition and refines H. I and J continue
+to govern the shorter heading and password visibility. H3 covers the
+Collision Engineers caption. See the
+[proposal decisions](../../current/signin-design-proposals.md#review-decisions).
+
+All three retain the same initial-login fields and exact validation
+messages. A selected layout must be reconciled with the other navless
+pages before a shared auth-frame implementation begins.

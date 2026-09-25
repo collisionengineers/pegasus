@@ -71,3 +71,51 @@ sign-in card and the `alex` settings dialog) are the baseline references.
 
 **Not done, by instruction.** No screenshot set; `shoot.ps1` is ready for
 it. Twelve verification captures were taken to check the build.
+
+## 25 September 2026 — three initial login designs
+
+Operator: "Create mockups and proposals for the initial login page to
+improve visual design and aesthetic. Offer 3 versions for my perusal."
+The operator specified this worktree and the `v30_planning` folder.
+
+Created three complete compositions: A, Quiet focus; B, Brand split; and
+C, Charcoal frame. Added a visual comparison page, concise proposals and
+interactive required-field, credential-failure and signed-out states. Used
+the approved mark, font, tokens and the sign-in source at `origin/dev`
+`32dabfc59`. This pass is limited to initial login design; the prior
+five-surface round is retained alongside it.
+
+Raised H2 (composition) and H3 (company caption); carried forward I (short
+heading) and J (password reveal). No design has been selected. B is the
+design recommendation. Evidence and limits are recorded in the
+[proposal](signin-design-proposals.md).
+
+## 25 September 2026 — three Work Centre designs
+
+Operator: "Run the same process now for the work centre page, 3 seperate
+designs. Functionality changes are within scope if appropriate".
+
+Created A, Priority desk; B, Office ledger; and C, Due-date board. They
+share the existing shell, queue policy and fixtures but use a persistent
+detail pane, inline table expansion and a due-group board with a drawer,
+respectively. Added working scope/kind filters, search, per-item facts,
+assignment validation/conflict, supported AI-job completion and explicit
+refresh outcomes. Preserved all current sections and their substantive
+facts. Fetched `origin/dev`; its head remains `32dabfc59`.
+
+The [proposal](work-centre-design-proposals.md) records new design decisions
+WA–WF: composition, query-wide search, Selected work wording, feed placement,
+one Create Case action and compact metrics. No selection is recorded.
+
+### Empty sections — operator correction
+
+Operator: "On the work centre designs - I would say if there are no items
+in a section, e.g. no overdue items, that section should simply be
+invisible/not shown".
+
+Applied across A, B and C. Empty due groups, supporting feed panels and
+their tabs disappear; remaining board lanes/panels reflow. A fully empty
+attention dataset omits that section and the selected-work panel. Filters
+with no matches retain their recovery controls, while unavailable data
+retains its failure notice. Added the `quiet` preset and focused checks.
+WG is settled by this instruction, independently of the open layout choice.

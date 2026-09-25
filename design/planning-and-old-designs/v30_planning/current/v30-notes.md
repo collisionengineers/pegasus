@@ -297,3 +297,99 @@ forward). Headless Chromium, file access allowed, virtual time budget
   optgroups carry a representative subset of the live options.
 - Font fallback: Inter Variable is inlined, so the capture matches the
   live face; a browser that refuses data-URI fonts falls back to Segoe UI.
+
+## Part 3 — initial login design alternatives, 25 September 2026
+
+The operator requested three versions specifically for the initial login
+page. Open the [comparison](pegasus_signin_designs_v30.html) for A, Quiet
+focus; B, Brand split; and C, Charcoal frame. The
+[proposal notes](signin-design-proposals.md) contain the rationale, frame
+measurements, live-control coverage, departures, handoff and limits.
+
+| Previous problem | Proposed change | Screenshots |
+| --- | --- | --- |
+| Small white card is the only composition available | A light open form, B split identity/form, C refined charcoal card | 01–03, each at 1580, 1440 and 760px |
+| Brand and repeated product title compete in the same stack | Deliberate brand composition and shorter “Sign in” heading | 01–03 |
+| Earlier proposals did not expose required-field feedback | Exact messages below each field, with invalid styling and focus | 04–06 |
+| Credential failure needs to work within each new geometry | Same generic message, username retained, password cleared | 07–09 |
+| Signed-out confirmation must remain legible in each design | Existing green check and heading retained | 10–12 |
+
+The screenshot inventory is in the
+[sign-in page README](../pages/sign-in/README.md#three-designs--25-september-2026).
+This pass reads the same `origin/dev` snapshot, `32dabfc59`, and preserves
+the earlier baseline beside the alternatives.
+
+### Additional sign-off items
+
+**H2.** Confirm A, B or C as the initial login composition, or specify a
+combination. This expands open H; B is recommended, not approved.
+
+**H3.** Confirm the Collision Engineers caption, or omit it.
+
+Existing **I** (short heading) and **J** (Show / Hide password) remain open.
+K and the earlier other-surface items are not settled by this login pass.
+No application implementation has begun.
+
+### Evidence
+
+25 September 2026: `RESULT {"fail":[],"okCount":564}`. The focused harness
+covered A/B/C × four states × four widths (1580, 1440, 760 and 390px), plus
+validation, password visibility, submission feedback and retry. Actual
+keyboard traversal passed for all three. All 36 planned screenshots were
+captured at 1580×1000, 1440×900 and 760×1000. No browser console errors or
+external requests occurred. See the
+[evidence record](v30-signin-shots/verification.json).
+
+This is offline mockup evidence only. The demo sends no credentials and
+intentionally ends filled submissions in the incorrect-credentials state.
+Forced password change and access denied remain in the prior preview.
+
+
+## Part 4 — three Work Centre designs, 25 September 2026
+
+The operator requested the same three-design process for the Work Centre,
+including appropriate functionality changes. Open the
+[comparison](pegasus_work_centre_designs_v30.html): A, Priority desk;
+B, Office ledger; C, Due-date board. The
+[proposals](work-centre-design-proposals.md) own this pass's rationale,
+measurements, complete live-control coverage, functionality proposals,
+implementation handoff and limitations. The previous baseline remains
+alongside the new files.
+
+| Problem | Proposal | Screenshot numbers |
+| --- | --- | --- |
+| Current list/detail hierarchy leaves different tasks competing for space | A persistent detail pane, B inline table expansion, C due-date lanes and drawer | 01–03; full-page A/B/C |
+| Finding one item requires scanning scope and kind results | Search within Needs attention, combined with current filters | 04–09 plus interaction checks |
+| Empty groups consume space | Omit empty groups, feeds and tabs; reflow remaining lanes | 10–12, 34–36 |
+| A later refresh failure can be confused with an empty queue | Preserve last-good data; name partial/unavailable sections | 13–21 |
+| The old mockup reused one selection's facts | Per-item details and working assignment, including validation and conflict | 22–27 plus interaction checks |
+| Arrivals and AI jobs need a deliberate place | Supporting panels in A/C; section tabs in B | 28–33 |
+
+See the [screenshot inventory](../pages/work-centre/README.md#three-designs--25-september-2026).
+
+### Decisions
+
+WA (composition), WB (search), WC (Selected work wording), WD (feed
+placement), WE (one Create Case action), and WF (compact queue totals)
+remain open. A is the recommendation.
+
+**WG — decided with the operator, 25 September 2026.** Empty due groups and
+empty supporting sections are omitted. Filters that find no matches retain
+Clear filters; unavailable data retains its failure notice. The quiet
+fixture demonstrates a page without Overdue, New cases or AI jobs. The
+page's [how-it-should-work](../pages/work-centre/how-it-should-work.md#decided--25-september-2026-empty-sections)
+records the settled rule. This needs no further approval.
+
+### Evidence and limits
+
+25 September 2026: `RESULT {"fail":[],"okCount":1905}`. All A/B/C × twelve
+states × three widths were checked. The runner captured 108 state shots
+and three full-page shots. Actual keyboard traversal, dialog focus
+containment, Escape/focus return and section-tab navigation passed. No
+console errors or external requests occurred. The
+[evidence record](v30-work-centre-shots/verification.json) records the run.
+
+Evidence covers local mockups only. Assignments and AI-job completion
+mutate synthetic in-memory fixtures; linked application destinations end
+at an explicit preview boundary. Server policy, data access, concurrency,
+idempotency, multi-page retrieval and automatic refresh are not executed.
