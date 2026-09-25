@@ -55,6 +55,38 @@ public sealed partial class ThirdPartyReportExtractionTests
         """;
 
     /// <summary>
+    /// The Exclusive EREHR header, in the same narrative shape Connexus prints
+    /// and with the printed claim-reference role that is the only proved
+    /// difference between the two Exclusive signatures. Its issuer block names
+    /// Exclusive rather than Connexus, so exactly one signature matches it.
+    /// </summary>
+    private const string ExclusiveErehrHeader = """
+        Mrs A Whitfield                                      Date:  11/03/2026
+        14 Barnfield Road
+        Leicester                                            Our Ref:  00081204/JT
+        LE3 6PQ                                              Your Ref: EHR97818
+
+                       REPAIRABLE REPORT
+
+        Dear Sirs,
+
+        Client/Insured: Mrs A Whitfield
+
+            Vehicle: FORD FOCUS TITANIUM      Colour: BLUE       Speedo: 61230     Miles
+
+           Reg No: LN19WKC      Registered: Mar 2019    Type: 5 Door Hatchback
+
+            Vin No: WF05XXGCC5KY12345       MOT Exp:
+
+          Damage: Moderate        Accidental Damage Rear       Incident: 07/03/2026
+
+             Vehicle Value: £8,450.00      Repair Cost: £5,210.44 inc VAT     Roadworthy: Yes
+
+        Jason Turner AQP AMIMI
+        Exclusive Vehicle Assessors
+        """;
+
+    /// <summary>
     /// The Connexus cost narrative, wrapped mid-sentence exactly as the reader
     /// wraps it. The initial and the agreed labour are both printed and must
     /// both survive as separate amount roles.
