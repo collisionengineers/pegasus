@@ -166,12 +166,54 @@ public sealed class EfCaseWorkflowStore(
 
         ArchivedCaseGuard.RequireNotArchived(workflow);
         RequireVersion(workflow, request.ExpectedVersion);
-        var previousHolder = CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
-            ? workflow.EditLeaseHolder
-            : null;
         ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(workflow.EditLeaseHolderKind, out var parsedKind)
             ? parsedKind
             : null;
+        var heldByCaller = CaseEditAuthority.CanResume(
+            previousHolderKind,
+            workflow.EditLeaseHolder,
+            workflow.EditLeaseExpiresAtUtc,
+            request.Actor,
+            now);
+        if (heldByCaller && RetainedLeaseToken(workflow) is { } heldToken)
+        {
+            // The caller already holds this lease, from another window or a page that went stale:
+            // it is resumed as it stands, so their other window keeps working and nothing is
+            // recorded as a takeover of themselves.
+            var resumedExpiresAtUtc = now + EditLeaseDuration;
+            workflow.EditLeaseRequestHash = requestHash;
+            workflow.EditLeaseOperationKey = operationKey;
+            workflow.EditLeaseExpiresAtUtc = resumedExpiresAtUtc;
+            AddLeaseOperation(
+                context,
+                workflow,
+                request.Actor,
+                operationKey,
+                ClaimLeaseOperationKind,
+                requestHash,
+                now,
+                workflow.Version,
+                resumedExpiresAtUtc,
+                workflow.EditLeaseTokenHash!);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return new(
+                request.CaseId,
+                heldToken,
+                request.Actor.SubjectId,
+                workflow.Version,
+                resumedExpiresAtUtc)
+            {
+                Generation = workflow.EditLeaseGeneration
+            };
+        }
+
+        // A lease the caller holds without a readable token is claimed afresh, still without a
+        // takeover: only a colleague's live lease is ever taken over.
+        var previousHolder = !heldByCaller
+            && CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
+                ? workflow.EditLeaseHolder
+                : null;
         if (previousHolder is not null
             && (!request.TakeOver || !CaseEditAuthority.CanTakeOver(previousHolderKind, request.Actor)))
         {
@@ -347,6 +389,58 @@ public sealed class EfCaseWorkflowStore(
         return new(
             request.CaseId,
             request.LeaseToken,
+            request.Actor.SubjectId,
+            workflow.Version,
+            expiresAtUtc)
+        {
+            Generation = workflow.EditLeaseGeneration
+        };
+    }
+
+    /// <summary>
+    /// Hands the caller's own live lease back to a page they open, renewing it exactly as a
+    /// heartbeat does so the page's first beat a minute later still finds it held. Like a
+    /// heartbeat it writes no operation row and no history; a caller who holds no live lease
+    /// gets null and nothing is written.
+    /// </summary>
+    public async Task<CaseEditLease?> ResumeAsync(
+        ResumeCaseEditLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        await AcquireWorkflowMutationLockAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
+            item => item.CaseId == request.CaseId,
+            cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        if (workflow is null
+            || workflow.ArchivedAtUtc is not null
+            || !CaseEditAuthority.CanResume(
+                CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
+                workflow.EditLeaseHolder,
+                workflow.EditLeaseExpiresAtUtc,
+                request.Actor,
+                now)
+            || RetainedLeaseToken(workflow) is not { } token)
+        {
+            return null;
+        }
+
+        var expiresAtUtc = now + EditLeaseDuration;
+        workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(
+            request.CaseId,
+            token,
             request.Actor.SubjectId,
             workflow.Version,
             expiresAtUtc)
@@ -1434,6 +1528,17 @@ public sealed class EfCaseWorkflowStore(
             throw new CaseOperationConflictException(caseId, operationKey);
         }
     }
+
+    /// <summary>
+    /// The retained plaintext token, only when it is the one the retained hash proves; anything
+    /// else is unreadable and is never handed back.
+    /// </summary>
+    private static string? RetainedLeaseToken(CaseWorkflowEntity workflow) =>
+        workflow.EditLeaseToken is { Length: CaseEditAuthority.LeaseTokenLength } token
+        && workflow.EditLeaseTokenHash is { } tokenHash
+        && HashesMatch(tokenHash, Hash(token))
+            ? token
+            : null;
 
     private static CaseEditLease ReadLeaseReplayOrThrow(
         CaseWorkflowEntity workflow,

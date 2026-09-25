@@ -67,21 +67,17 @@ public sealed class EfEditScopeStore(
                 request.ScopeKind, request.RecordId, request.ExpectedVersion, currentVersion.Value);
         }
         var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
-        var previousHolder = scope is not null && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now)
-            ? scope.Holder
-            : null;
-        if (previousHolder is not null)
+        // The holder is the staff member, not the window: a live scope its own holder claims again
+        // is claimed back silently. Only a colleague's live scope needs, and records, a takeover.
+        var previousHolder = scope is not null
+            && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now)
+            && !(Enum.TryParse<ActorKind>(scope.HolderKind, out var holderKind)
+                && EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor))
+                ? scope.Holder
+                : null;
+        if (previousHolder is not null && !request.TakeOver)
         {
-            var isHolder = Enum.TryParse<ActorKind>(scope!.HolderKind, out var holderKind)
-                && EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor);
-            if (!isHolder && !request.TakeOver)
-            {
-                throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
-            }
-            if (isHolder && !request.TakeOver && !EditScopeAuthority.IsStale(scope.ExpiresAtUtc, now))
-            {
-                throw new EditScopeHeldElsewhereException(request.ScopeKind, request.RecordId);
-            }
+            throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
         }
 
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
@@ -105,7 +101,7 @@ public sealed class EfEditScopeStore(
         scope.ExpectedVersion = request.ExpectedVersion;
         scope.Generation = generation;
         scope.ExpiresAtUtc = now.Add(EditScopeAuthority.Duration);
-        if (previousHolder is not null && request.TakeOver)
+        if (previousHolder is not null)
         {
             await AddTakeoverHistoryAsync(
                 context, request, previousHolder, now, cancellationToken);

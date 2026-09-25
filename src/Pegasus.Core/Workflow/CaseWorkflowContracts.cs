@@ -266,6 +266,16 @@ public sealed record ReleaseCaseEditLeaseRequest(
     string OperationKey,
     string LeaseToken);
 
+/// <summary>
+/// Asks for the live edit lease the caller already holds. The holder is the staff member, not the
+/// window, so any page they open on the case resumes that same lease instead of offering them a
+/// takeover of themselves. It carries no token because the caller is proving who they are, not
+/// which window they are in.
+/// </summary>
+public sealed record ResumeCaseEditLeaseRequest(
+    Guid CaseId,
+    ActionActor Actor);
+
 public abstract record CaseMutationRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -448,6 +458,15 @@ public interface ILeaseCaseForEdit
 
     Task<CaseEditLease> HeartbeatAsync(
         HeartbeatCaseEditLeaseRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Returns the caller's own live lease, with the same token and its expiry renewed as a
+    /// heartbeat renews it, or null when the caller does not hold a live lease on the case. Like a
+    /// heartbeat it records no operation and no history.
+    /// </summary>
+    Task<CaseEditLease?> ResumeAsync(
+        ResumeCaseEditLeaseRequest request,
         CancellationToken cancellationToken);
 
     Task ReleaseAsync(ReleaseCaseEditLeaseRequest request, CancellationToken cancellationToken);
