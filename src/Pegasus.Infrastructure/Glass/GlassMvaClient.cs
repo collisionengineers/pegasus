@@ -324,35 +324,42 @@ internal sealed partial class GlassMvaClient(
             ajax: true,
             GlassFailure.DetailsRequest,
             cancellationToken);
-        // Only named controls establish identity. Scripts, comments and unrelated
-        // text in the page can contain the right numbers for the wrong vehicle.
-        var controls = InertHtml().Replace(value, string.Empty);
-        var inputs = InputControl().Matches(controls).Cast<Match>()
-            .Select(match => Attributes(match.Groups[1].Value)).ToArray();
-        string? Field(string name)
+        try
         {
-            var values = inputs.Where(input => input.GetValueOrDefault("name") == name)
-                .Select(input => input.ContainsKey("disabled") ? null : input.GetValueOrDefault("value"))
-                .Distinct(StringComparer.Ordinal).ToArray();
-            // The captured page repeats id in two forms. Equal repeats are valid;
-            // contradictory repeats or absent values do not identify a vehicle.
-            return values.Length == 1 ? values[0] : null;
+            // Only named controls establish identity. Scripts, comments and unrelated
+            // text in the page can contain the right numbers for the wrong vehicle.
+            var controls = InertHtml().Replace(value, string.Empty);
+            var inputs = InputControl().Matches(controls).Cast<Match>()
+                .Select(match => Attributes(match.Groups[1].Value)).ToArray();
+            string? Field(string name)
+            {
+                var values = inputs.Where(input => input.GetValueOrDefault("name") == name)
+                    .Select(input => input.ContainsKey("disabled") ? null : input.GetValueOrDefault("value"))
+                    .Distinct(StringComparer.Ordinal).ToArray();
+                // The captured page repeats id in two forms. Equal repeats are valid;
+                // contradictory repeats or absent values do not identify a vehicle.
+                return values.Length == 1 ? values[0] : null;
+            }
+            var profiles = SelectControl().Matches(controls).Cast<Match>()
+                .Where(match => Attributes(match.Groups[1].Value).GetValueOrDefault("name") == "ere_profile")
+                .ToArray();
+            if (profiles.Length != 1 || Attributes(profiles[0].Groups[1].Value).ContainsKey("disabled")
+                || !OptionControl().Matches(profiles[0].Groups[2].Value).Cast<Match>()
+                    .Select(match => Attributes(match.Groups[1].Value))
+                    .Any(option => !option.ContainsKey("disabled")
+                        && option.GetValueOrDefault("value") == options.RepairProfileId))
+            {
+                throw new GlassMvaStageException(GlassFailure.DetailsProfile);
+            }
+            if (string.IsNullOrWhiteSpace(natCode) || Field("id") != vehicleId || Field("natcode") != natCode
+                || !SameRegistration(Field("registration_number"), registration)
+                || !long.TryParse(Field("mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
+                || mileage != mileageMiles)
+            {
+                throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+            }
         }
-        var profiles = SelectControl().Matches(controls).Cast<Match>()
-            .Where(match => Attributes(match.Groups[1].Value).GetValueOrDefault("name") == "ere_profile")
-            .ToArray();
-        if (profiles.Length != 1 || Attributes(profiles[0].Groups[1].Value).ContainsKey("disabled")
-            || !OptionControl().Matches(profiles[0].Groups[2].Value).Cast<Match>()
-                .Select(match => Attributes(match.Groups[1].Value))
-                .Any(option => !option.ContainsKey("disabled")
-                    && option.GetValueOrDefault("value") == options.RepairProfileId))
-        {
-            throw new GlassMvaStageException(GlassFailure.DetailsProfile);
-        }
-        if (string.IsNullOrWhiteSpace(natCode) || Field("id") != vehicleId || Field("natcode") != natCode
-            || !SameRegistration(Field("registration_number"), registration)
-            || !long.TryParse(Field("mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
-            || mileage != mileageMiles)
+        catch (RegexMatchTimeoutException)
         {
             throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
         }

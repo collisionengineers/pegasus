@@ -949,8 +949,11 @@ public sealed partial class GlassRepairEstimateGateway(
         }
         finally
         {
-            LogStage(logger, session.Id, session.CaseId, session.Version, stage, outcome,
-                Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                LogStage(logger, session.Id, session.CaseId, session.Version, stage, outcome,
+                    Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            }
         }
     }
 

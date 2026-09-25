@@ -530,6 +530,9 @@ public static class CaseWorkspaceLabels
         public const string UnsavedEstimate = "Save or cancel the estimate changes before importing another estimate.";
         public const string ActionInProgress = "Wait for the current Case action to finish before importing an estimate.";
         public const string StorageFailed = "The estimate source could not be retained.";
+        public const string ImportedWithChanges = "The Glass's estimate was recorded as a Draft. Your unsaved changes are still here. Save or cancel them to view it.";
+        public const string ReturnedWithChanges = "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.";
+
         public const string Imported = "Estimate imported as a Draft.";
     }
 
@@ -945,6 +948,9 @@ public static class CaseWorkspaceLabels
         public const string OpenOn = "Open on";
 
         /// <summary>The outcomes a launch, a return or a resume reports.</summary>
+        public const string ImportedWithChanges = "The Glass's estimate was recorded as a Draft. Your unsaved changes are still here. Save or cancel them to view it.";
+        public const string ReturnedWithChanges = "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.";
+
         public const string Imported = "The Glass's estimate was recorded as a draft.";
 
         public const string AwaitingImport = "The Glass's estimate is held. Not yet recorded.";

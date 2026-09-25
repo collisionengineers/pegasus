@@ -49,7 +49,7 @@ function fixture() {
     window.fetch = function(url, options) {
         options = options || {}; trace.push({ type: 'fetch', url: String(url) });
         var text;
-        if (String(url).includes('GlassSession')) { text = controls(); }
+        if (String(url).includes('GlassSession')) { text = mode === 'expired-login' ? '<h1>Sign in</h1>' : controls(); }
         else if (String(url).includes('handler=Save')) {
             if (mode === 'network-failure') { return Promise.reject(new Error('Save disconnected')); }
             var body = options.body;
@@ -158,6 +158,18 @@ try {
     result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.dirty, false);
     record('Clean callback refreshes workspace in place', result);
 
+    await reset(); await evaluate("mode='defer'; state.status='Unknown'; window.returnInFlight=window.pegasusGlassReturn('/case'); deferred[0](); true;"); await delay(50);
+    await evaluate("mode=''; edit('AB12 CDE'); document.getElementById('case-edit-form').requestSubmit();"); await delay(100);
+    assert.equal((await evaluate('result()')).version, '2');
+    await evaluate('deferred[1]();'); await delay(100);
+    result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.dirty, false);
+    record('Delayed callback read cannot undo a newer successful Case save', result);
+
+    await reset(); await evaluate("mode='expired-login'; edit('XY99ZZZ'); window.pegasusGlassReturn('/case').catch(function() {});"); await delay(50);
+    result = await evaluate('result()'); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.version, '1'); assert.equal(result.dirty, true);
+    assert.match(result.notice, /Sign in again/);
+    record('Expired login cannot replace dirty Case controls', result);
+
     await reset(); await evaluate("mode='defer'; state.sessionVersion=5; window.pegasusGlassHandoff(); state.sessionVersion=6; window.pegasusGlassHandoff(); deferred[1]();"); await delay(50);
     await evaluate('deferred[0]();'); await delay(50);
     result = await evaluate('result()'); assert.equal(result.sessionVersion, '6');
@@ -178,6 +190,12 @@ try {
     await send('Page.navigate', { url: origin + '/handoff' }); await delay(200);
     assert.equal(await evaluate('location.pathname'), '/provider');
     record('No-opener handoff continues in its own window', true);
+    await send('Emulation.setScriptExecutionDisabled', { value: true });
+    await send('Page.navigate', { url: origin + '/handoff' }); await delay(200);
+    assert.equal(await evaluate('location.pathname'), '/handoff');
+    assert.equal(await evaluate("document.querySelector('a').getAttribute('href')"), '/provider');
+    await send('Emulation.setScriptExecutionDisabled', { value: false });
+    record('No-script handoff retains the server-rendered provider link', true);
     assert.deepEqual(errors, [], 'No browser runtime exceptions');
     await writeFile(join(output, 'result.json'), JSON.stringify({ browser, evidence, errors }, null, 2));
     console.log('Evidence:', join(output, 'result.json'));

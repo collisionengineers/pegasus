@@ -705,6 +705,28 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(GlassRepairEstimateSessionState.Cancelled, Assert.Single(await workspace.SessionsAsync()).State);
     }
 
+    [Fact]
+    public async Task ControlsRequireSignInAndNeverExposeAnotherEngineersSession()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.SeedAnotherEngineersSessionAsync();
+        var session = Assert.Single(await workspace.SessionsAsync());
+        using var anonymous = new HttpRequestMessage(HttpMethod.Get, $"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        anonymous.Headers.Add("X-Test-Anonymous", "true");
+        using var challenged = await workspace.Client.SendAsync(anonymous);
+        Assert.Equal(HttpStatusCode.Redirect, challenged.StatusCode);
+        using var ownControls = await workspace.Client.GetAsync($"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        Assert.Equal(HttpStatusCode.OK, ownControls.StatusCode);
+        var html = await ownControls.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(session.Id.ToString("D"), html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=CloseGlass", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ResumeGlass", html, StringComparison.Ordinal);
+        using var missing = await workspace.Client.GetAsync($"/Cases/{Guid.NewGuid():D}?handler=GlassSession");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal(session, Assert.Single(await workspace.SessionsAsync()));
+        Assert.Empty(workspace.Mva.Requests);
+    }
+
     private static async Task AssertHandsBackToTheEstimateSectionAsync(HttpResponseMessage response, Guid caseId)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

@@ -1222,24 +1222,39 @@
     window.pegasusGlassHandoff = function () {
         return refreshGlassControls().catch(function (error) { showActionError(error.message); }).finally(finishGlassOpening);
     };
+    function showGlassReturnNotice(state) {
+        var notices = document.querySelector('[data-case-notices]');
+        var session = record.querySelector('[data-glass-controls="session"]');
+        if (!notices || !session) { return; }
+        var notice = notices.querySelector('[data-glass-notice]');
+        if (!notice) { notice = document.createElement('p'); notice.setAttribute('data-glass-notice', ''); notices.appendChild(notice); }
+        notice.className = state === 'Completed' ? 'notice notice--success mb-2' : 'notice mb-2';
+        notice.setAttribute('role', 'status');
+        notice.textContent = state === 'Completed'
+            ? (session.dataset.glassImportedDirty || "The Glass's estimate was recorded as a Draft. Your unsaved changes are still here. Save or cancel them to view it.")
+            : (session.dataset.glassReturnedDirty || "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.");
+    }
     window.pegasusGlassReturn = function (url) {
         if (!samePage(url) || new URL(url, window.location.href).origin !== window.location.origin) {
             return Promise.reject(new Error('The Glass return does not belong to this Case.'));
         }
         return refreshGlassControls().then(function (state) {
             if (dirty || submitting) {
-                showActionError(state === 'Completed'
-                    ? "The Glass's estimate was recorded as a Draft. Your unsaved changes are still here. Save or cancel them to view it."
-                    : "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.");
+                showGlassReturnNotice(state);
                 return;
             }
+            var versionBeforeRead = record.getAttribute('data-case-version');
+            var generationBeforeRead = glassRefreshGeneration;
             return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function (response) {
                 if (!response.ok || !samePage(response.url)) { throw new Error('The Case could not be refreshed.'); }
                 return response.text();
             }).then(function (html) {
-                // swap checks dirty state again: typing during this read keeps
-                // the draft and its original Case version/lease intact.
+                // A save or another refresh may have finished during this read.
+                // An older response cannot put the record back on its old version.
+                if (submitting || generationBeforeRead !== glassRefreshGeneration
+                    || versionBeforeRead !== record.getAttribute('data-case-version')) { return; }
                 if (!swap(html)) { throw new Error('The Case could not be refreshed.'); }
+                if (dirty) { showGlassReturnNotice(state); }
             });
         }).catch(function (error) { showActionError(error.message); throw error; }).finally(finishGlassOpening);
     };
