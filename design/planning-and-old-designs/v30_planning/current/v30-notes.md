@@ -459,3 +459,79 @@ focus-visible z-index), the narrow identity strip hid "Case management"
 (shell rule), and the tab click handler matched the root's `data-wc-tab`
 attribute and swallowed row links. The fixture host had no Unassigned row,
 so the Assign Engineer dialog is covered by the web tests, not the walk.
+
+## Part 6 — Five new Upload designs
+
+25 September 2026. [Visual comparison](pegasus_upload_designs_v30.html) and
+[detailed proposals](upload-design-proposals.md). New files have `_new_v30`
+names; the earlier A–E Upload files remain intact. Shared assets are pinned to
+`origin/dev` **32dabfc59**. Actual Upload application files are untouched.
+
+- **A — Review desk:** recommended balance of Case choice and complete roster.
+- **B — Guided review:** centred, sequential review sheet.
+- **C — Contact sheet:** visual recognition of photographic material.
+- **D — Compact ledger:** horizontal decision and dense file comparison.
+- **E — Inspection studio:** selected image, file rail and adjacent Case decision.
+
+The accepted automatic Image intake registration remains secondary to Case
+proposals. No manual registration/reason form is reintroduced. All five keep
+explicit Case confirmation and the discard acknowledgement checkbox.
+
+The original A–G history remains above. This round's interaction/layout choices
+are **UA–UE** in the proposal document: layout, preview interaction, selection
+sequence, labels and discard placement. They are proposals pending perusal.
+The earlier suggestion to remove the discard checkbox is not carried into
+these new mockups.
+
+See [the numbered capture index](v30-upload-new-shots/README.md) and
+[machine-readable browser result](v30-upload-new-shots/selfcheck-result.json).
+These are offline design checks, not application verification.
+
+### Offline result — 25 September 2026
+
+`RESULT {"fail":[],"okCount":2858}`. No console/runtime errors and no external
+requests. Captured 300 state/size images plus five complete desktop pages.
+Keyboard focus, Escape/focus return, exact second-Case identity, Complete/Triage
+lookup, no-match/search failure, mixed outcomes, conflict/refresh, discard
+acknowledgement, selection/removal, sample transfer, local-file validation and
+preview navigation passed. This result concerns the HTML mockups only.
+
+
+## Part 7 — Upload E selected and implemented, 25 September 2026
+
+The operator selected **E — Inspection studio**
+([pegasus_upload_e_new_v30.html](pegasus_upload_e_new_v30.html), the new
+file, not the earlier gallery E) for the upload and processing view, and
+asked for it to be implemented exactly, with all its functionality and no
+leftover code from the older design.
+
+| Item | Outcome |
+| --- | --- |
+| UA | **E — Inspection studio.** The decision on the right (355px, 405px above 1450px), the inspector on the left; below 900px the decision precedes the inspector. |
+| UB | **Accepted.** Selectable file previews: the inspected image large, a filmstrip, **Open** into a preview dialog with Previous / Next and **Open original**. |
+| UC | **Accepted.** Explicit Case selection (radio cards, nothing preselected), then **Review and add to Case**, then the exact-target dialog; the server renders the same dialog for a browser without script. |
+| UD | **Accepted.** **Leave undecided** and **New upload**. |
+| UE | **Accepted.** Discard in a focused dialog with the acknowledgement checkbox retained; offered only once every file has completed. |
+| Earlier A–G | Superseded by E. The manual registration and reason form stays removed (24 September). |
+
+### Where it landed
+
+`Pages/Upload.cshtml(.cs)`, `Pages/UploadGroupStatus.cshtml(.cs)`,
+`Pages/UploadStatus.cshtml(.cs)`, `Pages/UploadConfirmationPageModel.cs`,
+`Pages/Shared/_UploadReview*.cshtml`, `Presentation/UploadReview.cs`,
+`Presentation/UploadCaseDecision.cs` (Principal on suggestions,
+`PrepareByCaseAsync`), `Presentation/UploadOutcome.cs` (the Image intake
+record as facts), `Presentation/OperatorLabels.cs`, `wwwroot/css/upload.css`,
+`wwwroot/js/upload.js`; Core `IntakeAssociationDestination.Principal` and
+its EF source. Removed: `_UploadOutcome.cshtml`, the `RegisterGroup` and JSON
+`CaseSearch` handlers, the dropzone, progress and case-search blocks in
+`site.js`, and every Upload block in `site.css`. FRD-18's page and review
+shape sections and the design README's class table changed in the same PR.
+
+### Vocabulary corrections against the mockup
+
+The mockup's separate "PO-48271" line is not a Pegasus fact: the Case/PO is
+the reference itself (CONTEXT.md), so the card shows the reference, stage,
+registration, claimant and Principal. "Image intake" and "Registered
+automatically · Awaiting instruction" follow CONTEXT.md; the outcome's
+message strings the builder tests pin are unchanged.

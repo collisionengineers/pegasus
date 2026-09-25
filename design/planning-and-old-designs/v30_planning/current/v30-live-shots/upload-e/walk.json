@@ -1,0 +1,292 @@
+{
+  "checks": [
+    {
+      "name": "select: picker enhanced",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "select: aside shown, files hidden",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "select: actions hidden until files",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-select-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-select-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-select-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chosen: three rows",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chosen: heading Ready",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chosen: submit label",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chosen: thumbnails are object URLs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chosen: adding accumulates",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chosen: unsupported type refused with message",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-chosen-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-chosen-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-chosen-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chosen: remove one",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "chosen: clear empties",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload posts and lands on the review",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "review: pending phase",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "review: two files inspected",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "review: auto refresh set",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-pending-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-pending-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-pending-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "review: filmstrip switches in place",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "fixture group renders a phase",
+      "ok": true,
+      "detail": "decision"
+    },
+    {
+      "name": "upload-review-decision-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-decision-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-decision-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "preview dialog opens in place",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-preview-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "preview next cycles",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "preview Escape closes and returns focus",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "decision: no candidate shows no Review slot",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "find: results render as cards",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "upload-review-search-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-search-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-search-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "decision: nothing preselected",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "decision: review hidden until chosen",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "decision: review appears",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "confirm dialog repeats the target",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-confirm-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "confirm Escape closes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "find: no match sentence",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-no-match-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-no-match-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-review-no-match-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "discard dialog opens, checkbox focused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "discard blocked without acknowledgement",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "upload-discard-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "discard Escape closes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no console errors on Upload surfaces",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "shots": [
+    "upload-select-1580.png",
+    "upload-select-1440.png",
+    "upload-select-760.png",
+    "upload-chosen-1580.png",
+    "upload-chosen-1440.png",
+    "upload-chosen-760.png",
+    "upload-review-pending-1580.png",
+    "upload-review-pending-1440.png",
+    "upload-review-pending-760.png",
+    "upload-review-decision-1580.png",
+    "upload-review-decision-1440.png",
+    "upload-review-decision-760.png",
+    "upload-preview-1580.png",
+    "upload-review-search-1580.png",
+    "upload-review-search-1440.png",
+    "upload-review-search-760.png",
+    "upload-confirm-1580.png",
+    "upload-review-no-match-1580.png",
+    "upload-review-no-match-1440.png",
+    "upload-review-no-match-760.png",
+    "upload-discard-1580.png"
+  ]
+}

@@ -30,3 +30,50 @@ judged from JPEG placeholders.
 Case proposals own the primary decision when available. Vehicle images
 registration is automatic for usable identity and is secondary context.
 Manual Register Vehicle images and Reason are removed.
+
+## New five-design round — 25 September 2026
+
+[Compare five new designs](../../current/pegasus_upload_designs_v30.html).
+The [new proposal document](../../current/upload-design-proposals.md) owns their
+behaviour and open decisions **UA–UE**. A — Review desk is recommended.
+
+All five use an explicit unselected Case choice, complete destination identity,
+exact-target confirmation, per-file outcomes, retained unreadable originals,
+a separate incomplete/conflict state, and subordinate automatic Image intake
+registration. The discarded state keeps the source/processing retention fact.
+Actual local files can be selected and previewed but are not uploaded by these
+HTML artifacts. The complete journey uses synthetic sample files.
+
+The new placement of controls, preview dialogs, selection sequence and labels
+remain proposals. The discard checkbox is retained in this round; the earlier
+suggestion to remove it is not part of these five designs. No Stage 2 decision
+has been inferred from the request for alternatives.
+
+
+## Decided — 25 September 2026: E, Inspection studio
+
+Operator: "pegasus_upload_e_new_v30.html i select this option for our
+upload/processing view. Implement this exactly, including all functionality."
+
+1. `/Upload` is the picker beside the selected files: drop or choose files
+   in several steps into one upload, remove one, Clear, the three limits
+   stated and checked before posting; **Upload N files** posts once and every
+   row reads Uploading together.
+2. `/Upload/Group/{id}` and `/Upload/Status/{id}` render one review: the
+   inspector (large file, caption with **Open**, filmstrip, folded file names
+   and outcomes) on the left and the one decision on the right.
+3. The decision: pending with progress and Refresh; candidates as radio
+   cards, none selected; **Review and add to Case** opens the exact-target
+   dialog; **Find another Case** searches every viable Case and Triage Case
+   (a failed search says so); **Review new Case proposal** for instruction
+   material; the automatic Image intake as a record link; **Leave undecided**
+   and **Discard upload** (focused dialog, acknowledgement kept).
+4. Added to Case names the confirmed destination with **Open <reference>**;
+   Upload discarded states the material is retained; unreadable files are
+   marked on their rows and in the filmstrip; a wholly unreadable upload
+   opens its Unidentified item.
+5. A browser without script keeps every path: the native input, the GET
+   search, the radio form whose post renders the dialog server-side, the
+   anchors behind every preview.
+
+UA–UE settled as E; A–G superseded. FRD-18 owns the behaviour.

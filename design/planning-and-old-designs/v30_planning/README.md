@@ -24,5 +24,13 @@ or removes this folder as the operator instructs.
 family) and Work Centre **B** (Office ledger, with Find, section tabs, the
 compact strip and one Create Case) were selected and implemented in the
 Stage 2 PR from this branch; see Part 5 of [v30-notes.md](current/v30-notes.md).
-Inbox, Staff accounts and Upload keep their open lettered items, so this
-folder stays until they settle.
+Upload **E — Inspection studio** (the new `pegasus_upload_e_new_v30.html`)
+was selected and implemented the same day (Part 7). Inbox and Staff accounts
+keep their open lettered items, so this folder stays until they settle.
+
+## Five new Upload designs — 25 September
+
+[Compare the five new Upload proposals](current/pegasus_upload_designs_v30.html):
+Review desk, Guided review, Contact sheet, Compact ledger and Inspection studio.
+The earlier five are retained. [Proposals and decisions UA–UE](current/upload-design-proposals.md)
+explain the visual changes, interaction choices and offline scope.

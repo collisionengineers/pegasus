@@ -32,3 +32,11 @@ Additional captures for every variant at 1580, 1440 and 760 px:
 - [Attached](../../current/v30-shots/a-attached-1580.png): confirmed destination.
 
 Use b–e in the capture name for the other layouts.
+
+## Five new alternatives — 25 September 2026
+
+[Open the comparison](../../current/pegasus_upload_designs_v30.html).
+The [numbered screenshot index](../../current/v30-upload-new-shots/README.md)
+lists 20 states × five designs × three widths, plus complete desktop captures.
+The [browser result](../../current/v30-upload-new-shots/selfcheck-result.json)
+records the checks and their scope. Earlier captures above remain historical.

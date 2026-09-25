@@ -61,3 +61,24 @@ Success conceals the destination, and the discard consequence is repeated in
 legalistic copy. The current FRD-18 page-shape clause explicitly prescribes
 the checkbox and places files first. This round proposes presentation changes
 only; it does not change custody or business decisions.
+
+## Source recheck — 25 September 2026
+
+Read from `origin/dev` **32dabfc59** before the five new proposals were built:
+`Pages/Upload.cshtml`, `Pages/UploadStatus.cshtml`,
+`Pages/UploadGroupStatus.cshtml` and `Pages/Shared/_UploadOutcome.cshtml`, with
+FRD-18 and the current reserved vocabulary.
+
+The initial form supports multiple files, a drop target, accepted extensions,
+per-file name/size/state, validation, Upload and Clear. Status pages show received
+time, duplicate/failure outcomes, originals, thumbnails and refresh. A complete
+open group owns one Case decision. Search and explicit confirmation carry the
+complete member versions and exact Case identity. Cancel leaves the upload;
+discard retains source and processing records and has an acknowledgement checkbox.
+New Case proposals open their existing owner. Automatic Image intake registration
+and explicit manual association requirements apply to both single and group views.
+
+The [new proposal coverage audit](../../current/upload-design-proposals.md#source-and-coverage-audit)
+records each control/fact and the deliberate presentation departures. Older
+manual-registration page-shape prose is superseded for this round by the
+24 September decision already recorded in how-it-should-work.

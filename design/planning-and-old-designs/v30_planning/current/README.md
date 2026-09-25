@@ -82,3 +82,24 @@ No screenshot set was requested for this pass; the self-check ran green
   [v30-notes.md](v30-notes.md#sign-off-list).
 
 Stage 2 does not start until each item is settled and the operator approves.
+
+## Five new Upload proposals — 25 September
+
+Open [the comparison](pegasus_upload_designs_v30.html), then
+[A — Review desk](pegasus_upload_a_new_v30.html),
+[B — Guided review](pegasus_upload_b_new_v30.html),
+[C — Contact sheet](pegasus_upload_c_new_v30.html),
+[D — Compact ledger](pegasus_upload_d_new_v30.html), or
+[E — Inspection studio](pegasus_upload_e_new_v30.html).
+
+These additional proposals use their own [builder](build-upload-designs.mjs)
+and [browser runner](check-upload-designs.py). Their [proposal document](upload-design-proposals.md)
+contains the source coverage and decisions UA–UE. All 20 presets are listed
+under Mockup controls; query strings use `?state=ready`, `?state=select`, etc.
+`embed=1` hides the review controls for screenshots. The [capture index](v30-upload-new-shots/README.md)
+contains all five designs at all three review sizes.
+
+The new files pin shared CSS/fonts/marks to the researched `origin/dev` commit
+`32dabfc59`; they do not absorb the concurrent Sign-in/Work Centre implementation
+edits. No application Upload files are modified. These are temporary offline
+review artifacts; generated photography and sample data are synthetic.

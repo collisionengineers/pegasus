@@ -138,3 +138,36 @@ top of the settled empty-section rule (WG).
 Implemented on `task/upload-flow-five-designs` and recorded under Part 5 of
 the notes. The planning folder stays while the Inbox, Staff accounts and
 Upload items remain open.
+
+## 25 September 2026 — Five new Upload alternatives; independent design pass
+
+Operator: “focus now on the upload pages (there are 5 variants existing).
+These were made by Claude. Show why you have better abilities than Claude at
+design, and create 5 versions yourself that are superior in visual design,
+aesthetics, appearance, and are completely seamless and perfect.”
+
+Created a separate set of five interactive proposals with the original five
+retained for comparison. The new directions are Review desk, Guided review,
+Contact sheet, Compact ledger and Inspection studio. The concrete comparison
+covers hierarchy, complete destination identity, photographic evidence, file
+selection, search, keyboard focus, confirmation and failure outcomes.
+
+The [comparison](pegasus_upload_designs_v30.html) and
+[proposals](upload-design-proposals.md) carry the new round. A — Review desk is
+the recommendation. Decisions UA–UE remain open. No claim of application
+implementation or flawless behaviour follows from mockup screenshots.
+
+
+## 25 September 2026 — Upload E (new) selected; Stage 2
+
+Operator: "There is another page to change: pegasus_upload_e_new_v30.html i
+select this option for our upload/processing view. Implement this exactly,
+including all functionality. Make sure there are no leftover or orphaned/dead
+code bits from the older design, and that this is fully functional and up to
+par. Update the PR with the commits for this when done." Then: "remember its
+not just E but pegasus_upload_e_new_v30.html".
+
+Implemented on `task/upload-flow-five-designs` and recorded under Part 7 of
+the notes and the Upload page's how-it-should-work. The five new Upload
+design files and their evidence are committed with it as the record of what
+was implemented.

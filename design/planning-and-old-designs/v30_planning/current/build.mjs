@@ -272,6 +272,7 @@ await write('pegasus_v30_walkthrough.html', `<!doctype html>
     <a class="button" id="alone" href="#" target="_blank" rel="noopener">Open alone</a>
     <a class="button" href="pegasus_signin_designs_v30.html">3 login designs</a>
     <a class="button" href="pegasus_work_centre_designs_v30.html">3 Work Centre designs</a>
+    <a class="button" href="pegasus_upload_designs_v30.html">5 new Upload designs</a>
     <span class="note" id="note"></span>
   </div>
   <div class="stage"><iframe id="view" title="Mockup"></iframe></div>
