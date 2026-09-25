@@ -88,6 +88,9 @@ internal static partial class CaseWebTestSupport
         string route,
         HttpContent form)
     {
+        // The editor is in edit mode, holding the lease, when the command is refused. Earlier
+        // commits in the same test consumed the lease they carried, as the store does.
+        workspace.Store.HoldLease(workspace.Claimant);
         workspace.Store.NextFailure = new InvalidOperationException("The case refused the command.");
         using var refused = await workspace.PostAsync(route, form);
         AssertPrg(refused, workspace.Store.CaseId);
@@ -1252,6 +1255,14 @@ internal static partial class CaseWebTestSupport
         {
             _leaseHolder = null;
             _leaseOperationKey = null;
+        }
+
+        /// <summary>The actor holds the live lease, as a scenario that needs it held states.</summary>
+        public void HoldLease(ActionActor actor)
+        {
+            _leaseHolder = actor.SubjectId;
+            _leaseHolderKind = actor.Kind;
+            _leaseOperationKey = Guid.NewGuid().ToString("N");
         }
     }
 

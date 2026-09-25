@@ -107,6 +107,11 @@ public sealed class DetailsModel(
     /// </summary>
     public bool CanTakeOverEdit { get; private set; }
 
+    /// <summary>
+    /// The viewer holds a live scope from another window; Edit replaces it without a takeover.
+    /// </summary>
+    public bool ViewerHoldsEditScope { get; private set; }
+
     /// <summary>The record as the operator reading an ownership sentence names it.</summary>
     private const string RecordName = "Image Intake record";
 
@@ -122,9 +127,12 @@ public sealed class DetailsModel(
         if (!IsEditing && TryGetActor(out var editActor)
             && StaffAuthorization.IsAuthorized(editActor, StaffAccessRight.PerformCasework))
         {
-            CanTakeOverEdit = await editScopes.GetActiveAsync(
-                    EditScopeKind.ImageIntake, id, editActor, cancellationToken) is { } active
-                && !EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, editActor);
+            if (await editScopes.GetActiveAsync(
+                    EditScopeKind.ImageIntake, id, editActor, cancellationToken) is { } active)
+            {
+                ViewerHoldsEditScope = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, editActor);
+                CanTakeOverEdit = !ViewerHoldsEditScope;
+            }
         }
         Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
         if (TryGetActor(out var sourceActor))

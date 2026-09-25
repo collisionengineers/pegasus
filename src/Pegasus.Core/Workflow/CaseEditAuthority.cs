@@ -34,19 +34,24 @@ public static class CaseEditAuthority
         leaseExpiresAtUtc is { } expiresAtUtc && expiresAtUtc > nowUtc;
 
     /// <summary>
-    /// The holder is the staff member, not the window. A live lease asked for again by its own
-    /// holder — from a second tab, after visiting another case, or by a stale Edit button — is
-    /// resumed as it stands: the same token, no rotation and no takeover history. Take over is
-    /// only ever a colleague's action.
+    /// The holder is the staff member, not the window. A Case page its staff holder opens again
+    /// — a second tab, or a return from another case — resumes the live lease as it stands: the
+    /// same token, no rotation and no takeover history. Take over is only ever a colleague's
+    /// action. The Automation Actor never resumes: each of its sessions claims, and fails closed
+    /// while any lease is live.
     /// </summary>
     public static bool CanResume(
         ActorKind? retainedLeaseHolderKind,
         string? retainedLeaseHolder,
         DateTimeOffset? leaseExpiresAtUtc,
         ActionActor actor,
-        DateTimeOffset nowUtc) =>
-        IsHeld(leaseExpiresAtUtc, nowUtc)
-        && IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor);
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.Kind == ActorKind.Staff
+            && IsHeld(leaseExpiresAtUtc, nowUtc)
+            && IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor);
+    }
 
     /// <summary>A colleague takeover is a staff action on a staff-held lease.</summary>
     public static bool CanTakeOver(ActorKind? retainedLeaseHolderKind, ActionActor actor)

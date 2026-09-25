@@ -67,18 +67,20 @@ public sealed class EfEditScopeStore(
                 request.ScopeKind, request.RecordId, request.ExpectedVersion, currentVersion.Value);
         }
         var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
-        // The holder is the staff member, not the window: a live scope its own holder claims again
-        // is claimed back silently. Only a colleague's live scope needs, and records, a takeover.
-        var previousHolder = scope is not null
-            && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now)
-            && !(Enum.TryParse<ActorKind>(scope.HolderKind, out var holderKind)
-                && EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor))
-                ? scope.Holder
-                : null;
-        if (previousHolder is not null && !request.TakeOver)
+        // A live scope refuses every claim that does not explicitly replace it, so a one-off
+        // command never rotates the holder's open window. The record page's Edit replaces the
+        // viewer's own scope without a takeover; only a colleague's scope is a takeover, and only
+        // that is history.
+        var isLive = scope is not null && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now);
+        if (isLive && !request.TakeOver)
         {
             throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
         }
+        var previousHolder = isLive
+            && !(Enum.TryParse<ActorKind>(scope!.HolderKind, out var holderKind)
+                && EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor))
+                ? scope!.Holder
+                : null;
 
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         var generation = checked((scope?.Generation ?? 0) + 1);

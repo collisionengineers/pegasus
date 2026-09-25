@@ -148,7 +148,17 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             : null;
         if (token is null)
         {
-            var resumed = await resumeLease.ExecuteAsync(new(caseId, actor), cancellationToken);
+            CaseEditLease? resumed;
+            try
+            {
+                resumed = await resumeLease.ExecuteAsync(new(caseId, actor), cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // A resume that cannot be answered leaves the page reading, never unavailable.
+                LogCaseCommandFailed(logger, caseId, "resume_lease", exception);
+                resumed = null;
+            }
             // A lease that lapsed between the read and the resume leaves Edit to claim afresh.
             ClearLeaseState();
             if (resumed is null)
@@ -173,12 +183,14 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     protected virtual string ErrorTempDataKey => "CaseError";
 
     /// <summary>
-    /// Enters edit mode. Every page that offers it enters it the same way. A refused claim leaves
-    /// nothing to retry by key: if it landed after all, the page it returns to resumes the lease,
-    /// and otherwise that page offers a new claim.
+    /// Enters edit mode. Every page that offers it enters it the same way. A staff member who
+    /// already holds the lease, from another window or a page that went stale, resumes it rather
+    /// than claiming. A refused claim leaves nothing to retry by key: if it landed after all, the
+    /// page it returns to resumes the lease, and otherwise that page offers a new claim.
     /// </summary>
     protected async Task<IActionResult> ClaimLeaseAsync(
         IAcquireCaseEditLease acquireLease,
+        IResumeCaseEditLease resumeLease,
         Guid id,
         long expectedVersion,
         string operationKey,
@@ -195,12 +207,13 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         try
         {
             var normalizedOperationKey = RequireOperationKey(operationKey);
-            var lease = await acquireLease.ExecuteAsync(
-                new ClaimCaseEditLeaseRequest(id, expectedVersion, actor, normalizedOperationKey)
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken);
+            var lease = await resumeLease.ExecuteAsync(new(id, actor), cancellationToken)
+                ?? await acquireLease.ExecuteAsync(
+                    new ClaimCaseEditLeaseRequest(id, expectedVersion, actor, normalizedOperationKey)
+                    {
+                        TakeOver = takeOver
+                    },
+                    cancellationToken);
             StoreLeaseAuthority(id, lease.Token);
             TempData.Remove(RenewLeaseOperationKeyName);
             TempData.Remove(ReleaseLeaseOperationKeyName);
@@ -612,8 +625,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// The refused mutations after which the editor must reacquire rather than resubmit. A lost
     /// lease is one; so is a stale version, because the requirement makes the rejected editor
     /// "reload and reacquire rather than merge or force the save". Clearing this page's lease state
-    /// does not release the server-owned authority, so a holder who did nothing wrong keeps it and
-    /// simply re-enters edit mode deliberately rather than saving over newer work.
+    /// does not release the server-owned authority, so a holder who did nothing wrong keeps it: the
+    /// reloaded page resumes it on the case as it now stands, and nothing is saved over newer work.
     /// </summary>
     private static bool RequiresReacquisition(Exception exception) =>
         IsLeaseLoss(exception) || exception is CaseVersionConflictException;

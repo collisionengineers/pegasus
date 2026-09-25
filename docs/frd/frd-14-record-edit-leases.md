@@ -54,7 +54,11 @@ window. When the holder opens the Case again, from a second tab or after
 visiting another record, the page resumes the lease they hold: the same
 token, renewed as a heartbeat renews it, with nothing recorded. Pressing Edit
 on a Case they already hold does the same. The holder is never offered a
-takeover of themselves.
+takeover of themselves. Only the Case page resumes: a one-off change made
+from elsewhere, such as the Work Centre or linking an item to the Case, is
+refused while the lease is live, so it never ends the holder's edit session.
+Automatic processing never resumes a lease; each of its sessions claims and
+is refused while any lease is live.
 
 **Leaving.** Leaving the Case by a link in Pegasus ends edit mode. With
 unsaved changes the page first asks **Keep editing**, **Discard** or
@@ -112,9 +116,10 @@ the system never invalidates it.
 
 **Your own lease.** A staff member never takes over their own lease. A Case
 they hold resumes as described under Coming back. A Triage Case or Image
-Intake record still opens read-only; its **Edit** claims the scope back
-silently with a new token, so another window of theirs on the same record
-has its next heartbeat refused. Neither writes history.
+Intake record still opens read-only; its **Edit** replaces their own scope
+with a new token, so another window of theirs on the same record has its
+next heartbeat refused. Neither writes history. A one-off change made from
+elsewhere is refused while their scope is live.
 
 **A colleague's lease.** Any staff member with edit rights for that record
 may press **Take over** on a lease a colleague holds. No reason is asked for.
@@ -161,7 +166,10 @@ heartbeating, though its timers are throttled.
   overwritten and the editor keeps their values.
 - A non-holder is never shown a countdown or an expiry time.
 - A second window of the same holder shares the Case lease; its saves are
-  still checked against the version it loaded.
+  still checked against the version it loaded. Leaving by a link from either
+  window, or a save in either, ends edit mode in the other: its next
+  heartbeat shows editing has expired, its unsaved values stay on screen,
+  and Edit Case gets back in.
 - A record-scope window of the same holder is refused after that holder
   claims the scope back in another window.
 - A revoked session's token cannot save an existing record.

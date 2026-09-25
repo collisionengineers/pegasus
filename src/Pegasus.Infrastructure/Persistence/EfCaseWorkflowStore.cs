@@ -169,56 +169,23 @@ public sealed class EfCaseWorkflowStore(
         ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(workflow.EditLeaseHolderKind, out var parsedKind)
             ? parsedKind
             : null;
-        var heldByCaller = CaseEditAuthority.CanResume(
-            previousHolderKind,
-            workflow.EditLeaseHolder,
-            workflow.EditLeaseExpiresAtUtc,
-            request.Actor,
-            now);
-        if (heldByCaller && RetainedLeaseToken(workflow) is { } heldToken)
-        {
-            // The caller already holds this lease, from another window or a page that went stale:
-            // it is resumed as it stands, so their other window keeps working and nothing is
-            // recorded as a takeover of themselves.
-            var resumedExpiresAtUtc = now + EditLeaseDuration;
-            workflow.EditLeaseRequestHash = requestHash;
-            workflow.EditLeaseOperationKey = operationKey;
-            workflow.EditLeaseExpiresAtUtc = resumedExpiresAtUtc;
-            AddLeaseOperation(
-                context,
-                workflow,
-                request.Actor,
-                operationKey,
-                ClaimLeaseOperationKind,
-                requestHash,
-                now,
-                workflow.Version,
-                resumedExpiresAtUtc,
-                workflow.EditLeaseTokenHash!);
-            await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return new(
-                request.CaseId,
-                heldToken,
-                request.Actor.SubjectId,
-                workflow.Version,
-                resumedExpiresAtUtc)
-            {
-                Generation = workflow.EditLeaseGeneration
-            };
-        }
-
-        // A lease the caller holds without a readable token is claimed afresh, still without a
-        // takeover: only a colleague's live lease is ever taken over.
-        var previousHolder = !heldByCaller
-            && CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
-                ? workflow.EditLeaseHolder
-                : null;
-        if (previousHolder is not null
+        var liveHolder = CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
+            ? workflow.EditLeaseHolder
+            : null;
+        // A live lease refuses every claim that does not explicitly take it over, including the
+        // holder's own from a one-off command elsewhere, which must never end the holder's edit
+        // session. The Case page resumes the holder's lease before it ever claims.
+        if (liveHolder is not null
             && (!request.TakeOver || !CaseEditAuthority.CanTakeOver(previousHolderKind, request.Actor)))
         {
             throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
         }
+
+        // Only a lease taken from a colleague is history; the holder taking their own back is not.
+        var previousHolder = liveHolder is not null
+            && !CaseEditAuthority.IsHolder(previousHolderKind, liveHolder, request.Actor)
+                ? liveHolder
+                : null;
 
         var previousName = previousHolder is not null
             ? await LeaseHolderNameAsync(context, previousHolder, cancellationToken)
@@ -355,10 +322,10 @@ public sealed class EfCaseWorkflowStore(
     /// deliberately not <see cref="RenewAsync"/>: an open page beats every minute for as long as
     /// it is open, and renewal records one <c>CaseEditLeaseOperations</c> row per call in a table
     /// nothing prunes. FRD-01 counts a heartbeat as telemetry, so this writes no operation row, no
-    /// operation key, and no request hash — <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/>
-    /// still has to hold the *claim* key the workspace reads back to recover edit mode. It also
-    /// asks for no expected version: a version cannot move under a live lease, because every
-    /// mutation clears the lease as it commits.
+    /// operation key, and no request hash, so <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/>
+    /// keeps the claim key that replays the lease. It also asks for no expected version: a
+    /// version cannot move under a live lease, because every mutation clears the lease as it
+    /// commits.
     /// </summary>
     public async Task<CaseEditLease> HeartbeatAsync(
         HeartbeatCaseEditLeaseRequest request,
