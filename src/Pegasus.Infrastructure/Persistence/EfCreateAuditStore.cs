@@ -248,6 +248,7 @@ public sealed class EfCreateAuditStore(
                 PolicyKey = field.PolicyKey,
                 PolicyVersion = field.PolicyVersion,
                 ConfirmedByActor = field.ConfirmedByActor,
+                ConfirmedAtUtc = field.ConfirmedAtUtc
             });
         }
 
