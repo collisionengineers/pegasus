@@ -162,8 +162,6 @@ public sealed class EstimateLineAmendmentTests
         ActorKind.Staff,
         "engineer-recorded",
         PriorAmendedAtUtc,
-        ConfirmedBy: null,
-        ConfirmedAtUtc: null,
         PaintWorkUnits: 1.5m,
         Quantity: 1,
         Materials: 12.50m,

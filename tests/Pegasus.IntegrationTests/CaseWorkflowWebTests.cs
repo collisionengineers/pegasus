@@ -93,7 +93,7 @@ public sealed class CaseWorkflowWebTests
     }
 
     [Fact]
-    public async Task WorkflowPageBindsReviewReturnEngineerAssignmentFindingAndLinkedReplacement()
+    public async Task WorkflowPageBindsReviewReturnEngineerAssignmentAndLinkedReplacement()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
@@ -101,7 +101,6 @@ public sealed class CaseWorkflowWebTests
             Substitute<ITransitionCase>(services, store);
             Substitute<IAssignCaseEngineer>(services, store);
             Substitute<ISetCaseSignOffEngineer>(services, store);
-            Substitute<IRecordEngineerFinding>(services, store);
             Substitute<ICreateLinkedReplacement>(services, store);
         });
         var engineerId = Guid.NewGuid();
@@ -125,9 +124,6 @@ public sealed class CaseWorkflowWebTests
                 "set-sign-off-engineer",
                 "Signatory selected",
                 ("signOffEngineerId", signOffEngineerId.ToString("D"))));
-        using var found = await workspace.PostAsync(
-            "Workflow?handler=RecordEngineerFinding",
-            workspace.MutationForm("record-finding", "Inspection complete", ("assessment", "TotalLoss")));
         using var replaced = await workspace.PostAsync(
             "Workflow?handler=CreateLinkedReplacement",
             workspace.MutationForm("create-replacement", "Wrong principal", ("replacementPrincipalCode", "ACME")));
@@ -135,7 +131,6 @@ public sealed class CaseWorkflowWebTests
         AssertPrg(returned, store.CaseId);
         AssertPrg(assigned, store.CaseId);
         AssertPrg(signOffSet, store.CaseId);
-        AssertPrg(found, store.CaseId);
         AssertPrg(replaced, store.CaseId);
         var expectedReadiness = new CaseReadinessEvidence(true, true, "review-evidence-1");
 
@@ -157,10 +152,6 @@ public sealed class CaseWorkflowWebTests
             "Signatory selected");
         Assert.Equal(signOffEngineerId, signOffSelection.SignOffEngineerId);
 
-        var finding = Assert.Single(store.EngineerFindings);
-        AssertLeasedMutation(workspace, finding, "record-finding", "Inspection complete");
-        Assert.Equal(AuditAssessment.TotalLoss, finding.Assessment);
-
         var replacement = Assert.Single(store.LinkedReplacements);
         AssertLeasedMutation(workspace, replacement, "create-replacement", "Wrong principal");
         Assert.Equal("ACME", replacement.ReplacementPrincipalCode);
@@ -169,8 +160,11 @@ public sealed class CaseWorkflowWebTests
 
         await AssertRefusalKeepsEditModeAsync(
             workspace,
-            "Workflow?handler=RecordEngineerFinding",
-            workspace.MutationForm("record-finding-2", "Second look", ("assessment", "Repairable")));
+            "Workflow?handler=SetSignOffEngineer",
+            workspace.MutationForm(
+                "set-sign-off-engineer-2",
+                "Second look",
+                ("signOffEngineerId", signOffEngineerId.ToString("D"))));
         await AssertLostLeaseClearsEditModeAsync(
             workspace,
             "Workflow?handler=ReturnToReview",

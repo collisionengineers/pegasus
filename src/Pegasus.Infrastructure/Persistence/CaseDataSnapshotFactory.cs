@@ -18,8 +18,7 @@ internal static class CaseDataSnapshotFactory
         ArgumentNullException.ThrowIfNull(completenessEvaluation);
         return new()
         {
-            CaseId = caseEntity.Id,
-            Case = caseEntity,
+            WorkId = caseEntity.Id,
             CompletenessPolicyKey = completenessEvaluation.PolicyKey,
             CompletenessPolicyVersion = completenessEvaluation.PolicyVersion,
             CompletenessPolicySatisfied = completenessEvaluation.SatisfiesPolicy,
@@ -53,8 +52,7 @@ internal static class CaseDataSnapshotFactory
 
         var snapshot = new CaseDataSnapshotEntity
         {
-            CaseId = caseEntity.Id,
-            Case = caseEntity,
+            WorkId = caseEntity.Id,
             OriginIntakeReceiptId = receipt.Id,
             OriginSourceChannel = receipt.SourceChannel,
             OriginExternalReceiptToken = receipt.ExternalReceiptToken,
@@ -100,7 +98,7 @@ internal static class CaseDataSnapshotFactory
         var sourceLabel = $"provider setting:{request.PrincipalCode}";
         snapshot.Fields.Add(new()
         {
-            CaseId = snapshot.CaseId,
+            WorkId = snapshot.WorkId,
             Snapshot = snapshot,
             FieldName = CaseDataFieldNames.InspectionAddress,
             ValueKind = CaseDataCodes.Confirmed,
@@ -116,7 +114,7 @@ internal static class CaseDataSnapshotFactory
         });
         snapshot.Fields.Add(new()
         {
-            CaseId = snapshot.CaseId,
+            WorkId = snapshot.WorkId,
             Snapshot = snapshot,
             FieldName = CaseDataFieldNames.InspectionMode,
             ValueKind = CaseDataCodes.Confirmed,
@@ -191,7 +189,7 @@ internal static class CaseDataSnapshotFactory
 
         snapshot.Fields.Add(new()
         {
-            CaseId = snapshot.CaseId,
+            WorkId = snapshot.WorkId,
             Snapshot = snapshot,
             FieldName = CaseDataFieldNames.WorkProviderCode,
             ValueKind = CaseDataCodes.Fact,
@@ -286,13 +284,6 @@ internal static class CaseDataSnapshotFactory
             CaseDataFieldNames.IncidentDate,
             CaseDataCodes.Date,
             Date(draft.DateOfIncident));
-        AddExtractedValue(
-            snapshot,
-            receipt,
-            fields,
-            CaseDataFieldNames.InstructionDate,
-            CaseDataCodes.Date,
-            Date(draft.InstructionDate));
         AddExtractedValue(
             snapshot,
             receipt,
@@ -516,7 +507,7 @@ internal static class CaseDataSnapshotFactory
                     $"The accepted intake field '{fieldName}' has ambiguous source provenance.");
         snapshot.Fields.Add(new()
         {
-            CaseId = snapshot.CaseId,
+            WorkId = snapshot.WorkId,
             Snapshot = snapshot,
             FieldName = fieldName,
             // Operator direction 2026-08-20: an unambiguous,
@@ -566,7 +557,7 @@ internal static class CaseDataSnapshotFactory
             item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
         snapshot.Fields.Add(new()
         {
-            CaseId = snapshot.CaseId,
+            WorkId = snapshot.WorkId,
             Snapshot = snapshot,
             FieldName = fieldName,
             ValueKind = CaseDataCodes.Confirmed,

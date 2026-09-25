@@ -103,9 +103,9 @@ already holds the fields, so it states them.
   exists to catch a provider posting to the wrong account, never to select
   one.
 - **Case type.** One of `inspection`, `audit`, `auditreport` or `triage`,
-  mapping to `Inspection`, `Audit` and `InspectionAndAudit`. `triage`
-  allocates no Case/PO and opens a Triage instead
-  ([FRD-03](frd-03-triage.md)).
+  mapping to `Inspection`, `Audit`, `InspectionAndAudit` and `Triage`.
+  `triage` opens a Triage Case with a `t.` Case/PO under the credential's
+  Principal ([FRD-03](frd-03-triage.md)).
 - **Audit.** A standalone `audit` states `originalReportVerdict`
   (`repairable` or `total-loss`) and attaches the original report with its
   role stated. The declared verdict records the assessment. The Audit Case's
@@ -147,6 +147,11 @@ already holds the fields, so it states them.
   field. Only the identity-critical fields withhold a reference: claimant
   name, claim number and vehicle registration. Ordinary detail missing from
   a declaration leaves the Case `Not ready`, exactly as for an email.
+- **No instruction date.** The Case's Received date, which is its
+  instruction date, is the day Pegasus received the submission
+  ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
+  The body has no `instructionDate` member; a member the contract does not
+  name is ignored, not refused.
 - **Existing-Case rejection.** The Case-match policy runs on the declared
   claim number, vehicle registration, claimant and incident date. A unique
   or ambiguous existing-Case match fails with
@@ -283,10 +288,12 @@ subject template, which states it nowhere else.
 ### Triage result contract
 
 A Provider API Triage submission returns the same result shape, with the same
-Principal-scoped access, as a regular Case submission, using the Triage `T-`
-reference in place of a Case/PO. It does not allocate a formal Case just to
-fill that result. Receipt and processing state keep their ordinary meaning.
-A result is not proof that a response was emailed
+Principal-scoped access, as a regular Case submission. Its Case/PO is the
+Triage Case's `t.` Case/PO, read from the Triage the submission's receipt
+opened. The receipt is not linked to the Triage Case as a Case instruction
+source, and no other Case is allocated to fill that result. Receipt and
+processing state keep their ordinary meaning. A result is not proof that a
+response was emailed
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
 ### Non-overlapping route rules

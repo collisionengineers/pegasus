@@ -50,64 +50,16 @@ internal sealed class LocalCaseCustody(
         return new(caseId, relativeId, caseReference);
     }
 
-    /// <summary>
-    /// Local custody mirrors the Box hierarchy so the same retained parent
-    /// identity fences a linked Audit Case in every configured adapter.
-    /// </summary>
-    public async Task<CaseCustodyRoot> CreateLinkedAuditCaseRootAsync(
-        Guid auditCaseId,
-        string auditReference,
-        Guid originalCaseId,
-        string originalReference,
-        string creationOwnerToken,
-        string operationKey,
-        CustodyEffectLeaseGuard? leaseGuard,
-        CancellationToken cancellationToken)
-    {
-        var original = await GetExistingCaseRootAsync(
-            originalCaseId, originalReference, cancellationToken);
-        if (leaseGuard is not null)
-        {
-            await leaseGuard.RequireCurrentAsync(cancellationToken);
-        }
-
-        ValidateIdentity(auditCaseId, auditReference, operationKey);
-        var relativeId = GetCaseRelativeId(auditCaseId, original.RemoteId);
-        var directory = Resolve(relativeId);
-        Directory.CreateDirectory(directory);
-        var metadata = new CaseRootMetadata(
-            auditCaseId, auditReference, operationKey, originalCaseId, originalReference);
-        await CreateOrValidateJsonAsync(
-            Path.Combine(directory, RootMetadataFileName),
-            metadata,
-            existing => existing == metadata,
-            cancellationToken);
-        return new(auditCaseId, relativeId, auditReference, originalCaseId, originalReference);
-    }
-
     public async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
         Guid caseId,
         string caseReference,
-        CancellationToken cancellationToken,
-        Guid? parentCaseId = null,
-        string? parentCaseReference = null)
+        CancellationToken cancellationToken)
     {
         ValidateCaseIdentity(caseId, caseReference);
-        if (parentCaseId is null && parentCaseReference is not null
-            || parentCaseId is not null && string.IsNullOrWhiteSpace(parentCaseReference))
-        {
-            throw new ArgumentException("A linked Audit Case root requires its complete original Case identity.");
-        }
-        var parentRemoteId = parentCaseId is { } originalCaseId
-            ? (await GetExistingCaseRootAsync(
-                originalCaseId, parentCaseReference!, cancellationToken)).RemoteId
-            : null;
         var root = new CaseCustodyRoot(
             caseId,
-            GetCaseRelativeId(caseId, parentRemoteId),
-            caseReference,
-            parentCaseId,
-            parentCaseReference);
+            GetCaseRelativeId(caseId),
+            caseReference);
         await ValidateRootAsync(root, cancellationToken);
         return root;
     }
@@ -323,16 +275,7 @@ internal sealed class LocalCaseCustody(
             throw new ArgumentException("A case identifier is required.", nameof(root));
         }
 
-        if (root.ParentCaseId is null && root.ParentReference is not null
-            || root.ParentCaseId is not null && string.IsNullOrWhiteSpace(root.ParentReference))
-        {
-            throw new UnauthorizedAccessException("The custody root has an incomplete original Case identity.");
-        }
-        var parentRemoteId = root.ParentCaseId is { } originalCaseId
-            ? (await GetExistingCaseRootAsync(
-                originalCaseId, root.ParentReference!, cancellationToken)).RemoteId
-            : null;
-        var expectedRemoteId = GetCaseRelativeId(root.CaseId, parentRemoteId);
+        var expectedRemoteId = GetCaseRelativeId(root.CaseId);
         if (!string.Equals(root.RemoteId, expectedRemoteId, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException("The custody root is outside the configured case scope.");
@@ -360,9 +303,7 @@ internal sealed class LocalCaseCustody(
             throw new InvalidDataException("The case custody root metadata is incomplete.");
         }
         if (metadata.CaseId != root.CaseId
-            || !string.Equals(metadata.Reference, root.Reference, StringComparison.Ordinal)
-            || metadata.ParentCaseId != root.ParentCaseId
-            || !string.Equals(metadata.ParentReference, root.ParentReference, StringComparison.Ordinal))
+            || !string.Equals(metadata.Reference, root.Reference, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException("The custody root does not belong to the requested case.");
         }
@@ -510,8 +451,7 @@ internal sealed class LocalCaseCustody(
             Path.GetDirectoryName(path)!,
             $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
 
-    private static string GetCaseRelativeId(Guid caseId, string? parentRemoteId = null) =>
-        parentRemoteId is null ? $"cases/{caseId:N}" : $"{parentRemoteId}/cases/{caseId:N}";
+    private static string GetCaseRelativeId(Guid caseId) => $"cases/{caseId:N}";
 
     private static void ValidateIdentity(Guid caseId, string caseReference, string operationKey)
     {
@@ -546,9 +486,7 @@ internal sealed class LocalCaseCustody(
     private sealed record CaseRootMetadata(
         Guid CaseId,
         string Reference,
-        string OperationKey,
-        Guid? ParentCaseId = null,
-        string? ParentReference = null);
+        string OperationKey);
 
     private sealed record DocumentMetadata(
         Guid IntakeReceiptId,
@@ -582,9 +520,7 @@ internal sealed class UnavailableCaseCustody : ICaseCustody
     public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
         Guid caseId,
         string caseReference,
-        CancellationToken cancellationToken,
-        Guid? parentCaseId = null,
-        string? parentCaseReference = null) =>
+        CancellationToken cancellationToken) =>
         Unavailable<CaseCustodyRoot>();
 
     public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(

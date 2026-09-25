@@ -64,10 +64,9 @@ public sealed class VehicleWorkflowTerminalTests
         var editLeaseToken = await PrepareCanonicalRegistrationAsync(database, caseId, null);
         await using var scope = database.CreateAsyncScope();
 
-        var exception = await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
+        await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
             RequestAsync(scope.ServiceProvider, caseId, "AB12CDE", "missing-registration", editLeaseToken));
 
-        Assert.Equal(0, exception.AcceptedRegistrationCount);
         Assert.Equal(0, await ExternalWorkCountAsync(database, caseId));
     }
 
@@ -96,14 +95,13 @@ public sealed class VehicleWorkflowTerminalTests
         await using (var context = await database.CreateContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {"confirmed"}, {"text"}, {"XY34ZAB"}, {"staff_correction"}, {"ambiguous-second-source"}, {"Ambiguous retained source"}, {"case-data-test"}, {1}, {Staff.SubjectId}, {FixedUtcNow})");
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {"confirmed"}, {"text"}, {"XY34ZAB"}, {"staff_correction"}, {"ambiguous-second-source"}, {"Ambiguous retained source"}, {"case-data-test"}, {1}, {Staff.SubjectId}, {FixedUtcNow})");
         }
         await using var scope = database.CreateAsyncScope();
 
-        var exception = await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
+        await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
             RequestAsync(scope.ServiceProvider, caseId, "AB12CDE", "ambiguous-registration", editLeaseToken));
 
-        Assert.Equal(2, exception.AcceptedRegistrationCount);
         Assert.Equal(0, await ExternalWorkCountAsync(database, caseId));
     }
 
@@ -172,7 +170,7 @@ public sealed class VehicleWorkflowTerminalTests
         await using (var context = await database.CreateContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {"fact"}, {"text"}, {"XY34ZAB"}, {"intake_evidence"}, {"instruction-source"}, {"Accepted instruction registration"}, {"vehicle-test"}, {1}, {null}, {(DateTimeOffset?)null})");
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {"fact"}, {"text"}, {"XY34ZAB"}, {"intake_evidence"}, {"instruction-source"}, {"Accepted instruction registration"}, {"vehicle-test"}, {1}, {null}, {(DateTimeOffset?)null})");
         }
         await using var scope = database.CreateAsyncScope();
 
@@ -292,11 +290,11 @@ public sealed class VehicleWorkflowTerminalTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE CaseWorkflows SET EditLeaseToken = {editLeaseToken}, EditLeaseTokenHash = {leaseHash}, EditLeaseRequestHash = {leaseHash}, EditLeaseHolder = {Staff.SubjectId}, EditLeaseHolderKind = {nameof(ActorKind.Staff)}, EditLeaseOperationKey = {"canonical-registration-edit"}, EditLeaseExpiresAtUtc = {FixedUtcNow.AddMinutes(5)} WHERE CaseId = {caseId}");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) SELECT Id, OriginIntakeReceiptId, {"manual_upload"}, {"canonical-registration-source"}, {new string('1', 64)}, {FixedUtcNow}, {"vehicle-test-reader"}, {"1"}, {"vehicle-test-completeness"}, {1}, {true}, {FixedUtcNow} FROM Cases WHERE Id = {caseId}");
+            $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) SELECT Id, OriginIntakeReceiptId, {"manual_upload"}, {"canonical-registration-source"}, {new string('1', 64)}, {FixedUtcNow}, {"vehicle-test-reader"}, {"1"}, {"vehicle-test-completeness"}, {1}, {true}, {FixedUtcNow} FROM Cases WHERE Id = {caseId}");
         if (registration is not null)
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {valueKind}, {"text"}, {registration}, {"case_acceptance"}, {"canonical-registration-source"}, {"Canonical accepted registration"}, {"vehicle-test"}, {1}, {(valueKind == "confirmed" ? Staff.SubjectId : null)}, {(valueKind == "confirmed" ? FixedUtcNow : (DateTimeOffset?)null)})");
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {valueKind}, {"text"}, {registration}, {"case_acceptance"}, {"canonical-registration-source"}, {"Canonical accepted registration"}, {"vehicle-test"}, {1}, {(valueKind == "confirmed" ? Staff.SubjectId : null)}, {(valueKind == "confirmed" ? FixedUtcNow : (DateTimeOffset?)null)})");
         }
         return editLeaseToken;
     }
@@ -321,6 +319,7 @@ public sealed class VehicleWorkflowTerminalTests
             $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"vehicle-terminal.eml"}, {"message/rfc822"}, {1L}, {1.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {"manual_upload"}, {receiptId.ToString("D")}, {FixedUtcNow}, {FixedUtcNow}, {"vehicle-test-reader"}, {"1"}, {0L}, {"case_created"}, {"Vehicle terminal fixture"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {"VTL31001"}, {"inspection"}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {FixedUtcNow}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {state.ToString()}, {0L}, {Guid.NewGuid()})");
         return caseId;

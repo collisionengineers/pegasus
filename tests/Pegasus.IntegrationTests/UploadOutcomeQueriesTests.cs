@@ -519,14 +519,6 @@ public sealed class UploadOutcomeQueriesTests
             Guid intakeReceiptId, CancellationToken cancellationToken) =>
             Task.FromResult(detail);
 
-        public Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
-            Guid submissionGroupId, CancellationToken cancellationToken) =>
-            Task.FromResult(detail);
-
-        public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
-            IReadOnlyCollection<Guid> intakeReceiptIds, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
-
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
@@ -552,10 +544,6 @@ public sealed class UploadOutcomeQueriesTests
             throw new NotSupportedException();
 
         public Task<UnidentifiedResolveResult> ResolveAsync(
-            ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
             ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

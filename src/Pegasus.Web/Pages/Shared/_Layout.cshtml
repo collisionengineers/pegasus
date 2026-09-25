@@ -43,28 +43,9 @@
     var notifications = ViewData["Notifications"] as IReadOnlyList<Pegasus.Core.Notifications.StaffNotification>;
     var unread = notifications?.Count(notification => notification.IsUnread) ?? 0;
 
-    // A page that is a record announces itself so the working-set strip
-    // (site.js, per browser under pegasus.workingSet) can carry it. data-*
-    // attributes sit outside Razor's conditional-attribute rule (a null value
-    // still renders `data-x=""`), so the announcement is composed only when
-    // there is a record and any other page renders a plain main.
     // The rail's remembered width is served in the first paint (no inline
     // script under the CSP): site.js mirrors the choice into this cookie.
     var railCollapsed = ShellPreferences.RailCollapsed(Context.Request);
-
-    var record = ViewData["WorkingSetRecord"] as WorkingSetRecord;
-    var recordAttributes = record is null
-        ? null
-        : Html.Raw(string.Join(" ", new[]
-        {
-            ("data-record-href", record.Href),
-            ("data-record-kind", record.Kind),
-            ("data-record-ref", record.Reference),
-            ("data-record-reg", record.Registration),
-            ("data-record-glyph", record.Glyph)
-        }
-        .Where(attribute => !string.IsNullOrEmpty(attribute.Item2))
-        .Select(attribute => $"{attribute.Item1}=\"{System.Net.WebUtility.HtmlEncode(attribute.Item2)}\"")));
 }
 <html lang="en">
 <head>
@@ -105,7 +86,7 @@
                         <span>@OperatorLabels.Nav.Upload</span>
                     </a>
                 }
-                <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Triage", "/Unidentified", "/ImageIntake", "/Intake")">
+                <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Unidentified", "/ImageIntake", "/Intake")">
                     <svg class="icon" aria-hidden="true"><use href="#icon-list-checks" /></svg>
                     <span>@OperatorLabels.Nav.Cases</span>
                     @if (CountFor("Cases") is { } casesCount)
@@ -171,7 +152,8 @@
                     <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
                 </form>
                 <div class="utility-actions">
-                    @if (inboxEnabled)
+                    @* The Work Centre's header already carries Create Case (v30 WE). *@
+                    @if (inboxEnabled && ViewData["HidesNewCase"] is not true)
                     {
                         <a class="btn btn--primary" asp-page="/Cases/Create">
                             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
@@ -195,10 +177,7 @@
                     }
                 </div>
             </section>
-            @* The working set: open records only, rendered by site.js from the
-               browser's own set and absent when nothing is open. *@
-            <nav class="workspace-tabs" aria-label="@OperatorLabels.Shell.OpenRecords" data-working-set hidden></nav>
-            <main id="main-content" class="app-main" tabindex="-1" @recordAttributes>
+            <main id="main-content" class="app-main" tabindex="-1">
                 <div class="content">
                     @if (TempData["Confirmation"] is string confirmation)
                     {

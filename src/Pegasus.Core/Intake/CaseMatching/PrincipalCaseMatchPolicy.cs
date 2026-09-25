@@ -29,7 +29,7 @@ public sealed partial class PrincipalCaseMatchPolicy(
         ArgumentNullException.ThrowIfNull(readResult);
         if (WorkProviderCode != QdosInstructionExtractionPolicy.SupportedPrincipalCode)
         {
-            var result = extractionPolicy.Extract(readResult, new(DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+            var result = extractionPolicy.Extract(readResult, new(DateTimeOffset.UnixEpoch),
                 new(WorkProviderCode, Key, Version));
             var draft = result.InstructionDraft;
             if (draft is null)

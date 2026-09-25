@@ -42,23 +42,16 @@ proposals until an authorised person accepts or rejects them through Core.
 hands a scoped worker a pointer to one Case, never Case content. The worker
 writes back through the same Core commands, edit lease, operation-key replay
 and version guards as a staff save, attributed and recorded like any human
-action. What the automation records is unconfirmed working data for the
-assigned Engineer to review. Confirming a professional finding is for every
-enabled human staff role. Report approval and
-sending stay human acts. No model, skill, prompt or external source ever
-issues an accepted Case, engineering, financial, legal or report outcome.
-
-**Settlement proposals.** For Outcome, Engineer's Value, Salvage category,
-Salvage value, Roadworthiness and the unroadworthy reason, Pegasus keeps the
-latest Automation value as a proposal with a status. It reads **Awaiting**
-until staff record the field. A matching staff value makes it **Accepted**; a
-different value or a clear makes it **Corrected**, recording who resolved it.
-It stays resolved until the next Automation value. The Settlement section
-shows the Proposed column only when a proposal exists. It offers Accept and
-Accept all only while a proposal is Awaiting and the Case is being edited.
-The Engineer's Value row offers Set in Valuation instead, because that
-value is adopted only by a Save whose valuation calculation changed. A Save that leaves
-an Awaiting field untouched leaves it Awaiting.
+action. What the automation records is the Case's value, attributed to it
+and shown with its AI source tag; it writes only fields staff can record on
+the Case, so staff can change or clear each value on its section
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)),
+and it never writes a professional finding. Recording a professional finding
+is for every enabled human staff role. There is no per-field review
+(operator, 25 September 2026).
+Report approval and sending stay human acts. No model, skill, prompt or
+external source ever issues an accepted Case, engineering, financial, legal
+or report outcome.
 
 Durable Send to AI work has stable request, hand-off, reply and disposition
 identities. Stale work cannot overwrite a newer Case or evidence version.
@@ -122,12 +115,14 @@ claims and progress; queued jobs wait and taken jobs expire back to `Queued`.
 **Operations panel.** The AI Job List on `/operations` shows every
 non-terminal job and the terminal jobs of the current day: Job (kind and
 detail), Record, Started by, Created, State, Action. The action is one of
-`Review estimate` (opens the Estimate section), `Open query` (opens the
-message) or `Review` (opens the Unidentified item) for a `Draft ready` job;
-`Complete job` for a `Draft ready` Query response or Unidentified-queue
-pass; `Cancel` (reason required) for any non-terminal job; otherwise
-nothing. `Send Unidentified to AI` creates an Unidentified-resolution job for
-a chosen U reference.
+`Review estimate` (opens the Case's Repair Spec section), `Open query`
+(opens the message it answers, or the Case when the job names none) or
+`Review` (opens the Unidentified item) for a `Draft ready` job, the same
+place the Work Centre and the Case's Next action open; `Complete job` for a
+`Draft ready` Query response or Unidentified-queue pass; `Cancel` (reason
+required) for any non-terminal job; otherwise nothing.
+`Send Unidentified to AI` creates an Unidentified-resolution job for a chosen
+U reference.
 
 **Administration.** Automation & AI shows the active and failed job counts
 and the Stop/Start automation control. That control is the

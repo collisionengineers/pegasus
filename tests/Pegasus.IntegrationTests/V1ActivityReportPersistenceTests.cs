@@ -24,6 +24,7 @@ public sealed class V1ActivityReportPersistenceTests
             var principal = await SeededPrincipals.QdosAsync(context);
             var receiptId = Guid.NewGuid();
             var caseId = Guid.NewGuid();
+            var triageCaseId = Guid.NewGuid();
             var generationId = Guid.NewGuid();
             var priorGenerationId = Guid.NewGuid();
             var documentId = Guid.NewGuid();
@@ -39,7 +40,7 @@ public sealed class V1ActivityReportPersistenceTests
                     Year = 2031,
                     Sequence = 1,
                     Reference = "QDOS31001",
-                    Type = "Inspection",
+                    Type = "inspection",
                     InitialState = "Review",
                     CustodyState = "Confirmed",
                     OriginIntakeReceiptId = receiptId,
@@ -70,12 +71,27 @@ public sealed class V1ActivityReportPersistenceTests
                     BeforeVersion = 0,
                     AfterVersion = 1
                 },
+                // A Triage is a Case of the same Principal: its Case row
+                // carries the Principal and the t. Case/PO.
+                new CaseEntity
+                {
+                    Id = triageCaseId,
+                    PrincipalId = principal.Id,
+                    SequenceLineageId = principal.SequenceLineageId,
+                    Year = 2031,
+                    Sequence = 2,
+                    Reference = "t.QDOS31002",
+                    Type = "triage",
+                    InitialState = null,
+                    CustodyState = "pending",
+                    OriginIntakeReceiptId = receiptId,
+                    CreatedAtUtc = From.AddDays(1),
+                    Version = 0,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
                 new TriageEntity
                 {
-                    Id = Guid.NewGuid(),
-                    Sequence = 1,
-                    Reference = "T-00001",
-                    PrincipalId = principal.Id,
+                    CaseId = triageCaseId,
                     OriginReceiptId = receiptId,
                     SourceChannel = "manual_upload",
                     ExternalReceiptToken = "triage:report-test",
@@ -92,6 +108,7 @@ public sealed class V1ActivityReportPersistenceTests
                 {
                     Id = generationId,
                     CaseId = caseId,
+                    WorkId = caseId,
                     CaseVersion = 1,
                     SnapshotHash = new string('b', 64),
                     SnapshotJson = "{\"agreedFee\":111.25}",
@@ -105,6 +122,7 @@ public sealed class V1ActivityReportPersistenceTests
                 {
                     Id = priorGenerationId,
                     CaseId = caseId,
+                    WorkId = caseId,
                     CaseVersion = 0,
                     SnapshotHash = new string('c', 64),
                     SnapshotJson = "{\"agreedFee\":1.00}",
@@ -183,14 +201,12 @@ public sealed class V1ActivityReportPersistenceTests
                 SentOperation(generationId, contextVersion: 1, sentAt));
             context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
             {
-                CaseId = caseId,
+                WorkId = caseId,
                 FieldPath = AssessmentVocabulary.AgreedFee,
                 Value = "999.99",
                 RecordedByKind = "Staff",
                 RecordedBy = Guid.NewGuid().ToString("D"),
-                RecordedAtUtc = sentAt,
-                ConfirmedBy = Guid.NewGuid().ToString("D"),
-                ConfirmedAtUtc = sentAt
+                RecordedAtUtc = sentAt
             });
             await context.SaveChangesAsync();
         }

@@ -1,5 +1,4 @@
 using Pegasus.Core.Identity;
-using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Workflow;
@@ -12,67 +11,6 @@ public sealed class CaseEditAuthorityTests
     private const string Holder = "6f0c2c9a-33b1-4f5d-8a2e-9b7c1d4e5f60";
     private static readonly ActionActor HolderActor =
         ActionActor.Staff(Guid.Parse(Holder), [StaffRole.User]);
-
-    [Fact]
-    public async Task AdministrativeClearRequiresAnAdministratorBeforeCallingTheStore()
-    {
-        var store = new RecordingAdministrativeLeaseStore();
-        var request = new ClearCaseEditLeaseRequest(
-            CaseId,
-            Guid.Parse(Holder),
-            3,
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-            "clear-lease",
-            "User cannot close the editor");
-
-        var exception = await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new ClearCaseEditLease(store).ExecuteAsync(request, default));
-
-        Assert.Equal(StaffAccessRight.ManageStaffAccounts, exception.Permission);
-        Assert.Null(store.Requested);
-    }
-
-    [Fact]
-    public async Task AdministrativeClearNormalizesItsReplayKeyAndRequiredReason()
-    {
-        var store = new RecordingAdministrativeLeaseStore();
-        var request = new ClearCaseEditLeaseRequest(
-            CaseId,
-            Guid.Parse(Holder),
-            3,
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-            "  clear-lease  ",
-            "  User cannot close the editor  ");
-
-        var result = await new ClearCaseEditLease(store).ExecuteAsync(request, default);
-
-        Assert.Equal("clear-lease", store.Requested?.OperationKey);
-        Assert.Equal("User cannot close the editor", store.Requested?.Reason);
-        Assert.Equal(3, result.LeaseGeneration);
-    }
-
-    [Fact]
-    public async Task AdministrativeClearRejectsAnInvalidTargetGenerationOrReason()
-    {
-        var store = new RecordingAdministrativeLeaseStore();
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        var request = new ClearCaseEditLeaseRequest(
-            CaseId,
-            Guid.Parse(Holder),
-            1,
-            actor,
-            "clear-lease",
-            "Required");
-        var command = new ClearCaseEditLease(store);
-
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            command.ExecuteAsync(request with { ExpectedHolderUserId = Guid.Empty }, default));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            command.ExecuteAsync(request with { ExpectedLeaseGeneration = 0 }, default));
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            command.ExecuteAsync(request with { Reason = " " }, default));
-        Assert.Null(store.Requested);
-    }
 
     [Fact]
     public void StaleVersionIsRefusedBeforeAnyLeaseQuestionIsAsked()
@@ -203,6 +141,40 @@ public sealed class CaseEditAuthorityTests
         Assert.False(CaseEditAuthority.IsHeld(Now.AddMinutes(-1), Now));
         Assert.False(CaseEditAuthority.IsHeld(Now, Now));
         Assert.True(CaseEditAuthority.IsHeld(Now.AddMinutes(1), Now));
+    }
+
+    /// <summary>
+    /// The holder is the staff member, not the window: only their own live lease is resumed, and
+    /// a colleague's, an expired one, or one whose kind was never recorded is not theirs to resume.
+    /// The Automation Actor never resumes, even its own lease: each session claims and fails closed.
+    /// </summary>
+    [Fact]
+    public void OnlyTheHoldersOwnLiveLeaseIsResumed()
+    {
+        var live = Now.AddMinutes(3);
+
+        Assert.True(CaseEditAuthority.CanResume(ActorKind.Staff, Holder, live, HolderActor, Now));
+        Assert.False(CaseEditAuthority.CanResume(ActorKind.Staff, Holder, Now, HolderActor, Now));
+        Assert.False(CaseEditAuthority.CanResume(ActorKind.Staff, Holder, null, HolderActor, Now));
+        Assert.False(CaseEditAuthority.CanResume(
+            ActorKind.Staff,
+            Guid.NewGuid().ToString("D"),
+            live,
+            HolderActor,
+            Now));
+        Assert.False(CaseEditAuthority.CanResume(null, Holder, live, HolderActor, Now));
+        Assert.False(CaseEditAuthority.CanResume(
+            ActorKind.Staff,
+            Holder,
+            live,
+            ActionActor.Automation(Holder),
+            Now));
+        Assert.False(CaseEditAuthority.CanResume(
+            ActorKind.Automation,
+            "pegasus-automation",
+            live,
+            ActionActor.Automation("pegasus-automation"),
+            Now));
     }
 
     [Fact]
@@ -364,30 +336,6 @@ public sealed class CaseEditAuthorityTests
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-            Guid staffId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
-    }
-
-    private sealed class RecordingAdministrativeLeaseStore : IAdministrativeCaseEditLeaseStore
-    {
-        public ClearCaseEditLeaseRequest? Requested { get; private set; }
-
-        public Task<ClearCaseEditLeaseResult> ClearAsync(
-            ClearCaseEditLeaseRequest request,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            Requested = request;
-            return Task.FromResult(new ClearCaseEditLeaseResult(
-                request.CaseId,
-                request.ExpectedHolderUserId,
-                request.ExpectedLeaseGeneration,
-                4,
-                Now));
-        }
     }
 
     [Fact]

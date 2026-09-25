@@ -12,7 +12,31 @@
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
-    ViewData["Title"] = Model.Case is null ? "Case" : $"Case {Model.Case.Workflow.Identity.Reference}";
+    ViewData["Title"] = Model.TriageCase is { } titledTriageCase
+        ? $"Triage {titledTriageCase.Reference}"
+        : Model.Case is null ? "Case" : $"Case {Model.Case.Workflow.Identity.Reference}";
+}
+
+@* The sections are defined before any early return below, so every branch
+   of the record — a Triage Case, an unavailable Case, the Case itself —
+   loads its own stylesheet and script. *@
+@section Styles {
+    @if (Model.TriageCase is not null)
+    {
+        <link rel="stylesheet" href="~/css/triage.css" asp-append-version="true" />
+        <link rel="stylesheet" href="~/css/pre-case-images.css" asp-append-version="true" />
+    }
+    else
+    {
+        <link rel="stylesheet" href="~/css/case-workspace.css" asp-append-version="true" />
+    }
+}
+
+@section Scripts {
+    @if (Model.TriageCase is null)
+    {
+        <script src="~/js/case-workspace.js" asp-append-version="true"></script>
+    }
 }
 
 @if (Model.QueryFailed)
@@ -24,6 +48,13 @@
         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
         <span>The case could not be loaded; reload the page to try again.</span>
     </div>
+    return;
+}
+
+@* A Triage Case is a Case with its own lifecycle and workspace. *@
+@if (Model.TriageCase is not null)
+{
+    <partial name="Cases/Shared/_TriageCase" model="Model" />
     return;
 }
 
@@ -79,12 +110,6 @@
     var offersActionsMenu = canUnlinkEvidence || canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
         || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
         || offersCreateAudit || offersAdverseClosure;
-    ViewData["WorkingSetRecord"] = new WorkingSetRecord(
-        $"/Cases/{summary.CaseId:D}",
-        WorkingSetRecord.Kinds.Case,
-        workflow.Identity.Reference,
-        summary.Registration,
-        Model.WorkingSetGlyph);
     var staleGeneration = Model.CurrentReportGeneration is { State: CaseReportGenerationState.Stale };
     var next = Model.NextAction;
     var outcome = Model.AssessmentEditorValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)
@@ -122,9 +147,9 @@
          data-case-id="@summary.CaseId" data-case-version="@workflow.Version"
          data-editor-commit="@Model.CommittedEditorCommand"
          data-layout="@Pegasus.Web.Presentation.ShellPreferences.CaseLayout(HttpContext.Request)" data-section-current="@Model.Section"
-         data-case-editing="@(editing ? "true" : "false")">
+         data-case-editing="@(editing ? "true" : "false")" data-case-view="@Model.ViewRoute">
     @* The sticky block (v26 frame rule 1): the 56px ribbon and the 40px
-       section row, measured by the shared helper into --sticky-h. *@
+       section row, measured by case-workspace.js into --sticky-h. *@
     <div class="sticky-block" data-sticky-block>
         <div class="ribbon" aria-label="Case identity">
             <div class="ribbon-facts" data-case-ribbon-facts>
@@ -183,14 +208,6 @@
                 </div>
             </div>
             <div class="ribbon-actions" data-case-ribbon-actions>
-                @if (Model.AuditCase is { } auditCase)
-                {
-                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@auditCase.CaseId" data-audit-link>@Frame.AuditCase @auditCase.Reference</a>
-                }
-                @if (Model.OriginalCase is { } originalAudit)
-                {
-                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@originalAudit.CaseId" data-original-link>@Frame.OriginalCase @originalAudit.Reference</a>
-                }
                 @if (workflow.OriginalCaseId is { } originalCaseId)
                 {
                     <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@originalCaseId">@Frame.OriginalCase</a>
@@ -216,7 +233,7 @@
                         <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                         <button type="submit" class="btn btn--small">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
                             <span>@Frame.RenewEditing</span>
                         </button>
                     </form>
@@ -225,12 +242,19 @@
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     </form>
+                    @* Script beacons this as the operator leaves the Case by a
+                       link, so leaving ends edit mode (FRD-14). *@
+                    <form method="post" asp-page-handler="ReleaseLeaseBeacon" data-case-release-beacon
+                          data-case-id="@summary.CaseId" hidden>
+                        <input type="hidden" name="id" value="@summary.CaseId" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    </form>
                     <span class="status status--navy status--plain case-edit-badge">@Frame.Editing</span>
                     <button type="submit" form="case-finish-editing-form" class="btn" data-case-cancel>
                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                         <span>@Frame.Cancel</span>
                     </button>
-                    @if (editingCaseData && details.Data is not null)
+                    @if (editingCaseData && details.Data is not null && !Model.IsInspectionView)
                     {
                         <button type="submit" form="case-edit-form" class="btn btn--primary" name="finishEditing" value="true" data-case-save>
                             <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
@@ -238,22 +262,25 @@
                         </button>
                     }
                 }
-                else if (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff)
+                else if (!Model.IsInspectionView
+                    && (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff))
                 {
-                    @* A staff lease can be taken over by an authorised editor;
-                       the operation rotates its token and records the prior holder. *@
+                    @* A colleague's staff lease can be taken over by an authorised
+                       editor; the operation rotates its token and records the prior
+                       holder. The viewer's own lease is resumed, never taken over.
+                       The Inspection view offers no Edit (v29 P3). *@
                     <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
-                        @if (details.ActiveEditLease is not null)
+                        @if (Model.ColleagueIsEditing)
                         {
                             <input type="hidden" name="takeOver" value="true" />
                         }
                         <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
                         <button type="submit" class="btn btn--dark" data-case-edit>
                             <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-                            <span>@(details.ActiveEditLease is not null ? Frame.TakeOver : Model.IsPostReportReadOnly ? Frame.EnableReturn : Frame.EditCase)</span>
+                            <span>@(Model.ColleagueIsEditing ? Frame.TakeOver : Model.IsPostReportReadOnly ? Frame.EnableReturn : Frame.EditCase)</span>
                         </button>
                     </form>
                 }
@@ -377,7 +404,7 @@
                 @foreach (var entry in OperatorLabels.CaseWorkspace.Sections.Where(entry => Model.SectionIsShown(entry.Key)))
                 {
                     <a class="section-link" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
-                       asp-route-section="@entry.Key" asp-fragment="section-@entry.Key" data-section-link="@entry.Key"
+                       asp-route-section="@entry.Key" asp-route-view="@Model.ViewRoute" asp-fragment="section-@entry.Key" data-section-link="@entry.Key"
                        aria-current="@(Model.SectionLinkKey == entry.Key ? "true" : "false")">
                         <svg class="icon" aria-hidden="true"><use href="#@entry.Icon" /></svg>
                         <span>@entry.Label</span>
@@ -386,13 +413,15 @@
             </nav>
             <div class="section-tools">
                 @* Refresh reruns this query on the section the operator is
-                   looking at, not the Overview. *@
-                <form method="get" data-refresh-form data-case-refresh>
-                    <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
-                    <button type="submit" class="btn btn--icon btn--small" title="@Frame.Refresh" aria-label="@Frame.Refresh">
-                        <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                    </button>
-                </form>
+                    looking at, not the Overview, and on the view it shows. *@
+                @{
+                    ViewData["RefreshFields"] = new Dictionary<string, string?>
+                    {
+                        ["section"] = Model.Section,
+                        ["view"] = Model.IsInspectionView ? DetailsModel.InspectionViewKey : null
+                    };
+                }
+                <partial name="Shared/_RefreshButton" />
                 <div class="layout-switch" role="group" aria-label="Case layout" data-case-layout-switch hidden>
                     <button type="button" data-case-layout="scroll" aria-pressed="true">@Frame.Scroll</button>
                     <button type="button" data-case-layout="tabs" aria-pressed="false">@Frame.Tabs</button>
@@ -405,7 +434,7 @@
             <div class="stale-bar" role="status" data-dismissable data-stale-bar>
                 <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
                 <span>@CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice</span>
-                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="report" asp-fragment="section-report" data-section-jump="report">Open Report</a>
+                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="report" asp-route-view="@Model.ViewRoute" asp-fragment="section-report" data-section-jump="report">Open Report</a>
                 <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
             </div>
         }
@@ -477,6 +506,42 @@
         @* The aside (v25 decision 7): Figures and Next action. Current
            position is gone because the ribbon carries it. *@
         <aside class="workspace-aside" aria-label="Case context" data-case-aside>
+            @* Views (v29 option 4): once the Case has its Audit, its two views,
+               each named by the reference its report carries; the current one
+               plain, the other a link. The Audit row reads the Case's state
+               chip exactly as the ribbon does. *@
+            @if (Model.Works is { HasAudit: true })
+            {
+                var inspectionName = $"{Frame.InspectionView} · {workflow.Identity.Reference}";
+                var auditName = $"{Frame.AuditView} · {Model.AuditReportReference}";
+                <section class="panel context-card" data-case-views>
+                    <div class="panel-head"><h2>@Frame.Views</h2></div>
+                    <div class="panel-body stack">
+                        <div class="next-row" data-case-view-row="inspection">
+                            @if (Model.IsInspectionView)
+                            {
+                                <span aria-current="page">@inspectionName</span>
+                            }
+                            else
+                            {
+                                <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-view="@DetailsModel.InspectionViewKey">@inspectionName</a>
+                            }
+                            <span class="status status--plain status--green">@Frame.Sent</span>
+                        </div>
+                        <div class="next-row" data-case-view-row="audit">
+                            @if (Model.IsInspectionView)
+                            {
+                                <a asp-page="/Cases/Details" asp-route-id="@workflow.CaseId">@auditName</a>
+                            }
+                            else
+                            {
+                                <span aria-current="page">@auditName</span>
+                            }
+                            <partial name="Shared/_StatusChip" model="@Model.StateChipText" />
+                        </div>
+                    </div>
+                </section>
+            }
             <section class="panel context-card" data-figures>
                 <div class="panel-head"><h2>@Frame.Figures</h2></div>
                 <div class="panel-body">
@@ -505,7 +570,7 @@
                     }
                     <div class="next-row">
                         <span data-next-label>@next.Label</span>
-                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@next.SectionKey" asp-fragment="section-@next.SectionKey" data-section-jump="@next.SectionKey">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == next.SectionKey).Label</a>
+                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@next.SectionKey" asp-fragment="section-@next.SectionKey" data-section-jump="@(Model.IsInspectionView ? null : next.SectionKey)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == next.SectionKey).Label</a>
                     </div>
                 </div>
             </section>
@@ -516,11 +581,3 @@
 <div data-case-viewer-host><partial name="Cases/Shared/_CaseViewer" model="Model" /></div>
 <partial name="Shared/_EditFinishConfirm" />
 <div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>
-
-@section Styles {
-    <link rel="stylesheet" href="~/css/case-workspace.css" asp-append-version="true" />
-}
-
-@section Scripts {
-    <script src="~/js/case-workspace.js" asp-append-version="true"></script>
-}

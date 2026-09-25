@@ -35,6 +35,14 @@ public sealed class EvaCaseEvidenceReaderTests
         Assert.Contains("vehicle:", evidence.VehicleModel.Source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TheInstructionDateIsTheCasesReceivedDate()
+    {
+        var evidence = EvaCaseEvidenceReader.Build(CaseData(Fact("Ford"), Fact("Focus")), null);
+
+        Assert.Equal(new DateOnly(2031, 5, 1), evidence.ReceivedDate);
+    }
+
     private static CaseDataProjection CaseData(CaseField<string> make, CaseField<string> model)
     {
         var caseId = Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -69,7 +77,7 @@ public sealed class EvaCaseEvidenceReaderTests
             new(Accepted("AB12CDE"), make, model, Empty<string>(), Empty<long>(), Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
-            new(Empty<DateOnly>(), Empty<string>()),
+            new(new DateOnly(2031, 5, 1), Empty<string>()),
             new(Empty<DateOnly>(), Empty<DateOnly>(), Empty<string>(), Empty<CaseInspectionMode>()));
     }
 
@@ -80,7 +88,6 @@ public sealed class EvaCaseEvidenceReaderTests
             Guid.Parse("11111111-1111-1111-1111-111111111111"),
             new(null, make, model, null, null),
             null,
-            [],
             []);
 
     private static ConfirmedVehicleField<string> ConfirmedVehicleField(string value) => new(

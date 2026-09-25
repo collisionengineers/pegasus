@@ -27,13 +27,19 @@ The authenticated `/Upload` route exists only where durable production
 intake and Case custody exist. A production-local-only store is not accepted
 custody. Without durable custody the route is absent, not offered.
 
-Selected files render one row each: name, size, and a per-file state. The
-state is a spinner while the submission is in flight and a tick once the
-response confirms the file is durably stored. A failed file states its
-failure on its row. Every row enters the in-flight state together, because
-one submission stores the whole batch and no finer signal exists. No row is
-ticked before the response proves it. No mechanics words ("receipt",
-"submission group" or similar) appear on the Upload or status screens.
+The page is one surface (v30 Upload E, 25 September 2026): the picker on the
+left, with the drop target, **Choose files** and the three limits under it,
+and beside it the selected files, one row each with a thumbnail for an
+image, its name, size and kind, and a remove control. Files chosen or
+dropped in several steps accumulate into one upload; **Clear** empties it.
+Before posting, the selection is checked against the same limits the server
+enforces: file count, per-file size, total size, an empty file and an
+unsupported type are each named. **Upload N files** posts the whole
+selection once; every row reads Uploading together, because one submission
+stores the whole batch and no finer signal exists, and the page moves to the
+review only when the response proves the files are stored. A failed post
+keeps the selection and states the failure. No mechanics words ("receipt",
+"submission group" or similar) appear on the Upload or review screens.
 
 ### Upload limits
 
@@ -90,7 +96,7 @@ The decision table, judged against the current retained material:
    ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)).
    Once merged, the surface reports the destination Case instead.
 3. **A manual non-image file that could become a Case.** Staff must either
-   confirm one viable existing Case or open the extracted new-Case proposal.
+   confirm one existing Case or open the extracted new-Case proposal.
    A unique match is one suggestion, not a selection. The proposal is
    editable. Reject or cancel changes nothing and leaves the source
    unallocated. Accepting runs the existing allocation path and may allocate
@@ -108,21 +114,24 @@ reason Could not be read.
 
 Where the decision is genuinely open (rows 2 and 3) the surface carries it:
 
-- **Add to an existing case.** The retained match candidates are shown
-  first, including a sole candidate. Typed, receipt-scoped search adds only
-  current viable Cases, showing reference, registration, claimant, and
-  stage, never an internal identifier. A unique candidate is never
-  auto-selected. Selecting a Case and confirming takes that Case's edit
-  lease and links through the existing staff link path, which also runs the
-  Image-initiated merge where one is registered. The route and group
-  membership are loaded server-side; a posted receipt id is not authority.
-  The page operation id, the reviewed receipt version, and the reviewed
-  target Case version bind the decision. A typed reference first renders
-  its exact target for confirmation before any write. A replay succeeds
-  only for the identical committed decision (actor, target, reviewed
-  input), not merely the same target. A stale version, a changed decision,
-  a competing lease, an unavailable destination, or an incomplete group
-  reports an honest conflict and changes nothing.
+- **Add to an existing case.** The retained match candidates are shown first,
+  including a sole candidate. Typed, receipt-scoped search adds every Case and
+  every Triage Case, in any state, showing reference, registration, claimant,
+  and stage, never an internal identifier. Staff linking is not limited by the
+  Case's state; automatic association keeps its own rules
+  ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
+  A unique candidate is never auto-selected. Selecting a Case and confirming
+  takes that Case's edit lease, or a Triage Case's edit scope, and links
+  through the existing staff link path, which also runs the Image-initiated
+  merge where one is registered. The route and group membership are loaded
+  server-side; a posted receipt id is not authority. The page operation id,
+  the reviewed receipt version, and the reviewed target Case version (a Triage
+  Case's Triage version) bind the decision. A typed reference first renders
+  its exact target for confirmation before any write. A replay succeeds only
+  for the identical committed decision (actor, target, reviewed input), not
+  merely the same target. A stale version, a changed decision, a competing
+  lease, an unavailable destination, or an incomplete group reports an honest
+  conflict and changes nothing.
 - **Cancel.** Returns to Upload and changes nothing. The material stays
   kept and its state stays honestly reported.
 
@@ -175,13 +184,46 @@ nothing. Deployment and live evidence are separate tiers
 - Operations: [operations](../operations.md) for deployed limit
   configuration.
 
-### The submission page's shape
+### The review's shape
 
-The group status page reads in one order (v28 P11, asked for 18 September
-2026): **Files in this submission** first and wide, with a file count in its
-head and a 132 px thumbnail per file; **This submission** beside it, carrying
-the registration, the reason, Create a vehicle-image case with Cancel on the
-same row, and Add to an existing case; and **Discard this submission** last,
-folded shut, its confirmation inline with its sentence and its button the
-danger variant. Below 1100 px the two columns stack. The words, the forms,
-the handlers and the decisions themselves are unchanged.
+A stored upload, of one file or several, is reviewed on one surface (v30
+Upload E "Inspection studio", 25 September 2026). Its head reads "Upload",
+when the upload was received and **New upload**. The left, wider part
+inspects the files: the chosen file large (an image itself, a glyph for a
+document), its name and **Open**, a filmstrip of every file to choose from,
+and a folded list of **File names and outcomes** with each file's size,
+kind and state (Received, Processing, Ready, Could not be read, Added to
+Case, Discarded), opened by default when a file could not be read. The
+right part carries the upload's one decision and nothing else:
+
+- **Processing** shows a progress line, the count of stored files and
+  Refresh; the page refreshes itself while any file is moving.
+- **Choose a destination** lists the possible Cases as cards (reference,
+  stage, registration, claimant, Principal), none selected; choosing one
+  shows **Review and add to Case**, which repeats the exact target
+  (reference, registration, claimant, Principal, stage) and the file count
+  in a dialog before **Confirm and add to <reference>** writes anything.
+  **Find another Case** (or **Find a Case** when nothing was suggested)
+  searches every Case and Triage Case the upload may join, in any state;
+  results are further cards, and a failed search says so. Instruction
+  material also offers **Review new Case proposal**. An automatic Image
+  intake registration is a subordinate record link (reference and state)
+  under the decision, never a second decision; there is no manual
+  registration or reason form. **Leave undecided** returns to Upload and
+  changes nothing; **Discard upload** opens its own confirmation with the
+  acknowledgement that the source and processing record are retained, and
+  is offered only once every file has completed.
+- A file that could not be read is marked on its row and in the filmstrip
+  and disclosed beside the decision; its original still travels with the
+  upload. When no file could be read, the decision reports it and opens the
+  Unidentified item.
+- **Added to Case** names the confirmed destination (reference,
+  registration, claimant, Principal, stage) with **Open <reference>**;
+  **Upload discarded** states that the material is retained.
+- A conflict or refused confirmation is reported above the decision and
+  changes nothing; the same page operation and reviewed versions are kept
+  for the corrected decision.
+
+Below 900 px the decision precedes the inspector. The handlers, the
+operation id, the reviewed versions and the decisions themselves are
+unchanged from the confirmation contract above.

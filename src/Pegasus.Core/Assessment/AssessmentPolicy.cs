@@ -4,6 +4,7 @@ using System.Text.Json;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Assessment;
@@ -13,11 +14,13 @@ namespace Pegasus.Core.Assessment;
 /// closed on unknown or case-owned paths; values are canonicalized before
 /// persistence; the required-when pairings from the screen's own hints are
 /// enforced against the merged state; and the actor rules implement the
-/// operator-decided direct-write model: staff saves record confirmed values,
-/// Automation saves record unconfirmed values, and a professional-finding
-/// field is confirmable only by an authenticated staff actor (the EngineerFindingPolicy
-/// precedent). Estimate derivation (totals, worklists) is deliberately absent
-/// until its formulas hold accepted authority (EXT-09, open decision D2).
+/// operator-decided direct-write model: a staff or Automation save records
+/// the Case's value with its provenance, and a professional-finding field is
+/// recorded only by an authenticated staff actor. There is no per-field
+/// review (operator, 25 September 2026): Review is a Case stage, and Hand to
+/// Engineer is the review. Estimate derivation (totals, worklists) is
+/// deliberately absent until its formulas hold accepted authority (EXT-09,
+/// open decision D2).
 /// </summary>
 public static class AssessmentPolicy
 {
@@ -55,16 +58,9 @@ public static class AssessmentPolicy
         }
 
         var normalizedFields = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var touchesFinding = false;
         foreach (var (path, rawValue) in request.Fields)
         {
-            normalizedFields[path] = NormalizeWritableField(path, rawValue);
-            touchesFinding |= AssessmentVocabulary.Definitions[path].IsFinding;
-        }
-
-        if (touchesFinding && request.Actor.Kind == ActorKind.Staff)
-        {
-            RequireFindingConfirmationAuthority(request.Actor);
+            normalizedFields[path] = NormalizeWritableField(path, rawValue, request.Actor);
         }
 
         var normalizedLines = request.EstimateLines is null
@@ -74,14 +70,14 @@ public static class AssessmentPolicy
     }
 
     /// <summary>
-    /// The one owner of who may confirm a professional finding: a staff
-    /// member only when that member is authenticated staff. The
-    /// assessment save applies it to its staff branch (the Automation actor
-    /// records unconfirmed working data instead); a caller that writes a
-    /// finding field as a confirmed value outside that save - the Engineer's
-    /// Value valuation - applies it on its own.
+    /// The one owner of who may record a professional finding: an
+    /// authenticated staff member, never the Automation actor. The field gate
+    /// (<see cref="NormalizeWritableField"/>) applies it to every finding path
+    /// a field save writes, naming the field; a caller that writes a finding
+    /// outside a field save - the Engineer's Value valuation - applies it on
+    /// its own.
     /// </summary>
-    public static void RequireFindingConfirmationAuthority(ActionActor actor)
+    public static void RequireFindingAuthority(ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
         if (actor.Kind != ActorKind.Staff)
@@ -93,19 +89,27 @@ public static class AssessmentPolicy
 
     /// <summary>
     /// The one gate every generic field save passes: the path must be part of
-    /// the vocabulary, must not be derived from the damage impacts, must not
-    /// be owned by the accepted case record, and must not be a finding a named
-    /// command adopts. The value is then canonicalized against its
-    /// own definition. Both the assessment save and the Case workspace save
-    /// call it, so an unwritable path fails the same way on either route.
+    /// the vocabulary, must not be derived from the damage impacts or recorded
+    /// by the vehicle lookup, must not be owned by the accepted case record,
+    /// must not be a finding a named command adopts, and a professional
+    /// finding is written only by staff. The value is then canonicalized
+    /// against its own definition. Both the assessment save and the Case
+    /// workspace save call it, so an unwritable path fails the same way on
+    /// either route.
     /// </summary>
-    public static string? NormalizeWritableField(string path, string? rawValue)
+    public static string? NormalizeWritableField(string path, string? rawValue, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(actor);
         if (AssessmentVocabulary.DerivedPaths.Contains(path))
         {
             throw new InvalidOperationException(
                 $"The field '{path}' is derived from damage.impacts and cannot be written directly.");
+        }
+        if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is filled by the DVLA/DVSA vehicle lookup and cannot be written directly.");
         }
         if (AssessmentVocabulary.CaseOwnedPaths.Contains(path))
         {
@@ -116,7 +120,7 @@ public static class AssessmentPolicy
         if (AssessmentVocabulary.AdoptedFindingPaths.Contains(path))
         {
             throw new InvalidOperationException(
-                $"The field '{path}' is adopted only by the valuation Apply command; "
+                $"The field '{path}' is recorded only when a Case Save adopts an Engineer's Value; "
                 + "a field save can neither record nor clear it.");
         }
         if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition))
@@ -125,9 +129,22 @@ public static class AssessmentPolicy
                 $"The field path '{path}' is not part of the assessment vocabulary.",
                 nameof(path));
         }
+        if (definition.IsFinding && actor.Kind != ActorKind.Staff)
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is a professional finding; only staff record it on the Case.");
+        }
 
         return NormalizeValue(definition, rawValue);
     }
+
+    /// <summary>
+    /// Whether an automated fill (the original-report extraction, the vehicle
+    /// lookup's Vehicle type) lands on a cell: only where staff have not
+    /// recorded a value. A value staff typed is never overwritten; a value an
+    /// automation recorded takes the newer reading.
+    /// </summary>
+    public static bool FillLands(ActorKind? recordedByKind) => recordedByKind != ActorKind.Staff;
 
     public static void RequireOriginalReportScope(IEnumerable<string> paths, CaseType caseType)
     {
@@ -307,8 +324,10 @@ public static class AssessmentPolicy
         CaseAssessmentProjection projection) => Evaluate(projection, includeReviewEntryRequirements: true);
 
     /// <summary>
-    /// Assessment and report work still required after entry to Review. Case
-    /// facts already proved by that transition are deliberately excluded.
+    /// Assessment and report work still required after entry to Review:
+    /// everything the report prints, including every Case fact it prints;
+    /// entry to Review proves only instruction and image completeness. Only
+    /// the vehicle make, model and year are left to <see cref="EvaluateReadiness"/>.
     /// </summary>
     public static IReadOnlyList<AssessmentReadinessItem> EvaluatePostReviewReadiness(
         CaseAssessmentProjection projection) => Evaluate(projection, includeReviewEntryRequirements: false);
@@ -324,7 +343,7 @@ public static class AssessmentPolicy
             field => field.Value,
             StringComparer.Ordinal);
 
-        void RequireField(string path, string requirement, string section)
+        void RequireField(string path, string requirement, string section, string? howToResolve = null)
         {
             if (!fields.ContainsKey(path))
             {
@@ -332,70 +351,139 @@ public static class AssessmentPolicy
                     requirement,
                     "Assessment record",
                     "No value is recorded.",
-                    $"Record it on the {section} section."));
+                    howToResolve ?? $"Record it on the {section} section.",
+                    Field: path));
             }
         }
 
-        if (includeReviewEntryRequirements)
+        void RequireCaseFact(
+            bool recorded, string requirement, string field, string whyOutstanding, string howToResolve)
         {
-            if (projection.CaseOwned.Registration is null)
+            if (!recorded)
             {
-                items.Add(new(
-                    "Vehicle registration", "Case record",
-                    "No confirmed registration is recorded.",
-                    "Confirm it on the case details."));
-            }
-            if (projection.CaseOwned.Make is null)
-            {
-                items.Add(new(
-                    "Vehicle make", "Case record",
-                    "No confirmed make is recorded.",
-                    "Confirm it on the case details."));
-            }
-            if (projection.CaseOwned.Model is null)
-            {
-                items.Add(new(
-                    "Vehicle model", "Case record",
-                    "No confirmed model is recorded.",
-                    "Confirm it on the case details."));
-            }
-            if (projection.CaseOwned.Year is null)
-            {
-                items.Add(new(
-                    "Vehicle year", "Case record",
-                    "No confirmed year is recorded.",
-                    "Confirm it on the case details."));
-            }
-            if (projection.CaseOwned.InstructionDate is null)
-            {
-                items.Add(new(
-                    "Instructions received date", "Case record",
-                    "No confirmed instruction date is recorded.",
-                    "Confirm it on the case details."));
+                items.Add(new(requirement, "Case record", whyOutstanding, howToResolve, Field: field));
             }
         }
+
+        var owned = projection.CaseOwned;
+        if (includeReviewEntryRequirements)
+        {
+            RequireCaseFact(
+                owned.Make is not null, "Vehicle make", CaseDataFieldNames.VehicleMake,
+                "No confirmed make is recorded.",
+                "Record it on the Vehicle section.");
+            RequireCaseFact(
+                owned.Model is not null, "Vehicle model", CaseDataFieldNames.VehicleModel,
+                "No confirmed model is recorded.",
+                "Record it on the Vehicle section.");
+            RequireCaseFact(
+                owned.Year is not null, "Vehicle year", CaseDataFieldNames.VehicleYear,
+                "No confirmed year is recorded.",
+                "Record it on the Vehicle section.");
+        }
+
+        // The Case facts the report prints (operator, 24 September 2026).
+        // Entry to Review proves only instruction and image completeness, so
+        // each is named here, where the preview, the Case page and generation
+        // all look. The date instructions were received is the Case's received
+        // date, which every Case has, so it is never named.
+        RequireCaseFact(
+            !string.IsNullOrWhiteSpace(owned.ClaimantName), "Claimant name", CaseDataFieldNames.ClaimantName,
+            "The report prints the claimant's name and none is recorded.",
+            "Record it on the Claim section.");
+        RequireCaseFact(
+            !string.IsNullOrWhiteSpace(owned.ClaimNumber), "Claim reference", CaseDataFieldNames.ClaimNumber,
+            "The report prints the claim reference as Your Ref and none is recorded.",
+            "Record it on the Case details section.");
+        RequireCaseFact(
+            owned.IncidentDate is not null, "Incident date", CaseDataFieldNames.IncidentDate,
+            "The report prints the incident date and none is recorded.",
+            "Record it on the Case details section.");
+        RequireCaseFact(
+            !string.IsNullOrWhiteSpace(owned.Registration), "Vehicle registration", CaseDataFieldNames.VehicleRegistration,
+            "The report prints the registration and none is recorded.",
+            "Record it on the Vehicle section.");
+        if (owned.InspectionMode is null)
+        {
+            items.Add(new(
+                "Inspection type", "Case record",
+                "The report says how the vehicle was assessed and no inspection type is recorded.",
+                "Choose Inspect at on the Inspection details section.",
+                Field: CaseDataFieldNames.InspectionMode));
+        }
+        else if (owned.InspectionMode == nameof(CaseInspectionMode.PhysicalAddress)
+            && string.IsNullOrWhiteSpace(owned.InspectionAddress))
+        {
+            items.Add(new(
+                "Inspection address", "Case record",
+                "The vehicle is inspected at a physical location and no address is recorded for the report to print.",
+                "Record the address on the Inspection details section.",
+                Field: CaseDataFieldNames.InspectionAddress));
+        }
+        RequireCaseFact(
+            owned.InspectionDate is not null, "Inspection date", CaseDataFieldNames.InspectionDate,
+            "The report says the damage was assessed on the Inspection date and none is recorded.",
+            "Record it on the Inspection details section.");
 
         RequireField(AssessmentVocabulary.VehicleType, "Vehicle type", "Vehicle");
         RequireField(AssessmentVocabulary.VehicleCondition, "Pre-incident condition", "Vehicle");
-        RequireField(AssessmentVocabulary.IncidentAssessed, "Assessed date", "Incident and impact");
-        RequireField(AssessmentVocabulary.ImpactSeverity, "Impact severity", "Incident and impact");
-        RequireField(AssessmentVocabulary.ImpactLocation, "Impact location", "Incident and impact");
-        RequireField(AssessmentVocabulary.ValueRetail, "Retail value", "Valuation");
-        RequireField(AssessmentVocabulary.ValueTrade, "Trade value", "Valuation");
-        RequireField(AssessmentVocabulary.ValueEngineer, "Engineer's value", "Valuation");
         RequireField(
-            AssessmentVocabulary.CostRepairerVatRegistered,
-            "Repairer VAT answer",
-            "Estimate");
-        RequireField(AssessmentVocabulary.Outcome, "Assessment outcome", "Findings");
-        RequireField(AssessmentVocabulary.LegalStatus, "Roadworthiness", "Findings");
-        RequireField(AssessmentVocabulary.HistoryCheck, "Vehicle history check", "Report content");
+            AssessmentVocabulary.ImpactSeverity, "Impact severity", "Damage",
+            "Record a damage on the Damage section; the impact severity is derived from it.");
+        RequireField(
+            AssessmentVocabulary.ImpactLocation, "Impact location", "Damage",
+            "Record a damage on the Damage section; the impact location is derived from it.");
+        // The report's retail and trade are the Engineer's Value basis card's,
+        // recorded by the adoption (operator, 24 September 2026). Before an
+        // adoption the Engineer's Value item names the one Save that records
+        // all three; retail and trade are named only once an adoption has
+        // left one of them unrecorded.
+        var adopted = fields.ContainsKey(AssessmentVocabulary.ValueEngineer);
+        if (adopted && !fields.ContainsKey(AssessmentVocabulary.ValueRetail))
+        {
+            items.Add(new(
+                "Retail value", "Valuation",
+                "The adopted Engineer's Value records no basis retail value.",
+                "Save the valuation calculation again on the Valuation section; the Save records its basis card's retail value.",
+                Field: AssessmentVocabulary.ValueRetail));
+        }
+        if ((adopted || fields.ContainsKey(AssessmentVocabulary.ValueRetail))
+            && !fields.ContainsKey(AssessmentVocabulary.ValueTrade))
+        {
+            items.Add(new(
+                "Trade value", "Valuation",
+                "The adopted Engineer's Value basis card records no trade value.",
+                "Enter the trade value on the basis card on the Valuation section, then save the Case.",
+                Field: AssessmentVocabulary.ValueTrade));
+        }
+        RequireField(
+            AssessmentVocabulary.ValueEngineer, "Engineer's Value", "Valuation",
+            "Save a valuation calculation on the Valuation section.");
+        RequireField(AssessmentVocabulary.Outcome, "Assessment outcome", "Decisions");
+        RequireField(AssessmentVocabulary.LegalStatus, "Roadworthiness", "Decisions");
+        RequireField(
+            AssessmentVocabulary.HistoryCheck, "Vehicle history check", "Vehicle",
+            "Record the vehicle history on the Vehicle section.");
         // The Engineer name, qualifications and signature readiness
         // items are retired (D18). The signing Engineer is the selected
         // sign-off account, whose printed name, qualifications and signature
         // come from that account, so typed copies of them were three ways to
         // record the same three facts.
-        RequireField(AssessmentVocabulary.AgreedFee, "Agreed fee", "Report content");
+        RequireField(
+            AssessmentVocabulary.AgreedFee, "Agreed fee", "Report",
+            "Record it on the Fee tab of the Report section.");
+        if (string.Equals(
+                fields.GetValueOrDefault(AssessmentVocabulary.ReportDateOverride),
+                "true",
+                StringComparison.Ordinal)
+            && !fields.ContainsKey(AssessmentVocabulary.ReportDate))
+        {
+            items.Add(new(
+                "Report date", "Assessment record",
+                "The report date is overridden but no date is recorded.",
+                "Record the report date on the Report section, or turn off Override report date so generation sets it.",
+                Field: AssessmentVocabulary.ReportDate));
+        }
 
         // No odometer readiness item: the report's mileage-source code is
         // derived from the mileage's own provenance, so a case with no mileage
@@ -412,19 +500,32 @@ public static class AssessmentPolicy
                 "Unroadworthy reason",
                 "Assessment record",
                 "The vehicle is recorded as unroadworthy without a reason.",
-                "Record the reason on the Findings section."));
+                "Record the reason on the Decisions section.",
+                Field: AssessmentVocabulary.UnroadworthyReason));
         }
 
         if (fields.TryGetValue(AssessmentVocabulary.Outcome, out var outcome)
             && string.Equals(outcome, "total_loss", StringComparison.Ordinal))
         {
-            if (!fields.ContainsKey(AssessmentVocabulary.SalvageCategory))
+            if (!fields.TryGetValue(AssessmentVocabulary.SalvageCategory, out var category))
             {
                 items.Add(new(
                     "Salvage category",
                     "Assessment record",
                     "The outcome is Total loss without a salvage category.",
-                    "Record it on the Findings section."));
+                    "Record it on the Decisions section.",
+                    Field: AssessmentVocabulary.SalvageCategory));
+            }
+            else if (!AssessmentReportContract.PrintsSalvageCategory(category))
+            {
+                items.Add(new(
+                    "Salvage category",
+                    "Assessment record",
+                    $"The report prints only Category {AssessmentReportContract.PrintableSalvageCategory}; "
+                        + $"this total loss is recorded as Category {category}.",
+                    $"Record Category {AssessmentReportContract.PrintableSalvageCategory} on the Decisions section, "
+                        + "or record a different outcome.",
+                    Field: AssessmentVocabulary.SalvageCategory));
             }
             if (!fields.ContainsKey(AssessmentVocabulary.SalvageValue))
             {
@@ -432,60 +533,27 @@ public static class AssessmentPolicy
                     "Salvage value",
                     "Assessment record",
                     "The outcome is Total loss without a salvage value.",
-                    "Record it on the Findings section."));
+                    "Record it on the Decisions section.",
+                    Field: AssessmentVocabulary.SalvageValue));
             }
         }
 
-        var contractRepair = string.Equals(
-            fields.GetValueOrDefault(AssessmentVocabulary.Outcome),
-            "contract_repair",
-            StringComparison.Ordinal);
-        if (contractRepair
-            && projection.Field(AssessmentVocabulary.SettlementContractSum) is not { IsConfirmed: true })
+        if (string.Equals(outcome, "contract_repair", StringComparison.Ordinal)
+            && !fields.ContainsKey(AssessmentVocabulary.SettlementContractSum))
         {
             items.Add(new(
                 "Agreed contract sum",
                 "Assessment record",
-                "The outcome is Contract repair without a confirmed agreed contract sum.",
-                "Record and confirm the agreed sum on the Settlement section."));
+                "The outcome is Contract repair without an agreed contract sum.",
+                "Record the agreed contract sum on the Decisions section and save it.",
+                Field: AssessmentVocabulary.SettlementContractSum));
         }
 
-        if (includeReviewEntryRequirements
-            && string.Equals(
-                projection.CaseOwned.InspectionMode,
-                "PhysicalAddress",
-                StringComparison.Ordinal)
-            && projection.CaseOwned.InspectionAddress is null)
-        {
-            items.Add(new(
-                "Inspection address", "Case record",
-                "The method is Physical without an inspection address.",
-                "Confirm the address on the case details."));
-        }
-
-        // One actionable blocker per unconfirmed value, naming the exact
-        // field or line and who recorded it. A single aggregate count is
-        // prohibited: an unmet requirement has to identify its own material,
-        // provenance, reason, and permitted resolution.
-        foreach (var field in projection.Fields.Where(field => !field.IsConfirmed
-            && !(contractRepair && field.Path == AssessmentVocabulary.SettlementContractSum)))
-        {
-            items.Add(new(
-                $"{field.Path} awaits review",
-                $"Recorded by {field.RecordedByKind} ({field.RecordedBy})",
-                "The value is unconfirmed working data until a staff member confirms it.",
-                "Review the value and re-save it as the assigned staff member to confirm it."));
-        }
-
-        foreach (var line in projection.EstimateLines.Where(line => !line.IsConfirmed))
-        {
-            items.Add(new(
-                $"Estimate line {line.Position} ({line.Type}) awaits review",
-                $"Recorded by {line.RecordedByKind} ({line.RecordedBy})",
-                "The line is unconfirmed working data until a staff member confirms it.",
-                "Review the line and re-save the estimate as the assigned staff member to confirm it."));
-        }
-
+        // A recorded value is the Case's value whoever recorded it (operator,
+        // 25 September 2026): nothing here names a field because of who
+        // recorded it. Each requirement above identifies its own material,
+        // reason and permitted resolution; a single aggregate count is
+        // prohibited.
         return items;
     }
 

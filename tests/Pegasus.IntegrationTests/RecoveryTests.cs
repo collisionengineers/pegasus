@@ -280,7 +280,7 @@ public sealed class RecoveryTests
         await processor.ExecuteAsync(received.StagedReceiptId);
 
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
-        var retained = Assert.Single((await receipts.ListAsync(null, 1, 100, CancellationToken.None)).Items);
+        var retained = Assert.Single((await receipts.ListByCursorAsync(null, null, 100, CancellationToken.None)).Items);
         Assert.Equal(IntakeDecision.CaseCreated, retained.Decision);
         var evaluation = Assert.IsType<IntakeEvaluationRevision>(
             await store.GetCompletedEvaluationAsync(
@@ -420,9 +420,9 @@ public sealed class RecoveryTests
             .ExecuteAsync(received.StagedReceiptId);
 
         Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled, outcome);
-        var work = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(
-            received.StagedReceiptId,
-            CancellationToken.None));
+        var work = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(
+            services,
+            received.StagedReceiptId));
         Assert.Equal(IntakeWorkState.RetryScheduled, work.State);
         Assert.Equal("intake_processing_failure", work.FailureCode);
         var status = Assert.IsType<QueuedIntakeStatus>(
@@ -440,7 +440,8 @@ public sealed class RecoveryTests
             $"/Upload/Status/{received.StagedReceiptId:D}");
         statusPage.EnsureSuccessStatusCode();
         var html = await statusPage.Content.ReadAsStringAsync();
-        Assert.Contains("<h1>Processing</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"pending\"", html, StringComparison.Ordinal);
+        Assert.Contains("<h2 id=\"up-decision-title\">Processing your files</h2>", html, StringComparison.Ordinal);
         Assert.Contains("data-auto-refresh=\"30000\"", html, StringComparison.Ordinal);
 
         await IntakeTestEvidence.AssertNoDurableIntakeReceiptsAsync(factory);
@@ -467,9 +468,9 @@ public sealed class RecoveryTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => processor.ExecuteAsync(received.StagedReceiptId));
 
-        var work = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(
-            received.StagedReceiptId,
-            CancellationToken.None));
+        var work = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(
+            services,
+            received.StagedReceiptId));
         Assert.Equal(IntakeWorkState.Failed, work.State);
         Assert.Equal("unexpected_intake_processing_failure", work.FailureCode);
 
@@ -483,7 +484,8 @@ public sealed class RecoveryTests
             $"/Upload/Status/{received.StagedReceiptId:D}");
         failedPage.EnsureSuccessStatusCode();
         var html = await failedPage.Content.ReadAsStringAsync();
-        Assert.Contains("<h1>Failed</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"report\"", html, StringComparison.Ordinal);
+        Assert.Contains("The file could not be processed", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "unexpected_intake_processing_failure",
             html,
@@ -592,9 +594,9 @@ public sealed class RecoveryTests
             clock.Advance(TimeSpan.FromHours(3));
         }
 
-        var work = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(
-            received.StagedReceiptId,
-            CancellationToken.None));
+        var work = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(
+            services,
+            received.StagedReceiptId));
         Assert.Equal(5, work.AttemptCount);
         Assert.Equal(IntakeWorkState.Failed, work.State);
         Assert.Null(await store.ClaimDispatchAsync(

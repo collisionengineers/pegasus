@@ -7,11 +7,12 @@ public sealed class DfdInstructionExtractionPolicy
     public const int Version = 1;
     public const string SupportedPrincipalCode = "DFD";
     public const string DocumentProfileKeyValue = "dfd_instruction_document";
+    private const string DateInstructedBoundary = "DFD date instructed boundary";
 
     private static readonly InstructionFieldEngine.FieldDefinition[] Definitions =
     [
         new("Claim reference", ["Your Reference"], FormFields: ["Text4"], PartyRole: "principal", ReferenceRole: "principal"),
-        new("Instruction date", ["Date instructed"], FormFields: ["Text5"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "instruction"),
+        new(DateInstructedBoundary, ["Date instructed"], IsRequired: false, AcceptsValue: _ => false),
         new("Claimant name", ["Client name or vehicle owner"], FormFields: ["Text6"], PartyRole: "claimant"),
         new("Incident date", ["Accident date"], FormFields: ["Text7"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "claimant"),
         new("Vehicle registration", ["Registration number"], FormFields: ["Text8"], IsValidTyped: InstructionFieldEngine.IsUkRegistration, CanonicalValue: InstructionFieldEngine.NormalizeRegistration, PartyRole: "claimant"),
@@ -36,7 +37,7 @@ public sealed class DfdInstructionExtractionPolicy
     public InstructionDocumentSignature Signature => new(InstructionDocumentSignature.InstructionRole,
         ["Davison Flynn Duke Solicitors", "Registration number", "Client name or vehicle owner"],
         ["Connexus Vehicle Assessors", "Exclusive Vehicle Assessors"]);
-    public IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; } = Definitions.ToDictionary(
+    public IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; } = Definitions.Where(item => item.Name != DateInstructedBoundary).ToDictionary(
         item => item.Name, item => new InstructionFieldRole(item.PartyRole, item.ReferenceRole), StringComparer.Ordinal);
 
 public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, InstructionExtractionTiming timing, EstablishedPrincipalContext principalContext)
@@ -48,13 +49,14 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         if (!string.Equals(principalContext.PrincipalCode, SupportedPrincipalCode, StringComparison.Ordinal))
             throw new ArgumentException("The established principal is not DFD.", nameof(principalContext));
         var (fields, missing, extracted) = InstructionFieldEngine.ExtractFields(readResult.Content, Definitions, Cache, timing);
+        fields = [.. fields.Where(field => field.Name != DateInstructedBoundary)];
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(SupportedPrincipalCode,
             InstructionFieldEngine.TypedString(values["Claimant name"], 300), InstructionFieldEngine.TypedString(values["Claim reference"], 100),
             InstructionFieldEngine.NormalizeRegistration(values["Vehicle registration"]), InstructionFieldEngine.TypedString(values["Vehicle make"], 100),
             InstructionFieldEngine.TypedString(values["Vehicle model"], 100), InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000), InstructionFieldEngine.ParseDate(values["Incident date"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]), InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
+            InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]), null, InstructionFieldEngine.TypedString(values["VAT status"], 100), null, null);
         var evidence = new List<IntakeEvidence>(extracted)
         {

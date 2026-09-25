@@ -217,7 +217,7 @@ internal sealed partial class EfIntakeAllocationStore(
         Kind = ToCode(request.Kind),
         Status = ToCode(IntakeAllocationAttemptStatus.Pending),
         ExpectedReceiptVersion = request.Command.ExpectedReceiptVersion,
-        CaseType = request.Command.CaseType is null ? null : ToCode(request.Command.CaseType.Value),
+        CaseType = request.Command.CaseType is null ? null : CaseTypeCodes.ToCode(request.Command.CaseType.Value),
         PrincipalCode = request.Command.PrincipalCode,
         InstructionComplete = request.Command.Completeness.InstructionComplete,
         ImagesComplete = request.Command.Completeness.ImagesComplete,
@@ -271,7 +271,7 @@ internal sealed partial class EfIntakeAllocationStore(
         new(
             entity.IntakeReceiptId,
             entity.ExpectedReceiptVersion,
-            entity.CaseType is null ? null : ParseCaseType(entity.CaseType),
+            entity.CaseType is null ? null : CaseTypeCodes.Parse(entity.CaseType),
             entity.PrincipalCode,
             new(
                 entity.InstructionComplete,
@@ -333,22 +333,6 @@ internal sealed partial class EfIntakeAllocationStore(
         "succeeded" => IntakeAllocationAttemptStatus.Succeeded,
         "failed" => IntakeAllocationAttemptStatus.Failed,
         _ => throw new InvalidDataException($"Unknown allocation-attempt status '{value}'.")
-    };
-
-    private static string ToCode(CaseType value) => value switch
-    {
-        CaseType.Inspection => "inspection",
-        CaseType.Audit => "audit",
-        CaseType.InspectionAndAudit => "inspection_and_audit",
-        _ => throw new ArgumentOutOfRangeException(nameof(value))
-    };
-
-    private static CaseType ParseCaseType(string value) => value switch
-    {
-        "inspection" => CaseType.Inspection,
-        "audit" => CaseType.Audit,
-        "inspection_and_audit" => CaseType.InspectionAndAudit,
-        _ => throw new InvalidDataException($"Unknown allocation case type '{value}'.")
     };
 
     private static string ToCode(IntakeAllocationFailureKind value) => value switch

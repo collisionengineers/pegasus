@@ -17,7 +17,6 @@ public sealed partial class KbsInstructionExtractionPolicy
         new("Vehicle make", ["Our Client's Vehicle"], PartyRole: "claimant"),
         new("Vehicle model", ["Vehicle model"], IsRequired: false, PartyRole: "claimant"),
         new("Incident date", ["Date of Accident"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "claimant"),
-        new("Instruction date", ["Header date"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "instruction"),
         new("Inspection address", ["Vehicle location"], IsRequired: false, PartyRole: "inspection-location"),
         new("Accident circumstances", ["Accident circumstances"], IsRequired: false, PartyRole: "claimant"),
         new("Inspection contact", ["Inspection contact"], IsRequired: false, PartyRole: "inspection-contact"),
@@ -49,7 +48,7 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
             InstructionFieldEngine.TypedString(values["Claim reference"]?.Replace('‐', '-'), 100), InstructionFieldEngine.NormalizeRegistration(values["Vehicle registration"]),
             InstructionFieldEngine.TypedString(values["Vehicle make"], 100), InstructionFieldEngine.TypedString(values["Vehicle model"], 100),
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]), InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
-            InstructionFieldEngine.ParseDate(values["Incident date"]), InstructionFieldEngine.ParseDate(values["Instruction date"]),
+            InstructionFieldEngine.ParseDate(values["Incident date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000), InstructionFieldEngine.ParseDate(values["Inspection date"]), null,
             InstructionFieldEngine.TypedString(values["VAT status"], 100), null, null);
         var evidence = new List<IntakeEvidence>(extracted) { new(IntakeEvidenceSource.Sender, IntakeEvidenceStrength.Strong, IntakeEvidenceFinding.SupportsPrincipal, "established-principal", $"Principal KBS was established by {principalContext.PolicyKey} v{principalContext.PolicyVersion}.") };
@@ -63,7 +62,6 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         if (!dear.Success || !signature.Success || signature.Index <= dear.Index) yield break;
         var header = text[..dear.Index]; var body = text[dear.Index..signature.Index];
         foreach (Match match in ReferenceRegex().Matches(header)) yield return Label(fragment, "Our Ref", ProtectLeadingHyphen(match.Groups["value"].Value));
-        foreach (Match match in HeaderDateRegex().Matches(header)) yield return Label(fragment, "Header date", match.Groups["value"].Value);
         foreach (var (regex, label) in LineFields) foreach (Match match in regex.Matches(body)) yield return Label(fragment, label, match.Groups["value"].Value);
         foreach (Match match in CircumstancesRegex().Matches(body)) yield return Label(fragment, "Accident circumstances", match.Groups["value"].Value);
         foreach (Match match in LocationRegex().Matches(body)) yield return Label(fragment, "Vehicle location", match.Groups["value"].Value.Trim(' ', '(', ')'));
@@ -78,7 +76,6 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
     [GeneratedRegex(@"(?im)^\s*Dear\s+Sirs,?\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex DearRegex();
     [GeneratedRegex(@"(?im)^\s*KNIGHTSBRIDGE\s+SOLICITORS\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex SignatureRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Ref\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ReferenceRegex();
-    [GeneratedRegex(@"(?im)^\s*(?<value>\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex HeaderDateRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Client\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ClaimantRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Client['’]s\s+Vehicle\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VehicleRegex();
     [GeneratedRegex(@"(?im)^\s*Registration\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex RegistrationRegex();

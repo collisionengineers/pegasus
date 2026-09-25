@@ -1,74 +1,21 @@
 @page "/Upload/Status/{id:guid}"
 @model Pegasus.Web.Pages.UploadStatusModel
 @{
-    ViewData["Title"] = "Upload status";
-    ViewData["UploadCaseConfirmation"] = Model.UploadCaseConfirmation;
-    ViewData["UploadCaseDraft"] = Model.UploadCaseDraft;
+    ViewData["Title"] = "Upload";
+    // The id is in the path; only the duplicate marker needs replaying so a
+    // refresh keeps reporting the resubmission outcome.
+    ViewData["RefreshFields"] = new Dictionary<string, string?>
+    {
+        ["duplicate"] = Model.IsDuplicate ? "true" : null
+    };
 }
 
-@* The state is the heading; the values are the panel. Nothing beneath the
-   heading narrates either of them back. *@
-<header class="page-header">
-    <div class="page-title">
-        <p class="eyebrow">Upload status</p>
-        <h1>@Model.Heading</h1>
-    </div>
-    <div class="page-actions">
-        <a class="btn"
-           asp-page="/UploadStatus"
-           asp-route-id="@Model.Status.StagedReceiptId"
-           asp-route-duplicate="@(Model.IsDuplicate ? "true" : null)">
-            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-            <span>@OperatorLabels.Upload.Refresh</span>
-        </a>
-        <a class="btn btn--primary" asp-page="/Upload">
-            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-            <span>@OperatorLabels.Upload.Another</span>
-        </a>
-    </div>
-</header>
-
-@if (TempData["UploadConfirmationError"] is string confirmationError)
-{
-    <div class="validation-summary" role="alert">@confirmationError</div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/upload.css" asp-append-version="true" />
 }
 
-@* The refresh attribute lives on the panel, not the layout's <main>: the
-   external script reads it from wherever it is, and this page must not
-   nest a second main landmark inside the shared shell. *@
-<section class="panel"
-         aria-labelledby="upload-file-heading"
-         data-auto-refresh="@Model.AutomaticRefreshMilliseconds">
-    <div class="panel-head">
-        <h2 id="upload-file-heading">@Model.Status.SourceFileName</h2>
-    </div>
-    <div class="panel-body">
-        <dl class="definition-list">
-            <div class="definition"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Status.ReceivedAtUtc)</dd></div>
-            @if (Model.IsDuplicate)
-            {
-                <div class="definition"><dt>Duplicate</dt><dd>Already received</dd></div>
-            }
-            @if (Model.FailureReason is { } failureReason)
-            {
-                <div class="definition"><dt>Reason</dt><dd>@failureReason</dd></div>
-            }
-        </dl>
+<partial name="Shared/_UploadReview" model="Model.Review" />
 
-        @if (Model.Outcome?.ThumbnailReceiptId is { } thumbnailReceiptId)
-        {
-            <a class="upload-thumb section-gap" href="/Received/@thumbnailReceiptId/Image" target="_blank">
-                <img src="/Received/@thumbnailReceiptId/Image"
-                     loading="lazy"
-                     alt="@Model.Status.SourceFileName" />
-            </a>
-        }
-        @if (Model.Outcome is { } outcome)
-        {
-            @* Processing has resolved: the confirmation decision replaces the
-               plain status text — what already happened automatically, or the
-               staff decision that is genuinely open. *@
-            <partial name="Shared/_UploadOutcome" model="@outcome" />
-        }
-    </div>
-</section>
+@section Scripts {
+    <script src="~/js/upload.js" asp-append-version="true"></script>
+}

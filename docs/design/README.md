@@ -56,13 +56,14 @@ This order supersedes the 2026-08-04 order (`Dashboard → Inbox → Upload →
 Queues → Cases → Administration`): the Dashboard becomes the Work Centre,
 Queues becomes Cases, the former Cases search becomes Search, and Operations
 returns as a routed workspace. `Triage`, `Unidentified`, `Audit`,
-`Not ready`, `Review` and `Held` keep their settled meanings; Triage and
-Unidentified are pre-Case records reached through the Cases rail, never Case
-states.
+`Not ready`, `Review` and `Held` keep their settled meanings. Triage is a Case
+type with its own states, reached through the Cases rail's Workflow group;
+Unidentified is a pre-Case record reached through the Cases rail. Neither is
+a Case state.
 
 The common hierarchy of every authenticated page is:
 
-1. shell — rail, utility bar, working-set strip;
+1. shell — rail and utility bar;
 2. page header — eyebrow, title, freshness and the safe primary action;
 3. operational panes, table, workbench or record;
 4. named workflow, evidence, lease or exception state and consequential action;
@@ -130,64 +131,63 @@ or the Unidentified item), working without script. **Mark all read** sits at the
 head. With none the dialog says `No notifications`; a failed read says
 `Notifications unavailable.` Notifications older than 30 days drop off.
 
-The **working-set strip** sits under the utility bar and holds open records
-only: Cases and the pre-Case records (Triage, Unidentified, image record, a
-message) join it when opened and leave when closed. There is no Work Centre
-tab and no "+ Open" tab; records open from Cases, Search, the Inbox or Ctrl K,
-and with nothing open the strip is absent. The strip is fused with the record:
-it sits on the page background over one hairline, and the active tab is white
-with the red accent once and runs into the record card, which loses its top
-edge. Each tab shows the kind's glyph, the reference in bold and the
-registration in mono (a message shows its subject). State glyphs sit on the
-tab: an amber dot for unsaved edits, a lightning glyph while a Glass's session
-is open, a lock while a colleague holds the record. × shows on the active tab
-and on hover, and middle-click closes; closing the current record lands on the
-Work Centre. Six tabs are shown and the rest sit in an "N more" menu. The set
-is kept per browser, at most twelve records, and another window's change
-re-renders the strip.
-
-A page that is a record announces itself: it sets
-`ViewData["WorkingSetRecord"]` (`Presentation/WorkingSetRecord.cs`) and the
-layout writes `main[data-record-href][data-record-kind][data-record-ref]
-[data-record-reg][data-record-glyph]`, with no attribute on a page that is not
-a record. A `pegasus:dirty` event marks the current tab as having unsaved
-edits.
+There is no **working-set strip** (operator, 24 September 2026): open records
+no longer collect as tabs under the utility bar on any page, and no page
+announces itself as a record. Nothing replaces the strip's list of recently
+opened records; Search and the Ctrl K palette remain. A record's own state
+stays on the record, such as the ribbon's Editing badge and "{name} is
+editing".
 
 ### Case record frame
 
 The Case record (`/Cases/{id}`) has no page header. A sticky block sits under
-the utility bar and working-set strip: the 56px **ribbon** — the reference as
-the page's heading under "Case workspace · registration", Claimant, Principal
-and Engineer; chips for state ("Held · review on 24 Sep"), Case type (Audit,
-Inspection + Audit) and a colleague editing; links between an Audit Case and
-its original; then Edit Case, or while editing the Editing badge, Cancel and
-Save, and one **Actions** menu — and the 40px **section row** of section links,
-Refresh and the Scroll/Tabs switch. Scroll is the default in every state; a
-Tabs choice lasts for the browser session. The section row links Case details,
-Claim, Original report on Audit Cases, Inspection details, Vehicle (with
-Damage and Valuation inside), Repair Spec, Decisions, Report, Files and Notes.
-Each is a foldable panel whose head carries its own Edit (entering the one
-page-wide edit session), one availability label when the state does not allow
-editing, and the fold chevron. The aside holds Figures and Next action and
-folds into a two-up strip above the sections below 1441px.
+the utility bar: the 56px **ribbon** — the reference as the page's heading
+under "Case workspace · registration", Claimant, Principal and Engineer; chips
+for state ("Held · review on 24 Sep"), Case type (Audit, Inspection + Audit)
+and a colleague editing; then Edit Case, or while editing the Editing badge,
+Cancel and Save, and one **Actions** menu — and the 40px **section row** of
+section links, Refresh and the Scroll/Tabs switch. Scroll is the default in
+every state; a Tabs choice lasts for the browser session. The section row
+links Case details, Claim, Original report on Audit Cases, Inspection details,
+Vehicle (with Damage and Valuation inside), Repair Spec, Decisions, Report,
+Files and Notes. Each is a foldable panel whose head carries its own Edit
+(entering the one page-wide edit session), one availability label when the
+state does not allow editing, and the fold chevron. The aside holds Figures
+and Next action and folds into a two-up strip above the sections below 1441px.
 
-The **Actions** menu holds exactly the progressions the state permits — Hand to
-Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review or
-Engineer, Archive, Place on Hold or Release Hold, Correct
-principal, Create audit — then, after a separator and in red, Close case.
-Outside an edit session the menu appears only when Send to EVA is available.
-Damage uses the **plan** only: a top-down silhouette drawn as the panels,
-one numbered disc per recorded damage sized and placed by dragging and kept
-as drawn (no wider than half the vehicle, clipped to its body), five
-graded severity fills with a legend, and a recorded-areas list numbered like
-the discs. Images open in a full-screen **viewer** (title,
-tag, position, Rotate, Zoom, Download, In report while editing, and a filmstrip
-with excluded images greyed); crop happens on the viewer stage itself (drag,
-handles, move, Aspect, Rotate left and right, Full frame, Reset, Save crop). A
-crop is a stored rectangle: tiles and the report show the cropped region and
-Download returns the original. Pre-Case records keep the simpler viewer with
-Crop (Apply, Clear, Cancel) and the Tag select, and their tiles show the
-cropped region the same way.
+Once an Inspection + Audit Case has its Audit, a **Views** card heads the
+aside, above Figures, in the context-card pattern: two rows, "Inspection ·
+{Case/PO}" with a plain green "Sent" chip and "Audit · a.{Case/PO}" with the
+Case's state chip as the ribbon draws it. The current view reads plain
+(`aria-current="page"`) and the other is a link; the Audit view is the
+default. Before the Audit exists, and on a standalone Audit or a Triage Case,
+there is no card. The ribbon keeps the Case/PO and gains no Audit reference.
+In the Inspection view no section head offers Edit; each editable head shows
+the one availability label **Read-only · Audit created** instead. In Files,
+an Audit folder chip follows the Case folder chip in the same tones: **Box
+audit · confirmed**, **Box audit folder: preparing** or **Box audit folder:
+unavailable**. Report shows the Inspection's sent report as one `.pv` line
+above the Audit report card, with an **Inspection view** link. A Triage Case
+at `/Cases/{id}` keeps the Triage page's own layout, with the Case's Files
+panel before Notes.
+
+The **Actions** menu holds exactly the progressions the state permits — Hand
+to Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review
+or Engineer, Archive, Place on Hold or Release Hold, Correct principal, Create
+audit — then, after a separator and in red, Close case. Outside an edit
+session the menu appears only when Send to EVA is available. Damage uses the
+**plan** only: a top-down silhouette drawn as the panels, one numbered disc
+per recorded damage sized and placed by dragging and kept as drawn (no wider
+than half the vehicle, clipped to its body), five graded severity fills with a
+legend, and a recorded-areas list numbered like the discs. Images open in a
+full-screen **viewer** (title, tag, position, Rotate, Zoom, Download, In
+report while editing, and a filmstrip with excluded images greyed); crop
+happens on the viewer stage itself (drag, handles, move, Aspect, Rotate left
+and right, Full frame, Reset, Save crop). A crop is a stored rectangle: tiles
+and the report show the cropped region and Download returns the original.
+Pre-Case records and the Triage Case page keep the simpler viewer with Crop
+(Apply, Clear, Cancel) and the Tag select, and their tiles show the cropped
+region the same way.
 
 `main.app-main` holds `.content`, capped at 1580px and centred with the 18px
 page padding, so a wide monitor shows equal margins either side rather than
@@ -195,9 +195,18 @@ every table pressed against the rail. Below the cap nothing moves. Every page
 carries the skip link, the toast region and the dialog root.
 
 `_LayoutAuth` remains the navless frame: sign-in, the signed-out
-confirmation, access denied and the error family are not places in the
-application (see
+confirmation, the forced password change, access denied, the consent screen
+and the error family are not places in the application (see
 [Shell and routes](../frd/frd-12-operator-experience.md#shell-and-routes)).
+Since v30 (sign-in B, 25 September 2026) it is two planes on a common centre
+line: `auth-identity`, the charcoal `--nav` panel with the 3px `--red` top
+stripe, the 96px refined mark, "PEGASUS", "Case management" and the
+"Collision Engineers" caption (`auth-company`); and `auth-panel`, the white
+panel holding the page's `auth-card` (360px; `auth-card--wide` 720px for the
+consent screen) with a 23px h1, 20px field gap and one full-width primary
+button. Below 980px the identity panel becomes a strip above the card with
+the 64px mark. The sign-in password field carries a Show / Hide control
+(`password-reveal`), shipped hidden and revealed by `site.js`.
 
 ### Keyboard and dialog contract
 
@@ -208,7 +217,7 @@ application (see
 | Ctrl N | Create Case |
 | Ctrl S | Save and keep editing, only while a Case is in edit |
 | F5 | Refresh — re-query the current page, never a browser reload |
-| ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, `work-item`, result rows) |
+| ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, result rows) |
 | Escape | Close the open dialog |
 
 The Estimate section's keyboard-accessible **Import** button opens the native
@@ -223,58 +232,6 @@ initial focus on the first control, a focus trap, the rest of the document
 invoking control. Toasts live in `.toast-region`, are announced restrainedly,
 and never carry an action the page does not also offer. Every toast carries the
 shared `.dismiss` × so it can be put away before it expires.
-
-### The Pegasus marks
-
-**Commissioned by the operator; adopted 2026-08-17.** Ten purpose-drawn raster
-marks live in `src/Pegasus.Web/wwwroot/images/marks/`. Four further marks —
-`activity`, `brand`, `calendar` and `casefolder` — were supplied with the
-design and are **not in the tree**: their bytes were never copied, so they have
-no runtime mapping and no checksum row, and nothing may reference them until a
-ticket puts them in the tree and records them below.
-
-The marks are a second, deliberate class of imagery; the statement that no
-imagery is needed for the internal application still holds for marketing
-photography and for generated or substitute glyphs, neither of which these are.
-They do not replace the Lucide sprite and do not compete with it:
-
-- **A Lucide glyph names a thing inside a row** — an action or a state. It is
-  16px, inline, and one glyph means one thing everywhere. Where a value came
-  from is a text tag, not a glyph ([source tags](README.md#source-tags)).
-- **A mark names a whole surface** — an administration area, an empty result,
-  the product itself. It is 30–112px and sits beside text that already says
-  the same thing.
-
-Every mark is decorative: `aria-hidden`, empty `alt`, always beside text.
-None is used for a semantic action or state.
-
-Uses under the integrated design: the rail brand and the sign-in card
-(`pegasus-lockup`); the Administration area panel heads (`accounts`,
-`principals`, `configuration`, `mailboxes`, `automation`); the Cases rail
-empty state (`checkmark`). `roles`, `access` and `organisations` lose their
-surfaces when those areas fold into Staff accounts & roles and Principals
-([Removed surfaces](../frd/frd-12-operator-experience.md)); their bytes stay registered and
-their removal is proposed for the wave-5 removal ticket.
-
-#### Pegasus marks source-to-runtime mapping
-
-Upstream source: Claude Design project `710bb42f`, `assets/icons/` (1024×1024
-RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
-(128×128 Lanczos downscale, decorative `aria-hidden` with empty `alt`).
-
-| Mark | Upstream source & SHA-256 | Runtime destination & SHA-256 | Mapping & usage |
-| --- | --- | --- | --- |
-| `pegasus-lockup.png` | `PegasusDesign/assets/icons/pegasus-lockup.png`<br>`C8F3551841AACA26AAE4F959B263DBB2409EB44A327207F8078D85A1F33668A7` | `src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png`<br>`938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | Retired by v28 P1: the rail and the sign-in card carry `images/pegasus-mark-refined-128.png` and `-256.png`. |
-| `accounts.png` | `PegasusDesign/assets/icons/accounts.png`<br>`AFFA12B7C8609B253AAFB38304F503F83B868DD817902B53ADDFAE65A3E353A1` | `src/Pegasus.Web/wwwroot/images/marks/accounts.png`<br>`A8D467B827E0F19A6066640FA98A75D3673DA8A8C7642C4190D59BD5EDB718D5` | Administration → Staff accounts & roles. |
-| `roles.png` | `PegasusDesign/assets/icons/roles.png`<br>`D3B970330A7DDFE1BE3BD92AF8C8B682B63E2270BF5537F3D5CE60EA6B0A97C0` | `src/Pegasus.Web/wwwroot/images/marks/roles.png`<br>`D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | No integrated surface; proposed for the wave-5 removal ticket. |
-| `access.png` | `PegasusDesign/assets/icons/access.png`<br>`371C4EF84A9E91F8E6509ACCFF045C68121147C22CDCD12D6D6509EF244CEC7F` | `src/Pegasus.Web/wwwroot/images/marks/access.png`<br>`70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | No integrated surface; proposed for the wave-5 removal ticket. |
-| `organisations.png` | `PegasusDesign/assets/icons/organisations.png`<br>`ABAE832BE33CDEBFE1D80C8E47A1FFF4D1FEF644B02F2BD5D51FC9390C421204` | `src/Pegasus.Web/wwwroot/images/marks/organisations.png`<br>`804E77E33162BB09B0374058C6E6989B92A59224F813DDDA0BA6D410A69F6E8C` | No integrated surface; proposed for the wave-5 removal ticket. |
-| `principals.png` | `PegasusDesign/assets/icons/principals.png`<br>`B85E82694474D92F3C15106699786B2081F8E2AFDE66D4A1A78E07071786C967` | `src/Pegasus.Web/wwwroot/images/marks/principals.png`<br>`879055AD9A973F05E2BE49F5EA00EDD43111D323BDC8C8952FCA727A7C9C0496` | Administration → Principals. |
-| `configuration.png` | `PegasusDesign/assets/icons/configuration.png`<br>`B64DCBE7FD45B24A0D9BD687BF8E16BCB3E4E587ED16F93BF1BCE12370A6E921` | `src/Pegasus.Web/wwwroot/images/marks/configuration.png`<br>`86A311A3C1ACE78E5D5A407B289F901ED7C26860BCBBBDEF59EC93A71BAFA62E` | Administration → Workflow configuration. |
-| `mailboxes.png` | `PegasusDesign/assets/icons/mailboxes.png`<br>`179A5677C4B73587601F0AF79162F87217C2035D096D90341281E23BFD87F688` | `src/Pegasus.Web/wwwroot/images/marks/mailboxes.png`<br>`1B727ACBE0DCC114370E0D620DCB74E20A12866C85187689ABDB8A249B61C019` | Administration → Mail settings. |
-| `automation.png` | `PegasusDesign/assets/icons/automation.png`<br>`51F6970F9C0245E694D3562922A34AC5C3F2E762ACB5682FDF6DAA3FDFE10039` | `src/Pegasus.Web/wwwroot/images/marks/automation.png`<br>`1EABE2EF634065A1A76F78A6D520A366C49D469EBC3C92BA99F1DBA1A8F8B3FE` | Administration → Automation & AI. |
-| `checkmark.png` | `PegasusDesign/assets/icons/checkmark.png`<br>`6ECC9917585A85D7B8C7EC62DB3C167689FD0F210D9838EC0B9959F1238471F3` | `src/Pegasus.Web/wwwroot/images/marks/checkmark.png`<br>`5531CC893A5C7A1137F049CF0D77A9D19B73EB30AC1036985A902FFC44A0C30F` | Cases rail empty state. |
-| `activity`, `brand`, `calendar`, `casefolder` | Supplied with the design; not copied | **Not in the tree** — no destination, no checksum | Unplaced. A ticket that places one records both checksums here first. |
 
 ## Design principles
 
@@ -333,7 +290,8 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
   visible word in a small `src-tag` pill in the cell's label line, the same in
   read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
   Provider API. Lookup reads blue, AI navy, every other source neutral. A value
-  staff typed or corrected carries no tag. There is no provenance icon or
+  staff typed or corrected carries no tag; a value staff left untouched keeps
+  its tag across a Save (operator, 25 September 2026). There is no provenance icon or
   hover tooltip (operator, 23 September 2026: one tag system, the Lookup
   chip's). Source labels, policy keys and provenance sentences do not appear
   in markup.
@@ -448,7 +406,7 @@ Rules:
 | `--radius-lg` | `4px` — panels, dialogs, panes |
 | Borders | `1px solid var(--line)`; controls `var(--line-strong)` |
 | Keyboard focus ring | `3px solid var(--focus)`, `outline-offset: 2px` (the prototype base rule); the utility search takes `--navy` on its dark ground |
-| Selection outline | Selected rows and tabs (`row-button`, `work-item`, `tab`) take `2px solid var(--navy)` |
+| Selection outline | Selected rows and tabs (`row-button`, `tab`) take `2px solid var(--navy)` |
 | Depth | Border-first. `--shadow` is applied where the prototype applies it: `gallery-item` and `admin-card` hover, the command-palette dropdown and the toast; dialogs and the sign-in card carry their own deeper raised shadow; selected rows and metrics use an inset red bar, not a shadow |
 
 There is no second radius pair. The 2px geometry of the previous design is
@@ -472,7 +430,7 @@ prototype's effective media queries:
 
 | Max width | Reflow |
 | --- | --- |
-| 1360px | Work Centre panes narrow; `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns |
+| 1360px | `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns. The Work Centre ledger keeps its five columns to 600px, tightening its padding below 980px |
 | 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
 | 980px | The rail lies down into a horizontal bar; `admin-nav` becomes a horizontal scroller; `--content-max` is released |
@@ -537,7 +495,7 @@ checksum-pinned repository copy is the durable source.
 
 | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
 | --- | --- | --- | --- |
-| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte governed copy retained for the renderer boundary; it is not embedded by the Web shell. |
+| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte governed copy kept in the Web runtime; no page or script references it. The report renderer embeds the master `docs/design/brand/logos/logo_no_margin.png` directly (`Pegasus.Infrastructure.csproj`). |
 | Refined rail mark (128px) | `docs/design/brand/logos/pegasus-mark-refined-128.png`<br>`1D6758A5F9D90EA4539DBB498BF0171A93C23B85E9C3868BDDC7D6ABC724A1CB` | `src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-128.png`<br>`1D6758A5F9D90EA4539DBB498BF0171A93C23B85E9C3868BDDC7D6ABC724A1CB` | Byte-for-byte copy embedded by `_Layout.cshtml` in the authenticated rail. |
 | Refined auth mark (256px) | `docs/design/brand/logos/pegasus-mark-refined-256.png`<br>`E3C9712DE05E18D93BD21857F3961A8832941D91D942FA1E34F513944B545E1D` | `src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-256.png`<br>`E3C9712DE05E18D93BD21857F3961A8832941D91D942FA1E34F513944B545E1D` | Byte-for-byte copy embedded by `_LayoutAuth.cshtml` as the `auth-brand` of the sign-in card. |
 
@@ -553,12 +511,13 @@ Lucide is the only approved Web/UI icon system:
 
 Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure
 symbols. The prototype's hand-drawn `iconPaths` are not adopted; every glyph
-it names maps to the Lucide id below, and the prototype's inline sparkle on
-Use the provider-neutral label `Send to AI`.
+it names maps to the Lucide id below, and the prototype's inline sparkle is
+not adopted. Use the provider-neutral label `Send to AI`.
 
-The checksummed sprite is `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg`,
-inlined once per page by `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml`
-as `<symbol viewBox="0 0 24 24">` elements; pages reference glyphs as
+The checksummed sprite `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` is
+the governed glyph record; no page requests it.
+`src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml` inlines the glyphs once per
+page as `<symbol viewBox="0 0 24 24">` elements; pages reference glyphs as
 `<svg class="icon"><use href="#icon-…"/></svg>`. The `.icon` rule applies the
 stroke and caps because a `<use>` clone does not inherit them. The sprite
 holds the sixty glyphs below (the original seventeen plus the
@@ -583,22 +542,22 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | --- | --- | --- | --- |
 | `dashboard` | `layout-dashboard` | `F8A9AFA8D2245E34D3DAEB88C9FF80A2AA546D1F8671212896E743E596F3752B` | Rail: Work Centre |
 | `inbox` | `inbox` | `0817485BFAE1A740458AA3FC1E6E4542047FA890C547D35B17C771E6D352E901` | Rail: Inbox; Inbox scopes |
-| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; dropzone |
+| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; the picker's drop target |
 | `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it); Cases rail groups |
 | `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
 | `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
 | `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Rail: Operations; running jobs |
 | `admin` | `layout-grid` | `DCF60CA3B7FC36D4C69ED1A6EBC4CAD464CE850786B7AEE5BD1AB0A542C0D0BE` | Rail: Administration |
-| `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Utility search; palette; Search buttons |
+| `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Utility search; palette; Search buttons; DVLA & MOT lookup |
 | `plus` | `plus` | `A1190965745A47ED26827784BBAE8B9291D5170501A02FB335D82247EA276108` | Add, Create, New estimate |
-| `refresh` | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | Refresh, DVLA/DVSA refresh |
+| `refresh` | `refresh-cw` | `C795E4B7F739E9CF2D5C5996CBDF8A0541734F0DC99EBE169BAE945FD04E2AA2` | The one Refresh control (`Shared/_RefreshButton`) |
 | `chevron-right` | `chevron-right` | `07C6F850908E2A9ABA2AD8B7B91AA8E525D463398D479DAD5EF10CB534FE3710` | Row affordance, stepper |
 | `chevron-left` | `chevron-left` | `1E4CC2B6933AEDC73D77B080ABC988D9A4ED319191AC4AB2F0BD417C8E91BCE1` | Back, pagination |
 | `chevron-down` | `chevron-down` | `07FA08D36ABFC560E7901833347764591406C71C2E8974BAF3EE518866D549C3` | Disclosure, select |
 | `arrow` | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Open full record, transitions |
 | `user` | `user` | `F12759D8CA6B092DCA70B2E265F4CD8921C6DC61B408C9DA3FFFC8650BE76AA2` | Rail user, account dialog |
 | `more` | `more-horizontal` | `2124DA66776313BB29ED93D2CC06BBF1307EF8C8DBE672B3EE3AF4975F5E56D1` | Overflow menus |
-| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due |
+| `clock` | `clock` | `EE847E37391A579398EA5CB111A4893642085DEA959EF3812F210ED69EABC5C6` | Freshness, due; Renew editing |
 | `alert` | `alert-circle` | `69DA72930B08F89FA5C1AFDA3D5813BFAFA124D3E86F66B2100300F2B7DEB415` | Error summary, blocked |
 | `warning` | `alert-triangle` | `40DEB35C6E3562DB12C1962989A7D9E24C758489247929C156DEDD8476DBE233` | Warning notice, exceptions group |
 | `check` | `check` | `DE2A367F6B80B94E85E56CF01EFB198FB835039FEC3C0B4E643EAE54E9C857C6` | Save, confirm, checks |
@@ -610,7 +569,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `save` | `save` | `BEEDEA57260C30DD0B222C239B536C1EFD8B8DD7BDD3BB5311CFB5DD325677A3` | Save |
 | `close` | `x` | `FE4FAFDA78C537A7218FC7EDE65B1A01BE9BD5DF253C75805309D1EA2E6152DC` | Dialog close, tab close, remove |
 | `hold` | `pause` | `1A4247062E4B9E29A38E9C6C0867F6D85351F8B058606EA1FC89768495734773` | Place on Hold, Held |
-| `play` | `play` | `197D4369B982F7DBA348DCD5BD06F4C003A2C345C40CE2AC44719238463844D5` | Release Hold, Start automation |
+| `play` | `play` | `197D4369B982F7DBA348DCD5BD06F4C003A2C345C40CE2AC44719238463844D5` | Release Hold, Start automation, Retry this work |
 | `report`, `document` | `file-text` | `A6AF7723E87920CF322C8C39F0A1080075BFA19B3E966A8E21D2D81A93772936` | Report, instruction evidence |
 | `settings` | `settings` | `F6CE9F023EC1C2720723672887014349E1D3A68DF9555CA3795C5FEF95265B4A` | Principal settings, configuration |
 | `filter` | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Filter bars |
@@ -620,7 +579,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `bell` | `bell` | `5B315496E663ECA0E7465EDAD43FCD54BF00577C1737A5E8F9CC5352D185E79F` | Utility bar notifications |
 | `signout` | `log-out` | `20B23EB0AF17FE443827B2E64EC23057092180CDE64B3FAC5F2A9DC210A70880` | Sign out |
 | `calendar` | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date filters, due |
-| `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel |
+| `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel; Reconcile provider outcome |
 | `copy` | `copy` | `10CBC775CD0ACEBBB15F863348821192DBD4A2858380CC295BEB020AB4144DCB` | Copy reference |
 | `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download ZIP in the Send to EVA dialog |
 | `folder` | `folder` | `6E9E30D6DB22DC0118AC8C8466659342AFAE90784EFD65B5E2929BE1BA7B0C16` | Folder scopes, Case Files |
@@ -636,7 +595,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `key` | `key` | `9C4745F5604E0E32D887381FF5AE40DDA8BF4DF163D98025823CBBC0A06391C4` | API key |
 | `shield` | `shield` | `456B29F0717F73785AE1CA5A492EF0B21693BDA13045B509E845BA38F08717AE` | Roles, access |
 | — | `trash-2` | `2D59EB8F9393ABDFEE674BFC1A67A3ABD81146C1525F12DF7E753ACB40CB0773` | Delete estimate, remove line, Delete message |
-| — | `rotate-cw` | `5DE57E248094872B06E8408E710E05E1D89BDEB2243DDF780254C8632FC6DDFB` | Rotate view |
+| — | `rotate-cw` | `5DE57E248094872B06E8408E710E05E1D89BDEB2243DDF780254C8632FC6DDFB` | Rotate view right (paired with `rotate-ccw`) |
 | `activity` (undefined in the prototype) | `activity` | `8E33259DA8A236EBC5D6C96F27DFAB90CE1F69D78F9D935FA28A143443F2380B` | Service health, presence |
 | `spark` (undefined) | `sparkles` | `D412CDDF7D44B1EED79ACB99F7D64A85E99BB77E9780FE49770883301EE63652` | Automation & AI nav entry, AI job rows |
 | `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply |
@@ -663,14 +622,14 @@ glyph the v26 mockups reference that no current page draws.
 | — | `file-output` | `C109CACE75A7483445BF22061B3141C5210AB2706012502180288644E3917F62` | No caller |
 | — | `eye-off` | `56982F58FC81CBE4EB066E455259234DE2F2FE4B120631693BA0FA5544EB516F` | No caller |
 | — | `key-round` | `5E7E3CD234E740B048195FBEF0B1C66E7CA85500AE1C7ACA7F35117496576E83` | No caller |
-| — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | No caller |
+| — | `rotate-ccw` | `B734EDCBA8DF037C834EAB8A45DC181625008FEEBD20C4109D8F2486A33C27BE` | Rotate view left (paired with `rotate-cw`) |
 | — | `crop` | `D6D10FFBF5D570C7F3CE47D5BA7C34C1ADA38EABD5C18F26164BB1A64A16A109` | Viewer Crop (Case record and pre-Case records) |
-| — | `zap` | `998D4DC807CBE0CE4AF837D6282BCB925F8B169A1CE6DF4B1A2B06D6210474A0` | Working-set tab: Glass's session open |
+| — | `zap` | `998D4DC807CBE0CE4AF837D6282BCB925F8B169A1CE6DF4B1A2B06D6210474A0` | No caller |
 | — | `grip-vertical` | `93D0BBD15AB6203E42D45A911F90B3BAB3D287E56AD4140804311B15FA062074` | No caller |
 | — | `shield-check` | `1A0678C6E00913D6FFAB22299D518EC906BA4FB8AE3F17E8C5801C212FE21DBA` | No caller |
 | — | `building` | `F8C777CE38931ABE01FAE9E46B1DC5527989F3152D9730EA941C7DA9D4DC9EFE` | No caller |
 | — | `sliders` | `BC19EF5E6751EAE7634C7CA956BB16A0C0A6AB9ECCB8935811B63849FF7D9BFF` | No caller |
-| — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Working-set tab: Triage; Open the Triage |
+| — | `clipboard-list` | `F3B645C69B9060E6FA73E840EF5C864A2E4E4AB24750EB32A045D7DDBD4421C6` | Open the Triage |
 | — | `zoom-in` | `F32744E452483FCC60A24618A5C05630138A6C07806F647D510CE82726F0E8B2` | Case viewer Zoom |
 | — | `corner-up-left` | `B7FDDB91FDBC7FDF2A1BFB36864024219751277B9C9AD0F4630306925778E08F` | No caller |
 | — | `bar-chart` | `DB920FF9B7CE38B0D2703AE4B696B0682A3DCFE46B9BADE4260DFCF685BABB42` | Administration nav: Reports |
@@ -686,21 +645,19 @@ glyph the v26 mockups reference that no current page draws.
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
 | — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item |
 | — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | No caller |
-| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified Reopen |
+| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified Reopen; Damage Reset; restore composed wording |
 
 The v26 rail no longer draws the prototype's rail glyphs for three routes:
 Cases uses `list-checks`, Operations `activity` and Administration `settings`
 (`list`, `loader` and `layout-grid` remain in the sprite for their other
-uses). A working-set tab draws its kind's glyph: `folder` (Case),
-`clipboard-list` (Triage), `alert-circle` (Unidentified), `image` (image
-record) and `mail` (message); `home` no longer has a Work Centre tab.
+uses).
 
 ### Imagery and evidence
 
 Upstream marketing photography is excluded, and no generated or substitute
-glyph is used anywhere. The one class of imagery the internal Web application
-carries is the [commissioned Pegasus marks](README.md#the-pegasus-marks): decorative,
-naming a surface, always beside text that says the same thing.
+glyph is used anywhere. The only imagery the internal Web application carries
+is the refined Pegasus mark ([Logo](README.md#logo)): decorative, always beside
+text that names the product.
 
 Genuine case images, emails and documents are operational evidence, not
 decorative assets. Use only authorised repository-provided evidence through
@@ -848,8 +805,7 @@ deleted in wave 5.
 | `utility-bar`, `utility-freshness`, `utility-search` | Dark bar |
 | `rail-collapsed` (on `app-shell`), `[data-rail-toggle]` | Collapsed 64px rail and its Collapse/Expand control |
 | `bell-wrap`, `bell-count`, `row-list`, `row-form`, `row-button`, `row-button--unread` | The bell with its unread count, and the Notifications dialog's one-button rows |
-| `workspace-tabs` (`[data-working-set]`), `workspace-tab`, `workspace-tab-link`, `tab-close`, `tabs-more` | Working-set strip of open records: six tabs, the rest in "N more"; `body.has-working-set` while anything is open |
-| `external-shell`, `auth-card`, `auth-brand` | Navless frames |
+| `external-shell`, `auth-identity`, `auth-brand`, `auth-company`, `auth-panel`, `auth-card`, `auth-card--wide`, `password-reveal` | Navless frame: identity panel beside the page's card |
 | `skip-link`, `sr-only` | Accessibility |
 
 ### Page
@@ -857,8 +813,9 @@ deleted in wave 5.
 | Class | Role |
 | --- | --- |
 | `page-header`, `page-title`, `eyebrow`, `page-actions` | Header row |
-| `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (Refresh, dismiss, section fold) |
-| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric` | Count buttons linking to `/Cases?tab=` (the Work Centre's four) |
+| `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (dismiss, section fold) |
+| `freshness`, `freshness-status`, `health-dot`, `refresh-button` (`Shared/_RefreshButton`) | Page freshness line and the one Refresh control every surface composes; the label becomes "Refreshing" and the icon spins while a refresh runs (`prefers-reduced-motion` keeps the label and disabled state) |
+| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |
@@ -866,7 +823,7 @@ deleted in wave 5.
 | `pane-layout`, `pane-layout--2`, `pane-layout--3`, `pane`, `pane-head`, `pane-body`, `pane-scroll` | Multi-pane workspaces |
 | `queue-layout` | The Cases three-pane variant |
 | `scope-list`, `scope-button` | Left-pane scopes with icon well and count |
-| `row-button`, `work-item` | Selectable rows (arrow navigation) |
+| `row-button` | Selectable rows (arrow navigation) |
 | `fact-grid`, `fact`, `definition-list`, `definition` | Label/value cells |
 | `pagination` | Bounded pagination with current-page context |
 | `empty` | Empty result; renders only where an action exists |
@@ -877,31 +834,32 @@ deleted in wave 5.
 | Class | Role |
 | --- | --- |
 | `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container |
-| `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar and working-set strip, measured at runtime into `--sticky-h` |
+| `sticky-block` (`[data-sticky-block]`) | The record's sticky block under the utility bar, measured at runtime into `--sticky-h` |
 | `ribbon`, `ribbon-facts`, `ribbon-item`, `ribbon-ref`, `ribbon-value`, `ribbon-chips`, `ribbon-actions` | The 56px identity ribbon: the reference as the page's `h1` (`ribbon-value`) under "Case workspace · registration", Claimant, Principal, Engineer; state, Case type and colleague-editing chips; then the edit controls and the one **Actions** menu |
 | `section-row`, `section-nav`, `section-link`, `section-tools`, `layout-switch` | The 40px section row: section links (the one in view carries `aria-current`), Refresh and the Scroll/Tabs switch |
-| `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (Figures, Next action) that folds above the sections below 1441px |
+| `workspace`, `workspace-aside` | The record grid: sections beside a 285px aside (the Views card once an Audit exists, Figures, Next action) that folds above the sections below 1441px |
+| `context-card` (`[data-case-views]`), `next-row` | The Views card: one row per view, the current one plain with `aria-current="page"`, the other a link |
 | `record-section`, `panel[data-collapse]`, `panel-collapse`, `is-collapsed`, `is-editing`, `is-locked` | One section panel, foldable and remembered per browser; the record's edit and read-only states |
 | `fg`, `fc`, `fv`, `fi`, `ro` | One-look cells: the same cells in both modes; the value (`fv`) is a greyed box that becomes its white control (`fi`) while editing; `ro` marks a cell rendered without a control, whose greyed value stays while the rest edits; no padlock |
 | `src-tag` and its `--lookup`, `--ai`, `--warn` tones | The source tag: one word in the cell's label line saying where a value came from ([source tags](README.md#source-tags)); the same pill names other short origins (AI, Manual, Amended) |
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
-| `gated`, `avail` | The dashed availability label, stated once per section head |
+| `gated`, `avail` | The dashed availability label, stated once per section head; in the Inspection view it reads "Read-only · Audit created" |
 | `damage-workbench`, `damage-marks`, `figures`, `figure` | The Damage plan and its numbered discs, and the aside figures |
 | `damage-diagram`, `dm`, `dm-guides` | The plan silhouette, one disc per recorded damage (kept as drawn, clipped to the body by `damage-plan-clip`), and the dashed band guides shown while editing |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
-| `derived` | A value derived, never entered: impact location and severity, equity, and a permitted ratio line where one is shown |
+| `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
 | `report-image`, `cropper` | Image preparation on the Files tiles: designated Close-up and Overview, supporting images in order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
-| `blocker-list`, `blocker` | Outstanding requirements |
+| `blocker-list`, `blocker`, `blocker-actions` | Outstanding requirements, and the Report section's blockers; `blocker-actions` holds a blocker's link to the section that clears it |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `mail-preview`, `decision-card` | Inbox preview and message decision |
-| `assessment-v3`, `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
+| `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `ai-jobs-panel` | Operations AI Job List |
 | `admin-layout`, `admin-nav` | Administration |
-| `dropzone`, `file-list`, `file-row`, `upload-outcome` | Upload |
+| `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |
 | `report-preview` | Report draft preview dialog body |
 
 ### Dialogs and feedback
@@ -932,7 +890,7 @@ second caller and a recorded reason.
 | `_LucideSprite` | The inlined sprite |
 | `_ShellDialogs` | Account, Notifications, command palette |
 | `_AdminNav` | Administration panel nav |
-| `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadOutcome` | Retained, restyled to the vocabulary |
+| `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadReview` | Retained, restyled to the vocabulary |
 | `Presentation/OperatorLabels.cs` | The one label map |
 | `Presentation/RailCountsPageFilter.cs` | Rail counts |
 
@@ -1026,7 +984,7 @@ this section holds the cross-cutting rules every page is held to.
 
 ### Shared shell and hierarchy
 
-1. Shell: rail, utility bar with the bell, working-set strip, account dialog.
+1. Shell: rail, utility bar with the bell, account dialog.
 2. Page header: eyebrow, title, freshness and a safe primary action.
 3. Operational panes, table, workbench or record.
 4. Named workflow/evidence/lease/exception state and consequential action.
@@ -1042,7 +1000,7 @@ this section holds the cross-cutting rules every page is held to.
 | Field provenance | Every source-derived Case datum shows its current source tag; a staff value carries none. Origin and status remain distinct. |
 | Supporting detail navigation | Opening evidence or supporting detail preserves list/detail position, the current context, and every unsaved edit; returning never silently discards or replaces proposed values. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
-| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
+| Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record each report blocker links to the section that clears it; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
 | Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
 | Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |

@@ -16,13 +16,12 @@ namespace Pegasus.Infrastructure.Persistence;
 
 public sealed class EfCaseWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseWorkflowStore, IAdministrativeCaseEditLeaseStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore, ICaseArchiveReadinessQueries
+    TimeProvider timeProvider) : ICaseWorkflowStore, IAutoLinkReportEvidenceStore, ICaseDueWorkStore, ICaseArchiveStore, ICaseArchiveReadinessQueries
 {
     private static readonly TimeSpan EditLeaseDuration = TimeSpan.FromMinutes(5);
     private const string ClaimLeaseOperationKind = "claim";
     private const string RenewLeaseOperationKind = "renew";
     private const string ReleaseLeaseOperationKind = "release";
-    private const string ClearLeaseOperationKind = "administrative_clear";
 
     public async Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -167,17 +166,26 @@ public sealed class EfCaseWorkflowStore(
 
         ArchivedCaseGuard.RequireNotArchived(workflow);
         RequireVersion(workflow, request.ExpectedVersion);
-        var previousHolder = CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
-            ? workflow.EditLeaseHolder
-            : null;
         ActorKind? previousHolderKind = Enum.TryParse<ActorKind>(workflow.EditLeaseHolderKind, out var parsedKind)
             ? parsedKind
             : null;
-        if (previousHolder is not null
+        var liveHolder = CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now)
+            ? workflow.EditLeaseHolder
+            : null;
+        // A live lease refuses every claim that does not explicitly take it over, including the
+        // holder's own from a one-off command elsewhere, which must never end the holder's edit
+        // session. The Case page resumes the holder's lease before it ever claims.
+        if (liveHolder is not null
             && (!request.TakeOver || !CaseEditAuthority.CanTakeOver(previousHolderKind, request.Actor)))
         {
             throw new CaseEditLeaseConflictException(request.CaseId, workflow.Version);
         }
+
+        // Only a lease taken from a colleague is history; the holder taking their own back is not.
+        var previousHolder = liveHolder is not null
+            && !CaseEditAuthority.IsHolder(previousHolderKind, liveHolder, request.Actor)
+                ? liveHolder
+                : null;
 
         var previousName = previousHolder is not null
             ? await LeaseHolderNameAsync(context, previousHolder, cancellationToken)
@@ -314,10 +322,10 @@ public sealed class EfCaseWorkflowStore(
     /// deliberately not <see cref="RenewAsync"/>: an open page beats every minute for as long as
     /// it is open, and renewal records one <c>CaseEditLeaseOperations</c> row per call in a table
     /// nothing prunes. FRD-01 counts a heartbeat as telemetry, so this writes no operation row, no
-    /// operation key, and no request hash — <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/>
-    /// still has to hold the *claim* key the workspace reads back to recover edit mode. It also
-    /// asks for no expected version: a version cannot move under a live lease, because every
-    /// mutation clears the lease as it commits.
+    /// operation key, and no request hash, so <see cref="CaseWorkflowEntity.EditLeaseOperationKey"/>
+    /// keeps the claim key that replays the lease. It also asks for no expected version: a
+    /// version cannot move under a live lease, because every mutation clears the lease as it
+    /// commits.
     /// </summary>
     public async Task<CaseEditLease> HeartbeatAsync(
         HeartbeatCaseEditLeaseRequest request,
@@ -348,6 +356,58 @@ public sealed class EfCaseWorkflowStore(
         return new(
             request.CaseId,
             request.LeaseToken,
+            request.Actor.SubjectId,
+            workflow.Version,
+            expiresAtUtc)
+        {
+            Generation = workflow.EditLeaseGeneration
+        };
+    }
+
+    /// <summary>
+    /// Hands the caller's own live lease back to a page they open, renewing it exactly as a
+    /// heartbeat does so the page's first beat a minute later still finds it held. Like a
+    /// heartbeat it writes no operation row and no history; a caller who holds no live lease
+    /// gets null and nothing is written.
+    /// </summary>
+    public async Task<CaseEditLease?> ResumeAsync(
+        ResumeCaseEditLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        await AcquireWorkflowMutationLockAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
+            item => item.CaseId == request.CaseId,
+            cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        if (workflow is null
+            || workflow.ArchivedAtUtc is not null
+            || !CaseEditAuthority.CanResume(
+                CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
+                workflow.EditLeaseHolder,
+                workflow.EditLeaseExpiresAtUtc,
+                request.Actor,
+                now)
+            || RetainedLeaseToken(workflow) is not { } token)
+        {
+            return null;
+        }
+
+        var expiresAtUtc = now + EditLeaseDuration;
+        workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(
+            request.CaseId,
+            token,
             request.Actor.SubjectId,
             workflow.Version,
             expiresAtUtc)
@@ -417,101 +477,6 @@ public sealed class EfCaseWorkflowStore(
             resultTokenHash: null);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-    }
-
-    public async Task<ClearCaseEditLeaseResult> ClearAsync(
-        ClearCaseEditLeaseRequest request,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-        await AcquireWorkflowMutationLockAsync(context, request.CaseId, cancellationToken);
-        var workflow = await context.CaseWorkflows.SingleOrDefaultAsync(
-                item => item.CaseId == request.CaseId,
-                cancellationToken)
-            ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageStaffAccounts);
-
-        var operationKey = request.OperationKey.Trim();
-        var reason = request.Reason.Trim();
-        var requestHash = AdministrativeClearRequestHash(request, operationKey, reason);
-        var replay = await FindLeaseOperationAsync(
-            context,
-            request.CaseId,
-            operationKey,
-            cancellationToken);
-        if (replay is not null)
-        {
-            EnsureLeaseReplay(
-                replay,
-                ClearLeaseOperationKind,
-                requestHash,
-                request.CaseId,
-                operationKey);
-            return new(
-                request.CaseId,
-                request.ExpectedHolderUserId,
-                request.ExpectedLeaseGeneration,
-                replay.ResultVersion,
-                replay.CompletedAtUtc);
-        }
-
-        var now = timeProvider.GetUtcNow();
-        if (!CaseEditAuthority.IsHeld(workflow.EditLeaseExpiresAtUtc, now))
-        {
-            throw new CaseEditLeaseExpiredException(workflow.CaseId, workflow.Version);
-        }
-        if (workflow.EditLeaseHolderKind != nameof(ActorKind.Staff)
-            || !Guid.TryParse(workflow.EditLeaseHolder, out var holderUserId)
-            || holderUserId != request.ExpectedHolderUserId
-            || workflow.EditLeaseGeneration != request.ExpectedLeaseGeneration)
-        {
-            throw new CaseEditLeaseConflictException(workflow.CaseId, workflow.Version);
-        }
-
-        var beforeJson = JsonSerializer.Serialize(new
-        {
-            HolderUserId = holderUserId,
-            LeaseGeneration = workflow.EditLeaseGeneration,
-            workflow.EditLeaseExpiresAtUtc
-        });
-        var resultVersion = workflow.Version;
-        ClearLease(workflow);
-        AddLeaseOperation(
-            context,
-            workflow,
-            request.Actor,
-            operationKey,
-            ClearLeaseOperationKind,
-            requestHash,
-            now,
-            resultVersion,
-            resultExpiresAtUtc: null,
-            resultTokenHash: null);
-        AddEvent(
-            context,
-            workflow,
-            request.Actor,
-            operationKey,
-            reason,
-            requestHash,
-            "case_edit_lease_administratively_cleared",
-            resultVersion,
-            resultVersion,
-            now,
-            beforeJson,
-            afterJson: null);
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return new(
-            request.CaseId,
-            holderUserId,
-            request.ExpectedLeaseGeneration,
-            resultVersion,
-            now);
     }
 
     public Task<CaseWorkflowRecord> ChangeStateAsync(
@@ -706,7 +671,7 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> RecordReportApprovalAsync(
         RecordCaseReportApprovalRequest request,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, "case_report_approved", (context, workflow, now) =>
+        MutateAsync(request, "case_report_approved", async (context, workflow, now) =>
         {
             if (workflow.State != nameof(CaseLifecycleState.ReportPreparation))
             {
@@ -715,6 +680,23 @@ public sealed class EfCaseWorkflowStore(
             }
 
             var approval = request.Approval;
+            // A generated report of a work that is no longer current (the
+            // Inspection once the Audit exists) is never approved again.
+            var approvedSha256 = approval.ArtifactSha256.ToLowerInvariant();
+            var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
+            if (await (
+                    from artifact in context.Set<GeneratedCaseArtifactEntity>().AsNoTracking()
+                    join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
+                        on artifact.GenerationId equals generation.Id
+                    where generation.CaseId == workflow.CaseId
+                        && artifact.Sha256 == approvedSha256
+                        && generation.WorkId != currentWorkId
+                    select artifact.Id)
+                .AnyAsync(cancellationToken))
+            {
+                throw new InvalidOperationException("The case report generation is unavailable.");
+            }
+
             var entity = new CaseReportApprovalEntity
             {
                 Id = approval.ApprovalId,
@@ -729,7 +711,6 @@ public sealed class EfCaseWorkflowStore(
             context.CaseReportApprovals.Add(entity);
             workflow.ReportApprovalId = approval.ApprovalId;
             workflow.ReportApproval = entity;
-            return Task.CompletedTask;
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> LinkReportEvidenceAsync(
@@ -1303,13 +1284,30 @@ public sealed class EfCaseWorkflowStore(
                 "Retained Sent evidence cannot predate the current report approval.");
         }
 
+        // Create audit is itself a transition into Report preparation, and the
+        // Audit's report is sent after it: evidence older than the Audit work
+        // belongs to the Inspection.
+        var auditCreatedAtUtc = await context.CaseWorks
+            .AsNoTracking()
+            .Where(item => item.CaseId == workflow.CaseId && item.Kind == CaseWorkKinds.Audit)
+            .Select(item => (DateTimeOffset?)item.CreatedAtUtc)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (auditCreatedAtUtc is { } auditCreated && evidence.SentAtUtc < auditCreated)
+        {
+            return new(
+                null,
+                "evidence_predates_audit",
+                "Retained Sent evidence must follow the creation of the Audit.");
+        }
+
         var followsReportPreparation = await context.CaseWorkflowEvents
             .AsNoTracking()
             .AnyAsync(
                 item => item.CaseId == workflow.CaseId
                     && item.OccurredAtUtc <= evidence.SentAtUtc
                     && (item.EventType == "state_ReportPreparation"
-                        || item.EventType == "case_reopened_ReportPreparation"),
+                        || item.EventType == "case_reopened_ReportPreparation"
+                        || item.EventType == "audit_created"),
                 cancellationToken);
         if (!followsReportPreparation)
         {
@@ -1372,7 +1370,11 @@ public sealed class EfCaseWorkflowStore(
     }
 
 
-    private static async Task AcquireWorkflowMutationLockAsync(
+    /// <summary>
+    /// Takes the Case's workflow row <c>UPDLOCK, HOLDLOCK</c> for the rest of the
+    /// caller's transaction, so concurrent Case mutations serialize on it.
+    /// </summary>
+    internal static async Task AcquireWorkflowMutationLockAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
@@ -1426,9 +1428,16 @@ public sealed class EfCaseWorkflowStore(
         CaseEntity caseEntity,
         CancellationToken cancellationToken)
     {
+        // A Case with an Audit work also needs its Audit's a. folder confirmed;
+        // a standalone Audit keeps its files in its own Case folder.
+        var hasAuditWork = await context.CaseWorks
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.CaseId == caseEntity.Id && item.Kind == CaseWorkKinds.Audit,
+                cancellationToken);
         var isCustodyConfirmed =
             string.Equals(caseEntity.CustodyState, "confirmed", StringComparison.Ordinal)
-            && (!string.Equals(caseEntity.Type, "audit", StringComparison.Ordinal)
+            && (!hasAuditWork
                 || (!string.IsNullOrWhiteSpace(caseEntity.AuditCustodyRemoteId)
                     && caseEntity.AuditCustodyConfirmedAtUtc is not null));
         var hasBlockingExternalWork = await context.ExternalWorkItems
@@ -1487,6 +1496,17 @@ public sealed class EfCaseWorkflowStore(
         }
     }
 
+    /// <summary>
+    /// The retained plaintext token, only when it is the one the retained hash proves; anything
+    /// else is unreadable and is never handed back.
+    /// </summary>
+    private static string? RetainedLeaseToken(CaseWorkflowEntity workflow) =>
+        workflow.EditLeaseToken is { Length: CaseEditAuthority.LeaseTokenLength } token
+        && workflow.EditLeaseTokenHash is { } tokenHash
+        && HashesMatch(tokenHash, Hash(token))
+            ? token
+            : null;
+
     private static CaseEditLease ReadLeaseReplayOrThrow(
         CaseWorkflowEntity workflow,
         CaseEditLeaseOperationEntity replay,
@@ -1528,24 +1548,6 @@ public sealed class EfCaseWorkflowStore(
             Generation = workflow.EditLeaseGeneration
         };
     }
-
-    private static string AdministrativeClearRequestHash(
-        ClearCaseEditLeaseRequest request,
-        string operationKey,
-        string reason) =>
-        Hash(JsonSerializer.Serialize(new
-        {
-            SchemaVersion = 1,
-            OperationKind = ClearLeaseOperationKind,
-            request.CaseId,
-            request.ExpectedHolderUserId,
-            request.ExpectedLeaseGeneration,
-            ActorKind = request.Actor.Kind.ToString(),
-            ActorSubjectId = request.Actor.SubjectId,
-            ActorRolesJson = RolesJson(request.Actor),
-            OperationKey = operationKey,
-            Reason = reason
-        }));
 
     private static string LeaseOperationRequestHash(
         string operationKind,
@@ -1699,15 +1701,7 @@ public sealed class EfCaseWorkflowStore(
             entity.Case.AuditReference),
         Enum.Parse<CaseLifecycleState>(entity.State),
         entity.AssignedEngineerId,
-        entity.ReportApproval is null ? null : new ReportApprovalEvidence(
-            entity.ReportApproval.Id,
-            entity.ReportApproval.ArtifactIdentity,
-            entity.ReportApproval.ArtifactSha256,
-            Actor(
-                entity.ReportApproval.ApprovedByKind,
-                entity.ReportApproval.ApprovedBySubjectId,
-                entity.ReportApproval.ApprovedByRolesJson),
-            entity.ReportApproval.ApprovedAtUtc),
+        entity.ReportApproval is null ? null : MapReportApproval(entity.ReportApproval),
         entity.ReportSentEvidence is null
             ? null
             : MapReportSentEvidence(entity.ReportSentEvidence),
@@ -1725,6 +1719,16 @@ public sealed class EfCaseWorkflowStore(
         HoldReviewOn = entity.HoldReviewOn,
         StateEnteredAtUtc = entity.StateEnteredAtUtc
     };
+    internal static ReportApprovalEvidence MapReportApproval(CaseReportApprovalEntity approval) => new(
+        approval.Id,
+        approval.ArtifactIdentity,
+        approval.ArtifactSha256,
+        Actor(
+            approval.ApprovedByKind,
+            approval.ApprovedBySubjectId,
+            approval.ApprovedByRolesJson),
+        approval.ApprovedAtUtc);
+
     private static CaseArchive? MapArchive(CaseWorkflowEntity entity)
     {
         if (entity.ArchivedAtUtc is not { } archivedAtUtc)
@@ -1763,7 +1767,7 @@ public sealed class EfCaseWorkflowStore(
             entity.ArchiveReason,
             entity.Version);
 
-    private static ApprovedMailboxReportSentEvidence? MapReportSentEvidence(
+    internal static ApprovedMailboxReportSentEvidence? MapReportSentEvidence(
         CaseReportSentEvidenceEntity entity)
     {
         if (string.Equals(

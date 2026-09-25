@@ -51,37 +51,6 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
-    public async Task ConfirmCompletenessRequiresStaffActorAndActiveLeaseMaterial()
-    {
-        var store = new RecordingStore();
-        var command = new ConfirmCompleteness(store, new FixedConfiguration(Configuration));
-        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-
-        await Assert.ThrowsAsync<ArgumentException>(() => command.ExecuteAsync(
-            new(
-                Guid.NewGuid(),
-                0,
-                staff,
-                "confirm-completeness",
-                "Reviewed current evidence",
-                " ",
-                new(true, true)),
-            CancellationToken.None));
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() => command.ExecuteAsync(
-            new(
-                Guid.NewGuid(),
-                0,
-                ActionActor.SystemWorker("worker"),
-                "confirm-completeness-system",
-                "Reviewed current evidence",
-                "lease",
-                new(true, true)),
-            CancellationToken.None));
-
-        Assert.Null(store.ConfirmedRequest);
-    }
-
-    [Fact]
     public void NormalizeRequiresInspectionAddressAndModeTogether()
     {
         Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
@@ -281,6 +250,16 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
+    public void TheReceivedDateIsTheOriginReceiptsLondonDayOrTheCasesCreation()
+    {
+        var created = new DateTimeOffset(2026, 7, 3, 9, 0, 0, TimeSpan.Zero);
+        // 23:30 UTC on 1 July is 00:30 on 2 July in London (BST).
+        Assert.Equal(new DateOnly(2026, 7, 2), CaseDataPolicy.ReceivedDate(new DateTimeOffset(2026, 7, 1, 23, 30, 0, TimeSpan.Zero), created));
+        // A manual Case has no receipt: it was received when staff created it.
+        Assert.Equal(new DateOnly(2026, 7, 3), CaseDataPolicy.ReceivedDate(null, created));
+    }
+
+    [Fact]
     public async Task SaveCaseNormalizesExplicitConfirmedValuesWithoutAnIdentityField()
     {
         var store = new RecordingStore();
@@ -306,30 +285,13 @@ public sealed class CaseDataOperationsTests
         Assert.Equal(request.CaseId, store.SavedRequest.CaseId);
     }
 
-    private sealed class FixedConfiguration(CaseWorkflowConfiguration configuration)
-        : ICaseWorkflowConfiguration
-    {
-        public Task<CaseWorkflowConfiguration> GetCurrentAsync(
-            CancellationToken cancellationToken) => Task.FromResult(configuration);
-    }
-
     private sealed class RecordingStore : ICaseDataStore
     {
-        public ConfirmCompletenessRequest? ConfirmedRequest { get; private set; }
         public SaveCaseRequest? SavedRequest { get; private set; }
 
         public Task<CaseDataProjection?> GetAsync(
             Guid caseId,
-            CancellationToken cancellationToken) => Task.FromResult<CaseDataProjection?>(null);
-
-        public Task<CaseDataProjection> ConfirmCompletenessAsync(
-            ConfirmCompletenessRequest request,
-            CaseCompletenessEvaluation evaluation,
-            CancellationToken cancellationToken)
-        {
-            ConfirmedRequest = request;
-            throw new NotSupportedException();
-        }
+            CaseWorkSelector work, CancellationToken cancellationToken) => Task.FromResult<CaseDataProjection?>(null);
 
         public Task<CaseDataProjection> SaveAsync(
             SaveCaseRequest request,

@@ -207,7 +207,7 @@ restarts a run.
 
 `Start` prints a generated 32-character run ID. It creates
 `artifacts/local-development/<run-id>/` with its ownership manifest, logs,
-Azurite store, intake/mailbox/case-file roots, dynamic loopback ports, and a
+Azurite store, intake and mailbox roots, dynamic loopback ports, and a
 `PegasusDevelopment_<run-id>` LocalDB instance. It starts Azurite first, runs
 the explicit Development migration path, waits for Web readiness, and then
 starts and checks the actual Functions host. Normal Web and Worker startup
@@ -221,7 +221,10 @@ nor configures an OAuth or MCP client.
 
 The run-specific Web readiness URL and Functions status URL are printed by
 `Start`. All development settings are process-scoped; no tracked configuration
-file, `corpus/`, Azure resource, or another run is changed.
+file, `corpus/`, Azure resource, or another run is changed. Web and the Worker
+share the run's Azurite queue, and the Worker receives each timer schedule and
+offline mailbox setting it binds, with the values in
+`src/Pegasus.Worker/local.settings.example.json` and run-scoped paths.
 
 ### Status and smoke
 
@@ -287,8 +290,14 @@ action. Never manually repurpose these commands to remove another run,
 
 Start with `scripts/Invoke-Verification.ps1`. It selects the checks the change
 set needs and refuses the ones it does not, using the same classifier CI uses:
-prose runs the link check and no build, a commit that already has a green
-exact-head CI run reports that run instead of repeating it, and anything else
+prose runs the link check and no build; a commit whose exact-head CI run
+succeeded in every job the change set routes to (the unit and SQL lanes, and
+the `infrastructure` job when an infrastructure path changed) reports that run
+instead of repeating it; a run whose unit and SQL lanes are green but whose
+`infrastructure` job did not run (a stack's tip classifies only its own files)
+is reused for those lanes; a change set whose build lane is evidenced, or that
+routes only to the infrastructure lane, is pointed at the exact-head
+`infrastructure` job, which only CI runs; and anything else
 gets a focused run over the test classes the changed files own. `-WhatIf`
 prints the selection without running it, and `-Full` takes the whole-solution
 lane below while holding the host slot.
@@ -892,3 +901,50 @@ The allocated [OPS-09](capabilities.md) capability and its [product-quality obje
 Repeat the proof after material persistence or release changes where required. Recurring quarterly recovery is `Not planned`.
 
 A recovery, restore, failover, or retirement exercise requires exact target approval, fresh inventory, a recoverable target, retained source data, and a rollback path.
+
+## Glass's editor startup and recovery
+
+For the deterministic browser regression, run
+`node scripts/Test-GlassBrowser.mjs` with Chrome installed, or pass the absolute
+Chrome/Edge executable path as its first argument. It uses isolated browser
+profiles and local scripted responses, exercises the production workspace and
+handoff scripts, and records JSON under `artifacts/issue-861/browser/`. It makes
+no provider requests. This check covers browser behavior; the .NET suites run
+in CI and the live provider journey has its own acceptance below.
+
+Use the Case's Repair Spec Glass's controls. Launch/Resume saves pending Case
+edits first. An issued estimator URL is a transport milestone; it does not
+prove the provider editor loaded. Session/version identifies the attempt in
+structured logs; stages record elapsed milliseconds and safe outcome codes.
+Provider cookies, credentials and callback URLs are not diagnostic references.
+
+If the popup reports `dialog not found` or an undefined `openModelessDialog`,
+retain the session and collect provider startup evidence before closing it:
+
+1. Record Case reference, UTC time, browser/version, fresh launch versus Resume,
+   Pegasus session/version and deployed artifact SHA.
+2. In the popup's DevTools enable Preserve log and Pause on caught exceptions,
+   then capture a complete network HAR with response content and the console.
+   Capture the first exception and its frame, before acknowledging later alerts.
+3. In the provider sources set breakpoints at the parent `dialogClass`
+   construction and child `dialogClientClass._find`. Record navigation/frame
+   order, origin, whether the parent construction ran, and the parent's
+   `dialog` value at child lookup. Compare a successful portal launch and
+   Pegasus launch for the same vehicle/account under controlled browser state.
+4. The supplied September 2026 captures show the child searches synchronously
+   for `parent.dialog`, then `openModeless` dereferences the missing result.
+   They do not prove why the parent object was absent. Ask the supplier to
+   identify the first failed startup dependency and establish explicit readiness
+   before child dialog access. Do not patch provider JavaScript from Pegasus.
+5. Resume requires unchanged registration and mileage plus current Case edit
+   authority. Restore the original facts or close the external editor and use
+   Close with a reason. Unknown writes retain their hold; never clear credentials
+   or start another zero-ID calculation to get around it.
+6. A stale Close refreshes its controls. Review the new state and confirm
+   external closure again. A waiting import resumes after editing is regained;
+   retained sources are reused and Save & Exit is not relayed again.
+
+The [FRD-25 live acceptance matrix](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#acceptance-evidence)
+remains required after the supplier correction and authorized deployment.
+Issue #861 remains open until automatic launch, edit, Save & Exit and Draft
+import pass on the deployed bytes. Manual file import is not this proof.

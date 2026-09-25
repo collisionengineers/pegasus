@@ -53,10 +53,14 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             .ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Case '{request.CaseId}' was not found.");
 
+        // Only the current work's report is delivered: once an Audit exists the
+        // Inspection's report reads exactly as a superseded one (decision G).
+        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken)
+            .ConfigureAwait(false);
         CaseReportDeliveryPolicy.RequireDeliverable(
             generation.Id,
             Enum.Parse<CaseReportGenerationState>(generation.State),
-            generation.SupersededById is null,
+            generation.SupersededById is null && generation.WorkId == currentWorkId,
             generation.Version,
             request.ExpectedGenerationVersion);
         var artifacts = CaseReportDeliveryPolicy.Attachments(
@@ -108,7 +112,7 @@ public sealed class EfCaseReportDeliveryPreparationStore(
                 throw new CaseOperationConflictException(request.CaseId, operationKey);
             }
 
-            return Map(replay, workflow.Version, generation, artifacts);
+            return Map(replay, workflow.Version, generation, isCurrentWork: true, artifacts);
         }
 
         var now = timeProvider.GetUtcNow();
@@ -158,7 +162,7 @@ public sealed class EfCaseReportDeliveryPreparationStore(
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        return Map(entity, workflow.Version, generation, artifacts);
+        return Map(entity, workflow.Version, generation, isCurrentWork: true, artifacts);
     }
 
     public async Task<CaseReportDeliveryPreparationRecord?> GetAsync(
@@ -168,6 +172,7 @@ public sealed class EfCaseReportDeliveryPreparationStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // The caller's own predicate stays inside the translatable query —
         // composing it over the Row projection would force client evaluation.
+        var currentWorkIds = CaseWorkScope.CurrentWorkIds(context);
         var row = await (
                 from intent in context.Set<CaseReportDeliveryIntentEntity>().AsNoTracking()
                 join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
@@ -175,7 +180,7 @@ public sealed class EfCaseReportDeliveryPreparationStore(
                 join workflow in context.CaseWorkflows.AsNoTracking()
                     on generation.CaseId equals workflow.CaseId
                 where generation.CaseId == caseId && intent.Id == preparationId
-                select new Row(intent, generation, workflow.Version))
+                select new Row(intent, generation, workflow.Version, currentWorkIds.Contains(generation.WorkId)))
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         return row is null ? null : await MapAsync(context, row, cancellationToken).ConfigureAwait(false);
@@ -186,15 +191,17 @@ public sealed class EfCaseReportDeliveryPreparationStore(
     {
         CaseReportDeliveryPolicy.RequireStaff(actor);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var currentWorkId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken)
+            .ConfigureAwait(false);
         var row = await (
                 from intent in context.Set<CaseReportDeliveryIntentEntity>().AsNoTracking()
                 join generation in context.Set<CaseReportGenerationEntity>().AsNoTracking()
                     on intent.GenerationId equals generation.Id
                 join workflow in context.CaseWorkflows.AsNoTracking()
                     on generation.CaseId equals workflow.CaseId
-                where generation.CaseId == caseId && generation.SupersededById == null
+                where generation.WorkId == currentWorkId && generation.SupersededById == null
                 orderby intent.PreparedAtUtc descending
-                select new Row(intent, generation, workflow.Version))
+                select new Row(intent, generation, workflow.Version, true))
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         return row is null ? null : await MapAsync(context, row, cancellationToken).ConfigureAwait(false);
@@ -208,13 +215,14 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             .OrderBy(artifact => artifact.Kind)
             .Select(CaseReportDeliveryPolicy.AttachmentOf)
             .ToArray();
-        return Map(row.Intent, row.CaseVersion, row.Generation, confirmed);
+        return Map(row.Intent, row.CaseVersion, row.Generation, row.IsCurrentWork, confirmed);
     }
 
     private static CaseReportDeliveryPreparationRecord Map(
         CaseReportDeliveryIntentEntity entity,
         long caseVersion,
         CaseReportGenerationEntity generation,
+        bool isCurrentWork,
         IReadOnlyList<StaffMailAttachment> confirmedArtifacts)
     {
         var payload = JsonSerializer.Deserialize<Payload>(entity.PayloadJson, PayloadJsonOptions)
@@ -239,7 +247,7 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             payload.CaseVersion,
             caseVersion,
             Enum.Parse<CaseReportGenerationState>(generation.State),
-            generation.SupersededById is null,
+            generation.SupersededById is null && isCurrentWork,
             generation.Version,
             confirmedArtifacts);
     }
@@ -314,7 +322,10 @@ public sealed class EfCaseReportDeliveryPreparationStore(
     }
 
     private sealed record Row(
-        CaseReportDeliveryIntentEntity Intent, CaseReportGenerationEntity Generation, long CaseVersion);
+        CaseReportDeliveryIntentEntity Intent,
+        CaseReportGenerationEntity Generation,
+        long CaseVersion,
+        bool IsCurrentWork);
 
     /// <summary>
     /// The immutable delivery intent the row pins. Its hash is the replay

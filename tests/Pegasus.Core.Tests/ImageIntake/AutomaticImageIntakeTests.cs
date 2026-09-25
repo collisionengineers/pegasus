@@ -970,16 +970,6 @@ public sealed class AutomaticImageIntakeTests
             Guid intakeReceiptId,
             CancellationToken cancellationToken) => Task.FromResult(Existing);
 
-        public Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
-            Guid submissionGroupId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
-            IReadOnlyCollection<Guid> intakeReceiptIds,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
-
         public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
             Guid caseId,
             CancellationToken cancellationToken) =>
@@ -1100,13 +1090,6 @@ public sealed class AutomaticImageIntakeTests
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new IntakeQueueCounts(0));
 
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeListPage([], page, pageSize, 0));
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(
                 Receipts.FirstOrDefault(receipt => receipt.Id == id)
@@ -1118,12 +1101,6 @@ public sealed class AutomaticImageIntakeTests
             Task.FromResult(
                 Receipts.FirstOrDefault(receipt => receipt.SourceIdentity == sourceIdentity)
                     ?? (Receipt is not null && Receipt.SourceIdentity == sourceIdentity ? Receipt : null));
-
-        public Task<IntakeAssetRecord?> GetAssetAsync(
-            Guid receiptId,
-            Guid assetId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IntakeAssetRecord?>(null);
     }
 
     private sealed class FakeGroupStore : IIntakeSubmissionGroupStore

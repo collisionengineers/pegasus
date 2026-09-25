@@ -44,19 +44,19 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
                     on occurrence.VersionId equals version.Id
                 join caseEntity in context.Cases.AsNoTracking()
                     on occurrence.CaseId equals caseEntity.Id
+                join document in context.Set<CaseDocumentEntity>().AsNoTracking()
+                    on occurrence.DocumentId equals document.Id
                 where occurrence.CaseId == caseId
                       && version.DocumentId == occurrence.DocumentId
                 orderby occurrence.Ordinal
                 select new SelectedDocument(
                     occurrence.Id,
                     occurrence.Ordinal,
-                    occurrence.CaseId,
                     occurrence.DocumentId,
                     occurrence.Source,
                     occurrence.SourceOccurrenceIdentity,
                     occurrence.SemanticRole,
                     version.Id,
-                    version.DocumentId,
                     version.Version,
                     version.FileName,
                     version.MediaType,
@@ -65,7 +65,9 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
                     version.CustodyStatus,
                     version.IsCurrent,
                     version.IsLogicallyRemoved,
-                    caseEntity.CustodyRootRemoteId))
+                    document.CustodyFolder == CaseCustodyFolders.Audit
+                        ? caseEntity.AuditCustodyRemoteId
+                        : caseEntity.CustodyRootRemoteId))
             .ToArrayAsync(cancellationToken);
         var eligibleVersionIds = EvaHandoffPolicy.SelectEligibleImages(candidateRows.Select(
                 selected => new EvaHandoffImageCandidate(
@@ -92,14 +94,11 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
             selected => eligibleVersionIds.Contains(selected.VersionId)
                         && selected.ContentLength <= int.MaxValue)
             .ToArray();
-        var caseRootRemoteId = selectedImages.Length == 0
-            ? null
-            : selectedImages[0].CaseRootRemoteId;
         var reads = selectedImages.Select(selected => new ManagedDocumentContentRead(
                 new ManagedDocumentContentAddress(
                     caseId,
                     caseReference,
-                    caseRootRemoteId,
+                    selected.CaseRootRemoteId,
                     selected.OccurrenceId,
                     selected.Ordinal,
                     selected.DocumentId,
@@ -140,13 +139,11 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
     private sealed record SelectedDocument(
         Guid OccurrenceId,
         int Ordinal,
-        Guid CaseId,
         Guid DocumentId,
         DocumentSource Source,
         string SourceOccurrenceIdentity,
         DocumentSemanticRole SemanticRole,
         Guid VersionId,
-        Guid VersionDocumentId,
         int Version,
         string FileName,
         string MediaType,

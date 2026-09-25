@@ -148,13 +148,12 @@
                here: each has one visible control in its own section,
                associated with this form. *@
             <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
-                  asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save data-case-save-form>
+                  asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save>
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
-                <input type="hidden" name="instructionDate" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Instruction.InstructionDate)?.Value.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="inspectionDeadline" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="inspectionMode" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Inspection.Mode)?.Value)" />
             </form>
@@ -191,7 +190,7 @@
                             <div class="fv">@Model.SignOffEngineerDisplayName</div>
                         }
                     </div>
-                    @if (workflow.ReportSentEvidence is { } sentEvidence)
+                    @if (Model.ShownReportSentEvidence is { } sentEvidence)
                     {
                         @* Inherited scope: the mailbox address and the authoritative time, never the retained identifiers. *@
                         <div class="fc ro"><span class="lbl">@Frame.ReportSent</span><div class="fv">@sentEvidence.MailboxIdentity · @OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</div></div>

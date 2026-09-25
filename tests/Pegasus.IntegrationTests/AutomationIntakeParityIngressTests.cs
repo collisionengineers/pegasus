@@ -143,18 +143,18 @@ public sealed class AutomationIntakeParityIngressTests
             !list.TryGetProperty("nextCursor", out var nextCursor)
             || nextCursor.ValueKind == JsonValueKind.Null);
         var item = Assert.Single(list.GetProperty("items").EnumerateArray());
-        var triageId = item.GetProperty("id").GetGuid();
+        var triageId = item.GetProperty("caseId").GetGuid();
         var version = item.GetProperty("version").GetInt64();
 
         using var sourceResponse = await PostMcpAsync(client, token,
-            ToolCallPayload(11, "pegasus_triage_source_download", new { triageId }));
+            ToolCallPayload(11, "pegasus_triage_source_download", new { caseId = triageId }));
         var source = await ReadStructuredContentAsync(sourceResponse);
         Assert.True(source.GetProperty("contentIncluded").GetBoolean());
 
         using (var missingLeaseResponse = await PostMcpAsync(client, token,
             ToolCallPayload(12, "pegasus_triage_cancel", new
             {
-                triageId,
+                caseId = triageId,
                 expectedVersion = version,
                 editLeaseToken = "",
                 reason = "No longer requires Triage.",
@@ -169,18 +169,19 @@ public sealed class AutomationIntakeParityIngressTests
         using var beginResponse = await PostMcpAsync(client, token,
             ToolCallPayload(13, "pegasus_triage_edit_begin", new
             {
-                triageId,
+                caseId = triageId,
                 expectedVersion = version,
                 operationKey = "mcp:triage-edit-begin"
             }));
         var lease = await ReadStructuredContentAsync(beginResponse);
         var editLeaseToken = lease.GetProperty("editLeaseToken").GetString()!;
         Assert.Equal(version, lease.GetProperty("triageVersion").GetInt64());
+        Assert.StartsWith("t.", lease.GetProperty("reference").GetString(), StringComparison.Ordinal);
 
         using var renewResponse = await PostMcpAsync(client, token,
             ToolCallPayload(14, "pegasus_triage_edit_renew", new
             {
-                triageId,
+                caseId = triageId,
                 editLeaseToken,
                 operationKey = "mcp:triage-edit-renew"
             }));
@@ -193,7 +194,7 @@ public sealed class AutomationIntakeParityIngressTests
         using (var foreignLeaseResponse = await PostMcpAsync(client, token,
             ToolCallPayload(15, "pegasus_triage_cancel", new
             {
-                triageId,
+                caseId = triageId,
                 expectedVersion = version,
                 editLeaseToken = foreignToken,
                 reason = "No longer requires Triage.",
@@ -208,7 +209,7 @@ public sealed class AutomationIntakeParityIngressTests
         using var cancelResponse = await PostMcpAsync(client, token,
             ToolCallPayload(16, "pegasus_triage_cancel", new
             {
-                triageId,
+                caseId = triageId,
                 expectedVersion = version,
                 editLeaseToken,
                 reason = "No longer requires Triage.",
@@ -223,7 +224,7 @@ public sealed class AutomationIntakeParityIngressTests
         using var replacementBeginResponse = await PostMcpAsync(client, token,
             ToolCallPayload(17, "pegasus_triage_edit_begin", new
             {
-                triageId,
+                caseId = triageId,
                 expectedVersion = version + 1,
                 operationKey = "mcp:triage-edit-begin-after-cancel"
             }));
@@ -232,7 +233,7 @@ public sealed class AutomationIntakeParityIngressTests
         using var endResponse = await PostMcpAsync(client, token,
             ToolCallPayload(18, "pegasus_triage_edit_end", new
             {
-                triageId,
+                caseId = triageId,
                 editLeaseToken = replacementLease.GetProperty("editLeaseToken").GetString(),
                 operationKey = "mcp:triage-edit-end"
             }));

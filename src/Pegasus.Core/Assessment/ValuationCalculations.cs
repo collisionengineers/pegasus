@@ -1,4 +1,5 @@
 using System.Globalization;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -70,14 +71,10 @@ public enum ValuationPresetError
     Removed
 }
 
-public sealed class ValuationPresetException(
-    ValuationPresetError error,
-    long? currentVersion = null)
+public sealed class ValuationPresetException(ValuationPresetError error)
     : InvalidOperationException("The valuation preset request could not be completed.")
 {
     public ValuationPresetError Error { get; } = error;
-
-    public long? CurrentVersion { get; } = currentVersion;
 }
 
 public interface IValuationPresetStore
@@ -240,6 +237,7 @@ public interface IAppliedValuationStore
 
     Task<IReadOnlyList<AppliedValuation>> ListAppliedAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 
@@ -254,6 +252,7 @@ public interface IListAppliedValuations
 {
     Task<IReadOnlyList<AppliedValuation>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 
@@ -432,7 +431,7 @@ public static class ValuationCalculationPolicy
 
     /// <summary>
     /// The calculated proposal adopted as the professional finding.
-    /// It must be a value the confirmed field can hold, so a zero adoption is
+    /// It must be a value the field can hold, so a zero adoption is
     /// refused here rather than at the field write.
     /// </summary>
     public static decimal AcceptedValue(ValuationCalculation calculation)
@@ -446,6 +445,34 @@ public static class ValuationCalculationPolicy
         }
 
         return accepted;
+    }
+
+    /// <summary>
+    /// The report's Retail value and Trade value an adoption records beside the
+    /// Engineer's Value (operator, 24 September 2026): the basis retail the
+    /// calculation started from, and the basis card's trade as the Save leaves
+    /// it. A card without a positive trade records none (null clears the
+    /// field), so the report stays blocked on Trade value until trade is
+    /// entered on that card and the Case saved.
+    /// </summary>
+    public static IReadOnlyList<KeyValuePair<string, string?>> AdoptedBasisFields(
+        ValuationCalculation calculation,
+        decimal? basisTradeValue)
+    {
+        ArgumentNullException.ThrowIfNull(calculation);
+        // GuideRetailValue is always above zero, because Calculate refuses
+        // anything else.
+        return
+        [
+            new(AssessmentVocabulary.ValueRetail, AssessmentPolicy.NormalizeFieldValue(
+                AssessmentVocabulary.ValueRetail,
+                calculation.GuideRetailValue.ToString(CultureInfo.InvariantCulture))),
+            new(AssessmentVocabulary.ValueTrade, basisTradeValue is { } trade && trade > 0m
+                ? AssessmentPolicy.NormalizeFieldValue(
+                    AssessmentVocabulary.ValueTrade,
+                    trade.ToString(CultureInfo.InvariantCulture))
+                : null),
+        ];
     }
 
     private static ValuationAddition Resolve(
@@ -480,9 +507,7 @@ public static class ValuationCalculationPolicy
         }
         if (preset.Version != selection.PresetVersion)
         {
-            throw new ValuationPresetException(
-                ValuationPresetError.VersionConflict,
-                preset.Version);
+            throw new ValuationPresetException(ValuationPresetError.VersionConflict);
         }
 
         return new(
@@ -719,6 +744,7 @@ public sealed class ListAppliedValuations(IAppliedValuationStore store) : IListA
 {
     public Task<IReadOnlyList<AppliedValuation>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -726,6 +752,6 @@ public sealed class ListAppliedValuations(IAppliedValuationStore store) : IListA
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
 
-        return store.ListAppliedAsync(caseId, cancellationToken);
+        return store.ListAppliedAsync(caseId, work, cancellationToken);
     }
 }

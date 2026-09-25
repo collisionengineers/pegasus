@@ -18,7 +18,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// FRD-27 § AI Job List: the Assessment page's Send to Claude
+/// FRD-27 § AI Job List: the Repair Spec section's Send to AI
 /// queues an Estimate-kind AI job through <see cref="ICreateAiJob"/> (the
 /// pull-based ledger superseded the AI-09 push hand-off on this surface). The
 /// switch-off gate stays visible as the control's condition, and the
@@ -393,7 +393,7 @@ public sealed partial class SendToAiIntegrationTests
     }
 
     /// <summary>
-    /// Core owns the refusal (no confirmed Engineer's Value, wrong state,
+    /// Core owns the refusal (no Engineer's Value, wrong state,
     /// switch off); the page surfaces the sentence it is given rather than
     /// rewriting it.
     /// </summary>
@@ -403,7 +403,7 @@ public sealed partial class SendToAiIntegrationTests
         var caseId = Guid.NewGuid();
         using var factory = Compose(
             caseId,
-            refusal: "An estimate job needs a confirmed Engineer's Value on the case.");
+            refusal: "An estimate job needs an Engineer's Value on the case.");
         using var client = CreateClient(factory);
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
@@ -420,7 +420,7 @@ public sealed partial class SendToAiIntegrationTests
         // the claim is that Core's sentence reaches the operator unrewritten.
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.Contains(
-            "An estimate job needs a confirmed Engineer's Value on the case.",
+            "An estimate job needs an Engineer's Value on the case.",
             WebUtility.HtmlDecode(afterHtml),
             StringComparison.Ordinal);
     }
@@ -633,7 +633,7 @@ public sealed partial class SendToAiIntegrationTests
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
-                DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
                 summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [])
             {
@@ -716,12 +716,10 @@ public sealed partial class SendToAiIntegrationTests
                     "9000",
                     ActorKind.Staff,
                     "engineer-1",
-                    DateTimeOffset.UtcNow,
-                    "engineer-1",
                     DateTimeOffset.UtcNow)
             ],
             [],
-            new(null, null, null, null, null, null, "tbc", null, null, null, null));
+            new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 1), null, null, null, null, null));
 
         private CaseDataProjection CreateData() => AssessmentWorkspaceTestData.Create(CreateAssessment()).Data;
 

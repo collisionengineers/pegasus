@@ -139,44 +139,10 @@ public interface IRetainedInstructionAnalysisStore
     Task<RetainedInstructionAnalysis?> FindByOperationKeyAsync(
         string operationKey,
         CancellationToken cancellationToken = default);
-
-    /// <summary>The latest analysis of a receipt, with its candidates.</summary>
-    Task<RetainedInstructionAnalysis?> FindLatestForReceiptAsync(
-        Guid receiptId,
-        CancellationToken cancellationToken = default);
 }
 
 public sealed class RetainedInstructionAnalysisConflictException()
     : Exception("The analysis operation key was already used for a different request.");
-
-/// <summary>
-/// The small read model the Received page renders: the latest analysis of a
-/// receipt and the candidates it recorded. Staff-authorized in Core, like every
-/// other intake query.
-/// </summary>
-public sealed record LatestRetainedInstructionAnalysisQuery(Guid ReceiptId, ActionActor Actor);
-
-public interface IGetLatestRetainedInstructionAnalysis
-{
-    Task<RetainedInstructionAnalysis?> ExecuteAsync(
-        LatestRetainedInstructionAnalysisQuery query,
-        CancellationToken cancellationToken = default);
-}
-
-public sealed class GetLatestRetainedInstructionAnalysis(
-    IRetainedInstructionAnalysisStore store) : IGetLatestRetainedInstructionAnalysis
-{
-    public Task<RetainedInstructionAnalysis?> ExecuteAsync(
-        LatestRetainedInstructionAnalysisQuery query,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
-        return query.ReceiptId == Guid.Empty
-            ? Task.FromResult<RetainedInstructionAnalysis?>(null)
-            : store.FindLatestForReceiptAsync(query.ReceiptId, cancellationToken);
-    }
-}
 
 /// <summary>
 /// The analysis command as its callers need it. Automatic re-analysis after an
@@ -224,13 +190,6 @@ public sealed class AnalyzeRetainedInstruction(
     /// principal: which template a principal used is not who the principal is.
     /// </summary>
     public const string MatchedTemplateVariantField = "Matched template variant";
-
-    /// <summary>
-    /// The policy key recorded when no profile matched, or several did: the
-    /// analysis row still exists (so the receipt shows that the question was
-    /// asked and answered) but no policy owns it.
-    /// </summary>
-    public const string NoPolicyKey = "none";
 
     public async Task<AnalyzeRetainedInstructionResult> ExecuteAsync(
         AnalyzeRetainedInstructionRequest request,
@@ -525,7 +484,7 @@ public sealed class AnalyzeRetainedInstruction(
         var profile = (IInstructionDocumentProfile)policy;
         var extraction = policy.Extract(
             readResult,
-            new(completedAtUtc, receipt.ReceivedAtUtc),
+            new(receipt.ReceivedAtUtc),
             // The principal is recorded as PROPOSED BY THE DOCUMENT: the policy
             // key and version carried here are the selector's document-profile
             // identity, not a mail route's, so nothing downstream can mistake

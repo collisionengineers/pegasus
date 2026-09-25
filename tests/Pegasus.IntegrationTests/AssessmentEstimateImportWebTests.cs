@@ -102,7 +102,6 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={store.LastCreatedEstimateId:D}");
         Assert.Contains(CaseWorkspaceLabels.EstimateImport.Imported, afterHtml, StringComparison.Ordinal);
-        Assert.All(store.CurrentDraft!.Lines, line => Assert.Null(line.ConfirmedBy));
         Assert.NotNull(store.ActiveLease);
         Assert.Contains("value=\"lease-3\"", afterHtml, StringComparison.Ordinal);
         Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
@@ -1381,7 +1380,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 new(
                     Guid.NewGuid(), 1, "new_part", "283", "FRONT BUMPER", null, 620.20m, false,
                     "51 11 8 067", "0%", "confirmed", "official", null,
-                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc, null, null,
+                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc,
                     PaintWorkUnits: null,
                     Quantity: 1,
                     Materials: 12.50m,
@@ -1395,7 +1394,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 new(
                     Guid.NewGuid(), 2, "repair", null, "REPAIR NEARSIDE DOOR", 2.5m, null, false,
                     null, null, "confirmed", "judgement", null,
-                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc, null, null,
+                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc,
                     PaintWorkUnits: 1.5m,
                     Quantity: null,
                     Materials: null,
@@ -1438,7 +1437,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             new(
                 Guid.NewGuid(), 1, "new_part", "283", "FRONT BUMPER", null, 620.20m, false,
                 "51 11 8 067", "0%", "provisional", "case", null,
-                ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow),
+                ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow),
         ],
         null,
         "engineer-1",
@@ -1606,26 +1605,6 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// The element carrying a v26 hook, widened to its enclosing form when it
-    /// sits in one, so a test can read which handler a control posts to.
-    /// </summary>
-    private static string ControlFor(string html, string hook)
-    {
-        var at = html.IndexOf(hook, StringComparison.Ordinal);
-        Assert.True(at >= 0, $"The page must render [{hook}].");
-        var formStart = html.LastIndexOf("<form", at, StringComparison.Ordinal);
-        var formEnd = formStart >= 0 ? html.IndexOf("</form>", formStart, StringComparison.Ordinal) : -1;
-        if (formStart >= 0 && formEnd > at)
-        {
-            return html[formStart..(formEnd + "</form>".Length)];
-        }
-
-        var start = html.LastIndexOf('<', at);
-        var end = html.IndexOf('>', at);
-        return html[start..(end + 1)];
-    }
-
-    /// <summary>
     /// The estimate header's VAT policy and discounts as the browser posts
     /// them (B08): each category box carries the hidden false companion that
     /// makes an unchecked box submit, and a discount is a percentage.
@@ -1744,8 +1723,6 @@ public sealed partial class AssessmentEstimateImportWebTests
         public CaseFile? RetainedDocument { get; private set; }
         public int DocumentMetadataReads { get; private set; }
 
-        public List<AcceptRepairSpecificationRequest> Acceptances { get; } = [];
-
         public List<ClaimCaseEditLeaseRequest> LeaseClaims { get; } = [];
 
         public List<SaveEstimateRequest> SavedEstimates { get; } = [];
@@ -1781,7 +1758,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
-                DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
             var documents = RetainedDocuments
                 .GroupBy(file => file.Version.DocumentId)
                 .Select(group => new CaseDocument(
@@ -1873,8 +1850,6 @@ public sealed partial class AssessmentEstimateImportWebTests
                     value.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
                     "engineer-1",
-                    DateTimeOffset.UtcNow,
-                    "engineer-1",
                     DateTimeOffset.UtcNow));
             }
             if (ContractSum is { } sum)
@@ -1884,15 +1859,11 @@ public sealed partial class AssessmentEstimateImportWebTests
                     "contract_repair",
                     ActorKind.Staff,
                     "engineer-1",
-                    DateTimeOffset.UtcNow,
-                    "engineer-1",
                     DateTimeOffset.UtcNow));
                 fields.Add(new(
                     AssessmentVocabulary.SettlementContractSum,
                     sum.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
-                    "engineer-1",
-                    DateTimeOffset.UtcNow,
                     "engineer-1",
                     DateTimeOffset.UtcNow));
             }
@@ -1905,7 +1876,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 null,
                 fields,
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
         }
 
         private CaseDataProjection CreateData(long version) =>
@@ -1917,34 +1888,10 @@ public sealed partial class AssessmentEstimateImportWebTests
                 null,
                 [],
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null))).Data;
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null))).Data;
 
         private static CaseSectionFrame CreateFrame(CaseDetails details) =>
             new(details.Summary, details.Workflow, details.ActiveEditLease);
-
-        public Task<RepairSpecificationVersion> StartDraftAsync(
-            StartRepairSpecificationDraftRequest request, CancellationToken cancellationToken)
-        {
-            var started = DraftSpecification(request.CaseId) with { Source = request.Source };
-            CurrentDraft = started;
-            return Task.FromResult(started);
-        }
-
-        public Task<RepairSpecificationVersion> AcceptAsync(
-            AcceptRepairSpecificationRequest request, CancellationToken cancellationToken)
-        {
-            Acceptances.Add(request);
-            var accepted = CurrentDraft! with
-            {
-                State = RepairSpecificationState.Accepted,
-                CalculationBasis = request.CalculationBasis,
-                AcceptedBy = request.Actor.SubjectId,
-                AcceptedAtUtc = DateTimeOffset.UtcNow,
-            };
-            CurrentDraft = null;
-            CurrentAccepted = accepted;
-            return Task.FromResult(accepted);
-        }
 
         public Task<RepairSpecificationVersion?> GetVersionAsync(
             Guid ownerCaseId, Guid specificationId, CancellationToken cancellationToken) =>
@@ -2171,7 +2118,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
-            Guid ownerCaseId, CancellationToken cancellationToken) =>
+            Guid ownerCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
                 new[] { CurrentAccepted, CurrentDraft }.Where(item => item is not null).ToArray()!);
 
@@ -2180,8 +2127,8 @@ public sealed partial class AssessmentEstimateImportWebTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
-            Guid ownerCaseId, CancellationToken cancellationToken) =>
-            ListEstimatesAsync(ownerCaseId, cancellationToken);
+            Guid ownerCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            ListEstimatesAsync(ownerCaseId, work, cancellationToken);
 
         public Task<RepairSpecificationVersion> ExecuteAsync(
             SaveEstimateRequest request,
@@ -2243,8 +2190,6 @@ public sealed partial class AssessmentEstimateImportWebTests
                 ActorKind.Staff,
                 request.Actor.SubjectId,
                 DateTimeOffset.UtcNow,
-                null,
-                null,
                 line.PaintWorkUnits,
                 line.Quantity,
                 line.Materials,

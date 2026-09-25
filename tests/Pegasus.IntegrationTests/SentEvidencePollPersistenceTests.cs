@@ -228,9 +228,9 @@ public sealed class SentEvidencePollPersistenceTests
             var triageQueries = webScope.ServiceProvider.GetRequiredService<ITriageQueries>();
             var summary = Assert.Single(await triageQueries.ListAsync(null, default));
             var created = Assert.IsType<TriageDetail>(
-                await triageQueries.GetAsync(summary.Id, default));
-            Assert.Equal(receiptId, created.Record.Origin.ReceiptId);
-            triageId = summary.Id;
+                await triageQueries.GetAsync(summary.CaseId, default));
+            Assert.Equal(receiptId, created.Record.Origin!.ReceiptId);
+            triageId = summary.CaseId;
         }
 
         var services = new ServiceCollection();
@@ -338,11 +338,11 @@ public sealed class SentEvidencePollPersistenceTests
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageId = '{triageId:D}'"));
+                $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageCaseId = '{triageId:D}'"));
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM TriageHistory WHERE TriageId = '{triageId:D}' AND EventType = 'triage_response_linked'"));
+                $"SELECT COUNT(*) FROM TriageHistory WHERE TriageCaseId = '{triageId:D}' AND EventType = 'triage_response_linked'"));
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
@@ -405,7 +405,7 @@ public sealed class SentEvidencePollPersistenceTests
                 default));
         Assert.Equal(3, unlinkedDetail.Record.Version);
         Assert.Equal(detail.Record.State, unlinkedDetail.Record.State);
-        Assert.Equal(detail.Record.LinkedCaseId, unlinkedDetail.Record.LinkedCaseId);
+        Assert.Equal(detail.Record.LinkedInstructionCaseId, unlinkedDetail.Record.LinkedInstructionCaseId);
         Assert.Equal(detail.Findings, unlinkedDetail.Findings);
         Assert.Empty(unlinkedDetail.ResponseEvidence);
         Assert.Equal(
@@ -414,7 +414,7 @@ public sealed class SentEvidencePollPersistenceTests
         Assert.Equal(
             0,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageId = '{triageId:D}'"));
+                $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageCaseId = '{triageId:D}'"));
 
         var relinkLease = await scopedServices.GetRequiredService<IEditScopeLeases>().ClaimAsync(
             new(
@@ -445,14 +445,14 @@ public sealed class SentEvidencePollPersistenceTests
                 default));
         Assert.Equal(4, relinkedDetail.Record.Version);
         Assert.Equal(detail.Record.State, relinkedDetail.Record.State);
-        Assert.Equal(detail.Record.LinkedCaseId, relinkedDetail.Record.LinkedCaseId);
+        Assert.Equal(detail.Record.LinkedInstructionCaseId, relinkedDetail.Record.LinkedInstructionCaseId);
         Assert.Equal(detail.Findings, relinkedDetail.Findings);
         Assert.Equal(sentEvidence.Id, Assert.Single(relinkedDetail.ResponseEvidence).SentEvidenceId);
         Assert.Empty(relinkedDetail.ResponseEvidenceCandidates);
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageId = '{triageId:D}'"));
+                $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageCaseId = '{triageId:D}'"));
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
@@ -460,11 +460,11 @@ public sealed class SentEvidencePollPersistenceTests
         Assert.Equal(
             2,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM TriageHistory WHERE TriageId = '{triageId:D}' AND EventType = 'triage_response_linked'"));
+                $"SELECT COUNT(*) FROM TriageHistory WHERE TriageCaseId = '{triageId:D}' AND EventType = 'triage_response_linked'"));
         Assert.Equal(
             1,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM TriageHistory WHERE TriageId = '{triageId:D}' AND EventType = 'triage_response_unlinked'"));
+                $"SELECT COUNT(*) FROM TriageHistory WHERE TriageCaseId = '{triageId:D}' AND EventType = 'triage_response_unlinked'"));
 
         var completionLease = await scopedServices.GetRequiredService<IEditScopeLeases>().ClaimAsync(
             new(EditScopeKind.Triage, triageId, 4, staffActor, "sent-poll-completion-edit"),

@@ -190,14 +190,6 @@ public interface IIntakeWorkStore
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
 
-    /// <summary>
-    /// The work item for a staged receipt, whoever holds it. Read-only: this
-    /// asks whether the work is still in hand, it does not claim it.
-    /// </summary>
-    Task<IntakeWorkItem?> FindWorkItemAsync(
-        Guid stagedReceiptId,
-        CancellationToken cancellationToken);
-
     Task MarkDispatchedAsync(
         Guid workItemId,
         string leaseToken,
@@ -687,6 +679,7 @@ public sealed class ProcessQueuedIntake(
     ProcessIntake processIntake,
     IIntakeReceiptQueries receiptQueries,
     ICreateTriageFromIntake createTriage,
+    ITriagePrincipalGate triagePrincipalGate,
     IAutomaticCaseAssociationStore caseAssociationStore,
     IAllocateIntake allocateIntake,
     TimeProvider timeProvider,
@@ -1310,7 +1303,8 @@ public sealed class ProcessQueuedIntake(
 
     /// <summary>
     /// Opens qualifying Triage work under its evaluation identity. A missing
-    /// registration is Unidentified; a failed Triage write is a processing failure.
+    /// registration, or a receipt whose Principal is not established, is
+    /// Unidentified; a failed Triage write is a processing failure.
     /// </summary>
     private async Task<TriageCreationOutcome> CreateTriageIfQualifyingAsync(
         IntakeReceipt receipt,
@@ -1327,6 +1321,13 @@ public sealed class ProcessQueuedIntake(
             || acceptedMatches[0].Strength != IntakeEvidenceStrength.Strong
             || string.IsNullOrWhiteSpace(acceptedMatches[0].MatcherKey)
             || acceptedMatches[0].MatcherVersion is null or <= 0)
+        {
+            return TriageCreationOutcome.NotQualifying;
+        }
+
+        // Principal identification comes before classification: a request is
+        // opened as a Triage Case only once its Principal is established.
+        if (await triagePrincipalGate.GetEstablishedPrincipalIdAsync(receipt.Id, cancellationToken) is null)
         {
             return TriageCreationOutcome.NotQualifying;
         }

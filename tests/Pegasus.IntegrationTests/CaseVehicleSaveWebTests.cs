@@ -73,7 +73,7 @@ public sealed class CaseVehicleSaveWebTests
         Assert.Equal("AB12CDE", InputValue(editing, "vehicleRegistration"));
         Assert.Equal(string.Empty, InputValue(editing, "vehicleMake"));
         var before = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(before);
         Assert.Equal("Jane Example", before!.Claimant.Name.Fact?.Value);
         Assert.Equal("QDOS-123", before.Claim.Number.Fact?.Value);
@@ -132,7 +132,7 @@ public sealed class CaseVehicleSaveWebTests
         Assert.Contains(caseId.ToString("D"), search, StringComparison.Ordinal);
 
         var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         var evidence = await scope.ServiceProvider.GetRequiredService<IVehicleEvidenceQueries>()
             .GetAsync(caseId, CancellationToken.None);
         Assert.NotNull(data);
@@ -170,7 +170,7 @@ public sealed class CaseVehicleSaveWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(data);
         Assert.Equal(51234L, data!.Vehicle.Mileage.Confirmed?.Value);
         Assert.Equal("miles", data.Vehicle.MileageUnit.Confirmed?.Value);
@@ -198,7 +198,7 @@ public sealed class CaseVehicleSaveWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(data);
         Assert.Equal(42000L, data!.Vehicle.Mileage.Confirmed?.Value);
         Assert.Equal("kilometres", data.Vehicle.MileageUnit.Confirmed?.Value);
@@ -225,7 +225,7 @@ public sealed class CaseVehicleSaveWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(data);
         Assert.Null(data!.Vehicle.Mileage.Confirmed);
         Assert.Null(data.Vehicle.Mileage.Fact);
@@ -363,7 +363,7 @@ public sealed class CaseVehicleSaveWebTests
         }
 
         var beforeFirstSave = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(beforeFirstSave);
         Assert.Null(beforeFirstSave!.Vehicle.Make.Confirmed);
 
@@ -380,7 +380,7 @@ public sealed class CaseVehicleSaveWebTests
         }
 
         var saved = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.NotNull(saved);
         Assert.Equal("Ford", saved!.Vehicle.Make.Confirmed?.Value);
         Assert.Equal("AB12CDE", saved.Vehicle.Registration.Fact?.Value);
@@ -401,7 +401,6 @@ public sealed class CaseVehicleSaveWebTests
             Field("Vehicle mileage unit", "miles"),
             Field("Accident circumstances", "Rear-end impact at a roundabout."),
             Field("Incident date", "2031-04-01"),
-            Field("Instruction date", "2031-04-02"),
             Field("Inspection date", "2031-05-20"),
             Field("Inspection address", "1 Test Street, London"),
             Field("Claimant contact number", "07700 900123"),
@@ -428,7 +427,6 @@ public sealed class CaseVehicleSaveWebTests
         draft.VehicleMileageUnit = withMileage ? "miles" : null;
         draft.AccidentCircumstances = "Rear-end impact at a roundabout.";
         draft.DateOfIncident = new DateOnly(2031, 4, 1);
-        draft.InstructionDate = new DateOnly(2031, 4, 2);
         draft.InspectionDate = new DateOnly(2031, 5, 20);
         draft.InspectionAddress = "1 Test Street, London";
         draft.ClaimantContactNumber = "07700 900123";
@@ -480,7 +478,6 @@ public sealed class CaseVehicleSaveWebTests
         ("contactName", InputValue(html, "contactName")),
         ("contactEmailAddress", InputValue(html, "contactEmailAddress")),
         ("contactPhoneNumber", InputValue(html, "contactPhoneNumber")),
-        ("instructionDate", InputValue(html, "instructionDate")),
         ("vatStatus", InputValue(html, "vatStatus")),
         ("inspectionDate", InputValue(html, "inspectionDate")),
         ("inspectionDeadline", InputValue(html, "inspectionDeadline")),

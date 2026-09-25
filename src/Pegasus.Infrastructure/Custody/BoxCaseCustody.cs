@@ -286,16 +286,6 @@ internal sealed class BoxContentClient(
 
     public string RootFolderId => options.RootFolderId;
 
-    public async Task<BoxItem> GetOrCreateFolderAsync(
-        string parentId,
-        string name,
-        CancellationToken cancellationToken)
-    {
-        await EnsureDescendantAsync(parentId, cancellationToken);
-        return await FindChildAsync(parentId, name, "folder", cancellationToken)
-            ?? await CreateFolderAsync(parentId, name, cancellationToken);
-    }
-
     public Task<IReadOnlyList<BoxItem>> ListChildrenAsync(
         string parentId,
         CancellationToken cancellationToken) =>
@@ -723,44 +713,6 @@ internal sealed class BoxContentClient(
         }
     }
 
-    /// <summary>
-    /// Downloads a file whose descent from the approved root is already proved:
-    /// <paramref name="listedChild"/> was returned by listing
-    /// <paramref name="fencedParentId"/>, and that folder's own descent was
-    /// proved when it was listed.
-    ///
-    /// <see cref="EnsureDescendantAsync"/> re-walks the same ancestry
-    /// on every call, one GET per level, and it dominated the case export —
-    /// roughly twenty of its forty-five Box round trips proved, over and over,
-    /// what the listing had just established. The fence is re-checked here
-    /// rather than assumed: the caller must hand back the parent it listed
-    /// under, and the child must still claim it. Nothing is remembered between
-    /// calls, so a Box-side move cannot be read through a stale identity —
-    /// the next operation resolves the folder again and fails loudly.
-    ///
-    /// The listing is the proof, not the parent Box restates on each entry: a
-    /// stated parent that disagrees is refused, but a parent Box declines to
-    /// send cannot refuse a child that was returned by listing the fenced
-    /// folder itself. That sentence exists because a field Box
-    /// silently omitted made every managed read fail in production, and no
-    /// check here may be made to depend on Box volunteering one.
-    ///
-    /// Callers holding only an identifier must use <see cref="DownloadAsync"/>.
-    /// </summary>
-    public async Task<byte[]> DownloadFencedAsync(
-        BoxItem listedChild,
-        string fencedParentId,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(listedChild);
-        if (listedChild.ParentId is { Length: > 0 } parentId
-            && !string.Equals(parentId, fencedParentId, StringComparison.Ordinal))
-        {
-            throw new UnauthorizedAccessException("The Box object is outside the approved custody root.");
-        }
-        return await DownloadContentAsync(listedChild.Id, cancellationToken);
-    }
-
     private async Task<byte[]> DownloadContentAsync(string fileId, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(
@@ -1095,50 +1047,13 @@ internal sealed class BoxCaseCustody(
         return new(caseId, folder.Id, caseReference);
     }
 
-    public async Task<CaseCustodyRoot> CreateLinkedAuditCaseRootAsync(
-        Guid auditCaseId,
-        string auditReference,
-        Guid originalCaseId,
-        string originalReference,
-        string creationOwnerToken,
-        string operationKey,
-        CustodyEffectLeaseGuard? leaseGuard,
-        CancellationToken cancellationToken)
-    {
-        ValidateCase(auditCaseId, auditReference);
-        ValidateOperation(operationKey);
-        // The original's folder is resolved the way every case root is; the Audit
-        // Case's folder is its a. child, owned by this creation like any root.
-        var original = await GetExistingCaseRootAsync(originalCaseId, originalReference, cancellationToken);
-        var folder = await GetOrCreateOwnedFolderAsync(
-            original.RemoteId,
-            CaseFolderName(auditReference),
-            creationOwnerToken,
-            leaseGuard,
-            cancellationToken);
-        return new(auditCaseId, folder.Id, auditReference, originalCaseId, originalReference);
-    }
-
     public async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
         Guid caseId,
         string caseReference,
-        CancellationToken cancellationToken,
-        Guid? parentCaseId = null,
-        string? parentCaseReference = null)
+        CancellationToken cancellationToken)
     {
         ValidateCase(caseId, caseReference);
-        if (parentCaseId is null && parentCaseReference is not null
-            || parentCaseId is not null && string.IsNullOrWhiteSpace(parentCaseReference))
-        {
-            throw new ArgumentException("A linked Audit Case root requires its complete original Case identity.");
-        }
         var parentId = client.RootFolderId;
-        if (parentCaseId is { } originalCaseId)
-        {
-            var original = await GetExistingCaseRootAsync(
-                originalCaseId, parentCaseReference!, cancellationToken);
-            parentId = original.RemoteId;
-        }
         var folder = await client.FindChildAsync(
             parentId,
             CaseFolderName(caseReference),
@@ -1146,7 +1061,7 @@ internal sealed class BoxCaseCustody(
             cancellationToken)
             ?? throw new InvalidOperationException("The case custody root has not been created.");
         await VerifyFolderIdentityAsync(folder, parentId, folder.Name, cancellationToken);
-        return new(caseId, folder.Id, caseReference, parentCaseId, parentCaseReference);
+        return new(caseId, folder.Id, caseReference);
     }
 
     public async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
@@ -1430,9 +1345,7 @@ internal sealed class BoxCaseCustody(
         var expected = await GetExistingCaseRootAsync(
             root.CaseId,
             root.Reference,
-            cancellationToken,
-            root.ParentCaseId,
-            root.ParentReference);
+            cancellationToken);
         if (!expected.RemoteId.Equals(root.RemoteId, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
@@ -1529,21 +1442,6 @@ internal sealed class BoxCaseCustody(
             throw new InvalidDataException("Box changed the custody folder identity during promotion.");
         }
         return promoted;
-    }
-
-    private async Task<BoxContentClient.BoxItem> GetOrCreateFolderAsync(
-        string parentId,
-        string name,
-        CustodyEffectLeaseGuard? leaseGuard,
-        CancellationToken cancellationToken)
-    {
-        var existing = await client.FindChildAsync(parentId, name, "folder", cancellationToken);
-        if (existing is not null)
-        {
-            return existing;
-        }
-        await RequireLeaseAsync(leaseGuard, cancellationToken);
-        return await client.CreateFolderAsync(parentId, name, cancellationToken);
     }
 
     private static Task RequireLeaseAsync(

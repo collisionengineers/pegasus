@@ -898,11 +898,6 @@ public sealed class PollApprovedInboxTests
                     ? receipt
                     : null);
 
-        public Task<IntakeWorkItem?> FindWorkItemAsync(
-            Guid stagedReceiptId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException("The mailbox poll does not read work items.");
-
         public Task<ReceivedIntake> ReceiveAsync(
             IntakeStagedReceipt receipt,
             string operationKey,

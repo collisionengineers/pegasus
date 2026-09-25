@@ -29,7 +29,13 @@ for browsing mail live in [FRD-20](frd-20-mailbox-workspace.md).
 ### Outbound correspondence evidence
 
 Report-sent evidence links one exact, immutable Outlook Sent item to exactly
-one Case. The mailbox must be on the Administrator's allowlist.
+one Case. The mailbox must be on the Administrator's allowlist. On an
+Inspection + Audit Case the evidence belongs to one report: the Inspection's
+stays with the Inspection when Create audit runs, and the Audit report's
+must be of that report and sent after the Audit was created. Automatic
+matching links only a Sent item of the report the Case is currently
+preparing
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)).
 
 The record keeps:
 
@@ -60,8 +66,10 @@ the exact external evidence is retained.
 
 Triage completion is based on the recorded outcome, under
 [FRD-03](frd-03-triage.md). Its optional Reply with outcome opens a preset
-email; a retained sent reply links to the Triage record without becoming a
-completion requirement.
+email; a retained sent reply links to the Triage Case without becoming a
+completion requirement. A manual Triage chaser is a staff send like any
+other, and its exact Sent evidence is recorded the same way; it is never a
+completion requirement either.
 
 Local development must never change a mailbox. A Worker project, queue
 registration or timer setting does not prove that a real caller ran.
@@ -110,8 +118,9 @@ and cannot send. It never silently picks the first mailbox.
 
 **What the composer carries.** To, Subject, Message, Case and From
 (read-only). Reply and Forward keep the retained message's reply chain and
-conversation identity. Case defaults to the message's current association
-and may be changed before sending.
+conversation identity. Case defaults to the Case whose correspondence the
+Reply or Forward started from, otherwise to the message's current
+association, and may be changed before sending.
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is

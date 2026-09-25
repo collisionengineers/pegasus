@@ -10,8 +10,10 @@
 - A number plate read from a photo is a suggestion until staff confirm it,
   except that a confident read at the 0.80 bar may register a Vehicle images
   record and pair it with one matching Case automatically.
-- DVLA and DVSA lookups fill only empty vehicle fields. They never overwrite
-  what the instruction or a staff member entered.
+- DVLA and DVSA lookups fill only empty vehicle fields and never overwrite
+  what the instruction or a staff member entered. The engine, fuel, colour,
+  tax expiry and MOT expiry they alone record follow each answer, read-only
+  on the Case.
 - When DVSA history must estimate a mileage, Pegasus prefers an abstention or
   a qualified range over an unsupported number.
 
@@ -205,10 +207,10 @@ specifications stay separate capabilities.
 **What is looked up.** Vehicle identity and specification are required on
 every Case. Where the instruction omits vehicle facts, an accepted DVLA/DVSA
 caller supplies make, model, manufacture year, engine capacity, fuel type,
-available MOT history and mileage observations for the registration. Once
-active, DVSA runs for every Case. Until then, approved local replay returns
-its preserved result, and with no replay evidence the value is
-source-labelled `Unavailable`.
+colour, tax due date, available MOT history and mileage observations for the
+registration. Once active, DVSA runs for every Case. Until then, approved
+local replay returns its preserved result, and with no replay evidence the
+value is source-labelled `Unavailable`.
 
 The mileage tiers and discrepancy rule are in
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#global-vehicle-and-value-checks).
@@ -217,24 +219,45 @@ The mileage tiers and discrepancy rule are in
 or source, retrieval time, effective date, source age, response or version
 identity, and a typed outcome: current, stale, unavailable, partial or
 failed. A refresh creates a new observation. It never silently overwrites a
-last-good observation, a confirmed value or a higher-tier mileage. Accepting,
-rejecting or linking an external fact goes into permanent history. Routine
-calls, retries and polling are content-safe telemetry.
+last-good observation, a staff-recorded value or a higher-tier mileage.
+Accepting, rejecting or linking an external fact goes into permanent history.
+Routine calls, retries and polling are content-safe telemetry.
 
 **Look up DVLA & MOT.** The Case record offers one action with that name. A
 looked-up value fills Make, Model, Year, Mileage or the derived Vehicle type
-directly, as a working value with Lookup provenance.
+directly, as a working value with Lookup provenance, and the action records
+the facts only the lookup holds.
 
 - Make, Model, Year and Mileage fill only where the field is empty. They
   never overwrite an extracted instruction value or a staff-entered value.
 - Vehicle type follows one rule: type approval, then wheelplan, then
   rigid-body revenue weight. L1 and L2 mopeds are `scooter`, other L-class
   vehicles are `motorcycle`, and heavy, PSV or tractor classifications are
-  `other`. It fills only where staff have not confirmed a type. A changed
-  lookup classification may replace an earlier unconfirmed lookup value; an
-  unchanged value is not re-stamped.
-- The Lookup value stays unconfirmed until staff Save, which re-stamps it as
-  staff-confirmed.
+  `other`. It fills only where staff have not recorded a type. A changed
+  lookup classification may replace an earlier lookup value; an unchanged
+  value is not re-stamped.
+- A Lookup Vehicle type keeps its Lookup tag until staff change it; a Save
+  that leaves it untouched leaves its provenance alone (operator, 25
+  September 2026).
+- Engine, Fuel, Colour, Tax expiry and MOT expiry are the lookup's alone
+  (operator, 24 September 2026). Engine and fuel are DVLA's, else DVSA's;
+  colour is DVLA's, else DVSA's primary colour; tax expiry is DVLA's tax due
+  date; MOT expiry is the latest expiry date in the DVSA MOT history. Each is
+  recorded with Lookup provenance and the Case shows it read-only; no staff
+  or automation save writes it. Each answer
+  replaces a changed value, leaves an unchanged one as it stands and stales a
+  generated report when one changes. An answer where each provider either
+  described the vehicle or said it holds no such vehicle also clears a fact
+  it no longer carries, so a DVSA not-found clears MOT expiry and a DVLA
+  not-found clears tax expiry. An answer with a failed provider leaves what
+  it did not carry.
+- An answer changes the Case only when it is for the registration the Case's
+  current work names. An answer for a registration staff have since changed
+  is kept as an observation and fills nothing. A save that changes the
+  registration removes Engine, Fuel, Colour, Tax expiry and MOT expiry in the
+  same transaction and stales a generated report. They come back from the
+  automatic lookup of a registration the Case has not looked up before, or
+  from Look up DVLA & MOT.
 - There are no per-field suggestion chips and no suggestion table.
 - The Model comes from the DVSA MOT history vehicle record. DVLA supplies no
   model. Experian stays a disabled seam.
@@ -248,8 +271,9 @@ sweep, which remains the recovery path if the creation-time attempt fails or
 is unavailable. The outcome shows on the Case whichever trigger produced it:
 looked up and current, or a stated failure reason, separately from whether
 any field was filled. The automatic trigger fills only an empty Make, Model,
-Year or Mileage, and an unconfirmed Vehicle type, under the fill rule above.
-It never overwrites and never confirms a field.
+Year or Mileage and a Vehicle type staff have not recorded, and records the
+lookup's own facts, under the rules above. It never overwrites a value staff
+recorded.
 
 **A 404 is classified first.** Only a 404 whose body is that provider's own
 vehicle-not-found error counts as `NotFound`. Any other 404 (a gateway, route
@@ -322,7 +346,7 @@ neither picks a provider nor authorises an external call.
 | Thing | States |
 | --- | --- |
 | VRM read | suggestion, `NoReadableResult`, unknown, dependency unavailable, technical failure; confirmed by staff or registered automatically at the bar |
-| Vehicle lookup | current, stale, unavailable, partial, failed; a field value is Lookup then staff-confirmed on Save |
+| Vehicle lookup | current, stale, unavailable, partial, failed; a filled field keeps Lookup provenance until staff change it, and the lookup's own facts are recorded with Lookup provenance |
 
 ## Edge cases and fail-closed behaviour
 
@@ -339,8 +363,10 @@ neither picks a provider nor authorises an external call.
 
 Core tests cover the near-miss and reverse-pairing rules, the vehicle-type
 rule, the 404 classification, the fill rule, and the conservative estimation
-algorithm. Integration tests cover Look up DVLA & MOT. Live DVLA/DVSA and
-recognition evidence are separate tiers
+algorithm. Core tests also cover the lookup's own facts and the MOT expiry
+rule. Integration tests cover Look up DVLA & MOT. Integration tests also
+cover the Worker role recording and clearing the lookup's own facts. Live
+DVLA/DVSA and recognition evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

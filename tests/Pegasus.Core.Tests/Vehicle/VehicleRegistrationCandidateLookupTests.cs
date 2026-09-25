@@ -94,7 +94,7 @@ public sealed class VehicleRegistrationCandidateLookupTests
             order == 0 ? VehicleLookupOutcome.Partial : unresolved));
         var result = await new VehicleRegistrationCandidateLookup(adapter).LookupAsync(
             new("O100IOO", MachineReadRegistrationSource.VehicleRecognition, "image-4"));
-        Assert.True(result.IsAmbiguous);
+        Assert.Null(result.AcceptedResult);
         Assert.Null(result.AcceptedRegistration);
         Assert.Contains(result.Attempts, attempt => attempt.Result.Outcome == unresolved);
     }
@@ -108,7 +108,6 @@ public sealed class VehicleRegistrationCandidateLookupTests
             rendezvousCount: 5);
         var result = await new VehicleRegistrationCandidateLookup(adapter).LookupAsync(
             new("O100IOO", MachineReadRegistrationSource.DocumentOcr, "ocr-operation-9"));
-        Assert.True(result.IsAmbiguous);
         Assert.Null(result.AcceptedResult);
         Assert.Equal(5, result.Attempts.Count);
         Assert.Equal(5, adapter.MaximumConcurrency);
@@ -120,7 +119,6 @@ public sealed class VehicleRegistrationCandidateLookupTests
         var adapter = new RecordingAdapter((registration, _) => Valid(registration, VehicleLookupOutcome.NotFound));
         var result = await new VehicleRegistrationCandidateLookup(adapter).LookupAsync(
             new("O100IOO", MachineReadRegistrationSource.DocumentOcr, "ocr-operation-11"));
-        Assert.True(result.IsAmbiguous);
         Assert.Null(result.AcceptedResult);
         Assert.Equal(result.Candidates.Count, result.Attempts.Count);
     }

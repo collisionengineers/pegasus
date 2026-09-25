@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Globalization;
 using System.Security.Cryptography;
 using Pegasus.Core.Documents;
@@ -149,7 +150,7 @@ public sealed class ImportRawEstimate(
         {
             throw new EstimateParseRejectedException("The Case does not hold the exact source the import names.");
         }
-        var existing = await estimates.ExecuteAsync(request.CaseId, cancellationToken);
+        var existing = await estimates.ExecuteAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken);
         if (existing.FirstOrDefault(estimate =>
                 string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal)) is { } replayed)
         {

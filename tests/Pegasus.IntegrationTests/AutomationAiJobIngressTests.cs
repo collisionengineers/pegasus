@@ -639,7 +639,7 @@ public sealed class AutomationAiJobIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseValuations WHERE CaseId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = N'ai_job' AND AggregateId = N'{taken.JobId:D}' AND EventKind = N'ai_job_draft_ready' AND ActorKind = N'Automation' AND ActorSubjectId = N'{ClientId}'"));
     }
@@ -711,7 +711,7 @@ public sealed class AutomationAiJobIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseValuations WHERE CaseId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
     }
 
     [Fact]
@@ -803,7 +803,7 @@ public sealed class AutomationAiJobIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseValuations WHERE CaseId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
     }
 
     [Fact]
@@ -860,7 +860,7 @@ public sealed class AutomationAiJobIngressTests
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseValuations WHERE CaseId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+            $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
     }
 
     private static string MarketResearchCompletionPayload(

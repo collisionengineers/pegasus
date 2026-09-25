@@ -386,7 +386,7 @@ public sealed class TriageQueuesWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         // The provider's claim number, which used to be what the row called
-        // the reference. The row's reference is now the Triage's own.
+        // the reference. The row's reference is now the Triage Case's Case/PO.
         const string claimNumber = "TRIAGE-032";
         const string registration = "TR32AGE";
         const string provider = "QDOS";
@@ -415,7 +415,6 @@ public sealed class TriageQueuesWebTests
                 VehicleMileage: null,
                 AccidentCircumstances: null,
                 DateOfIncident: null,
-                InstructionDate: null,
                 InspectionAddress: null),
             [acceptedMatch],
             sourceIdentity,
@@ -431,11 +430,11 @@ public sealed class TriageQueuesWebTests
             CancellationToken.None);
         var actor = StaffActor();
         var triageEditLeaseToken = (await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.Triage, triage.Id, triage.Version, actor,
+            new(EditScopeKind.Triage, triage.CaseId, triage.Version, actor,
                 $"triage-assign-edit:{Guid.NewGuid():N}"), CancellationToken.None)).Token;
         await services.GetRequiredService<IAssignTriage>().ExecuteAsync(
             new(
-                triage.Id,
+                triage.CaseId,
                 triage.Version,
                 DevelopmentOfflineIdentity.AdministratorId,
                 actor,
@@ -450,9 +449,11 @@ public sealed class TriageQueuesWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        const string triageReference = "T-00001";
+        // The factory clock is in 2031: the first QDOS Case/PO of the year.
+        const string triageReference = "t.QDOS31001";
         Assert.Equal(triageReference, triage.Reference);
         Assert.Contains(triageReference, html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{triage.CaseId:D}", html, StringComparison.Ordinal);
         Assert.Contains(registration, html, StringComparison.Ordinal);
         Assert.Contains(provider, html, StringComparison.Ordinal);
         // The table gives Provider and Assignee their own cells.
@@ -1060,9 +1061,9 @@ public sealed class TriageQueuesWebTests
         var expected = await queries.ListAsync(null, CancellationToken.None);
         Assert.Equal(total, seen.Count);
         Assert.Equal(
-            expected.Select(item => item.Id).ToArray(),
-            seen.Select(item => item.Id).ToArray());
-        Assert.Equal(total, seen.Select(item => item.Id).Distinct().Count());
+            expected.Select(item => item.CaseId).ToArray(),
+            seen.Select(item => item.CaseId).ToArray());
+        Assert.Equal(total, seen.Select(item => item.CaseId).Distinct().Count());
 
         // A cursor is bound to its query: the same page under a state filter
         // is a different scope and is refused rather than answered.
@@ -1104,7 +1105,6 @@ public sealed class TriageQueuesWebTests
                 VehicleMileage: null,
                 AccidentCircumstances: null,
                 DateOfIncident: null,
-                InstructionDate: null,
                 InspectionAddress: null),
             [acceptedMatch],
             sourceIdentity,
@@ -1297,10 +1297,11 @@ public sealed class TriageQueuesWebTests
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {nameof(CaseLifecycleState.NotReady)}, {"pending"}, {originReceiptId}, {instructionComplete}, {imagesComplete}, {now}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"not-ready-fixture-reader"}, {"1"}, {"not-ready-fixture"}, {1}, {reference}, {1}, {true}, {now})");
+            $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"not-ready-fixture-reader"}, {"1"}, {"not-ready-fixture"}, {1}, {reference}, {1}, {true}, {now})");
         return caseId;
     }
 }

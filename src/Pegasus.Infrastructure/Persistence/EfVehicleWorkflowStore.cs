@@ -98,7 +98,7 @@ internal sealed class EfVehicleWorkflowStore(
 
         var confirmedRegistrations = await context.CaseDataFields
             .AsNoTracking()
-            .Where(item => item.CaseId == command.CaseId
+            .Where(item => item.WorkId == command.CaseId
                 && item.FieldName == CaseDataFieldNames.VehicleRegistration
                 && item.ValueKind == CaseDataCodes.Confirmed)
             .OrderBy(item => item.SourceIdentity)
@@ -107,16 +107,14 @@ internal sealed class EfVehicleWorkflowStore(
             .ToArrayAsync(cancellationToken);
         if (confirmedRegistrations.Length > 1)
         {
-            throw new AcceptedVehicleRegistrationRequiredException(
-                command.CaseId,
-                confirmedRegistrations.Length);
+            throw new AcceptedVehicleRegistrationRequiredException(command.CaseId);
         }
 
         var acceptedRegistrations = confirmedRegistrations.Length == 1
             ? confirmedRegistrations
             : await context.CaseDataFields
                 .AsNoTracking()
-                .Where(item => item.CaseId == command.CaseId
+                .Where(item => item.WorkId == command.CaseId
                     && item.FieldName == CaseDataFieldNames.VehicleRegistration
                     && item.ValueKind == CaseDataCodes.Fact)
                 .OrderBy(item => item.SourceIdentity)
@@ -125,18 +123,13 @@ internal sealed class EfVehicleWorkflowStore(
                 .ToArrayAsync(cancellationToken);
         if (acceptedRegistrations.Length != 1)
         {
-            throw new AcceptedVehicleRegistrationRequiredException(
-                command.CaseId,
-                acceptedRegistrations.Length);
+            throw new AcceptedVehicleRegistrationRequiredException(command.CaseId);
         }
 
         var acceptedRegistration = acceptedRegistrations[0];
         if (!string.Equals(acceptedRegistration, command.Registration, StringComparison.Ordinal))
         {
-            throw new AcceptedVehicleRegistrationConflictException(
-                command.CaseId,
-                acceptedRegistration,
-                command.Registration);
+            throw new AcceptedVehicleRegistrationConflictException(command.CaseId);
         }
 
         var nowUtc = UtcNow();
@@ -228,19 +221,12 @@ internal sealed class EfVehicleWorkflowStore(
             .ToArray();
         var observationsById = observations.ToDictionary(item => item.Id);
 
-        var confirmationEntities = await context.Set<VehicleConfirmationEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .OrderBy(item => item.AfterCaseVersion)
-            .ThenBy(item => item.Id)
-            .ToArrayAsync(cancellationToken);
-        var confirmationHistory = confirmationEntities
-            .Select(MapHistory)
-            .ToArray();
-
+        // Confirmed vehicle facts are the current work's, as the Case data
+        // they are read beside is.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
         var confirmedFields = await context.CaseDataFields
             .AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == workId
                 && item.ValueKind == CaseDataCodes.Confirmed
                 && VehicleFieldNames.Contains(item.FieldName))
             .ToDictionaryAsync(item => item.FieldName, StringComparer.Ordinal, cancellationToken);
@@ -249,8 +235,7 @@ internal sealed class EfVehicleWorkflowStore(
             caseId,
             confirmed,
             observations.LastOrDefault(),
-            observations,
-            confirmationHistory);
+            observations);
     }
 
     private DateTimeOffset UtcNow()
@@ -369,37 +354,6 @@ internal sealed class EfVehicleWorkflowStore(
             ? observation.Provenance
             : null;
 
-    private static VehicleConfirmationHistory MapHistory(VehicleConfirmationEntity entity)
-    {
-        var roleNames = JsonSerializer.Deserialize<string[]>(entity.ActorRolesJson, JsonOptions)
-            ?? throw new InvalidDataException("Persisted vehicle confirmation roles are missing.");
-        var roles = roleNames
-            .Select(name => Enum.Parse<StaffRole>(name, ignoreCase: false))
-            .ToArray();
-        if (!string.Equals(entity.ActorKind, ActorKind.Staff.ToString(), StringComparison.Ordinal)
-            || !Guid.TryParse(entity.ActorSubjectId, out var actorId))
-        {
-            throw new InvalidDataException("Persisted vehicle confirmation actor is invalid.");
-        }
-        VehicleMileageUnit? unit = entity.MileageUnit is null
-            ? null
-            : Enum.Parse<VehicleMileageUnit>(entity.MileageUnit, ignoreCase: false);
-        return new(
-            entity.Id,
-            entity.CaseId,
-            entity.LookupObservationId,
-            entity.Decision,
-            new(entity.Registration, entity.Make, entity.Model, entity.Mileage, unit),
-            ActionActor.Staff(actorId, roles),
-            entity.Reason,
-            entity.OperationKey,
-            entity.OccurredAtUtc,
-            entity.BeforeCaseVersion,
-            entity.AfterCaseVersion,
-            entity.PolicyKey,
-            entity.PolicyVersion);
-    }
-
     /// <summary>
     /// One automatic-lookup sweep pass: every active case whose
     /// current registration (confirmed, else fact) has no lookup request yet
@@ -422,9 +376,9 @@ internal sealed class EfVehicleWorkflowStore(
                 context.CaseWorkflows.AsNoTracking()
                     .Where(workflow => workflow.ArchivedAtUtc == null
                         && !terminalStates.Contains(workflow.State)),
-                field => field.CaseId,
+                field => field.WorkId,
                 workflow => workflow.CaseId,
-                (field, workflow) => new { field.CaseId, field.ValueKind, field.Value, workflow.Version })
+                (field, workflow) => new { CaseId = field.WorkId, field.ValueKind, field.Value, workflow.Version })
             .ToListAsync(cancellationToken);
         if (candidates.Count == 0)
         {

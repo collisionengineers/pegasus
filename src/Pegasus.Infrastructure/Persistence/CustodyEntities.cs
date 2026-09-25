@@ -8,6 +8,9 @@ internal sealed class CaseDocumentEntity
     public Guid CaseId { get; set; }
     public int Ordinal { get; set; }
     public string SourceOccurrenceIdentity { get; set; } = string.Empty;
+
+    // The Box folder the document is filed in (CaseCustodyFolders).
+    public string CustodyFolder { get; set; } = CaseCustodyFolders.Case;
 }
 
 internal sealed class DocumentVersionEntity

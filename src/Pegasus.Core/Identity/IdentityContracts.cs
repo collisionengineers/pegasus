@@ -119,8 +119,7 @@ public enum SecurityEventType
 public enum SecurityEventOutcome
 {
     Succeeded,
-    Denied,
-    Failed
+    Denied
 }
 
 /// <summary>

@@ -43,9 +43,9 @@ public sealed class QdosAllocationRecoveryTests
         var original = originals.Single(item => item.Principal == principalCode);
         Top15InstructionCorpusTests.ExpectedIdentity? expectedIdentity = principalCode switch
         {
-            "ALS" => new("Mr Martin Neilly", "160754", "K40NLY", new(2026, 7, 6), new(2026, 7, 10)),
+            "ALS" => new("Mr Martin Neilly", "160754", "K40NLY", new(2026, 7, 6)),
             "FW" => fairway.Identity,
-            "SBL" => new("Mr Farzod Fazliddnov", "SBL-B0711442", "EY70LPO", new(2026, 7, 2), new(2026, 7, 9)),
+            "SBL" => new("Mr Farzod Fazliddnov", "SBL-B0711442", "EY70LPO", new(2026, 7, 2)),
             _ => null
         };
         var expectedMake = principalCode switch { "ALS" => "Vauxhall", "FW" => "Toyota PRIUS", "SBL" => "MAN tgx 3", _ => null };
@@ -101,7 +101,7 @@ public sealed class QdosAllocationRecoveryTests
             var draft = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
             Assert.Equal(expectedIdentity, new Top15InstructionCorpusTests.ExpectedIdentity(
                 draft.ClaimantName, draft.ClaimNumber, draft.VehicleRegistration,
-                draft.DateOfIncident, draft.InstructionDate));
+                draft.DateOfIncident));
             Assert.Equal(expectedMake, draft.VehicleMake);
             if (original.Principal == "ALS")
             {
@@ -141,7 +141,7 @@ public sealed class QdosAllocationRecoveryTests
             if (delivery == 0)
             {
                 var snapshot = await context.CaseDataSnapshots.Include(item => item.Fields)
-                    .SingleAsync(item => item.CaseId == caseId);
+                    .SingleAsync(item => item.WorkId == caseId);
                 var originSourceHash = snapshot.OriginSourceHash
                     ?? throw new InvalidOperationException("The receipt-backed Case has no source hash.");
                 Assert.Equal(receipt.Id, snapshot.OriginIntakeReceiptId);
@@ -658,7 +658,7 @@ public sealed class QdosAllocationRecoveryTests
             Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled, await processor.ExecuteAsync(stagedId));
             Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
             Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
-            var retry = Assert.IsType<IntakeWorkItem>(await workStore.FindWorkItemAsync(stagedId, CancellationToken.None));
+            var retry = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(scope.ServiceProvider, stagedId));
             Assert.True(retry.HasPendingEvaluation);
             await DispatchAsync(retry.DueAtUtc);
             Assert.Equal(QueuedIntakeProcessingOutcome.Completed, await processor.ExecuteAsync(stagedId));
@@ -1032,6 +1032,7 @@ public sealed class QdosAllocationRecoveryTests
             services.GetRequiredService<ProcessIntake>(),
             services.GetRequiredService<IIntakeReceiptQueries>(),
             services.GetRequiredService<ICreateTriageFromIntake>(),
+            services.GetRequiredService<ITriagePrincipalGate>(),
             services.GetRequiredService<IAutomaticCaseAssociationStore>(),
             spy,
             clock,
@@ -1044,7 +1045,7 @@ public sealed class QdosAllocationRecoveryTests
             await processor.ExecuteAsync(received.StagedReceiptId));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
-        var pending = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(received.StagedReceiptId, CancellationToken.None));
+        var pending = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(services, received.StagedReceiptId));
         Assert.Equal(IntakeWorkState.RetryScheduled, pending.State);
         Assert.True(pending.HasPendingEvaluation);
         Assert.Null(await store.GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None));
@@ -1201,6 +1202,7 @@ public sealed class QdosAllocationRecoveryTests
             processIntake,
             services.GetRequiredService<IIntakeReceiptQueries>(),
             services.GetRequiredService<ICreateTriageFromIntake>(),
+            services.GetRequiredService<ITriagePrincipalGate>(),
             providerAssociationStore,
             allocateIntake,
             clock,
@@ -1291,7 +1293,6 @@ public sealed class QdosAllocationRecoveryTests
         public Task<ReceivedIntake> ReceiveAsync(IntakeStagedReceipt receipt, string operationKey, CancellationToken cancellationToken) => inner.ReceiveAsync(receipt, operationKey, cancellationToken);
         public Task<IntakeWorkItem?> ClaimDispatchAsync(DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
         public Task<IntakeWorkItem?> ClaimDispatchAsync(Guid stagedReceiptId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimDispatchAsync(stagedReceiptId, nowUtc, leaseDuration, cancellationToken);
-        public Task<IntakeWorkItem?> FindWorkItemAsync(Guid stagedReceiptId, CancellationToken cancellationToken) => inner.FindWorkItemAsync(stagedReceiptId, cancellationToken);
         public Task MarkDispatchedAsync(Guid workItemId, string leaseToken, DateTimeOffset nowUtc, CancellationToken cancellationToken) => inner.MarkDispatchedAsync(workItemId, leaseToken, nowUtc, cancellationToken);
         public Task ReleaseDispatchAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) => inner.ReleaseDispatchAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
         public Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(Guid stagedReceiptId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimProcessingAsync(stagedReceiptId, nowUtc, leaseDuration, cancellationToken);
@@ -1571,9 +1572,23 @@ public sealed class QdosAllocationRecoveryTests
                     "Parallel reasoned retry."));
             }
 
-            var results = await Task.WhenAll(
-                RetryAsync($"parallel-a:{Guid.NewGuid():N}"),
-                RetryAsync($"parallel-b:{Guid.NewGuid():N}"));
+            var operationKeys = new[]
+            {
+                $"parallel-a:{Guid.NewGuid():N}",
+                $"parallel-b:{Guid.NewGuid():N}"
+            };
+            var results = await Task.WhenAll(operationKeys.Select(RetryAsync));
+
+            // A suppressed retry can return Pending when its bounded wait ends
+            // before the owner records the outcome. Once both calls have
+            // finished, replay that same operation to observe the final result.
+            for (var index = 0; index < results.Length; index++)
+            {
+                if (results[index].State.Status == IntakeAllocationProjectionStatus.Pending)
+                {
+                    results[index] = await RetryAsync(operationKeys[index]);
+                }
+            }
 
             Assert.All(results, result =>
                 Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result.State.Status));
@@ -1642,7 +1657,8 @@ public sealed class IntakeAllocationConsumerTests
                 source,
                 $"mailbox-submit:{Guid.NewGuid():N}");
         }
-        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        // The Triage Case is a Case row of its own.
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
 
         var formalReceipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
@@ -1676,7 +1692,8 @@ public sealed class IntakeAllocationConsumerTests
                 .ListAsync(null, CancellationToken.None));
         }
 
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        // The formal Case beside the Triage Case.
+        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
     }
     [Fact]
@@ -1693,11 +1710,11 @@ public sealed class IntakeAllocationConsumerTests
                 .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
         }
 
-        IntakeListPage page;
+        KeysetPage<IntakeReceiptSummary> page;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             page = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
-                .ListAsync(null, 1, 25, CancellationToken.None);
+                .ListByCursorAsync(null, null, 25, CancellationToken.None);
         }
 
         var row = Assert.Single(page.Items, item => item.Id == receipt.Id);
@@ -1904,7 +1921,8 @@ public sealed class IntakeAllocationConsumerTests
             Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
                 .ListAsync(null, CancellationToken.None));
         }
-        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        // Only the Triage Case: the failed allocation created no Case.
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
 
         await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
         await using (var scope = factory.Services.CreateAsyncScope())
@@ -1927,7 +1945,8 @@ public sealed class IntakeAllocationConsumerTests
                 .ListAsync(null, CancellationToken.None));
         }
 
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        // The formal Case beside the Triage Case.
+        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Triage"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM TriageHistory WHERE EventType = N'triage_created'"));
@@ -2005,7 +2024,7 @@ internal static class AllocationTestData
                     [new("AB12CDE", IntakeEvidenceSource.DocumentContent, "retained instruction")],
                     false,
                     false)],
-                new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null, null),
+                new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null),
                 [],
                 null,
                 null,

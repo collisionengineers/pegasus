@@ -18,9 +18,9 @@ namespace Pegasus.Web.Pages.Search;
 /// <remarks>
 /// The grid's ten fields map 1:1 onto the existing search parameters; the
 /// pre-port parameters this design does not draw (<c>case</c>,
-/// <c>receivedDate</c>, <c>instructionDate</c>, <c>kind</c>) stay bound and
-/// pager-preserved, so the <c>/Cases</c> bookmarks the shell redirects here
-/// keep working with their values intact. The preview pane is built from
+/// <c>receivedDate</c>, <c>kind</c>) stay bound and pager-preserved, so the
+/// <c>/Cases</c> bookmarks the shell redirects here keep working with their
+/// values intact. The preview pane is built from
 /// the row projection plus one batched Engineer-name resolve rather than
 /// <c>IGetCase</c>: the wave-1 selection script needs a preview template
 /// per row regardless, and this keeps the page at its two queries.
@@ -38,6 +38,10 @@ public sealed partial class IndexModel(
     ILogger<IndexModel> logger) : StaffPageModel
 {
     private const int ResultsPerPage = 25;
+
+    // The Case page views an Inspection + Audit Case's two entries open.
+    private const string InspectionView = "inspection";
+    private const string AuditView = "audit";
 
     [BindProperty(SupportsGet = true, Name = "case")]
     public string? CaseReference { get; set; }
@@ -64,9 +68,6 @@ public sealed partial class IndexModel(
     public DateOnly? ReceivedDate { get; set; }
 
     [BindProperty(SupportsGet = true)]
-    public DateOnly? InstructionDate { get; set; }
-
-    [BindProperty(SupportsGet = true)]
     public DateOnly? FromDate { get; set; }
 
     [BindProperty(SupportsGet = true)]
@@ -84,6 +85,14 @@ public sealed partial class IndexModel(
     /// <summary>The row the Selected Case pane reads; the first row when unset.</summary>
     [BindProperty(SupportsGet = true, Name = "selected")]
     public Guid? SelectedId { get; set; }
+
+    /// <summary>
+    /// Which of an Inspection + Audit Case's two entries is selected
+    /// (<c>inspection</c> or <c>audit</c>): both are the same Case, so the Case
+    /// id alone cannot tell them apart. Unset selects the Case's first entry.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "selectedView")]
+    public string? SelectedView { get; set; }
 
     public int PageNumber { get; private set; } = 1;
 
@@ -108,9 +117,15 @@ public sealed partial class IndexModel(
     /// here where the search item is in hand: the vehicle column, the
     /// preview's fact grid and its outstanding requirements all read the
     /// one search projection, so selecting a row needs no second query.
+    /// An Inspection + Audit Case with its Audit is two entries of the same
+    /// Case: <c>Reference</c> is the entry's own reference (the Case/PO or
+    /// <c>a.{Case/PO}</c>) and <c>View</c> the Case page view it opens
+    /// (<c>inspection</c> or <c>audit</c>; null for a Case listed once).
     /// </summary>
     public sealed record ResultRow(
         CaseSearchItem Item,
+        string Reference,
+        string? View,
         string DetailHref,
         string SelectHref,
         string Heading,
@@ -167,18 +182,21 @@ public sealed partial class IndexModel(
                         State,
                         EngineerId,
                         ReceivedDate,
-                        InstructionDate,
                         FromDate,
                         ToDate,
                         Origin,
-                        Query),
+                        Query,
+                        // Search is the one list that finds Triage Cases (decision W).
+                        IncludeTriage: true),
                     PageNumber,
                     ResultsPerPage),
                 cancellationToken);
+            // Paging counts Cases: the page's Cases expand into their entries here.
             Rows = await ComposeRowsAsync(cancellationToken);
 
             var selectedRow = SelectedId is { } selectedId
-                ? Rows.FirstOrDefault(row => row.Item.CaseId == selectedId)
+                ? Rows.FirstOrDefault(row => row.Item.CaseId == selectedId
+                    && (SelectedView is null || row.View == SelectedView))
                 : Rows.Count > 0 ? Rows[0] : null;
             if (SelectedId is not null && selectedRow is null)
             {
@@ -188,6 +206,7 @@ public sealed partial class IndexModel(
             if (selectedRow is not null)
             {
                 SelectedId = selectedRow.Item.CaseId;
+                SelectedView = selectedRow.View;
                 Selected = selectedRow;
             }
 
@@ -288,7 +307,10 @@ public sealed partial class IndexModel(
     /// The display rows: one batched staff-name resolve covers every
     /// Engineer on the page, and the outstanding requirements read the
     /// completeness facts the search already projected (the Cases-page rule:
-    /// only a Not ready case has any).
+    /// only a Not ready case has any). An Inspection + Audit Case with its
+    /// Audit lists as two entries, <c>{Case/PO}</c> opening the Inspection
+    /// view and <c>a.{Case/PO}</c> the Audit view (decision 8); a Triage Case
+    /// shows its own Triage state.
     /// </summary>
     private async Task<IReadOnlyList<ResultRow>> ComposeRowsAsync(CancellationToken cancellationToken)
     {
@@ -306,19 +328,29 @@ public sealed partial class IndexModel(
                 engineerIds,
                 cancellationToken);
 
-        return items.Select(item =>
+        return items
+            .SelectMany(item => item.AuditReference is { } auditReference
+                ? new[] { Entry(item, item.Reference, InspectionView), Entry(item, auditReference, AuditView) }
+                : [Entry(item, item.Reference, null)])
+            .ToArray();
+
+        ResultRow Entry(CaseSearchItem item, string reference, string? view)
         {
+            // A Triage Case has no completeness requirements.
             var outstanding =
-                item is { State: CaseLifecycleState.NotReady, InstructionComplete: { } instructions, ImagesComplete: { } images }
+                item.CaseType != CaseType.Triage
+                && item is { State: CaseLifecycleState.NotReady, InstructionComplete: { } instructions, ImagesComplete: { } images }
                     ? OperatorLabels.CaseRequirements(!instructions, !images)
                     : [];
             return new ResultRow(
                 item,
-                $"/Cases/{item.CaseId:D}",
-                Href(selected: item.CaseId),
-                Join(item.Reference, item.Registration),
+                reference,
+                view,
+                view is null ? $"/Cases/{item.CaseId:D}" : $"/Cases/{item.CaseId:D}?view={view}",
+                Href(selected: item.CaseId, selectedView: view),
+                Join(reference, item.Registration),
                 Join(item.Claimant, item.Principal),
-                OperatorLabels.CaseStage(item.State),
+                StateLabel(item),
                 string.Join(
                     " ",
                     new[] { item.VehicleMake, item.VehicleModel }
@@ -333,18 +365,28 @@ public sealed partial class IndexModel(
                 item.NextChaseAtUtc is { } chase ? OperatorLabels.OfficeDate(chase) : "Not recorded",
                 outstanding.Count > 0 ? outstanding[0].Resolve : "Not recorded",
                 outstanding);
-        }).ToArray();
+        }
     }
+
+    /// <summary>
+    /// The state chip's words: a Triage Case's own lifecycle
+    /// (<see cref="OperatorLabels.TriageState"/>), otherwise the Case stage.
+    /// </summary>
+    private static string StateLabel(CaseSearchItem item) =>
+        item.CaseType == CaseType.Triage && item.TriageState is { } triageState
+            ? OperatorLabels.TriageState(triageState)
+            : OperatorLabels.CaseStage(item.State);
 
     /// <summary>
     /// This page's address with the given overrides. Every bound filter
     /// rides along, including the ones the grid does not draw, so paging
     /// and row selection never drop a filter an old link carried.
     /// </summary>
-    public string Href(int? page = null, Guid? selected = null)
+    public string Href(int? page = null, Guid? selected = null, string? selectedView = null)
     {
         var values = RouteValues(page ?? PageNumber);
         values["selected"] = selected?.ToString("D");
+        values["selectedView"] = selectedView;
         return QueryHelpers.AddQueryString(
             "/Search",
             values.Where(item => !string.IsNullOrWhiteSpace(item.Value)));
@@ -352,13 +394,14 @@ public sealed partial class IndexModel(
 
     /// <summary>
     /// The fields a refresh resubmits: the active filters, page and
-    /// selected row, so refreshing reruns the search the operator is
-    /// looking at.
+    /// selected row (and which of its Case's entries), so refreshing reruns
+    /// the search the operator is looking at.
     /// </summary>
     public IReadOnlyDictionary<string, string?> RefreshFields()
     {
         var values = RouteValues(PageNumber);
         values["selected"] = SelectedId?.ToString("D");
+        values["selectedView"] = SelectedView;
         return values;
     }
 
@@ -379,10 +422,6 @@ public sealed partial class IndexModel(
             values,
             "receivedDate",
             ReceivedDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
-        AddIfPresent(
-            values,
-            "instructionDate",
-            InstructionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         AddIfPresent(
             values,
             "fromDate",

@@ -48,8 +48,7 @@ public sealed class QdosIntakeWebTests
         await using (var statusScope = factory.Services.CreateAsyncScope())
         {
             var work = Assert.IsType<IntakeWorkItem>(
-                await statusScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>()
-                    .FindWorkItemAsync(stagedReceiptId, CancellationToken.None));
+                await IntakeWorkItemReads.FindAsync(statusScope.ServiceProvider, stagedReceiptId));
             Assert.Equal(IntakeWorkState.Pending, work.State);
             Assert.Null(await statusScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>()
                 .GetCompletedEvaluationAsync(stagedReceiptId, CancellationToken.None));
@@ -59,7 +58,7 @@ public sealed class QdosIntakeWebTests
         using var statusPage = await client.GetAsync(upload.Location);
         statusPage.EnsureSuccessStatusCode();
         var html = await statusPage.Content.ReadAsStringAsync();
-        Assert.Contains("<h1>Received</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"pending\"", html, StringComparison.Ordinal);
         Assert.Contains("ordinary-correspondence.eml", html, StringComparison.Ordinal);
         Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
         // The state is the heading and the values are the panel: nothing
@@ -75,15 +74,15 @@ public sealed class QdosIntakeWebTests
         using var completedStatusPage = await client.GetAsync(upload.Location);
         completedStatusPage.EnsureSuccessStatusCode();
         var completedHtml = await completedStatusPage.Content.ReadAsStringAsync();
-        Assert.Contains("<h1>Complete</h1>", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"decision\"", completedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("data-auto-refresh=\"2000\"", completedHtml, StringComparison.Ordinal);
         // Manual material stays unallocated while staff choose a destination
         // or open an editable proposal; opening that choice is not acceptance.
-        Assert.Contains("Choose a case destination", completedHtml, StringComparison.Ordinal);
-        Assert.Contains("Create a new case", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Find the right Case", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Review new Case proposal", completedHtml, StringComparison.Ordinal);
         Assert.Contains($"/Cases/Create?receiptId={processedReceiptId:D}", completedHtml, StringComparison.Ordinal);
-        Assert.Contains("Add to an existing case", completedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Open case", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Review and add to Case", completedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Added to Case", completedHtml, StringComparison.Ordinal);
         await using (var receiptScope = factory.Services.CreateAsyncScope())
         {
             var receipt = Assert.IsType<IntakeReceipt>(await receiptScope.ServiceProvider
@@ -104,10 +103,7 @@ public sealed class QdosIntakeWebTests
         Assert.Equal(stagedReceiptId, IntakeWebDriver.Landing(duplicate).StagedReceiptId);
         using var duplicateStatusPage = await client.GetAsync(duplicate.Location);
         var duplicateHtml = await duplicateStatusPage.Content.ReadAsStringAsync();
-        Assert.Contains(
-            "<dt>Duplicate</dt><dd>Already received</dd>",
-            duplicateHtml,
-            StringComparison.Ordinal);
+        Assert.Contains("Already received", duplicateHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("No duplicate was created", duplicateHtml, StringComparison.Ordinal);
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -167,10 +163,8 @@ public sealed class QdosIntakeWebTests
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains(
-            "<dt>Reason</dt><dd>Processing failed for a technical reason</dd>",
-            html,
-            StringComparison.Ordinal);
+        Assert.Contains("The file could not be processed", html, StringComparison.Ordinal);
+        Assert.Contains("Processing failed for a technical reason", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "unexpected_intake_processing_failure",
             html,
@@ -211,7 +205,7 @@ public sealed class QdosIntakeWebTests
         using var statusPage = await client.GetAsync(upload.Location);
         statusPage.EnsureSuccessStatusCode();
         var html = await statusPage.Content.ReadAsStringAsync();
-        Assert.Contains("Open case", html, StringComparison.Ordinal);
+        Assert.Contains("Added to Case", html, StringComparison.Ordinal);
         Assert.Contains("/Cases/", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Open receipt", html, StringComparison.Ordinal);
     }
@@ -240,10 +234,7 @@ public sealed class QdosIntakeWebTests
             && item.Strength == IntakeEvidenceStrength.Strong
             && item.Finding == IntakeEvidenceFinding.SupportsPrincipal
             && item.Signal == "established-principal");
-        var instructionDate = Assert.Single(receipt.Fields, field => field.Name == "Instruction date");
-        Assert.False(instructionDate.IsDefaulted);
-        Assert.Equal("10 July 2026", instructionDate.SuggestedValue);
-        Assert.Equal(new DateOnly(2026, 7, 10), draft.InstructionDate);
+        Assert.DoesNotContain(receipt.Fields, field => field.Name == "Instruction date");
         Assert.Equal("QDOS", draft.SuggestedPrincipalCode);
 
         var route = Assert.IsType<MailRouteEvaluationResult>(receipt.MailRouteDecision);
@@ -315,7 +306,7 @@ public sealed class QdosIntakeWebTests
         var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
         var snapshot = await context.CaseDataSnapshots
             .Include(item => item.Fields)
-            .SingleAsync(item => item.CaseId == caseId);
+            .SingleAsync(item => item.WorkId == caseId);
 
         AssertCaseField(snapshot.Fields, CaseDataFieldNames.ClaimantAddress,
             "9 Walsingham Gardens, Southampton, SO18 2QD", "PdfContent:");
@@ -381,7 +372,7 @@ public sealed class QdosIntakeWebTests
             distinctReceipt.SourceIdentity.ExternalReceiptToken);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        Assert.Equal(2, (await queries.ListAsync(null, 1, 100, CancellationToken.None)).TotalCount);
+        Assert.Equal(2, (await queries.ListByCursorAsync(null, null, 100, CancellationToken.None)).Items.Count);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
@@ -444,8 +435,8 @@ public sealed class QdosIntakeWebTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        var receipts = await queries.ListAsync(null, 1, 100, CancellationToken.None);
-        Assert.Equal(fixtures.Length, receipts.TotalCount);
+        var receipts = await queries.ListByCursorAsync(null, null, 100, CancellationToken.None);
+        Assert.Equal(fixtures.Length, receipts.Items.Count);
         Assert.Equal(fixtures.Select(fixture => fixture.Hash), processedReceipts.Select(receipt => receipt.SourceHash));
         Assert.Equal(fixtures.Length, processedReceipts.Select(receipt => receipt.Id).Distinct().Count());
         Assert.All(processedReceipts, receipt => Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel));
@@ -479,7 +470,7 @@ public sealed class QdosIntakeWebTests
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         var counts = await queries.GetCountsAsync(CancellationToken.None);
         var dashboard = await client.GetStringAsync("/");
-        var sortingQueue = await queries.ListAsync(IntakeDecision.NeedsSorting, 1, 25, CancellationToken.None);
+        var sortingQueue = await queries.ListByCursorAsync(IntakeDecision.NeedsSorting, null, 25, CancellationToken.None);
 
         Assert.Equal(new IntakeQueueCounts(1), counts);
         Assert.Matches(

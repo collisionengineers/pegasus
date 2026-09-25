@@ -329,10 +329,6 @@ public interface IUnidentifiedStore
         Task.FromException<UnidentifiedReopenResult>(
             new NotSupportedException("Reopening an Unidentified item is not available."));
 
-    Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
-        ResolveUnidentifiedRequest request,
-        CancellationToken cancellationToken = default);
-
     Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<UnidentifiedItem?> GetByReferenceAsync(string reference, CancellationToken cancellationToken = default);

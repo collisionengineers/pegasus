@@ -69,6 +69,7 @@ public sealed partial class CaseCreateWebTests
         await SeedPrincipalAsync(factory.Services, PrincipalCode);
 
         var form = await OpenManualCaseScreenAsync(client);
+        Assert.DoesNotContain("name=\"InstructionDate\"", form.Html, StringComparison.Ordinal);
         var fields = KeyedFields();
         fields["VehicleMileage"] = string.Empty;
         fields["VehicleMileageUnit"] = "miles";
@@ -80,7 +81,7 @@ public sealed partial class CaseCreateWebTests
         var created = await context.Cases.SingleAsync(item => item.Id == caseId);
         var snapshot = await context.CaseDataSnapshots
             .Include(item => item.Fields)
-            .SingleAsync(item => item.CaseId == caseId);
+            .SingleAsync(item => item.WorkId == caseId);
 
         Assert.Null(created.OriginIntakeReceiptId);
         Assert.Null(snapshot.OriginIntakeReceiptId);
@@ -88,7 +89,71 @@ public sealed partial class CaseCreateWebTests
         Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimantName
             && item.ValueKind == CaseDataCodes.Confirmed
             && item.SourceKind == CaseDataCodes.StaffCorrection);
+        Assert.DoesNotContain(snapshot.Fields, item => item.FieldName == "instruction_date");
+        var caseData = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(CaseDataPolicy.ReceivedDate(null, created.CreatedAtUtc), caseData!.Instruction.ReceivedDate);
         Assert.Equal(0, await CountAsync(factory.Services, "CaseIntakeLinks"));
+    }
+
+    /// <summary>
+    /// The manual Case type list offers Triage: a Triage Case asks only for its
+    /// Principal and the registration, takes the Case sequence, and opens on
+    /// its own Case record.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreateOpensATriageCaseFromThePrincipalAndRegistrationAlone()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        Assert.Contains($"<option value=\"{CaseType.Triage}\">Triage</option>", form.Html, StringComparison.Ordinal);
+        using var response = await PostCreateAsync(client, form, new()
+        {
+            ["PrincipalCode"] = PrincipalCode,
+            ["CaseType"] = CaseType.Triage.ToString(),
+            ["VehicleRegistration"] = "AB12 CDE"
+        });
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var created = await context.Cases.AsNoTracking().SingleAsync(item => item.Id == caseId);
+        Assert.Equal(CaseTypeCodes.Triage, created.Type);
+        Assert.Equal($"t.{PrincipalCode}31001", created.Reference);
+        Assert.Null(created.InitialState);
+        Assert.False(await context.CaseWorkflows.AnyAsync(item => item.CaseId == caseId));
+        Assert.False(await context.CaseDataSnapshots.AnyAsync(item => item.WorkId == caseId));
+        var triage = await context.Triage.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+        Assert.Equal("AB12CDE", triage.NormalizedVehicleRegistration);
+        Assert.Null(triage.OriginReceiptId);
+
+        using var record = await client.GetAsync($"/Cases/{caseId:D}");
+        Assert.Equal(HttpStatusCode.OK, record.StatusCode);
+        Assert.Contains($"t.{PrincipalCode}31001", await record.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ManualTriageCreateWithoutARegistrationIsRefusedWithoutCreatingACase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenManualCaseScreenAsync(client);
+        using var response = await PostCreateAsync(client, form, new()
+        {
+            ["PrincipalCode"] = PrincipalCode,
+            ["CaseType"] = CaseType.Triage.ToString(),
+            ["VehicleRegistration"] = string.Empty
+        });
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Vehicle registration is needed before a case can be created.", html, StringComparison.Ordinal);
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
     }
 
     [Fact]
@@ -113,7 +178,7 @@ public sealed partial class CaseCreateWebTests
         var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
         var snapshot = await context.CaseDataSnapshots
             .Include(item => item.Fields)
-            .SingleAsync(item => item.CaseId == caseId);
+            .SingleAsync(item => item.WorkId == caseId);
         Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceId
             && item.Value == claimSourceId.ToString("D"));
         Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceVersion
@@ -152,7 +217,7 @@ public sealed partial class CaseCreateWebTests
         var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
         var snapshot = await context.CaseDataSnapshots
             .Include(item => item.Fields)
-            .SingleAsync(item => item.CaseId == caseId);
+            .SingleAsync(item => item.WorkId == caseId);
         Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimSourceId
             && item.Value == claimSourceId.ToString("D"));
     }
@@ -264,6 +329,7 @@ public sealed partial class CaseCreateWebTests
         // suggestion to fingerprint.
         Assert.Equal(string.Empty, form.Values["AddressSuggestionFingerprint"]);
         Assert.DoesNotContain("name=\"InstructionComplete\"", form.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"InstructionDate\"", form.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"ImagesComplete\"", form.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("InstructionConfirmedByStaff", form.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("ImagesConfirmedByStaff", form.Html, StringComparison.Ordinal);
@@ -764,7 +830,6 @@ public sealed partial class CaseCreateWebTests
         ["VehicleMileage"] = "12345",
         ["AccidentCircumstances"] = "Keyed circumstances from the retained document.",
         ["DateOfIncident"] = "2031-03-04",
-        ["InstructionDate"] = "2031-03-05",
         ["InspectionDate"] = "2031-03-20",
         ["InspectionAddress"] = "1 Example Street, Exampleton EX1 1EX",
         ["AddressChoice"] = nameof(Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseEnteredAddress)
@@ -866,7 +931,6 @@ public sealed partial class CaseCreateWebTests
                 12345L,
                 "Keyed circumstances from the retained document.",
                 new DateOnly(2031, 3, 4),
-                new DateOnly(2031, 3, 5),
                 null));
 
     private static Task<IntakeReceipt> CreateReceiptWithExtractedAddressAsync(
@@ -1046,7 +1110,7 @@ public sealed partial class CaseCreateWebTests
             services,
             $"""
             SELECT TOP 1 SourceKind FROM CaseDataFields
-            WHERE CaseId = '{caseId:D}'
+            WHERE WorkId = '{caseId:D}'
                 AND FieldName = 'inspection_address'
                 AND ValueKind = 'confirmed'
             """);

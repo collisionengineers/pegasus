@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The Assessment screen's bounded relational projection. Six commands load
+/// The Assessment screen's bounded relational projection. Five commands load
 /// only what that screen and report generation share; general Case documents,
 /// history, tasks and custody preparation stay on the Case screen.
 /// </summary>
@@ -14,6 +15,7 @@ internal sealed class EfAssessmentWorkspaceSource(
 {
     public async Task<AssessmentWorkspace?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -30,16 +32,20 @@ internal sealed class EfAssessmentWorkspaceSource(
             return null;
         }
 
+        // The selected work is resolved inside the snapshot read, and the rest
+        // of the workspace reads the work that snapshot belongs to.
+        var selectedWorkIds = CaseWorkScope.SelectedIds(context, caseId, work);
         var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            .SingleOrDefaultAsync(item => selectedWorkIds.Contains(item.WorkId), cancellationToken)
             ?? throw new InvalidDataException(
                 "The accepted case is missing its typed data projection.");
+        var workId = snapshot.WorkId;
         var assessmentFields = await context.CaseAssessmentFields.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
         var specificationEntities = await context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.CaseId == caseId
+            .Where(item => item.WorkId == workId
                 && (item.State == RepairSpecificationState.Draft.ToString()
                     || item.State == RepairSpecificationState.Accepted.ToString()))
             .Include(item => item.Lines)
@@ -50,11 +56,6 @@ internal sealed class EfAssessmentWorkspaceSource(
             .Where(item => item.Request.CaseId == caseId)
             .OrderByDescending(item => item.RecordedAtUtc)
             .ThenByDescending(item => item.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        var latestRequestEntity = await context.AiWorkRequests.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenByDescending(item => item.RequestId)
             .FirstOrDefaultAsync(cancellationToken);
 
         // Named estimates: a case may hold several drafts and
@@ -72,14 +73,15 @@ internal sealed class EfAssessmentWorkspaceSource(
             workflow,
             assessmentFields,
             currentSpecification?.Lines ?? [],
-            snapshot.Fields);
+            snapshot.Fields,
+            snapshot.OriginReceivedAtUtc);
         return new(
             new(
                 caseId,
                 workflow.Case.Reference,
                 workflow.Case.Principal.Code,
                 data.Vehicle.Registration.Current?.Value,
-                EfCaseQueryStore.ParseCaseType(workflow.Case.Type),
+                CaseTypeCodes.Parse(workflow.Case.Type),
                 Enum.Parse<CaseLifecycleState>(workflow.State),
                 workflow.Version,
                 workflow.DueWork?.DueBy,
@@ -90,7 +92,6 @@ internal sealed class EfAssessmentWorkspaceSource(
                 : EfVehicleLookupWorkStore.MapObservation(latestObservationEntity),
             assessment,
             draftEntity is null ? null : EfRepairSpecificationStore.Map(draftEntity),
-            acceptedEntity is null ? null : EfRepairSpecificationStore.Map(acceptedEntity),
-            latestRequestEntity is null ? null : EfAiWorkRequestStore.Map(latestRequestEntity));
+            acceptedEntity is null ? null : EfRepairSpecificationStore.Map(acceptedEntity));
     }
 }

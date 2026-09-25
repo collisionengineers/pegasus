@@ -256,7 +256,7 @@ public sealed class ContactDirectoryPersistenceTests
         Year = receivedAtUtc.Year,
         Sequence = sequence,
         Reference = reference,
-        Type = "Inspection",
+        Type = "inspection",
         InitialState = "NotReady",
         CustodyState = "Pending",
         CreatedAtUtc = receivedAtUtc,

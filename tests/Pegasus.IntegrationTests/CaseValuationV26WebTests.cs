@@ -293,6 +293,9 @@ public sealed class CaseValuationV26WebTests
         });
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
         var opening = WebUtility.HtmlDecode(InputValue(html, "selection.Opening"));
+        // The opening names the basis card's trade as shown, since the
+        // adoption records it (operator, 24 September 2026).
+        Assert.Contains("\"trade\":\"10250.00\"", opening, StringComparison.Ordinal);
         (string, string)[] Untouched(params (string, string)[] more) =>
         [
             ("selection.Opening", opening),
@@ -326,6 +329,34 @@ public sealed class CaseValuationV26WebTests
         var saved = store.Saves[1];
         Assert.Equal(13_000m, Assert.Single(saved.Valuation!.GuideEntries!).RetailValue);
         Assert.Equal(glasses.ValuationId, saved.Valuation.Adoption!.GuideValuationId);
+
+        // A changed trade on the basis card is a changed calculation too.
+        using var changedTrade = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "6f6e6d6c6b6a69686766656463626160",
+                "Corrected the Glass's trade",
+                Untouched(
+                    ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
+                    ("guideEntries[0].GuideMonth", "2031-05"),
+                    ("guideEntries[0].RetailValue", "12500.00"),
+                    ("guideEntries[0].TradeValue", "10500.00"))));
+        AssertPrg(changedTrade, store.CaseId);
+        Assert.Equal(glasses.ValuationId, store.Saves[2].Valuation!.Adoption!.GuideValuationId);
+
+        // The basis card echoed as recorded is no change.
+        using var echoedCard = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "7f7e7d7c7b7a79787776757473727170",
+                "Saved the valuation unchanged",
+                Untouched(
+                    ("guideEntries[0].Source", nameof(ValuationSource.Glasses)),
+                    ("guideEntries[0].GuideMonth", "2031-05"),
+                    ("guideEntries[0].RetailValue", "12500.00"),
+                    ("guideEntries[0].TradeValue", "10250.00"))));
+        AssertPrg(echoedCard, store.CaseId);
+        Assert.Null(store.Saves[3].Valuation);
     }
 
     [Fact]
@@ -778,10 +809,10 @@ public sealed class CaseValuationV26WebTests
             return pending;
         }
 
-        Task<IReadOnlyList<CaseValuation>> IListCaseValuations.ExecuteAsync(Guid forCase, CancellationToken cancellationToken) =>
+        Task<IReadOnlyList<CaseValuation>> IListCaseValuations.ExecuteAsync(Guid forCase, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<CaseValuation>>(forCase == caseId ? guides.ToArray() : []);
 
-        Task<IReadOnlyList<AppliedValuation>> IListAppliedValuations.ExecuteAsync(Guid forCase, CancellationToken cancellationToken) =>
+        Task<IReadOnlyList<AppliedValuation>> IListAppliedValuations.ExecuteAsync(Guid forCase, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AppliedValuation>>(forCase == caseId && adopted is not null ? [adopted] : []);
 
         public Task<IReadOnlyList<ValuationPreset>> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken) =>

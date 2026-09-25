@@ -1,4 +1,3 @@
-using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
@@ -96,15 +95,18 @@ public sealed record AssessmentWorkspace(
     VehicleLookupObservation? LatestVehicleObservation,
     CaseAssessmentProjection Assessment,
     RepairSpecificationVersion? DraftSpecification,
-    RepairSpecificationVersion? AcceptedSpecification,
-    AiWorkRequestRecord? LatestRequest);
+    RepairSpecificationVersion? AcceptedSpecification);
 
-public sealed record GetAssessmentWorkspaceQuery(Guid CaseId, ActionActor Actor);
+public sealed record GetAssessmentWorkspaceQuery(
+    Guid CaseId,
+    ActionActor Actor,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 
 public interface IAssessmentWorkspaceSource
 {
     Task<AssessmentWorkspace?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken = default);
 }
 
@@ -129,6 +131,6 @@ public sealed class GetAssessmentWorkspace(IAssessmentWorkspaceSource source)
             throw new ArgumentException("A case identifier is required.", nameof(query));
         }
 
-        return source.GetAsync(query.CaseId, cancellationToken);
+        return source.GetAsync(query.CaseId, query.Work, cancellationToken);
     }
 }

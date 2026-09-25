@@ -39,6 +39,8 @@ internal sealed class VehicleLookupObservationEntity
     public string? TypeApproval { get; set; }
     public string? Wheelplan { get; set; }
     public int? RevenueWeightKg { get; set; }
+    public string? Colour { get; set; }
+    public DateOnly? TaxDueDate { get; set; }
     public required string MotTestsJson { get; set; }
     public long? MileageValue { get; set; }
     public string? MileageUnit { get; set; }

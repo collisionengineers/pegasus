@@ -70,6 +70,13 @@ public sealed partial class StaffSignInSecurityTests
             signInPage.StatusCode == HttpStatusCode.OK,
             $"Expected the anonymous sign-in page, but received {(int)signInPage.StatusCode} " +
             $"with Location '{signInPage.Headers.Location}'.");
+        // v30 sign-in B: the identity panel names the product and the company,
+        // the card reads "Sign in" and the password field carries Show / Hide.
+        Assert.Contains("class=\"auth-identity\"", signInHtml, StringComparison.Ordinal);
+        Assert.Contains("Collision Engineers", signInHtml, StringComparison.Ordinal);
+        Assert.Contains("<h1>Sign in</h1>", signInHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sign in to Pegasus", signInHtml, StringComparison.Ordinal);
+        Assert.Contains("data-password-reveal aria-controls=\"Password\"", signInHtml, StringComparison.Ordinal);
 
         using var signedOutPage = await client.GetAsync("/Account/SignIn?signedOut=true");
         signedOutPage.EnsureSuccessStatusCode();
@@ -84,6 +91,8 @@ public sealed partial class StaffSignInSecurityTests
         var deniedHtml = await deniedResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, deniedResponse.StatusCode);
         Assert.Contains("The username or password is incorrect.", deniedHtml, StringComparison.Ordinal);
+        // The refusal reads as the shared danger notice, once, above the form.
+        Assert.Contains("class=\"notice notice--danger auth-notice\" role=\"alert\"", deniedHtml, StringComparison.Ordinal);
 
         using var successResponse = await client.PostAsync(
             "/Account/SignIn",
@@ -163,6 +172,145 @@ public sealed partial class StaffSignInSecurityTests
         Assert.Equal(client.BaseAddress!.Authority, signInRedirect.Authority);
         Assert.Equal("/Account/SignIn", signInRedirect.AbsolutePath);
         Assert.Equal(1, userLookupCounter.ExecutedUserLookupCommands);
+    }
+
+    [Fact]
+    public async Task ForcedPasswordChangeAsksOnlyForTheNewPassword()
+    {
+        // An Administrator issued this account's password, so the forced-change
+        // screen replaces it without asking the account to prove it: two boxes,
+        // new password and confirmation. A voluntary change keeps the proof.
+        const string issuedPassword = "issued-by-administrator";
+        const string chosenPassword = "chosen-by-the-account";
+        await using var testDatabase = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        var subjectId = Guid.NewGuid();
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["Runtime:Profile"] = "Production",
+                ["ConnectionStrings:Pegasus"] = testDatabase.ConnectionString,
+                ["Features:LocalIntake"] = "false",
+                ["Features:LocalDocumentCustody"] = "false"
+            });
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+            await context.Database.MigrateAsync();
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<PegasusIdentityUser>>();
+            var user = new PegasusIdentityUser
+            {
+                Id = subjectId,
+                UserName = UserName,
+                IsEnabled = true,
+                MustChangePassword = true,
+                LockoutEnabled = false,
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                ConcurrencyStamp = Guid.NewGuid().ToString("N")
+            };
+            var created = await userManager.CreateAsync(user, issuedPassword);
+            Assert.True(
+                created.Succeeded,
+                string.Join(", ", created.Errors.Select(error => error.Description)));
+            Assert.True((await userManager.AddToRoleAsync(user, StaffRoleNames.User)).Succeeded);
+        }
+
+        using var client = factory.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost:7139")
+            });
+        using var signInPage = await client.GetAsync("/Account/SignIn");
+        var signInHtml = await signInPage.Content.ReadAsStringAsync();
+        using var signedIn = await client.PostAsync(
+            "/Account/SignIn",
+            CreateSignInForm(ReadAntiforgeryToken(signInHtml), issuedPassword));
+        Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
+        Assert.Equal("/Account/PasswordChange", signedIn.Headers.Location?.OriginalString);
+
+        // The gate holds every other destination until the password is replaced.
+        using var gated = await client.GetAsync("/");
+        Assert.Equal(HttpStatusCode.Redirect, gated.StatusCode);
+        Assert.Equal("/Account/PasswordChange", gated.Headers.Location?.OriginalString);
+
+        using var forcedPage = await client.GetAsync("/Account/PasswordChange");
+        Assert.Equal(HttpStatusCode.OK, forcedPage.StatusCode);
+        var forcedHtml = await forcedPage.Content.ReadAsStringAsync();
+        Assert.Contains("Set a new password before continuing", forcedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"CurrentPassword\"", forcedHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"NewPassword\"", forcedHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"ConfirmPassword\"", forcedHtml, StringComparison.Ordinal);
+
+        // Choosing the issued password again would leave the gate's purpose unmet.
+        using var unchanged = await client.PostAsync(
+            "/Account/PasswordChange",
+            CreatePasswordChangeForm(forcedHtml, issuedPassword));
+        Assert.Equal(HttpStatusCode.OK, unchanged.StatusCode);
+        var unchangedHtml = await unchanged.Content.ReadAsStringAsync();
+        Assert.Contains(
+            "The new password must be different from the current one.",
+            unchangedHtml,
+            StringComparison.Ordinal);
+
+        using var changed = await client.PostAsync(
+            "/Account/PasswordChange",
+            CreatePasswordChangeForm(unchangedHtml, chosenPassword));
+        Assert.Equal(HttpStatusCode.Redirect, changed.StatusCode);
+        Assert.Equal("/", changed.Headers.Location?.OriginalString);
+
+        // The account is no longer gated, and its next change is voluntary,
+        // so the current-password proof is back.
+        using var released = await client.GetAsync("/");
+        Assert.Equal(HttpStatusCode.OK, released.StatusCode);
+        using var voluntaryPage = await client.GetAsync("/Account/PasswordChange");
+        var voluntaryHtml = await voluntaryPage.Content.ReadAsStringAsync();
+        Assert.Contains("name=\"CurrentPassword\"", voluntaryHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Set a new password before continuing", voluntaryHtml, StringComparison.Ordinal);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var userManager = scope.ServiceProvider
+                .GetRequiredService<UserManager<PegasusIdentityUser>>();
+            var user = await userManager.FindByIdAsync(subjectId.ToString("D"));
+            Assert.NotNull(user);
+            Assert.False(user.MustChangePassword);
+            Assert.True(await userManager.CheckPasswordAsync(user, chosenPassword));
+            Assert.False(await userManager.CheckPasswordAsync(user, issuedPassword));
+        }
+
+        Assert.Equal(
+            1L,
+            await CountAttributedSecurityEventsAsync(
+                testDatabase,
+                type: "PasswordChanged",
+                subjectId: subjectId.ToString("D"),
+                actorKind: "Staff",
+                actorSubjectId: subjectId.ToString("D")));
+    }
+
+    private static FormUrlEncodedContent CreatePasswordChangeForm(
+        string pageHtml,
+        string newPassword) =>
+        new(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = ReadAntiforgeryToken(pageHtml),
+            ["OperationKey"] = ReadInputValue(pageHtml, "OperationKey"),
+            ["NewPassword"] = newPassword,
+            ["ConfirmPassword"] = newPassword
+        });
+
+    private static string ReadInputValue(string html, string name)
+    {
+        var tag = Regex.Match(
+            html,
+            $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, $"The form must render '{name}'.");
+        var value = InputValueRegex().Match(tag.Value);
+        Assert.True(value.Success, $"The form input '{name}' must have a value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
     private static FormUrlEncodedContent CreateSignInForm(

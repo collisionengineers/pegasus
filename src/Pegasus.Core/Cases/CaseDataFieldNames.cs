@@ -19,7 +19,6 @@ public static class CaseDataFieldNames
     public const string ContactName = "contact_name";
     public const string ContactEmailAddress = "contact_email_address";
     public const string ContactPhoneNumber = "contact_phone_number";
-    public const string InstructionDate = "instruction_date";
     public const string VatStatus = "vat_status";
     public const string InspectionDate = "inspection_date";
     public const string InspectionDeadline = "inspection_deadline";
@@ -74,64 +73,4 @@ public static class CaseDataFieldNames
     // Notes from client (v26 accident band): free text the client sent about
     // the Case, saved with the Case beside the accident circumstances.
     public const string ClientNotes = "client_notes";
-
-    public static readonly string[] All =
-    [
-        WorkProviderCode,
-        ClaimantName,
-        ClaimantContactNumber,
-        ClaimantAddress,
-        ClaimNumber,
-        VehicleRegistration,
-        VehicleDescription,
-        VehicleMake,
-        VehicleModel,
-        VehicleYear,
-        VehicleMileage,
-        VehicleMileageUnit,
-        AccidentCircumstances,
-        IncidentDate,
-        ContactName,
-        ContactEmailAddress,
-        ContactPhoneNumber,
-        InstructionDate,
-        VatStatus,
-        InspectionDate,
-        InspectionDeadline,
-        InspectionAddress,
-        InspectionMode,
-        StorageLocation,
-        RepairerAddress,
-        RepairerName,
-        RepairerId,
-        RepairerVersion,
-        ClaimSourceId,
-        ClaimSourceVersion,
-        ClaimSourceName,
-        ClaimSourceContactName,
-        ClaimSourceContactTelephone,
-        ClaimSourceContactEmailAddress,
-        StorageBusinessId,
-        StorageBusinessVersion,
-        StorageBusinessName,
-        StorageBusinessContactName,
-        StorageBusinessContactTelephone,
-        StorageBusinessContactEmailAddress,
-        VehicleMileageDisplayUnit,
-        InspectionAddressTreatment,
-        InspectionLocationChoice,
-        InspectionLocationSourceKind,
-        InspectionLocationSourceId,
-        InspectionLocationSourceVersion,
-        InspectionLocationSourceLabel,
-        InspectionVehiclePresent,
-        InspectionCondition,
-        InspectionContactName,
-        InspectionContactTelephone,
-        InspectionContactEmailAddress,
-        InspectionNotes,
-        PrincipalNotes,
-        ClaimSourceNotes,
-        ClientNotes
-    ];
 }

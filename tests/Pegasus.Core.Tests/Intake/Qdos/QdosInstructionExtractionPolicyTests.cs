@@ -108,7 +108,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     {
         // The other shape of the same risk, and the one the value cannot
         // reject: "Accident Date: 15/08/2026" ends in a perfectly valid date,
-        // so only the guarded prefixes keep it out of the instruction date.
+        // and each row keeps its own date.
         var result = new QdosInstructionExtractionPolicy().Extract(
             Readable(new IntakeContentFragment(
                 IntakeEvidenceSource.PdfContent,
@@ -121,19 +121,15 @@ public sealed class QdosInstructionExtractionPolicyTests
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal(new DateOnly(2026, 8, 15), draft.DateOfIncident);
         Assert.Equal(new DateOnly(2026, 8, 20), draft.InspectionDate);
-
-        // Neither row is the instruction date, so it defaults as it always did.
-        var instruction = Assert.Single(result.Fields, item => item.Name == "Instruction date");
-        Assert.True(instruction.IsDefaulted);
     }
 
     [Fact]
-    public void TheBareDateRowIsTheInstructionDateAndLeavesTheAccidentDateAlone()
+    public void TheLettersOwnDateRowIsNoCaseFactAndLeavesTheAccidentDateAlone()
     {
-        // The letters date themselves with a bare "Date:" row, so
-        // without it every QDOS case fell back to its receipt date. The
-        // regression this risks is the bare label swallowing the accident
-        // row instead — "Date of Accident:" also begins with "Date".
+        // The letters date themselves with a bare "Date:" row, but the
+        // Case's Received date is its instruction date, so the row yields no
+        // field. The regression this risks is the bare label swallowing the
+        // accident row instead — "Date of Accident:" also begins with "Date".
         var result = new QdosInstructionExtractionPolicy().Extract(
             Readable(new IntakeContentFragment(
                 IntakeEvidenceSource.PdfContent,
@@ -145,12 +141,34 @@ public sealed class QdosInstructionExtractionPolicyTests
             QdosContext);
 
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
-        Assert.Equal(new DateOnly(2026, 8, 22), draft.InstructionDate);
         Assert.Equal(new DateOnly(2026, 8, 14), draft.DateOfIncident);
+        Assert.DoesNotContain(
+            result.Fields,
+            field => field.Name is "Instruction date" or "QDOS letter date boundary");
+        Assert.DoesNotContain(
+            result.Fields.SelectMany(field => field.Candidates),
+            candidate => candidate.Value.Contains("22/08/2026", StringComparison.Ordinal));
+    }
 
-        var instruction = Assert.Single(result.Fields, item => item.Name == "Instruction date");
-        Assert.False(instruction.HasConflict);
-        Assert.False(instruction.IsDefaulted);
+    [Fact]
+    public void TheLettersOwnDateRowStillEndsTheValueBeforeIt()
+    {
+        // A flattened header prints the reference and the letter's date on
+        // one row. The date row is no field, but it is still a label, so the
+        // reference ends where it begins rather than reading
+        // "AKH//47743/1 Date: 22/08/2026".
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Our Ref: AKH//47743/1 Date: 22/08/2026\n"
+                    + "Date of Accident: 14/08/2026")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("AKH//47743/1", draft.ClaimNumber);
+        Assert.False(new QdosInstructionExtractionPolicy().FieldRoles.ContainsKey("QDOS letter date boundary"));
     }
 
     [Fact]
@@ -1227,7 +1245,7 @@ public sealed class QdosInstructionExtractionPolicyTests
                 + "Fax:\n"
                 + "Email:\n"
                 + "Engineer to Estimate Unknown")),
-            new(ProcessedAtUtc, received),
+            received,
             QdosContext);
 
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);

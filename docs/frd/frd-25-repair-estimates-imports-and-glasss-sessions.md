@@ -5,7 +5,8 @@
 ## Short version
 
 - Every repair estimate is an immutable version. Each Case has exactly one
-  current accepted version.
+  current accepted version, and once an Inspection + Audit Case has its
+  Audit, the Inspection and the Audit each have one.
 - Imported or AI material stays a Draft until an enabled human staff member accepts it with
   **Use estimate**. Importing never changes Current.
 - An import is keyed by Case plus source hash. The same hash replays the same
@@ -35,7 +36,14 @@ leases are owned by
 
 **One current version.** Every accepted repair specification is an
 immutable, versioned Core aggregate. Each Case has exactly one current
-accepted version, shared by all of the Case's report projections.
+accepted version, shared by all of the Case's report projections. Create
+audit copies every live estimate, with its lines and its Current choice,
+into the Audit; discarded estimates and revision snapshots are not copied
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+From then on the Inspection and the Audit each have their own current
+version, feeding their own report. Every estimate edit, import, Glass's
+return and Use estimate acts on the Audit's estimates; the Inspection's stay
+as its report was sent.
 
 Each version keeps its stable identity, ordered technical lines, source
 route, source artifact identity, version and hash, mapping evidence, raw
@@ -63,10 +71,10 @@ With Engineer covers before and after the report
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A file
 occurrence must name the exact confirmed, non-removed document version; a
 correctly paired historical version is still valid evidence. The new Draft is
-guarded again in the save transaction. Importing never confirms rows or
-changes Current, even when a staff member started it. The human staff
-**Use estimate** action confirms and accepts the Draft once its source,
-mapping, rows and calculation basis pass the normal acceptance rules.
+guarded again in the save transaction. Importing never changes Current, even
+when a staff member started it. The human staff **Use estimate** action
+accepts the Draft once its source, mapping, rows and calculation basis pass
+the normal acceptance rules.
 
 **Glass's calculation PDFs.** These keep ordered Body, Auxiliary and Paint
 rows, included-operation context, source guide codes, unambiguous
@@ -135,6 +143,22 @@ has not started an estimate; an existing estimate reopens by its existing
 identity. These actions sit in the Case estimate section and do not need
 credentials reset.
 
+Every Resume presents the current Case version and live edit lease, including
+preparation, an active estimate and a waiting import. The current registration
+(normalized for spacing and case) and whole-mile mileage must match the
+protected launch facts. A mismatch refuses further provider work and leaves
+the account held; staff restore the original facts or confirm external closure
+before starting a new session. Valid Resume replaces the protected import
+authority with the authority just proved. Credential generation must still
+match the account used at launch.
+
+Before selecting a vehicle or reopening an estimate, the provider detail form
+must identify the expected vehicle ID, registration, mileage and NatCode, and
+offer the configured repair profile. Missing or contradictory controls refuse
+the action. Resume uses the positive estimate ID already recorded; uncertain
+writes never restart at zero. A URL issued by the provider establishes no
+claim that the hosted editor has initialized successfully.
+
 Keeping a returned estimate's source files does not use up the staff member's
 still-valid Case edit authority. The import uses that authority to land one
 Draft. A genuine Case edit in between, or an expired or lost lease, leaves
@@ -169,10 +193,13 @@ confirmed fact by itself. The full inspection address rules are in
 
 Repair cost figures come from external estimate imports (including Audatex
 and Glass's), AI estimates returned through MCP, or staff file import. Manual
-repair totals are never invented to get around the estimate contract. An
-unknown repairer VAT status needs an explicit status or category before
-totals are accepted. Supplied, observed, derived and professionally accepted
-values keep their distinctions.
+repair totals are never invented to get around the estimate contract. The
+repairer's VAT status is recorded on each repair specification, the one
+owner of that fact; an `Unknown` status never blocks **Use repair spec**, and
+the specification's selected VAT categories govern its totals
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report)).
+Report readiness asks no separate repairer VAT question. Supplied, observed,
+derived and professionally accepted values keep their distinctions.
 
 ### Retained PDF estimate import
 
@@ -209,9 +236,19 @@ the same import. Import never selects a Current estimate.
 
 ## Acceptance evidence
 
-Core tests cover the import replay key. Integration tests cover the estimate
-import command under a lease, Use estimate, and Glass's session closure. Live
-Glass's evidence is a separate tier
+Core and integration evidence covers identity, current authority, account
+exclusivity, uncertain writes, callback replay, custody and one Draft import.
+Browser evidence covers save-before-launch, refusal without provider work,
+fresh controls, stale Close and preservation of edits during return.
+
+The hosted editor must also pass live acceptance on the deployed artifact:
+three fresh launches across two vehicle models (cold and warm browser), three
+positive-ID resumes including reload and host restart, deliberate estimate
+changes followed by Save & Exit and automatic Draft import, replay producing
+one Draft, expired-lease recovery, original-window closure, and a second Case
+refused while the account is held. Chrome is primary; Edge also covers a fresh
+launch and Resume. Manual export/import does not satisfy this integration's
+acceptance. Supplier startup failures remain open until that journey passes
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links

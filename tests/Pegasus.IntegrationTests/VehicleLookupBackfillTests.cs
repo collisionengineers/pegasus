@@ -33,9 +33,9 @@ public sealed class VehicleLookupBackfillTests
         Assert.Equal("Miles", await ReadAsync(database, caseId, "vehicle_mileage_unit", "fact"));
         Assert.Equal("MAZDA", await ReadAsync(database, caseId, "vehicle_make", "fact"));
         Assert.Equal("latest-mot-observation", await database.ScalarAsync<string>(
-            $"SELECT PolicyKey FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+            $"SELECT PolicyKey FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
         Assert.Equal(0, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND ValueKind = 'suggestion'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND ValueKind = 'suggestion'"));
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class VehicleLookupBackfillTests
         // deletes the suggestion rather than leaving a row nothing can read.
         Assert.Equal("HONDA", await ReadAsync(database, caseId, "vehicle_make", "fact"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_make'"));
     }
 
     [Fact]
@@ -67,11 +67,11 @@ public sealed class VehicleLookupBackfillTests
         // the case-owned field, so the promotion is what carries it across.
         Assert.Equal("2016", await ReadAsync(database, caseId, "vehicle_year", "fact"));
         Assert.Equal("vehicle_lookup", await database.ScalarAsync<string>(
-            $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year'"));
+            $"SELECT SourceKind FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_year'"));
         Assert.Equal("vehicle-lookup-fill", await database.ScalarAsync<string>(
-            $"SELECT PolicyKey FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year'"));
+            $"SELECT PolicyKey FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_year'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_year'"));
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public sealed class VehicleLookupBackfillTests
         await ApplyBackfillAsync(database);
 
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = 'vehicle_mileage'"));
     }
 
     /// <summary>
@@ -116,7 +116,7 @@ public sealed class VehicleLookupBackfillTests
         string field,
         string kind) =>
         database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = '{field}' AND ValueKind = '{kind}'");
+            $"SELECT Value FROM CaseDataFields WHERE WorkId = '{caseId:D}' AND FieldName = '{field}' AND ValueKind = '{kind}'");
 
     private static async Task<Guid> SeedCaseWithObservationAsync(
         LocalDbTestDatabase database,

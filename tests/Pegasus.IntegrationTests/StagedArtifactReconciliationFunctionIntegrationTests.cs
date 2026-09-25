@@ -158,7 +158,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         }
         public Task<TriageCasePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageId, CancellationToken cancellationToken) =>
+        public Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 
@@ -315,11 +315,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
-        public Task<IntakeWorkItem?> FindWorkItemAsync(
-            Guid stagedReceiptId,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
         public Task<ReceivedIntake> ReceiveAsync(
             IntakeStagedReceipt receipt,
             string operationKey,
@@ -412,23 +407,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             throw new InvalidOperationException(
                 "The timer's grouped-image reconciliation must not query queue counts.");
 
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeListPage([], page, pageSize, TotalCount: 0));
-
         public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw new InvalidOperationException(
                 "An empty grouped-image reconciliation page must not fetch a receipt.");
-
-        public Task<IntakeAssetRecord?> GetAssetAsync(
-            Guid receiptId,
-            Guid assetId,
-            CancellationToken cancellationToken) =>
-            throw new InvalidOperationException(
-                "The timer's grouped-image reconciliation must not query an asset.");
     }
 
     private sealed class UnreachableGroupStore : IIntakeSubmissionGroupStore
@@ -522,11 +503,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
 
-        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
-            ResolveUnidentifiedRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw UnexpectedCall();
-
         public Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
 
@@ -616,16 +592,6 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
             Guid intakeReceiptId,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
-        public Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
-            Guid submissionGroupId,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
-        public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
-            IReadOnlyCollection<Guid> intakeReceiptIds,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 

@@ -1,32 +1,26 @@
-// Handing a Glass's outcome back to the Case window.
-//
-// The estimator runs in a window the Case record opened, so when the provider
-// returns, or a launch or resume stops short of the estimator, this window
-// holds nothing the operator needs: the outcome is reported on the Case
-// record. The Case window is sent to its Estimate section and this one
-// closes. With no opener — script-less, or a tab the browser opened without
-// one — this window goes there itself; the document's meta refresh does the
-// same for a browser without script at all.
+// Same-origin handoff: refresh the owning Case before visiting the provider,
+// or report Save & Exit without navigating away from unsaved Case changes.
 (function () {
     'use strict';
-
-    var url = document.body.getAttribute('data-glass-return');
+    var launch = document.body.getAttribute('data-glass-launch');
+    var returned = document.body.getAttribute('data-glass-return');
+    var url = launch || returned;
     if (!url) { return; }
-
-    var opener = window.opener;
-    if (opener && !opener.closed) {
-        try {
-            if (typeof opener.pegasusGlassReturn === 'function') {
-                opener.pegasusGlassReturn(url);
-            } else {
-                opener.location.assign(url);
-            }
-            window.close();
+    function continueHere() { window.location.replace(url); }
+    try {
+        var opener = window.opener;
+        var handler = opener && !opener.closed && (launch ? opener.pegasusGlassHandoff : opener.pegasusGlassReturn);
+        if (typeof handler === 'function') {
+            // Do not hold the provider link hostage to an unavailable Case read.
+            // The anchor remains usable throughout and without script/opener.
+            Promise.race([
+                Promise.resolve(handler.call(opener, returned)),
+                new Promise(function (_, reject) { window.setTimeout(function () { reject(new Error('Case refresh timed out.')); }, 10000); })
+            ]).then(function () {
+                if (launch) { continueHere(); } else { window.close(); }
+            }).catch(continueHere);
             return;
-        } catch (error) {
-            // A cross-origin or departed opener: fall through and go there ourselves.
         }
-    }
-
-    window.location.replace(url);
+    } catch (_) { /* Departed or cross-origin opener: use this window. */ }
+    continueHere();
 })();

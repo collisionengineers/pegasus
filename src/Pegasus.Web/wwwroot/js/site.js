@@ -53,23 +53,32 @@
 
     // Manual refresh feedback. The label change is the signal; the spin is
     // decoration on top of it, so the feedback still reads correctly under
-    // reduced motion or with no CSS at all.
-    document.querySelectorAll('[data-refresh-form]').forEach(function (form) {
-        form.addEventListener('submit', function () {
-            var region = form.closest('[data-refresh-region]') || form.parentElement;
-            if (region) {
-                region.classList.add('is-refreshing');
-                region.setAttribute('aria-busy', 'true');
+    // reduced motion or with no CSS at all. Bound per region so a Work
+    // Centre fragment adopted by its background refresh keeps the feedback.
+    function bindRefreshFeedback(root) {
+        root.querySelectorAll('[data-refresh-form]').forEach(function (form) {
+            if (form.dataset.refreshBound === 'true') {
+                return;
             }
-            var label = form.querySelector('[data-refresh-label]');
-            if (label) {
-                label.textContent = 'Refreshing';
-            }
-            form.querySelectorAll('button').forEach(function (button) {
-                button.disabled = true;
+            form.dataset.refreshBound = 'true';
+            form.addEventListener('submit', function () {
+                var region = form.closest('[data-refresh-region]') || form.parentElement;
+                if (region) {
+                    region.classList.add('is-refreshing');
+                    region.setAttribute('aria-busy', 'true');
+                }
+                var label = form.querySelector('[data-refresh-label]');
+                if (label) {
+                    label.textContent = 'Refreshing';
+                }
+                form.querySelectorAll('button').forEach(function (button) {
+                    button.disabled = true;
+                });
             });
         });
-    });
+    }
+    bindRefreshFeedback(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindRefreshFeedback);
 
     // Copy a support reference. Without script the value is still selectable
     // text, which is why the button is rendered hidden and revealed here rather
@@ -90,37 +99,31 @@
         });
     });
 
-    // Reason dialogs: a focus trap so a modal that asks for a required reason
-    // cannot be tabbed out of while it is open.
-    function bindNativeDialogs(root) {
-        root.querySelectorAll('dialog[data-focus-trap]').forEach(function (dialog) {
-            if (dialog.dataset.focusTrapBound === 'true') {
+    // Show / Hide a password (sign in, v30 item J). Without script the field
+    // is an ordinary password field, which is why the control ships hidden.
+    function bindPasswordReveal(root) {
+        root.querySelectorAll('[data-password-reveal]').forEach(function (button) {
+            var input = document.getElementById(button.getAttribute('aria-controls'));
+            if (!input || button.dataset.revealBound === 'true') {
                 return;
             }
-            dialog.dataset.focusTrapBound = 'true';
-            dialog.addEventListener('keydown', function (event) {
-                if (event.key !== 'Tab') {
-                    return;
-                }
-
-                var focusable = dialog.querySelectorAll(
-                    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-                if (focusable.length === 0) {
-                    return;
-                }
-
-                var first = focusable[0];
-                var last = focusable[focusable.length - 1];
-                if (event.shiftKey && document.activeElement === first) {
-                    event.preventDefault();
-                    last.focus();
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault();
-                    first.focus();
-                }
+            button.dataset.revealBound = 'true';
+            button.hidden = false;
+            button.addEventListener('click', function () {
+                var show = input.type === 'password';
+                input.type = show ? 'text' : 'password';
+                button.textContent = show ? 'Hide' : 'Show';
+                button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+                button.setAttribute('aria-pressed', String(show));
             });
         });
+    }
+    bindPasswordReveal(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindPasswordReveal);
 
+    // Native <dialog> openers ([data-dialog-open]) and closers
+    // ([data-dialog-close]); showModal supplies the focus containment.
+    function bindNativeDialogs(root) {
         // Buttons that open their own dialog, so an action can carry its fields
         // without the page shipping a permanently open form for every action.
         root.querySelectorAll('[data-dialog-open]').forEach(function (trigger) {
@@ -190,7 +193,7 @@
                     return;
                 }
 
-                window.fetch(form.getAttribute('data-edit-heartbeat-url') || form.action, {
+                window.fetch(form.action, {
                     method: 'POST',
                     body: new FormData(form),
                     credentials: 'same-origin'
@@ -241,546 +244,9 @@
         }
     });
 
-    // Upload dropzones. The native file input is the control and keeps working
-    // on its own; with script the effective drop target is the whole panel
-    // the dashed area sits in, not the dashed area itself — a small rectangle
-    // is too easy to miss on a real drag — and a real button opens the same
-    // input. Nothing here is required: without script the input is simply
-    // visible. A genuine OS drag's dataTransfer.files is empty until the drop
-    // itself; only .types is readable during dragenter/dragover, so both the
-    // affordance and the drop check key off "Files" in .types rather than
-    // .files.
-    document.querySelectorAll('[data-dropzone]').forEach(function (zone) {
-        var input = zone.querySelector('input[type="file"]');
-        var browse = zone.querySelector('[data-dropzone-browse]');
-        // §1.10 draws the file list under the dashed area rather than inside
-        // it, so the readout is looked up in the enclosing form when the zone
-        // does not carry it itself.
-        var form = zone.closest('form');
-        var readout = zone.querySelector('[data-dropzone-file]')
-            || (form && form.querySelector('[data-dropzone-file]'));
-        if (!input || !browse || !readout) {
-            return;
-        }
-
-        var formatSize = function (bytes) {
-            return bytes >= 1048576
-                ? (bytes / 1048576).toFixed(1) + ' MB'
-                : Math.max(1, Math.round(bytes / 1024)) + ' KB';
-        };
-
-        var glyph = function (iconId) {
-            var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.setAttribute('class', 'icon');
-            svg.setAttribute('aria-hidden', 'true');
-            var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            use.setAttribute('href', iconId);
-            svg.appendChild(use);
-            return svg;
-        };
-
-        // One .file-row per file (§1.10): glyph, name and size, the drawn
-        // progress bar, and the row's own state placeholder. The progress
-        // element is indeterminate on purpose — one POST stores the whole
-        // batch, so there is no per-file fraction to report and inventing one
-        // would be a state this page cannot know. It stays hidden, and the
-        // state placeholder stays empty, until a submission is actually under
-        // way (see the upload-progress block below), so a page whose form has
-        // no progress enhancement (Uploads/Request) renders as it always did.
-        var describe = function () {
-            var files = input.files ? Array.from(input.files) : [];
-            zone.classList.toggle('has-file', files.length > 0);
-            if (files.length === 0) {
-                readout.hidden = true;
-                readout.replaceChildren();
-                browse.textContent = 'Choose files';
-                return;
-            }
-
-            var rows = files.map(function (file) {
-                var row = document.createElement('div');
-                row.className = 'file-row';
-
-                var mark = document.createElement('span');
-                mark.append(glyph('#icon-file'));
-
-                var detail = document.createElement('span');
-                var name = document.createElement('strong');
-                name.textContent = file.name;
-                var size = document.createElement('small');
-                size.textContent = formatSize(file.size);
-                // The adjacent chip already names the state in words, so the
-                // bar is the visual echo and is not announced twice.
-                var progress = document.createElement('progress');
-                progress.className = 'progress';
-                progress.setAttribute('aria-hidden', 'true');
-                progress.hidden = true;
-                detail.append(name, size, progress);
-
-                var status = document.createElement('span');
-                status.setAttribute('data-file-row-status', '');
-
-                row.append(mark, detail, status);
-                return row;
-            });
-            readout.replaceChildren.apply(readout, rows);
-            readout.hidden = false;
-            browse.textContent = 'Choose different files';
-        };
-
-        zone.classList.add('is-enhanced');
-        input.classList.add('sr-only');
-        browse.hidden = false;
-        browse.addEventListener('click', function () { input.click(); });
-        input.addEventListener('change', describe);
-
-        // dragenter/dragleave fire once per element the pointer crosses
-        // inside the target, so a depth counter (not a toggle) decides when
-        // the drag has genuinely left it, rather than flickering as it moves
-        // across the panel's own children.
-        var target = zone.closest('.panel') || zone;
-        var depth = 0;
-        var isFileDrag = function (event) {
-            return Boolean(event.dataTransfer)
-                && Array.from(event.dataTransfer.types || []).includes('Files');
-        };
-
-        target.addEventListener('dragenter', function (event) {
-            if (!isFileDrag(event)) {
-                return;
-            }
-            depth += 1;
-            zone.classList.add('is-dragover');
-        });
-        target.addEventListener('dragover', function (event) {
-            if (isFileDrag(event)) {
-                event.preventDefault();
-            }
-        });
-        target.addEventListener('dragleave', function () {
-            depth = Math.max(0, depth - 1);
-            if (depth === 0) {
-                zone.classList.remove('is-dragover');
-            }
-        });
-        target.addEventListener('dragend', function () {
-            depth = 0;
-            zone.classList.remove('is-dragover');
-        });
-        target.addEventListener('drop', function (event) {
-            depth = 0;
-            zone.classList.remove('is-dragover');
-            if (!isFileDrag(event)) {
-                return;
-            }
-            event.preventDefault();
-            var dropped = event.dataTransfer ? event.dataTransfer.files : null;
-            if (!dropped || dropped.length === 0) {
-                return;
-            }
-            input.files = dropped;
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-
-        describe();
-
-        // Clear is a native <button type="reset">: the browser empties the
-        // input on its own, and the rows are re-rendered from the emptied
-        // input once the reset has actually been applied.
-        if (form) {
-            form.addEventListener('reset', function () {
-                window.setTimeout(describe, 0);
-            });
-        }
-
-        // Per-file upload progress: opt-in via data-upload-progress on the
-        // form, so this only changes behaviour on the one form that owns the
-        // contract below (Upload.cshtml) and never touches the document
-        // request form, which keeps its plain native submit.
-        if (form
-            && form.hasAttribute('data-upload-progress')
-            && typeof fetch === 'function'
-            && typeof FormData === 'function') {
-            var setRowStatus = function (state, text) {
-                readout.classList.toggle('is-refreshing', state === 'uploading');
-                readout.querySelectorAll('.file-row').forEach(function (row) {
-                    var progress = row.querySelector('progress.progress');
-                    if (progress) {
-                        progress.hidden = state !== 'uploading';
-                    }
-                    var mark = row.querySelector('svg.icon use');
-                    if (mark) {
-                        mark.setAttribute(
-                            'href', state === 'stored' ? '#icon-check-circle' : '#icon-file');
-                    }
-                    var status = row.querySelector('[data-file-row-status]');
-                    if (!status) {
-                        return;
-                    }
-                    // The chip carries its own word and its own dot, so no
-                    // state is conveyed by colour alone.
-                    var chip = document.createElement('span');
-                    chip.className = state === 'stored'
-                        ? 'status status--green'
-                        : 'status status--navy';
-                    chip.textContent = text;
-                    status.setAttribute('data-state', state);
-                    status.replaceChildren(chip);
-                });
-            };
-
-            form.addEventListener('submit', function (event) {
-                var files = input.files ? Array.from(input.files) : [];
-                if (files.length === 0) {
-                    // Nothing chosen: let native "choose a file" validation
-                    // say so, exactly as it always has.
-                    return;
-                }
-
-                event.preventDefault();
-                // Every row enters the same state together here: a single
-                // POST stores the whole batch, so there is no per-file signal
-                // to show yet, and showing one anyway would be a state this
-                // page cannot actually know (see research.md).
-                setRowStatus('uploading', 'Uploading');
-
-                fetch(form.getAttribute('action') || window.location.href, {
-                    method: 'POST',
-                    body: new FormData(form)
-                }).then(function (response) {
-                    if (response.redirected) {
-                        // The response proves the whole batch is durably
-                        // stored — a real fact from the actual response, not
-                        // a guess — so every row ticks together.
-                        setRowStatus('stored', 'Stored');
-                        window.location.assign(response.url);
-                        return;
-                    }
-
-                    // Validation failed. Upload.cshtml.cs stores nothing
-                    // until every file passes validation, so nothing was
-                    // written on this path and a native re-submit is safe —
-                    // it shows the exact, already-correct error page rather
-                    // than this script guessing which row to blame.
-                    form.submit();
-                }).catch(function () {
-                    form.submit();
-                });
-            });
-        }
-    });
-
-    // Case search on the upload confirmation surface. The input is a plain
-    // required text field that the server resolves as a typed case reference,
-    // so the form keeps working without script; with script it becomes a
-    // combobox — a debounced fetch of the page's own suggestion handler, a
-    // listbox of matching cases, and a selection that fills the hidden case
-    // value. The ARIA combobox wiring is added here rather than shipped in
-    // markup, because without script there is no popup for it to describe.
-    document.querySelectorAll('[data-case-search]').forEach(function (form) {
-        var input = form.querySelector('[data-case-search-input]');
-        var list = form.querySelector('[data-case-search-list]');
-        var hidden = form.querySelector('[data-case-search-value]');
-        var version = form.querySelector('[data-case-search-version]');
-        var url = form.getAttribute('data-case-search-url');
-        var receiptId = form.getAttribute('data-case-search-receipt-id');
-        if (!input || !list || !hidden || !version || !url || typeof fetch !== 'function') {
-            return;
-        }
-
-        input.setAttribute('role', 'combobox');
-        input.setAttribute('aria-expanded', 'false');
-        input.setAttribute('aria-controls', list.id);
-        input.setAttribute('aria-autocomplete', 'list');
-        input.setAttribute('aria-haspopup', 'listbox');
-        list.setAttribute('role', 'listbox');
-
-        var options = [];
-        var active = -1;
-        var timer = null;
-        var requestSequence = 0;
-        var inFlight = null;
-
-        var close = function () {
-            list.hidden = true;
-            list.replaceChildren();
-            options = [];
-            active = -1;
-            input.setAttribute('aria-expanded', 'false');
-            input.removeAttribute('aria-activedescendant');
-        };
-
-        var setActive = function (index) {
-            active = index;
-            list.querySelectorAll('[role="option"]').forEach(function (option, position) {
-                option.classList.toggle('is-active', position === index);
-                option.setAttribute('aria-selected', position === index ? 'true' : 'false');
-            });
-            if (index >= 0) {
-                input.setAttribute('aria-activedescendant', list.id + '-option-' + index);
-            } else {
-                input.removeAttribute('aria-activedescendant');
-            }
-        };
-
-        var choose = function (index) {
-            var chosen = options[index];
-            if (!chosen) {
-                return;
-            }
-            requestSequence++;
-            if (timer) {
-                window.clearTimeout(timer);
-                timer = 0;
-            }
-            if (inFlight) {
-                inFlight.abort();
-                inFlight = null;
-            }
-            hidden.value = chosen.caseId;
-            version.value = chosen.version;
-            input.value = chosen.reference;
-            close();
-        };
-
-        form.querySelectorAll('[data-case-search-suggestion]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                requestSequence++;
-                if (timer) {
-                    window.clearTimeout(timer);
-                    timer = 0;
-                }
-                if (inFlight) {
-                    inFlight.abort();
-                    inFlight = null;
-                }
-                hidden.value = button.getAttribute('data-case-id') || '';
-                version.value = button.getAttribute('data-case-version') || '';
-                input.value = button.getAttribute('data-case-reference') || '';
-                close();
-            });
-        });
-
-        var render = function (items) {
-            options = items;
-            var rows = items.map(function (item, index) {
-                var row = document.createElement('li');
-                row.id = list.id + '-option-' + index;
-                row.setAttribute('role', 'option');
-                row.setAttribute('aria-selected', 'false');
-                row.textContent = [item.reference, item.registration, item.claimant, item.stage]
-                    .filter(function (part) { return Boolean(part); })
-                    .join(' · ');
-                // mousedown, not click: click lands after the input's blur
-                // would have closed the list.
-                row.addEventListener('mousedown', function (event) {
-                    event.preventDefault();
-                    choose(index);
-                });
-                return row;
-            });
-            if (rows.length === 0) {
-                var empty = document.createElement('li');
-                empty.className = 'case-search-list__empty';
-                empty.textContent = 'No matching cases found';
-                rows = [empty];
-            }
-            list.replaceChildren.apply(list, rows);
-            list.hidden = false;
-            input.setAttribute('aria-expanded', 'true');
-            setActive(-1);
-        };
-
-        var renderUnavailable = function () {
-            options = [];
-            var unavailable = document.createElement('li');
-            unavailable.className = 'case-search-list__empty';
-            unavailable.textContent = 'Case search is unavailable. Type the exact reference or try again.';
-            list.replaceChildren(unavailable);
-            list.hidden = false;
-            input.setAttribute('aria-expanded', 'true');
-            setActive(-1);
-        };
-
-        input.addEventListener('input', function () {
-            // Typing again always invalidates any earlier selection: the
-            // submitted case is either the one just chosen or the typed
-            // reference the server resolves — never a stale hidden value.
-            hidden.value = '';
-            version.value = '';
-            // Invalidate immediately, including when the new value is too
-            // short to search. Otherwise an older in-flight response can
-            // redraw suggestions for text the operator has already removed.
-            requestSequence++;
-            if (inFlight) {
-                inFlight.abort();
-                inFlight = null;
-            }
-            var term = input.value.trim();
-            if (timer) {
-                window.clearTimeout(timer);
-            }
-            if (term.length < 2) {
-                close();
-                return;
-            }
-            timer = window.setTimeout(function () {
-                var sequence = requestSequence;
-                // Abort the superseded request rather than merely ignoring
-                // its result: the server honours the cancellation, so the
-                // abandoned search stops running instead of completing.
-                if (inFlight) {
-                    inFlight.abort();
-                }
-                inFlight = typeof AbortController === 'function' ? new AbortController() : null;
-                var query = 'term=' + encodeURIComponent(term);
-                if (receiptId) {
-                    query += '&receiptId=' + encodeURIComponent(receiptId);
-                }
-                fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + query, {
-                    headers: { Accept: 'application/json' },
-                    signal: inFlight ? inFlight.signal : undefined
-                }).then(function (response) {
-                    if (!response.ok) {
-                        throw new Error('Case search request failed.');
-                    }
-                    return response.json();
-                }).then(function (items) {
-                    if (sequence === requestSequence) {
-                        render(items);
-                    }
-                }).catch(function () {
-                    if (sequence === requestSequence) {
-                        renderUnavailable();
-                    }
-                });
-            }, 250);
-        });
-
-        input.addEventListener('keydown', function (event) {
-            if (list.hidden) {
-                return;
-            }
-            if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                setActive(Math.min(active + 1, options.length - 1));
-            } else if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                setActive(Math.max(active - 1, 0));
-            } else if (event.key === 'Enter' && active >= 0) {
-                event.preventDefault();
-                choose(active);
-            } else if (event.key === 'Escape') {
-                event.preventDefault();
-                close();
-            }
-        });
-
-        input.addEventListener('blur', function () {
-            close();
-        });
-    });
-
-    // Live character counters for reason fields whose limit is policy.
-    document.querySelectorAll('[data-counter-for]').forEach(function (counter) {
-        var field = document.getElementById(counter.getAttribute('data-counter-for'));
-        if (!field) {
-            return;
-        }
-
-        var limit = field.getAttribute('maxlength');
-        var render = function () {
-            counter.textContent = field.value.length + '/' + limit + ' characters';
-        };
-
-        field.addEventListener('input', render);
-        render();
-    });
 
 }());
 
-
-// Finishing edit mode with unsaved changes asks first. Dirty means
-// any input owned by a lease-carrying form changed since load; Save submits the
-// form that changed, Discard releases the lease as posted.
-(function () {
-    var toggle = document.querySelector('[data-edit-toggle-off]');
-    var dialog = document.getElementById('edit-finish-confirm');
-    if (!toggle || !dialog) {
-        return;
-    }
-    var dirtyForm = null;
-    // Resolve the owning form from the control at event time. Native input
-    // events follow the DOM tree, not a control's `form=` association, so a
-    // listener on the form cannot see associated controls rendered elsewhere.
-    document.addEventListener('input', function (event) {
-        var control = event.target;
-        var form = control.form || (control.closest ? control.closest('form') : null);
-        if (!form
-            || form === toggle
-            || !form.querySelector('input[name="editLeaseToken"]')) {
-            return;
-        }
-        var wasClean = dirtyForm === null;
-        dirtyForm = form;
-        if (wasClean) {
-            announce(true);
-        }
-    });
-    // The working-set tab carries an amber dot while the record holds
-    // unsaved edits (v26 § Working set).
-    function announce(dirty) {
-        document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: dirty } }));
-    }
-    // Root-scoped and idempotent so a lazily mounted Case section's
-    // lease-carrying forms join the guard instead of escaping it.
-    function bind(root) {
-        root.querySelectorAll('form').forEach(function (form) {
-            if (form === toggle
-                || form.dataset.dirtyGuardBound === 'true'
-                || !form.querySelector('input[name="editLeaseToken"]')) {
-                return;
-            }
-            form.dataset.dirtyGuardBound = 'true';
-            form.addEventListener('submit', function () { dirtyForm = null; announce(false); });
-        });
-    }
-    bind(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
-
-    // Ctrl+S submits the Case form that changed, not the document's first
-    // [data-edit-save] form.
-    window.pegasusDirtyEditForm = function () { return dirtyForm; };
-    var allowed = false;
-    toggle.addEventListener('submit', function (event) {
-        if (allowed || !dirtyForm) {
-            return;
-        }
-        event.preventDefault();
-        dialog.hidden = false;
-    });
-    dialog.querySelector('[data-edit-finish-keep]').addEventListener('click', function () {
-        dialog.hidden = true;
-    });
-    dialog.querySelector('[data-edit-finish-discard]').addEventListener('click', function () {
-        dialog.hidden = true;
-        allowed = true;
-        toggle.requestSubmit();
-    });
-    dialog.querySelector('[data-edit-finish-save]').addEventListener('click', function () {
-        dialog.hidden = true;
-        if (dirtyForm && dirtyForm.id === 'case-edit-form') {
-            var saveReason = document.querySelector('[data-case-save-reason]');
-            if (saveReason) {
-                saveReason.click();
-                return;
-            }
-        }
-        if (dirtyForm) {
-            dirtyForm.requestSubmit();
-        }
-    });
-})();
 
 // Inspect-at choices fill the ordinary form-associated address
 // input. The input remains the no-script editing path. The cells stay where
@@ -813,73 +279,6 @@
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
-})();
-
-// An open editor keeps its own lease alive, so a real editing session
-// is never timed out mid-edit. The beat posts the rendered form, whose
-// antiforgery token rides in the FormData exactly as the upload enhancement
-// above does. With script the manual "Renew editing" button is redundant, so it
-// is hidden here; without script it stays and is the only way to keep editing.
-(function () {
-    var form = document.querySelector('[data-edit-heartbeat]');
-    if (!form) {
-        return;
-    }
-
-    var renew = document.querySelector('[data-edit-renew]');
-    if (renew) {
-        renew.hidden = true;
-    }
-
-    var seconds = parseInt(form.getAttribute('data-heartbeat-seconds'), 10);
-    if (!(seconds > 0)) {
-        // The interval is a server value; without it, leave the Renew button
-        // showing rather than beat on a guessed one.
-        if (renew) {
-            renew.hidden = false;
-        }
-        return;
-    }
-
-    // A live timer is what "still beating" means; visibilitychange checks it too,
-    // because it calls beat() directly rather than through the interval.
-    var timer = null;
-    var stop = function () {
-        window.clearInterval(timer);
-        timer = null;
-    };
-
-    var beat = function () {
-        if (timer === null) {
-            return;
-        }
-
-        fetch(form.getAttribute('action') || window.location.href, {
-            method: 'POST',
-            body: new FormData(form)
-        }).then(function (response) {
-            // A 409 or 403 is the server refusing the lease itself: it was
-            // released, expired, or is now someone else's - and the page the
-            // operator lands on next already shows the record's real edit
-            // state, so nothing is said here. Any other answer says nothing
-            // about the lease, and the next beat settles it.
-            if (response.status === 409 || response.status === 403) {
-                stop();
-            }
-        }).catch(function () {
-            // A single failed beat is not a lost lease: there are several more
-            // before the lease could lapse, so keep beating.
-        });
-    };
-
-    timer = window.setInterval(beat, seconds * 1000);
-    // A hidden tab has its timers throttled, so the phase on return is
-    // unknowable; one beat on becoming visible again settles it.
-    document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) {
-            beat();
-        }
-    });
 })();
 
 // A filter form marked data-auto-submit submits itself when any of
@@ -1096,19 +495,18 @@
         });
     });
 
-    // Dialogs built as div backdrops ([data-dialog="<id>"]; [data-reason-dialog]
-    // is the older alias and still works): open from any
-    // [data-dialog-open="<id>"] control, close on [data-dialog-close] (or the
-    // older [data-dialog-dismiss]), Escape, or a backdrop click, contain focus
-    // while open, set `inert` on the application shell so nothing behind the
-    // dialog is reachable, and return focus to the invoking control. This
-    // lives here rather than beside the markup because the deployed
-    // Content-Security-Policy discards inline scripts.
+    // Dialogs built as div backdrops ([data-dialog="<id>"]): open from any
+    // [data-dialog-open="<id>"] control, close on [data-dialog-close], Escape,
+    // or a backdrop click, contain focus while open, set `inert` on the
+    // application shell so nothing behind the dialog is reachable, and return
+    // focus to the invoking control. This lives here rather than beside the
+    // markup because the deployed Content-Security-Policy discards inline
+    // scripts.
     // While a dialog is open everything outside it is inert. A dialog may be
     // rendered anywhere in the page (a Case page's reason dialogs live inside
     // the shell), so inert is set on the siblings of each of its ancestors up
     // to body - never on an ancestor - and exactly those elements are
-    // released on close. Other [data-dialog]/[data-reason-dialog] elements
+    // released on close. Other [data-dialog] elements
     // and native <dialog> elements are never inerted by this: a dialog that
     // auto-opens on load (a settings dialog) is commonly a sibling of further
     // action dialogs it triggers (the Accounts Delete confirmation is a
@@ -1127,7 +525,7 @@
         for (var node = dialog; node && node !== document.body; node = node.parentElement) {
             Array.prototype.forEach.call(node.parentElement.children, function (sibling) {
                 if (sibling !== node && !sibling.hasAttribute('inert') && sibling.tagName !== 'SCRIPT'
-                    && !sibling.matches('[data-dialog], [data-reason-dialog], dialog')) {
+                    && !sibling.matches('[data-dialog], dialog')) {
                     sibling.setAttribute('inert', '');
                     made.push(sibling);
                 }
@@ -1142,7 +540,7 @@
     var openDialogStack = [];
 
     function bindBackdropDialogs(root) {
-        root.querySelectorAll('[data-dialog], [data-reason-dialog]').forEach(function (dialog) {
+        root.querySelectorAll('[data-dialog]').forEach(function (dialog) {
             if (dialog.dataset.dialogBound === 'true') {
                 return;
             }
@@ -1155,10 +553,13 @@
 
             // A hidden input (the antiforgery token) matches the selector but
             // cannot take focus; focusing it leaves focus on the invoking control,
-            // which is about to become inert and lose it to body.
+            // which is about to become inert and lose it to body. Links are
+            // a[href]: a bare [href] also matched an icon's SVG <use>, which
+            // then stood as the last control, so Tab from a last icon button
+            // left the dialog instead of wrapping.
             function focusable() {
                 return Array.prototype.filter.call(
-                    dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                    dialog.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
                     function (element) {
                         return !element.disabled && !element.hidden && element.type !== 'hidden' && element.getClientRects().length > 0;
                     });
@@ -1269,10 +670,10 @@
                 }
             }
 
-            dialog.querySelectorAll('[data-dialog-dismiss], [data-dialog-close]').forEach(function (control) {
+            dialog.querySelectorAll('[data-dialog-close]').forEach(function (control) {
                 // A nested dialog's own controls close only that dialog; the
                 // parent must keep its unsaved values when a confirmation is cancelled.
-                if (control.closest('[data-dialog], [data-reason-dialog]') !== dialog) {
+                if (control.closest('[data-dialog]') !== dialog) {
                     return;
                 }
                 control.addEventListener('click', close);
@@ -1341,7 +742,6 @@
         var caption = viewer.querySelector('[data-evidence-name]');
         var position = viewer.querySelector('[data-evidence-position]');
         var download = viewer.querySelector('[data-evidence-download]');
-        var crop = viewer.querySelector('[data-evidence-crop]');
         var previous = viewer.querySelector('[data-evidence-previous]');
         var following = viewer.querySelector('[data-evidence-next]');
 
@@ -1418,9 +818,6 @@
             position.textContent = (index + 1) + ' / ' + items.length;
             download.href = item.getAttribute('data-download-href') || href;
             download.setAttribute('download', fileName);
-            crop.hidden = kind !== 'image'
-                || !item.hasAttribute('data-evidence-preparation-occurrence')
-                || typeof window.pegasusOpenCaseCrop !== 'function';
             previous.disabled = index === 0;
             following.disabled = index === items.length - 1;
             showPreCase(item, kind);
@@ -1784,15 +1181,6 @@
         video.addEventListener('error', settle);
         previous.addEventListener('click', function () { step(-1); });
         following.addEventListener('click', function () { step(1); });
-        crop.addEventListener('click', function () {
-            var item = items[index];
-            var occurrenceId = item && item.getAttribute('data-evidence-preparation-occurrence');
-            if (!occurrenceId || typeof window.pegasusOpenCaseCrop !== 'function') {
-                return;
-            }
-            close();
-            window.pegasusOpenCaseCrop(occurrenceId);
-        });
         viewer.querySelectorAll('[data-evidence-close]').forEach(function (control) {
             control.addEventListener('click', close);
         });
@@ -1883,11 +1271,40 @@
     // The Other classification name and reasoning fields exist only while an
     // Other option is selected; the select drives their visibility.
     document.querySelectorAll('[data-other-toggle]').forEach(function (select) {
-        var scope = select.closest('[data-reason-dialog]') || document;
+        var scope = select.closest('[data-dialog]') || document;
         function sync() {
             var isOther = select.value === 'other-received' || select.value === 'other-sent';
             scope.querySelectorAll('[data-other-field]').forEach(function (field) {
                 field.hidden = !isOther;
+            });
+        }
+        select.addEventListener('change', sync);
+        sync();
+    });
+
+    // Create case: a Triage Case asks only for the Principal and the
+    // registration, so choosing it hides every other field and stops it being
+    // required; choosing another type restores both. Without script every
+    // field shows and the server takes only what a Triage Case needs.
+    document.querySelectorAll('[data-manual-case-type]').forEach(function (select) {
+        var form = select.closest('form');
+        if (!form) {
+            return;
+        }
+        var triageValue = select.getAttribute('data-manual-case-type');
+        function sync() {
+            var triage = select.value === triageValue;
+            form.querySelectorAll('[data-triage-hidden]').forEach(function (field) {
+                field.hidden = triage;
+                field.querySelectorAll('input, select, textarea').forEach(function (control) {
+                    if (triage && control.required) {
+                        control.setAttribute('data-triage-required', '');
+                        control.required = false;
+                    } else if (!triage && control.hasAttribute('data-triage-required')) {
+                        control.removeAttribute('data-triage-required');
+                        control.required = true;
+                    }
+                });
             });
         }
         select.addEventListener('change', sync);
@@ -2042,10 +1459,8 @@
         // Escape behave exactly as for every other dialog. The invoker the
         // dialog records for focus-return is the element that actually asked
         // for the palette (the search box on Enter, whatever had focus on
-        // Ctrl+K) -- not the generic workspace "open another record" trigger,
-        // which merely provides the dialog's open/close plumbing.
-        var trigger = document.querySelector('[data-dialog-open="command-dialog"]');
-        var source = opener || document.activeElement || trigger;
+        // Ctrl+K).
+        var source = opener || document.activeElement;
         if (!dialog.hidden) {
             input.value = seed || '';
             filter();
@@ -2054,8 +1469,6 @@
         }
         if (dialog.pegasusOpen) {
             dialog.pegasusOpen(source);
-        } else if (trigger) {
-            trigger.click();
         }
         input.value = seed || '';
         filter();
@@ -2096,287 +1509,6 @@
     filter();
 })();
 
-// --- Working set (v26 § Working set) -------------------------------------------
-// The strip above the record holds the open records only: Cases and the
-// pre-Case records (Triage, Unidentified, image record, message). A page that
-// is a record announces itself on main[data-record-kind] with
-// data-record-href, -ref, -reg and -glyph, joins the set on load and leaves it
-// by its ×; six tabs show and the rest sit in a "N more" menu. The set is per
-// browser under localStorage "pegasus.workingSet" as
-// [{href,kind,ref,reg,glyph,state}] — a convenience that carries no state the
-// server owns. A record with unsaved edits dispatches `pegasus:dirty`
-// (detail.dirty true/false) and its tab carries the amber dot until the page
-// saves, cancels or reloads. With nothing open the strip is absent.
-(function () {
-    'use strict';
-    var strip = document.querySelector('[data-working-set]');
-    if (!strip) {
-        return;
-    }
-    var KEY = 'pegasus.workingSet';
-    var SHOWN = 6;
-    var MAX = 12;
-    var KIND_ICON = {
-        'case': 'folder',
-        'triage': 'clipboard-list',
-        'unidentified': 'alert-circle',
-        'image': 'image',
-        'message': 'mail'
-    };
-    var GLYPH = {
-        'dirty': { className: 'st st--dirty', title: 'Unsaved changes' },
-        'glass-open': { className: 'st st--glass', icon: 'zap', title: 'Glass’s session open' },
-        'lease-colleague': { className: 'st st--held', icon: 'lock', title: 'A colleague is editing' }
-    };
-    var currentPath = pathOf(window.location.pathname);
-
-    function pathOf(href) {
-        return String(href || '').split('#')[0].split('?')[0].replace(/\/+$/, '').toLowerCase();
-    }
-
-    function read() {
-        try {
-            var stored = JSON.parse(window.localStorage.getItem(KEY) || '[]');
-            return Array.isArray(stored) ? stored.filter(function (tab) {
-                return tab && typeof tab.href === 'string' && tab.href.charAt(0) === '/'
-                    && typeof tab.ref === 'string' && tab.ref.length > 0;
-            }) : [];
-        } catch (error) {
-            return [];
-        }
-    }
-
-    function write(tabs) {
-        try {
-            window.localStorage.setItem(KEY, JSON.stringify(tabs));
-        } catch (error) {
-            // Storage refused (private mode, quota): the strip still shows
-            // this page's own record for the visit.
-        }
-    }
-
-    function icon(name, className) {
-        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('class', className || 'icon');
-        svg.setAttribute('aria-hidden', 'true');
-        var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-        use.setAttribute('href', '#icon-' + name);
-        svg.appendChild(use);
-        return svg;
-    }
-
-    function text(tag, className, value) {
-        var element = document.createElement(tag);
-        element.className = className;
-        element.textContent = value;
-        return element;
-    }
-
-    function glyph(tab) {
-        var spec = GLYPH[tab.state] || null;
-        if (!spec) {
-            return null;
-        }
-        var mark = document.createElement('span');
-        mark.className = spec.className;
-        mark.title = spec.title;
-        mark.setAttribute('role', 'img');
-        mark.setAttribute('aria-label', spec.title);
-        if (spec.icon) {
-            mark.appendChild(icon(spec.icon));
-        }
-        return mark;
-    }
-
-    function label(tab, target) {
-        target.appendChild(icon(KIND_ICON[tab.kind] || 'folder'));
-        target.appendChild(text('span', 'ref', tab.ref));
-        if (tab.reg) {
-            target.appendChild(text('span', 'reg', tab.reg));
-        }
-        var mark = glyph(tab);
-        if (mark) {
-            target.appendChild(mark);
-        }
-    }
-
-    function isCurrent(tab) {
-        return pathOf(tab.href) === currentPath;
-    }
-
-    function closeButton(tab) {
-        var close = document.createElement('button');
-        close.type = 'button';
-        close.className = 'tab-close';
-        close.setAttribute('aria-label', 'Close ' + tab.ref + (tab.reg ? ' · ' + tab.reg : ''));
-        close.appendChild(icon('x'));
-        close.addEventListener('click', function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-            close_(tab);
-        });
-        return close;
-    }
-
-    function tabElement(tab) {
-        var active = isCurrent(tab);
-        var wrapper = document.createElement('div');
-        wrapper.className = 'workspace-tab' + (active ? ' is-active' : '');
-        wrapper.setAttribute('data-href', tab.href);
-        var link = document.createElement('a');
-        link.className = 'workspace-tab-link';
-        link.href = tab.href;
-        if (active) {
-            link.setAttribute('aria-current', 'page');
-        }
-        label(tab, link);
-        wrapper.appendChild(link);
-        wrapper.appendChild(closeButton(tab));
-        return wrapper;
-    }
-
-    function moreMenu(tabs) {
-        var details = document.createElement('details');
-        details.className = 'tabs-more menu';
-        details.setAttribute('data-menu', '');
-        var summary = document.createElement('summary');
-        summary.appendChild(document.createTextNode(tabs.length + ' more'));
-        summary.appendChild(icon('chevron-down'));
-        details.appendChild(summary);
-        var body = document.createElement('div');
-        body.className = 'menu-body menu-body--start';
-        tabs.forEach(function (tab) {
-            var row = document.createElement('a');
-            row.href = tab.href;
-            row.setAttribute('data-href', tab.href);
-            if (isCurrent(tab)) {
-                row.setAttribute('aria-current', 'page');
-            }
-            row.appendChild(icon(KIND_ICON[tab.kind] || 'folder'));
-            row.appendChild(text('span', '', tab.ref + (tab.reg ? ' · ' + tab.reg : '')));
-            var mark = glyph(tab);
-            if (mark) {
-                row.appendChild(mark);
-            }
-            body.appendChild(row);
-        });
-        details.appendChild(body);
-        // The menu opens under its left edge unless that would run off the
-        // viewport, when it opens under its right edge instead.
-        details.addEventListener('toggle', function () {
-            if (!details.open) {
-                return;
-            }
-            body.classList.remove('menu-body--end');
-            if (body.getBoundingClientRect().right > document.documentElement.clientWidth - 8) {
-                body.classList.add('menu-body--end');
-            }
-        });
-        return details;
-    }
-
-    function render(tabs) {
-        strip.textContent = '';
-        if (tabs.length === 0) {
-            strip.hidden = true;
-            document.body.classList.remove('has-working-set');
-            return;
-        }
-        var shown = tabs.slice(0, SHOWN);
-        var more = tabs.slice(SHOWN);
-        // The record on screen always has a visible tab: when it sits past
-        // the sixth it takes the last shown slot for this render only.
-        var currentIndex = tabs.findIndex(isCurrent);
-        if (currentIndex >= SHOWN) {
-            more = tabs.slice(SHOWN).filter(function (tab) { return !isCurrent(tab); });
-            more.unshift(shown[SHOWN - 1]);
-            shown[SHOWN - 1] = tabs[currentIndex];
-        }
-        shown.forEach(function (tab) { strip.appendChild(tabElement(tab)); });
-        if (more.length > 0) {
-            strip.appendChild(moreMenu(more));
-        }
-        strip.hidden = false;
-        document.body.classList.add('has-working-set');
-    }
-
-    function close_(tab) {
-        var remaining = read().filter(function (candidate) { return pathOf(candidate.href) !== pathOf(tab.href); });
-        write(remaining);
-        if (isCurrent(tab)) {
-            window.location.assign('/');
-            return;
-        }
-        render(remaining);
-    }
-
-    // Middle-click closes a tab, as a browser tab does.
-    strip.addEventListener('auxclick', function (event) {
-        if (event.button !== 1) {
-            return;
-        }
-        var host = event.target.closest('[data-href]');
-        if (!host) {
-            return;
-        }
-        var href = host.getAttribute('data-href');
-        var tab = read().find(function (candidate) { return candidate.href === href; });
-        if (tab) {
-            event.preventDefault();
-            close_(tab);
-        }
-    });
-
-    // This page's record joins the set (or refreshes its entry in place):
-    // the server's glyph is the state on every load, which also clears a
-    // dirty dot the page no longer holds.
-    var main = document.querySelector('main[data-record-kind]');
-    var tabs = read();
-    if (main && main.getAttribute('data-record-href') && main.getAttribute('data-record-ref')) {
-        var entry = {
-            href: main.getAttribute('data-record-href'),
-            kind: main.getAttribute('data-record-kind') || 'case',
-            ref: main.getAttribute('data-record-ref'),
-            reg: main.getAttribute('data-record-reg') || '',
-            glyph: main.getAttribute('data-record-glyph') || '',
-            state: main.getAttribute('data-record-glyph') || ''
-        };
-        currentPath = pathOf(entry.href);
-        var at = tabs.findIndex(function (tab) { return pathOf(tab.href) === currentPath; });
-        if (at === -1) {
-            tabs.push(entry);
-        } else {
-            tabs[at] = entry;
-        }
-        while (tabs.length > MAX) {
-            var oldest = tabs.findIndex(function (tab) { return !isCurrent(tab); });
-            tabs.splice(oldest === -1 ? 0 : oldest, 1);
-        }
-        write(tabs);
-    }
-
-    document.addEventListener('pegasus:dirty', function (event) {
-        var dirty = !(event.detail && event.detail.dirty === false);
-        var set = read();
-        var tab = set.find(isCurrent);
-        if (!tab) {
-            return;
-        }
-        tab.state = dirty ? 'dirty' : (tab.glyph || '');
-        write(set);
-        render(set);
-    });
-
-    // Another window of the same browser opened or closed a record.
-    window.addEventListener('storage', function (event) {
-        if (event.key === KEY) {
-            render(read());
-        }
-    });
-
-    render(tabs);
-})();
-
 // --- Layout preference cookies (Phase 5b) ------------------------------------
 // The server paints the rail width, the Case record's layout and folded panels
 // from first-party cookies, so nothing flashes open before this script runs
@@ -2412,8 +1544,7 @@ window.pegasusPreferences = (function () {
 // --- Rail collapse (v25 C3) ----------------------------------------------------
 // The Collapse control at the rail's foot narrows it to icons and counts;
 // the choice is per browser in the "pegasus-rail" cookie, which the server
-// reads for its first paint. The old localStorage "pegasus.rail" value only
-// seeds a missing cookie once. A collapsed link carries its label as a title
+// reads for its first paint. A collapsed link carries its label as a title
 // so the name is still readable.
 (function () {
     'use strict';
@@ -2423,7 +1554,6 @@ window.pegasusPreferences = (function () {
         return;
     }
     var prefs = window.pegasusPreferences;
-    var KEY = 'pegasus.rail';
     var COOKIE = 'pegasus-rail';
     var links = Array.prototype.slice.call(shell.querySelectorAll('.primary-nav .nav-link'));
     var collapseLabel = toggle.getAttribute('data-label-collapse') || 'Collapse navigation';
@@ -2434,14 +1564,8 @@ window.pegasusPreferences = (function () {
         if (value === 'collapsed' || value === 'expanded') {
             return value === 'collapsed';
         }
-        var legacy = false;
-        try {
-            legacy = window.localStorage.getItem(KEY) === 'collapsed';
-        } catch (error) {
-            legacy = false;
-        }
-        prefs.write(COOKIE, legacy ? 'collapsed' : 'expanded', prefs.year);
-        return legacy;
+        prefs.write(COOKIE, 'expanded', prefs.year);
+        return false;
     }
 
     function apply(collapsed) {
@@ -2468,17 +1592,14 @@ window.pegasusPreferences = (function () {
     });
 })();
 
-// --- Menus, dismissable notices, collapsible panels, sticky measure ---------------
+// --- Menus, dismissable notices, collapsible panels ----------------------------
 // Frame helpers every page composes (v26 frame rules). Each works on data
 // attributes so the markup stays a plain <details>, <button> or <section>:
 //   details[data-menu]       one open at a time; Escape or an outside click closes
 //   [data-dismiss]           removes the enclosing .notice (or [data-dismissable])
 //   [data-collapse="key"]    a panel whose [data-collapse-toggle] folds its body,
 //                            remembered in the "pegasus-collapsed" cookie (the
-//                            folded keys joined by "|", served in the first
-//                            paint); localStorage "pegasus.collapsed.<key>"
-//                            only seeds a missing cookie once
-//   [data-sticky-block]      measured into --sticky-h on its parent element
+//                            folded keys joined by "|", served in the first paint)
 (function () {
     'use strict';
 
@@ -2536,7 +1657,6 @@ window.pegasusPreferences = (function () {
 
     var prefs = window.pegasusPreferences;
     var COLLAPSED_COOKIE = 'pegasus-collapsed';
-    var LEGACY_PREFIX = 'pegasus.collapsed.';
     var KEY_PATTERN = /^[a-z0-9.-]{1,40}$/;
     var MAX_KEYS = 40;
 
@@ -2549,22 +1669,8 @@ window.pegasusPreferences = (function () {
         if (value !== null) {
             return value.split('|').filter(function (key) { return KEY_PATTERN.test(key); }).slice(0, MAX_KEYS);
         }
-        var keys = [];
-        try {
-            for (var i = 0; i < window.localStorage.length; i++) {
-                var name = window.localStorage.key(i);
-                if (name && name.indexOf(LEGACY_PREFIX) === 0 && window.localStorage.getItem(name) === '1') {
-                    var legacyKey = name.substring(LEGACY_PREFIX.length);
-                    if (KEY_PATTERN.test(legacyKey) && keys.length < MAX_KEYS) {
-                        keys.push(legacyKey);
-                    }
-                }
-            }
-        } catch (error) {
-            keys = [];
-        }
-        saveCollapsedKeys(keys);
-        return keys;
+        saveCollapsedKeys([]);
+        return [];
     }
 
     function bindCollapsible(root) {
@@ -2604,19 +1710,6 @@ window.pegasusPreferences = (function () {
     }
     bindCollapsible(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindCollapsible);
-
-    var block = document.querySelector('[data-sticky-block]');
-    if (block && !block.closest('[data-case-record]')) {
-        var host = block.parentElement;
-        var measure = function () {
-            host.style.setProperty('--sticky-h', block.offsetHeight + 'px');
-        };
-        measure();
-        window.addEventListener('resize', measure);
-        if ('ResizeObserver' in window) {
-            new ResizeObserver(measure).observe(block);
-        }
-    }
 })();
 
 // --- Keyboard shortcuts ----------------------------------------------------
@@ -2653,13 +1746,6 @@ window.pegasusPreferences = (function () {
             if (save) {
                 event.preventDefault();
                 var saveForm = save.tagName === 'FORM' ? save : save.closest('form');
-                if (saveForm && saveForm.id === 'case-edit-form') {
-                    var saveReason = document.querySelector('[data-case-save-reason]');
-                    if (saveReason) {
-                        saveReason.click();
-                        return;
-                    }
-                }
                 saveForm.requestSubmit();
             }
         } else if (event.key === 'F5' && !control) {
@@ -2675,7 +1761,7 @@ window.pegasusPreferences = (function () {
 // --- Row lists: ArrowUp/Down roving focus -------------------------------------
 (function () {
     'use strict';
-    var ROW = '.row-button, .work-item, .scope-button, tr[data-action], tr[data-select-href]';
+    var ROW = '.row-button, tr[data-select-href]';
     document.querySelectorAll('[data-row-list]').forEach(function (list) {
         list.addEventListener('keydown', function (event) {
             if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
@@ -2731,8 +1817,7 @@ window.pegasusPreferences = (function () {
     }
 
     function select(row, moveFocus) {
-        var template = row.querySelector('template')
-            || document.getElementById(row.getAttribute('data-preview-template') || '');
+        var template = row.querySelector('template');
         if (!template || !('content' in template)) {
             return;
         }
@@ -2742,6 +1827,14 @@ window.pegasusPreferences = (function () {
         target.replaceChildren(template.content.cloneNode(true));
         var url = new URL(window.location.href);
         url.searchParams.set('selected', row.getAttribute('data-select-id') || row.getAttribute('data-select-href'));
+        // Two rows of one record (an Inspection + Audit Case's two Search
+        // entries) are told apart by data-select-view.
+        var view = row.getAttribute('data-select-view');
+        if (view) {
+            url.searchParams.set('selectedView', view);
+        } else {
+            url.searchParams.delete('selectedView');
+        }
         window.history.replaceState(null, '', url.toString());
         if (moveFocus) {
             row.focus();
@@ -2803,50 +1896,6 @@ window.pegasusPreferences = (function () {
                 sync(next);
                 next.focus();
             }
-        });
-    });
-})();
-
-// --- Range output ----------------------------------------------------------------
-// input[type=range][data-range-output="<output id>"] writes its percentage
-// and, when [data-range-base] carries an amount and
-// [data-range-amount-output] names a second output, that amount x percentage.
-(function () {
-    'use strict';
-    document.querySelectorAll('input[type="range"][data-range-output]').forEach(function (range) {
-        var output = document.getElementById(range.getAttribute('data-range-output'));
-        if (!output) {
-            return;
-        }
-        var amountOutput = range.hasAttribute('data-range-amount-output')
-            ? document.getElementById(range.getAttribute('data-range-amount-output'))
-            : null;
-        function render() {
-            var percent = Number(range.value);
-            output.textContent = percent + '%';
-            var base = Number(range.getAttribute('data-range-base'));
-            if (amountOutput && Number.isFinite(base)) {
-                amountOutput.textContent = (base * percent / 100).toLocaleString('en-GB', {
-                    style: 'currency', currency: 'GBP', maximumFractionDigits: 0
-                });
-            }
-        }
-        range.addEventListener('input', render);
-        render();
-    });
-})();
-
-// --- Assessment evidence rail collapse ----------------------------------------------
-(function () {
-    'use strict';
-    document.querySelectorAll('[data-rail-toggle]').forEach(function (toggle) {
-        var layout = toggle.closest('.assessment-v3');
-        if (!layout) {
-            return;
-        }
-        toggle.addEventListener('click', function () {
-            var collapsed = layout.classList.toggle('assessment-v3-evidence-collapsed');
-            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
         });
     });
 })();

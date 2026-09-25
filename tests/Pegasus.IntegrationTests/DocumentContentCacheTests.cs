@@ -1016,7 +1016,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 db.Add(new CaseEntity
                 {
                     Id = caseId, PrincipalId = principal.Id, SequenceLineageId = principal.SequenceLineageId,
-                    Year = 2031, Sequence = 91, Reference = "QDOS091", Type = "Inspection",
+                    Year = 2031, Sequence = 91, Reference = "QDOS091", Type = "inspection",
                     InitialState = "NotReady", CustodyState = "confirmed", OriginIntakeReceiptId = receiptId,
                     CustodyRootRemoteId = "holding", CreatedAtUtc = DateTimeOffset.UtcNow,
                     ConcurrencyToken = Guid.NewGuid()

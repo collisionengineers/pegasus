@@ -54,6 +54,8 @@ internal static class VehicleModelConfiguration
             entity.Property(item => item.FuelType).HasMaxLength(100);
             entity.Property(item => item.TypeApproval).HasMaxLength(100);
             entity.Property(item => item.Wheelplan).HasMaxLength(100);
+            entity.Property(item => item.Colour).HasMaxLength(100);
+            entity.Property(item => item.TaxDueDate).HasColumnType("date");
             entity.Property(item => item.MotTestsJson).IsRequired();
             entity.Property(item => item.MileageUnit).HasMaxLength(40);
             entity.Property(item => item.MileageObservedOn).HasColumnType("date");

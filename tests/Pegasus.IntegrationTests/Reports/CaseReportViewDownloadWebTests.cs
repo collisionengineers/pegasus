@@ -139,7 +139,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 Year = 2026,
                 Sequence = 1,
                 Reference = "DOCS014-1",
-                Type = "Inspection",
+                Type = "inspection",
                 InitialState = "NotReady",
                 CustodyState = "confirmed",
                 CreatedAtUtc = ViewDownloadFixtureAtUtc,

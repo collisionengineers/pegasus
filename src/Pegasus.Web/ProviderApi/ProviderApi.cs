@@ -18,8 +18,6 @@ public static class ProviderApi
     public const string BasePath = "/api/provider/v1";
     public const string SubmissionsPath = BasePath + "/submissions";
     public const string IdempotencyKeyHeader = "Idempotency-Key";
-    public const string ProviderReferenceField = "providerReference";
-    public const string FilesField = "files";
     public const string Realm = "pegasus-provider-api";
     public const int RequestsPerCallerPerMinute = 60;
 

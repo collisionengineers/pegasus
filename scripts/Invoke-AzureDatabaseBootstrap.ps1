@@ -58,7 +58,8 @@ function Get-MigrationPermissionMatrix {
         '20260730203833_RemoveDormantOpenIddict.cs',
         '20260814094632_DropBoxFileRequests.cs',
         '20260824123336_DropEvaHandoffTables.cs',
-        '20260917161519_RemovePublicUploadLinks.cs'
+        '20260917161519_RemovePublicUploadLinks.cs',
+        '20260924180000_CaseWorksAndTriageCases.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -148,8 +149,8 @@ function Get-MigrationPermissionMatrix {
     }
     # 20260917140000_GrantWorkerCaseAssessmentFields: the Worker's vehicle-lookup
     # fill reads the confirmed mileage source for report freshness and writes the
-    # derived Vehicle type, so it needs the same read/insert/update rights Web holds;
-    # DELETE stays denied for both roles.
+    # derived Vehicle type, so it needs the same read/insert/update rights Web holds.
+    # The Worker's DELETE follows in 20260925090000_VehicleLookupDerivedFacts below.
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseAssessmentFields")
     }
@@ -430,7 +431,7 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|AutomaticEvaReviewSubmissions')
     # 20260906054658_V1PlatformFoundation: v1 schema owners and holding custody.
-    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','TriageSequences','DocumentContentCacheEntries')
+    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','DocumentContentCacheEntries')
     foreach ($table in $v1Tables) {
         $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
         if ($table -ne 'DocumentContentCacheEntries') {
@@ -510,15 +511,6 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|ProblemReports')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|ProblemReports')
-    # 20260913200000_CaseFieldProposals: the AI's proposed value per decision field,
-    # kept so Settlement can show Awaiting, Accepted or Corrected. Web and Worker
-    # both record and resolve proposals; neither deletes them.
-    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
-        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-            $expected.Add("$role|G|$permission|CaseFieldProposals")
-        }
-        $expected.Add("$role|D|DELETE|CaseFieldProposals")
-    }
     # 20260921090527_ReportWordingBlocks: the Engineer's changes to the report's
     # narrative blocks (v28 P30). Web writes them with the Case save, the Worker
     # reads them when it renders a report, and nothing deletes one.
@@ -569,6 +561,15 @@ function Get-MigrationPermissionMatrix {
         [void]$expected.RemoveAll([Predicate[string]] { param($row) $row -ceq $denied })
         $expected.Add("pegasus_web_runtime_role|G|DELETE|$table")
     }
+    # 20260924180000_CaseWorksAndTriageCases: per-work data under one Case; Triage Cases.
+    foreach ($permission in @('SELECT','INSERT','UPDATE')) { $expected.Add("pegasus_web_runtime_role|G|$permission|CaseWorks") }
+    foreach ($permission in @('SELECT','INSERT')) { $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseWorks") }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseWorks')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseWorks')
+    $expected.Add('pegasus_web_runtime_role|G|INSERT|Triage')
+    # 20260925090000_VehicleLookupDerivedFacts: the Worker's lookup fill clears a
+    # lookup-derived Case fact that a complete answer no longer carries.
+    $expected.Add('pegasus_worker_runtime_role|G|DELETE|CaseAssessmentFields')
     return @($expected | Sort-Object -Unique)
 }
 

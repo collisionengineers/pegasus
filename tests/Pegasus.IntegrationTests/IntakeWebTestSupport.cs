@@ -515,11 +515,6 @@ internal static partial class IntakeWebDriver
     }
 
     /// <summary>
-    /// The receipt an upload produced, read from where the upload lands.
-    /// </summary>
-    public static Guid QueuedReceiptId(UploadResult result) => ReceiptId(result);
-
-    /// <summary>
     /// The one receipt in the database.
     /// </summary>
     /// <remarks>
@@ -534,7 +529,7 @@ internal static partial class IntakeWebDriver
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        var all = await receipts.ListAsync(null, 1, 100, cancellationToken);
+        var all = await receipts.ListByCursorAsync(null, null, 100, cancellationToken);
         return Assert.Single(all.Items).Id;
     }
 
@@ -939,7 +934,40 @@ internal static class IntakeTestEvidence
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
-        Assert.Empty((await receipts.ListAsync(null, 1, 100, CancellationToken.None)).Items);
+        Assert.Empty((await receipts.ListByCursorAsync(null, null, 100, CancellationToken.None)).Items);
+    }
+}
+
+/// <summary>
+/// Reads a staged receipt's intake work item straight from the database, with
+/// the same mapping <see cref="EfIntakeWorkStore"/> uses. Read-only: it asks
+/// whether the work is still in hand, it does not claim it.
+/// </summary>
+internal static class IntakeWorkItemReads
+{
+    public static async Task<IntakeWorkItem?> FindAsync(IServiceProvider services, Guid stagedReceiptId)
+    {
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var e = await context.IntakeWorkItems
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.StagedReceiptId == stagedReceiptId);
+        return e is null
+            ? null
+            : new IntakeWorkItem(
+                e.Id,
+                e.StagedReceiptId,
+                e.OperationKey,
+                EfIntakeWorkStore.ParseState(e.State),
+                e.AttemptCount,
+                e.DueAtUtc,
+                e.LeaseToken,
+                e.LeaseExpiresAtUtc,
+                e.ProcessedReceiptId,
+                e.FailureCode,
+                e.ProcessedReceiptId is not null && e.CompletedAtUtc is not null,
+                e.ProcessedReceiptId is not null && e.CompletedAtUtc is null);
     }
 }
 

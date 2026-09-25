@@ -133,7 +133,7 @@ public sealed class AssessmentPolicyTests
 
         Assert.False(AssessmentVocabulary.Definitions.ContainsKey(obsoletePath));
         Assert.Throws<ArgumentException>(() =>
-            AssessmentPolicy.NormalizeWritableField(obsoletePath, "3"));
+            AssessmentPolicy.NormalizeWritableField(obsoletePath, "3", Automation));
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(Request(new() { [obsoletePath] = "3" })));
     }
@@ -147,13 +147,32 @@ public sealed class AssessmentPolicyTests
         Assert.Contains("vehicle.not_a_field", exception.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void CaseOwnedPathFailsClosedNamingTheCaseDetailEditPath()
+    [Theory]
+    [InlineData("vehicle.registration", "AB12CDE")]
+    [InlineData("incident.assessed", "2026-08-03")]
+    public void CaseOwnedPathFailsClosedNamingTheCaseDetailEditPath(string path, string value)
     {
         var exception = Assert.Throws<InvalidOperationException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { ["vehicle.registration"] = "AB12CDE" })));
+                Request(new() { [path] = value })));
         Assert.Contains("case-detail edit", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The report's assessed date is the Case's Inspection date, and the
+    /// repairer's VAT position is the Current repair spec's, so neither keeps
+    /// an assessment path of its own (#834).
+    /// </summary>
+    [Fact]
+    public void TheRetiredAssessmentPathsAreNotVocabulary()
+    {
+        Assert.False(AssessmentVocabulary.Definitions.ContainsKey("incident.assessed"));
+        Assert.False(AssessmentVocabulary.Definitions.ContainsKey("costs.repairer_vat_registered"));
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            AssessmentPolicy.ValidateAndNormalize(
+                Request(new() { ["costs.repairer_vat_registered"] = "true" })));
+        Assert.Contains("not part of the assessment vocabulary", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -192,26 +211,26 @@ public sealed class AssessmentPolicyTests
     {
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { ["assessment.values.retail"] = "0" }, Engineer)));
+                Request(new() { [AssessmentVocabulary.AgreedFee] = "0" }, Engineer)));
     }
 
     [Fact]
     public void MoneyIsCanonicalizedToTwoDecimalPlaces()
     {
         var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { ["assessment.values.retail"] = "12500.5" }, Engineer));
-        Assert.Equal("12500.50", normalized.Fields["assessment.values.retail"]);
+            Request(new() { [AssessmentVocabulary.AgreedFee] = "12500.5" }, Engineer));
+        Assert.Equal("12500.50", normalized.Fields[AssessmentVocabulary.AgreedFee]);
     }
 
     [Fact]
     public void FlagsAcceptOnlyTrueOrFalse()
     {
         var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { ["costs.repairer_vat_registered"] = "TRUE" }));
-        Assert.Equal("true", normalized.Fields["costs.repairer_vat_registered"]);
+            Request(new() { [AssessmentVocabulary.SettlementClaimantVatRegistered] = "TRUE" }));
+        Assert.Equal("true", normalized.Fields[AssessmentVocabulary.SettlementClaimantVatRegistered]);
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { ["costs.repairer_vat_registered"] = "yes" })));
+                Request(new() { [AssessmentVocabulary.SettlementClaimantVatRegistered] = "yes" })));
     }
 
     [Fact]
@@ -219,7 +238,47 @@ public sealed class AssessmentPolicyTests
     {
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(
-                Request(new() { ["incident.assessed"] = "03/08/2026" })));
+                Request(new() { [AssessmentVocabulary.SettlementHireStart] = "03/08/2026" })));
+    }
+
+    /// <summary>
+    /// Only the DVLA/DVSA vehicle lookup records these facts (operator, 24
+    /// September 2026), so every field save refuses one before its value is
+    /// read, whoever saves it.
+    /// </summary>
+    [Theory]
+    [InlineData(AssessmentVocabulary.VehicleEngineCc, "1461")]
+    [InlineData(AssessmentVocabulary.VehicleFuel, "DIESEL")]
+    [InlineData(AssessmentVocabulary.VehicleColour, "BLUE")]
+    [InlineData(AssessmentVocabulary.VehicleTaxExpiry, "2027-03-01")]
+    [InlineData(AssessmentVocabulary.VehicleMotExpiry, "2026-09-24")]
+    public void LookupDerivedFactsAreRefusedOnEveryFieldSave(string path, string value)
+    {
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = value })));
+        Assert.Contains("filled by the DVLA/DVSA vehicle lookup", exception.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Paths that had no owner, or duplicated another owner's fact, are retired
+    /// from the vocabulary (operator decision, 24 September 2026): no save
+    /// records one.
+    /// </summary>
+    [Theory]
+    [InlineData("narrative.nature_of_incident")]
+    [InlineData("statement_of_truth")]
+    [InlineData("vehicle.history_notes")]
+    [InlineData("vehicle.vin_checked")]
+    [InlineData("vehicle.fault_codes")]
+    [InlineData("vehicle.modifications")]
+    [InlineData("vehicle.engineer_notes")]
+    public void AnOwnerlessOrDuplicateAssessmentPathIsRetired(string path)
+    {
+        Assert.False(AssessmentVocabulary.Definitions.ContainsKey(path));
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = "value" })));
+        Assert.Contains("not part of the assessment vocabulary", exception.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -235,7 +294,8 @@ public sealed class AssessmentPolicyTests
             var dateFields = AssessmentVocabulary.Definitions.Values
                 .Where(definition => definition.Type == AssessmentFieldType.Date
                     && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                    && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path))
+                    && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)
+                    && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path))
                 .ToArray();
             Assert.NotEmpty(dateFields);
             foreach (var definition in dateFields)
@@ -267,7 +327,8 @@ public sealed class AssessmentPolicyTests
     {
         foreach (var definition in AssessmentVocabulary.Definitions.Values
             .Where(definition => !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)))
+                && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)
+                && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path)))
         {
             var value = definition.Type switch
             {
@@ -421,21 +482,36 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void AGenericFieldSaveNeverWritesOrClearsTheAdoptedEngineerValue()
+    public void AGenericFieldSaveNeverWritesOrClearsAnAdoptedValuationFinding()
     {
-        // The accepted Engineer's value is adopted only by the
-        // valuation Apply command, which records the suggested and the chosen
-        // amounts together. A Web or MCP field save that touched it would
-        // rewrite a professional finding with no such evidence, so both a
-        // value and a clearance fail closed — for an Engineer too.
-        foreach (var actor in new[] { Engineer, Automation, PlainStaff })
+        // The Case Save's valuation adoption records the accepted Engineer's
+        // Value together with the retail and trade of the basis card it was
+        // calculated from (operator, 24 September 2026). A Web or MCP field
+        // save that touched one would rewrite a professional finding apart
+        // from the calculation that is its evidence, so both a value and a
+        // clearance fail closed — for an Engineer too.
+        string[] adopted =
+        [
+            AssessmentVocabulary.ValueRetail,
+            AssessmentVocabulary.ValueTrade,
+            AssessmentVocabulary.ValueEngineer
+        ];
+        Assert.Equal(
+            adopted.Order(StringComparer.Ordinal),
+            AssessmentVocabulary.AdoptedFindingPaths.Order(StringComparer.Ordinal));
+
+        foreach (var path in adopted)
         {
-            foreach (var value in new string?[] { "4500.00", null })
+            foreach (var actor in new[] { Engineer, Automation, PlainStaff })
             {
-                var exception = Assert.Throws<InvalidOperationException>(() =>
-                    AssessmentPolicy.ValidateAndNormalize(
-                        Request(new() { [AssessmentVocabulary.ValueEngineer] = value }, actor)));
-                Assert.Contains("Apply", exception.Message, StringComparison.Ordinal);
+                foreach (var value in new string?[] { "4500.00", null })
+                {
+                    var exception = Assert.Throws<InvalidOperationException>(() =>
+                        AssessmentPolicy.ValidateAndNormalize(
+                            Request(new() { [path] = value }, actor)));
+                    Assert.Contains(path, exception.Message, StringComparison.Ordinal);
+                    Assert.Contains("adopts an Engineer's Value", exception.Message, StringComparison.Ordinal);
+                }
             }
         }
     }
@@ -455,15 +531,8 @@ public sealed class AssessmentPolicyTests
         Assert.True(AssessmentVocabulary.DamageAreaOrder("front") < AssessmentVocabulary.DamageAreaOrder("underside"));
         Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Count + 3, AssessmentVocabulary.DamageAreaOrder("unknown"));
 
-        // Each plan area's centre lies in its own band, and nothing lies off the plan.
+        // Every plan area has a centre on the unit plan.
         Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Order(StringComparer.Ordinal), DamageAreaGeometry.Centres.Keys.Order(StringComparer.Ordinal));
-        foreach (var (area, centre) in DamageAreaGeometry.Centres)
-        {
-            Assert.Equal(area, DamageAreaGeometry.AreaAt(centre.X, centre.Y));
-        }
-        Assert.Null(DamageAreaGeometry.AreaAt(-0.1, 0.5));
-        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(0.49, 0.5));
-        Assert.Equal("right_side", DamageAreaGeometry.AreaAt(0.51, 0.5));
 
         // A one-area disc sits on the area's centre; a wider disc grows to
         // reach every area it names; the other areas draw nothing.
@@ -560,12 +629,25 @@ public sealed class AssessmentPolicyTests
         Assert.True(AssessmentPolicy.MaximumFieldsPerSave >= AssessmentVocabulary.Definitions.Count);
     }
 
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData(ActorKind.Automation, true)]
+    [InlineData(ActorKind.Staff, false)]
+    public void AFillLandsOnlyWhereStaffHaveNotRecordedAValue(ActorKind? recordedByKind, bool lands) =>
+        Assert.Equal(lands, AssessmentPolicy.FillLands(recordedByKind));
+
     [Fact]
-    public void AutomationMayRecordFindingFields()
+    public void AutomationCannotRecordAFindingField()
     {
+        // A professional finding is recorded only by staff: the Automation
+        // actor never records one, so no AI value can be a finding.
+        var refused = Assert.Throws<InvalidOperationException>(() => AssessmentPolicy.ValidateAndNormalize(
+            Request(new() { ["assessment.legal_status"] = "roadworthy" })));
+        Assert.Contains("professional finding", refused.Message, StringComparison.Ordinal);
+
         var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(new() { ["assessment.legal_status"] = "roadworthy" }));
-        Assert.Equal("roadworthy", normalized.Fields["assessment.legal_status"]);
+            Request(new() { ["vehicle.condition"] = "good" }));
+        Assert.Equal("good", normalized.Fields["vehicle.condition"]);
     }
 
     [Theory]
@@ -763,7 +845,15 @@ public sealed class AssessmentPolicyTests
         var empty = Projection([]);
         var readiness = AssessmentPolicy.EvaluateReadiness(empty);
         Assert.Contains(readiness, item => item.Requirement == "Vehicle type");
-        Assert.Contains(readiness, item => item.Requirement == "Repairer VAT answer");
+        // The repairer's VAT position is the Current repair spec's, and the
+        // assessed date is the Case's Inspection date (#834).
+        Assert.DoesNotContain(readiness, item => item.Requirement == "Repairer VAT answer");
+        Assert.DoesNotContain(readiness, item => item.Requirement == "Assessed date");
+        Assert.Contains(
+            readiness,
+            item => item.Requirement == "Inspection date"
+                && item.Source == "Case record"
+                && item.Field == CaseDataFieldNames.InspectionDate);
 
         // The year is the case record's own fact now, named beside the make
         // and the model rather than asked for again on the Vehicle section.
@@ -779,62 +869,269 @@ public sealed class AssessmentPolicyTests
 
         var recorded = Projection(
             [],
-            new(null, null, null, "2012", 80_000, "miles", "owner", null, null, null, null));
+            new(null, null, null, "2012", 80_000, "miles", "owner", null, ReceivedOn, null, null, null, null, null));
         Assert.DoesNotContain(
             AssessmentPolicy.EvaluateReadiness(recorded),
             item => item.Requirement is "Odometer reading" or "Vehicle year");
     }
 
     [Fact]
-    public void ContractRepairRequiresAConfirmedAgreedSum()
+    public void ContractRepairRequiresAnAgreedSum()
     {
         var missing = Projection([Field(AssessmentVocabulary.Outcome, "contract_repair")]);
         Assert.Contains(
             AssessmentPolicy.EvaluatePostReviewReadiness(missing),
             item => item.Requirement == "Agreed contract sum");
 
-        var unconfirmed = Projection(
-            [
-                Field(AssessmentVocabulary.Outcome, "contract_repair"),
-                Field(AssessmentVocabulary.SettlementContractSum, "4500.00")
-                    with { ConfirmedBy = null, ConfirmedAtUtc = null },
-            ]);
-        Assert.Contains(
-            AssessmentPolicy.EvaluatePostReviewReadiness(unconfirmed),
-            item => item.Requirement == "Agreed contract sum");
-
-        var confirmed = Projection(
+        var recorded = Projection(
             [
                 Field(AssessmentVocabulary.Outcome, "contract_repair"),
                 Field(AssessmentVocabulary.SettlementContractSum, "4500.00"),
             ]);
         Assert.DoesNotContain(
-            AssessmentPolicy.EvaluatePostReviewReadiness(confirmed),
+            AssessmentPolicy.EvaluatePostReviewReadiness(recorded),
             item => item.Requirement == "Agreed contract sum");
     }
 
+    /// <summary>
+    /// A recorded value is the Case's value whoever recorded it (operator, 25
+    /// September 2026): there is no per-field review, so a value the
+    /// Automation actor, the vehicle lookup or the original-report extraction
+    /// recorded is never named as a blocker because of who recorded it.
+    /// </summary>
     [Fact]
-    public void ReadinessNamesEachUnconfirmedValueIndividually()
+    public void ARecordedValueBlocksNothingWhoeverRecordedIt()
     {
+        AssessmentFieldValue Recorded(string path, string value, string recorder) =>
+            Field(path, value) with { RecordedByKind = ActorKind.Automation, RecordedBy = recorder };
         var projection = Projection(
         [
-            Field("vehicle.condition", "good") with { ConfirmedBy = null, ConfirmedAtUtc = null },
-            Field("assessment.outcome", "repair") with { ConfirmedBy = null, ConfirmedAtUtc = null }
+            Recorded(AssessmentVocabulary.VehicleCondition, "good", "pegasus-automation"),
+            Recorded(AssessmentVocabulary.VehicleType, "car", "vehicle-lookup"),
+            Recorded(AssessmentVocabulary.OriginalReportDate, "2026-09-01", "original-report-extraction"),
+            Recorded(AssessmentVocabulary.OriginalReportAssessor, "A N Other", "original-report-extraction")
         ]);
+
         var readiness = AssessmentPolicy.EvaluateReadiness(projection);
 
-        // One blocker per unconfirmed value naming its own field and
-        // provenance — never a single aggregate count.
-        Assert.Contains(
-            readiness,
-            item => item.Requirement == "vehicle.condition awaits review"
-                && item.Source.StartsWith("Recorded by ", StringComparison.Ordinal));
-        Assert.Contains(
-            readiness,
-            item => item.Requirement == "assessment.outcome awaits review");
+        Assert.DoesNotContain(readiness, item => item.Requirement.Contains("review", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(readiness, item => item.Source.StartsWith("Recorded by", StringComparison.Ordinal));
+        foreach (var field in projection.Fields)
+        {
+            Assert.DoesNotContain(readiness, item => item.Field == field.Path);
+        }
+    }
+
+    /// <summary>
+    /// Entry to Review proves only instruction and image completeness, so each
+    /// Case fact the report prints is a post-Review blocker naming its Case
+    /// field and the section that records it (operator, 24 September 2026).
+    /// The date instructions were received is the Case's received date, which
+    /// every Case has, so it is never one of them.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseDataFieldNames.ClaimantName, "Claimant name", "the Claim section")]
+    [InlineData(CaseDataFieldNames.ClaimNumber, "Claim reference", "the Case details section")]
+    [InlineData(CaseDataFieldNames.IncidentDate, "Incident date", "the Case details section")]
+    [InlineData(CaseDataFieldNames.VehicleRegistration, "Vehicle registration", "the Vehicle section")]
+    [InlineData(CaseDataFieldNames.InspectionMode, "Inspection type", "the Inspection details section")]
+    [InlineData(CaseDataFieldNames.InspectionDate, "Inspection date", "the Inspection details section")]
+    [InlineData(CaseDataFieldNames.InspectionAddress, "Inspection address", "the Inspection details section")]
+    public void PostReviewReadinessNamesEachCaseFactTheReportPrints(
+        string field, string requirement, string section)
+    {
+        Assert.DoesNotContain(
+            AssessmentPolicy.EvaluatePostReviewReadiness(Projection([], CompleteCaseOwned)),
+            item => item.Source == "Case record");
+
+        var readiness = AssessmentPolicy.EvaluatePostReviewReadiness(
+            Projection([], WithoutCaseFact(CompleteCaseOwned, field)));
+
+        var named = Assert.Single(readiness, item => item.Source == "Case record");
+        Assert.Equal(requirement, named.Requirement);
+        Assert.Equal(field, named.Field);
+        Assert.Contains(section, named.HowToResolve, StringComparison.Ordinal);
+
+        // The vehicle make, model and year are Review-entry facts only.
+        var noVehicleIdentity = Projection(
+            [],
+            CompleteCaseOwned with { Make = null, Model = null, Year = null });
+        string?[] reviewEntryFacts =
+        [
+            CaseDataFieldNames.VehicleMake,
+            CaseDataFieldNames.VehicleModel,
+            CaseDataFieldNames.VehicleYear
+        ];
+        Assert.DoesNotContain(
+            AssessmentPolicy.EvaluatePostReviewReadiness(noVehicleIdentity),
+            item => item.Source == "Case record");
+        Assert.Equal(
+            reviewEntryFacts,
+            AssessmentPolicy.EvaluateReadiness(noVehicleIdentity)
+                .Where(item => item.Source == "Case record")
+                .Select(item => item.Field));
+    }
+
+    /// <summary>
+    /// The active total-loss template has accepted wording for Category S
+    /// only (operator, 24 September 2026), so any other category is named
+    /// before a report is projected rather than refused at render.
+    /// </summary>
+    [Theory]
+    [InlineData("A")]
+    [InlineData("B")]
+    [InlineData("N")]
+    [InlineData("N/A")]
+    public void ATotalLossPrintsOnlyCategoryS(string category)
+    {
+        var readiness = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(TotalLoss(category)));
+
+        var salvage = Assert.Single(readiness, item => item.Requirement == "Salvage category");
+        Assert.Contains("Category S", salvage.WhyOutstanding, StringComparison.Ordinal);
+        Assert.Contains($"Category {category}", salvage.WhyOutstanding, StringComparison.Ordinal);
+        Assert.Equal(AssessmentVocabulary.SalvageCategory, salvage.Field);
+
+        Assert.DoesNotContain(
+            AssessmentPolicy.EvaluatePostReviewReadiness(Projection(TotalLoss("S"))),
+            item => item.Requirement == "Salvage category");
+    }
+
+    [Fact]
+    public void AnOverriddenReportDateWithoutADateIsNamed()
+    {
+        var overridden = AssessmentPolicy.EvaluatePostReviewReadiness(
+            Projection([Field(AssessmentVocabulary.ReportDateOverride, "true")]));
+
+        var reportDate = Assert.Single(overridden, item => item.Field == AssessmentVocabulary.ReportDate);
+        Assert.Equal("Report date", reportDate.Requirement);
+
+        var dated = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
+        [
+            Field(AssessmentVocabulary.ReportDateOverride, "true"),
+            Field(AssessmentVocabulary.ReportDate, "2026-08-19")
+        ]));
+        var notOverridden = AssessmentPolicy.EvaluatePostReviewReadiness(
+            Projection([Field(AssessmentVocabulary.ReportDateOverride, "false")]));
+        Assert.DoesNotContain(dated, item => item.Requirement == "Report date");
+        Assert.DoesNotContain(notOverridden, item => item.Requirement == "Report date");
+    }
+
+    /// <summary>
+    /// The report's retail and trade are the Engineer's Value basis card's,
+    /// recorded by the adoption, so a missing trade is cleared on that card
+    /// and a Case save, never by a field of its own.
+    /// </summary>
+    [Fact]
+    public void TradeValueBlockerPointsAtTheBasisCard()
+    {
+        var withoutTrade = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
+        [
+            Field(AssessmentVocabulary.ValueEngineer, "5000.00"),
+            Field(AssessmentVocabulary.ValueRetail, "5000.00")
+        ]));
+
+        var trade = Assert.Single(withoutTrade, item => item.Requirement == "Trade value");
+        Assert.Equal("Valuation", trade.Source);
+        Assert.Equal(AssessmentVocabulary.ValueTrade, trade.Field);
+        Assert.Contains("basis card", trade.HowToResolve, StringComparison.Ordinal);
+        Assert.Contains("the Valuation section", trade.HowToResolve, StringComparison.Ordinal);
+        Assert.DoesNotContain(withoutTrade, item => item.Field == AssessmentVocabulary.ValueRetail);
+
+        var adopted = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
+        [
+            Field(AssessmentVocabulary.ValueEngineer, "5000.00"),
+            Field(AssessmentVocabulary.ValueRetail, "5000.00"),
+            Field(AssessmentVocabulary.ValueTrade, "4000.00")
+        ]));
+        Assert.DoesNotContain(
+            adopted,
+            item => item.Field is AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade);
+    }
+
+    /// <summary>
+    /// Before any adoption the Engineer's Value item names the one Save that
+    /// records the value, retail and trade together, so retail and trade are
+    /// not named as blockers of their own.
+    /// </summary>
+    [Fact]
+    public void BeforeAnAdoptionOnlyTheEngineersValueIsNamed()
+    {
+        var readiness = AssessmentPolicy.EvaluatePostReviewReadiness(Projection([]));
+
+        var engineerValue = Assert.Single(readiness, item => item.Field == AssessmentVocabulary.ValueEngineer);
+        Assert.Equal("Engineer's Value", engineerValue.Requirement);
         Assert.DoesNotContain(
             readiness,
-            item => item.Requirement.Contains("values await review", StringComparison.Ordinal));
+            item => item.Field is AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade);
+    }
+
+    /// <summary>
+    /// FRD-13: a blocker identifies exactly which field or material it names,
+    /// so the Case page can send the operator to the section that clears it
+    /// without reading requirement text.
+    /// </summary>
+    [Fact]
+    public void EveryReadinessItemNamesItsField()
+    {
+        var projection = Projection(
+            [Field(AssessmentVocabulary.LegalStatus, "unroadworthy")],
+            NoCaseFacts with { InspectionMode = nameof(CaseInspectionMode.PhysicalAddress) });
+
+        var readiness = AssessmentPolicy.EvaluateReadiness(projection);
+
+        Assert.All(readiness, item => Assert.True(
+            item.Field is not null,
+            $"'{item.Requirement}' names no field."));
+        Assert.Equal(
+            CaseDataFieldNames.VehicleRegistration,
+            Assert.Single(readiness, item => item.Requirement == "Vehicle registration").Field);
+        Assert.Equal(
+            AssessmentVocabulary.UnroadworthyReason,
+            Assert.Single(readiness, item => item.Requirement == "Unroadworthy reason").Field);
+    }
+
+    /// <summary>
+    /// Each resolution names a section the Case page has. The retired
+    /// Assessment page, its Apply command and the old section names are gone
+    /// from every blocker, conditional ones included.
+    /// </summary>
+    [Fact]
+    public void ReadinessResolutionsNameTheLiveCaseSections()
+    {
+        CaseAssessmentProjection[] projections =
+        [
+            Projection([], NoCaseFacts with { InspectionMode = nameof(CaseInspectionMode.PhysicalAddress) }),
+            Projection([Field(AssessmentVocabulary.LegalStatus, "unroadworthy")]),
+            Projection([Field(AssessmentVocabulary.Outcome, "total_loss")]),
+            Projection([Field(AssessmentVocabulary.Outcome, "contract_repair")]),
+        ];
+        var items = projections.SelectMany(AssessmentPolicy.EvaluateReadiness).ToArray();
+
+        string HowToResolve(string requirement) =>
+            items.First(item => item.Requirement == requirement).HowToResolve;
+
+        Assert.Equal("Record it on the Vehicle section.", HowToResolve("Vehicle type"));
+        Assert.Equal("Record it on the Fee tab of the Report section.", HowToResolve("Agreed fee"));
+        Assert.Equal("Record it on the Inspection details section.", HowToResolve("Inspection date"));
+
+        // Every conditional blocker was reached, so the wording check below
+        // covers it.
+        Assert.Contains(items, item => item.Requirement == "Inspection address");
+        Assert.Contains(items, item => item.Requirement == "Unroadworthy reason");
+        Assert.Contains(items, item => item.Requirement == "Salvage category");
+        Assert.Contains(items, item => item.Requirement == "Agreed contract sum");
+
+        foreach (var retired in new[]
+        {
+            "Assessment page", "Apply", "EXT-09", "assigned staff member", "Findings section",
+            "Settlement section", "Incident and impact", "Report content", "Estimate section", "case details"
+        })
+        {
+            Assert.DoesNotContain(
+                items,
+                item => item.HowToResolve.Contains(retired, StringComparison.Ordinal)
+                    || item.WhyOutstanding.Contains(retired, StringComparison.Ordinal));
+        }
     }
 
     private static SaveAssessmentRequest Request(
@@ -870,19 +1167,59 @@ public sealed class AssessmentPolicyTests
         value,
         ActorKind.Staff,
         "staff",
-        DateTimeOffset.UtcNow,
-        "staff",
         DateTimeOffset.UtcNow);
+
+    private static AssessmentFieldValue[] TotalLoss(string category) =>
+    [
+        Field(AssessmentVocabulary.Outcome, "total_loss"),
+        Field(AssessmentVocabulary.SalvageCategory, category),
+        Field(AssessmentVocabulary.SalvageValue, "500.00")
+    ];
+
+    /// <summary>The Case's received date, which every Case has.</summary>
+    private static readonly DateOnly ReceivedOn = new(2026, 8, 2);
+
+    /// <summary>A Case record with nothing recorded beyond its received date.</summary>
+    private static readonly AssessmentCaseOwnedData NoCaseFacts =
+        new(null, null, null, null, null, null, "tbc", null, ReceivedOn, null, null, null, null, null);
+
+    /// <summary>A Case record holding every fact the report prints.</summary>
+    private static readonly AssessmentCaseOwnedData CompleteCaseOwned = new(
+        "AB12CDE", "Ford", "Focus", "2012", 80_000, "miles", "owner",
+        new DateOnly(2026, 8, 1), ReceivedOn, "ImageBasedAssessment", "Image Based Assessment",
+        new DateOnly(2026, 8, 3), "Alex Example", "P-100");
+
+    /// <summary>
+    /// <paramref name="owned"/> without the one printed Case fact named by its
+    /// Case field. An address is printed only for a vehicle inspected at a
+    /// physical location, so the address is removed from such an inspection.
+    /// </summary>
+    private static AssessmentCaseOwnedData WithoutCaseFact(AssessmentCaseOwnedData owned, string field) => field switch
+    {
+        CaseDataFieldNames.ClaimantName => owned with { ClaimantName = null },
+        CaseDataFieldNames.ClaimNumber => owned with { ClaimNumber = null },
+        CaseDataFieldNames.IncidentDate => owned with { IncidentDate = null },
+        CaseDataFieldNames.VehicleRegistration => owned with { Registration = null },
+        CaseDataFieldNames.InspectionMode => owned with { InspectionMode = null },
+        CaseDataFieldNames.InspectionDate => owned with { InspectionDate = null },
+        CaseDataFieldNames.InspectionAddress => owned with
+        {
+            InspectionMode = nameof(CaseInspectionMode.PhysicalAddress),
+            InspectionAddress = null
+        },
+        _ => throw new ArgumentOutOfRangeException(nameof(field), field, "Not a Case fact the report prints.")
+    };
 
     private static CaseAssessmentProjection Projection(
         IReadOnlyList<AssessmentFieldValue> fields,
-        AssessmentCaseOwnedData? caseOwned = null) => new(
+        AssessmentCaseOwnedData? caseOwned = null,
+        IReadOnlyList<CaseEstimateLineRecord>? lines = null) => new(
         Guid.NewGuid(),
         "CE-QDOS-31-00001",
         0,
         CaseLifecycleState.Review,
         null,
         fields,
-        [],
-        caseOwned ?? new(null, null, null, null, null, null, "tbc", null, null, null, null));
+        lines ?? [],
+        caseOwned ?? NoCaseFacts);
 }

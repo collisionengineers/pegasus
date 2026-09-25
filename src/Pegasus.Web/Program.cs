@@ -309,6 +309,18 @@ builder.Services.AddRazorPages()
                     SuppressLinkGeneration = true
                 }
             }));
+        // A Triage Case has no Case workflow, so the Case workflow sub-routes
+        // are not found for one (the record itself dispatches in Details).
+        options.Conventions.AddFolderApplicationModelConvention(
+            "/Cases",
+            model =>
+            {
+                if (Pegasus.Web.Pages.Cases.TriageCaseRouteFilter.GuardedPages.Contains(model.ViewEnginePath))
+                {
+                    model.Filters.Add(new Microsoft.AspNetCore.Mvc.ServiceFilterAttribute(
+                        typeof(Pegasus.Web.Pages.Cases.TriageCaseRouteFilter)));
+                }
+            });
     });
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>
@@ -743,6 +755,11 @@ builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadOutcomeQueries,
 // (see Pegasus.Web.Presentation.UploadCaseDecision).
 builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadCaseDecision,
     Pegasus.Web.Presentation.UploadCaseDecision>();
+// A Triage Case's record on /Cases/{id}: its ports, taken by the Case record's
+// Triage handlers, and the filter that keeps the Case workflow sub-routes from
+// answering for it.
+builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCasePorts>();
+builder.Services.AddScoped<Pegasus.Web.Pages.Cases.TriageCaseRouteFilter>();
 builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<DiscardIntakeSubmissionGroup>();
 builder.Services.AddScoped<IDiscardIntakeSubmissionGroup>(serviceProvider =>
@@ -752,10 +769,11 @@ builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
 builder.Services.AddScoped<SubmitGroupedIntake>();
 builder.Services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<SubmitGroupedIntake>());
-// The consolidated Automation activity read model backs the Administration
-// view in every profile; the ingress itself stays behind the composition gate.
+// No Administration view reads the Automation activity use case: automation
+// activity is read in Action logs (FRD-04). GetServiceHealth reads the newest
+// activity through this port in every profile; the ingress itself stays
+// behind the composition gate.
 builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore>();
-builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
 // Administration health remains available when the Automation ingress is disabled.
 builder.Services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
 builder.Services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>();

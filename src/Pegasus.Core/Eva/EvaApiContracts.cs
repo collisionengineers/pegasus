@@ -173,10 +173,7 @@ public sealed record SubmitCaseToEvaRequest(
 public sealed record SubmitCaseToEvaResult(
     EvaSubmissionResult? Submission,
     IReadOnlyList<string> UnrecordedFields,
-    IReadOnlyList<string> BlockingReasons)
-{
-    public bool IsSubmitted => Submission is not null;
-}
+    IReadOnlyList<string> BlockingReasons);
 
 public interface ISubmitCaseToEva
 {

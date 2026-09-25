@@ -1,7 +1,6 @@
 using System.Globalization;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Lifecycle;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Assessment;
 
@@ -44,7 +43,7 @@ public static class ValuationSources
 /// as the first day of that month so two cards for the same month sort and
 /// compare as one value.
 /// An <see cref="ValuationSource.EngineersValue"/> row additionally writes
-/// the confirmed <c>assessment.values.engineer</c> field, which stays the one
+/// the <c>assessment.values.engineer</c> field, which stays the one
 /// owner of the Engineer's Value the product consumes.
 /// A guide source's card holds whatever staff entered or Get valuation brought
 /// back, so any of its mileage, retail, trade and guide month may be absent
@@ -69,27 +68,6 @@ public sealed record CaseValuation(
     string? LastEditedBy = null,
     DateTimeOffset? LastEditedAtUtc = null);
 
-public sealed record SaveValuationRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    ValuationDetails Details)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
-public sealed record EditValuationRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    Guid ValuationId,
-    ValuationDetails Details)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
 public static class ValuationPolicy
 {
     public const string PolicyKey = "case-valuation";
@@ -107,26 +85,6 @@ public static class ValuationPolicy
         ValuationSource.Cap => "CAP",
         _ => source.ToString(),
     };
-
-    public static SaveValuationRequest ValidateSave(SaveValuationRequest request)
-    {
-        CaseLifecycleRules.ValidateMutation(request);
-        RequireManuallyRecordableSource(request.Details.Source);
-        RequireActor(request.Actor, request.Details);
-        return request with { Details = ValidateDetails(request.Details) };
-    }
-
-    public static EditValuationRequest ValidateEdit(EditValuationRequest request)
-    {
-        CaseLifecycleRules.ValidateMutation(request);
-        RequireManuallyRecordableSource(request.Details.Source);
-        RequireActor(request.Actor, request.Details);
-        if (request.ValuationId == Guid.Empty)
-        {
-            throw new ArgumentException("A valuation identifier is required.", nameof(request));
-        }
-        return request with { Details = ValidateDetails(request.Details) };
-    }
 
     public static ValuationDetails ValidateDetails(ValuationDetails details)
     {
@@ -169,8 +127,7 @@ public static class ValuationPolicy
     /// Brego, Super CAP, CAP and Cazana guides and records the figure by hand
     /// (v28 P8 and P13, 18 September 2026): none of them has a live provider
     /// here, and the guide is evidence rather than a call. AI market research
-    /// is written only by the automation completion, so it is not offered to
-    /// the staff save and edit actions.
+    /// is written only by the automation completion, so staff never record it.
     /// </summary>
     public static bool IsManuallyRecordable(ValuationSource source) =>
         source is ValuationSource.Glasses
@@ -183,8 +140,9 @@ public static class ValuationPolicy
     /// <summary>
     /// One guide source's card as the Case save records it (23 September
     /// 2026: the source cards have no Save of their own), with whatever of
-    /// its boxes were entered. The Engineer's Value is the Apply command's
-    /// and AI market research is the automation's, so neither is a guide card.
+    /// its boxes were entered. The Engineer's Value is adopted by a Case Save
+    /// that changes the valuation calculation and AI market research is the
+    /// automation's, so neither is a guide card.
     /// </summary>
     public static ValuationDetails ValidateGuideEntry(ActionActor actor, ValuationDetails details)
     {
@@ -194,7 +152,7 @@ public static class ValuationPolicy
         if (details.Source == ValuationSource.EngineersValue)
         {
             throw new InvalidOperationException(
-                "The Engineer's Value is recorded by the valuation Apply command, not as a guide card.");
+                "The Engineer's Value is adopted by saving a changed valuation calculation, not recorded as a guide card.");
         }
         RequireActor(actor, details);
         return ValidateDetails(details);
@@ -205,7 +163,7 @@ public static class ValuationPolicy
         if (!IsManuallyRecordable(source))
         {
             throw new InvalidOperationException(
-                "This valuation source cannot be recorded through the staff valuation action.");
+                "This valuation source cannot be recorded as a guide card.");
         }
     }
 
@@ -262,9 +220,9 @@ public static class ValuationPolicy
 
     /// <summary>
     /// Recording or correcting a valuation is ordinary casework. An
-    /// Engineer's Value row carries the confirmed
-    /// <c>assessment.values.engineer</c> professional finding, so every staff
-    /// actor who records it passes that field's shared confirmation rule.
+    /// Engineer's Value row carries the <c>assessment.values.engineer</c>
+    /// professional finding, so every staff actor who records it passes that
+    /// field's finding-authority rule.
     /// </summary>
     private static void RequireActor(ActionActor actor, ValuationDetails details)
     {
@@ -273,16 +231,16 @@ public static class ValuationPolicy
         if (actor.Kind != ActorKind.Staff)
         {
             throw new InvalidOperationException(
-                "Valuations entered through the staff save and edit actions require a staff actor.");
+                "A guide card is recorded by a staff actor.");
         }
         if (details.Source == ValuationSource.EngineersValue)
         {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(actor);
+            AssessmentPolicy.RequireFindingAuthority(actor);
         }
     }
 
     /// <summary>
-    /// The confirmed <c>assessment.values.engineer</c> value an Engineer's
+    /// The <c>assessment.values.engineer</c> value an Engineer's
     /// Value row carries: its retail figure, which is the pre-accident value
     /// a settlement is measured from (FRD-11 total-loss report). Null for
     /// every other source, which writes no assessment field.
@@ -310,30 +268,9 @@ public static class ValuationPolicy
 
 public interface IValuationStore
 {
-    Task<CaseValuation> SaveAsync(
-        SaveValuationRequest request,
-        CancellationToken cancellationToken);
-
-    Task<CaseValuation> EditAsync(
-        EditValuationRequest request,
-        CancellationToken cancellationToken);
-
     Task<IReadOnlyList<CaseValuation>> ListForCaseAsync(
         Guid caseId,
-        CancellationToken cancellationToken);
-}
-
-public interface ISaveValuation
-{
-    Task<CaseValuation> ExecuteAsync(
-        SaveValuationRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IEditValuation
-{
-    Task<CaseValuation> ExecuteAsync(
-        EditValuationRequest request,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 
@@ -341,29 +278,15 @@ public interface IListCaseValuations
 {
     Task<IReadOnlyList<CaseValuation>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
-}
-
-public sealed class SaveValuation(IValuationStore store) : ISaveValuation
-{
-    public Task<CaseValuation> ExecuteAsync(
-        SaveValuationRequest request,
-        CancellationToken cancellationToken) =>
-        store.SaveAsync(ValuationPolicy.ValidateSave(request), cancellationToken);
-}
-
-public sealed class EditValuation(IValuationStore store) : IEditValuation
-{
-    public Task<CaseValuation> ExecuteAsync(
-        EditValuationRequest request,
-        CancellationToken cancellationToken) =>
-        store.EditAsync(ValuationPolicy.ValidateEdit(request), cancellationToken);
 }
 
 public sealed class ListCaseValuations(IValuationStore store) : IListCaseValuations
 {
     public Task<IReadOnlyList<CaseValuation>> ExecuteAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -371,6 +294,6 @@ public sealed class ListCaseValuations(IValuationStore store) : IListCaseValuati
             throw new ArgumentException("A case identifier is required.", nameof(caseId));
         }
 
-        return store.ListForCaseAsync(caseId, cancellationToken);
+        return store.ListForCaseAsync(caseId, work, cancellationToken);
     }
 }

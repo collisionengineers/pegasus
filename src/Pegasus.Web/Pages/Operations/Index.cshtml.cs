@@ -8,6 +8,7 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Operations;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
@@ -39,9 +40,6 @@ public sealed class IndexModel(
     /// post to the one owner, Administration › Logs.
     /// </summary>
     public IReadOnlyList<IntakeLogActionableFailure> FailedIntake { get; private set; } = [];
-
-    /// <summary>The failure kinds Operations lists, in the order it lists them.</summary>
-    public static readonly IReadOnlyList<IntakeLogOutcome> FailureKinds = IntakeLogPolicy.RetryableFailures;
 
     /// <summary>
     /// What one Unidentified-resolution job is asked to do. FRD-27 gives this
@@ -339,35 +337,22 @@ public sealed class IndexModel(
         HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId);
 
     /// <summary>
-    /// The review action a Draft ready job offers, as (label, page), or
-    /// <see langword="null"/> where no route exists. Estimate opens the
-    /// Assessment estimate tab and Unidentified resolution opens the item, as
-    /// FRD-27 requires.
+    /// The review action a Draft ready job offers, as (label, route), or
+    /// <see langword="null"/> where no route exists. The route is Core's
+    /// <see cref="StaffNotificationPolicy.AiDraftRoute"/>, the one the Work
+    /// Centre and the Case's Next action open (FRD-27): Review estimate at the
+    /// Case's Repair Spec section, Open query at the message it answers (the
+    /// Case's correspondence when the job names none), Review at the
+    /// Unidentified item. The label is the Work Centre's for the same draft
+    /// action.
     /// </summary>
-    /// <remarks>
-    /// Query response is the one compromise: FRD-27 asks it to open the
-    /// message, but Core gives the job a Case subject and no message identity
-    /// (<c>AiJobPolicy.SubjectKindFor</c>), so the link opens the Case the job
-    /// actually names rather than rendering an unresolvable control.
-    /// </remarks>
-    public static (string Label, string Page)? ReviewAction(AiJobRecord job)
+    public static (string Label, string Route)? ReviewAction(AiJobRecord job)
     {
         ArgumentNullException.ThrowIfNull(job);
-        if (job.State != AiJobState.DraftReady || job.SubjectId is null)
-        {
-            return null;
-        }
-
-        return job.Kind switch
-        {
-            AiJobKind.Estimate =>
-                (OperatorLabels.AiJobs.ReviewEstimate, "/Cases/Assessment/Index"),
-            AiJobKind.QueryResponse =>
-                (OperatorLabels.AiJobs.OpenQuery, "/Cases/Details"),
-            AiJobKind.UnidentifiedResolution =>
-                (OperatorLabels.AiJobs.Review, "/Unidentified/Details"),
-            _ => null
-        };
+        return job.State == AiJobState.DraftReady
+            && StaffNotificationPolicy.AiDraftRoute(job) is { } route
+                ? (OperatorLabels.WorkCentre.AiDraftAction(AiDraftPolicy.ActionFor(job.Kind).ToString()), route)
+                : null;
     }
 
     /// <summary>

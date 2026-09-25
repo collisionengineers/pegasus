@@ -95,8 +95,6 @@ public sealed record ApprovedMailboxPollStatus(
     string? LastFailureCode,
     DateTimeOffset StartBoundaryUtc = default,
     long Generation = 0,
-    DateTimeOffset? SubscriptionExpiresAtUtc = null,
-    ApprovedMailboxSubscriptionLifecycleState? SubscriptionState = null,
     IReadOnlyList<ApprovedMailboxRouteScope>? Capabilities = null)
 {
     public bool IsFresh(DateTimeOffset nowUtc) =>
@@ -406,12 +404,8 @@ public enum ApprovedMailboxUpdateError
     DefaultStaffSendMailboxRequiresReplacement
 }
 
-public sealed class ApprovedMailboxUpdateException(
-    ApprovedMailboxUpdateError error,
-    int? currentVersion = null)
+public sealed class ApprovedMailboxUpdateException(ApprovedMailboxUpdateError error)
     : InvalidOperationException("The approved-mailbox change could not be completed.")
 {
     public ApprovedMailboxUpdateError Error { get; } = error;
-
-    public int? CurrentVersion { get; } = currentVersion;
 }

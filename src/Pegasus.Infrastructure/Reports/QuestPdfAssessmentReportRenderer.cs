@@ -18,8 +18,8 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
 {
     /// <summary>
     /// The printed photo square's longest edge in pixels: 91mm at 300 dpi
-    /// needs 1075, so the page never prints a soft square and a 24-image
-    /// report stays a few megabytes.
+    /// needs 1075, so the page never prints a soft square, and each printed
+    /// image embeds at most 1200 px whatever the source size.
     /// </summary>
     private const int PhotoSquarePixels = 1200;
     private const int PhotoJpegQuality = 85;
@@ -36,7 +36,6 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ReportResources.RegisterFonts();
-        AssessmentReportRenderPolicy.RequireBoundedImages(snapshot.Photos);
         var suffix = kind switch
         {
             CaseReportArtifactKind.FeeNote => "fee_note",

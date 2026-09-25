@@ -68,6 +68,14 @@ public sealed class CaseEngineerSectionsWebTests
         Assert.DoesNotContain("data-salvage-snap", html, StringComparison.Ordinal);
         Assert.DoesNotContain("staff-reviewed", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("reviewed by staff", html, StringComparison.OrdinalIgnoreCase);
+        // The Incident narrative and the statement of truth are Core's, composed
+        // in every state, as the issued report printed them; neither is a
+        // recorded field.
+        Assert.Contains(
+            $"data-damage-narrative>{ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear")}</div>",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportContract.StatementOfTruth1, html, StringComparison.Ordinal);
 
         if (!AssessmentPolicy.IsWritableState(state))
         {
@@ -169,7 +177,6 @@ public sealed class CaseEngineerSectionsWebTests
                 "Alex Example",
                 "P-100",
                 DateTimeOffset.UtcNow,
-                new DateOnly(2026, 8, 1),
                 "Email",
                 DateTimeOffset.UtcNow);
             var assessment = new CaseAssessmentProjection(
@@ -180,7 +187,8 @@ public sealed class CaseEngineerSectionsWebTests
                 null,
                 Fields(),
                 [],
-                new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+                new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,
+                    null, "Alex Example", "P-100"));
             workspace = AssessmentWorkspaceTestData.Create(assessment);
             details = new(
                 summary,
@@ -235,14 +243,14 @@ public sealed class CaseEngineerSectionsWebTests
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ExecuteAsync(
             Guid caseId,
+            CaseWorkSelector work,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
                 caseId == CaseId ? [estimate] : []);
 
-        public Task<CaseReportFreezeInputs?> GetAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+        public Task<CaseReportFreezeInputs?> GetAsync(Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
-                new(workspace.Assessment, details.Summary.Claimant, workspace.Assessment.Reference,
-                    "P-100", [], null, [], [], estimate),
+                new(workspace.Assessment, workspace.Assessment.Reference, [], null, [], [], estimate),
                 new(workspace.Assessment, null, null, [], estimate, null, [], new Dictionary<Guid, DocumentVersion>()),
                 workspace.Assessment.Reference, details.Workflow.Version));
 
@@ -253,25 +261,20 @@ public sealed class CaseEngineerSectionsWebTests
                 value,
                 ActorKind.Staff,
                 "engineer-1",
-                DateTimeOffset.UtcNow,
-                "engineer-1",
                 DateTimeOffset.UtcNow);
             return
             [
                 Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
                 Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
-                Field(AssessmentVocabulary.NatureOfIncident, "Rear impact"),
                 Field(AssessmentVocabulary.Outcome, "repairable"),
                 Field(AssessmentVocabulary.SalvageCategory, "S"),
                 Field(AssessmentVocabulary.SalvageValue, "750.00"),
                 Field(AssessmentVocabulary.CostRecoveryCharge, "120.00"),
                 Field(AssessmentVocabulary.CostStorageCharge, "80.00"),
-                Field(AssessmentVocabulary.CostRepairerVatRegistered, "true"),
                 Field(AssessmentVocabulary.EngineersComments, "Engineer comments recorded"),
                 Field(AssessmentVocabulary.HistoryCheck, "History clear"),
                 Field(AssessmentVocabulary.AgreedFee, "120.00"),
                 Field(AssessmentVocabulary.FeeDescriptionLines, "Engineering assessment"),
-                Field(AssessmentVocabulary.StatementOfTruth, "I confirm this report is true"),
                 Field(AssessmentVocabulary.ValueEngineer, "5000.00")
             ];
         }
@@ -286,7 +289,7 @@ public sealed class CaseEngineerSectionsWebTests
                 new(
                     Guid.NewGuid(), 1, "new_part", null, "FRONT BUMPER", null, 620.20m, false,
                     "51 11 8 067", null, null, null, null,
-                    ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow),
+                    ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow),
             ],
             null,
             "engineer-1",

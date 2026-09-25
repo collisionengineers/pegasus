@@ -352,7 +352,6 @@ public sealed class CaseDetailsWebTests
             "contactName",
             "contactEmailAddress",
             "contactPhoneNumber",
-            "instructionDate",
             "vatStatus",
             "inspectionDate",
             "inspectionDeadline",
@@ -363,6 +362,7 @@ public sealed class CaseDetailsWebTests
         {
             Assert.Equal(1, Occurrences(html, $"name=\"{field}\""));
         }
+        Assert.Equal(0, Occurrences(html, "name=\"instructionDate\""));
         Assert.Contains(
             "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\">",
             html,
@@ -466,7 +466,10 @@ public sealed class CaseDetailsWebTests
         Assert.DoesNotContain("presence-strip", html, StringComparison.Ordinal);
         var refresh = RefreshForm(html);
         Assert.Contains("name=\"section\"", refresh, StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Refresh\"", refresh, StringComparison.Ordinal);
+        // The shared refresh button: the label the "Refreshing" rewrite
+        // targets is the button's accessible name (issue 831).
+        Assert.Contains("title=\"Refresh\"", refresh, StringComparison.Ordinal);
+        Assert.Contains("data-refresh-label", refresh, StringComparison.Ordinal);
 
         // The ribbon's actions: Cancel and Save beside the Editing badge and
         // the one Actions menu; no reason dialog stands between Save and the
@@ -475,7 +478,6 @@ public sealed class CaseDetailsWebTests
         Assert.Contains("form=\"case-finish-editing-form\"", actions, StringComparison.Ordinal);
         Assert.Contains("data-case-cancel-form", actions, StringComparison.Ordinal);
         Assert.Contains("form=\"case-edit-form\"", actions, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-case-save-reason", html, StringComparison.Ordinal);
         Assert.DoesNotContain("case-save-reason-dialog", html, StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(actions, ">Cancel</span>"));
         Assert.Equal(1, Occurrences(actions, ">Save</span>"));
@@ -523,11 +525,9 @@ public sealed class CaseDetailsWebTests
                 "diesel",
                 ActorKind.Automation,
                 "vehicle-lookup",
-                new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero),
-                "vehicle-lookup",
                 new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero))],
             [],
-            new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
         store.FocusedAssessment = assessment;
         var assessmentWorkspace = new CountingAssessmentWorkspace(
             AssessmentWorkspaceTestData.Create(assessment));
@@ -609,22 +609,6 @@ public sealed class CaseDetailsWebTests
         Assert.Null(lazyValuationQuery.Frame);
         Assert.Same(assessment, store.ValuationSectionAssessments.Last());
     }
-
-    /// <summary>
-    /// WP7 moved report composition off the Files section entirely — the
-    /// Report section is now the only place a report's image set is chosen —
-    /// and moved image preparation's gate from assessment access to
-    /// <c>CanEditCaseData</c> (lease held, state not PostReportComplete or
-    /// Query, not archived). So a visit with assessment access denied but the
-    /// Case lease held still sees the Images tab's tiles with their crop
-    /// controls: assessment access no longer has a say in this surface.
-    /// </summary>
-    private static FormUrlEncodedContent RepeatableForm(
-        string antiforgeryToken,
-        params (string Name, string Value)[] values) =>
-        new(values
-            .Select(item => KeyValuePair.Create(item.Name, item.Value))
-            .Append(KeyValuePair.Create("__RequestVerificationToken", antiforgeryToken)));
 
     private static string[] JumpLinkOrder(string html) =>
         [.. JumpLinkRegex().Matches(JumpNav(html)).Select(match => match.Groups[1].Value)];
@@ -768,25 +752,6 @@ public sealed class CaseDetailsWebTests
     }
 
     [Fact]
-    public async Task LinkedAuditDoesNotRenderTheStandaloneOriginalReportRequirementOrAction()
-    {
-        var store = new RecordingCaseDetailsStore
-        {
-            SummaryCaseType = CaseType.Audit,
-            AuditOfCaseId = Guid.NewGuid()
-        };
-        using var workspace = await EnterEditModeAsync(store, _ => { });
-
-        var fullPage = await workspace.GetWorkspaceAsync();
-        var files = await GetHtmlAsync(
-            workspace.Client,
-            $"/Cases/{store.CaseId:D}?section=files");
-
-        Assert.DoesNotContain("Original report missing", fullPage, StringComparison.Ordinal);
-        Assert.DoesNotContain(OperatorLabels.MarkAsOriginalReport, files, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task RemovedOriginalReportRestoresTheRequirementAndReplacementAction()
     {
         var report = Document(
@@ -834,6 +799,7 @@ public sealed class CaseDetailsWebTests
     public async Task MarkingAFiledDocumentAsTheOriginalReportClearsTheRequirement()
     {
         var occurrenceId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore
         {
             SummaryCaseType = CaseType.Audit,
@@ -841,7 +807,7 @@ public sealed class CaseDetailsWebTests
             [
                 Document(
                     occurrenceId,
-                    Guid.NewGuid(),
+                    versionId,
                     "original-report.pdf",
                     "application/pdf")
             ]
@@ -863,11 +829,13 @@ public sealed class CaseDetailsWebTests
                 ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
                 ("operationKey", "mark-original-report"),
                 ("editLeaseToken", store.LeaseToken),
-                ("occurrenceId", occurrenceId.ToString("D"))));
+                ("occurrenceId", occurrenceId.ToString("D")),
+                ("versionId", versionId.ToString("D"))));
 
         AssertPrg(response, store.CaseId);
         var command = Assert.Single(store.OriginalReportMarks);
         Assert.Equal(occurrenceId, command.DocumentOccurrenceId);
+        Assert.Equal(versionId, command.DocumentVersionId);
         AssertClaimant(workspace, command.Actor);
         var after = await workspace.GetWorkspaceAsync();
         Assert.Contains("The original report was recorded.", after, StringComparison.Ordinal);

@@ -179,7 +179,6 @@ public sealed record CaseWorkspaceOverview(
     string? ContactPhoneNumber,
     DateOnly? IncidentDate,
     string? AccidentCircumstances,
-    DateOnly? InstructionDate,
     string? VatStatus,
     string? RepairerAddress,
     CaseWorkspaceClaimSource? ClaimSource,
@@ -234,7 +233,9 @@ public sealed record CaseWorkspaceImagePreparation(
 /// the same source and guide month replaces the earlier card. The
 /// <see cref="Adoption"/> is present only when the operator changed the
 /// calculation since the page opened; the save then adopts its result as the
-/// Engineer's Value, calculated from the basis card as this save leaves it.
+/// Engineer's Value, calculated from the basis card as this save leaves it,
+/// and records that card's retail and trade as the report's Retail value and
+/// Trade value.
 /// </summary>
 public sealed record CaseWorkspaceValuation(
     IReadOnlyList<ValuationDetails>? GuideEntries,
@@ -314,8 +315,8 @@ public sealed record CaseWorkspaceCompleteness(
 /// <summary>
 /// One Case edit. Every section is optional: a null section was not submitted
 /// and is left exactly as persisted, while a submitted section replaces its
-/// own members — a null member inside it clears that value. Engineer notes and
-/// Case notes are separately attributed append commands and are deliberately
+/// own members — a null member inside it clears that value. Case notes are a
+/// separately attributed append command (AddCaseNote) and are deliberately
 /// absent from this replace-style payload.
 ///
 /// The save needs no reason (planning decision A, 13 September): its history
@@ -603,12 +604,9 @@ public static class CaseWorkspacePolicy
                 nameof(request));
         }
 
-        var fields = AssessmentFields(request);
-        if (request.Actor.Kind == ActorKind.Staff
-            && fields.Keys.Any(path => AssessmentVocabulary.Definitions[path].IsFinding))
-        {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(request.Actor);
-        }
+        // Every assessment path passes the field gate (finding authority
+        // included) before the transaction opens.
+        _ = AssessmentFields(request);
 
         if (request.Inspection is { } inspection)
         {
@@ -641,7 +639,7 @@ public static class CaseWorkspacePolicy
         // checks.
         if (validated.Valuation is { Adoption: { } adoption } adopting)
         {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(validated.Actor);
+            AssessmentPolicy.RequireFindingAuthority(validated.Actor);
             validated = validated with
             {
                 Valuation = adopting with
@@ -717,7 +715,7 @@ public static class CaseWorkspacePolicy
 
         void Add(string path, string? rawValue)
         {
-            if (!fields.TryAdd(path, AssessmentPolicy.NormalizeWritableField(path, rawValue)))
+            if (!fields.TryAdd(path, AssessmentPolicy.NormalizeWritableField(path, rawValue, request.Actor)))
             {
                 throw new InvalidOperationException(
                     $"The field '{path}' was submitted by more than one section of the Case save.");
@@ -815,7 +813,6 @@ public static class CaseWorkspacePolicy
                 PrincipalNotes = overview.PrincipalNotes,
                 ClaimSourceNotes = overview.ClaimSourceNotes,
                 ClientNotes = overview.ClientNotes,
-                InstructionDate = overview.InstructionDate,
                 VatStatus = overview.VatStatus,
                 RepairerAddress = overview.RepairerAddress,
                 RepairerName = overview.Repairer?.Name,
@@ -900,9 +897,10 @@ public static class CaseWorkspacePolicy
     /// <summary>
     /// Paths a section owns through a typed member. Accepting them again as
     /// free-form assessment fields would give one fact two spellings in one
-    /// payload.
+    /// payload. The Case editor records each of these through its section's
+    /// typed member, so each is a path a staff member can confirm.
     /// </summary>
-    private static readonly HashSet<string> TypedPaths = new(
+    public static IReadOnlySet<string> TypedPaths { get; } = new HashSet<string>(
         StringComparer.Ordinal)
     {
         AssessmentVocabulary.DamageImpacts,

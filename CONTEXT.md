@@ -5,7 +5,7 @@ Pegasus is Collision Engineers’ case-management and reporting domain. This glo
 ## Language
 
 **Case**:
-A permanent record of Collision Engineers work. An Instruction-initiated Case is the formal record created after Principal, Case type, and identity-critical gates settle; an Image-initiated Case is a separate image-first projection with no Case/PO.
+A permanent record of Collision Engineers work. An Instruction-initiated Case is the formal record created after Principal, Case type, and identity-critical gates settle; a Triage Case is a Case whose request is not a definitive instruction; an Image-initiated Case is a separate image-first projection with no Case/PO.
 _Avoid_: Job
 
 **Principal**:
@@ -13,8 +13,12 @@ The organisation that instructs Collision Engineers and pays for the work.
 _Avoid_: Client, Work Provider, sender
 
 **Case/PO**:
-Collision Engineers’ immutable internal reference, allocated from the accepted Principal’s sequence to an instructed Case.
+Collision Engineers’ immutable internal reference, allocated from the accepted Principal’s sequence to a Case: no prefix for an Inspection or Inspection + Audit Case (`QDOS26001`), `a.` for a standalone Audit (`a.QDOS26002`) and `t.` for a Triage (`t.QDOS26003`). The Audit reference of an Inspection + Audit Case (`a.QDOS26001`) names its Audit report; it is not a Case/PO and consumes no number.
 _Avoid_: Claim number, external reference
+
+**Received date**:
+The Europe/London date a Case was received: its instruction's receipt, or its creation when staff create it directly. It is the Case's only instruction date: EVA's `Instruction Date` and the date the report says instructions were received ([FRD-23](docs/frd/frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
+_Avoid_: Instruction date (as a separate fact), processed date
 
 **Image intake**:
 A durable Image-initiated Case projection for image-only material with a usable normalised VRM. It carries an Image Intake Reference, may merge into one eligible instructed Case, and otherwise awaits definitive instruction or is staff-closed with a reason; it never becomes a formal Case/PO.
@@ -48,20 +52,26 @@ without that report. The assessment outcome is recorded on the Case, not in
 its identity. When no original report is filed and none was kept at intake,
 **Original report missing** stays outstanding until staff mark a filed
 document as the original report ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
-An Audit Case can also be created from an Inspection + Audit Case (below).
+The Audit of an Inspection + Audit Case is part of that Case, not an Audit
+Case (below).
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
-An Inspection Case and a linked Audit Case. Collision Engineers completes its standard Inspection on the Inspection Case (for example `QDOS26001`). Once a report has been generated there, Create audit creates the Audit Case as `a.` plus the same number (`a.QDOS26001`). The Audit Case carries its own identity, evidence, report and acceptance boundary.
-_Avoid_: Combined report, two-spec Inspection, second reference on the Inspection
+One Case holding an Inspection and, once its Inspection report is sent, its Audit. Collision Engineers completes its standard Inspection on the Case (for example `QDOS26001`). Create audit then adds the Audit to the same Case: a separate copy of the Case's values that only the Audit edits, with its own report under the Audit reference `a.` plus the same Case/PO (`a.QDOS26001`), its own fee note and an `a.` Box subfolder. The Case keeps one state, one Files and one Notes; no second Case and no second number is created ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
+_Avoid_: Combined report, two-spec Inspection, linked Audit Case
 
 **Triage**:
-A separate pre-Case assessment with a global increasing T-reference. Completion
-records a decided outcome; Reply with outcome is optional editable email.
-It allocates no normal Case/PO and does not provide definitive instructions.
+A Case type for an assessment request that is not a definitive instruction.
+Its Case/PO is `t.` plus the next number from the Principal's shared sequence
+(for example `t.QDOS26003`), allocated only once its Principal and
+registration are established. It follows its own Triage states; completion
+records a decided outcome, and Reply with outcome is optional editable email.
+A later definitive instruction is a separate Case with its own number, which
+the Triage may link to ([FRD-03](docs/frd/frd-03-triage.md)).
+_Avoid_: pre-Case Triage record, T-reference
 
 **Unidentified**:
-Safely retained material or an inseparable submission group that has not become a Case, Triage or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready.
+Safely retained material or an inseparable submission group that has not become a Case (Triage included) or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready.
 _Avoid_: Triage, Blocked, Blocked intake
 
 **Held**:
@@ -93,7 +103,7 @@ A named non-human principal that performs one explicitly authorised Pegasus acti
 _Avoid_: Service account, staff impersonation, background task
 
 **Send to AI**:
-The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed unconfirmed working-data writes through Core. It never confirms professional findings or sends outward correspondence. AiWork push and AiJobs pull remain distinct accepted transports.
+The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed writes through Core, each the Case's value shown with its AI source tag. It never records professional findings or sends outward correspondence. AiWork push and AiJobs pull remain distinct accepted transports.
 _Avoid_: Send to Claude, AI assessment, automatic report
 
 **First sent to Engineer**:
@@ -105,7 +115,7 @@ The Operations activity count of `First sent to Engineer` proxy events within th
 _Avoid_: First sent to Engineer (the per-Case event), reports sent
 
 **New cases today**:
-The Operations metric for instructed Cases created since Europe/London midnight, including Cases later completed or given a cancellation/rejection disposition that day and excluding Image intakes, Triage and `Unidentified`.
+The Operations metric for instructed Cases created since Europe/London midnight, including Cases later completed or given a cancellation/rejection disposition that day and excluding Image intakes, Triage Cases and `Unidentified`.
 _Avoid_: In today, Due today, received today
 
 **Not ready**:

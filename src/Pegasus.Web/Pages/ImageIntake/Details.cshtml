@@ -26,12 +26,7 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to Cases</span>
         </a>
-        <form method="get">
-            <button type="submit" class="btn btn--small">
-                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                <span>Refresh</span>
-            </button>
-        </form>
+        <partial name="Shared/_RefreshButton" />
     </div>
 </header>
 
@@ -72,7 +67,7 @@
         }
         @if (Model.Triage is { } triage)
         {
-            <a class="btn" asp-page="/Triage/Details" asp-route-id="@triage.Id">
+            <a class="btn" asp-page="/Cases/Details" asp-route-id="@triage.CaseId">
                 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg><span>Open Triage</span>
             </a>
         }
@@ -96,6 +91,11 @@
                     }
                     else
                     {
+                        @* The viewer's own scope from another window is replaced, not taken over. *@
+                        @if (Model.ViewerHoldsEditScope)
+                        {
+                            <input type="hidden" name="takeOver" value="true" />
+                        }
                         <button type="submit" class="btn btn--primary">Edit record</button>
                     }
                 </form>

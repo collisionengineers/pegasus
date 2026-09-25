@@ -403,7 +403,10 @@ internal sealed class CachedDocumentContentStore(
             select new
             {
                 Version = documentVersion,
-                CaseRootRemoteId = caseEntity.CustodyRootRemoteId
+                // The document's own folder: the a. folder for an Audit report.
+                CaseRootRemoteId = document.CustodyFolder == CaseCustodyFolders.Audit
+                    ? caseEntity.AuditCustodyRemoteId
+                    : caseEntity.CustodyRootRemoteId
             }).SingleOrDefaultAsync(cancellationToken)
             ?? throw new FileNotFoundException("The authorized document version is unavailable.");
         return ResolvedSource.Create(

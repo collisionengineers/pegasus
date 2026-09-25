@@ -17,6 +17,8 @@
   Completed and Query.
 - Engineers can import an estimate directly from the Estimate section using
   its keyboard-accessible Import action or a section-scoped file drop.
+- Once an Inspection + Audit Case has its Audit, a Views card heads the
+  aside. The Audit view is the default; the Inspection view is read-only.
 
 ## Purpose
 
@@ -30,8 +32,9 @@ component rules are owned by [design](../design/README.md).
 
 ### Case workspace
 
-`/Cases/{id}` is one record page with no separate page header. Opening it
-adds the Case to the working set.
+`/Cases/{id}` is one record page with no separate page header. A Triage
+Case at the same route renders as the Triage Case page instead
+([FRD-15](frd-15-work-centre-queues-and-search.md#the-triage-case-page)).
 
 **The ribbon** travels with the page as it scrolls. It shows:
 
@@ -40,7 +43,6 @@ adds the Case to the working set.
 - chips for state, Case type (Audit, Inspection + Audit) and, while someone
   else holds the edit lease, "{name} is editing" with a lock. A held Case
   reads "Held · review on {date}" when the hold has a review date;
-- the links between an Audit Case and its original Case;
 - **Edit Case**, or while editing the Editing badge, **Cancel** and **Save**;
 - the one **Actions** menu.
 
@@ -74,7 +76,11 @@ no workflow strip and no lifecycle panel; Return to Review, Unlink report
 evidence and Archive are items of the one Actions menu.
 
 An aside beside the sections holds **Figures** (three figures) and **Next action** (AI drafts ready on the Case with their
-per-kind action, and the next permitted action with a link to its section).
+per-kind action, and the next permitted action with a link to its section;
+With Engineer, while the report is not ready, its first blocker and how many
+follow, linking to the section that clears that blocker).
+Once the Case has an Audit, the **Views** card heads the aside
+([Inspection and Audit views](#inspection-and-audit-views)).
 Below 1441px the aside folds into a strip above the sections.
 
 Actions post in place and the record's parts refresh without navigation.
@@ -102,18 +108,17 @@ controls. The Overview and Inspection sections each show exactly one panel
 per mode. Each value carries its source tag in its label line in both modes
 (Extracted, AI, E-mail, Lookup, Principal, Automatic); a staff value carries
 none ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)).
-A control opens holding the value its box shows, except a decision's AI
-proposal awaiting review, which stays in the Decisions strip's Proposed
-column. The edit-mode Overview uses the label **Claim reference** for
+A control opens holding the value its box shows. A value keeps its tag
+until staff change it: a Save that reposts it unchanged leaves its
+provenance alone (operator, 25 September 2026). The edit-mode Overview uses the label **Claim reference** for
 the provider's claim number everywhere it appears. Our ref is the separate,
 immutable Case reference. The Registration, Make and Model inputs live in
 the Vehicle section's edit state, not on Overview.
 
-While editing, the lease line shows its expiry, the working-set tab carries
-the unsaved marker, and a stale version shows the current and proposed
-values as a non-destructive conflict. A Case save needs no reason; its
-history line names the changed fields. Holds, releases, corrections and a
-return to engineering record a reason.
+While editing, the lease line shows its expiry, and a stale version shows the
+current and proposed values as a non-destructive conflict. A Case save needs
+no reason; its history line names the changed fields. Holds, releases,
+corrections and a return to engineering record a reason.
 
 **Sections**, in order: **Case details**, **Claim**, **Original report** (an
 Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
@@ -124,6 +129,38 @@ Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
 in Held and after completion. Adopting the Engineer's Value is a human
 staff act: the Save adopts it when the valuation calculation changed.
+
+### Inspection and Audit views
+
+An Inspection + Audit Case whose Audit has been created
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)) has two
+views of the same record: the **Audit** view and the **Inspection** view.
+Every other Case, including one whose Audit is not yet created, a standalone
+Audit and a Triage Case, has one view and no Views card; a `view` value in
+its address is ignored.
+
+**The Views card** heads the aside, above Figures, and exists only once the
+Audit exists. It holds two rows: "Inspection · {Case/PO}" with a "Sent"
+chip, and "Audit · a.{Case/PO}" with the Case's state chip. The current view
+reads plain and the other is a link. `?view=audit` and `?view=inspection`
+address the two views; the Audit view
+is the default, and a write returns to it. The ribbon is unchanged: its
+heading stays the Case/PO. The Scroll/Tabs switch is unchanged and works in
+both views.
+
+**The Audit view** is the Case as it is worked: every section reads and
+edits the Audit's values, and the Actions menu, Next action and the report
+readiness follow the Audit.
+
+**The Inspection view** shows the Inspection's values and its sent report,
+read-only. No section offers Edit; instead each editable section head shows
+the one availability label **Read-only · Audit created**. Files and Notes,
+which both views share, carry no such label: their actions that need no Case
+edit lease, such as Add evidence, previews and downloads, stay, and every
+change that needs the lease is made in the Audit view. A staff member who
+holds the edit lease and opens the Inspection view keeps the ribbon's
+editing controls, but every section there stays read-only. The Next action
+links to the Audit view.
 
 ### Actions menu
 
@@ -154,8 +191,12 @@ EVA is available. The rules behind each action are in
 - **Correct principal**, which records Created in error and creates the
   replacement Case
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
-- **Create audit**, on an Inspection + Audit Case once a report has been
-  generated ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-types)).
+- **Create audit**, after Correct principal, on an Inspection + Audit Case
+  once its Inspection report is sent
+  ([FRD-13](frd-13-case-lifecycle-and-workflow.md#create-audit)). Its
+  compact dialog states the Case, the Audit reference and the Engineer, asks
+  for no reason and has no outcome. It posts in place and lands on the Audit
+  view with no success notice; a refusal shows its reason.
 - **Close case**, after a separator and in red. Its compact dialog offers
   only the outcomes Core permits and needs an outcome and a reason
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#close-case)).
@@ -192,8 +233,26 @@ which the Decisions section no longer repeats.
 On an Audit Case only: who wrote the original report (the assessors Core's
 third-party report profiles know are offered, any other is typed), its date,
 its roadworthiness and its repairable status. They are Case data, edited in
-the page-wide session; a filed original report's extraction is their source
-once wired (v28 P51, ruled 20 September 2026).
+the page-wide session (v28 P51, ruled 20 September 2026).
+
+A filed original report fills them (#840). Pegasus reads the report file
+itself, never the e-mail it arrived in:
+
+- when a standalone Audit is accepted, from the report retained at intake;
+- when staff **Mark as original report**, from that document.
+
+A filled cell is tagged **Extracted** until staff change it. A fill lands
+only on a cell staff have not recorded and never clears one, so a
+staff-entered value is never overwritten. A cell stays blank for staff when
+the report prints no value for it, prints two different values, or prints a
+word the cell's list does not hold. Roadworthiness reads a printed Yes/No or
+Roadworthy/Unroadworthy. Repairable status reads a printed Repairable,
+Repair or Total loss; the report never fills Cash in lieu or Contract repair.
+
+Repairable status alone falls back to the Audit's intake verdict — the
+report's literal repairable or total-loss wording, or the Provider API's
+declared verdict — when the report prints no outcome or cannot be read. When
+the report and the verdict disagree, the cell stays blank.
 
 ### Inspection
 
@@ -202,7 +261,9 @@ Image Based Assessment, Claimant address, Repairer location, Storage
 location, previous addresses used for this principal, Manual entry. An option
 without a value is disabled. Reading and editing show one row per fact
 not already implied by the row above it: Inspection type (the mode, read
-once), Inspect at, the recorded address or `Image Based Assessment` with its
+once), Inspection date (the date the report says the damage was assessed,
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)),
+Inspect at, the recorded address or `Image Based Assessment` with its
 source tag, Principal default only when it differs from the recorded value,
 Storage location, and Repairer
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
@@ -210,15 +271,23 @@ Storage location, and Repairer
 ### Vehicle
 
 Vehicle shows registration, make, model, year, and one mileage with its
-editable unit, each with its source tag (a staff value untagged). The rows a
-lookup fills (engine, fuel, colour, transmission, tax and MOT expiry) are
-always drawn, reading Not recorded until a lookup answers. One **Look up
-DVLA & MOT** action (`EXT-01`) fills an empty Make, Model, Year or Mileage,
-and a Vehicle type that staff have not confirmed. It never overwrites an
-extracted or staff-entered value. There is no checks panel and no suggestion
-table. Run Experian check stays the disabled seam. A labelled Vehicle history
-area holds the history-check narrative as read-only text, editable in edit
-mode ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
+editable unit, each with its source tag (a staff value untagged). VIN,
+Vehicle type and Body type follow, edited in place like the registration. The
+facts only the DVLA/DVSA lookup records (engine, fuel, colour, tax and MOT
+expiry) are always drawn, read-only with the Lookup tag, and read Not
+recorded until a lookup answers; no Save writes them, and a Save that changes
+the registration clears them until the new vehicle is looked up
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
+Transmission keeps its place among them and is edited in place, picked from
+Manual, Automatic, Semi-automatic, CVT or Unknown, because no approved lookup
+returns it (operator, 24 September 2026). One **Look up DVLA & MOT** action
+(`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
+that staff have not recorded, and records the lookup's own facts. It never
+overwrites an extracted or staff-entered value. There is no checks panel and
+no suggestion table. Run Experian check stays the disabled seam. A labelled
+Vehicle history area holds the history-check narrative as read-only text,
+editable in edit mode
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
 A **DVLA & MOT lookup** outcome line says what the lookup itself did (looked
 up and current, or a failure reason), separately from whether it filled a
 field.
@@ -236,7 +305,12 @@ wider than half the vehicle and is clipped to its body, so it never covers
 the page around the plan. Beside it sits the recorded-areas list numbered
 like the discs, with the areas, severity and note per damage, and the other
 damage facts; the list rows and the chips stand in the same places in read
-and edit mode, greyed when they cannot be edited. The field set is owned by
+and edit mode, greyed when they cannot be edited. The **Incident narrative**
+is read-only: it is the report's Nature of Incident wording, the Engineer's
+own from Report wording or else the sentence composed from the recorded
+damage
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks)).
+The field set is owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record).
 
 ### Valuation
@@ -267,10 +341,36 @@ on each the latest adoption applied, and the calculator opens on that
 applied selection. The calculator has no Apply of its own (operator, 23
 September 2026): the ribbon Save adopts the Engineer's Value it shows when
 the calculation changed since the page opened — a different basis card, the
-basis card's figures, or any of its controls — and an unchanged calculation
-adopts nothing. The calculator applies presets and custom lines through
-Core. Valuation sources are owned by
+basis card's retail or trade, or any of its controls — and an unchanged
+calculation adopts nothing. The adoption records the basis card's retail and
+trade with the Engineer's Value
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
+The calculator applies presets and custom lines through Core. Valuation
+sources are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources).
+
+### Glass's window and Case edits
+
+Launch and Resume open the provider window from the staff gesture and save
+pending Case edits through the existing keep-edit Save first. Only a confirmed
+save continues with the freshly rendered authority. Validation failure, a
+conflict, lost response or new edits during the save leaves the draft intact
+and makes no provider request. A blocked popup gives an actionable refusal.
+
+The same-origin launch handoff refreshes only the Glass's launch slot and
+session controls on the original Case before visiting the provider URL. It
+preserves dirty fields, their Case version and lease, focus, and reading
+position. Older refresh responses cannot overwrite newer controls. Save &
+Exit refreshes the workspace in place when it is clean; with pending edits it
+refreshes the session controls and reports the returned result without
+rebasing or discarding the draft. The latest Draft becomes visible after the
+staff member saves or cancels those edits. With no opener, the popup retains
+a server-rendered route back to the Case.
+
+Close uses the displayed session version and fresh confirmation that the
+external session is closed. A version conflict refreshes the controls and asks
+for confirmation again. Close never silently substitutes the current version
+for the version the staff member confirmed.
 
 ### Repair Spec
 
@@ -279,22 +379,39 @@ Repair Spec carries the specification set and raw estimate import. See
 
 ### Decisions
 
-Decisions shows outcome, category, salvage value, excess, betterment,
-claimant VAT registered, reserve, equity (derived), repair duration and
-delays, report delay, storage per day, recovery, hire start and daily cost,
-diminution and salvage logistics. Financial ratio lines are permitted. The
-field meanings are owned by
+Decisions shows outcome, category, salvage value, roadworthiness with the
+unroadworthy reason and, only while the vehicle is recorded unroadworthy,
+whether temporary repairs are possible with their method and cost (operator,
+24 September 2026), excess, betterment, claimant VAT registered, reserve,
+equity (derived), repair duration and delays, report delay, storage per day,
+recovery, hire start and daily cost, diminution and salvage logistics.
+Financial ratio lines are permitted. The field meanings are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement).
 
 ### Report
 
 Image role, order, rotation and crop live on the image tile in Files. The
-Report section shows the readiness list, wording blocks and content switches,
-Generate / Preview report draft, and a separate Fee pane for the agreed fee,
-description lines and fee note preview
+Report section shows the readiness list — one row per blocker with the
+requirement, its source, why it is outstanding, what clears it and a link to
+the section that clears it
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness))
+— wording blocks, Generate / Preview report draft, and a separate Fee pane
+for the agreed fee, description lines and fee note preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
-The report renders the sign-off Engineer tuple and the marked damage
-diagram.
+The content switches are under **On the report** in Valuation. The report
+renders the sign-off Engineer tuple and the marked damage diagram. The
+**Statement of truth** cell shows the accepted statement the report prints,
+read-only; no Case edits it
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
+
+Once the Case has an Audit, Report follows the view
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
+In the Audit view the report card's status begins with the Audit reference,
+and above the card one line stands for the Inspection's sent report: its
+title, "{Case/PO} · Sent {date}" and an **Inspection view** link. In the
+Inspection view the card shows the Inspection report with the status
+"{Case/PO} · Sent {date}"; it can be opened and downloaded, and the
+readiness list, generation and delivery are not shown.
 
 ### Files
 
@@ -302,13 +419,17 @@ Files is one panel with three tabs: Documents, Images and Correspondence.
 All three are rendered, so a no-script visit shows the lists one after the
 other under their own headings. The panel header carries Add evidence, Open
 Box case folder (or the folder's own state chip before custody is confirmed)
-and Open Operations.
+and Open Operations. Once the Case has an Audit, a second chip follows for
+the `a.` audit folder, in the Case folder chip's tones: **Box audit ·
+confirmed**, **Box audit folder: preparing** while it is being created, or
+**Box audit folder: unavailable**.
 
 **Documents** lists every live file as a row: filename, role, size, origin,
 recorded time and custody-state chip, with Preview, Save as and, while
 editing, delete. When an Audit lists **Original report missing**, each
 non-image row also offers **Mark as original report** while editing. That
-action assigns the Audit report role and clears the requirement.
+action assigns the Audit report role, clears the requirement and fills the
+[Original report](#original-report) cells from that document.
 
 **Images** is one grid of every image occurrence: the Case's own image
 documents plus, for each vehicle-images record associated with the Case, its
@@ -333,8 +454,8 @@ report while editing, and a filmstrip). Crop happens on the viewer stage. A
 crop is a stored rectangle: the tile and the report show the cropped region
 and Download returns the original.
 
-Images on pre-Case records (a vehicle-images record, a Triage or an
-Unidentified item) carry the same crop, rotation and tags. Their rules are
+Images on a vehicle-images record, a Triage Case or an Unidentified item
+carry the same crop, rotation and tags. Their rules are
 in [FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces).
 
 **Correspondence** lists every email linked to the Case, whatever its
@@ -343,10 +464,11 @@ associated with it later and uploaded `.eml` files, newest first
 ([FRD-20](frd-20-mailbox-workspace.md#case-correspondence-view)). Each row's
 **Open message** shows that message in a dialog over the Case: sender,
 received time, recipients, its text and attachment names. The dialog changes
-nothing. Its **Open full message** leads to the Inbox message record, which
-keeps classification, the Case link, Reply and Forward; without script the
-row opens that record. Compose sits above the list where staff mail is
-available
+nothing. Where the record offers **Reply**, **Reply all** and **Forward**, the
+dialog does too; each opens the record's composer with this Case chosen. Its
+**Open full message** leads to the Inbox message record, which keeps
+classification and the Case link; without script the row opens that record.
+Compose sits above the list where staff mail is available
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)).
 A file whose bytes are one of these emails is read here and is not repeated
 on Documents.
@@ -361,15 +483,15 @@ chase is scheduled and the lease is held
 is no Case tasks panel.
 
 The workspace keeps the missing-material reason, next chase, last recorded
-outcome and next permitted action together. Triage has no due or chaser
-presentation.
+outcome and next permitted action together. A Triage Case's due target and
+chaser are on the Triage Case page
+([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
 
 ### Assessment
 
 The Engineer workbench is the Damage, Valuation, Repair Spec, Decisions and
-Report sections of the Case record. `/Cases/{id}/Assessment` is a permanent
-redirect to `/Cases/{id}?section=estimate`. The sections can always be read
-and are read-only in Completed. An image has one place (v28 P50): its report
+Report sections of the Case record. The sections can always be read and are
+read-only in Completed. An image has one place (v28 P50): its report
 role, its order and the tools that change them are on its tile under Files —
 a distinct `Close-up` first, `Overview` second, optional supporting images in
 explicit order, and non-destructive crops that leave the retained source and
@@ -476,6 +598,9 @@ Section editability by state:
 | Held | Read-only | Read-only |
 | Completed, Query | Read-only (Return to Engineer to edit) | Read-only |
 
+Whatever the state, the Inspection view of a Case with an Audit is
+read-only apart from Files' and Notes' actions that need no edit lease.
+
 ## Edge cases and fail-closed behaviour
 
 - A lost or expired edit lease shows the holder and disables Save. A stale
@@ -487,16 +612,27 @@ Section editability by state:
   control.
 - Crop is refused on an archived Case and in Completed or Query.
 - An ambiguous raw estimate file is refused with its reason.
+- A `view` value on a Case without an Audit is ignored. Every write changes
+  the current values, the Audit's once it exists, and returns to the Audit
+  view; the Inspection's values never change after Create audit.
 
 ## Acceptance evidence
 
-Acceptance covers the ten sections and the `?section=` jump, the
-`/Cases/{id}/Assessment` redirect, the read-only rule in Completed, the
-Actions menu per state, and the one Save. Authenticated Web
-tests cover server-owned behaviour; they do not prove client-side interaction
-or visual correctness. Browser acceptance exercises the keyboard Import
-action, picker and section-scoped drop overlay. Deployment and live acceptance
-are separate evidence tiers
+Acceptance covers the ten sections and the `?section=` jump, the Report
+readiness list and the Next action each linking a blocker to its section,
+the read-only rule in Completed, the Actions menu per state, and the one
+Save. It also covers the views: no Views card without an Audit; after Create
+audit the card and the Audit view by default; the Inspection view read-only
+with its label on each editable head, including for the lease holder; Report
+in each view; the audit folder chip in each state; the Create audit dialog;
+and a standalone Audit's single view with its Original report. Web tests
+cover the Vehicle section's read-only lookup facts beside Transmission edited
+in place, and the Damage Incident narrative and Report Statement of truth
+reading their report owners. Authenticated Web tests cover server-owned
+behaviour; they do not prove client-side interaction or visual correctness.
+Browser acceptance exercises the keyboard Import action, picker and
+section-scoped drop overlay. Deployment and live acceptance are separate
+evidence tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
@@ -518,4 +654,5 @@ are separate evidence tiers
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
 - Design: [design](../design/README.md).
 - Technical constraints:
-  [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md).
+  [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md),
+  [ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md).

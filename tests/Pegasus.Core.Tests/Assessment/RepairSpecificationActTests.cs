@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -292,7 +293,7 @@ public sealed class RepairSpecificationActTests
         string type, decimal? workUnits = null, decimal? paintWorkUnits = null,
         decimal? price = null, int? quantity = null, decimal? materials = null) => new(
         Guid.NewGuid(), 1, type, null, "Line", workUnits, price, false, null, null, null, null, null,
-        ActorKind.Staff, Engineer.SubjectId, Now, Engineer.SubjectId, Now,
+        ActorKind.Staff, Engineer.SubjectId, Now,
         paintWorkUnits, quantity, materials);
 
     private static RepairSpecificationSnapshot Snapshot(
@@ -317,7 +318,7 @@ public sealed class RepairSpecificationActTests
                 Lines = [.. request.Lines.Select((line, index) => new CaseEstimateLineRecord(
                     Guid.NewGuid(), index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits,
                     line.Price, line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel,
-                    line.Justification, ActorKind.Staff, Engineer.SubjectId, Now, null, null,
+                    line.Justification, ActorKind.Staff, Engineer.SubjectId, Now,
                     line.PaintWorkUnits, line.Quantity, line.Materials))],
             });
         }
@@ -355,10 +356,6 @@ public sealed class RepairSpecificationActTests
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> SaveImportedEstimateAsync(SaveEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<RepairSpecificationVersion> StartDraftAsync(StartRepairSpecificationDraftRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-        public Task<RepairSpecificationVersion> AcceptAsync(AcceptRepairSpecificationRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
         public Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion?> GetCurrentDraftAsync(Guid caseId, CancellationToken cancellationToken) =>
@@ -369,7 +366,7 @@ public sealed class RepairSpecificationActTests
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> SetCurrentEstimateAsync(SetCurrentEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
             Guid caseId, int? afterVersion, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>
@@ -406,8 +403,6 @@ public sealed class RepairSpecificationActTests
                     engineerValue.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
                     Engineer.SubjectId,
-                    Now,
-                    Engineer.SubjectId,
                     Now),
             };
             if (contractSum is { } sum)
@@ -417,15 +412,11 @@ public sealed class RepairSpecificationActTests
                     "contract_repair",
                     ActorKind.Staff,
                     Engineer.SubjectId,
-                    Now,
-                    Engineer.SubjectId,
                     Now));
                 fields.Add(new(
                     AssessmentVocabulary.SettlementContractSum,
                     sum.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
-                    Engineer.SubjectId,
-                    Now,
                     Engineer.SubjectId,
                     Now));
             }
@@ -438,7 +429,7 @@ public sealed class RepairSpecificationActTests
                 null,
                 fields,
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 9, 21), null, null, null, null, null));
         }
 
         public Task<CaseAssessmentProjection> SaveAsync(

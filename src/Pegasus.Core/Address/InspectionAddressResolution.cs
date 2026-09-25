@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -58,10 +59,7 @@ public sealed record InspectionAddressSuggestion(
 
 public sealed record InspectionAddressEvaluation(
     InspectionAddressSuggestion? Suggestion,
-    IReadOnlyList<InspectionAddressEvidence> ConflictingEvidence)
-{
-    public bool IsUnresolved => Suggestion is null;
-}
+    IReadOnlyList<InspectionAddressEvidence> ConflictingEvidence);
 
 public sealed record InspectionAddressResolutionSnapshot(
     Guid IntakeReceiptId,
@@ -211,6 +209,7 @@ public interface IInspectionAddressChoicesQueries
 {
     Task<InspectionAddressChoicesData?> GetAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 

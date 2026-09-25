@@ -1,5 +1,6 @@
 ﻿using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -115,7 +116,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         await using (var db = await harness.Factory.CreateDbContextAsync())
         {
             EfRepairSpecificationSnapshotStore.Freeze(
-                db, accepted, engineer, RepairSpecificationSnapshotKind.Imported,
+                db, accepted.CaseId, accepted, engineer, RepairSpecificationSnapshotKind.Imported,
                 "Accepted calculation", harness.Clock.GetUtcNow());
             await db.SaveChangesAsync();
         }
@@ -231,26 +232,58 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         var before = EstimateTotals.Compute(specification).Printed.Gross;
 
-        var saveValuation = new SaveValuation(harness.Valuations);
-        var valueLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "spec-scale-value-lease");
-        await saveValuation.ExecuteAsync(
-            new SaveValuationRequest(
+        // The Engineer's Value is adopted through the Case save: a Glass's
+        // card with the Case's own mileage, then the calculation, whose
+        // proposal is the guide retail, so the Engineer's Value is £5,000.
+        var workspace = new EfCaseWorkspaceStore(harness.Factory, harness.Clock);
+        var guideLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "spec-scale-guide-lease");
+        await workspace.SaveAsync(
+            new SaveCaseWorkspaceRequest(
+                caseId,
+                guideLease.Version,
+                engineer,
+                "spec-scale-guide",
+                null,
+                guideLease.Token)
+            {
+                Vehicle = new(
+                    null,
+                    null,
+                    null,
+                    new(42_000, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
+                    new Dictionary<string, string?>(StringComparer.Ordinal)),
+                Valuation = new(
+                [
+                    new(
+                        ValuationSource.Glasses,
+                        new DateOnly(2031, 5, 8),
+                        new TimeOnly(9, 0),
+                        42000,
+                        5000m,
+                        3000m,
+                        new DateOnly(2031, 5, 1))
+                ])
+            },
+            CancellationToken.None);
+        var guideId = Assert.Single(await harness.Valuations.ListForCaseAsync(
+            caseId,
+            CaseWorkSelector.Current,
+            CancellationToken.None)).ValuationId;
+        var valueLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "spec-scale-value-lease");
+        await workspace.SaveAsync(
+            new SaveCaseWorkspaceRequest(
                 caseId,
                 valueLease.Version,
                 engineer,
                 "spec-scale-value",
-                "Recorded the confirmed Engineer's Value.",
-                valueLease.Token,
-                new(
-                    ValuationSource.EngineersValue,
-                    new DateOnly(2031, 5, 8),
-                    new TimeOnly(9, 0),
-                    42000,
-                    5000m,
-                    3000m)),
+                null,
+                valueLease.Token)
+            {
+                Valuation = new([], new ValuationCalculationSelection(guideId, false, null, [], 0m))
+            },
             CancellationToken.None);
 
-        var scaleLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "spec-scale-lease-2");
+        var scaleLease = await harness.AcquireLeaseAsync(caseId, 3, engineer, "spec-scale-lease-2");
         var assessment = new EfCaseAssessmentStore(harness.Factory, harness.Clock, harness.RepairSpecifications);
         // Apply scales the saved spec (one Save, 23 September 2026).
         var scaled = await new ScaleRepairSpecification(assessment, harness.RepairSpecifications).ExecuteAsync(
@@ -280,7 +313,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(new EstimateRateSnapshot(rateCard.Id, rateCard.Version, 80m), versions[0].Details.Rate);
         Assert.Null(versions[1].Details.Rate);
         Assert.Contains("Repair spec scaled:", versions[1].Origin, StringComparison.Ordinal);
-        var restoreLease = await harness.AcquireLeaseAsync(caseId, 3, engineer, "spec-scale-restore-lease");
+        var restoreLease = await harness.AcquireLeaseAsync(caseId, 4, engineer, "spec-scale-restore-lease");
         await new RestoreRepairSpecificationSnapshot(harness.RepairSpecifications).ExecuteAsync(
             new(caseId, restoreLease.Version, engineer, "spec-scale-restore",
                 restoreLease.Token, specification.SpecificationId, versions[1].Id),
@@ -289,7 +322,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal([1, 2, 3, 4], afterRestore.Select(version => version.Number));
         Assert.Equal(RepairSpecificationSnapshotKind.Restored, afterRestore[^1].Kind);
 
-        var removeLease = await harness.AcquireLeaseAsync(caseId, 4, engineer, "spec-scale-lease-3");
+        var removeLease = await harness.AcquireLeaseAsync(caseId, 5, engineer, "spec-scale-lease-3");
         var removal = new RemoveRepairSpecificationScalingRequest(
             caseId, removeLease.Version, engineer, "spec-scale-remove", removeLease.Token, specification.SpecificationId);
         var restored = await new RemoveRepairSpecificationScaling(harness.RepairSpecifications).ExecuteAsync(
@@ -307,7 +340,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(restored.SpecificationId, replay.SpecificationId);
         Assert.Equal(5, (await snapshots.ListAsync(caseId, specification.SpecificationId, CancellationToken.None)).Count);
 
-        var laterEditLease = await harness.AcquireLeaseAsync(caseId, 5, engineer, "spec-scale-lease-4");
+        var laterEditLease = await harness.AcquireLeaseAsync(caseId, 6, engineer, "spec-scale-lease-4");
         var later = await save.ExecuteAsync(
             new(caseId, laterEditLease.Version, engineer, "spec-scale-later-edit", "Revised after scaling removal.",
                 laterEditLease.Token, specification.SpecificationId,
@@ -318,7 +351,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         Assert.Equal(72m, later.Details.BaseHourlyRate);
 
-        var secondRemovalLease = await harness.AcquireLeaseAsync(caseId, 6, engineer, "spec-scale-lease-5");
+        var secondRemovalLease = await harness.AcquireLeaseAsync(caseId, 7, engineer, "spec-scale-lease-5");
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             new RemoveRepairSpecificationScaling(harness.RepairSpecifications).ExecuteAsync(
                 new(caseId, secondRemovalLease.Version, engineer, "spec-scale-remove-again", secondRemovalLease.Token, specification.SpecificationId),

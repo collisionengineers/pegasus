@@ -84,18 +84,15 @@ public static class CaseReportFreshness
         AssessmentVocabulary.VehicleEngineCc,
         AssessmentVocabulary.VehicleFuel,
         AssessmentVocabulary.VehicleCondition,
-        AssessmentVocabulary.VehicleVinChecked,
         AssessmentVocabulary.VehicleTransmission,
         AssessmentVocabulary.VehicleColour,
         AssessmentVocabulary.VehicleBody,
         AssessmentVocabulary.VehicleTaxExpiry,
         AssessmentVocabulary.VehicleMotExpiry,
         AssessmentVocabulary.VehicleAirbagsDeployed,
-        AssessmentVocabulary.VehicleFaultCodes,
         AssessmentVocabulary.VehicleTemporaryRepairsPossible,
         AssessmentVocabulary.VehicleTemporaryRepairMethod,
         AssessmentVocabulary.VehicleTemporaryRepairCost,
-        AssessmentVocabulary.IncidentAssessed,
         AssessmentVocabulary.ImpactSeverity,
         AssessmentVocabulary.ImpactLocation,
         AssessmentVocabulary.DamageImpacts,
@@ -272,7 +269,7 @@ public static class CaseReportFreshness
             || before.VehicleMileage != after.VehicleMileage
             || before.VehicleMileageUnit != after.VehicleMileageUnit
             || before.IncidentDate != after.IncidentDate
-            || before.InstructionDate != after.InstructionDate
+            || before.InspectionDate != after.InspectionDate
             || before.InspectionMode != after.InspectionMode
             || before.InspectionAddress != after.InspectionAddress;
     }

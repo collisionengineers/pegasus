@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
@@ -521,6 +522,7 @@ public sealed class CaseReportGenerationPersistenceTests
         {
             Id = Guid.NewGuid(),
             CaseId = harness.CaseId,
+            WorkId = harness.CaseId,
             CaseVersion = live.CaseVersion,
             SnapshotHash = live.SnapshotHash,
             SnapshotJson = "{}",
@@ -534,7 +536,7 @@ public sealed class CaseReportGenerationPersistenceTests
         var refused = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
 
         Assert.Contains(
-            "IX_CaseReportGenerations_CaseId_SnapshotHash",
+            "IX_CaseReportGenerations_WorkId_SnapshotHash",
             refused.InnerException?.Message,
             StringComparison.Ordinal);
         Assert.Single(await harness.GenerationRowsAsync());
@@ -697,7 +699,7 @@ public sealed class CaseReportGenerationPersistenceTests
         // The unresolved outcome stays exactly as recorded until something
         // asks again; nothing retries it in the background.
         var current = await harness.Store.GetCurrentAsync(
-            harness.StaffActor, harness.CaseId, CancellationToken.None);
+            harness.StaffActor, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(
             CaseReportArtifactStatus.Unknown, Assert.Single(current!.Artifacts).Status);
         Assert.Equal(0, await harness.ActionHistoryCountAsync("case_report_generation_ready"));
@@ -746,7 +748,6 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.All(
             feeNote.Generation.Artifacts,
             item => Assert.Equal(CaseReportArtifactStatus.Confirmed, item.Status));
-        Assert.True(feeNote.Generation.IsFullyConfirmed);
         Assert.Single(await harness.ReadyEventsAsync());
     }
 
@@ -1080,7 +1081,7 @@ public sealed class CaseReportGenerationPersistenceTests
         // Reloaded from the persisted snapshot JSON, not from the caller's
         // request: an issued report renders the same way again.
         var reloaded = await harness.Store.GetCurrentAsync(
-            harness.StaffActor, harness.CaseId, CancellationToken.None);
+            harness.StaffActor, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.True(reloaded!.Snapshot.Report.IncludeFeeNote);
         Assert.Single(reloaded.Artifacts);
 
@@ -1132,11 +1133,58 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(CaseReportArtifactStatus.Confirmed, priorArtifact.Status);
 
         var current = await harness.Store.GetCurrentAsync(
-            harness.StaffActor, harness.CaseId, CancellationToken.None);
+            harness.StaffActor, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(second.Generation.Id, current!.Id);
         Assert.Equal(2, (await harness.Store.ListAsync(
-            harness.StaffActor, harness.CaseId, CancellationToken.None)).Count);
+            harness.StaffActor, harness.CaseId, CaseWorkSelector.Current, CancellationToken.None)).Count);
         Assert.Equal(2, (await harness.ReadyEventsAsync()).Count);
+    }
+
+    /// <summary>
+    /// Issue #834: the report prints only Category S, so a total loss of any
+    /// other category is named before the freeze writes anything. The
+    /// confirmed current generation stays current and nothing supersedes it.
+    /// </summary>
+    [Fact]
+    public async Task ANonPrintableSalvageCategoryIsNamedBeforeAnyGenerationIsWritten()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var first = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var current = Assert.IsType<CaseReportGenerationRecord>(first.Generation);
+        Assert.Equal(CaseReportGenerationState.Confirmed, current.State);
+        var artifactsBefore = await harness.ArtifactRowsAsync();
+
+        var recordedAt = new DateTimeOffset(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
+        AssessmentFieldValue Recorded(string path, string value) => new(
+            path, value, ActorKind.Staff, "engineer-1", recordedAt);
+        harness.ReviseAssessment(assessment => assessment with
+        {
+            Fields =
+            [
+                .. assessment.Fields.Where(field => field.Path != AssessmentVocabulary.Outcome),
+                Recorded(AssessmentVocabulary.Outcome, "total_loss"),
+                Recorded(AssessmentVocabulary.SalvageCategory, "B"),
+                Recorded(AssessmentVocabulary.SalvageValue, "500.00"),
+            ],
+        });
+        var renderer = new RecordingRenderer(harness);
+        var refused = await harness.Generate(new RecordingCustody(harness), renderer)
+            .ExecuteAsync(harness.Request(operationKey: "case-report-category-b"), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.NotReady, refused.Outcome);
+        Assert.Null(refused.Generation);
+        var reason = Assert.Single(refused.Reasons);
+        Assert.Equal("Salvage category", reason.Requirement);
+        Assert.Equal(AssessmentVocabulary.SalvageCategory, reason.Field);
+        Assert.Empty(renderer.Kinds);
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(current.Id, generation.Id);
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        Assert.Null(generation.SupersededById);
+        Assert.Equal(
+            artifactsBefore.Select(row => row.Id),
+            (await harness.ArtifactRowsAsync()).Select(row => row.Id));
     }
 
     [Fact]
@@ -1467,7 +1515,7 @@ public sealed class CaseReportGenerationPersistenceTests
                 services.GetRequiredService<IStaffAccountQueries>(),
                 services.GetRequiredService<ICaseAssetPreparationQueries>(),
                 services.GetRequiredService<IListAppliedValuations>());
-            return await source.GetAsync(CaseId, StaffActor, default);
+            return await source.GetAsync(CaseId, StaffActor, CaseWorkSelector.Current, default);
         }
 
         public async Task AddSourceAsync()
@@ -1667,6 +1715,10 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Accepts a different Engineer's Value, a material change.</summary>
         public void AcceptEngineerValue(decimal value) => snapshotSource.AcceptEngineerValue(value);
 
+        /// <summary>Records a revised assessment, which every later freeze reads.</summary>
+        public void ReviseAssessment(Func<CaseAssessmentProjection, CaseAssessmentProjection> revise) =>
+            snapshotSource.TransformAssessment(revise);
+
         public static byte[] SignatureBytes => FakeSnapshotSource.SignatureBytes;
 
         public ReportImageEvidence[] RehydratedPhotos(
@@ -1765,7 +1817,7 @@ public sealed class CaseReportGenerationPersistenceTests
         }
 
         public async Task<IReadOnlyList<CaseReportGenerationRecord>> GenerationRowsAsync() =>
-            await Store.ListAsync(StaffActor, CaseId, CancellationToken.None);
+            await Store.ListAsync(StaffActor, CaseId, CaseWorkSelector.Current, CancellationToken.None);
 
         public async Task<IReadOnlyList<ActionHistoryEntity>> ReadyEventsAsync()
         {
@@ -1936,7 +1988,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     Year = 2031,
                     Sequence = 1,
                     Reference = "RPT31001",
-                    Type = "Inspection",
+                    Type = "inspection",
                     InitialState = "NotReady",
                     CustodyState = "confirmed",
                     OriginIntakeReceiptId = receiptId,
@@ -2003,6 +2055,7 @@ public sealed class CaseReportGenerationPersistenceTests
         private readonly Guid valuationId = Guid.NewGuid();
         private readonly Guid guideValuationId = Guid.NewGuid();
         private decimal engineerValue = 5_000m;
+        private Func<CaseAssessmentProjection, CaseAssessmentProjection>? transform;
 
         public FakeSnapshotSource(
             Guid caseId,
@@ -2032,15 +2085,27 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public void AcceptEngineerValue(decimal value) => engineerValue = value;
 
-        public Task<CaseReportFreezeInputs?> GetAsync(
-            Guid requestedCaseId, ActionActor actor, CancellationToken cancellationToken) =>
-            Task.FromResult<CaseReportFreezeInputs?>(
-                requestedCaseId == caseId
-                    ? new(projection, Readiness(), "RPT31001", 1)
-                    : null);
+        /// <summary>
+        /// Applies <paramref name="revise"/> to the accepted assessment every
+        /// later read returns, both to what the report prints and to what
+        /// readiness is decided from.
+        /// </summary>
+        public void TransformAssessment(Func<CaseAssessmentProjection, CaseAssessmentProjection> revise) =>
+            transform = revise;
 
-        private CaseReportReadinessInput Readiness() => new(
-            assessment,
+        public Task<CaseReportFreezeInputs?> GetAsync(
+            Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
+        {
+            var current = transform?.Invoke(assessment) ?? assessment;
+            return Task.FromResult<CaseReportFreezeInputs?>(
+                requestedCaseId == caseId
+                    // The seeded Case has only its primary work, whose id is the Case's.
+                    ? new(projection with { Assessment = current }, Readiness(current), "RPT31001", 1) { WorkId = caseId }
+                    : null);
+        }
+
+        private CaseReportReadinessInput Readiness(CaseAssessmentProjection current) => new(
+            current,
             SignatoryId,
             null,
             [new SignOffEngineerProfile(
@@ -2123,12 +2188,12 @@ public sealed class CaseReportGenerationPersistenceTests
             inner.GetAsync(actor, caseId, generationId, cancellationToken);
 
         public Task<CaseReportGenerationRecord?> GetCurrentAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
-            inner.GetCurrentAsync(actor, caseId, cancellationToken);
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            inner.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
 
         public Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
-            ActionActor actor, Guid caseId, CancellationToken cancellationToken) =>
-            inner.ListAsync(actor, caseId, cancellationToken);
+            ActionActor actor, Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
+            inner.ListAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
 
         public Task<int> MarkStaleAsync(
             Guid caseId, string reasonCode, CancellationToken cancellationToken) =>

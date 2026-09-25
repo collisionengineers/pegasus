@@ -1,9 +1,7 @@
-using System.Diagnostics;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -57,7 +55,7 @@ public sealed class EfCaseAcceptanceStore(
             throw new ArgumentOutOfRangeException(nameof(request), "The expected intake version cannot be negative.");
         }
 
-        if (!Enum.IsDefined(request.CaseType))
+        if (!Enum.IsDefined(request.CaseType) || request.CaseType == CaseType.Triage)
         {
             throw new ArgumentOutOfRangeException(nameof(request), "The case type is invalid.");
         }
@@ -97,31 +95,13 @@ public sealed class EfCaseAcceptanceStore(
         var principalCode = CasePrincipalCode.Normalize(request.PrincipalCode);
         var command = CreateAcceptanceCommand(request, principalCode);
 
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                return await AcceptOnceAsync(request, principalCode, command, cancellationToken);
-            }
-            catch (Exception exception) when (IsRetryableConcurrencyFailure(exception))
-            {
-                var duplicate = await FindAcceptedAsync(request, principalCode, command, cancellationToken);
-                if (duplicate is not null)
-                {
-                    return duplicate with { IsDuplicate = true };
-                }
-
-                if (attempt < 3)
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
-                    continue;
-                }
-
-                throw new IntakeVersionConflictException();
-            }
-        }
-
-        throw new UnreachableException();
+        return await CaseAllocationRetry.ExecuteAsync(
+            token => AcceptOnceAsync(request, principalCode, command, token),
+            async token => await FindAcceptedAsync(request, principalCode, command, token) is { } duplicate
+                ? duplicate with { IsDuplicate = true }
+                : null,
+            _ => new IntakeVersionConflictException(),
+            cancellationToken);
     }
 
     private async Task<CaseAcceptanceOutcome> AcceptOnceAsync(
@@ -152,7 +132,7 @@ public sealed class EfCaseAcceptanceStore(
                     request.IntakeReceiptId,
                     request.OperationKey,
                     request.ExpectedIntakeVersion,
-                    ToCode(request.CaseType),
+                    CaseTypeCodes.ToCode(request.CaseType),
                     principalCode,
                     request.StandaloneAuditEvidenceId,
                     duplicateOutcome,
@@ -164,6 +144,26 @@ public sealed class EfCaseAcceptanceStore(
             return duplicateOutcome;
         }
         CaseDataPolicy.ValidateCompleteness(request.Completeness);
+
+        // The Case number is allocated before the receipt is read, so the
+        // sequence row is locked before any row this creation writes.
+        var principal = await context.Principals
+            .Include(item => item.Organization)
+            .SingleOrDefaultAsync(
+                item => item.Code == principalCode && item.IsActive,
+                cancellationToken)
+            ?? throw new PrincipalUnavailableException(principalCode);
+        if (!string.Equals(
+                principal.InspectionMode,
+                ProviderInspectionModePolicy.ToCode(request.ProviderInspectionMode),
+                StringComparison.Ordinal))
+        {
+            throw new IntakeVersionConflictException();
+        }
+
+        var acceptedAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
+        var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
+            context, principal, request.CaseType, acceptedAtUtc, cancellationToken);
 
         var receipt = await context.IntakeReceipts
             .Include(item => item.InstructionDraft)
@@ -207,31 +207,6 @@ public sealed class EfCaseAcceptanceStore(
             ? (AuditAssessment?)null
             : AuditAssessmentCode.Parse(standaloneAuditEvidence.Assessment);
 
-        var principal = await context.Principals
-            .Include(item => item.Organization)
-            .SingleOrDefaultAsync(
-                item => item.Code == principalCode && item.IsActive,
-                cancellationToken)
-            ?? throw new PrincipalUnavailableException(principalCode);
-        if (!string.Equals(
-                principal.InspectionMode,
-                ProviderInspectionModePolicy.ToCode(request.ProviderInspectionMode),
-                StringComparison.Ordinal))
-        {
-            throw new IntakeVersionConflictException();
-        }
-
-        var acceptedAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
-        var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
-            context, principal, acceptedAtUtc, cancellationToken);
-        // An Audit prefix belongs on the Case's own reference. The
-        // assessment is a recorded fact and is not part of identity.
-        var allocated = allocatedIdentity.Reference;
-        var reference = request.CaseType == CaseType.Audit
-            ? AuditIdentity.Create(allocated)
-            : allocated;
-        // No second identity is allocated for an audit any more.
-        string? auditReference = null;
         var caseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
         var workflowConfiguration = await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken);
@@ -248,9 +223,9 @@ public sealed class EfCaseAcceptanceStore(
             SequenceLineageId = principal.SequenceLineageId,
             Year = allocatedIdentity.Year,
             Sequence = allocatedIdentity.Sequence,
-            Reference = reference,
-            AuditReference = auditReference,
-            Type = ToCode(request.CaseType),
+            Reference = allocatedIdentity.Reference,
+            AuditReference = null,
+            Type = CaseTypeCodes.ToCode(request.CaseType),
             InitialState = ToCode(initialState),
             CustodyState = ToCode(CaseCustodyState.Pending),
             OriginIntakeReceiptId = receipt.Id,
@@ -265,6 +240,22 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.Cases.Add(caseEntity);
+        if (standaloneAuditEvidence is not null)
+        {
+            // A standalone Audit is created with its Original report cells
+            // filled from the retained report (v28 P51). A reading of any other
+            // bytes is ignored, which leaves the intake verdict alone to fill
+            // Repairable status.
+            var reading = request.OriginalReport is { } read
+                && string.Equals(
+                    read.Sha256,
+                    standaloneAuditEvidence.OriginalReportAsset.ContentHash,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? read
+                    : null;
+            await OriginalReportPrefillWriter.ApplyAsync(
+                context, caseId, reading, standaloneAuditAssessment, acceptedAtUtc, cancellationToken);
+        }
         var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
         dataSnapshot.CompletenessPolicySatisfied = completenessEvaluation.SatisfiesPolicy;
         dataSnapshot.CompletenessPolicyKey = completenessEvaluation.PolicyKey;
@@ -439,7 +430,7 @@ public sealed class EfCaseAcceptanceStore(
                 request.IntakeReceiptId,
                 request.OperationKey,
                 request.ExpectedIntakeVersion,
-                ToCode(request.CaseType),
+                CaseTypeCodes.ToCode(request.CaseType),
                 principalCode,
                 request.StandaloneAuditEvidenceId,
                 outcome,
@@ -548,7 +539,7 @@ public sealed class EfCaseAcceptanceStore(
             || link.ActorKind != request.Actor.Kind.ToString()
             || link.ActorSubjectId != request.Actor.SubjectId
             || link.ActorRolesJson != RolesJson(request.Actor)
-            || !string.Equals(link.Case.Type, ToCode(request.CaseType), StringComparison.Ordinal)
+            || !string.Equals(link.Case.Type, CaseTypeCodes.ToCode(request.CaseType), StringComparison.Ordinal)
             || !string.Equals(link.Case.Principal.Code, principalCode, StringComparison.Ordinal)
             || link.Case.StandaloneAuditEvidenceId != request.StandaloneAuditEvidenceId)
         {
@@ -577,14 +568,6 @@ public sealed class EfCaseAcceptanceStore(
         vehicleLookupWorkId);
 
 
-    private static string ToCode(CaseType value) => value switch
-    {
-        CaseType.Inspection => "inspection",
-        CaseType.Audit => "audit",
-        CaseType.InspectionAndAudit => "inspection_and_audit",
-        _ => throw new InvalidOperationException($"Unknown CaseType value '{(int)value}'.")
-    };
-
     private static string ToCode(CaseInitialState value) => value switch
     {
         CaseInitialState.NotReady => "not_ready",
@@ -592,7 +575,7 @@ public sealed class EfCaseAcceptanceStore(
         _ => throw new InvalidOperationException($"Unknown CaseInitialState value '{(int)value}'.")
     };
 
-    private static CaseInitialState ParseInitialState(string value) => value switch
+    private static CaseInitialState ParseInitialState(string? value) => value switch
     {
         "not_ready" => CaseInitialState.NotReady,
         "review" => CaseInitialState.Review,
@@ -622,7 +605,7 @@ public sealed class EfCaseAcceptanceStore(
                 .OrderBy(role => role)
                 .Select(role => role.ToString())
                 .ToArray(),
-            ToCode(request.CaseType),
+            CaseTypeCodes.ToCode(request.CaseType),
             principalCode,
             request.Completeness.InstructionComplete,
             request.Completeness.ImagesComplete,
@@ -660,15 +643,4 @@ public sealed class EfCaseAcceptanceStore(
                 .OrderBy(role => role)
                 .Select(role => role.ToString())
                 .ToArray());
-
-    // EF's non-retrying strategy wraps a deadlock two layers deep, so unwrap
-    // every layer, as EfIntakeReceiptStore does.
-    private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
-    {
-        DbUpdateConcurrencyException => true,
-        SqlException { Number: 1205 or 2601 or 2627 } => true,
-        _ when exception.InnerException is not null =>
-            IsRetryableConcurrencyFailure(exception.InnerException),
-        _ => false
-    };
 }

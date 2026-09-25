@@ -1,0 +1,54 @@
+@*
+    One Case the operator may choose for the upload: a suggestion or a Find
+    result. The radio carries the Case id as the decision form's value; the
+    facts the review dialog repeats travel as data attributes. Never selected
+    by default (FRD-18), except to restore a rendered confirmation.
+
+    Model: Pegasus.Web.Presentation.UploadReviewCandidate
+    ViewData["Checked"] — restore the selection.
+    ViewData["Form"]    — the decision form's id when the card sits outside it.
+*@
+@model Pegasus.Web.Presentation.UploadReviewCandidate
+@{
+    var isChecked = ViewData["Checked"] is true;
+    var form = ViewData["Form"] as string;
+    var id = $"upload-case-{Model.CaseId:N}";
+}
+<label class="up-case" for="@id" data-upload-candidate="@Model.Reference">
+    <input id="@id"
+           type="radio"
+           name="caseId"
+           value="@Model.CaseId"
+           form="@form"
+           checked="@isChecked"
+           data-version="@Model.Version"
+           data-reference="@Model.Reference"
+           data-registration="@Model.Registration"
+           data-claimant="@Model.Claimant"
+           data-principal="@Model.Principal"
+           data-stage="@Model.Stage" />
+    <span class="up-radio" aria-hidden="true"></span>
+    <span class="up-case-top">
+        <strong class="up-case-ref mono">@Model.Reference</strong>
+        @if (Model.Stage.Length > 0)
+        {
+            <partial name="Shared/_StatusChip" model="@Model.Stage" />
+        }
+    </span>
+    @{
+        var person = new[] { Model.Registration, Model.Claimant }.Where(part => !string.IsNullOrWhiteSpace(part)).ToArray();
+    }
+    @if (person.Length > 0)
+    {
+        <span class="up-case-person">
+            @foreach (var part in person)
+            {
+                <span>@part</span>
+            }
+        </span>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.Principal))
+    {
+        <span class="up-case-detail">@Model.Principal</span>
+    }
+</label>

@@ -48,9 +48,9 @@ public sealed class InspectionAddressChoicesPersistenceTests
         await using var verificationScope = factory.Services.CreateAsyncScope();
         var services = verificationScope.ServiceProvider;
         var projection = await services.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(currentId, CancellationToken.None);
+            .GetAsync(currentId, CaseWorkSelector.Current, CancellationToken.None);
         var choices = await services.GetRequiredService<IInspectionAddressChoicesQueries>()
-            .GetAsync(currentId, CancellationToken.None);
+            .GetAsync(currentId, CaseWorkSelector.Current, CancellationToken.None);
 
         Assert.Equal("14 Storage Lane", projection?.Inspection.StorageLocation?.Confirmed?.Value);
         Assert.Equal(
@@ -100,7 +100,7 @@ public sealed class InspectionAddressChoicesPersistenceTests
 
         await using var scope = factory.Services.CreateAsyncScope();
         var projection = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal("14 Storage Lane", projection?.Inspection.StorageLocation?.Confirmed?.Value);
     }
 
@@ -114,7 +114,7 @@ public sealed class InspectionAddressChoicesPersistenceTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var current = await services.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None)
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None)
             ?? throw new InvalidOperationException("The accepted case was not found.");
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var lease = await services.GetRequiredService<IAcquireCaseEditLease>()
@@ -148,7 +148,7 @@ public sealed class InspectionAddressChoicesPersistenceTests
         var sourceCase = await context.Cases.AsNoTracking()
             .SingleAsync(item => item.Id == sourceCaseId);
         var sourceSnapshot = await context.CaseDataSnapshots.AsNoTracking()
-            .SingleAsync(item => item.CaseId == sourceCaseId);
+            .SingleAsync(item => item.WorkId == sourceCaseId);
         var ids = new Guid[count];
         for (var index = 0; index < count; index++)
         {
@@ -175,8 +175,7 @@ public sealed class InspectionAddressChoicesPersistenceTests
             context.Cases.Add(clone);
             context.CaseDataSnapshots.Add(new()
             {
-                CaseId = caseId,
-                Case = clone,
+                WorkId = caseId,
                 OriginIntakeReceiptId = sourceSnapshot.OriginIntakeReceiptId,
                 OriginSourceChannel = sourceSnapshot.OriginSourceChannel,
                 OriginExternalReceiptToken = sourceSnapshot.OriginExternalReceiptToken,
@@ -208,5 +207,5 @@ public sealed class InspectionAddressChoicesPersistenceTests
         Guid caseId,
         DateTimeOffset confirmedAtUtc) =>
         context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseDataFields SET ConfirmedAtUtc = {confirmedAtUtc} WHERE CaseId = {caseId} AND FieldName = {"inspection_address"} AND ValueKind = {"confirmed"}");
+            $"UPDATE CaseDataFields SET ConfirmedAtUtc = {confirmedAtUtc} WHERE WorkId = {caseId} AND FieldName = {"inspection_address"} AND ValueKind = {"confirmed"}");
 }

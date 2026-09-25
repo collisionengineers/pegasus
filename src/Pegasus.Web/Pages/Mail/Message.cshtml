@@ -4,11 +4,6 @@
 @{
     var summary = Model.Detail.Summary;
     ViewData["Title"] = Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary);
-    // A message joins the working set with its subject as the tab reference and no registration.
-    ViewData["WorkingSetRecord"] = new WorkingSetRecord(
-        $"/Inbox/{summary.Id:D}",
-        WorkingSetRecord.Kinds.Message,
-        Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary));
     var dossier = Model.Detail.Classification;
     var isClassified = Model.Detail.ClassificationOutcome == Pegasus.Core.Intake.MailClassificationOutcome.Classified;
 }
@@ -29,16 +24,16 @@
                 <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply">Reply</a>
+                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply">@OperatorLabels.StaffMail.Reply</a>
                 <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply-all">Reply all</a>
+                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply-all">@OperatorLabels.StaffMail.ReplyAll</a>
             }
             <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-               asp-route-queue="@Model.QueueFilter"                asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="forward">Forward</a>
+               asp-route-queue="@Model.QueueFilter"                asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="forward">@OperatorLabels.StaffMail.Forward</a>
         }
         <form method="post" asp-page-handler="@(Model.IsDismissed ? "Restore" : "Dismiss")" asp-route-id="@summary.Id"
               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
@@ -225,7 +220,7 @@
                             <input type="hidden" name="mailOperationId" value="@mailOperation.Id" />
                             <input type="hidden" name="expectedOperationVersion" value="@mailOperation.Version" />
                             <button type="submit" class="btn">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
                                 <span>@OperatorLabels.StaffMail.Reconcile</span>
                             </button>
                         </form>
@@ -246,7 +241,7 @@
             if (handler is not null)
             {
                 <form method="post" asp-page-handler="@handler" asp-route-id="@summary.Id" class="panel section-gap">
-                    <div class="panel-head"><h2>@(correspondenceMode == "forward" ? "Forward" : correspondenceMode == "reply-all" ? "Reply all" : "Reply")</h2></div>
+                    <div class="panel-head"><h2>@(correspondenceMode == "forward" ? OperatorLabels.StaffMail.Forward : correspondenceMode == "reply-all" ? OperatorLabels.StaffMail.ReplyAll : OperatorLabels.StaffMail.Reply)</h2></div>
                     <div class="panel-body stack">
                         <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
                         <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
@@ -587,34 +582,50 @@
         else if (Model.ActiveSection == "case" && Model.AssociationReceipt is { } associationReceipt)
         {
             <div class="stack">
-                @if (Model.CurrentCase is { } currentCase)
+                @if (Model.CurrentDestination is { } currentDestination)
                 {
                     <section class="decision-card">
                         <h2 class="decision-head">Linked case</h2>
                         <div class="decision-body">
                             <div class="definition-list">
-                                <dl class="definition"><dt>Case/PO</dt><dd><a asp-page="/Cases/Details" asp-route-id="@currentCase.Summary.CaseId">@currentCase.Summary.Reference</a></dd></dl>
-                                <dl class="definition"><dt>Principal</dt><dd>@currentCase.Summary.Principal</dd></dl>
-                                <dl class="definition">
-                                    <dt>Registration</dt>
-                                    <dd>@(currentCase.Summary.Registration ?? "Not recorded")</dd>
-                                </dl>
-                                <dl class="definition">
-                                    <dt>Claimant</dt>
-                                    <dd>@(currentCase.Summary.Claimant ?? "Not recorded")</dd>
-                                </dl>
-                                <dl class="definition">
-                                    <dt>Claim number</dt>
-                                    <dd>@(currentCase.Summary.ClaimNumber ?? "Not recorded")</dd>
-                                </dl>
-                                <dl class="definition"><dt>State</dt><dd>@OperatorLabels.CaseStage(currentCase.Summary.State)</dd></dl>
+                                @if (Model.CurrentCase is { } currentCase)
+                                {
+                                    <dl class="definition"><dt>Case/PO</dt><dd><a asp-page="/Cases/Details" asp-route-id="@currentCase.Summary.CaseId">@currentCase.Summary.Reference</a></dd></dl>
+                                    <dl class="definition"><dt>Principal</dt><dd>@currentCase.Summary.Principal</dd></dl>
+                                    <dl class="definition">
+                                        <dt>Registration</dt>
+                                        <dd>@(currentCase.Summary.Registration ?? "Not recorded")</dd>
+                                    </dl>
+                                    <dl class="definition">
+                                        <dt>Claimant</dt>
+                                        <dd>@(currentCase.Summary.Claimant ?? "Not recorded")</dd>
+                                    </dl>
+                                    <dl class="definition">
+                                        <dt>Claim number</dt>
+                                        <dd>@(currentCase.Summary.ClaimNumber ?? "Not recorded")</dd>
+                                    </dl>
+                                    <dl class="definition"><dt>State</dt><dd>@OperatorLabels.CaseStage(currentCase.Summary.State)</dd></dl>
+                                }
+                                else
+                                {
+                                    <dl class="definition"><dt>Case/PO</dt><dd><a asp-page="/Cases/Details" asp-route-id="@currentDestination.CaseId">@currentDestination.Reference</a></dd></dl>
+                                    <dl class="definition">
+                                        <dt>Registration</dt>
+                                        <dd>@(currentDestination.Registration ?? "Not recorded")</dd>
+                                    </dl>
+                                    <dl class="definition">
+                                        <dt>Claimant</dt>
+                                        <dd>@(currentDestination.Claimant ?? "Not recorded")</dd>
+                                    </dl>
+                                    <dl class="definition"><dt>State</dt><dd>@OperatorLabels.AssociationDestinationState(currentDestination)</dd></dl>
+                                }
                             </div>
                             <div class="button-row section-gap">
-                                <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@currentCase.Summary.CaseId">
+                                <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@currentDestination.CaseId">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
                                     <span>Open Case</span>
                                 </a>
-                                @if (Model.AssociationLeaseCaseId == currentCase.Summary.CaseId
+                                @if (Model.AssociationLeaseCaseId == currentDestination.CaseId
                                     && Model.AssociationLeaseMessageId == summary.Id
                                     && Model.AssociationLeaseReceiptId == associationReceipt.Id
                                     && Model.AssociationLeaseAction == Pegasus.Web.Pages.Mail.MessageModel.UnlinkAssociationAction
@@ -639,14 +650,14 @@
                                     var unlinkDialogData = new ViewDataDictionary(ViewData)
                                     {
                                         ["DialogId"] = "unlinkCaseDialog",
-                                        ["DialogTitle"] = $"Unlink from {currentCase.Summary.Reference}",
+                                        ["DialogTitle"] = $"Unlink from {currentDestination.Reference}",
                                         ["DialogConsequence"] = associationReceipt.UnlinkCancelsCase
-                                            ? $"Unlinking this email cancels case {currentCase.Summary.Reference}."
+                                            ? $"Unlinking this email cancels case {currentDestination.Reference}."
                                             : null,
                                         ["DialogActionUrl"] = unlinkAction,
                                         ["DialogHiddenFields"] = new Dictionary<string, string?>
                                         {
-                                            ["caseId"] = currentCase.Summary.CaseId.ToString("D"),
+                                            ["caseId"] = currentDestination.CaseId.ToString("D"),
                                             ["expectedIntakeVersion"] = unlinkIntakeVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
                                             ["expectedCaseVersion"] = unlinkCaseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
                                             ["editLeaseToken"] = unlinkLeaseToken,
@@ -663,9 +674,9 @@
                                           asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
                                                                                     asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                           asp-route-pageNumber="@Model.PageNumber">
-                                        <input type="hidden" name="caseId" value="@currentCase.Summary.CaseId" />
+                                        <input type="hidden" name="caseId" value="@currentDestination.CaseId" />
                                         <input type="hidden" name="expectedIntakeVersion" value="@associationReceipt.Version" />
-                                        <input type="hidden" name="expectedCaseVersion" value="@currentCase.Workflow.Version" />
+                                        <input type="hidden" name="expectedCaseVersion" value="@currentDestination.Version" />
                                         <input type="hidden" name="leaseOperationKey" value="@Guid.NewGuid().ToString("N")" />
                                         <button class="btn" type="submit">Unlink</button>
                                     </form>
@@ -745,7 +756,7 @@
                                                                               asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                        asp-route-section="case"
                                        asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@candidate.CaseId"
-                                       aria-current="@(Model.TargetCase?.Summary.CaseId == candidate.CaseId ? "page" : null)">
+                                       aria-current="@(Model.TargetDestination?.CaseId == candidate.CaseId ? "page" : null)">
                                         <span class="row-top">
                                             <span class="row-title"><strong>@candidate.Reference</strong></span>
                                             <span class="row-meta">@candidate.Stage</span>
@@ -757,30 +768,46 @@
                         }
                     }
 
-                    @if (Model.TargetCase is { } targetCase)
+                    @if (Model.TargetDestination is { } targetDestination)
                     {
                         <section class="decision-card section-gap">
                             <h2 class="decision-head">Confirm target</h2>
                             <div class="decision-body">
                                 <div class="definition-list">
-                                    <dl class="definition"><dt>Case/PO</dt><dd>@targetCase.Summary.Reference</dd></dl>
-                                    <dl class="definition"><dt>Principal</dt><dd>@targetCase.Summary.Principal</dd></dl>
-                                    <dl class="definition">
-                                        <dt>Registration</dt>
-                                        <dd>@(targetCase.Summary.Registration ?? "Not recorded")</dd>
-                                    </dl>
-                                    <dl class="definition">
-                                        <dt>Claimant</dt>
-                                        <dd>@(targetCase.Summary.Claimant ?? "Not recorded")</dd>
-                                    </dl>
-                                    <dl class="definition">
-                                        <dt>Claim number</dt>
-                                        <dd>@(targetCase.Summary.ClaimNumber ?? "Not recorded")</dd>
-                                    </dl>
-                                    <dl class="definition"><dt>State</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></dl>
+                                    @if (Model.TargetCase is { } targetCase)
+                                    {
+                                        <dl class="definition"><dt>Case/PO</dt><dd>@targetCase.Summary.Reference</dd></dl>
+                                        <dl class="definition"><dt>Principal</dt><dd>@targetCase.Summary.Principal</dd></dl>
+                                        <dl class="definition">
+                                            <dt>Registration</dt>
+                                            <dd>@(targetCase.Summary.Registration ?? "Not recorded")</dd>
+                                        </dl>
+                                        <dl class="definition">
+                                            <dt>Claimant</dt>
+                                            <dd>@(targetCase.Summary.Claimant ?? "Not recorded")</dd>
+                                        </dl>
+                                        <dl class="definition">
+                                            <dt>Claim number</dt>
+                                            <dd>@(targetCase.Summary.ClaimNumber ?? "Not recorded")</dd>
+                                        </dl>
+                                        <dl class="definition"><dt>State</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></dl>
+                                    }
+                                    else
+                                    {
+                                        <dl class="definition"><dt>Case/PO</dt><dd>@targetDestination.Reference</dd></dl>
+                                        <dl class="definition">
+                                            <dt>Registration</dt>
+                                            <dd>@(targetDestination.Registration ?? "Not recorded")</dd>
+                                        </dl>
+                                        <dl class="definition">
+                                            <dt>Claimant</dt>
+                                            <dd>@(targetDestination.Claimant ?? "Not recorded")</dd>
+                                        </dl>
+                                        <dl class="definition"><dt>State</dt><dd>@OperatorLabels.AssociationDestinationState(targetDestination)</dd></dl>
+                                    }
                                 </div>
                                 <div class="button-row section-gap">
-                                    @if (Model.AssociationLeaseCaseId == targetCase.Summary.CaseId
+                                    @if (Model.AssociationLeaseCaseId == targetDestination.CaseId
                                         && Model.AssociationLeaseMessageId == summary.Id
                                         && Model.AssociationLeaseReceiptId == associationReceipt.Id
                                         && Model.AssociationLeaseAction == Pegasus.Web.Pages.Mail.MessageModel.LinkAssociationAction
@@ -805,11 +832,11 @@
                                         var linkDialogData = new ViewDataDictionary(ViewData)
                                         {
                                             ["DialogId"] = "linkCaseDialog",
-                                            ["DialogTitle"] = $"Link to {targetCase.Summary.Reference}",
+                                            ["DialogTitle"] = $"Link to {targetDestination.Reference}",
                                             ["DialogActionUrl"] = linkAction,
                                             ["DialogHiddenFields"] = new Dictionary<string, string?>
                                             {
-                                                ["caseId"] = targetCase.Summary.CaseId.ToString("D"),
+                                                ["caseId"] = targetDestination.CaseId.ToString("D"),
                                                 ["expectedIntakeVersion"] = linkIntakeVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
                                                 ["expectedCaseVersion"] = linkCaseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
                                                 ["editLeaseToken"] = linkLeaseToken,
@@ -826,10 +853,10 @@
                                               asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
                                                                                             asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                               asp-route-pageNumber="@Model.PageNumber"
-                                              asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@targetCase.Summary.CaseId">
-                                            <input type="hidden" name="caseId" value="@targetCase.Summary.CaseId" />
+                                              asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@targetDestination.CaseId">
+                                            <input type="hidden" name="caseId" value="@targetDestination.CaseId" />
                                             <input type="hidden" name="expectedIntakeVersion" value="@associationReceipt.Version" />
-                                            <input type="hidden" name="expectedCaseVersion" value="@targetCase.Workflow.Version" />
+                                            <input type="hidden" name="expectedCaseVersion" value="@targetDestination.Version" />
                                             <input type="hidden" name="leaseOperationKey" value="@Guid.NewGuid().ToString("N")" />
                                             <button class="btn btn--dark" type="submit">Link to this case</button>
                                         </form>
@@ -847,7 +874,7 @@
 @if (dossier is { } correctionDossier)
 {
     <div id="correctClassificationDialog" class="dialog-backdrop" role="dialog" aria-modal="true"
-         aria-labelledby="correctClassificationDialog_title" data-dialog="correctClassificationDialog" data-reason-dialog hidden>
+         aria-labelledby="correctClassificationDialog_title" data-dialog="correctClassificationDialog" hidden>
         <section class="dialog">
             <div class="dialog-head">
                 <h2 id="correctClassificationDialog_title" tabindex="-1">Correct classification</h2>
@@ -887,7 +914,7 @@
                     </div>
                 </div>
                 <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
                     <button type="submit" class="btn btn--dark">Save correction</button>
                 </div>
             </form>
@@ -903,7 +930,7 @@
     var moveOperationKey = Guid.NewGuid().ToString("D");
     var folderLabel = Pegasus.Core.Intake.MailLogicalFolders.Definition(dialogSuggestedMove.FolderType).Label;
     <div id="moveFolderDialog" class="dialog-backdrop" role="dialog" aria-modal="true"
-         aria-labelledby="moveFolderDialog_title" data-dialog="moveFolderDialog" data-reason-dialog hidden>
+         aria-labelledby="moveFolderDialog_title" data-dialog="moveFolderDialog" hidden>
         <section class="dialog">
             <div class="dialog-head">
                 <h2 id="moveFolderDialog_title" tabindex="-1">Move to @folderLabel</h2>
@@ -941,7 +968,7 @@
                     <input type="hidden" name="Reason" value="@dialogSuggestedMove.Reason" />
                 </div>
                 <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
                     <button type="submit" class="btn btn--dark">Move</button>
                 </div>
             </form>

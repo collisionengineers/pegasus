@@ -11,7 +11,7 @@ Configuration ownership is:
 | Web composition and named SQL Server connection | `src/Pegasus.Web/Program.cs` and environment configuration |
 | Development profile and launch path | `src/Pegasus.Web/Properties/launchSettings.json` |
 | Ignored local state | `artifacts/` |
-| Target Azure parameters and topology | `infra/`, `azure.yaml`, and `.azure/deployment-plan.md` |
+| Target Azure parameters and topology | `infra/` and `azure.yaml` |
 | Which mailboxes inbound Intake polls, and their exact tenant identities | The `ApprovedMailboxes` allowlist, edited on `/Administration/Mailboxes` ([ADR-0022](../adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)). v1 poll and Sent claims use each persisted mailbox identity, folder, capability and generation; a global Graph coordinate is not the current mailbox authority. Historical deployment settings are recorded in operations. |
 
 Tool availability does not authorize external action.

@@ -21,8 +21,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
 {
     private const string LeaseTokenKey = "CaseLeaseToken";
     protected const string LeaseCaseIdKey = "CaseLeaseCaseId";
-    protected const string ClaimLeaseOperationKeyName = "CaseClaimLeaseOperationKey";
-    protected const string ClaimLeaseCaseIdKey = "CaseClaimLeaseCaseId";
     protected const string RenewLeaseOperationKeyName = "CaseRenewLeaseOperationKey";
     protected const string ReleaseLeaseOperationKeyName = "CaseReleaseLeaseOperationKey";
     protected const string ProposedValuesKey = "CaseProposedValues";
@@ -63,7 +61,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "contactName",
         "contactEmailAddress",
         "contactPhoneNumber",
-        "instructionDate",
         "vatStatus",
         "inspectionDate",
         "inspectionDeadline",
@@ -107,67 +104,74 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// <summary>The lease this browser holds on the case being rendered, if it holds one.</summary>
     public string? LeaseToken { get; private set; }
 
-    public string ClaimLeaseOperationKey { get; private set; } = NewOperationKey();
+    /// <summary>
+    /// A claim key belongs to one claim, so every render offers a new one: with no live lease the
+    /// last key this browser used has either ended with its lease or never claimed anything, and
+    /// replaying a finished claim would only refuse the operator.
+    /// </summary>
+    public string ClaimLeaseOperationKey { get; } = NewOperationKey();
 
     public string ReleaseLeaseOperationKey { get; private set; } = NewOperationKey();
-
-    /// <summary>
-    /// The case is held by this viewer, but this browser no longer carries the token — the holder
-    /// re-enters edit mode deliberately rather than having it silently restored.
-    /// </summary>
-    public bool CanRecoverLease { get; private set; }
 
     /// <summary>
     /// Reconciles what this browser remembers against what the server says the case's edit
     /// authority actually is. Every page that renders edit mode asks it, so the workspace and the
     /// assessment agree about one lease without keeping two rules.
     /// </summary>
-    protected void RestoreLeaseState(
+    /// <remarks>
+    /// The holder is the staff member, not the window (FRD-14). This browser keeps one lease token
+    /// at a time, so a visit to another case, or a second tab, can leave it without the token for
+    /// the case the viewer is editing. The viewer is then put straight back into edit mode by
+    /// resuming the lease they hold, never offered a takeover of themselves.
+    /// </remarks>
+    protected async Task RestoreLeaseStateAsync(
         Guid caseId,
         ActionActor actor,
-        CaseEditLeaseSnapshot? activeLease)
+        CaseEditLeaseSnapshot? activeLease,
+        IResumeCaseEditLease resumeLease,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(resumeLease);
 
         // An expired lease is already absent from the projection, so no page keeps a second rule.
-        if (activeLease is null)
-        {
-            if (!string.IsNullOrWhiteSpace(PeekLeaseToken())
-                || PeekGuid(LeaseCaseIdKey) is not null)
-            {
-                ClearLeaseState();
-            }
-
-            ClaimLeaseOperationKey = GetOrCreateClaimLeaseOperation(caseId);
-            return;
-        }
-
-        if (!CaseEditAuthority.IsHolder(activeLease.HolderKind, activeLease.Holder, actor))
-        {
-            ClearLeaseState();
-            return;
-        }
-
-        if (!Guid.TryParseExact(activeLease.OperationKey, "N", out var claimOperationId))
+        if (activeLease is null
+            || !CaseEditAuthority.IsHolder(activeLease.HolderKind, activeLease.Holder, actor))
         {
             ClearLeaseState();
             return;
         }
 
         var storedToken = PeekLeaseToken();
-        if (PeekGuid(LeaseCaseIdKey) == caseId && !string.IsNullOrWhiteSpace(storedToken))
+        var token = PeekGuid(LeaseCaseIdKey) == caseId && !string.IsNullOrWhiteSpace(storedToken)
+            ? storedToken
+            : null;
+        if (token is null)
         {
-            ClaimLeaseOperationKey = claimOperationId.ToString("N");
-            StoreClaimLeaseOperation(caseId, ClaimLeaseOperationKey);
-            LeaseToken = storedToken;
-            ReleaseLeaseOperationKey = GetOrCreateOperationKey(ReleaseLeaseOperationKeyName);
-            return;
+            CaseEditLease? resumed;
+            try
+            {
+                resumed = await resumeLease.ExecuteAsync(new(caseId, actor), cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // A resume that cannot be answered leaves the page reading, never unavailable.
+                LogCaseCommandFailed(logger, caseId, "resume_lease", exception);
+                resumed = null;
+            }
+            // A lease that lapsed between the read and the resume leaves Edit to claim afresh.
+            ClearLeaseState();
+            if (resumed is null)
+            {
+                return;
+            }
+
+            StoreLeaseAuthority(caseId, resumed.Token);
+            token = resumed.Token;
         }
 
-        ClearLeaseAuthority();
-        CanRecoverLease = true;
-        ClaimLeaseOperationKey = NewOperationKey();
-        StoreClaimLeaseOperation(caseId, ClaimLeaseOperationKey);
+        LeaseToken = token;
+        ReleaseLeaseOperationKey = GetOrCreateOperationKey(ReleaseLeaseOperationKeyName);
     }
 
     /// <summary>
@@ -179,13 +183,14 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     protected virtual string ErrorTempDataKey => "CaseError";
 
     /// <summary>
-    /// Enters edit mode. Every page that offers it enters it the same way, including what happens
-    /// to the claim key when the claim is refused: a lost lease clears this page's state, and any
-    /// other refusal keeps the same key, because the claim is idempotent by that key and a retry
-    /// must replay rather than claim twice.
+    /// Enters edit mode. Every page that offers it enters it the same way. A staff member who
+    /// already holds the lease, from another window or a page that went stale, resumes it rather
+    /// than claiming. A refused claim leaves nothing to retry by key: if it landed after all, the
+    /// page it returns to resumes the lease, and otherwise that page offers a new claim.
     /// </summary>
     protected async Task<IActionResult> ClaimLeaseAsync(
         IAcquireCaseEditLease acquireLease,
+        IResumeCaseEditLease resumeLease,
         Guid id,
         long expectedVersion,
         string operationKey,
@@ -202,13 +207,13 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         try
         {
             var normalizedOperationKey = RequireOperationKey(operationKey);
-            var lease = await acquireLease.ExecuteAsync(
-                new ClaimCaseEditLeaseRequest(id, expectedVersion, actor, normalizedOperationKey)
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken);
-            StoreClaimLeaseOperation(id, normalizedOperationKey);
+            var lease = await resumeLease.ExecuteAsync(new(id, actor), cancellationToken)
+                ?? await acquireLease.ExecuteAsync(
+                    new ClaimCaseEditLeaseRequest(id, expectedVersion, actor, normalizedOperationKey)
+                    {
+                        TakeOver = takeOver
+                    },
+                    cancellationToken);
             StoreLeaseAuthority(id, lease.Token);
             TempData.Remove(RenewLeaseOperationKeyName);
             TempData.Remove(ReleaseLeaseOperationKeyName);
@@ -225,10 +230,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             if (IsLeaseLoss(exception))
             {
                 ClearLeaseState();
-            }
-            else if (Guid.TryParseExact(operationKey, "N", out var operationId))
-            {
-                StoreClaimLeaseOperation(id, operationId.ToString("N"));
             }
             TempData[ErrorTempDataKey] = ClaimLeaseFailureMessage(exception);
         }
@@ -283,22 +284,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         return redirect();
     }
 
-    protected string GetOrCreateClaimLeaseOperation(Guid caseId)
-    {
-        var storedOperationId = PeekGuid(ClaimLeaseOperationKeyName);
-        if (PeekGuid(ClaimLeaseCaseIdKey) == caseId
-            && storedOperationId is { } operationId
-            && operationId != Guid.Empty)
-        {
-            return operationId.ToString("N");
-        }
-
-        ClearLeaseState();
-        var operationKey = NewOperationKey();
-        StoreClaimLeaseOperation(caseId, operationKey);
-        return operationKey;
-    }
-
     protected string GetOrCreateOperationKey(string key)
     {
         if (PeekGuid(key) is { } operationId && operationId != Guid.Empty)
@@ -311,16 +296,14 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         return operationKey;
     }
 
-    protected void StoreClaimLeaseOperation(Guid caseId, string operationKey)
-    {
-        TempData[ClaimLeaseCaseIdKey] = caseId;
-        TempData[ClaimLeaseOperationKeyName] = Guid.ParseExact(operationKey, "N");
-    }
-
     protected static string RequireOperationKey(string value) =>
         Guid.TryParseExact(value, "N", out var operationId)
             ? operationId.ToString("N")
             : throw new ArgumentException("The operation key is invalid.", nameof(value));
+
+    /// <summary>The refusal a command on the case itself states when Core gives no reason of its own.</summary>
+    protected const string CaseCommandRefused =
+        "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.";
 
     /// <summary>A command on the case itself; a refusal names the case as the reason.</summary>
     protected Task<IActionResult> ExecuteCaseCommandAsync(
@@ -337,7 +320,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             commandName,
             execute,
             successMessage,
-            "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.",
+            CaseCommandRefused,
             redirect,
             keepEditing);
 
@@ -396,7 +379,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             var lease = await reclaim.Leases.ExecuteAsync(
                 new(id, current.Workflow.Version, actor, operationKey),
                 cancellationToken);
-            StoreClaimLeaseOperation(id, operationKey);
             StoreLeaseAuthority(id, lease.Token);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -609,19 +591,12 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         };
 
     /// <summary>Forgets the lease authority this browser carries.</summary>
-    protected void ClearLeaseAuthority()
+    protected void ClearLeaseState()
     {
         TempData.Remove(LeaseTokenKey);
         TempData.Remove(LeaseCaseIdKey);
         TempData.Remove(RenewLeaseOperationKeyName);
         TempData.Remove(ReleaseLeaseOperationKeyName);
-    }
-
-    protected void ClearLeaseState()
-    {
-        ClearLeaseAuthority();
-        TempData.Remove(ClaimLeaseOperationKeyName);
-        TempData.Remove(ClaimLeaseCaseIdKey);
     }
 
     /// <summary>The lease itself is gone: it expired, or another actor holds it.</summary>
@@ -637,7 +612,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     private static string ClaimLeaseFailureMessage(Exception exception) => exception switch
     {
         CaseEditLeaseConflictException =>
-            "This case is already being edited. Reload to resume your edits or see who is editing it.",
+            "Someone else is editing this case. Reload to see who is editing it.",
         CaseEditLeaseExpiredException =>
             "Edit mode could not be entered because the previous edit attempt expired. Reload the case and try again.",
         CaseVersionConflictException =>
@@ -650,8 +625,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// The refused mutations after which the editor must reacquire rather than resubmit. A lost
     /// lease is one; so is a stale version, because the requirement makes the rejected editor
     /// "reload and reacquire rather than merge or force the save". Clearing this page's lease state
-    /// does not release the server-owned authority, so a holder who did nothing wrong keeps it and
-    /// simply re-enters edit mode deliberately rather than saving over newer work.
+    /// does not release the server-owned authority, so a holder who did nothing wrong keeps it: the
+    /// reloaded page resumes it on the case as it now stands, and nothing is saved over newer work.
     /// </summary>
     private static bool RequiresReacquisition(Exception exception) =>
         IsLeaseLoss(exception) || exception is CaseVersionConflictException;

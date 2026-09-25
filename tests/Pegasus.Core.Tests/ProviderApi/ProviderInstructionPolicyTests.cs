@@ -6,8 +6,6 @@ namespace Pegasus.Core.Tests.ProviderApi;
 
 public sealed class ProviderInstructionPolicyTests
 {
-    private static readonly DateOnly Received = new(2031, 5, 6);
-
     private static ProviderInstruction Complete(
         ProviderInstructionKind kind = ProviderInstructionKind.Inspection,
         AuditAssessment? verdict = null) =>
@@ -66,20 +64,16 @@ public sealed class ProviderInstructionPolicyTests
     }
 
     [Fact]
-    public void TheDraftCarriesEveryDeclaredValueAndDatesItsOwnInstruction()
+    public void TheDraftCarriesEveryDeclaredValue()
     {
         var draft = ProviderInstructionPolicy.ToDraft(
             ProviderInstructionPolicy.Normalize(Complete()),
-            "qdos",
-            Received);
+            "qdos");
 
         Assert.Equal("QDOS", draft.SuggestedPrincipalCode);
         Assert.Equal("AB12CDE", draft.VehicleRegistration);
         Assert.Equal("Vehicle is at the repairer.", draft.Notes);
         Assert.Equal(new DateOnly(2031, 5, 20), draft.InspectionDate);
-        // No instruction date was stated: an instruction dates from when it was
-        // given, and for an API submission that is when it arrived.
-        Assert.Equal(Received, draft.InstructionDate);
         Assert.Empty(InstructionDraftCompleteness.MissingFieldNames(draft));
     }
 
@@ -95,17 +89,29 @@ public sealed class ProviderInstructionPolicyTests
     public void EveryRequiredFieldLabelHasAMatchingDeclaredReviewField()
     {
         var empty = new InstructionDraft(
-            null, null, null, null, null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, null, null, null);
         var required = InstructionDraftCompleteness.MissingFieldNames(empty);
         var declared = ProviderInstructionPolicy
             .ReviewFields(ProviderInstructionPolicy.ToDraft(
                 ProviderInstructionPolicy.Normalize(Complete()),
-                "QDOS",
-                Received))
+                "QDOS"))
             .Select(field => field.Name)
             .ToHashSet(StringComparer.Ordinal);
 
         Assert.All(required, label => Assert.Contains(label, declared));
+    }
+
+    [Fact]
+    public void AnInstructionDateInTheBodyIsNotAContractMemberAndIsIgnored()
+    {
+        var (instruction, files) = ProviderInstructionJson.Parse(System.Text.Encoding.UTF8.GetBytes(
+            """{"caseType":"inspection","claimNumber":"12345/1","instructionDate":"2031-05-01","files":[{"fileName":"instruction.pdf","mediaType":"application/pdf","contentBase64":"JVBERi0="}]}"""));
+        Assert.Single(files);
+        Assert.DoesNotContain(
+            ProviderInstructionPolicy.ReviewFields(ProviderInstructionPolicy.ToDraft(ProviderInstructionPolicy.Normalize(instruction), "QDOS")),
+            field => field.Name == "Instruction date");
+        // A declaration stored before the member was retired still reads.
+        Assert.NotNull(ProviderInstructionJson.Deserialize("""{"kind":"Inspection","instructionDate":"2031-05-01"}"""));
     }
 
     [Fact]

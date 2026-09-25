@@ -9,7 +9,7 @@ The Case record has no generic page header.
 
 Its stable frame is:
 
-1. working-set integration;
+1. Views card in the aside once an Audit exists;
 2. sticky 56px Case ribbon;
 3. sticky 40px section row;
 4. Case sections;
@@ -24,7 +24,6 @@ The ribbon owns:
 - state chip, including held review date when applicable;
 - Case type chip;
 - colleague-editing state when applicable;
-- links between an Audit Case and its original when applicable;
 - Edit Case, or Editing + Cancel + Save while editing;
 - one Actions menu.
 
@@ -37,6 +36,34 @@ The section row owns:
 - Scroll/Tabs switch.
 
 Scroll remains the default unless the operator explicitly changes it.
+
+There is no working-set strip above the ribbon, and no strip of view tabs replaces it.
+
+## Inspection and Audit views
+
+An Inspection + Audit Case whose Audit has been created has two views of one record (operator,
+24 September 2026; FRD-16):
+
+- The **Views** card is the first card in the aside and renders only once the Case has its Audit.
+  Its rows are "Inspection · {Case/PO}" with a "Sent" chip and "Audit · a.{Case/PO}" with the Case
+  state chip; the current view is plain, the other a link (`?view=inspection|audit`,
+  server-rendered). The Audit view is the default. Without an Audit there is no card and `view`
+  is ignored; a standalone Audit and a Triage Case have one view.
+- Do not add a view switch to the ribbon or the section row, and do not put the Audit reference on
+  the ribbon. The Scroll/Tabs switch is unchanged.
+- **The Inspection view is read-only.** No Edit anywhere in it. Each editable section head shows
+  the approved `.gated` label "Read-only · Audit created" instead; Files and Notes carry no
+  label. Actions that need no Case lease (Add evidence, previews, downloads) stay; every
+  lease-requiring edit exists only in the Audit view. A lease holder at `?view=inspection` keeps
+  the ribbon's editing controls, but every section still renders read-only.
+- Carry `view` only where the Inspection view is reachable (Refresh, section links, previews,
+  lazy section loads). The Next action always goes to the Audit, and writes return to the default
+  view.
+- Report in the Audit view shows the Inspection's sent report as one `.pv` line with an
+  "Inspection view" link above the Audit card; in the Inspection view the card shows the sent
+  Inspection report with no generation or delivery. Files shows the audit folder chip after the
+  Case folder chip, mirroring its states and tones.
+- The words "View" and "Changed from Inspection" belonged to rejected options and are not used.
 
 ## Section order and ownership
 
@@ -62,10 +89,10 @@ Important ownership decisions:
 - Inspection owns inspection/storage-location details and storage money inputs.
 - Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
 - Damage owns the Plan damage clicker and engineering damage facts.
-- Valuation owns guide-source cards and valuation calculation.
+- Valuation owns guide-source cards, the valuation calculation and the On the report content switches.
 - Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
 - Decisions owns settlement decisions and settlement-only figures.
-- Report owns report content switches, generation/preview/finality controls and report commentary.
+- Report owns generation/preview/finality controls, report wording, report date, commentary, the Fee pane and the report's blocker list, each row linking to the section that owns the fact rather than repeating it.
 - Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces.
 - Notes owns the single Case timeline, notes and chase recording.
 
@@ -208,7 +235,8 @@ Viewer controls must not overlap the image stage. Keep the crop toolbar coherent
 
 ## Aside
 
-The context aside contains Figures and Next action.
+The context aside contains the Views card (only once an Audit exists), then Figures and Next
+action.
 
 Do not recreate a separate "Current position" card that repeats the ribbon.
 
@@ -224,7 +252,8 @@ Any Case UI change should be checked against:
 - 1580px and smaller-desktop rendered views;
 - read and edit modes when the feature is editable;
 - colleague-editing / blocked state when the change touches edit authority;
-- Scroll/Tabs if the change affects section presentation.
+- Scroll/Tabs if the change affects section presentation;
+- both views, and the Inspection view's read-only label, when the Case has an Audit.
 
 A feature addition does not authorize moving existing fields/actions to make room. Fit the feature
 inside its owning section unless the task explicitly requests a layout redesign.
