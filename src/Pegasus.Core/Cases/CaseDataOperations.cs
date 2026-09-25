@@ -92,6 +92,16 @@ public static class CaseDataPolicy
         ArgumentNullException.ThrowIfNull(completeness);
 
     /// <summary>
+    /// The Case's Received date, as its Received cell shows it: the London
+    /// calendar date of its origin receipt's received time, or of its creation
+    /// for a manual Case, which has no receipt. It is the Case's one instruction
+    /// date (operator, 24 September 2026): the report prints it as the date
+    /// instructions were received and the EVA archive sends it as Instruction Date.
+    /// </summary>
+    public static DateOnly ReceivedDate(DateTimeOffset? originReceivedAtUtc, DateTimeOffset caseCreatedAtUtc) =>
+        LondonCalendar.DateAt(originReceivedAtUtc ?? caseCreatedAtUtc);
+
+    /// <summary>
     /// The one place the stated report-address treatment becomes the stored
     /// address and inspection mode. Every CE assessment is desktop, so the
     /// treatment describes where the vehicle is for the report, never
@@ -185,7 +195,6 @@ public static class CaseDataPolicy
         }
 
         ValidateDate(data.IncidentDate, nameof(data.IncidentDate));
-        ValidateDate(data.InstructionDate, nameof(data.InstructionDate));
         ValidateDate(data.InspectionDate, nameof(data.InspectionDate));
         ValidateDate(data.InspectionDeadline, nameof(data.InspectionDeadline));
         ValidateDate(data.DueBy, nameof(data.DueBy));

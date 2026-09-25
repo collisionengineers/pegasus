@@ -63,7 +63,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         "contactName",
         "contactEmailAddress",
         "contactPhoneNumber",
-        "instructionDate",
         "vatStatus",
         "inspectionDate",
         "inspectionDeadline",

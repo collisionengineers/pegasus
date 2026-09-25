@@ -210,7 +210,7 @@ public sealed class InstructionFieldExtractionTests
             [],
             [definition],
             new([definition]),
-            new(new DateTimeOffset(2026, 7, 2, 9, 0, 0, TimeSpan.Zero), received));
+            received);
 
         var field = Assert.Single(fields);
         Assert.Equal("2026-07-02", field.SuggestedValue);

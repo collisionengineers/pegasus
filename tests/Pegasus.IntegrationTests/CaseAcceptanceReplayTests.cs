@@ -299,7 +299,6 @@ public sealed partial class CaseAcceptanceReplayTests
                     null,
                     null,
                     null,
-                    null,
                     "Image Based Assessment"),
                 [],
                 null,

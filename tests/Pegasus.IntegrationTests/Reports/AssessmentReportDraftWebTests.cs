@@ -451,7 +451,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 initial.Claim.Number.Current?.Value, initial.Contact.Name.Current?.Value,
                 initial.Contact.EmailAddress.Current?.Value, initial.Contact.PhoneNumber.Current?.Value,
                 existing.Assessment.CaseOwned.IncidentDate, initial.Accident.Circumstances.Current?.Value,
-                initial.Instruction.InstructionDate.Current?.Value, initial.Instruction.VatStatus.Current?.Value,
+                initial.Instruction.VatStatus.Current?.Value,
                 initial.Inspection.RepairerAddress?.Current?.Value, initial.Workspace?.ClaimSource),
             Vehicle = new(initial.Vehicle.Registration.Current?.Value,
                 initial.Vehicle.Make.Current?.Value, initial.Vehicle.Model.Current?.Value,
@@ -901,7 +901,7 @@ public sealed partial class AssessmentReportDraftWebTests
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
-                DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
             var assessment = new CaseAssessmentProjection(
                 caseId, identity.Reference, workflow.Version, workflow.State, null, [], [],
                 new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));

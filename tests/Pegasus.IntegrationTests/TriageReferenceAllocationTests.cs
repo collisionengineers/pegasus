@@ -275,7 +275,6 @@ public sealed class TriageReferenceAllocationTests
                 VehicleMileage: null,
                 AccidentCircumstances: null,
                 DateOfIncident: null,
-                InstructionDate: null,
                 InspectionAddress: null),
             [acceptedMatch],
             sourceIdentity,

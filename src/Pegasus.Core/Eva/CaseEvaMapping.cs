@@ -43,7 +43,7 @@ public sealed record EvaAcceptedCaseEvidence(
     EvaEvidenceValue VehicleModel,
     EvaEvidenceValue ClaimantName,
     EvaEvidenceValue IncidentDate,
-    EvaEvidenceValue InstructionDate,
+    DateOnly ReceivedDate,
     EvaEvidenceValue InspectionDate,
     EvaAddressResolution Inspection,
     EvaEvidenceValue AccidentCircumstances,
@@ -105,17 +105,23 @@ public static partial class CaseEvaMapping
     private const int InspectionAddressLines = 6;
 
     public const string MappingKey = "qdos-eva-13-field-mapping";
-    public const int MappingVersion = 2;
+    public const int MappingVersion = 3;
 
     /// <summary>
     /// Named source for an inspection date the case did not carry, so the
     /// field's recorded provenance does not imply the instruction supplied it.
-    /// Mirrors the existing "SystemDefault:Receipt date" treatment of an absent
-    /// instruction date. It reaches no shipped file: the archive
-    /// carries the thirteen-key JSON and Images/ only, and provenance is an
-    /// in-memory guard inside EvaBundleSchema.ValidateSource.
+    /// It reaches no shipped file: the archive carries the thirteen-key JSON
+    /// and Images/ only, and provenance is an in-memory guard inside
+    /// EvaBundleSchema.ValidateSource.
     /// </summary>
     public const string ExportDateSource = "SystemDefault:Export date";
+
+    /// <summary>
+    /// Named source for EVA's Instruction Date: the Case's Received date, which
+    /// is its instruction date (operator, 24 September 2026). Every Case has one,
+    /// so the field is always accepted and never unrecorded.
+    /// </summary>
+    public const string ReceivedDateSource = "Case:Received date";
 
     /// <summary>
     /// Maps a case for the operator's export of it — since the
@@ -129,11 +135,13 @@ public static partial class CaseEvaMapping
     ///
     /// The rules, all of them:
     ///
-    /// 1. A missing inspection date becomes <paramref name="today"/>, per
-    ///    operator direction (2026-08-22), recorded as a system default the
-    ///    same way an absent instruction date already resolves to the receipt
-    ///    date.
-    /// 2. Any other absent field is emitted empty, keeps status
+    /// 1. Instruction Date is the Case's Received date (operator, 24 September
+    ///    2026), accepted under <see cref="ReceivedDateSource"/>; every Case has
+    ///    one, so it is never unrecorded.
+    /// 2. A missing inspection date becomes <paramref name="today"/>, per
+    ///    operator direction (2026-08-22), recorded as a named system default
+    ///    (<see cref="ExportDateSource"/>).
+    /// 3. Any other absent field is emitted empty, keeps status
     ///    <see cref="EvaEvidenceStatus.Unrecorded"/>, and is named in
     ///    <see cref="EvaOperatorExport.UnrecordedFields"/> so the operator is
     ///    told before they download rather than after they import.
@@ -221,7 +229,11 @@ public static partial class CaseEvaMapping
         yield return ("Claimant Name", evidence.ClaimantName);
         yield return ("Reference", evidence.Reference);
         yield return ("Incident Date", evidence.IncidentDate);
-        yield return ("Instruction Date", evidence.InstructionDate);
+        yield return ("Instruction Date", new EvaEvidenceValue(
+            evidence.ReceivedDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+            EvaEvidenceStatus.Accepted,
+            ReceivedDateSource,
+            $"{MappingKey}/v{MappingVersion}"));
         yield return ("Inspection Date", evidence.InspectionDate);
         yield return ("Inspection Address", evidence.Inspection.Evidence);
         yield return ("Accident Circumstances", evidence.AccidentCircumstances);

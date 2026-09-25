@@ -174,7 +174,7 @@ public sealed class AllocateDefinitiveIntakeTests
     {
         var receipt = Receipt(CaseType.Inspection, "QDOS") with
         {
-            InstructionDraft = new("OTHER", null, null, null, null, null, null, null, null, null, null)
+            InstructionDraft = new("OTHER", null, null, null, null, null, null, null, null, null)
         };
         var sut = new AllocateIntake(
             new ReceiptQueries(receipt),
@@ -311,7 +311,7 @@ public sealed class AllocateDefinitiveIntakeTests
         "Eligible for case allocation.",
         [],
         [],
-        new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null, null),
+        new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null),
         [],
         null,
         null,

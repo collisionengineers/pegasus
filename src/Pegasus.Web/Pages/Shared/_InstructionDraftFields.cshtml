@@ -83,14 +83,6 @@
     <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
 }
 
-<label for="draft-instruction-date">Instruction date</label>
-<input id="draft-instruction-date" name="InstructionDate" type="date" value="@draft?.InstructionDate?.ToString("yyyy-MM-dd")" />
-<small>@Model.ProvenanceWord("Instruction date")</small>
-@foreach (var candidate in Model.CandidatesFor("Instruction date"))
-{
-    <small>Extracted from @candidate.SourceLabel: @candidate.Value</small>
-}
-
 @if (Model.IncludeInspectionAddress)
 {
     <label for="draft-inspection-address">Inspection address</label>

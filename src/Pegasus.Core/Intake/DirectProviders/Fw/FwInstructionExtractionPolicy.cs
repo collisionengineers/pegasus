@@ -39,10 +39,6 @@ public sealed partial class FwInstructionExtractionPolicy
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate,
             PartyRole: "claimant"),
-        new("Instruction date", ["Current instruction date"], IsRequired: false,
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
-            CanonicalValue: InstructionFieldEngine.CanonicalDate,
-            PartyRole: "instruction"),
         new("Inspection address", ["Inspection location"], IsRequired: false, PartyRole: "inspection-location"),
         new(AccidentLocationField, [AccidentLocationField], IsRequired: false, PartyRole: "incident-location"),
         new("Accident circumstances", ["Current circumstances"], IsRequired: false, PartyRole: "claimant"),
@@ -116,7 +112,6 @@ public sealed partial class FwInstructionExtractionPolicy
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Incident date"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             null,
             null,
@@ -167,8 +162,6 @@ public sealed partial class FwInstructionExtractionPolicy
             yield return Labelled(fragment, "Insured vehicle", match.Groups["value"].Value);
         foreach (Match match in AccidentDateRegex().Matches(current))
             yield return Labelled(fragment, "Accident date", match.Groups["value"].Value);
-        foreach (Match match in InstructionDateRegex().Matches(current))
-            yield return Labelled(fragment, "Current instruction date", match.Groups["value"].Value);
         foreach (Match match in MileageRegex().Matches(current))
             yield return Labelled(fragment, "Insured mileage", match.Groups["value"].Value);
         foreach (Match match in AccidentLocationRegex().Matches(current))
@@ -247,9 +240,6 @@ public sealed partial class FwInstructionExtractionPolicy
 
     [GeneratedRegex(@"(?im)^\s*Accident\s+Date\s*:\s*(?<value>.+?)(?=\s+Time\s*:|$)", RegexOptions.CultureInvariant, 100)]
     private static partial Regex AccidentDateRegex();
-
-    [GeneratedRegex(@"(?im)^\s*Date\s*:\s*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)]
-    private static partial Regex InstructionDateRegex();
 
     [GeneratedRegex(@"(?im)^\s*M(?:i|e)l(?:e)?age\s*(?:[-:]\s*)+(?<value>[\d,]+(?:\s*(?:miles?|mi))?)", RegexOptions.CultureInvariant, 100)]
     private static partial Regex MileageRegex();

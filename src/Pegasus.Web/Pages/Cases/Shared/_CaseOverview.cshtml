@@ -154,7 +154,6 @@
                 <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
-                <input type="hidden" name="instructionDate" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Instruction.InstructionDate)?.Value.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="inspectionDeadline" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="inspectionMode" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Inspection.Mode)?.Value)" />
             </form>

@@ -126,8 +126,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         // The printed Case facts are read through the production projection:
         // the Assessed date is the Case's confirmed Inspection date (not the
         // intake's 2031-05-20), the claimant and Your Ref are the Case's own,
-        // and instructions were received on the Case's received date (the
-        // receipt's, not the instruction_date field's 2031-05-01).
+        // and instructions were received on the Case's received date (its
+        // receipt's received date).
         var printed = Assert.IsType<AssessmentReportSnapshot>(ready.Snapshot);
         Assert.Equal(new DateOnly(2031, 5, 6), input.Assessment.CaseOwned.InspectionDate);
         Assert.Equal(new DateOnly(2031, 5, 6), printed.Assessed);
@@ -205,7 +205,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             (CaseDataFieldNames.VehicleMileage, CaseDataCodes.Integer, "80000"),
             (CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, "miles"),
             (CaseDataFieldNames.IncidentDate, CaseDataCodes.Date, "2031-04-01"),
-            (CaseDataFieldNames.InstructionDate, CaseDataCodes.Date, "2031-05-01"),
             (CaseDataFieldNames.InspectionMode, CaseDataCodes.InspectionMode,
                 ProviderInspectionModePolicy.ImageBasedAssessmentCode),
             (CaseDataFieldNames.InspectionAddress, CaseDataCodes.Text, "1 Test Street, London"),
