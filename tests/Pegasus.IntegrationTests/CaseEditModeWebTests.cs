@@ -798,7 +798,7 @@ public sealed class CaseEditModeWebTests
     /// </summary>
 
     [Fact]
-    public async Task WrongHolderProjectionClearsProtectedLeaseAuthorityAndFallsBackToRecovery()
+    public async Task WrongHolderProjectionClearsProtectedLeaseAuthorityAndTheHolderResumes()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
@@ -844,11 +844,12 @@ public sealed class CaseEditModeWebTests
 
         store.LeaseHolder = claimant;
         var recoveryHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        // Taking over rotates the previous window's token with a new claim.
-        Assert.Contains("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"editLeaseToken\"", recoveryHtml, StringComparison.Ordinal);
-        Assert.NotEqual(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
-        Assert.Contains("name=\"takeOver\" value=\"true\"", recoveryHtml, StringComparison.Ordinal);
+        // The holder is the staff member, not the window: their own lease is resumed, never
+        // offered to them as a takeover of themselves.
+        Assert.Equal(store.LeaseToken, InputValue(recoveryHtml, "editLeaseToken"));
+        Assert.DoesNotContain("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"takeOver\"", recoveryHtml, StringComparison.Ordinal);
+        Assert.Single(store.Claims);
     }
 
 
@@ -915,7 +916,7 @@ public sealed class CaseEditModeWebTests
 
 
     [Fact]
-    public async Task AStaleVersionRefusalRequiresEditModeToBeEnteredAgain()
+    public async Task AStaleVersionRefusalKeepsTheValuesAndResumesTheHoldersLease()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
@@ -971,12 +972,12 @@ public sealed class CaseEditModeWebTests
         Assert.Contains("Your change was not applied", refusedHtml, StringComparison.Ordinal);
         Assert.Contains("Rebecca Proposed", refusedHtml, StringComparison.Ordinal);
 
-        // The authority is still this editor's on the server, so recovery is offered rather than
-        // the case being handed to anyone else — but no edit form is live until it is retaken.
-        // v26 names that one control Take over (the holder's own lease, not this browser's).
-        Assert.DoesNotContain("name=\"editLeaseToken\"", refusedHtml, StringComparison.Ordinal);
-        Assert.Contains("Take over", RecordBar(refusedHtml), StringComparison.Ordinal);
-        Assert.Contains("handler=ClaimLease", refusedHtml, StringComparison.Ordinal);
+        // The authority is still this editor's on the server, so the reloaded page resumes it on
+        // the Case as it now stands: the refused values stay beside it for comparison only, and
+        // the holder is never asked to take over their own lease.
+        Assert.Equal(store.LeaseToken, InputValue(refusedHtml, "editLeaseToken"));
+        Assert.DoesNotContain("Take over", RecordBar(refusedHtml), StringComparison.Ordinal);
+        Assert.Single(store.Claims);
     }
 
 
@@ -1024,6 +1025,156 @@ public sealed class CaseEditModeWebTests
         var refusedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.Contains("Your change was not applied", refusedHtml, StringComparison.Ordinal);
         Assert.Contains("Rebecca Proposed", refusedHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The QDOS26019 report: an editor who looks at another Case and comes back is still the
+    /// holder on the server, though this browser forgot the token when the other Case rendered.
+    /// They go straight back into edit mode on the same lease, never offered a takeover of
+    /// themselves, and nothing is claimed again, even by an Edit on a page that went stale.
+    /// </summary>
+    [Fact]
+    public async Task ReturningFromAnotherCaseResumesEditModeWithoutATakeover()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        var otherStore = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
+                var readers = new TwoCasePageReaders(store, otherStore);
+                Substitute<IGetCasePageFrame>(services, readers);
+                Substitute<IGetAssessmentWorkspace>(services, readers);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using (var claimResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initialHtml, "operationKey")))))
+        {
+            AssertPrg(claimResponse, store.CaseId);
+        }
+        Assert.Equal(store.LeaseToken, InputValue(
+            await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}"),
+            "editLeaseToken"));
+        var resumesBeforeLeaving = store.Resumes.Count;
+
+        var otherHtml = await GetHtmlAsync(client, $"/Cases/{otherStore.CaseId:D}");
+        Assert.DoesNotContain("name=\"editLeaseToken\"", otherHtml, StringComparison.Ordinal);
+
+        var returnedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Equal(store.LeaseToken, InputValue(returnedHtml, "editLeaseToken"));
+        Assert.Contains("data-case-release-beacon", returnedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Take over", RecordBar(returnedHtml), StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"takeOver\"", returnedHtml, StringComparison.Ordinal);
+        Assert.Equal(resumesBeforeLeaving + 1, store.Resumes.Count);
+        Assert.Equal(store.CaseId, store.Resumes[^1].CaseId);
+
+        // The Edit on the page first loaded before any lease existed is now stale: it resumes.
+        using (var staleEdit = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", Guid.NewGuid().ToString("N")))))
+        {
+            AssertPrg(staleEdit, store.CaseId);
+        }
+        Assert.Single(store.Claims);
+        Assert.Equal(store.LeaseToken, InputValue(
+            await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}"),
+            "editLeaseToken"));
+    }
+
+    /// <summary>
+    /// A lazily loaded section does not resolve who holds the lease, so it asks only whether one
+    /// is live: under a colleague's lease it offers no Edit that could only be refused. Take over
+    /// stays the ribbon's.
+    /// </summary>
+    [Fact]
+    public async Task ALazySectionUnderAColleaguesLeaseOffersNoEdit()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var free = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Section?section=vehicle");
+        Assert.Contains("data-section-edit=\"vehicle\"", free, StringComparison.Ordinal);
+
+        store.LeaseHolder = Guid.NewGuid().ToString("D");
+        var held = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Section?section=vehicle");
+
+        Assert.DoesNotContain("data-section-edit=", held, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", held, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Leaving the Case by a link ends edit mode: the page beacons its release as the operator
+    /// goes. It is not an operator action, so it answers 204, leaves no message for the page the
+    /// operator is heading to, and a second beacon for a lease already gone is still 204.
+    /// </summary>
+    [Fact]
+    public async Task TheLeavingBeaconReleasesTheLeaseAndAnswersNoContent()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<IReleaseCaseEditLease>(services, store);
+        });
+        var editing = await workspace.GetWorkspaceAsync();
+        Assert.Contains("handler=ReleaseLeaseBeacon", editing, StringComparison.Ordinal);
+
+        using var released = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ReleaseLeaseBeacon",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("editLeaseToken", store.LeaseToken)));
+
+        Assert.Equal(HttpStatusCode.NoContent, released.StatusCode);
+        var release = Assert.Single(store.LeaseReleases);
+        Assert.Equal(store.LeaseToken, release.LeaseToken);
+        Assert.Null(store.LeaseHolder);
+
+        store.NextFailure = new CaseEditLeaseExpiredException(store.CaseId, store.CaseVersion);
+        using var repeated = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ReleaseLeaseBeacon",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("editLeaseToken", store.LeaseToken)));
+        Assert.Equal(HttpStatusCode.NoContent, repeated.StatusCode);
+
+        var after = await workspace.GetWorkspaceAsync();
+        Assert.DoesNotContain("name=\"editLeaseToken\"", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("Edit mode was left safely", after, StringComparison.Ordinal);
     }
 
 
@@ -1297,7 +1448,8 @@ public sealed class CaseEditModeWebTests
         }))
         {
             var recoverHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
-            Assert.Contains("Take over", RecordBar(recoverHtml), StringComparison.Ordinal);
+            Assert.Equal(store.LeaseToken, InputValue(recoverHtml, "editLeaseToken"));
+            Assert.DoesNotContain("Take over", RecordBar(recoverHtml), StringComparison.Ordinal);
             AssertNoBannedVocabulary(RecordBar(recoverHtml));
         }
 
@@ -1369,7 +1521,7 @@ public sealed class CaseEditModeWebTests
         Assert.Equal("pegasus-automation", store.LeaseHolder);
         Assert.Equal(ActorKind.Automation, store.LeaseHolderKind);
         var afterRefusal = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("This case is already being edited.", afterRefusal, StringComparison.Ordinal);
+        Assert.Contains("Someone else is editing this case.", afterRefusal, StringComparison.Ordinal);
         Assert.Contains("AI is editing", EditAuthorityNote(afterRefusal), StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", afterRefusal, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", afterRefusal, StringComparison.Ordinal);

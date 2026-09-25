@@ -116,6 +116,8 @@ public sealed class CaseEstimateHeaderWebTests
         }
         // The editor has no form of its own: its controls belong to the Case form (one Save).
         Assert.Contains("name=\"estimateName\" form=\"case-edit-form\"", editing, StringComparison.Ordinal);
+        // That edit session has ended; the same staff member now reads the Case.
+        store.LeaseHolder = null;
 
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>

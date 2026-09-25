@@ -193,7 +193,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260924180000_CaseWorksAndTriageCases",
                 "20260925090000_VehicleLookupDerivedFacts",
                 "20260925120000_RetireInstructionDate",
-                "20260925150000_RemovePerFieldConfirmation"
+                "20260925150000_RemovePerFieldConfirmation",
+                "20260925190000_EditLeaseTakeoverHistoryEvents"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
