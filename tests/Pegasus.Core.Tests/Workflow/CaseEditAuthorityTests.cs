@@ -143,6 +143,40 @@ public sealed class CaseEditAuthorityTests
         Assert.True(CaseEditAuthority.IsHeld(Now.AddMinutes(1), Now));
     }
 
+    /// <summary>
+    /// The holder is the staff member, not the window: only their own live lease is resumed, and
+    /// a colleague's, an expired one, or one whose kind was never recorded is not theirs to resume.
+    /// The Automation Actor never resumes, even its own lease: each session claims and fails closed.
+    /// </summary>
+    [Fact]
+    public void OnlyTheHoldersOwnLiveLeaseIsResumed()
+    {
+        var live = Now.AddMinutes(3);
+
+        Assert.True(CaseEditAuthority.CanResume(ActorKind.Staff, Holder, live, HolderActor, Now));
+        Assert.False(CaseEditAuthority.CanResume(ActorKind.Staff, Holder, Now, HolderActor, Now));
+        Assert.False(CaseEditAuthority.CanResume(ActorKind.Staff, Holder, null, HolderActor, Now));
+        Assert.False(CaseEditAuthority.CanResume(
+            ActorKind.Staff,
+            Guid.NewGuid().ToString("D"),
+            live,
+            HolderActor,
+            Now));
+        Assert.False(CaseEditAuthority.CanResume(null, Holder, live, HolderActor, Now));
+        Assert.False(CaseEditAuthority.CanResume(
+            ActorKind.Staff,
+            Holder,
+            live,
+            ActionActor.Automation(Holder),
+            Now));
+        Assert.False(CaseEditAuthority.CanResume(
+            ActorKind.Automation,
+            "pegasus-automation",
+            live,
+            ActionActor.Automation("pegasus-automation"),
+            Now));
+    }
+
     [Fact]
     public void TheIssuedTokenLengthIsTheOneContractEveryValidatorShares() =>
         Assert.Equal(64, CaseEditAuthority.LeaseTokenLength);
