@@ -8,7 +8,7 @@ $shots = Join-Path $root 'v29-shots'
 New-Item -ItemType Directory -Path $shots -Force | Out-Null
 
 foreach ($variant in 'a', 'b', 'c', 'd', 'e') {
-    foreach ($state in 'select', 'chosen', 'storing', 'processing', 'decision', 'registered', 'mixed', 'single', 'failed', 'discarded') {
+    foreach ($state in 'select', 'chosen', 'storing', 'processing', 'decision', 'registered', 'mixed', 'single', 'failed', 'discarded', 'no-match', 'multiple', 'attached') {
         foreach ($size in @(@(1580, 1000), @(1440, 900), @(760, 1000))) {
             $width, $height = $size
             $name = "$variant-$state-$width.png"

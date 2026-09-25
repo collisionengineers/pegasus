@@ -19,3 +19,21 @@ hand-drawn shell was replaced with the real v28 captured Pegasus shell and
 the current `origin/dev` CSS, font files, logo, rail and utility bar. All
 five alternatives now change only the Upload content. This raised sign-off
 item A and prompted a new screenshot set.
+
+## 24 September 2026 — professional polish
+
+Operator asked to spruce up each design. Refined all five using the live Pegasus
+shell and tokens, with restrained copy, consistent spacing, file icons, compact
+status badges, and a clearer primary action. Updated the screenshots and reran
+the offline interaction check. No implementation option has been approved.
+
+## 24 September 2026 — Case proposal is primary
+
+Operator: “fundamentally the page itself is flawed against our process” and
+“It should propose a case if that is possible but this is shown akin to more
+of a secondary option”.
+
+All five options now show the proposed Case first, with exact identifying
+facts and confirmation. Added no-match, multiple-match and attached presets.
+Removed manual image registration: FRD-18 specifies automatic registration
+and candidates first. This hierarchy is settled; layout selection stays open.

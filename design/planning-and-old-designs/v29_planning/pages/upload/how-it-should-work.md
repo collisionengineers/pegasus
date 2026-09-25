@@ -10,8 +10,9 @@ that FRD-18 and the design authority receive during Stage 2.
    shell, custody, route, target confirmation, or version checks.
 3. Keep file rows stable while upload and processing status changes. Name
    failures and unreadable files on their rows.
-4. For an eligible image group, show Vehicle registration and required Reason
-   with Register Vehicle images; show Add to an existing Case separately.
+4. Show viable Cases first with Case/PO, registration, claimant and stage.
+   Review the exact target before confirmation. Multiple matches remain
+   unselected; no match exposes Case lookup.
 5. Show a registered Image reference once and link to its Vehicle images
    record. A single-file result uses the same outcome vocabulary.
 6. Leave without deciding returns to Upload without changing retained
@@ -22,4 +23,10 @@ that FRD-18 and the design authority receive during Stage 2.
 
 Open: choose A, B, C, D, E, or a combination; settle the sign-off list before
 any of these are made authoritative. The gallery's thumbnail value cannot be
-judged from numbered placeholders.
+judged from JPEG placeholders.
+
+## Decided — 24 September 2026
+
+Case proposals own the primary decision when available. Vehicle images
+registration is automatic for usable identity and is secondary context.
+Manual Register Vehicle images and Reason are removed.

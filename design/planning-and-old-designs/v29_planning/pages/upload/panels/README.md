@@ -8,6 +8,8 @@ The proposals vary only the Upload content inside the Pegasus shell:
 - D: full-width action area above a comparison table.
 - E: contact sheet and destination card, with the destination first at 760 px.
 
-The contact sheet uses numbered placeholders because this offline artifact
+The contact sheet uses JPEG placeholders because this offline artifact
 does not contain the operator's uploaded images. It cannot validate whether
 real thumbnails make E useful.
+
+All five lead with the proposed Case. Vehicle images is supporting context.

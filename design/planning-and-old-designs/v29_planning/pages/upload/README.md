@@ -22,3 +22,13 @@ Representative comparisons:
 | E | [1580](../../current/v29-shots/e-decision-1580.png) | [1580](../../current/v29-shots/e-processing-1580.png) | [760](../../current/v29-shots/e-decision-760.png) |
 
 These are synthetic, offline design captures, not application evidence.
+
+## Case-first states
+
+Additional captures for every variant at 1580, 1440 and 760 px:
+
+- [No match](../../current/v29-shots/a-no-match-1580.png): Case lookup.
+- [Multiple](../../current/v29-shots/a-multiple-1580.png): explicit Case choice.
+- [Attached](../../current/v29-shots/a-attached-1580.png): confirmed destination.
+
+Use b–e in the capture name for the other layouts.
