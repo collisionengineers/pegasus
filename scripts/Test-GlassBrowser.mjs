@@ -30,6 +30,7 @@ function fixture() {
             + '<form data-glass-window target="_blank" method="post" action="/case?handler=' + (state.slot === 'launch' ? 'LaunchGlass' : 'ResumeGlass') + '">'
             + '<input name="expectedCaseVersion" type="hidden" value="' + state.caseVersion + '"><input name="editLeaseToken" type="hidden" value="lease">'
             + '<input name="operationKey" type="hidden" value="launch-key"><button>Glass</button></form></div>'
+            + '<div data-glass-controls="outcome" hidden></div>'
             + '<div data-glass-controls="session" data-glass-id="session" data-glass-version="' + state.sessionVersion + '" data-glass-state="' + state.status + '">'
             + '<form data-glass-close-form method="post" action="/case?handler=CloseGlass"><input type="hidden" name="expectedSessionVersion" value="' + state.sessionVersion + '">'
             + '<input name="reason" required><input name="externalSessionClosed" type="checkbox" required><button>Close</button></form></div>';
@@ -74,9 +75,9 @@ function fixture() {
     function edit(value) { var input = document.getElementById('registration'); input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); }
     function launch() { document.querySelector('[data-glass-window]').requestSubmit(); }
     function result() { return { trace: trace, value: document.getElementById('registration').value, version: document.querySelector('#case-edit-form [name="expectedVersion"]').value,
-        sessionVersion: document.querySelector('[data-glass-controls="session"]').dataset.glassVersion, notice: document.querySelector('[data-case-notices]').textContent,
+        sessionVersion: document.querySelector('[data-glass-controls="session"]').dataset.glassVersion, notice: document.querySelector('[data-case-notices]').textContent + document.querySelector('[data-glass-controls="outcome"]').textContent,
         closed: window.fakePopup && fakePopup.closed, dirty: !!window.pegasusDirtyEditForm(), scroll: window.scrollY }; }
-    </script><script src="/workspace.js"></script></body></html>`;
+    </script><script src="/workspace.js"></script><script>window.fixtureReady=true;</script></body></html>`;
 }
 
 const server = createServer((req, res) => {
@@ -122,7 +123,19 @@ try {
         assert.ok(!response.result?.exceptionDetails, JSON.stringify(response.result?.exceptionDetails));
         return response.result?.result?.value;
     };
-    const reset = async () => { await send('Page.navigate', { url: origin + '/case' }); await delay(300); };
+    const waitFor = async expression => {
+        for (let i = 0; i < 200; i++) {
+            if (await evaluate(expression)) { return; }
+            await delay(25);
+        }
+        assert.fail('Browser condition did not become true: ' + expression);
+    };
+    let navigation = 0;
+    const reset = async () => {
+        const query = '?fixture=' + ++navigation;
+        await send('Page.navigate', { url: origin + '/case' + query });
+        await waitFor(`location.search === '${query}' && window.fixtureReady === true && typeof window.pegasusGlassHandoff === 'function'`);
+    };
     const record = (name, value) => { evidence.push({ name, value }); console.log('PASS', name); };
     const posts = result => result.trace.filter(x => x.type === 'provider');
 
@@ -147,8 +160,8 @@ try {
     result = await evaluate('result()'); assert.equal(posts(result).length, 0); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.dirty, true);
     record('Typing during save prevents automatic provider continuation', result);
 
-    await reset(); await evaluate("edit('XY99ZZZ'); window.scrollTo(0, 450); state.slot='resume'; state.sessionVersion=7; window.pegasusGlassHandoff();"); await delay(100);
-    result = await evaluate('result()'); assert.equal(result.sessionVersion, '7'); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.version, '1'); assert.equal(result.scroll, 450);
+    await reset(); await evaluate("document.querySelector('[data-glass-controls=outcome]').innerHTML='<p>Old recorded outcome</p>'; edit('XY99ZZZ'); window.scrollTo(0, 450); state.slot='resume'; state.sessionVersion=7; window.pegasusGlassHandoff();"); await delay(100);
+    result = await evaluate('result()'); assert.equal(result.sessionVersion, '7'); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.version, '1'); assert.equal(result.scroll, 450); assert.equal(result.notice, '');
     record('Handoff refreshes controls while preserving dirty Case and scroll', result);
     await evaluate("state.status='Completed'; state.caseVersion=2; window.pegasusGlassReturn('/case');"); await delay(100);
     result = await evaluate('result()'); assert.equal(result.version, '1'); assert.equal(result.value, 'XY99ZZZ'); assert.match(result.notice, /recorded as a Draft/);
@@ -184,10 +197,10 @@ try {
     await reset(); await evaluate("window.open=window.nativeOpen; edit('XY99ZZZ'); state.slot='resume'; state.sessionVersion=8; window.realPopup=window.open('/handoff','glass-real');"); await delay(300);
     assert.ok((await targets()).some(t => t.url === origin + '/provider'));
     assert.equal((await evaluate('result()')).sessionVersion, '8');
-    await evaluate("state.status='Completed'; realPopup.location='/return';"); await delay(300);
+    await evaluate("state.status='Completed'; realPopup.location='/return';"); await waitFor('realPopup.closed');
     assert.equal(await evaluate('realPopup.closed'), true); assert.equal((await evaluate('result()')).value, 'XY99ZZZ');
     record('Real popup handoff opens provider then returns without losing edits', await evaluate('result()'));
-    await send('Page.navigate', { url: origin + '/handoff' }); await delay(200);
+    await send('Page.navigate', { url: origin + '/handoff' }); await waitFor("location.pathname === '/provider'");
     assert.equal(await evaluate('location.pathname'), '/provider');
     record('No-opener handoff continues in its own window', true);
     await send('Emulation.setScriptExecutionDisabled', { value: true });

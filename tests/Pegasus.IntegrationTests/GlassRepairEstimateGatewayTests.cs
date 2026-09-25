@@ -1261,6 +1261,39 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Empty(harness.Import.Requests);
     }
 
+    [Fact]
+    public async Task ResumedImportCannotBeClosedMidWriteAndRecoversRetainedSourcesAfterInterruption()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.Import.Refusal = new CaseEditLeaseExpiredException(harness.CaseId, Harness.CaseVersion);
+        var waiting = await harness.CompleteAsync(session);
+        harness.Import.Refusal = null;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Import.BeforeReturn = async () => { entered.SetResult(); await release.Task; };
+        var resumed = harness.Gateway.ResumeAsync(
+            new(harness.Engineer, session.Id, waiting.Version, Harness.CaseVersion, Harness.LeaseToken), default);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var importing = (await harness.Store.GetAsync(session.Id, default))!.Session;
+            Assert.Equal(GlassRepairEstimateSessionState.Importing, importing.State);
+            await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Gateway.CloseAsync(
+                new(harness.Engineer, session.Id, importing.Version, true, "External editor closed"), default));
+        }
+        finally { release.TrySetException(new InvalidOperationException("Host interrupted before import answered")); }
+        await Assert.ThrowsAsync<InvalidOperationException>(() => resumed);
+        var held = (await harness.Store.GetAsync(session.Id, default))!.Session;
+        var providerRequests = harness.Mva.Requests.Count;
+        harness.Import.BeforeReturn = null;
+        var completed = await harness.Gateway.ResumeAsync(
+            new(harness.Engineer, held.Id, held.Version, Harness.CaseVersion, Harness.LeaseToken), default);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(providerRequests, harness.Mva.Requests.Count);
+        Assert.Equal(2, harness.Custody.Retained.Count);
+    }
+
     // ---------------------------------------------------------------- resume
 
     [Fact]
@@ -1967,13 +2000,16 @@ public sealed class GlassRepairEstimateGatewayTests
 
         public Exception? Refusal { get; set; }
 
+        public Func<Task>? BeforeReturn { get; set; }
+
         public List<ImportRawEstimateRequest> Requests { get; } = [];
 
-        public Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+        public async Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
-            return Refusal is null ? Task.FromResult(new EstimateImportResult(EstimateId))
-                : Task.FromException<EstimateImportResult>(Refusal);
+            if (BeforeReturn is not null) { await BeforeReturn(); }
+            if (Refusal is not null) { throw Refusal; }
+            return new EstimateImportResult(EstimateId);
         }
     }
 
