@@ -1,7 +1,7 @@
 # Proposed Upload behavior
 
 Stage 1 proposals, **not yet decided**. The operator's selection and lettered
-sign-off in [v29 notes](../../current/v29-notes.md) will determine the rules
+sign-off in [v29 notes](../../current/v30-notes.md) will determine the rules
 that FRD-18 and the design authority receive during Stage 2.
 
 1. Show one concise submission result or decision and keep every member's

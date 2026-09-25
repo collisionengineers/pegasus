@@ -1,4 +1,4 @@
-# v29 Upload options and sign-off
+# v30 Upload options and sign-off
 
 Temporary Stage 1 review artifact for [issue #830](https://github.com/collisionengineers/pegasus/issues/830),
 24 September 2026. These offline captures show proposed presentation with
@@ -8,11 +8,11 @@ synthetic files. They are not application, deployment, or acceptance evidence.
 
 | Option | Decision view | Processing view | Tradeoff |
 | --- | --- | --- | --- |
-| A · split | [A](v29-shots/a-decision-1580.png) | [A](v29-shots/a-processing-1580.png) | Files and action both visible on desktop; decision goes first at 760 px. |
-| B · guided | [B](v29-shots/b-decision-1580.png) | [B](v29-shots/b-processing-1580.png) | Clear sequence; uses more vertical space. |
-| C · destination first | [C](v29-shots/c-decision-1580.png) | [C](v29-shots/c-processing-1580.png) | Fastest access to action; compact file index needs careful failure visibility. |
-| D · operations table | [D](v29-shots/d-decision-1580.png) | [D](v29-shots/d-processing-1580.png) | Best comparison for mixed results; wide action area can feel sparse. |
-| E · gallery | [E](v29-shots/e-decision-1580.png) | [E](v29-shots/e-processing-1580.png) | Helps only if real thumbnail content adds recognition; JPEG placeholders cannot prove that. |
+| A · split | [A](v30-shots/a-decision-1580.png) | [A](v30-shots/a-processing-1580.png) | Files and action both visible on desktop; decision goes first at 760 px. |
+| B · guided | [B](v30-shots/b-decision-1580.png) | [B](v30-shots/b-processing-1580.png) | Clear sequence; uses more vertical space. |
+| C · destination first | [C](v30-shots/c-decision-1580.png) | [C](v30-shots/c-processing-1580.png) | Fastest access to action; compact file index needs careful failure visibility. |
+| D · operations table | [D](v30-shots/d-decision-1580.png) | [D](v30-shots/d-processing-1580.png) | Best comparison for mixed results; wide action area can feel sparse. |
+| E · gallery | [E](v30-shots/e-decision-1580.png) | [E](v30-shots/e-processing-1580.png) | Helps only if real thumbnail content adds recognition; JPEG placeholders cannot prove that. |
 
 The [page README](../pages/upload/README.md) links all three widths. The
 query strip exposes the remaining states without changing business data.

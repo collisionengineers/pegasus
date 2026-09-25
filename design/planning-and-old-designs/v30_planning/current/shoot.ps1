@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSCommandPath
-$shots = Join-Path $root 'v29-shots'
+$shots = Join-Path $root 'v30-shots'
 New-Item -ItemType Directory -Path $shots -Force | Out-Null
 
 foreach ($variant in 'a', 'b', 'c', 'd', 'e') {

@@ -1,4 +1,4 @@
-# v29 discussion log
+# v30 discussion log
 
 ## 24 September 2026 · Initial request
 
