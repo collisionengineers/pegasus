@@ -1,0 +1,17 @@
+{
+  "recordedUtc": "2026-09-25T09:14:14.641962+00:00",
+  "scope": "Offline Work Centre mockups only; not application evidence",
+  "selfcheck": {
+    "fail": [],
+    "okCount": 1905
+  },
+  "stateScreenshots": 108,
+  "fullPageScreenshots": 3,
+  "keyboardDesigns": [
+    "a",
+    "b",
+    "c"
+  ],
+  "consoleErrors": [],
+  "externalRequests": []
+}

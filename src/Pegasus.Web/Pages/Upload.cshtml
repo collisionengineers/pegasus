@@ -1,49 +1,111 @@
 @page "/Upload"
 @model Pegasus.Web.Pages.UploadModel
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload
 @{
-    ViewData["Title"] = "Upload";
+    ViewData["Title"] = Labels.Title;
+    var errors = ViewData.ModelState.Values
+        .SelectMany(entry => entry.Errors)
+        .Select(error => error.ErrorMessage)
+        .Where(message => !string.IsNullOrWhiteSpace(message))
+        .ToArray();
 }
 
-@* §1.10 draws this screen as a header and one panel. The "What happens next"
-   steps and the "Accepted files" chips that used to sit beside the form are
-   gone: both narrated the page's own mechanics, which the page-economy rule
-   forbids, and the accepted types are already stated on the dropzone where
-   the choice is actually made. *@
-<header class="page-header">
+@section Styles {
+    <link rel="stylesheet" href="~/css/upload.css" asp-append-version="true" />
+}
+
+@* v30 Upload E: choose the files for one upload, then review them beside the
+   Case decision. The native file input is the control and keeps working on
+   its own; upload.js keeps the accumulated selection, validates it against
+   the limits declared here and lists it on the right. *@
+<header class="page-header up-head">
     <div class="page-title">
-        <h1>Upload</h1>
+        <h1>@Labels.Title</h1>
+        <p class="up-subtitle">@Labels.ChoosingSubtitle</p>
     </div>
 </header>
 
-<section class="panel">
-    <div class="panel-body">
-        <form method="post" enctype="multipart/form-data" data-upload-progress>
+<div class="up-surface">
+    <div class="up-workspace is-choosing"
+         data-upload-select
+         data-max-files="@UploadModel.MaximumFileCount"
+         data-max-bytes="@UploadModel.MaximumFileBytes"
+         data-max-total="@UploadModel.MaximumTotalBytes">
+        <form method="post" enctype="multipart/form-data" class="up-select" data-upload-form>
             <input asp-for="ExternalReceiptToken" type="hidden" />
-            <div asp-validation-summary="ModelOnly" class="validation-summary" role="alert"></div>
-            @* The dashed area is the destination. site.js makes the whole
-               panel the drop target and reveals the dark "Choose files"
-               button; the native input stays the control underneath and is
-               the visible control when script is off. *@
-            <div class="dropzone" data-dropzone>
-                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <div class="up-select-title">
+                <p class="up-eyebrow">@Labels.SelectEyebrow</p>
+                <h2 data-select-heading>@Labels.ChooseHeading</h2>
+            </div>
+            @if (errors.Length > 0)
+            {
+                <div class="up-alert up-alert--error" role="alert" tabindex="-1">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                    <div>
+                        <strong>@Labels.CheckFiles</strong>
+                        @foreach (var message in errors)
+                        {
+                            <p>@message</p>
+                        }
+                    </div>
+                </div>
+            }
+            <div class="up-alert up-alert--error" role="alert" tabindex="-1" hidden data-select-errors>
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
                 <div>
-                    <h2><label asp-for="Upload">@OperatorLabels.Upload.Dropzone</label></h2>
-                    <p>@Model.AcceptedFiles</p>
-                    <button type="button" class="btn btn--dark" hidden data-dropzone-browse>@OperatorLabels.Upload.Choose</button>
-                    <input asp-for="Upload" type="file" multiple accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,.mp4,.mov,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png,video/mp4,video/quicktime" />
+                    <strong data-select-error-title>@Labels.CheckFiles</strong>
+                    <div data-select-error-list></div>
                 </div>
             </div>
-            @* One row per chosen file, filled in by site.js from the input's
-               own FileList. Empty and hidden until something is chosen. *@
-            <div class="file-list section-gap" role="status" aria-live="polite" hidden data-dropzone-file></div>
-            <span asp-validation-for="Upload" class="field-error"></span>
-            <div class="button-row section-gap">
-                <button type="submit" class="btn btn--primary">@OperatorLabels.Upload.Submit</button>
-                @* A native reset: it empties the file input with no script at
-                   all, and site.js re-renders the rows from the emptied
-                   input. *@
-                <button type="reset" class="btn">@OperatorLabels.Upload.Clear</button>
+            <div class="up-drop" data-drop>
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                <h2 data-drop-heading>@Labels.DropHeading</h2>
+                <p>@Labels.AcceptedKinds<br />@Labels.AcceptedExtensions</p>
+                <input asp-for="Upload" type="file" multiple class="up-file-input"
+                       accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,.mp4,.mov,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png,video/mp4,video/quicktime" />
+                <label class="btn btn--primary" asp-for="Upload" data-select-choose>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>@Labels.Choose</span>
+                </label>
+            </div>
+            <div class="up-limits">
+                <span>@UploadModel.MaximumFileCount files maximum</span>
+                <span>@Labels.FileSize(UploadModel.MaximumFileBytes) per file</span>
+                <span>@Labels.FileSize(UploadModel.MaximumTotalBytes) per upload</span>
+            </div>
+            <div class="up-select-actions" data-select-actions>
+                <p data-select-summary></p>
+                <div class="button-row">
+                    @* A native reset empties the file input with no script at
+                       all; upload.js also empties its own roster on reset. *@
+                    <button type="reset" class="btn">@Labels.Clear</button>
+                    <button type="submit" class="btn btn--primary" data-select-submit>
+                        <span data-select-submit-label>@Labels.UploadFiles(1)</span>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                    </button>
+                </div>
             </div>
         </form>
+        <aside class="up-empty-aside" data-select-aside>
+            <h3>@Labels.AsideTitle</h3>
+            <p>@Labels.AsideSentence</p>
+            <ol>
+                @foreach (var (title, detail) in Labels.AsideSteps)
+                {
+                    <li><div><strong>@title</strong><small>@detail</small></div></li>
+                }
+            </ol>
+        </aside>
+        <section class="up-evidence" aria-labelledby="up-selected-title" hidden data-select-files>
+            <header class="up-section-head">
+                <h2 id="up-selected-title">@Labels.SelectedFiles</h2>
+                <span data-select-count></span>
+            </header>
+            <ul class="up-file-list" data-select-list role="status" aria-live="polite"></ul>
+        </section>
     </div>
-</section>
+</div>
+
+@section Scripts {
+    <script src="~/js/upload.js" asp-append-version="true"></script>
+}

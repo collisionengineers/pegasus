@@ -195,9 +195,18 @@ every table pressed against the rail. Below the cap nothing moves. Every page
 carries the skip link, the toast region and the dialog root.
 
 `_LayoutAuth` remains the navless frame: sign-in, the signed-out
-confirmation, access denied and the error family are not places in the
-application (see
+confirmation, the forced password change, access denied, the consent screen
+and the error family are not places in the application (see
 [Shell and routes](../frd/frd-12-operator-experience.md#shell-and-routes)).
+Since v30 (sign-in B, 25 September 2026) it is two planes on a common centre
+line: `auth-identity`, the charcoal `--nav` panel with the 3px `--red` top
+stripe, the 96px refined mark, "PEGASUS", "Case management" and the
+"Collision Engineers" caption (`auth-company`); and `auth-panel`, the white
+panel holding the page's `auth-card` (360px; `auth-card--wide` 720px for the
+consent screen) with a 23px h1, 20px field gap and one full-width primary
+button. Below 980px the identity panel becomes a strip above the card with
+the 64px mark. The sign-in password field carries a Show / Hide control
+(`password-reveal`), shipped hidden and revealed by `site.js`.
 
 ### Keyboard and dialog contract
 
@@ -420,7 +429,7 @@ prototype's effective media queries:
 
 | Max width | Reflow |
 | --- | --- |
-| 1360px | Work Centre panes narrow; `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns |
+| 1360px | `case-context` hides (`display: none`, as the prototype does); admin grids drop to two columns. The Work Centre ledger keeps its five columns to 600px, tightening its padding below 980px |
 | 1180px | `queue-layout` rail narrows to 170px; the advanced search grid drops to three columns; `checks-grid` two columns; `case-overview-grid` stacks |
 | 1100px | `pane-layout--3` drops its first pane; metric strips to three columns; the identity ribbon to three columns |
 | 980px | The rail lies down into a horizontal bar; `admin-nav` becomes a horizontal scroller; `--content-max` is released |
@@ -532,7 +541,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | --- | --- | --- | --- |
 | `dashboard` | `layout-dashboard` | `F8A9AFA8D2245E34D3DAEB88C9FF80A2AA546D1F8671212896E743E596F3752B` | Rail: Work Centre |
 | `inbox` | `inbox` | `0817485BFAE1A740458AA3FC1E6E4542047FA890C547D35B17C771E6D352E901` | Rail: Inbox; Inbox scopes |
-| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; dropzone |
+| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; the picker's drop target |
 | `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it); Cases rail groups |
 | `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
 | `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
@@ -795,7 +804,7 @@ deleted in wave 5.
 | `utility-bar`, `utility-freshness`, `utility-search` | Dark bar |
 | `rail-collapsed` (on `app-shell`), `[data-rail-toggle]` | Collapsed 64px rail and its Collapse/Expand control |
 | `bell-wrap`, `bell-count`, `row-list`, `row-form`, `row-button`, `row-button--unread` | The bell with its unread count, and the Notifications dialog's one-button rows |
-| `external-shell`, `auth-card`, `auth-brand` | Navless frames |
+| `external-shell`, `auth-identity`, `auth-brand`, `auth-company`, `auth-panel`, `auth-card`, `auth-card--wide`, `password-reveal` | Navless frame: identity panel beside the page's card |
 | `skip-link`, `sr-only` | Accessibility |
 
 ### Page
@@ -805,7 +814,7 @@ deleted in wave 5.
 | `page-header`, `page-title`, `eyebrow`, `page-actions` | Header row |
 | `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (dismiss, section fold) |
 | `freshness`, `freshness-status`, `health-dot`, `refresh-button` (`Shared/_RefreshButton`) | Page freshness line and the one Refresh control every surface composes; the label becomes "Refreshing" and the icon spins while a refresh runs (`prefers-reduced-motion` keeps the label and disabled state) |
-| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=` (the Work Centre's five, Triages last) |
+| `metric-strip`, `metric-strip--3`, `metric-strip--4`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=`; the Work Centre's five (Triages last) sit in its compact `wc-metrics` strip, label and figure on one line |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
 | `status` and its tone modifiers | State chip ([Colour](README.md#colour)) |
@@ -849,7 +858,7 @@ deleted in wave 5.
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `ai-jobs-panel` | Operations AI Job List |
 | `admin-layout`, `admin-nav` | Administration |
-| `dropzone`, `file-list`, `file-row`, `upload-outcome` | Upload |
+| `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |
 | `report-preview` | Report draft preview dialog body |
 
 ### Dialogs and feedback
@@ -880,7 +889,7 @@ second caller and a recorded reason.
 | `_LucideSprite` | The inlined sprite |
 | `_ShellDialogs` | Account, Notifications, command palette |
 | `_AdminNav` | Administration panel nav |
-| `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadOutcome` | Retained, restyled to the vocabulary |
+| `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadReview` | Retained, restyled to the vocabulary |
 | `Presentation/OperatorLabels.cs` | The one label map |
 | `Presentation/RailCountsPageFilter.cs` | Rail counts |
 

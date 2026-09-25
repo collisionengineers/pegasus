@@ -14,12 +14,13 @@ using Pegasus.Web.Pages;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// v26 Work Centre (Work Centre D1–D10): the paged Needs attention list grouped
-/// by due day with its empty states, Office/Mine and the kind filter, the
-/// Today pane's in-place actions, New cases with arrival chips and the
-/// since-you-last-looked line, and AI jobs with per-kind actions. The Core
-/// reads are replaced by recording fakes so the page's rendering and the query
-/// it sends are what is asserted.
+/// The Work Centre as the v30 B ledger over Work Centre D1–D10: the compact
+/// five-count strip, the paged Needs attention table grouped by due day with
+/// empty groups omitted, Office/Mine, the kind filter and Find, the row that
+/// opens its facts and actions in place, the section tabs, New cases with
+/// arrival chips and the since-you-last-looked line, and AI jobs with per-kind
+/// actions. The Core reads are replaced by recording fakes so the page's
+/// rendering and the query it sends are what is asserted.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class WorkCentreWebTests
@@ -27,7 +28,7 @@ public sealed class WorkCentreWebTests
     private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
 
     [Fact]
-    public async Task NeedsAttentionGroupsByDueDayWithCountsAndEmptyStates()
+    public async Task NeedsAttentionGroupsByDueDayAndOmitsEmptyGroups()
     {
         var snapshot = new FakeSnapshot
         {
@@ -45,38 +46,56 @@ public sealed class WorkCentreWebTests
 
         var html = await GetOkAsync(client, "/");
 
-        Assert.Contains("data-wc-group=\"overdue\"><h3>Overdue (1)</h3>", html, StringComparison.Ordinal);
-        Assert.Contains("data-wc-group=\"today\"><h3>Due today (0)</h3>", html, StringComparison.Ordinal);
-        Assert.Contains("Nothing due today", html, StringComparison.Ordinal);
-        Assert.Contains("data-wc-group=\"later\"><h3>Later (1)</h3>", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-group=\"overdue\"><td colspan=\"5\"><h3>Overdue (1)</h3>", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-group=\"later\"><td colspan=\"5\"><h3>Later (1)</h3>", html, StringComparison.Ordinal);
+        // An empty due group is not drawn (WG, operator 25 September 2026).
+        Assert.DoesNotContain("Due today (0)", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nothing due today", html, StringComparison.Ordinal);
         Assert.Contains("days overdue", html, StringComparison.Ordinal);
         Assert.Contains("wc-due--overdue", html, StringComparison.Ordinal);
-        // Five metrics, no Blocked (D7); the fifth counts the active Triage
-        // Cases and opens the Cases Triage tab.
+        // Five metrics in their own refresh section, no Blocked (D7); the fifth
+        // counts the active Triage Cases and opens the Cases Triage tab.
+        Assert.Contains("data-wc-refresh-section=\"metrics\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
         Assert.Equal(5, Regex.Count(html, "class=\"metric\" data-value="));
         Assert.Matches(
             "data-value=\"triage\" href=\"/Cases\\?tab=triage\">\\s*<span class=\"metric-label\"><span>Triages</span></span>\\s*<span class=\"metric-value\">5</span>",
             html);
-        // The first row is the selected work; its chip is only in the Today pane.
-        Assert.Contains("class=\"status status--red\"", html, StringComparison.Ordinal);
+        // The head reads Updated HH:MM; nothing opens by itself.
+        Assert.Contains("data-wc-refresh-outcome-label>Updated ", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("wc-inline-detail", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"status status--red\"", html, StringComparison.Ordinal);
+        // The ledger's columns.
+        Assert.Contains(">Next action</th>", html, StringComparison.Ordinal);
+        Assert.Contains(">Record / detail</th>", html, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task AnEmptyListSaysNothingNeedsAttention()
+    public async Task AnEmptyOfficeSaysNoWorkToShowAndAnEmptyMineKeepsTheSwitch()
     {
         using var host = Host(new FakeSnapshot());
         using var client = Client(host);
 
-        var html = await GetOkAsync(client, "/");
+        var office = await GetOkAsync(client, "/");
+        Assert.Contains("No work to show.", office, StringComparison.Ordinal);
+        Assert.Contains("class=\"panel wc-ledger\" hidden=\"hidden\"", office, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"wc-tab-attention\"", office, StringComparison.Ordinal);
 
-        Assert.Contains("Nothing needs attention", html, StringComparison.Ordinal);
-        Assert.Contains("Page 1 of 1 &#xB7; earliest due first", html, StringComparison.Ordinal);
+        // Mine keeps its section, so Office stays one click away.
+        var mine = await GetOkAsync(client, "/?scope=mine");
+        Assert.DoesNotContain("No work to show.", mine, StringComparison.Ordinal);
+        Assert.Contains("Nothing needs attention", mine, StringComparison.Ordinal);
+        Assert.Contains("data-wc-scope-link=\"office\"", mine, StringComparison.Ordinal);
+        Assert.Contains("Page 1 of 1 &#xB7; earliest due first", mine, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task OfficeIsTheDefaultForAUserAndMineIsSentWhenChosen()
     {
-        var snapshot = new FakeSnapshot();
+        var snapshot = new FakeSnapshot
+        {
+            Items = [Item(NeedsAttentionKind.ReviewCase, "QDOS26003", NeedsAttentionPriority.Normal, Now.AddDays(3))],
+            LaterCount = 1
+        };
         using var host = Host(snapshot);
         using var client = Client(host, StaffRoleNames.User);
 
@@ -94,7 +113,7 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
-    public async Task TheKindFilterIsSentAndChipsCountTheWholeScope()
+    public async Task TheKindFilterAndFindAreSentAndChipsCountTheWholeScope()
     {
         var snapshot = new FakeSnapshot
         {
@@ -107,15 +126,21 @@ public sealed class WorkCentreWebTests
         using var host = Host(snapshot);
         using var client = Client(host);
 
-        var html = await GetOkAsync(client, "/?kind=held&kind=triage");
+        var html = await GetOkAsync(client, "/?kind=held&kind=triage&q=+QDOS26+");
 
-        // One read: Core counts the chips over the scope before the kind filter.
+        // One read: Core counts the chips over the scope before the kind filter
+        // and applies the term before paging.
         var filtered = Assert.Single(snapshot.Queries);
         Assert.Equal([NeedsAttentionKind.HeldDecision, NeedsAttentionKind.Triage], filtered.Kinds!.ToArray());
+        Assert.Equal("QDOS26", filtered.Search);
         Assert.Matches("data-wc-kind=\"held\">Held<span class=\"n\">3</span>", html);
         Assert.Matches("data-wc-kind=\"triage\">Triage<span class=\"n\">5</span>", html);
         Assert.Contains("class=\"chip on\"", html, StringComparison.Ordinal);
-        Assert.Contains("All kinds", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"q\" value=\"QDOS26\"", html, StringComparison.Ordinal);
+        // Clear filters drops both the kinds and the term; the chip links keep the term.
+        Assert.Contains("href=\"/?scope=office\" data-wc-clear>Clear filters</a>", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/?scope=office&amp;kind=triage&amp;q=QDOS26\"", html, StringComparison.Ordinal);
+        Assert.Contains("No work matches these filters.", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -141,7 +166,7 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
-    public async Task TheTodayPaneOffersAssignToMeAndTheAssignEngineerDialogWithoutScript()
+    public async Task TheOpenRowShowsItsFactsAndOffersAssignToMeWithoutScript()
     {
         var unassigned = Item(NeedsAttentionKind.UnassignedEngineer, "QDOS26005", NeedsAttentionPriority.Today, Now.AddHours(3)) with
         {
@@ -150,10 +175,21 @@ public sealed class WorkCentreWebTests
         using var host = Host(new FakeSnapshot { Items = [unassigned], TodayCount = 1 });
         using var client = Client(host);
 
+        var closed = await GetOkAsync(client, "/");
+        Assert.Contains($"href=\"/?scope=office&amp;selected={unassigned.Id:D}\"", closed, StringComparison.Ordinal);
+        Assert.DoesNotContain("wc-inline-detail", closed, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-wc-take", closed, StringComparison.Ordinal);
+
         var html = await GetOkAsync(client, $"/?selected={unassigned.Id:D}");
 
-        // Due today reads amber "Today" in the pane.
-        Assert.Contains("class=\"status status--amber\">Today</span>", html, StringComparison.Ordinal);
+        // The open row: its chip reads amber Due today, a second click closes it.
+        Assert.Contains($"data-wc-row=\"{unassigned.Id}\" data-wc-row-kind=\"unassigned\" aria-selected=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/?scope=office\"\n", html.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.Contains($"aria-expanded=\"true\" aria-controls=\"wc-detail-{unassigned.Id:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains($"id=\"wc-detail-{unassigned.Id}\"", html, StringComparison.Ordinal);
+        // The chip's tone follows the fixture's due group; its words follow the host clock.
+        Assert.Contains("class=\"status status--amber\">", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Vehicle</dt>", html, StringComparison.Ordinal);
         // An enabled User may take an unowned row in place (P8).
         Assert.Contains("data-wc-take", html, StringComparison.Ordinal);
         Assert.Contains("handler=AssignToMe", html, StringComparison.Ordinal);
@@ -177,9 +213,13 @@ public sealed class WorkCentreWebTests
         using var host = Host(new FakeSnapshot(), feed);
         using var client = Client(host);
 
-        var html = await GetOkAsync(client, "/");
+        var html = await GetOkAsync(client, "/?tab=new-cases");
 
         Assert.True(feed.Calls.Single().MarkSeen, "The first page of an open marks the look.");
+        // The section has its tab, with its count, and is the one shown.
+        Assert.Contains("data-wc-tab-link=\"new-cases\"\n               aria-selected=\"true\"", html.Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.Contains("New cases<span class=\"tab-count\">3</span>", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-outcome=\"current\" data-wc-tab=\"new-cases\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>Provider API</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>Automation</span>", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-arrival>E-mail</span>", html, StringComparison.Ordinal);
@@ -198,32 +238,62 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
+    public async Task EmptySectionsHaveNoTabAndAnUnavailableOneKeepsItsTabWithADash()
+    {
+        var snapshot = new FakeSnapshot
+        {
+            Items = [Item(NeedsAttentionKind.ReviewCase, "QDOS26150", NeedsAttentionPriority.Today, Now.AddHours(2))],
+            TodayCount = 1
+        };
+        using var host = Host(snapshot, jobs: new FakeAiJobs { Throw = true });
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, "/?tab=new-cases");
+
+        // No New cases: no tab, and the named tab falls back to the first shown.
+        Assert.DoesNotContain("data-wc-tab-link=\"new-cases\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-outcome=\"partial\" data-wc-tab=\"attention\"", html, StringComparison.Ordinal);
+        // AI jobs could not be read: the tab stays with a dash and the section says so.
+        Assert.Contains("AI jobs<span class=\"tab-count\">&#x2014;</span>", html, StringComparison.Ordinal);
+        Assert.Contains("AI jobs are unavailable.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("No work to show.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RefreshHandlerReturnsOnlyTheWorkCentreBodyAndRetainsRefreshState()
     {
         var lastSeen = Now.AddHours(-2);
         var selected = Item(NeedsAttentionKind.ReviewCase, "QDOS26150", NeedsAttentionPriority.Today, Now.AddHours(2));
         var snapshot = new FakeSnapshot { Items = [selected], TodayCount = 1, TotalCountOverride = 100 };
-        var feed = new FakeRecentCases { LastSeen = lastSeen };
+        var feed = new FakeRecentCases
+        {
+            LastSeen = lastSeen,
+            Rows = [new(RecentCaseRowKind.NewCase, Guid.NewGuid(), "QDOS26100", "AB12CDE", "Mr A Claimant", "QDOS", Now.AddHours(-1), CaseArrival.Manual)]
+        };
         using var host = Host(snapshot, feed);
         using var client = Client(host);
 
         using var response = await client.GetAsync(
-            $"/?handler=Refresh&scope=mine&kind=review&selected={selected.Id:D}&page=2&newPage=3&refresh=true&since={Uri.EscapeDataString(lastSeen.ToString("O"))}");
+            $"/?handler=Refresh&scope=mine&kind=review&q=QDOS&tab=new-cases&selected={selected.Id:D}&page=2&newPage=3&refresh=true&since={Uri.EscapeDataString(lastSeen.ToString("O"))}");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.CacheControl?.NoStore);
         Assert.Contains("data-work-centre", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<html", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(NeedsAttentionScope.Mine, Assert.Single(snapshot.Queries).Scope);
+        var query = Assert.Single(snapshot.Queries);
+        Assert.Equal(NeedsAttentionScope.Mine, query.Scope);
+        Assert.Equal("QDOS", query.Search);
         Assert.Equal((3, false), Assert.Single(feed.Calls));
         Assert.Contains("name=\"refresh\" value=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"q\" value=\"QDOS\" data-refresh-field", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"tab\" value=\"new-cases\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"newPage\" value=\"3\"", html, StringComparison.Ordinal);
         Assert.Contains($"name=\"since\" value=\"{HtmlEncoder.Default.Encode($"{lastSeen:O}")}\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task RefreshHandlerMarksOnlyTheFailedSectionUnavailable()
+    public async Task RefreshHandlerMarksOnlyTheFailedSectionsUnavailable()
     {
         using var host = Host(new FakeSnapshot { Throw = true });
         using var client = Client(host);
@@ -231,6 +301,7 @@ public sealed class WorkCentreWebTests
         var html = await GetOkAsync(client, "/?handler=Refresh&refresh=true");
 
         Assert.Contains("data-wc-refresh-outcome=\"partial\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"metrics\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"attention\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"new-cases\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"ai-jobs\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
@@ -249,9 +320,12 @@ public sealed class WorkCentreWebTests
 
         Assert.Contains("data-wc-refresh-outcome=\"failed\"", html, StringComparison.Ordinal);
         Assert.Contains(">Refresh unavailable</span>", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"metrics\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"attention\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"new-cases\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
         Assert.Contains("data-wc-refresh-section=\"ai-jobs\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+        // Every failed section keeps its tab, with a dash.
+        Assert.Equal(3, Regex.Count(html, "<span class=\"tab-count\">&#x2014;</span>"));
     }
 
     [Fact]
@@ -284,13 +358,16 @@ public sealed class WorkCentreWebTests
         failed = failed with { ClosedAtUtc = hostNow.AddHours(-3) };
         jobs.Recent.Add(failed);
 
-        var html = await GetOkAsync(client, "/");
+        var html = await GetOkAsync(client, "/?tab=ai-jobs");
 
+        Assert.Contains("AI jobs<span class=\"tab-count\">4</span>", html, StringComparison.Ordinal);
         Assert.Contains("2 draft ready &#xB7; 1 failed", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{caseId:D}?section=estimate\">Review estimate</a>", html, StringComparison.Ordinal);
         Assert.Contains(">Open query</a>", html, StringComparison.Ordinal);
-        // Complete job belongs to a Query response, not an Estimate.
+        // Complete job belongs to a Query response, not an Estimate; it returns to this tab.
         Assert.Equal(1, Regex.Count(html, "handler=CompleteAiJob"));
+        Assert.Contains("name=\"returnUrl\" value=\"/?scope=office&amp;tab=ai-jobs\"", html, StringComparison.Ordinal);
+        Assert.Contains("Started by", html, StringComparison.Ordinal);
         Assert.Contains("Lease expires", html, StringComparison.Ordinal);
         Assert.Contains("The client refused the job: the estimate lines could not be read", html, StringComparison.Ordinal);
         Assert.Contains($"data-wc-job=\"{failed.JobId}\"", html, StringComparison.Ordinal);
@@ -308,7 +385,21 @@ public sealed class WorkCentreWebTests
 
         Assert.Contains("Work Centre is unavailable. Refresh to run the live queues again.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"metric\" data-value=", html, StringComparison.Ordinal);
+        Assert.Contains("Needs attention<span class=\"tab-count\">&#x2014;</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(InvalidOperationException), html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheUtilityBarOmitsNewCaseOnTheWorkCentre()
+    {
+        using var host = Host(new FakeSnapshot());
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, "/");
+
+        // Create Case has one home here: the page header (v30 WE).
+        Assert.DoesNotContain(">New case</span>", html, StringComparison.Ordinal);
+        Assert.Equal(1, Regex.Count(html, ">Create Case</span>"));
     }
 
     private static NeedsAttentionItem Item(

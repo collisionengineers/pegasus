@@ -1,12 +1,13 @@
-// Work Centre: Office/Mine is remembered per browser. Refresh is progressive:
-// every control remains a normal link or GET form when script is unavailable.
+// Work Centre: Office/Mine is remembered per browser; the section tabs switch
+// in place. Refresh is progressive: every control remains a normal link or GET
+// form when script is unavailable.
 (function () {
     'use strict';
 
     var SCOPE_KEY = 'pegasus.workCentre.scope';
     var FIVE_MINUTES = 5 * 60 * 1000;
     var FOCUS_GAP = 30 * 1000;
-    var SECTION_NAMES = ['attention', 'new-cases', 'ai-jobs'];
+    var SECTION_NAMES = ['metrics', 'attention', 'new-cases', 'ai-jobs'];
 
     function root() {
         return document.querySelector('[data-work-centre]');
@@ -42,10 +43,47 @@
         return;
     }
 
+    // The section tabs (v30 WD) are links to the same page with ?tab=; with
+    // script they switch the rendered panels in place and write the tab into
+    // the address, so a background refresh and F5 keep the section.
+    function activateTab(name, focus) {
+        var current = root();
+        var target = current && current.querySelector('[data-wc-tab-link="' + name + '"]');
+        if (!target) {
+            return false;
+        }
+        current.querySelectorAll('[data-wc-tab-link]').forEach(function (tab) {
+            var on = tab === target;
+            tab.setAttribute('aria-selected', on ? 'true' : 'false');
+            tab.setAttribute('tabindex', on ? '0' : '-1');
+        });
+        current.querySelectorAll('[role="tabpanel"][data-wc-refresh-section]').forEach(function (panel) {
+            panel.hidden = panel.getAttribute('data-wc-refresh-section') !== name;
+        });
+        current.setAttribute('data-wc-tab', name);
+        var url = new URL(window.location.href);
+        if (name === 'attention') {
+            url.searchParams.delete('tab');
+        } else {
+            url.searchParams.set('tab', name);
+        }
+        window.history.replaceState(null, '', url.toString());
+        if (focus) {
+            target.focus();
+        }
+        return true;
+    }
+
     document.addEventListener('click', function (event) {
         var scopeLink = event.target.closest('[data-wc-scope-link]');
         if (scopeLink) {
             writeScope(scopeLink.getAttribute('data-wc-scope-link'));
+            return;
+        }
+
+        var tab = event.target.closest('[data-wc-tab-link]');
+        if (tab && activateTab(tab.getAttribute('data-wc-tab-link'), false)) {
+            event.preventDefault();
             return;
         }
 
@@ -249,6 +287,26 @@
                 refreshing = false;
             });
     }
+
+    document.addEventListener('keydown', function (event) {
+        var tab = event.target.closest('[data-wc-tab-link]');
+        if (!tab || ['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(event.key) < 0) {
+            return;
+        }
+        var current = root();
+        var tabs = current ? Array.prototype.map.call(current.querySelectorAll('[data-wc-tab-link]'), function (element) {
+            return element.getAttribute('data-wc-tab-link');
+        }) : [];
+        var index = tabs.indexOf(tab.getAttribute('data-wc-tab-link'));
+        if (index < 0) {
+            return;
+        }
+        event.preventDefault();
+        var next = event.key === 'Home' ? 0
+            : event.key === 'End' ? tabs.length - 1
+                : (index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+        activateTab(tabs[next], true);
+    });
 
     window.setInterval(refresh, FIVE_MINUTES);
     document.addEventListener('visibilitychange', function () {

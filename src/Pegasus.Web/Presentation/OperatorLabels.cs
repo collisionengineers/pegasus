@@ -595,13 +595,23 @@ public static class OperatorLabels
         public const string Title = "Work Centre";
         public const string CreateCase = "Create Case";
         public const string NeedsAttention = "Needs attention";
-        public const string Today = "Today";
-        public const string SelectedWork = "Selected work";
         public const string Office = "Office";
         public const string Mine = "Mine";
-        public const string AllKinds = "All kinds";
+        /// <summary>Find within Needs attention (v30 WB): the field's label and its placeholder.</summary>
+        public const string FindInNeedsAttention = "Find in Needs attention";
+        public const string FindPlaceholder = "Find in this work";
+        public const string ClearFilters = "Clear filters";
         public const string NothingNeedsAttention = "Nothing needs attention";
-        public const string SelectAnItem = "Select an item";
+        public const string NoMatches = "No work matches these filters.";
+        /// <summary>The one line an entirely empty Work Centre shows (v30 WG).</summary>
+        public const string NoWorkToShow = "No work to show.";
+        public const string OfficeQueueTotals = "Office queue totals";
+        public const string Sections = "Work Centre sections";
+        public const string NextAction = "Next action";
+        public const string RecordDetail = "Record / detail";
+        public const string Owner = "Owner";
+        public const string Due = "Due";
+        public const string Received = "Received";
         public const string AssignToMe = "Assign to me";
         public const string AssignEngineer = "Assign Engineer";
         public const string Assign = "Assign";
@@ -644,6 +654,20 @@ public static class OperatorLabels
 
         public static string LeaseExpires(DateTimeOffset value) => $"Lease expires {OfficeTime(value)}";
 
+        public static string StartedBy(string name) => $"Started by {name}";
+
+        /// <summary>The Received column: the age alone, the column heading carrying the word.</summary>
+        public static string? ReceivedAge(DateTimeOffset? received, DateTimeOffset now)
+        {
+            if (received is not { } instant)
+            {
+                return null;
+            }
+
+            var days = LondonCalendar.DateAt(now).DayNumber - LondonCalendar.DateAt(instant).DayNumber;
+            return days <= 0 ? "Today" : string.Create(CultureInfo.InvariantCulture, $"{days} d ago");
+        }
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -663,14 +687,6 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => string.Create(CultureInfo.InvariantCulture, $"Overdue ({count})"),
             Pegasus.Core.Operations.NeedsAttentionPriority.Today => string.Create(CultureInfo.InvariantCulture, $"Due today ({count})"),
             _ => string.Create(CultureInfo.InvariantCulture, $"Later ({count})")
-        };
-
-        /// <summary>The group's empty state (P9): absence is visible good news.</summary>
-        public static string GroupEmpty(NeedsAttentionPriority priority) => priority switch
-        {
-            Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "Nothing overdue",
-            Pegasus.Core.Operations.NeedsAttentionPriority.Today => "Nothing due today",
-            _ => "Nothing later"
         };
 
         /// <summary>
@@ -2021,18 +2037,171 @@ public static class OperatorLabels
         // End of the Engineer sections' labels.
     }
 
-    /// <summary>Labels for the staff manual-upload surface.</summary>
+    /// <summary>
+    /// The Upload surfaces' words (v30 Upload E, "Inspection studio",
+    /// 25 September 2026): choosing files, the review of a stored upload and
+    /// its one Case decision.
+    /// </summary>
     public static class Upload
     {
-        public const string Dropzone = "Drag files here or choose files";
+        public const string Title = "Upload";
+        public const string ChoosingSubtitle = "Bring related files into Pegasus.";
+        public const string ReviewSubtitle = "Review your upload and its destination.";
+        public const string SelectEyebrow = "Add files to Pegasus";
+        public const string ChooseHeading = "Choose the files for this upload";
+        public const string DropHeading = "Drop files here";
+        public const string AcceptedKinds = "Images, documents, emails and video";
+        public const string AcceptedExtensions = "JPG, JPEG, PNG, PDF, DOC, DOCX, EML, MSG, MP4 or MOV";
         public const string Choose = "Choose files";
-        public const string Submit = "Upload";
         public const string Clear = "Clear";
-        public const string Another = "Upload another file";
-        public static string AcceptedFiles(long maximumFileBytes, int maximumFileCount) =>
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"EML, MSG, PDF, DOC, DOCX, JPG, PNG, MP4 or MOV · up to {FileSize(maximumFileBytes)} each · {maximumFileCount} files");
+        public const string SelectedFiles = "Selected files";
+        public const string FilesInUpload = "Files in this upload";
+        public const string NamesAndOutcomes = "File names and outcomes";
+        public const string NewUpload = "New upload";
+        public const string Open = "Open";
+        public const string OpenOriginal = "Open original";
+        public const string Previous = "Previous";
+        public const string Next = "Next";
+        public const string CheckFiles = "Check the selected files";
+        public const string Remove = "Remove";
+
+        // The empty aside beside an empty picker.
+        public const string AsideTitle = "One upload. One decision.";
+        public const string AsideSentence = "Add related files together, then choose the Case they belong to.";
+        public static readonly IReadOnlyList<(string Title, string Detail)> AsideSteps =
+        [
+            ("Choose files", "Check your selection before uploading."),
+            ("Review the result", "See the outcome for every file."),
+            ("Confirm the Case", "Check the exact destination before adding.")
+        ];
+
+        // The decision panel.
+        public const string PendingEyebrow = "Files received";
+        public const string PendingTitle = "Processing your files";
+        public const string ChooseEyebrow = "Choose a destination";
+        public const string ChooseTitle = "Which Case do these files belong to?";
+        public const string NoMatchEyebrow = "No suggested match";
+        public const string NoMatchTitle = "Find the right Case";
+        public const string NoMatchSentence = "Search all Cases and Triage items. The upload is retained while you decide.";
+        public const string SelectHint = "Select a Case to continue.";
+        public const string Review = "Review and add to Case";
+        public const string FindCase = "Find a Case";
+        public const string FindAnotherCase = "Find another Case";
+        public const string SearchLabel = "Search by Case/PO, registration or claimant";
+        public const string SearchPlaceholder = "Case/PO, registration or claimant";
+        public const string Search = "Search";
+        public const string RetrySearch = "Retry search";
+        public const string SearchUnavailable = "Case search is unavailable.";
+        public const string SearchUnavailableSentence = "Your upload is retained. Try again in a moment.";
+        public const string ImageIntake = "Image intake";
+        public const string RegisteredAutomatically = "Registered automatically";
+        public const string Proposal = "Review new Case proposal";
+        public const string ProposalSentence = "Use the extracted instruction details to create a new Case.";
+        public const string LeaveUndecided = "Leave undecided";
+        public const string Discard = "Discard upload";
+        public const string DiscardTitle = "Discard this upload?";
+        public const string DiscardAcknowledgement = "I understand that every file in this upload will be discarded.";
+        public const string DiscardMissing = "Select the confirmation before discarding.";
+        public const string Cancel = "Cancel";
+        public const string ConfirmSentence = "Confirm the exact destination for this upload.";
+        public const string ReviewRequiredEyebrow = "Review required";
+        public const string CompleteEyebrow = "Upload complete";
+        public const string AttachedTitle = "Added to Case";
+        public const string ClosedEyebrow = "Upload closed";
+        public const string DiscardedTitle = "Upload discarded";
+        public const string DiscardedSentence = "The source files and processing record are retained.";
+        public const string StartAnother = "Start another upload";
+        public const string AlreadyReceived = "Already received";
+        public const string UnreadableTitle = "The files could not be read";
+        public const string UnreadableSentence = "The originals are retained in Unidentified. Open a file to inspect it, or review the item in Unidentified.";
+        public const string OpenUnidentified = "Open Unidentified item";
+        public const string IncompleteTitle = "This upload is incomplete";
+        public const string IncompleteSentence = "One file is unavailable. Refresh the status before choosing a Case; nothing has been added.";
+        public const string MixedOutcomesTitle = "Review each file";
+        public const string MixedOutcomesSentence = "The files in this upload reached different outcomes. Each file's outcome is listed with it.";
+
+        // File states.
+        public const string StateReceived = "Received";
+        public const string StateProcessing = "Processing";
+        public const string StateReady = "Ready";
+        public const string StateCouldNotBeRead = "Could not be read";
+        public const string StateAdded = "Added to Case";
+        public const string StateAddedUnreadable = "Added · unreadable";
+        public const string StateDiscarded = "Discarded";
+        public const string StateFailed = "Not processed";
+
+        public static string Files(int count) => count == 1 ? "1 file" : string.Create(CultureInfo.InvariantCulture, $"{count} files");
+
+        public static string UploadFiles(int count) => $"Upload {Files(count)}";
+
+        public static string AddFilesTitle(int count) => $"Add {Files(count)} to this Case?";
+
+        public static string ConfirmAdd(string reference) => $"Confirm and add to {reference}";
+
+        public static string OpenCase(string reference) => $"Open {reference}";
+
+        public static string AttachedSentence(int count) => $"{Files(count)} added to the confirmed destination.";
+
+        public static string PendingSentence(int count) => $"All {Files(count)} are stored. The outcome will appear here when processing finishes.";
+
+        public static string DiscardSentence(int count) => $"Discard all {Files(count)} in this upload. The source files and processing record will be retained.";
+
+        public static string OriginalFiles(int count) => count == 1 ? "1 original file" : string.Create(CultureInfo.InvariantCulture, $"{count} original files");
+
+        public static string CandidatesSentence(int count, string? registration) => (count, registration) switch
+        {
+            (1, null) => "One possible Case. Check the details before adding the files.",
+            (1, _) => $"One possible Case for {registration}. Check the details before adding the files.",
+            (_, null) => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases. Choose the correct claimant and Case."),
+            _ => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases for {registration}. Choose the correct claimant and Case.")
+        };
+
+        public static string CouldNotBeReadTitle(int count) => count == 1 ? "1 file could not be read" : string.Create(CultureInfo.InvariantCulture, $"{count} files could not be read");
+
+        public static string CouldNotBeReadSentence(int total) => total == 1
+            ? "The original is retained. Check the marked file before adding this upload."
+            : string.Create(CultureInfo.InvariantCulture, $"All {total} originals are retained. Check the marked file before adding this upload.");
+
+        public static string CouldNotBeReadNote(int count) => count == 1
+            ? "1 file could not be read; its original will be included."
+            : string.Create(CultureInfo.InvariantCulture, $"{count} files could not be read; their originals will be included.");
+
+        public static string NoSearchMatches(string term) => $"No Cases or Triage items match “{term}”. Try another reference.";
+
+
+        /// <summary>"Received today, 09:41" or "Received 24 Sep, 09:41", in the office's zone.</summary>
+        public static string ReceivedAt(DateTimeOffset value, DateTimeOffset now)
+        {
+            var day = LondonCalendar.DateAt(value);
+            var today = LondonCalendar.DateAt(now);
+            var when = day == today ? "today" : day.ToString("d MMM", CultureInfo.InvariantCulture);
+            return $"Received {when}, {OfficeClock(value)}";
+        }
+
+        /// <summary>Binary units, as the limits are declared (FRD-18): "3.08 MiB".</summary>
+        public static string FileSize(long bytes) =>
+            string.Create(CultureInfo.InvariantCulture, $"{bytes / 1048576d:0.00} MiB");
+
+        /// <summary>The file's kind in the operator's words, from its media type.</summary>
+        public static string Kind(string? mediaType, string fileName) => (mediaType ?? string.Empty).ToLowerInvariant() switch
+        {
+            "image/jpeg" => "JPEG image",
+            "image/png" => "PNG image",
+            var image when image.StartsWith("image/", StringComparison.Ordinal) => "Image",
+            "application/pdf" => "PDF document",
+            "application/msword" or "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "Word document",
+            "message/rfc822" or "application/vnd.ms-outlook" => "Email",
+            "video/mp4" or "video/quicktime" => "Video",
+            _ => Path.GetExtension(fileName).TrimStart('.').ToUpperInvariant() is { Length: > 0 } extension ? extension + " file" : "File"
+        };
+
+        public static string ImageIntakeState(Pegasus.Core.ImageIntake.ImageInitiatedCaseState state) => state switch
+        {
+            Pegasus.Core.ImageIntake.ImageInitiatedCaseState.AwaitingInstruction => "Awaiting instruction",
+            Pegasus.Core.ImageIntake.ImageInitiatedCaseState.MergedIntoInstructionCase => "Merged into a Case",
+            Pegasus.Core.ImageIntake.ImageInitiatedCaseState.StaffClosed => "Closed",
+            _ => Humanise(state.ToString())
+        };
 
     }
 
@@ -2194,14 +2363,9 @@ public static class OperatorLabels
     /// <summary>Upload: one upload is one group with one decision (Upload, 13 September).</summary>
     public static class UploadDecision
     {
-        public const string ThisUpload = "This upload";
-        public const string OneGroup = "One group";
         public const string Attached = "Attached to a Case";
         public const string VehicleImages = "Registered as vehicle images";
         public const string Unidentified = "Unidentified";
-        public const string Files = "Files";
-        public const string CouldNotBeRead = "Could not be read";
-        public const string NoFileCouldBeRead = "No file in this upload could be read";
     }
 
     // Phase 6 Lane B end

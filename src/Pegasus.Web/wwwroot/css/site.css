@@ -548,50 +548,7 @@ tbody tr:hover{background:#f3f6f7}
 .inbox-messages-head .sort-toggle:hover{background:transparent;text-decoration:underline;color:var(--ink)}
 .inbox-messages-head .sort-toggle:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
 
-/* ---------------------------------------------------------------------------
-   Upload (§1.10)
-   --------------------------------------------------------------------------- */
-
-.dropzone{min-height:240px;border:2px dashed #aeb8bd;border-radius:8px;background-color:#fff;background-image:radial-gradient(circle at 1px 1px,rgba(87,104,112,.105) 1px,transparent 0);background-size:18px 18px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.75),0 1px 2px rgba(20,30,35,.06),0 8px 22px rgba(20,30,35,.035);display:grid;place-items:center;text-align:center;padding:24px}
-.dropzone.is-dragover{background-color:#fff5f3;border-color:var(--red)}
-.dropzone .icon{width:45px;height:45px;margin:0 auto 10px;color:var(--muted)}
-.dropzone>.icon,.dropzone>svg.icon{width:58px;height:58px;padding:13px;color:var(--red);border:1px solid #e2c0c2;border-radius:12px;background:rgba(255,244,244,.92);box-shadow:0 7px 20px rgba(94,42,45,.09)}
-.dropzone h2{font-size:17px}
-.dropzone p{font-size:11px;color:var(--muted);max-width:470px;margin:6px auto 14px}
-.dropzone input[type="file"]{max-width:470px}
-.file-list{margin-top:10px;border:1px solid var(--line);background:#fff}
-/* v28 P11: the submission page's three places. Files occupies the first
-   column; the decision/discard wrapper stacks the right-column panels. */
-.upload-received{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,1fr);gap:12px;align-items:start}
-.upload-received>*{grid-column:2;min-width:0}
-.upload-received__right{display:grid;gap:12px;min-width:0}
-.upload-received>[aria-labelledby="group-status-title"]{grid-column:1}
-.upload-received--files-only>[aria-labelledby="group-status-title"]{grid-column:1/-1}
-.upload-received--files-only>.upload-received__right{display:none}
-.upload-received [aria-labelledby="group-status-title"] .file-row{grid-template-columns:132px minmax(0,1fr) auto auto;gap:12px;padding:10px;font-size:11px}
-.upload-received [aria-labelledby="group-status-title"] .file-row strong{font-size:12px}
-.upload-received .upload-thumb{display:block;width:132px;aspect-ratio:4/3;border:1px solid var(--line);border-radius:3px;overflow:hidden;background:#f6f8f9}
-.upload-received .upload-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.upload-received__discard>summary{cursor:pointer;list-style:none}
-.upload-received__discard>summary::-webkit-details-marker{display:none}
-.upload-received__discard .choice{display:inline-flex;align-items:flex-start;gap:8px}
-@media(max-width:1100px){.upload-received{grid-template-columns:1fr}.upload-received>*{grid-column:1}}
-
-.file-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto auto;align-items:center;gap:9px;padding:8px 10px;border-bottom:1px solid var(--line);border-radius:4px;font-size:10px}
-.file-row:last-child{border-bottom:0}
-.file-row .icon{width:17px;height:17px}
-.file-row strong{display:block;font-size:11px}
-.file-row small{display:block;color:var(--muted);margin-top:2px}
-.spinner{width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--red);border-radius:50%;animation:spin .8s linear infinite}
-.progress{height:4px;background:#e7e3dd;overflow:hidden;margin-top:5px}
-.progress>span{display:block;height:100%;background:var(--red)}
-progress.progress{display:block;width:100%;height:4px;border:0;appearance:none;-webkit-appearance:none;color:var(--red)}
-progress.progress::-webkit-progress-bar{background:#e7e3dd}
-progress.progress::-webkit-progress-value{background:var(--red)}
-progress.progress::-moz-progress-bar{background:var(--red)}
 @keyframes spin{to{transform:rotate(360deg)}}
-.upload-outcome{margin-top:7px;padding:8px 9px;border-left:3px solid var(--navy);background:var(--navy-bg);font-size:10px}
-.upload-outcome p{margin:4px 0}
 .accepted-list{display:flex;gap:5px;flex-wrap:wrap;list-style:none;margin:0;padding:0}
 .accepted-list li{padding:3px 6px;border:1px solid var(--line);font-size:9px;background:var(--surface-3)}
 
@@ -765,16 +722,58 @@ progress.progress::-moz-progress-bar{background:var(--red)}
    External frames (§1.13)
    --------------------------------------------------------------------------- */
 
-.external-shell{min-height:100vh;display:grid;place-items:center;padding:22px;background:var(--nav)}
-.auth-card{width:min(100%,440px);background:#fff;border-top:4px solid var(--red);padding:26px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
-.auth-card--wide{width:min(100%,720px)}
-.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:19px}
-.auth-brand img{width:96px;height:96px;object-fit:contain}
-.auth-brand strong{font-size:20px;letter-spacing:.07em}
-.auth-card h1{font-size:23px}
-.auth-card p{font-size:11px;color:var(--muted)}
-.auth-card form{display:grid;gap:12px;margin-top:14px}
+/* Two planes on a common centre line (v30 sign-in B): the charcoal identity
+   panel and the white panel that carries the page's one card. */
+.external-shell{min-height:100vh;display:grid;grid-template-columns:42% 58%;max-width:1580px;margin:auto;background:var(--bg)}
+.auth-identity{display:grid;grid-template-rows:1fr auto;min-width:0;padding:64px;background:var(--nav);border-top:3px solid var(--red);color:var(--nav-text)}
+.auth-brand{align-self:center;justify-self:center;display:flex;flex-direction:column;align-items:flex-start;gap:28px;width:min(100%,280px);padding-bottom:20px}
+.auth-brand img{display:block;width:96px;height:96px;object-fit:contain}
+.auth-brand .brand-copy{gap:0}
+.auth-brand strong{font-size:26px;letter-spacing:.1em;font-weight:760}
+.auth-brand span{font-size:13.5px;color:var(--nav-muted);letter-spacing:0;margin-top:6px}
+.auth-company{justify-self:center;width:min(100%,280px);margin:0;padding-top:20px;border-top:1px solid var(--nav-2);font-size:11px;letter-spacing:.025em;color:var(--nav-muted)}
+.auth-panel{display:grid;place-items:center;min-width:0;padding:64px 40px;background:var(--surface)}
+.auth-card{width:100%;max-width:360px;min-width:0;padding-bottom:24px}
+.auth-card--wide{max-width:720px}
+.auth-card h1{font-size:23px;font-weight:650;line-height:1.3;letter-spacing:-.035em;margin:0 0 32px}
+.auth-card h1.cluster{display:flex;align-items:center;gap:9px}
+.auth-card h1 .icon{width:21px;height:21px}
+.auth-card p{font-size:12px;color:var(--muted);line-height:1.55}
+.auth-card form{display:grid;gap:20px}
+.auth-card .field{gap:8px}
+.auth-card .field label{font-size:12px;font-weight:600}
+.auth-card .field input{height:36px}
+.auth-card form>.btn--primary{width:100%;margin-top:4px;box-shadow:none}
 .auth-card .field-error,.auth-card .field-validation-error{font-size:11px;color:var(--danger);font-weight:720}
+.auth-notice{margin-bottom:24px;font-size:12px;color:var(--danger)}
+.auth-notice:focus{outline:2px solid var(--focus);outline-offset:3px}
+.password-control{position:relative}
+.password-control input{width:100%;padding-right:65px}
+.password-reveal{position:absolute;z-index:3;right:3px;top:3px;height:30px;min-width:54px;padding:0 8px;border:0;border-radius:var(--radius);background:transparent;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer}
+.password-reveal:hover{background:var(--surface-3);color:var(--ink)}
+.password-reveal:focus-visible{outline-offset:0}
+@media(max-width:979px){
+.external-shell{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+.auth-identity{padding:28px 40px;grid-template-columns:1fr auto;grid-template-rows:auto;align-items:center;gap:24px}
+.auth-brand{flex-direction:row;align-items:center;justify-self:start;width:auto;padding:0;gap:16px}
+.auth-brand img{width:64px;height:64px}
+.auth-brand strong{font-size:20px}
+.auth-brand span{display:block;font-size:12px;margin-top:4px}
+.auth-company{border:0;padding:0;width:auto;justify-self:end}
+.auth-panel{padding:48px 24px 100px}
+.auth-card{padding-bottom:0}
+}
+@media(max-width:479px){
+.auth-identity{padding:24px;grid-template-columns:1fr;gap:16px}
+.auth-company{justify-self:start}
+.auth-panel{padding:36px 18px 84px}
+}
+@media(forced-colors:active){
+.auth-identity{border:1px solid CanvasText}
+.password-reveal{border:1px solid ButtonText}
+.auth-brand img{forced-color-adjust:none}
+.auth-brand span,.auth-company{color:CanvasText}
+}
 .auth-foot{margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line)}
 .auth-reference{display:flex;align-items:center;gap:8px;margin-top:4px}
 .auth-reference code{overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
@@ -1263,7 +1262,6 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .record-ribbon{grid-template-columns:1fr}.record-ribbon .ribbon-item{border-right:0;border-bottom:1px solid var(--line)}.record-ribbon .ribbon-item:last-child{grid-column:auto;border-bottom:0}
   .case-identity{flex-wrap:wrap}.case-identity-tools{width:100%;padding:4px 10px;justify-content:flex-end}
   .document-row{grid-template-columns:28px 1fr auto}.document-row>*:last-child{grid-column:2/-1}
-  .file-row{grid-template-columns:25px 1fr auto}.file-row>*:last-child{grid-column:2/-1}
   .dialog-backdrop{padding:10px}.dialog-body{padding:13px}
   .toast-region{bottom:10px}
   .table-wrap{border-left:0;border-right:0}
@@ -2018,9 +2016,9 @@ table tfoot th {
 .row-confirm { display: flex; align-items: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
 .row-confirm label { font-size: var(--t-eyebrow); font-weight: 600; }
 .row-confirm input { min-width: 12rem; }
-details > summary.btn, .upload-attach > summary { display: inline-flex; list-style: none; }
-details > summary.btn::-webkit-details-marker, .upload-attach > summary::-webkit-details-marker { display: none; }
-details > summary.btn::marker, .upload-attach > summary::marker { content: ""; }
+details > summary.btn { display: inline-flex; list-style: none; }
+details > summary.btn::-webkit-details-marker { display: none; }
+details > summary.btn::marker { content: ""; }
 
 .crumb { margin-bottom: var(--sp-2); color: var(--muted); font-size: var(--t-sm); }
 .crumb a { color: var(--charcoal); }
@@ -2075,56 +2073,6 @@ pre.mail-body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.dropzone input[type="file"] { margin-top: var(--sp-2); max-width: 100%; }
-
-/* Enhanced by site.js: the whole dashed area is the drop target and a real
-   button opens the picker, so the native control becomes `.sr-only` — still in
-   the tab order, still opened by its label, so keyboard and assistive users
-   lose nothing and a no-script page still shows the input. The focus ring
-   moves to the dropzone so a focused, hidden input is visible. */
-.dropzone.is-enhanced { position: relative; }
-.dropzone.is-enhanced:has(input[type="file"]:focus-visible) { outline: var(--focus-ring); outline-offset: 2px; }
-
-/* A chosen file: a solid edge and the name. A file over the target: the
-   sanctioned active use of red, with the border change as the second signal —
-   declared last so it still shows over a zone that already holds a file. */
-.dropzone.has-file { border-style: solid; background: var(--panel); }
-.dropzone.is-dragover { border-color: var(--ce-red); border-style: solid; background: var(--ce-red-tint); }
-
-/* The add-to-existing-case decision on the confirmation surface. The
-   summary uses the shared button look and the shared summary marker
-   reset above; this lays out the search form and its suggestion list. The
-   active option is marked by background and an inset border, never colour
-   alone. */
-.upload-attach > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-.upload-attach[open] > summary { border-color: var(--charcoal); }
-.upload-attach__form { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); max-width: 480px; }
-/* This block sits after the stylesheet's own `[hidden] { display: none }`
-   ordering contract, so its display: grid would win over the attribute and
-   keep the empty suggestion box visible before any search has run. */
-.case-search-list[hidden] { display: none; }
-.case-search-list {
-  margin: 0;
-  padding: var(--sp-1);
-  list-style: none;
-  display: grid;
-  gap: 2px;
-  max-height: 240px;
-  overflow-y: auto;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-}
-.case-search-list [role="option"] {
-  padding: var(--sp-2) var(--sp-3);
-  border-left: 2px solid transparent;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--t-sm);
-}
-.case-search-list [role="option"]:hover { background: var(--paper); }
-.case-search-list [role="option"].is-active { background: var(--paper); border-left-color: var(--ce-red); }
-.case-search-list__empty { padding: var(--sp-2) var(--sp-3); color: var(--muted); font-size: var(--t-sm); }
 
 /* A table cell that carries two facts stacks them rather than running them
    together: a sender and its address, a subject and its attachment count, a
@@ -2251,24 +2199,6 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-/* Upload/receipt thumbnail tile — the gallery treatment for a single image:
-   same border/card language as .image-gallery, sized for a row. */
-.upload-thumb {
-  display: inline-block;
-  border: var(--border);
-  border-radius: var(--radius);
-  background: var(--paper);
-  padding: var(--sp-1);
-  line-height: 0;
-}
-
-.upload-thumb img {
-  display: block;
-  width: 120px;
-  height: 90px;
-  object-fit: cover;
-  border-radius: calc(var(--radius) - 2px);
 }
 
 /* The action bar hosts the edit toggle forms inline. */

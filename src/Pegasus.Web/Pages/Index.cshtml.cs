@@ -17,9 +17,11 @@ using Labels = Pegasus.Web.Presentation.OperatorLabels.WorkCentre;
 namespace Pegasus.Web.Pages;
 
 /// <summary>
-/// The Work Centre (v26, Work Centre D1–D10): four metrics, the paged Needs
-/// attention list grouped by due day with Office/Mine and kind filters, the
-/// Today pane whose action acts in place, New cases and AI jobs.
+/// The Work Centre (v30 B "Office ledger" over Work Centre D1–D10): the five
+/// queue totals, then one tabbed panel holding the paged Needs attention
+/// ledger (grouped by due day, Office/Mine, kind chips and Find, the selected
+/// row expanding to its facts and next action in place), New cases and AI jobs.
+/// A tab is omitted when its section is empty and kept when it is unavailable.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -44,6 +46,10 @@ public partial class IndexModel(
     /// <summary>How far back the AI jobs section reads for Failed jobs; the window is the New cases window.</summary>
     private const int RecentJobWindow = 200;
 
+    public const string AttentionTab = "attention";
+    public const string NewCasesTab = "new-cases";
+    public const string AiJobsTab = "ai-jobs";
+
     public DateTimeOffset NowUtc { get; private set; }
 
     public DateTimeOffset? LoadedAtUtc { get; private set; }
@@ -54,6 +60,14 @@ public partial class IndexModel(
     public bool ScopeNamed { get; private set; }
 
     public IReadOnlyList<NeedsAttentionKind> Kinds { get; private set; } = [];
+
+    /// <summary>Find within Needs attention (v30 WB): trimmed, null when empty.</summary>
+    public string? Search { get; private set; }
+
+    /// <summary>The section the panel shows: attention, new-cases or ai-jobs (v30 WD).</summary>
+    public string Tab { get; private set; } = AttentionTab;
+
+    public bool AttentionFiltered => Kinds.Count > 0 || Search is not null;
 
     public int CurrentPage { get; private set; } = 1;
 
@@ -77,6 +91,33 @@ public partial class IndexModel(
 
     /// <summary>True only when the live Work Centre query could not be read.</summary>
     public bool IsUnavailable { get; private set; }
+
+    public bool AttentionFailed => IsUnavailable || Attention is null || Metrics is null;
+
+    /// <summary>The scope's whole list before the kind and search filters.</summary>
+    public int ScopeTotal => KindCounts.Values.Sum();
+
+    /// <summary>
+    /// Needs attention shows when the scope has work, when a filter is on (so
+    /// Clear filters stays reachable), on Mine (so the switch back to Office
+    /// stays reachable) and when the read failed; an empty Office is omitted.
+    /// </summary>
+    public bool ShowAttention => AttentionFailed || ScopeTotal > 0 || AttentionFiltered || Scope == NeedsAttentionScope.Mine;
+
+    public bool NewCasesFailed => NewCasesUnavailable || NewCases is null;
+
+    public bool ShowNewCases => NewCasesFailed || NewCases!.Page.TotalCount > 0;
+
+    public bool ShowAiJobs => AiJobsUnavailable || AiJobs.Count > 0;
+
+    /// <summary>The whole page has nothing to show and no read failed to say so.</summary>
+    public bool NothingToShow => !ShowAttention && !ShowNewCases && !ShowAiJobs;
+
+    public IReadOnlyList<string> VisibleTabs =>
+        new[] { (AttentionTab, ShowAttention), (NewCasesTab, ShowNewCases), (AiJobsTab, ShowAiJobs) }
+            .Where(tab => tab.Item2)
+            .Select(tab => tab.Item1)
+            .ToArray();
 
     public RecentCasesFeed? NewCases { get; private set; }
 
@@ -103,11 +144,12 @@ public partial class IndexModel(
         ? "current"
         : IsUnavailable && NewCasesUnavailable && AiJobsUnavailable ? "failed" : "partial";
 
+    /// <summary>The head's freshness words: "Updated HH:MM" (FRD-15) unless a section failed.</summary>
     public string RefreshOutcomeLabel => RefreshOutcome switch
     {
         "failed" => "Refresh unavailable",
         "partial" => "Partially refreshed",
-        _ => "Current"
+        _ => LoadedAtUtc is { } loaded ? Labels.Updated(loaded) : "Current"
     };
 
     [TempData(Key = "WorkCentreStatus")]
@@ -119,6 +161,8 @@ public partial class IndexModel(
     public async Task<IActionResult> OnGetAsync(
         string? scope,
         [FromQuery(Name = "kind")] string[]? kind,
+        string? q,
+        string? tab,
         Guid? selected,
         bool assign,
         bool refresh,
@@ -130,7 +174,7 @@ public partial class IndexModel(
         int newPage = 1)
     {
         using var timing = DocumentReadTelemetry.Start("web.workcentre.main");
-        var refusal = await LoadAsync(scope, kind, selected, assign, refresh, since, page, newPage, cancellationToken);
+        var refusal = await LoadAsync(scope, kind, q, tab, selected, assign, refresh, since, page, newPage, cancellationToken);
         return refusal ?? Page();
     }
 
@@ -142,6 +186,8 @@ public partial class IndexModel(
     public async Task<IActionResult> OnGetRefreshAsync(
         string? scope,
         [FromQuery(Name = "kind")] string[]? kind,
+        string? q,
+        string? tab,
         Guid? selected,
         string? since,
         CancellationToken cancellationToken,
@@ -154,6 +200,8 @@ public partial class IndexModel(
         var refusal = await LoadAsync(
             scope,
             kind,
+            q,
+            tab,
             selected,
             assign: false,
             refresh: true,
@@ -171,7 +219,7 @@ public partial class IndexModel(
     }
 
     /// <summary>
-    /// Assign Engineer from the Today pane (P4). The Work Centre holds no edit
+    /// Assign Engineer from the expanded row (P4). The Work Centre holds no edit
     /// session, so the handler claims the Case's lease, runs the same Core
     /// assignment the Case record's dialog runs, and returns here; a refused
     /// assignment releases the lease it claimed.
@@ -302,7 +350,10 @@ public partial class IndexModel(
         return LocalRedirect(SafeReturnUrl(returnUrl));
     }
 
-    /// <summary>This page's address with the given state changed and the rest kept.</summary>
+    /// <summary>
+    /// This page's address with the given state changed and the rest kept. The
+    /// search term and tab travel with every address unless cleared or named.
+    /// </summary>
     public string PageUrl(
         NeedsAttentionScope? scope = null,
         IEnumerable<NeedsAttentionKind>? kinds = null,
@@ -310,10 +361,17 @@ public partial class IndexModel(
         Guid? selected = null,
         int? newPage = null,
         bool assign = false,
-        string? fragment = null)
+        string? fragment = null,
+        string? tab = null,
+        bool clearSearch = false)
     {
         var query = new List<string> { "scope=" + ScopeSlug(scope ?? Scope) };
         query.AddRange((kinds ?? Kinds).Select(kind => "kind=" + NeedsAttentionPresentation.KindSlug(kind)));
+        if (!clearSearch && Search is { } search)
+        {
+            query.Add("q=" + Uri.EscapeDataString(search));
+        }
+
         var attentionPage = page ?? CurrentPage;
         if (attentionPage > 1)
         {
@@ -331,6 +389,12 @@ public partial class IndexModel(
             query.Add(string.Create(CultureInfo.InvariantCulture, $"newPage={feedPage}"));
         }
 
+        var section = tab ?? Tab;
+        if (section != AttentionTab)
+        {
+            query.Add("tab=" + section);
+        }
+
         if (assign)
         {
             query.Add("assign=true");
@@ -338,6 +402,21 @@ public partial class IndexModel(
 
         return "/?" + string.Join("&", query) + (fragment is null ? string.Empty : "#" + fragment);
     }
+
+    public static string TabLabel(string tab) => tab switch
+    {
+        NewCasesTab => Labels.NewCases,
+        AiJobsTab => Labels.AiJobsTitle,
+        _ => Labels.NeedsAttention
+    };
+
+    /// <summary>The tab's count: the section's whole total, or a dash when it could not be read.</summary>
+    public string TabCount(string tab) => tab switch
+    {
+        NewCasesTab => NewCasesFailed ? "—" : NewCases!.Page.TotalCount.ToString(CultureInfo.InvariantCulture),
+        AiJobsTab => AiJobsUnavailable ? "—" : AiJobs.Count.ToString(CultureInfo.InvariantCulture),
+        _ => AttentionFailed ? "—" : ScopeTotal.ToString(CultureInfo.InvariantCulture)
+    };
 
     /// <summary>The kinds with <paramref name="kind"/> added or removed (multi-select).</summary>
     public IReadOnlyList<NeedsAttentionKind> ToggledKinds(NeedsAttentionKind kind) =>
@@ -358,10 +437,19 @@ public partial class IndexModel(
     /// <summary>Every staff role opens on Office; Mine remains an explicit scope (P2).</summary>
     private static NeedsAttentionScope DefaultScope() => NeedsAttentionScope.Office;
 
+    private static string ParseTab(string? tab) => tab?.Trim().ToLowerInvariant() switch
+    {
+        NewCasesTab => NewCasesTab,
+        AiJobsTab => AiJobsTab,
+        _ => AttentionTab
+    };
+
     /// <summary>Loads the full-page and fragment models through one set of reads.</summary>
     private async Task<IActionResult?> LoadAsync(
         string? scope,
         string[]? kind,
+        string? q,
+        string? tab,
         Guid? selected,
         bool assign,
         bool refresh,
@@ -380,6 +468,8 @@ public partial class IndexModel(
         ScopeNamed = namedScope is not null;
         Scope = namedScope ?? DefaultScope();
         Kinds = NeedsAttentionPresentation.ParseKinds(kind);
+        Search = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
+        Tab = ParseTab(tab);
         CurrentPage = Math.Max(1, page);
         NewCasesPage = Math.Max(1, newPage);
 
@@ -428,6 +518,13 @@ public partial class IndexModel(
             AiJobsUnavailable = true;
         }
 
+        // A named tab whose section is omitted falls back to the first shown.
+        var visible = VisibleTabs;
+        if (!visible.Contains(Tab))
+        {
+            Tab = visible.Count > 0 ? visible[0] : AttentionTab;
+        }
+
         return null;
     }
 
@@ -439,14 +536,14 @@ public partial class IndexModel(
     {
         var filter = Kinds.Count > 0 ? Kinds : null;
         var snapshot = await getOperationsSnapshot.ExecuteAsync(
-            new NeedsAttentionQuery(actor, Scope, CurrentPage, filter, NowUtc),
+            new NeedsAttentionQuery(actor, Scope, CurrentPage, filter, NowUtc, Search),
             cancellationToken);
         if (snapshot.Attention.Items.Count == 0 && CurrentPage > snapshot.Attention.TotalPages)
         {
             // A page past the end (the list shrank) lands on the last page, not an empty one.
             CurrentPage = snapshot.Attention.TotalPages;
             snapshot = await getOperationsSnapshot.ExecuteAsync(
-                new NeedsAttentionQuery(actor, Scope, CurrentPage, filter, NowUtc),
+                new NeedsAttentionQuery(actor, Scope, CurrentPage, filter, NowUtc, Search),
                 cancellationToken);
         }
 
@@ -456,9 +553,9 @@ public partial class IndexModel(
         // Core counts the chips over the scope before the kind filter: one read.
         KindCounts = snapshot.Attention.KindCounts;
 
+        // Only the row the address names expands (v30 B); nothing opens by itself.
         var items = snapshot.Attention.Items;
-        Selected = (selected is { } id ? items.FirstOrDefault(item => item.Id == id) : null)
-            ?? (items.Count > 0 ? items[0] : null);
+        Selected = selected is { } id ? items.FirstOrDefault(item => item.Id == id) : null;
         if (Selected is null)
         {
             return;
