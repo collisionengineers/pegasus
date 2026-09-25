@@ -1032,6 +1032,16 @@ public interface IIntakeReceiptQueries
             "This intake receipt query does not support keyset continuation.");
 
     Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One retained asset of a receipt (the original report at standalone
+    /// Audit acceptance reads it), or null when the receipt has no such asset.
+    /// </summary>
+    Task<IntakeAssetRecord?> GetAssetAsync(
+        Guid receiptId,
+        Guid assetId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IntakeAssetRecord?>(null);
 }
 
 public sealed record GetIntakeQuery(Guid ReceiptId, ActionActor Actor);

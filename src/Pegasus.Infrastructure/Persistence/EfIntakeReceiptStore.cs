@@ -385,6 +385,20 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 : null);
     }
 
+    public async Task<IntakeAssetRecord?> GetAssetAsync(
+        Guid receiptId,
+        Guid assetId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.IntakeAssets
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.IntakeReceiptId == receiptId && item.Id == assetId,
+                cancellationToken);
+        return entity is null ? null : MapAsset(entity);
+    }
+
     private async Task<IntakeReceipt> StoreOnceAsync(
         IntakeReceiptDraft draft,
         CancellationToken cancellationToken)
