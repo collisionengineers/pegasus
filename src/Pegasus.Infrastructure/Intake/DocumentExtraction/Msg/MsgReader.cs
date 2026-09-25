@@ -7,8 +7,6 @@ namespace Pegasus.Infrastructure.Intake.DocumentExtraction.Msg;
 
 internal static class MsgReader
 {
-    private const string Specification = "MS-OXMSG 18.0; MS-OXPROPS 30.0; MS-OXRTFCP 14.0 (2025-05-20)";
-
     public static MsgDocument Read(
         ReadOnlyMemory<byte> bytes,
         MsgReadLimits? limits = null,
@@ -39,7 +37,7 @@ internal static class MsgReader
         var state = new MsgReadState(limits);
         try
         {
-            var properties = new MapiPropertyReader(file, limits, issues, state, cancellationToken);
+            var properties = new MapiPropertyReader(file, issues, state, cancellationToken);
             properties.ReadNamedProperties(0);
             MsgDocument result = ReadStorage(0, PropertyStreamContext.RootMessage, 0, properties, limits, issues, cancellationToken);
             return result with { Issues = SortIssues(issues) };
@@ -432,6 +430,4 @@ internal static class MsgReader
         outcome,
         new(MsgItemKind.Generic, "<unavailable>", ImmutableDictionary<string, string>.Empty),
         [], [], new(null, null, [], null, [], null, "none"), [], [issue]);
-
-    public static string SpecificationIdentity => Specification;
 }

@@ -973,11 +973,6 @@ public sealed class RetainedMailTests
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-            Guid staffId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
     }
 
     private sealed class FixedStaffAccounts(Guid staffId, string userName) : IStaffAccountQueries
@@ -1002,11 +997,6 @@ public sealed class RetainedMailTests
                     : []);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-            Guid id,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
     }

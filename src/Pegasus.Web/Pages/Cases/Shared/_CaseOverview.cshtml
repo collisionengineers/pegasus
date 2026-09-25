@@ -148,7 +148,7 @@
                here: each has one visible control in its own section,
                associated with this form. *@
             <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
-                  asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save data-case-save-form>
+                  asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save>
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />

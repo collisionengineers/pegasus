@@ -114,10 +114,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.Null(workflow.AssignedEngineerId);
         Assert.Single(await db.Cases.Where(value => value.Id == caseId).ToListAsync());
         Assert.False(await db.ImageIntakes.AnyAsync(value => value.OriginReceiptId == receiptId));
-        var gallery = await scope.ServiceProvider.GetRequiredService<ICaseEvidenceImageQueries>()
-            .ListForCaseAsync(caseId, default);
-        Assert.Equal(4, gallery.Count);
-        Assert.All(gallery, image => Assert.True(image.IsCaseDocument));
+        Assert.Equal(4, await db.Set<DocumentOccurrenceEntity>().CountAsync(value => value.CaseId == caseId && value.SemanticRole == DocumentSemanticRole.Image));
 
         var identities = await db.Set<DocumentOccurrenceEntity>()
             .Where(value => value.CaseId == caseId).Select(value => value.Id).ToArrayAsync();

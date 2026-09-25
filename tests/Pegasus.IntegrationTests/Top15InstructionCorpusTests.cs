@@ -1248,7 +1248,7 @@ public sealed class Top15InstructionCorpusTests
         selection.MatchedVariantKeys.Count == 0
             ? "none recorded"
             : string.Join(", ", selection.MatchedVariantKeys)
-                + (selection.HasAmbiguousVariant ? " (ambiguous)" : string.Empty);
+                + (selection.MatchedVariantKeys.Count > 1 ? " (ambiguous)" : string.Empty);
 
     /// <summary>Table cells: the pipes and newlines a value may carry cannot break the row.</summary>
     internal static string Cell(string? value) => string.IsNullOrWhiteSpace(value)

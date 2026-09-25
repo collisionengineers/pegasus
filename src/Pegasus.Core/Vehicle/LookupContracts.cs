@@ -71,9 +71,6 @@ public sealed record VehicleLookupResult(
     IReadOnlyList<MotTestObservation> MotTests,
     VehicleLookupFailure? Failure)
 {
-    public TimeSpan? SourceAge =>
-        SourceObservedAtUtc is { } observedAtUtc ? RetrievedAtUtc - observedAtUtc : null;
-
     public void EnsureValidFor(VehicleLookupRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

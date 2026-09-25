@@ -112,15 +112,8 @@ public sealed class UpdateWorkflowConfiguration(IWorkflowConfigurationStore stor
     }
 }
 
-public sealed class WorkflowConfigurationVersionConflictException(
-    int expectedVersion,
-    int currentVersion)
-    : InvalidOperationException("The workflow configuration changed before this request was saved.")
-{
-    public int ExpectedVersion { get; } = expectedVersion;
-
-    public int CurrentVersion { get; } = currentVersion;
-}
+public sealed class WorkflowConfigurationVersionConflictException()
+    : InvalidOperationException("The workflow configuration changed before this request was saved.");
 
 public sealed class WorkflowConfigurationOperationConflictException()
     : InvalidOperationException("The operation key has already been used for another workflow configuration request.");

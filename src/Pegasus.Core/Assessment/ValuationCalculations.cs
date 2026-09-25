@@ -71,14 +71,10 @@ public enum ValuationPresetError
     Removed
 }
 
-public sealed class ValuationPresetException(
-    ValuationPresetError error,
-    long? currentVersion = null)
+public sealed class ValuationPresetException(ValuationPresetError error)
     : InvalidOperationException("The valuation preset request could not be completed.")
 {
     public ValuationPresetError Error { get; } = error;
-
-    public long? CurrentVersion { get; } = currentVersion;
 }
 
 public interface IValuationPresetStore
@@ -511,9 +507,7 @@ public static class ValuationCalculationPolicy
         }
         if (preset.Version != selection.PresetVersion)
         {
-            throw new ValuationPresetException(
-                ValuationPresetError.VersionConflict,
-                preset.Version);
+            throw new ValuationPresetException(ValuationPresetError.VersionConflict);
         }
 
         return new(

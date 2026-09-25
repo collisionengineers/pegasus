@@ -50,7 +50,6 @@ Assert-Flags -Case 'shard assignment tests' -ChangedPath 'scripts/Test-TestShard
 Assert-Flags -Case 'workflow definition' -ChangedPath '.github/workflows/ci.yml' -Build $true -Infrastructure $true
 Assert-Flags -Case 'UI-only source' -ChangedPath 'src/Pegasus.Web/Pages/Index.cshtml' -Build $true -Infrastructure $false
 Assert-Flags -Case 'documentation only' -ChangedPath 'docs/index.md' -Build $false -Infrastructure $false
-Assert-Flags -Case 'design authority only' -ChangedPath 'docs/design/README.md' -Build $false -Infrastructure $false
 Assert-Flags -Case 'empty diff' -ChangedPath @() -Build $false -Infrastructure $false
 
 # The LocalDB lifecycle classifier contract: its own tests turn the lane on
@@ -75,6 +74,22 @@ Assert-Flags -Case 'embedded report logo' -ChangedPath 'docs/design/brand/logos/
 Assert-Flags -Case 'SQL read by integration tests' -ChangedPath 'scripts/Reset-TestEstate.sql' -Build $true -Infrastructure $false
 Assert-Flags -Case 'shard duration refresh script' -ChangedPath 'scripts/Update-TestShardDurations.ps1' -Build $true -Infrastructure $false
 Assert-Flags -Case 'brand guidance prose stays prose' -ChangedPath 'docs/design/README.md' -Build $false -Infrastructure $false
+
+# .gitattributes decides the bytes a Windows runner checks out for the
+# reference data and embedded resources the tests read.
+Assert-Flags -Case 'checkout attributes' -ChangedPath '.gitattributes' -Build $true -Infrastructure $false
+
+# No workflow job reads the local-development toolchain or a standalone local
+# tool, so they start nothing, and filtering them out leaves the rest of a
+# change set routed as before.
+Assert-Flags -Case 'Azurite pin' -ChangedPath 'package.json' -Build $false -Infrastructure $false
+Assert-Flags -Case 'Azurite lock' -ChangedPath 'package-lock.json' -Build $false -Infrastructure $false
+Assert-Flags -Case 'dotnet-ef tool manifest' -ChangedPath '.config/dotnet-tools.json' -Build $false -Infrastructure $false
+Assert-Flags -Case 'local-development initializer' -ChangedPath 'scripts/Initialize-LocalDevelopment.ps1' -Build $false -Infrastructure $false
+Assert-Flags -Case 'local-development lifecycle' -ChangedPath 'scripts/Invoke-LocalDevelopment.ps1' -Build $false -Infrastructure $false
+Assert-Flags -Case 'prerequisite doctor' -ChangedPath 'scripts/Invoke-Doctor.ps1' -Build $false -Infrastructure $false
+Assert-Flags -Case 'standalone local tool project' -ChangedPath 'scripts/jev-mail-eval/Pegasus.JevMailEvaluation.csproj' -Build $false -Infrastructure $false
+Assert-Flags -Case 'no-lane path beside a build input' -ChangedPath @('scripts/Invoke-LocalDevelopment.ps1', 'src/Pegasus.Worker/local.settings.example.json') -Build $true -Infrastructure $false
 
 $forced = & $classifier -ChangedPath 'docs/index.md' -ForceAll
 foreach ($lane in 'Build', 'Infrastructure', 'LocalDevelopment', 'ReferenceData') {

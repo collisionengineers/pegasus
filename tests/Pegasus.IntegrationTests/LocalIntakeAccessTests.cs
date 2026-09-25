@@ -27,7 +27,7 @@ public sealed class LocalIntakeAccessTests
         Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeReceiptQueries>();
-        Assert.Empty((await queries.ListAsync(null, 1, 100, CancellationToken.None)).Items);
+        Assert.Empty((await queries.ListByCursorAsync(null, null, 100, CancellationToken.None)).Items);
     }
 
     [Theory]

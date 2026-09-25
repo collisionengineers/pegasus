@@ -147,7 +147,6 @@ public static class CaseFiles
             .Where(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)
     ];
 }
-public sealed record CaseDocumentState(Guid CaseId, long CaseVersion);
 
 public sealed record AddCaseDocumentCommand(
     Guid CaseId,
@@ -265,13 +264,6 @@ public sealed record OriginalReportRecorded(
     Guid DocumentOccurrenceId,
     string FileName,
     long CaseVersion);
-
-public interface ICaseDocumentStateQueries
-{
-    Task<CaseDocumentState?> GetAsync(
-        Guid caseId,
-        CancellationToken cancellationToken = default);
-}
 
 public interface IAddCaseDocument
 {

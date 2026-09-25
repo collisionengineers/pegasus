@@ -149,21 +149,6 @@ public sealed record SaveCaseAssetPreparationRequest(
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 /// <summary>
-/// Restores the named occurrences to their original presentation: Not used,
-/// no order, no rotation, no crop. The originals bytes are never touched —
-/// this only clears the preparation columns.
-/// </summary>
-public sealed record ResetCaseAssetPreparationRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    IReadOnlyList<Guid> OccurrenceIds)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
-/// <summary>
 /// One image as the report will use it: its confirmed source identity/hash
 /// and the prepared role/order/rotation/crop/full-page choice. Files and Report
 /// read the same preparation through this and <see cref="ICaseAssetPreparationQueries"/>.
@@ -196,21 +181,10 @@ public interface ICaseAssetPreparationQueries
         CancellationToken cancellationToken);
 }
 
-public interface ICaseAssetPreparationStore
-{
-    Task<IReadOnlyList<CaseAssetPreparation>> SaveAsync(
-        SaveCaseAssetPreparationRequest request,
-        CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<CaseAssetPreparation>> ResetAsync(
-        ResetCaseAssetPreparationRequest request,
-        CancellationToken cancellationToken);
-}
-
 /// <summary>
 /// One occurrence's preparation moved between the request's expected version
-/// and the persisted row — a concurrent Save or Reset touched the same
-/// occurrence first.
+/// and the persisted row — a concurrent save touched the same occurrence
+/// first.
 /// </summary>
 public sealed class CaseAssetPreparationVersionConflictException(
     Guid caseId,
@@ -232,19 +206,6 @@ public sealed class CaseAssetPreparationVersionConflictException(
 /// </summary>
 public static class CaseAssetPreparationPolicy
 {
-    /// <summary>
-    /// Full page is a flag on an image the report uses (v28 P41, ruled 20
-    /// September 2026): an image not in the report cannot claim a page of
-    /// its own, so the flag comes off with the role.
-    /// </summary>
-    public static CaseAssetPreparationEdit ValidateFullPage(CaseAssetPreparationEdit edit)
-    {
-        ArgumentNullException.ThrowIfNull(edit);
-        return edit.Role == CaseAssetReportRole.NotUsed && edit.FullPage
-            ? edit with { FullPage = false }
-            : edit;
-    }
-
     /// <summary>
     /// Validates and renormalizes a proposed complete preparation set for one
     /// Case: at most one Close-up and one Overview (exactly one each is

@@ -15,7 +15,6 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 public sealed class EfStaffAccountQueries(PegasusDbContext context)
     : IStaffAccountQueries,
-      IStaffHeldCaseEditLeaseQueries,
       ICaseEngineerChoices
 {
     public async Task<IReadOnlyList<CaseEngineerChoice>> GetAsync(
@@ -130,28 +129,6 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
-        Guid staffId,
-        CancellationToken cancellationToken)
-    {
-        var now = DateTimeOffset.UtcNow;
-        var holder = staffId.ToString("D");
-        return await context.CaseWorkflows
-            .AsNoTracking()
-            .Where(item => item.EditLeaseHolderKind == nameof(ActorKind.Staff)
-                && item.EditLeaseHolder == holder
-                && item.EditLeaseTokenHash != null
-                && item.EditLeaseExpiresAtUtc > now)
-            .OrderBy(item => item.Case.Reference)
-            .ThenBy(item => item.CaseId)
-            .Select(item => new StaffHeldCaseEditLease(
-                item.CaseId,
-                item.Case.Reference,
-                item.EditLeaseGeneration,
-                item.EditLeaseExpiresAtUtc!.Value))
-            .ToListAsync(cancellationToken);
-    }
-
     public async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
         CancellationToken cancellationToken)
     {
@@ -171,26 +148,6 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
                 user.SignOffSignature))
             .Select(Profile)
             .ToArray();
-    }
-
-    public async Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-        Guid staffId,
-        CancellationToken cancellationToken)
-    {
-        var user = await context.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == staffId, cancellationToken);
-        if (user is null)
-        {
-            return null;
-        }
-
-        return SignOffEngineerEligibility.IsEligible(
-            user.IsEnabled,
-            user.IsSignOffEngineer,
-            user.SignOffSignature)
-            ? Profile(user)
-            : null;
     }
 
     /// <summary>Shared with <see cref="EfStaffAccountAdministration"/> so the mapping lives once.</summary>

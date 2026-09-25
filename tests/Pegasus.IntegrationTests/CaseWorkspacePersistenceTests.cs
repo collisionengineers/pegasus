@@ -247,7 +247,7 @@ public sealed class CaseWorkspacePersistenceTests
         }, default);
         Assert.Equal(initial.Version + 1, saved.Version);
         Assert.Equal("left_front", saved.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value);
-        var preparation = Assert.Single(await new EfCaseAssetPreparationStore(harness.Factory, harness.TimeProvider).ListForCaseAsync(harness.CaseId, default));
+        var preparation = Assert.Single(await new EfCaseAssetPreparationStore(harness.Factory).ListForCaseAsync(harness.CaseId, default));
         Assert.Equal(crop, preparation.Crop);
         Assert.Equal(CaseAssetRotation.Clockwise90, preparation.Rotation);
         await using var check = await harness.Factory.CreateDbContextAsync();
@@ -359,7 +359,7 @@ public sealed class CaseWorkspacePersistenceTests
 
         Assert.Equal(initial.Version + 1, first.Version);
         Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
-        var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
+        var valuations = new EfValuationStore(harness.Factory);
         var recorded = await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(2, recorded.Count);
         var glasses = recorded.Single(card => card.Details.Source == ValuationSource.Glasses);
@@ -1297,7 +1297,7 @@ public sealed class CaseWorkspacePersistenceTests
                 Valuation = new([GuideCard(ValuationSource.Glasses, april, 12_500m)])
             },
             CancellationToken.None);
-        var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
+        var valuations = new EfValuationStore(harness.Factory);
         var aprilCard = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
 
         harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
@@ -1370,7 +1370,7 @@ public sealed class CaseWorkspacePersistenceTests
                 Valuation = new([withoutTrade])
             },
             CancellationToken.None);
-        var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
+        var valuations = new EfValuationStore(harness.Factory);
         var card = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
         var selection = new ValuationCalculationSelection(card.ValuationId, false, null, [], 0m);
 
@@ -1514,7 +1514,7 @@ public sealed class CaseWorkspacePersistenceTests
                 Valuation = new([GuideCard(ValuationSource.Glasses, april, 12_500m)])
             },
             CancellationToken.None);
-        var valuations = new EfValuationStore(harness.Factory, harness.TimeProvider);
+        var valuations = new EfValuationStore(harness.Factory);
         var card = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
 
         var again = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-no-mileage-2");

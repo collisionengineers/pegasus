@@ -7,7 +7,6 @@ namespace Pegasus.Core.Cases;
 public enum OrganizationAdministrationError
 {
     DuplicateOrganizationName,
-    OrganizationCannotOwnPrincipals,
     DuplicatePrincipalCode,
     PrincipalNotFound,
     PrincipalInactive,
@@ -48,17 +47,6 @@ public sealed record PrincipalAdministrationDetails(
     string Name,
     PrincipalAdministrationSummary Principal);
 
-public sealed record PrincipalListPage(
-    IReadOnlyList<PrincipalAdministrationDetails> Principals,
-    int PageNumber,
-    bool HasMore);
-
-public interface IListPrincipals
-{
-    Task<PrincipalListPage> ExecuteAsync(
-        ActionActor actor, int pageNumber, CancellationToken cancellationToken);
-}
-
 public interface IGetPrincipal
 {
     Task<PrincipalAdministrationDetails?> ExecuteAsync(
@@ -67,9 +55,6 @@ public interface IGetPrincipal
 
 public interface IOrganizationAdministrationQueries
 {
-    Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalsAsync(
-        int offset, int limit, CancellationToken cancellationToken);
-
     Task<PrincipalAdministrationDetails?> GetPrincipalAsync(
         Guid principalId, CancellationToken cancellationToken);
 
@@ -77,10 +62,6 @@ public interface IOrganizationAdministrationQueries
 
 public interface IOrganizationAdministrationStore
 {
-    Task<Principal> CreatePrincipalAsync(
-        CreatePrincipalRequest request,
-        CancellationToken cancellationToken);
-
     Task<Principal> ReplacePrincipalAsync(
         ReplacePrincipalRequest request,
         CancellationToken cancellationToken);
@@ -146,24 +127,6 @@ public sealed class UpdatePrincipalDefaultInspectionLocation(IOrganizationAdmini
             cancellationToken);
 }
 
-public sealed class ListPrincipals(IOrganizationAdministrationQueries queries) : IListPrincipals
-{
-    public const int PageSize = 25;
-
-    public async Task<PrincipalListPage> ExecuteAsync(
-        ActionActor actor, int pageNumber, CancellationToken cancellationToken)
-    {
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageOrganizationsAndPrincipals);
-        if (pageNumber < 1 || pageNumber > int.MaxValue / PageSize)
-        {
-            throw new ArgumentOutOfRangeException(nameof(pageNumber));
-        }
-        var rows = await queries.ListPrincipalsAsync(
-            (pageNumber - 1) * PageSize, PageSize + 1, cancellationToken);
-        return new(rows.Take(PageSize).ToArray(), pageNumber, rows.Count > PageSize);
-    }
-}
-
 public sealed class GetPrincipal(IOrganizationAdministrationQueries queries) : IGetPrincipal
 {
     public Task<PrincipalAdministrationDetails?> ExecuteAsync(
@@ -176,20 +139,6 @@ public sealed class GetPrincipal(IOrganizationAdministrationQueries queries) : I
         }
         return queries.GetPrincipalAsync(principalId, cancellationToken);
     }
-}
-
-public sealed class CreatePrincipal(IOrganizationAdministrationStore store)
-    : ICreatePrincipal
-{
-    private readonly IOrganizationAdministrationStore _store =
-        store ?? throw new ArgumentNullException(nameof(store));
-
-    public Task<Principal> ExecuteAsync(
-        CreatePrincipalRequest request,
-        CancellationToken cancellationToken) =>
-        _store.CreatePrincipalAsync(
-            OrganizationAdministrationPolicy.Normalize(request),
-            cancellationToken);
 }
 
 public sealed class ReplacePrincipal(IOrganizationAdministrationStore store)
@@ -226,52 +175,10 @@ public sealed record PrincipalReplacementPlan(
 
 public static class OrganizationAdministrationPolicy
 {
-    public const int MaximumOrganizationNameLength = 300;
     public const int MaximumPrincipalCodeLength = 20;
     public const int MaximumOperationKeyLength = 100;
     public const int MaximumReasonLength = 500;
     public const int MaximumNotesOnEveryCaseLength = 2000;
-
-    public static void RequireUniqueOrganizationName(bool alreadyExists)
-    {
-        if (alreadyExists)
-        {
-            throw new OrganizationAdministrationException(
-                OrganizationAdministrationError.DuplicateOrganizationName);
-        }
-    }
-
-    public static Principal PlanPrincipalCreation(
-        Guid principalId,
-        Guid sequenceLineageId,
-        Organization organization,
-        string code,
-        bool codeAlreadyExists,
-        CaseInspectionMode inspectionMode = CaseInspectionMode.PhysicalAddress,
-        PrincipalReportGenerationPolicy reportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
-        PrincipalReportRecipientSettings? reportRecipients = null)
-    {
-        RequireIdentifier(principalId, nameof(principalId));
-        RequireIdentifier(sequenceLineageId, nameof(sequenceLineageId));
-        ArgumentNullException.ThrowIfNull(organization);
-        RequireOrganizationCanOwnPrincipals(organization);
-        RequireUniquePrincipalCode(codeAlreadyExists);
-        RequireDefinedInspectionMode(inspectionMode);
-        return new(
-            principalId,
-            organization.Id,
-            NormalizePrincipalCode(code),
-            sequenceLineageId,
-            null,
-            null,
-            true,
-            0,
-            inspectionMode,
-            reportGenerationPolicy,
-            PrincipalReportRecipientSettings.Normalize(
-                reportRecipients?.IncludeOriginalInstructionSender ?? false,
-                reportRecipients?.AdditionalAddresses));
-    }
 
     public static PrincipalReplacementPlan PlanPrincipalReplacement(
         Principal predecessor,
@@ -320,16 +227,6 @@ public static class OrganizationAdministrationPolicy
                 predecessor.InspectionMode,
                 predecessor.ReportGenerationPolicy,
                 predecessor.ReportRecipients));
-    }
-
-    public static void RequireOrganizationCanOwnPrincipals(Organization organization)
-    {
-        ArgumentNullException.ThrowIfNull(organization);
-        if (!organization.Roles.Contains(OrganizationRole.WorkProvider))
-        {
-            throw new OrganizationAdministrationException(
-                OrganizationAdministrationError.OrganizationCannotOwnPrincipals);
-        }
     }
 
     public static void RequireUniquePrincipalCode(bool alreadyExists)
@@ -470,29 +367,6 @@ public static class OrganizationAdministrationPolicy
         };
     }
 
-    public static CreatePrincipalRequest Normalize(CreatePrincipalRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        RequireAdministrator(request.Actor);
-        RequireDefinedInspectionMode(request.InspectionMode);
-        if (!Enum.IsDefined(request.ReportGenerationPolicy))
-        {
-            throw new ArgumentOutOfRangeException(nameof(request), "The report generation policy is invalid.");
-        }
-        return request with
-        {
-            Name = NormalizeOrganizationName(request.Name),
-            Code = NormalizePrincipalCode(request.Code),
-            ReportRecipients = PrincipalReportRecipientSettings.Normalize(
-                request.ReportRecipients?.IncludeOriginalInstructionSender ?? false,
-                request.ReportRecipients?.AdditionalAddresses),
-            OperationKey = NormalizeRequiredText(
-                request.OperationKey,
-                MaximumOperationKeyLength,
-                nameof(request.OperationKey))
-        };
-    }
-
     public static ReplacePrincipalRequest Normalize(ReplacePrincipalRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -512,22 +386,6 @@ public static class OrganizationAdministrationPolicy
                 MaximumReasonLength,
                 nameof(request.Reason))
         };
-    }
-
-    public static string NormalizeOrganizationName(string value)
-    {
-        var normalized = NormalizeRequiredText(
-            value,
-            MaximumOrganizationNameLength,
-            nameof(value));
-        if (normalized.Any(char.IsControl))
-        {
-            throw new ArgumentException(
-                "An organization name cannot contain control characters.",
-                nameof(value));
-        }
-
-        return normalized;
     }
 
     public static string NormalizePrincipalCode(string value)
@@ -561,16 +419,6 @@ public static class OrganizationAdministrationPolicy
             throw new ArgumentException(
                 "A stable identifier is required.",
                 parameterName);
-        }
-    }
-
-    private static void RequireDefinedInspectionMode(CaseInspectionMode mode)
-    {
-        if (!Enum.IsDefined(mode))
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(mode),
-                "The principal inspection mode is invalid.");
         }
     }
 

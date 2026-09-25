@@ -255,9 +255,9 @@ tbody tr:last-child td{border-bottom:0}
 tbody tr:nth-child(even){background:#fbfcfc}
 tbody tr:hover{background:#f3f6f7}
 .row-button{display:grid;width:100%;min-height:var(--row);border:0;border-bottom:1px solid var(--line);background:#fff;text-align:left;padding:9px 12px;color:inherit;gap:4px;transition:background-color .13s ease,box-shadow .13s ease,transform .13s ease,border-color .13s ease}
-.row-button:hover,.work-item:hover{background:#f5f7f8}
-.row-button[aria-selected="true"],.row-button[aria-current="true"],.work-item[aria-selected="true"]{background:#f4f7fa;box-shadow:inset 4px 0 #263d56}
-.row-button:focus-visible,.work-item:focus-visible{outline:2px solid #263d56;outline-offset:-2px}
+.row-button:hover{background:#f5f7f8}
+.row-button[aria-selected="true"],.row-button[aria-current="true"]{background:#f4f7fa;box-shadow:inset 4px 0 #263d56}
+.row-button:focus-visible{outline:2px solid #263d56;outline-offset:-2px}
 .row-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .row-title{font-size:12px;font-weight:790;min-width:0}
 .row-meta{font-size:10px;color:var(--muted)}
@@ -354,11 +354,6 @@ tbody tr:hover{background:#f3f6f7}
 .pane-empty,.work-centre-empty{min-height:150px;padding:24px 18px;display:grid;align-content:center;justify-items:center;gap:7px}
 .pane-empty .icon,.work-centre-empty .icon{margin:0}
 .pane-empty p,.work-centre-empty p{margin:0}
-.work-item{width:100%;border:0;border-bottom:1px solid var(--line);background:#fff;text-align:left;padding:11px 12px;color:inherit;display:grid;gap:4px;transition:background-color .13s ease,box-shadow .13s ease,transform .13s ease,border-color .13s ease}
-.work-item-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.work-item h3{font-size:12px}
-.work-item p{margin:0;font-size:10px;color:var(--muted);line-height:1.4}
-.work-item-foot{display:flex;justify-content:space-between;align-items:center;margin-top:3px}
 .work-detail h2{font-size:20px;margin-bottom:5px}
 .work-detail-lead{color:var(--muted);font-size:13px;margin:0 0 15px}
 .today-pane-title{font-size:17px;color:var(--navy)}
@@ -392,7 +387,6 @@ tbody tr:hover{background:#f3f6f7}
 .ribbon-label{font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 .ribbon-value{font-size:14px;font-weight:650;margin-top:4px;line-height:1.3;white-space:normal;overflow-wrap:anywhere;word-break:break-word;min-width:0}
 .ribbon-value .status{align-self:flex-start;margin-top:0}
-.assessment-identity-ribbon{grid-template-columns:repeat(7,minmax(0,1fr))}
 
 /* ---------------------------------------------------------------------------
    Case workspace (§1.8)
@@ -559,7 +553,7 @@ tbody tr:hover{background:#f3f6f7}
    --------------------------------------------------------------------------- */
 
 .dropzone{min-height:240px;border:2px dashed #aeb8bd;border-radius:8px;background-color:#fff;background-image:radial-gradient(circle at 1px 1px,rgba(87,104,112,.105) 1px,transparent 0);background-size:18px 18px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.75),0 1px 2px rgba(20,30,35,.06),0 8px 22px rgba(20,30,35,.035);display:grid;place-items:center;text-align:center;padding:24px}
-.dropzone.dragover,.dropzone.is-dragover{background-color:#fff5f3;border-color:var(--red)}
+.dropzone.is-dragover{background-color:#fff5f3;border-color:var(--red)}
 .dropzone .icon{width:45px;height:45px;margin:0 auto 10px;color:var(--muted)}
 .dropzone>.icon,.dropzone>svg.icon{width:58px;height:58px;padding:13px;color:var(--red);border:1px solid #e2c0c2;border-radius:12px;background:rgba(255,244,244,.92);box-shadow:0 7px 20px rgba(94,42,45,.09)}
 .dropzone h2{font-size:17px}
@@ -824,21 +818,15 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .case-search-layout .table-wrap{min-width:0;max-width:100%;overflow-x:auto}
 .case-search-layout .table-wrap table{table-layout:fixed;min-width:760px}
 .case-search-layout th,.case-search-layout td{overflow-wrap:anywhere;word-break:break-word}
-.case-search-layout tr[data-action="search-select-case"],.case-search-layout tr[data-select-href]{cursor:pointer}
-.case-search-layout tr[data-action="search-select-case"]:hover,.case-search-layout tr[data-select-href]:hover{background:#f5f7f8}
-.case-search-layout tr[data-action="search-select-case"][aria-selected="true"],.case-search-layout tr[data-select-href][aria-selected="true"]{background:#f4f7fa;box-shadow:inset 3px 0 #263d56}
-.case-search-layout tr[data-action="search-select-case"]:focus,.case-search-layout tr[data-select-href]:focus{outline:2px solid #263d56;outline-offset:-2px}
+.case-search-layout tr[data-select-href]{cursor:pointer}
+.case-search-layout tr[data-select-href]:hover{background:#f5f7f8}
+.case-search-layout tr[data-select-href][aria-selected="true"]{background:#f4f7fa;box-shadow:inset 3px 0 #263d56}
+.case-search-layout tr[data-select-href]:focus{outline:2px solid #263d56;outline-offset:-2px}
 
 /* ---------------------------------------------------------------------------
    Assessment (§1.9)
    --------------------------------------------------------------------------- */
 
-.assessment-v3{display:grid;grid-template-columns:185px minmax(0,1fr);border:1px solid var(--line);background:#fff;min-width:0}
-.assessment-v3>.pane+.pane{border-left:1px solid var(--line)}
-.assessment-v3 .pane-scroll{max-height:none;height:calc(100vh - 270px);min-height:560px}
-.assessment-v3-main>.pane-head{background:#f4f6f7}
-.assessment-v3.assessment-v3-evidence-collapsed{grid-template-columns:50px minmax(0,1fr)}
-.assessment-evidence-list{padding:7px}
 .estimate-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:10px;border-bottom:1px solid var(--line);background:var(--surface-2)}
 .estimate-tab{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 10px;font:inherit;font-size:11px;font-weight:760;cursor:pointer}
 .estimate-tab:hover,.estimate-tab:focus-visible{border-color:var(--navy);color:var(--navy);background:#f4f7fa}
@@ -912,8 +900,8 @@ progress.progress::-moz-progress-bar{background:var(--red)}
    --------------------------------------------------------------------------- */
 
 /* Rail collapse (v25 C3). site.js toggles .rail-collapsed on .app-shell and
-   remembers the choice under pegasus.rail; the collapsed links carry their
-   label as a title. Without script the rail stays open. */
+   remembers the choice in the pegasus-rail cookie; the collapsed links carry
+   their label as a title. Without script the rail stays open. */
 .rail-collapse{margin:0 10px 6px;min-height:32px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);color:var(--nav-muted);border-radius:var(--radius);display:flex;align-items:center;gap:8px;padding:0 9px;font-size:11.5px;font-weight:500}
 .rail-collapse:hover{background:rgba(255,255,255,.1);color:var(--nav-text)}
 .rail-collapse .icon{width:15px;height:15px}
@@ -964,7 +952,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
    (one primary, one .menu, the availability label, the collapse chevron).
    Collapse: <button class="icon-button panel-collapse" data-collapse-toggle>
    inside a .panel[data-collapse="<key>"]; site.js toggles .is-collapsed and
-   remembers it under pegasus.collapsed.<key>. */
+   remembers it in the pegasus-collapsed cookie. */
 .panel-head>h2,.panel-head>h3{flex:1 1 auto;min-width:0}
 .panel-head .meta{font-size:12px;color:var(--quiet);font-weight:400}
 .panel-actions,.panel-head .actions{display:flex;gap:6px;align-items:center;margin-left:auto;flex:none;flex-wrap:wrap;justify-content:flex-end}
@@ -1032,7 +1020,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 @media(max-width:760px){.g2,.g3,.g4{grid-template-columns:minmax(0,1fr)}.fc.span2,.fc.span3,.fc.span4{grid-column:auto}}
 
 /* Record frame (v26 frame rules 1-2). The sticky block is the 56px ribbon
-   and the 40px section row; site.js measures [data-sticky-block] into
+   and the 40px section row; case-workspace.js measures [data-sticky-block] into
    --sticky-h on the block's parent, so every offset below reads the real
    height. The aside is 285px at 1441px and above and folds into a two-up
    strip above the sections below that. */
@@ -1209,7 +1197,6 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .split{grid-template-columns:1fr}
   .metric-strip--5{grid-template-columns:repeat(3,minmax(0,1fr))}
   .record-ribbon{grid-template-columns:repeat(3,minmax(0,1fr))}.record-ribbon .ribbon-item{border-bottom:1px solid var(--line)}.record-ribbon .ribbon-item:nth-child(3n){border-right:0}.record-ribbon .ribbon-item:last-child{grid-column:auto;border-bottom:0}
-  .assessment-identity-ribbon{grid-template-columns:repeat(3,minmax(0,1fr))}.assessment-v3{grid-template-columns:170px minmax(0,1fr)}
 }
 @media(max-width:980px){
   :root{--rail:100%;--content-max:none}
@@ -1275,8 +1262,6 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .record-bar-end{margin-left:0;width:100%;padding-top:4px;border-top:1px solid var(--line)}
   .record-ribbon{grid-template-columns:1fr}.record-ribbon .ribbon-item{border-right:0;border-bottom:1px solid var(--line)}.record-ribbon .ribbon-item:last-child{grid-column:auto;border-bottom:0}
   .case-identity{flex-wrap:wrap}.case-identity-tools{width:100%;padding:4px 10px;justify-content:flex-end}
-  .assessment-identity-ribbon{grid-template-columns:1fr}
-  .assessment-v3{display:block}.assessment-v3>.pane+.pane{border-left:0;border-top:1px solid var(--line)}.assessment-v3 .pane-scroll{height:auto;min-height:0;max-height:none}
   .document-row{grid-template-columns:28px 1fr auto}.document-row>*:last-child{grid-column:2/-1}
   .file-row{grid-template-columns:25px 1fr auto}.file-row>*:last-child{grid-column:2/-1}
   .dialog-backdrop{padding:10px}.dialog-body{padding:13px}
@@ -1290,7 +1275,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 }
 @media(prefers-reduced-motion:reduce){
   *{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
-  .nav-link,.btn,.metric,.row-button,.work-item,.scope-button,.admin-nav a{transform:none!important}
+  .nav-link,.btn,.metric,.row-button,.scope-button,.admin-nav a{transform:none!important}
 }
 @media(forced-colors:active){
   .status::before,.health-dot,.unread-indicator{forced-color-adjust:none}
@@ -1694,26 +1679,6 @@ input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem;
 .validation-summary-valid { display: none; }
 .validation-summary:empty, .field-validation:empty { display: none; }
 
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  margin-bottom: var(--sp-4);
-  color: var(--muted);
-  font-size: var(--t-sm);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.back-link:hover { color: var(--ce-red); }
-.back-link .icon { transform: rotate(180deg); }
-
-/* In-table administration forms. Kept narrow so a row stays scannable. */
-.role-form { display: grid; gap: var(--sp-3); min-width: 17rem; }
-.role-form > label { display: grid; gap: var(--sp-1); font-size: var(--t-sm); font-weight: 700; }
-.role-choices { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin: 0; padding: var(--sp-2) var(--sp-3) var(--sp-3); border: var(--border); border-radius: var(--radius); }
-.role-choices legend { padding: 0 var(--sp-1); color: var(--muted); font-size: var(--t-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.role-choices--stacked { flex-direction: column; gap: var(--sp-2); }
 /* Qualified with the element so it outranks `.form-panel label`, which is also
    a class-plus-type selector and would otherwise stack the box above its text. */
 label.choice { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--t-sm); font-weight: 600; }
@@ -1768,150 +1733,6 @@ label.choice input { flex: 0 0 auto; margin: 0; }
    or animation is introduced here.
    --------------------------------------------------------------------------- */
 
-/* Visually hidden. Names controls that a column header cannot name — a
-   `<th scope="col">` labels a cell, not the input inside it — and is revealed
-   again by the stacked reflow below, where each line becomes its own block. */
-.vh {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* Readiness rail first in the DOM, so the constrained-desktop single column
-   puts what is outstanding above the section being worked on. */
-.workbench-grid {
-  display: grid;
-  grid-template-columns: 320px minmax(0, 2fr);
-  gap: var(--sp-5);
-  align-items: start;
-}
-
-.workbench-grid > aside { position: sticky; top: var(--sp-5); display: grid; gap: var(--sp-3); }
-.workbench-grid > div { display: grid; min-width: 0; gap: var(--sp-5); }
-.workbench-grid .form-grid small { color: var(--muted); font-size: var(--t-xs); }
-.workbench-grid label.choice { min-height: 44px; }
-/* `.button-row` is declared after `.section-gap`, so its own margin would
-   otherwise win and leave the save control tight against the block above. */
-.workbench-grid .button-row.section-gap { margin-top: var(--sp-6); }
-
-/* ---------------------------------------------------------------------------
-   Send to Claude — a deliberate, recorded divergence from docs/design/README.md,
-   authorised by the repo owner and scoped to this one control.
-
-   The button carries the provider's own identity so it reads as Claude on
-   sight and is never mistaken for a Collision Engineers action. Nothing here
-   escapes the button: the tokens below are local custom properties, not
-   additions to :root, so no other surface can pick them up. The rest of the
-   application keeps the approved palette, the 2px radius and the red focus
-   ring untouched.
-
-   Divergences, each confined to `.send-action`: the terracotta gradient, the
-   12px radius, the Poppins-first stack, the raised shadow, the hover lift, the
-   blue focus ring, the sparkle glyph, and the ember canvas.
-   --------------------------------------------------------------------------- */
-
-.send-action {
-  --claude-orange-hi: #e8956d;
-  --claude-orange: #d97757;
-  --claude-orange-deep: #b85f3d;
-  --claude-light: #faf9f5;
-  --claude-focus: #6a9bcc;
-
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  gap: 10px;
-  padding: 13px 22px;
-  border: 0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--claude-orange-hi) 0%, var(--claude-orange) 48%, var(--claude-orange-deep) 100%);
-  box-shadow: 0 2px 5px rgba(20, 20, 19, .2), 0 0 0 1px rgba(184, 95, 61, .45) inset;
-  color: var(--claude-light);
-  font-family: "Poppins", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  font-size: 15px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: transform .18s ease, box-shadow .28s ease;
-}
-
-/* The label and glyph ride above the ember canvas. */
-.send-action > span,
-.send-action > svg { position: relative; z-index: 2; }
-
-.send-action:hover {
-  background: linear-gradient(135deg, var(--claude-orange-hi) 0%, var(--claude-orange) 48%, var(--claude-orange-deep) 100%);
-  box-shadow: 0 12px 28px -8px rgba(217, 119, 87, .6), 0 0 0 1px rgba(184, 95, 61, .55) inset;
-  transform: translateY(-2px);
-}
-
-.send-action:active { transform: translateY(0); }
-
-/* The app's red focus ring would sit on terracotta and all but vanish, so this
-   control takes the reference's blue. It is the only such exception. */
-.send-action:focus-visible {
-  outline: 2px solid var(--claude-focus);
-  outline-offset: 3px;
-}
-
-.send-action__sparkle {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 auto;
-  filter: drop-shadow(0 0 5px rgba(255, 255, 255, .6));
-  animation: send-action-breathe 4.5s ease-in-out infinite;
-}
-
-@keyframes send-action-breathe {
-  0%, 100% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(16deg) scale(1.1); }
-}
-
-/* Seeded ember field. Drawn by script only when motion is welcome. */
-.send-action canvas {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  opacity: .95;
-  mix-blend-mode: screen;
-  pointer-events: none;
-}
-
-/* Full width only in the rail; in the dialog it sits beside Cancel. */
-.workbench-grid .send-action { width: 100%; justify-content: center; }
-
-/* The whole flourish is decoration. Under reduced motion the button keeps its
-   identity and loses every moving part, including the canvas the script
-   declines to start. */
-@media (prefers-reduced-motion: reduce) {
-  .send-action { transition: none; }
-  .send-action:hover { transform: none; }
-  .send-action__sparkle { animation: none; }
-  .send-action canvas { display: none; }
-}
-
-/* Forced colours discards the gradient entirely, so restore a visible edge. */
-@media (forced-colors: active) {
-  .send-action { border: 1px solid ButtonText; }
-  .send-action canvas { display: none; }
-}
-
-/* Row headers carry a name, not a column caption, so they drop the uppercase
-   eyebrow treatment `th` applies to column headers. */
-.workbench-grid tbody th[scope="row"],
-.workbench-grid tfoot th[scope="row"] {
-  color: var(--ink);
-  font-size: var(--t-sm);
-  font-weight: 650;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 /* Section nav. Mirrors the shell's active-route treatment: colour is paired
    with a weight change and an underline, never used alone. */
 .section-tabs {
@@ -1947,66 +1768,6 @@ label.choice input { flex: 0 0 auto; margin: 0; }
   content: "";
 }
 
-/* One unmet requirement per item, each naming its own field and resolution.
-/* One combined readiness indicator replaces a per-issue list. The
-   trigger reuses .status-chip as-is (no new chip look); this only styles the
-   <details> wrapper and hides its native marker, since the chip already
-   carries its own border and icon. */
-.readiness-summary > summary {
-  display: inline-flex;
-  cursor: pointer;
-  list-style: none;
-}
-
-.readiness-summary > summary::-webkit-details-marker { display: none; }
-.readiness-summary > summary::marker { content: ""; }
-.readiness-summary > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-.readiness-summary > .blocker-list { margin: 0; }
-.readiness-summary[open] > .blocker-list { margin-top: var(--sp-3); }
-
-/* Guide evidence. Read-only, on the recessed ground, so it never reads as one
-   of the three figures the engineer chooses on the panel below it. */
-.evidence-figure {
-  padding: var(--sp-3) var(--sp-4);
-  border: var(--border);
-  border-radius: var(--radius);
-  background: var(--paper);
-}
-
-.evidence-figure__label {
-  color: var(--muted);
-  font-size: var(--t-eyebrow);
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-
-.evidence-figure__value { font-size: var(--t-h3); font-variant-numeric: tabular-nums; font-weight: 700; }
-.evidence-figure__source { color: var(--muted); font-size: var(--t-xs); }
-
-/* Recorded value beside proposed value, equal weight: neither side is the
-   default outcome. */
-.proposal-diff {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1px;
-  overflow: hidden;
-  border: var(--border);
-  border-radius: var(--radius);
-  background: var(--line);
-}
-
-.proposal-diff > div { display: grid; align-content: start; gap: var(--sp-2); padding: var(--sp-5); background: var(--panel); }
-
-.proposal-diff h3 {
-  color: var(--muted);
-  font-size: var(--t-eyebrow);
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-
-.proposal-diff p { margin: 0; }
 .status-card h3 { margin: 0 0 var(--sp-1); }
 
 /* A calculated total is separated from the components it came from. */
@@ -2019,24 +1780,6 @@ table tfoot th {
   font-weight: 700;
 }
 
-/* Repair specification. Fixed layout so three equal entry columns share the
-   width instead of one long description starving the others. */
-.line-grid { table-layout: fixed; }
-.line-grid th, .line-grid td { padding: var(--sp-2) var(--sp-3); vertical-align: top; }
-.line-grid th:first-child, .line-grid td:first-child { width: 6rem; }
-
-/* A repair line carries eleven columns. Below this width the cells stop being
-   usable, so the wrapper scrolls instead of crushing them; under 900px the
-   stacked reflow takes over and the scroll never applies. */
-.line-grid { min-width: 56rem; }
-/* Column headers wrap here. The global `th` rule keeps headers on one line,
-   which under `table-layout: fixed` makes a long header overrun its column and
-   collide with the next one. */
-.line-grid thead th { white-space: normal; line-height: 1.3; }
-.line-grid input, .line-grid select { font-size: var(--t-xs); }
-.line-grid label.choice { margin-top: var(--sp-1); font-size: var(--t-xs); font-weight: 600; }
-@media (max-width: 900px) { .line-grid { min-width: 0; } }
-
 /* Used by the report-projection cards, which sit a level below the section
    heading. `.field-card` only styled h3. */
 .field-card h4 {
@@ -2046,50 +1789,6 @@ table tfoot th {
   font-weight: 700;
   letter-spacing: .1em;
   text-transform: uppercase;
-}
-
-@media (max-width: 1279px) {
-  .workbench-grid { grid-template-columns: minmax(0, 1fr); }
-  .workbench-grid > aside { position: static; }
-}
-
-/* Below this width three side-by-side inputs would scroll horizontally, so
-   each line becomes one labelled block and the hidden control names — which
-   are the only accessible names those inputs have — become visible text. */
-@media (max-width: 900px) {
-  .proposal-diff { grid-template-columns: minmax(0, 1fr); }
-  .line-grid, .line-grid thead, .line-grid tbody, .line-grid tr, .line-grid th, .line-grid td { display: block; }
-  /* Without a table box the caption loses its full-width sizing and collapses
-     to shrink-to-fit, wrapping one word per line. */
-  .line-grid caption { display: block; }
-
-  .line-grid thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .line-grid tbody tr { padding: var(--sp-3) 0; border-bottom: var(--border); }
-  .line-grid tbody tr:last-child { border-bottom: 0; }
-  .line-grid tbody th[scope="row"] { padding: 0 var(--sp-3) var(--sp-2); border-bottom: 0; background: transparent; }
-  .line-grid td { padding: var(--sp-1) var(--sp-3) var(--sp-3); border-bottom: 0; }
-  .line-grid th:first-child, .line-grid td:first-child { width: auto; }
-
-  .line-grid td .vh {
-    position: static;
-    display: block;
-    width: auto;
-    height: auto;
-    margin: 0 0 var(--sp-1);
-    overflow: visible;
-    clip-path: none;
-    color: var(--ink);
-    font-size: var(--t-sm);
-    font-weight: 700;
-  }
 }
 
 @media (forced-colors: active) {
@@ -2116,16 +1815,6 @@ table tfoot th {
 
 .queue-card__chevron {
   align-self: flex-end;
-}
-
-.section-label--iconed {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.code--compact {
-  font-size: 0.8rem;
 }
 
 .reason-dialog__title {
@@ -2386,24 +2075,7 @@ pre.mail-body {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.dropzone--compact { padding: var(--sp-8) var(--sp-6); }
-
-.dropzone > label { margin: 0; font-size: var(--t-h3); font-weight: 700; }
-.dropzone .field-hint { margin: 0; }
 .dropzone input[type="file"] { margin-top: var(--sp-2); max-width: 100%; }
-
-/* The upload glyph sits in a tinted disc so the destination reads as a
-   destination before any words are read. Decorative: aria-hidden. */
-.dropzone__glyph {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: var(--sp-1);
-  border-radius: 50%;
-  background: var(--ce-red-tint);
-  color: var(--ce-red);
-}
 
 /* Enhanced by site.js: the whole dashed area is the drop target and a real
    button opens the picker, so the native control becomes `.sr-only` — still in
@@ -2412,7 +2084,6 @@ pre.mail-body {
    moves to the dropzone so a focused, hidden input is visible. */
 .dropzone.is-enhanced { position: relative; }
 .dropzone.is-enhanced:has(input[type="file"]:focus-visible) { outline: var(--focus-ring); outline-offset: 2px; }
-.dropzone__browse { margin-top: var(--sp-2); }
 
 /* A chosen file: a solid edge and the name. A file over the target: the
    sanctioned active use of red, with the border change as the second signal —
@@ -2420,73 +2091,6 @@ pre.mail-body {
 .dropzone.has-file { border-style: solid; background: var(--panel); }
 .dropzone.is-dragover { border-color: var(--ce-red); border-style: solid; background: var(--ce-red-tint); }
 
-/* Selected files: one row each, not one run-on line — a row is a flex line
-   of its own (name, size, state), and the list stacks them. The per-row
-   state icon reuses the product's one animation (.is-refreshing .icon--spin,
-   declared once above) rather than a second spinner rule. */
-.dropzone__file {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  max-width: 100%;
-  margin: var(--sp-2) 0 0;
-}
-
-.dropzone__file-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-width: 0;
-  color: var(--ink);
-  font-size: var(--t-sm);
-  font-weight: 600;
-}
-
-.dropzone__file-row .icon { flex: 0 0 auto; color: var(--muted); }
-.dropzone__file-row__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.dropzone__file-row__size { flex: 0 0 auto; color: var(--muted); font-weight: 400; }
-
-.dropzone__file-row__status {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  margin-left: auto;
-  flex: 0 0 auto;
-  font-weight: 400;
-}
-
-.dropzone__file-row__status[data-state="stored"] { color: var(--success); }
-.dropzone__file-row__status[data-state="failed"] { color: var(--ce-red); }
-/* The Upload screen: the form leads, and what happens after the button is
-   beside it rather than left to be discovered on the status page. One column
-   at constrained desktop widths, where the panel follows the form. */
-.upload-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: var(--sp-10);
-  align-items: start;
-  width: 100%;
-  max-width: 1040px;
-  margin: var(--sp-10) auto 0;
-}
-
-@media (max-width: 1023px) {
-  .upload-layout { grid-template-columns: minmax(0, 1fr); }
-}
-
-.upload-steps { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--sp-3); }
-.upload-steps li::marker { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
-.upload-steps b { display: block; }
-.upload-steps span { color: var(--muted); }
-
-/* The upload confirmation: what already happened automatically, or the
-   staff decision that is genuinely open. One block per file in a grouped
-   submission; the single-file status page renders exactly one. */
-.upload-outcome-list { display: grid; gap: var(--sp-6); margin: 0; padding: 0; list-style: none; }
-.upload-outcome-list > li { padding-top: var(--sp-4); border-top: var(--border); }
-.upload-outcome-list > li:first-child { padding-top: 0; border-top: 0; }
-.upload-outcome__file { margin: 0 0 var(--sp-2); font-weight: 700; }
-.upload-outcome__message { margin: 0; color: var(--charcoal); }
 /* The add-to-existing-case decision on the confirmation surface. The
    summary uses the shared button look and the shared summary marker
    reset above; this lays out the search form and its suggestion list. The
@@ -2522,12 +2126,6 @@ pre.mail-body {
 .case-search-list [role="option"].is-active { background: var(--paper); border-left-color: var(--ce-red); }
 .case-search-list__empty { padding: var(--sp-2) var(--sp-3); color: var(--muted); font-size: var(--t-sm); }
 
-/* A single-purpose screen is centred and narrow; a wide column would put the
-   dropzone's edges further apart than the file it accepts. */
-.form-column { width: 100%; max-width: 680px; margin: var(--sp-10) auto 0; }
-.form-column--narrow { max-width: 640px; margin-top: 0; }
-.form-column--wide { max-width: 860px; margin-top: 0; }
-
 /* A table cell that carries two facts stacks them rather than running them
    together: a sender and its address, a subject and its attachment count, a
    received date and its time. */
@@ -2539,85 +2137,6 @@ pre.mail-body {
 tbody tr[data-state="unread"] .stack > a,
 tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
 
-/* Evidence figures sit in a row that reflows rather than a fixed column count:
-   the number of findings on a record varies, and an empty cell reads as a
-   missing fact. The design system applies the figure's own stacking inline;
-   stating it here keeps the markup free of style attributes. */
-.evidence-figure { display: grid; gap: 2px; }
-
-.evidence-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--sp-6);
-}
-
-/* Correcting an extracted value is the exception, so the eleven fields sit
-   behind a disclosure. They post whether it is open or shut. */
-.draft-edit { margin-top: var(--sp-4); }
-.draft-edit > summary { display: inline-flex; width: auto; }
-.draft-edit[open] > summary { margin-bottom: var(--sp-4); }
-/* ---------------------------------------------------------------------------
-   Record blocks.
-
-   A case overview is several short, unrelated groups of facts — identity,
-   vehicle, dates, where it stands. One long definition list made the operator
-   read all of them to find one; separate blocks let the eye land on the group
-   it wants. Blocks reflow to one column rather than shrinking below the width
-   a registration or a claim number needs.
-   --------------------------------------------------------------------------- */
-
-.block-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-  gap: var(--sp-6);
-  align-items: start;
-}
-
-.block {
-  min-width: 0;
-  border: var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-}
-
-.block > header {
-  display: flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  padding: var(--sp-2) var(--sp-5);
-  border-bottom: var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
-  background: var(--paper);
-}
-
-.block > header h2 {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--t-eyebrow);
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-
-.block > div { padding: var(--sp-1) var(--sp-5) var(--sp-2); }
-
-/* The block that says where the case stands earns the one accent on the
-   overview: it is the answer the operator opened the case for. */
-.block--standing { border-left: 3px solid var(--navy-line); }
-.mark { display: block; flex: 0 0 auto; object-fit: contain; }
-
-.mark--sm { width: 30px; height: 30px; }
-.mark--md { width: 44px; height: 44px; }
-.mark--lg { width: 56px; height: 56px; }
-/* An admin card's mark replaces the tinted icon square rather than sitting in
-   one: the drawing carries its own ground. */
-.admin-card__icon--mark { width: 56px; height: 56px; align-self: start; background: transparent; }
-
-/* A named empty state: the mark, then the sentence that says what is absent. */
-.mark-empty { display: grid; justify-items: center; gap: var(--sp-4); padding: var(--sp-8) 0; }
-.mark-empty .mark { opacity: .85; }
 /* ---------------------------------------------------------------------------
    Estimate tabs (EXT-09, Later / 1.0.0 — inactive).
 
@@ -2752,62 +2271,17 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
   border-radius: calc(var(--radius) - 2px);
 }
 
-.upload-outcome-list > li {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--sp-2) var(--sp-3);
-  align-items: start;
-}
-
-.upload-outcome-list > li > .upload-thumb {
-  grid-row: span 2;
-}
-
-.upload-outcome-list > li > :not(.upload-thumb) {
-  grid-column: 2;
-}
-
-
 /* The action bar hosts the edit toggle forms inline. */
 .record__bar-form { display: inline-flex; }
 .record__bar-note { align-self: center; color: var(--muted); font-size: var(--t-sm); }
-/* Queue filter dropdowns and sortable column headers. */
-.filter-row { display: flex; align-items: end; gap: var(--sp-5); }
-.filter-row label { display: flex; flex-direction: column; gap: var(--sp-2); color: var(--muted); font-size: var(--t-sm); }
+/* Sortable column headers. */
 th[aria-sort] a::after { content: " \2193"; }
 th[aria-sort="ascending"] a::after { content: " \2191"; }
 th a { color: inherit; text-decoration: none; }
 th a:hover { text-decoration: underline; }
-/* Required state is visual, not a sentence. */
-/* The damage diagram is a grid of clickable regions; one click saves. */
-.damage-grid { display: grid; grid-template-columns: repeat(3, minmax(90px, 140px)); gap: var(--sp-2); }
-.damage-region { min-height: 44px; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font: inherit; font-size: var(--t-sm); cursor: pointer; }
-.damage-region:hover { border-color: var(--charcoal); }
-.damage-region[aria-pressed="true"] { background: var(--ce-red); border-color: var(--ce-red); color: #fff; font-weight: 600; }
-/* MAIL-005: the Inbox outcome cell aligns its chip and case link on one row. */
-.outcome-row { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
-/* Inbox message page (MAIL-006). `.decision` is the right-column card that
-   carries the classification decision and its actions; the `.mail-*` set is
-   the letter treatment: sender line, muted forwarding route, quoted forwarded
-   header, and the body as paragraphs (a blank line is a paragraph break,
-   consecutive lines stay tight). */
-.decision { padding: var(--sp-4) var(--sp-5) var(--sp-5); border: var(--border); border-radius: var(--radius); background: var(--paper); }
-.decision + .decision { margin-top: var(--sp-5); }
-.decision .facts { margin-bottom: var(--sp-4); }
-.decision .facts:last-child { margin-bottom: 0; }
-/* The auto-fit facts grid splits the heading from its list once wide enough;
-   inside a card or dialog it stays one column. */
-.decision .facts, .reason-dialog .facts { grid-template-columns: 1fr; }
-
-.mail-from { font-size: var(--t-h2); font-weight: 650; overflow-wrap: anywhere; }
-.mail-quoted { margin: var(--sp-5) 0 var(--sp-6); padding-left: var(--sp-4); border-left: 2px solid var(--line); color: var(--muted); font-size: var(--t-sm); overflow-wrap: anywhere; }
-.mail-quoted div { padding: 1px 0; }
+/* Inbox message page (MAIL-006): a retained body reads as paragraphs, one per non-blank line (MailBodyPresentation). */
 .mail-body p { margin: 0 0 var(--sp-5); }
-.mail-body p.run-on { margin-bottom: var(--sp-1); }
 .mail-body p:last-child { margin-bottom: 0; }
-
-/* The Case tab's single working column. */
-.form-column { max-width: 680px; }
 
 /* U1: the first corrective pass keeps operational pages compact. These classes
    deliberately build on the shared panel, table and control rules above so

@@ -14,13 +14,9 @@ public sealed class OrganizationAdministrationTests
     public async Task PrincipalCommandsNormalizeCodesAndOptionalChangeReasons()
     {
         var store = new RecordingStore();
-        var create = new CreatePrincipal(store);
         var replace = new ReplacePrincipal(store);
         var principalId = Guid.NewGuid();
 
-        await create.ExecuteAsync(
-            new("  QDOS Services  ", " qdos2 ", Administrator, " create-principal "),
-            default);
         await replace.ExecuteAsync(
             new(
                 principalId,
@@ -32,8 +28,6 @@ public sealed class OrganizationAdministrationTests
                 4),
             default);
 
-        Assert.Equal("QDOS2", Assert.Single(store.PrincipalCreates).Code);
-        Assert.Equal("QDOS Services", Assert.Single(store.PrincipalCreates).Name);
         var replacement = Assert.Single(store.PrincipalReplacements);
         Assert.Equal("QDOS3", replacement.SuccessorCode);
         Assert.Equal("successor required", replacement.Reason);
@@ -49,48 +43,15 @@ public sealed class OrganizationAdministrationTests
         var queries = new RecordingQueries();
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new CreatePrincipal(store).ExecuteAsync(
-                new("QDOS Services", "DENIED", actor, "denied-create"),
+            new ReplacePrincipal(store).ExecuteAsync(
+                new(Guid.NewGuid(), 0, "DENIED", actor, "denied-replace", null, 0),
                 default));
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new ListPrincipals(queries).ExecuteAsync(actor, 1, default));
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new GetPrincipal(queries).ExecuteAsync(actor, Guid.NewGuid(), default));
 
-        Assert.Empty(store.PrincipalCreates);
-        Assert.Equal(0, queries.ListCalls);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData("QDOS\u0001")]
-    public async Task InvalidCustomerNameFailsBeforePersistence(string name)
-    {
-        var store = new RecordingStore();
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            new CreatePrincipal(store).ExecuteAsync(
-                new(name, "QDOS2", Administrator, "invalid-name"), default));
-        Assert.Empty(store.PrincipalCreates);
-    }
-
-    [Fact]
-    public async Task PrincipalListBoundsTheFlatProjection()
-    {
-        var queries = new RecordingQueries();
-        var query = new ListPrincipals(queries);
-
-        var page = await query.ExecuteAsync(Administrator, 3, default);
-
-        Assert.Equal(50, queries.Offset);
-        Assert.Equal(26, queries.Limit);
-        Assert.Equal(3, page.PageNumber);
-        Assert.False(page.HasMore);
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            query.ExecuteAsync(Administrator, 0, default));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            query.ExecuteAsync(Administrator, int.MaxValue, default));
+        Assert.Empty(store.PrincipalReplacements);
+        Assert.Equal(0, queries.GetCalls);
     }
 
     [Fact]
@@ -409,7 +370,6 @@ public sealed class OrganizationAdministrationTests
 
     private sealed class RecordingStore : IOrganizationAdministrationStore
     {
-        public List<CreatePrincipalRequest> PrincipalCreates { get; } = [];
         public List<ReplacePrincipalRequest> PrincipalReplacements { get; } = [];
         public List<UpdatePrincipalReportSettingsRequest> ReportSettingsUpdates { get; } = [];
 
@@ -461,22 +421,6 @@ public sealed class OrganizationAdministrationTests
                 request.SourceVersion));
         }
 
-        public Task<Principal> CreatePrincipalAsync(
-            CreatePrincipalRequest request,
-            CancellationToken cancellationToken)
-        {
-            PrincipalCreates.Add(request);
-            return Task.FromResult(new Principal(
-                Guid.NewGuid(),
-                Guid.NewGuid(),
-                request.Code,
-                Guid.NewGuid(),
-                null,
-                null,
-                true,
-                0));
-        }
-
         public Task<Principal> ReplacePrincipalAsync(
             ReplacePrincipalRequest request,
             CancellationToken cancellationToken)
@@ -496,22 +440,13 @@ public sealed class OrganizationAdministrationTests
 
     private sealed class RecordingQueries : IOrganizationAdministrationQueries
     {
-        public int ListCalls { get; private set; }
-        public int Offset { get; private set; }
-        public int Limit { get; private set; }
-
-        public Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalsAsync(
-            int offset, int limit, CancellationToken cancellationToken)
-        {
-            ListCalls++;
-            Offset = offset;
-            Limit = limit;
-            return Task.FromResult<IReadOnlyList<PrincipalAdministrationDetails>>([]);
-        }
+        public int GetCalls { get; private set; }
 
         public Task<PrincipalAdministrationDetails?> GetPrincipalAsync(
-            Guid principalId, CancellationToken cancellationToken) =>
-            Task.FromResult<PrincipalAdministrationDetails?>(null);
-
+            Guid principalId, CancellationToken cancellationToken)
+        {
+            GetCalls++;
+            return Task.FromResult<PrincipalAdministrationDetails?>(null);
+        }
     }
 }

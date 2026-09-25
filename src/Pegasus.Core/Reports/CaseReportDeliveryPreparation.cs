@@ -512,13 +512,6 @@ public static class CaseReportDeliveryPolicy
     private static bool SameAddress(StaffMailRecipient left, StaffMailRecipient right) =>
         string.Equals(left.Address, right.Address, StringComparison.OrdinalIgnoreCase);
 
-    private static bool SameRecipients(
-        IReadOnlyList<StaffMailRecipient> left, IReadOnlyList<StaffMailRecipient> right) =>
-        left.Count == right.Count
-        && left.Zip(right).All(pair =>
-            SameAddress(pair.First, pair.Second)
-            && string.Equals(pair.First.DisplayName, pair.Second.DisplayName, StringComparison.Ordinal));
-
     private static StaffMailRecipient[] Recipients(
         IReadOnlyList<string>? values,
         string parameterName) => (values ?? [])

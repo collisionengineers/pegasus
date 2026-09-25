@@ -334,24 +334,6 @@ public sealed class ImageIntakeWebTests
         Assert.Fail("The Back to Cases link must be rendered.");
         return string.Empty;
     }
-
-    private static string ActionHref(string html, string action)
-    {
-        foreach (Match link in Regex.Matches(
-            html,
-            "<a\\b[^>]*href=\"(?<href>[^\"]*)\"[^>]*>(?<body>.*?)</a>",
-            RegexOptions.Singleline | RegexOptions.CultureInvariant,
-            TimeSpan.FromSeconds(1)))
-        {
-            if (link.Groups["body"].Value.Contains($"<span>{action}</span>", StringComparison.Ordinal))
-            {
-                return WebUtility.HtmlDecode(link.Groups["href"].Value);
-            }
-        }
-
-        Assert.Fail($"The {action} link must be rendered.");
-        return string.Empty;
-    }
 }
 
 internal static class MultiFormatFixture

@@ -5,25 +5,6 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Cases;
 
-public enum OrganizationRole
-{
-    WorkProvider,
-    InstructionIntermediary
-}
-
-public sealed record Organization(
-    Guid Id,
-    string Name,
-    IReadOnlyList<OrganizationRole> Roles,
-    long Version,
-    string? ContactPerson = null,
-    string? Email = null,
-    string? Telephone = null,
-    string? Address = null,
-    bool Active = true,
-    string? GuidanceTemplate = null,
-    long GuidanceTemplateVersion = 0);
-
 public sealed record Principal(
     Guid Id,
     Guid OrganizationId,
@@ -71,20 +52,6 @@ public static class AuditAssessmentCode
         "total_loss" => AuditAssessment.TotalLoss,
         _ => throw new InvalidDataException($"Unknown persisted Audit assessment '{value}'.")
     };
-}
-
-/// <summary>
-/// The QDOS principal, as seeded. A code, not a gate.
-/// </summary>
-/// <remarks>
-/// This is here for the seeds and the tests that need to name the principal
-/// the alpha runs on. It authorises nothing: which principals may hold a case
-/// is a question about which principals exist and are active, answered by the
-/// principal record inside the acceptance transaction.
-/// </remarks>
-public static class QdosPrincipal
-{
-    public const string Code = "QDOS";
 }
 
 /// <summary>
@@ -265,15 +232,6 @@ public interface ILinkedCaseReplacementStore
 }
 
 
-public sealed record CreatePrincipalRequest(
-    string Name,
-    string Code,
-    ActionActor Actor,
-    string OperationKey,
-    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
-    PrincipalReportRecipientSettings? ReportRecipients = null);
-
 /// <summary>
 /// EXT-04: change an existing principal's EVA submission settings.
 ///
@@ -301,11 +259,6 @@ public sealed record ReplacePrincipalRequest(
     string OperationKey,
     string? Reason,
     long ExpectedContactVersion);
-
-public interface ICreatePrincipal
-{
-    Task<Principal> ExecuteAsync(CreatePrincipalRequest request, CancellationToken cancellationToken);
-}
 
 public interface IReplacePrincipal
 {

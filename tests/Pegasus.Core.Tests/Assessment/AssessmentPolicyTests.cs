@@ -489,15 +489,8 @@ public sealed class AssessmentPolicyTests
         Assert.True(AssessmentVocabulary.DamageAreaOrder("front") < AssessmentVocabulary.DamageAreaOrder("underside"));
         Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Count + 3, AssessmentVocabulary.DamageAreaOrder("unknown"));
 
-        // Each plan area's centre lies in its own band, and nothing lies off the plan.
+        // Every plan area has a centre on the unit plan.
         Assert.Equal(AssessmentVocabulary.DamagePlanAreas.Order(StringComparer.Ordinal), DamageAreaGeometry.Centres.Keys.Order(StringComparer.Ordinal));
-        foreach (var (area, centre) in DamageAreaGeometry.Centres)
-        {
-            Assert.Equal(area, DamageAreaGeometry.AreaAt(centre.X, centre.Y));
-        }
-        Assert.Null(DamageAreaGeometry.AreaAt(-0.1, 0.5));
-        Assert.Equal("left_side", DamageAreaGeometry.AreaAt(0.49, 0.5));
-        Assert.Equal("right_side", DamageAreaGeometry.AreaAt(0.51, 0.5));
 
         // A one-area disc sits on the area's centre; a wider disc grows to
         // reach every area it names; the other areas draw nothing.

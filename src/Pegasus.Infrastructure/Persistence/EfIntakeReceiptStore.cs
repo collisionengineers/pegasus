@@ -1,6 +1,5 @@
 ﻿using System.Data;
 using System.Text.Json;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -10,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> contextFactory)
-    : IIntakeReceiptStore, IIntakeReceiptQueries, ICaseEvidenceImageQueries
+    : IIntakeReceiptStore, IIntakeReceiptQueries
 {
     private const int JsonVersion = 1;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -184,111 +183,14 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         return new(parsedDecisions.Count(item => item == IntakeDecision.NeedsSorting));
     }
 
-    public async Task<IntakeListPage> ListAsync(
-        IntakeDecision? decision,
-        int page,
-        int pageSize,
-        CancellationToken cancellationToken)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(page);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-
-        // Deliberately no case-link exclusion here, unlike the counts. Received
-        // items is a viewer of everything received, and a message that became a
-        // case is still a message that was received — the row says so and links to
-        // the case. What was wrong before was the label, not the presence: an
-        // accepted receipt sat here reading "Instruction draft" with no indication
-        // that it had produced anything.
-        //
-        // Filtered, ordered, counted and paged in SQL. This used to materialise
-        // every receipt with its mail-route decision, sort in memory and take the
-        // first hundred, and the caller then paged inside that hundred and reported
-        // it as the total — so the list had exactly four reachable pages at
-        // twenty-five a page, and the page count it printed was false.
-        var matches = context.IntakeReceipts.AsNoTracking();
-        if (decision is { } requested)
-        {
-            var code = ToCode(requested);
-            matches = matches.Where(item => item.Decision == code);
-        }
-
-        var totalCount = await matches.CountAsync(cancellationToken);
-        var rows = await matches
-            .OrderByDescending(item => item.ReceivedAtUtc)
-            .ThenByDescending(item => item.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(item => new
-            {
-                item.Id,
-                item.SourceFileName,
-                item.ReceivedAtUtc,
-                item.Decision,
-                item.FailureReason,
-                item.EvidenceJson,
-                Sender = item.MailRouteDecision!.EffectiveSenderAddress
-            })
-            .ToListAsync(cancellationToken);
-
-        // One join for the page rather than a lookup per row.
-        var receiptIds = rows.Select(item => item.Id).ToArray();
-        var cases = receiptIds.Length == 0
-            ? []
-            : await context.IntakeManualAssociations
-                .AsNoTracking()
-                .Where(association => association.IsActive
-                    && receiptIds.Contains(association.IntakeReceiptId))
-                .Select(association => new
-                {
-                    association.IntakeReceiptId,
-                    association.CaseId,
-                    association.Case.Reference
-                })
-                .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
-        var allocationStates = receiptIds.Length == 0
-            ? new Dictionary<Guid, IntakeAllocationState>()
-            : (await context.IntakeAllocationAttempts
-                .AsNoTracking()
-                .Where(item => receiptIds.Contains(item.IntakeReceiptId))
-                .OrderByDescending(item => item.AttemptNumber)
-                .ToListAsync(cancellationToken))
-                .GroupBy(item => item.IntakeReceiptId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => IntakeAllocationState.FromAttempt(
-                        EfIntakeAllocationStore.Map(group.First())));
-
-        var summaries = rows
-            .Select(item =>
-            {
-                cases.TryGetValue(item.Id, out var linkedCase);
-                allocationStates.TryGetValue(item.Id, out var allocationState);
-                return new IntakeReceiptSummary(
-                    item.Id,
-                    item.SourceFileName,
-                    item.ReceivedAtUtc,
-                    ParseDecision(item.Decision),
-                    item.FailureReason,
-                    item.Sender,
-                    ReadSubject(item.EvidenceJson),
-                    linkedCase?.CaseId,
-                    linkedCase?.Reference,
-                    allocationState);
-            })
-            .ToArray();
-        return new(summaries, page, pageSize, totalCount);
-    }
-
     /// <summary>
     /// One keyset page of received items, newest first, strictly after the
     /// caller's recorded position.
     ///
-    /// The order is the same (ReceivedAtUtc DESC, Id DESC) the offset list
-    /// uses, so the two views agree about what "newest first" means. The id is
-    /// not decoration: two receipts can share a millisecond, and without it a
-    /// page boundary that falls between them either drops one or serves it
-    /// twice, silently, for ever.
+    /// The order is (ReceivedAtUtc DESC, Id DESC). The id is not decoration:
+    /// two receipts can share a millisecond, and without it a page boundary
+    /// that falls between them either drops one or serves it twice, silently,
+    /// for ever.
     /// </summary>
     public async Task<KeysetPage<IntakeReceiptSummary>> ListByCursorAsync(
         IntakeDecision? decision,
@@ -481,20 +383,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.ManualAssociation is { IsActive: true } association
                 ? association.Case.Reference
                 : null);
-    }
-
-    public async Task<IntakeAssetRecord?> GetAssetAsync(
-        Guid receiptId,
-        Guid assetId,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.IntakeAssets
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.IntakeReceiptId == receiptId && item.Id == assetId,
-                cancellationToken);
-        return entity is null ? null : MapAsset(entity);
     }
 
     private async Task<IntakeReceipt> StoreOnceAsync(
@@ -1464,94 +1352,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeAssetKind.EmbeddedImage => "embedded_image",
         _ => throw UnknownEnum(value)
     };
-
-    /// <summary>
-    /// The evidence photographs of a case's instruction receipts (origin
-    /// receipt plus manually linked ones), resolved through the one
-    /// <see cref="InstructionEvidenceImages"/> selection rule.
-    /// </summary>
-    public async Task<IReadOnlyList<CaseEvidenceImage>> ListForCaseAsync(
-        Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // Box is the record. Where intake's photographs have been
-        // registered as case documents, the gallery reads them and serves them
-        // through the case-document route — the intake blob is staging, not
-        // custody, and it ages out. A case accepted before those records
-        // existed still renders from its retained asset rather than going
-        // blank, which is the additive transition the ticket required.
-        // A version whose custody is still Pending is part of the
-        // set. Listing confirmed versions only meant a Case opened while
-        // custody was in flight showed a partial gallery that grew on reload,
-        // which reads as files that went missing. A pending image is carried
-        // with IsStored false, so the tile names it and says it is arriving.
-        // A Failed version stays out: it is not arriving.
-        var documentImages = await (
-                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
-                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
-                    on occurrence.VersionId equals version.Id
-                where occurrence.CaseId == caseId
-                    && occurrence.SemanticRole == DocumentSemanticRole.Image
-                    && version.IsCurrent
-                    && !version.IsLogicallyRemoved
-                    && (version.CustodyStatus == DocumentCustodyStatus.Confirmed
-                        || version.CustodyStatus == DocumentCustodyStatus.Pending)
-                orderby occurrence.Ordinal
-                // Named, not positional. Built positionally, the two
-                // adjacent Guid slots were filled in the wrong order — the
-                // document id landed in OccurrenceId and every gallery URL 404d
-                // before Box was reached. There is no intake asset behind an
-                // image served from Box, so ReceiptId and AssetId are empty.
-                select new CaseEvidenceImage(
-                    ReceiptId: Guid.Empty,
-                    AssetId: Guid.Empty,
-                    FileName: version.FileName,
-                    MediaType: version.MediaType,
-                    ContentLength: version.ContentLength,
-                    OccurrenceId: occurrence.Id,
-                    VersionId: version.Id,
-                    IsStored: version.CustodyStatus == DocumentCustodyStatus.Confirmed))
-            .ToArrayAsync(cancellationToken);
-        if (documentImages.Length > 0)
-        {
-            return documentImages;
-        }
-
-        var originIds = await context.Cases
-            .AsNoTracking()
-            .Where(item => item.Id == caseId && item.OriginIntakeReceiptId.HasValue)
-            .Select(item => item.OriginIntakeReceiptId!.Value)
-            .ToListAsync(cancellationToken);
-        var linkedIds = await context.CaseIntakeLinks
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .Select(item => item.IntakeReceiptId)
-            .ToListAsync(cancellationToken);
-        var receiptIds = originIds
-            .Concat(linkedIds)
-            .Distinct()
-            .ToArray();
-        if (receiptIds.Length == 0)
-        {
-            return [];
-        }
-
-        var assets = await context.IntakeAssets
-            .AsNoTracking()
-            .Where(item => receiptIds.Contains(item.IntakeReceiptId)
-                && (item.Kind == "attachment" || item.Kind == "embedded_image"))
-            .ToListAsync(cancellationToken);
-        var byRecordId = assets.ToDictionary(item => item.Id, item => item.IntakeReceiptId);
-        return InstructionEvidenceImages.Select(assets.Select(MapAsset))
-            .Select(record => new CaseEvidenceImage(
-                byRecordId[record.Id],
-                record.Id,
-                record.FileName,
-                record.MediaType,
-                record.ContentLength))
-            .ToArray();
-    }
 
     private static IntakeAssetKind ParseAssetKind(string value) => value switch
     {

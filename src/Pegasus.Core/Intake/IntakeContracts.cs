@@ -1025,21 +1025,6 @@ public interface IIntakeReceiptQueries
     Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// One page of received items, newest first, filtered and counted at the store.
-    /// </summary>
-    /// <remarks>
-    /// Paging belongs here rather than above it. The port used to return a
-    /// hard-capped list that the use case then paged inside, so the reported total
-    /// was the cap: at twenty-five a page exactly four pages existed however much
-    /// had been received, and everything older was unreachable.
-    /// </remarks>
-    Task<IntakeListPage> ListAsync(
-        IntakeDecision? decision,
-        int page,
-        int pageSize,
-        CancellationToken cancellationToken);
-
-    /// <summary>
     /// One keyset page of received items, newest first: strictly after
     /// <paramref name="after"/> in (ReceivedAtUtc DESC, Id DESC) order, or from
     /// the newest row when it is null.
@@ -1049,8 +1034,7 @@ public interface IIntakeReceiptQueries
     /// later row by one, so a row is silently skipped; a receipt resolved out of
     /// the filter shifts them back and a row is delivered twice. The sort key
     /// plus the id names an exact row instead of a position in a list that
-    /// moves. <see cref="ListAsync"/> stays the right shape for a staff screen,
-    /// which wants a total and a page number.
+    /// moves.
     /// </summary>
     Task<KeysetPage<IntakeReceiptSummary>> ListByCursorAsync(
         IntakeDecision? decision,
@@ -1061,35 +1045,6 @@ public interface IIntakeReceiptQueries
             "This intake receipt query does not support keyset continuation.");
 
     Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken);
-
-    Task<IntakeAssetRecord?> GetAssetAsync(
-        Guid receiptId,
-        Guid assetId,
-        CancellationToken cancellationToken);
-}
-
-public sealed record ListIntakeQuery(
-    ActionActor Actor,
-    IntakeDecision? Decision,
-    int Page,
-    int PageSize);
-
-public sealed record IntakeListPage(
-    IReadOnlyList<IntakeReceiptSummary> Items,
-    int Page,
-    int PageSize,
-    int TotalCount)
-{
-    public int TotalPages => TotalCount == 0
-        ? 1
-        : (int)Math.Ceiling((double)TotalCount / PageSize);
-}
-
-public interface IListIntake
-{
-    Task<IntakeListPage> ExecuteAsync(
-        ListIntakeQuery query,
-        CancellationToken cancellationToken = default);
 }
 
 public sealed record GetIntakeQuery(Guid ReceiptId, ActionActor Actor);
@@ -1296,9 +1251,3 @@ public sealed record SourceFieldCandidate(
     string Field, string? RawValue, string? NormalizedValue, string? Unit, string? Currency,
     string SourceLabel, int? Page, string? Cell, string? FormField, string? Region,
     string ReaderVersion, string PolicyVersion, SourceCandidateDisposition Disposition);
-public interface ISourceCandidateQueries
-{
-    Task<IReadOnlyList<SourceFieldCandidate>> GetAsync(
-        ActionActor actor, Guid receiptId, Guid? documentVersionId, Guid? intakeAssetId,
-        CancellationToken cancellationToken);
-}

@@ -398,8 +398,6 @@ public sealed partial class DetailsModel(
             ? Request.Form[name].FirstOrDefault() ?? string.Empty
             : null;
 
-    public bool CaseIsArchived => Case?.Workflow.Archive is not null;
-
     public bool SelectedEstimateIsEditable =>
         !AssessmentIsReadOnly
         && AssessmentCanOpen
@@ -640,8 +638,6 @@ public sealed partial class DetailsModel(
     public RepairSpecificationComparison.Diff? SupplementaryDiff { get; private set; }
 
     public string SendOperationKey { get; private set; } = NewOperationKey();
-
-    public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
 
     public string GenerateReportOperationKey { get; private set; } = NewOperationKey();
 

@@ -332,19 +332,6 @@ public static class RepairSpecificationWording
     /// </summary>
     public static string ContractRepair(decimal agreedSum) =>
         $"A contract repair has been agreed for the total sum of {Money(agreedSum)}. Costs cannot increase above this figure.";
-
-    /// <summary>
-    /// The line identities a restored version keeps: a restored line matches
-    /// the draft's line of the same position when it is the same line, so
-    /// its evidence and amendment stamps travel with it.
-    /// </summary>
-    public static IReadOnlyList<Guid?> MatchingIds(RepairSpecificationVersion draft, RepairSpecificationSnapshot version)
-    {
-        ArgumentNullException.ThrowIfNull(draft);
-        ArgumentNullException.ThrowIfNull(version);
-        var live = draft.Lines.ToDictionary(line => line.Id);
-        return version.Lines.Select(line => live.ContainsKey(line.Id) ? (Guid?)line.Id : null).ToArray();
-    }
 }
 
 /// <summary>What a repair specification says about the one it supplements (v28 P20).</summary>

@@ -62,13 +62,6 @@ public static class NeedsAttentionPresentation
         _ => "/Operations/Index"
     };
 
-    /// <summary>
-    /// The route id for that page: an AI draft opens through its own route
-    /// (<see cref="NeedsAttentionItem.Route"/>), so it has no record id here.
-    /// </summary>
-    public static Guid? RecordRouteId(NeedsAttentionItem item) =>
-        item.Kind == NeedsAttentionKind.AiDraft ? null : item.Id;
-
     /// <summary>The next permitted action's words (P4).</summary>
     public static string ActionLabel(NeedsAttentionItem item) => item.Kind switch
     {
@@ -97,10 +90,6 @@ public static class NeedsAttentionPresentation
         item.Kind == NeedsAttentionKind.AiDraft
             ? OperatorLabels.Humanise(item.Title)
             : item.Title;
-
-    /// <summary>The recorded second fact (principal, sender or instruction).</summary>
-    public static string? DetailLabel(NeedsAttentionItem item) =>
-        item.Attempts is { } attempts ? $"{attempts} attempts" : item.Detail;
 
     /// <summary>What needs doing: the row's bold line.</summary>
     public static string RowTitle(NeedsAttentionItem item) => item.Kind switch

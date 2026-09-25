@@ -1,9 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Pegasus.Core.Cases;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
+
+/// <summary>The QDOS principal code, as seeded. A code, not a gate.</summary>
+internal static class QdosPrincipal
+{
+    public const string Code = "QDOS";
+}
 
 internal sealed record SeededPrincipalTestData(
     Guid Id,

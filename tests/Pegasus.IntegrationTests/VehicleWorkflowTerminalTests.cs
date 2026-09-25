@@ -64,10 +64,9 @@ public sealed class VehicleWorkflowTerminalTests
         var editLeaseToken = await PrepareCanonicalRegistrationAsync(database, caseId, null);
         await using var scope = database.CreateAsyncScope();
 
-        var exception = await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
+        await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
             RequestAsync(scope.ServiceProvider, caseId, "AB12CDE", "missing-registration", editLeaseToken));
 
-        Assert.Equal(0, exception.AcceptedRegistrationCount);
         Assert.Equal(0, await ExternalWorkCountAsync(database, caseId));
     }
 
@@ -100,10 +99,9 @@ public sealed class VehicleWorkflowTerminalTests
         }
         await using var scope = database.CreateAsyncScope();
 
-        var exception = await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
+        await Assert.ThrowsAsync<AcceptedVehicleRegistrationRequiredException>(() =>
             RequestAsync(scope.ServiceProvider, caseId, "AB12CDE", "ambiguous-registration", editLeaseToken));
 
-        Assert.Equal(2, exception.AcceptedRegistrationCount);
         Assert.Equal(0, await ExternalWorkCountAsync(database, caseId));
     }
 

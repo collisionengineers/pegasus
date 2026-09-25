@@ -169,7 +169,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 summary, workflow, null, [], null, CaseCustodyState.Pending, [], [])
             {
                 Data = Data(identity, workflow, includeConfirmedFacts, includePartialConfirmedFacts),
-                VehicleEvidence = new(caseId, confirmed, observation, [observation], []),
+                VehicleEvidence = new(caseId, confirmed, observation, [observation]),
             };
             return details;
         }

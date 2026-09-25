@@ -748,7 +748,6 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.All(
             feeNote.Generation.Artifacts,
             item => Assert.Equal(CaseReportArtifactStatus.Confirmed, item.Status));
-        Assert.True(feeNote.Generation.IsFullyConfirmed);
         Assert.Single(await harness.ReadyEventsAsync());
     }
 

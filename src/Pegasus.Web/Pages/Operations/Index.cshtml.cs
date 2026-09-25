@@ -41,9 +41,6 @@ public sealed class IndexModel(
     /// </summary>
     public IReadOnlyList<IntakeLogActionableFailure> FailedIntake { get; private set; } = [];
 
-    /// <summary>The failure kinds Operations lists, in the order it lists them.</summary>
-    public static readonly IReadOnlyList<IntakeLogOutcome> FailureKinds = IntakeLogPolicy.RetryableFailures;
-
     /// <summary>
     /// What one Unidentified-resolution job is asked to do. FRD-27 gives this
     /// kind "the U reference only" as its input, so the direction is fixed

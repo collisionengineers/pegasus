@@ -6,8 +6,7 @@
     Escape where safe, and focus return to the invoking control.
 
     Open it from any control carrying `data-dialog-open="<DialogId>"`; the
-    generalised [data-dialog] behaviour in site.js handles the rest (the
-    [data-reason-dialog] alias is kept for the pages that still bind on it).
+    generalised [data-dialog] behaviour in site.js handles the rest.
 *@
 @{
     var dialogId = ViewData["DialogId"] as string ?? "reasonModal";
@@ -21,7 +20,7 @@
     var reasonMaxLength = ViewData["DialogReasonMaxLength"] as int? ?? 500;
     var reason = ViewData["DialogReason"] as string ?? string.Empty;
 }
-<div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" data-reason-dialog hidden>
+<div id="@dialogId" class="dialog-backdrop" data-dialog="@dialogId" hidden>
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title">
         <div class="dialog-head">
             <h2 id="@(dialogId)_title" tabindex="-1">@title</h2>
@@ -51,7 +50,7 @@
                 </div>
             </div>
             <div class="dialog-foot">
-                <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                <button type="button" class="btn" data-dialog-close>Cancel</button>
                 <button type="submit" class="btn btn--primary">Confirm Action</button>
             </div>
         </form>
