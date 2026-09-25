@@ -2,9 +2,10 @@
     Original report (v28 P51): what an Audit audits — who wrote the original
     report, when, and what it found. Shown on an Audit Case only. The four
     cells are Case data (assessment fields under original_report.*), edited in
-    the page-wide session by anyone who may edit Case data; a filed original
-    report's extraction is the Stage 2 source for pre-filling them (ruled 20
-    September 2026, not yet wired).
+    the page-wide session by anyone who may edit Case data. A filed original
+    report fills the cells staff have not confirmed, when the Case is accepted
+    and when a document is marked as the original report, tagged Extracted
+    until a Save confirms them (Core's OriginalReportPrefillPolicy).
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Assessment

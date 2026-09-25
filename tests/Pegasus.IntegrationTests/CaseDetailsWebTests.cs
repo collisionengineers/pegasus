@@ -818,6 +818,7 @@ public sealed class CaseDetailsWebTests
     public async Task MarkingAFiledDocumentAsTheOriginalReportClearsTheRequirement()
     {
         var occurrenceId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
         var store = new RecordingCaseDetailsStore
         {
             SummaryCaseType = CaseType.Audit,
@@ -825,7 +826,7 @@ public sealed class CaseDetailsWebTests
             [
                 Document(
                     occurrenceId,
-                    Guid.NewGuid(),
+                    versionId,
                     "original-report.pdf",
                     "application/pdf")
             ]
@@ -847,11 +848,13 @@ public sealed class CaseDetailsWebTests
                 ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
                 ("operationKey", "mark-original-report"),
                 ("editLeaseToken", store.LeaseToken),
-                ("occurrenceId", occurrenceId.ToString("D"))));
+                ("occurrenceId", occurrenceId.ToString("D")),
+                ("versionId", versionId.ToString("D"))));
 
         AssertPrg(response, store.CaseId);
         var command = Assert.Single(store.OriginalReportMarks);
         Assert.Equal(occurrenceId, command.DocumentOccurrenceId);
+        Assert.Equal(versionId, command.DocumentVersionId);
         AssertClaimant(workspace, command.Actor);
         var after = await workspace.GetWorkspaceAsync();
         Assert.Contains("The original report was recorded.", after, StringComparison.Ordinal);
