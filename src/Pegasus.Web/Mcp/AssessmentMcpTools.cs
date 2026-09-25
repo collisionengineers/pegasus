@@ -395,7 +395,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records assessment fields that staff can also record on the Case, under the case edit lease and expected version. Values written by automation stay unconfirmed until a staff member saves the field's Case section, which confirms or clears them. Professional findings, case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts and fields with no staff editor on the Case are refused, naming the field. The optional workRequestId correlates the write with a Send to AI hand-off.")]
+    [Description("Records assessment fields that staff can also record on the Case, under the case edit lease and expected version. Values written by automation stay unconfirmed until a staff member saves the field's Case section, which confirms or clears them. Professional findings, case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field. The optional workRequestId correlates the write with a Send to AI hand-off.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -462,13 +462,15 @@ internal sealed class AssessmentMcpTools(
     /// <summary>
     /// Refuses a generic automation write staff could not confirm or clear on
     /// the Case (FRD-10): a professional finding, or a path with no staff
-    /// editor on the Case. Unknown, case-owned and derived paths fall through
-    /// to Core's NormalizeWritableField, which names each.
+    /// editor on the Case. Unknown, case-owned, impact-derived and
+    /// lookup-derived paths fall through to Core's NormalizeWritableField,
+    /// which names each.
     /// </summary>
     internal static void RequireGenericWrite(string path)
     {
         if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition)
-            || AssessmentVocabulary.DerivedPaths.Contains(path))
+            || AssessmentVocabulary.DerivedPaths.Contains(path)
+            || AssessmentVocabulary.LookupDerivedPaths.Contains(path))
         {
             return;
         }

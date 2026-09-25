@@ -245,7 +245,10 @@ public sealed class EfCaseDataStore(
         }
 
         var now = UtcNow();
+        var registrationBefore = CaseDataFieldWriter.Registration(snapshot);
         CaseDataFieldWriter.ApplyEditableData(context, snapshot, data, request.Actor, now);
+        await CaseDataFieldWriter.RemoveLookupFactsOnRegistrationChangeAsync(
+            context, snapshot, registrationBefore, cancellationToken);
         snapshot.CompletenessPolicySatisfied = false;
         if (isPrimary)
         {
@@ -735,6 +738,46 @@ internal static class CaseDataFieldWriter
         snapshot.ClaimSourceOverrideContactName = data.ClaimSourceOverrideContactName;
         snapshot.ClaimSourceOverrideContactTelephone = data.ClaimSourceOverrideContactTelephone;
         snapshot.ClaimSourceOverrideContactEmailAddress = data.ClaimSourceOverrideContactEmailAddress;
+    }
+
+    /// <summary>
+    /// The work's registration as the vehicle lookup reads it
+    /// (<see cref="EfVehicleWorkflowStore.CurrentRegistration"/>).
+    /// </summary>
+    public static string? Registration(CaseDataSnapshotEntity snapshot) =>
+        EfVehicleWorkflowStore.CurrentRegistration(
+            snapshot.Fields
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration)
+                .Select(item => (item.ValueKind, item.Value)));
+
+    /// <summary>
+    /// The facts only the vehicle lookup records
+    /// (<see cref="Pegasus.Core.Assessment.AssessmentVocabulary.LookupDerivedPaths"/>)
+    /// describe the vehicle it looked up. A save that changed the work's
+    /// registration from <paramref name="registrationBefore"/> removes them in
+    /// its own transaction, so the registration it now names never inherits
+    /// the previous vehicle's facts; a lookup of that registration records them
+    /// again. Returns the removed rows. A report that printed them is staled by
+    /// the save's own freshness check, because the registration it printed
+    /// changed too.
+    /// </summary>
+    public static async Task<IReadOnlyList<CaseAssessmentFieldEntity>> RemoveLookupFactsOnRegistrationChangeAsync(
+        PegasusDbContext context,
+        CaseDataSnapshotEntity snapshot,
+        string? registrationBefore,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(Registration(snapshot), registrationBefore, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        string[] paths = [.. Pegasus.Core.Assessment.AssessmentVocabulary.LookupDerivedPaths];
+        var facts = await context.CaseAssessmentFields
+            .Where(item => item.WorkId == snapshot.WorkId && paths.Contains(item.FieldPath))
+            .ToListAsync(cancellationToken);
+        context.CaseAssessmentFields.RemoveRange(facts);
+        return facts;
     }
 
     public static CaseEditableData ReadEditable(CaseDataSnapshotEntity snapshot) => new(

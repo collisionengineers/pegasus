@@ -191,7 +191,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260923120000_StaffAccountDeletionRuntimePermissions",
                 "20260923180000_ValuationCardFiguresOptional",
                 "20260924090000_IntakeAssetBoxParentFolder",
-                "20260924180000_CaseWorksAndTriageCases"
+                "20260924180000_CaseWorksAndTriageCases",
+                "20260925090000_VehicleLookupDerivedFacts"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

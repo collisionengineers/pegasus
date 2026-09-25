@@ -36,6 +36,11 @@ public sealed record VehicleLookupRequest
     public string Registration { get; }
 }
 
+/// <summary>
+/// One provider's description of the vehicle. <paramref name="Colour"/> is DVLA
+/// VES <c>colour</c>, else DVSA MOT History <c>primaryColour</c>;
+/// <paramref name="TaxDueDate"/> is DVLA VES <c>taxDueDate</c>.
+/// </summary>
 public sealed record VehicleDetails(
     string? Make,
     string? Model,
@@ -44,7 +49,9 @@ public sealed record VehicleDetails(
     string? FuelType,
     string? TypeApproval = null,
     string? Wheelplan = null,
-    int? RevenueWeightKg = null);
+    int? RevenueWeightKg = null,
+    string? Colour = null,
+    DateOnly? TaxDueDate = null);
 
 public sealed record MotTestObservation(
     DateOnly TestDate,
@@ -56,7 +63,22 @@ public sealed record MotTestObservation(
 public sealed record VehicleLookupFailure(
     string Code,
     bool Retryable,
-    TimeSpan? RetryAfter = null);
+    TimeSpan? RetryAfter = null)
+{
+    /// <summary>
+    /// DVLA holds no such vehicle while DVSA described it. It rides in the
+    /// failure slot of a partial answer, but it is DVLA's definite reply, not
+    /// its silence.
+    /// </summary>
+    public const string DvlaNotFound = "dvla_not_found";
+
+    /// <summary>
+    /// DVSA holds no MOT history for the vehicle while DVLA described it. It
+    /// rides in the failure slot of a partial answer, but it is DVSA's
+    /// definite reply, not its silence.
+    /// </summary>
+    public const string DvsaNotFound = "dvsa_not_found";
+}
 
 public sealed record VehicleLookupResult(
     string Registration,
@@ -154,6 +176,7 @@ public sealed record VehicleLookupResult(
             && ((vehicle.Make is not null && string.IsNullOrWhiteSpace(vehicle.Make))
                 || (vehicle.Model is not null && string.IsNullOrWhiteSpace(vehicle.Model))
                 || (vehicle.FuelType is not null && string.IsNullOrWhiteSpace(vehicle.FuelType))
+                || (vehicle.Colour is not null && string.IsNullOrWhiteSpace(vehicle.Colour))
                 || (vehicle.TypeApproval is not null && string.IsNullOrWhiteSpace(vehicle.TypeApproval))
                 || (vehicle.Wheelplan is not null && string.IsNullOrWhiteSpace(vehicle.Wheelplan))
                 || vehicle.ManufactureYear is <= 0

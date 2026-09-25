@@ -481,7 +481,7 @@
             @* The valuation commentary itself, beside the switch that prints it:
                the Engineer's words, frozen into the report when the switch is on. *@
             @{ await Field(AssessmentVocabulary.ReportValuationCommentaryText, Words.ValuationCommentary, multi: true, extraClass: "span4"); }
-            <div class="fc ro span4"><span class="lbl">@EngineerLabels.StatementOfTruth</span><div class="fv derived multi @(Model.AssessmentIsAbsent(AssessmentVocabulary.StatementOfTruth) ? "empty" : null)">@Model.AssessmentDisplay(AssessmentVocabulary.StatementOfTruth)</div></div>
+            <div class="fc ro span4"><span class="lbl">@EngineerLabels.StatementOfTruth</span><div class="fv derived multi @(Model.StatementOfTruth.Count == 0 ? "empty" : null)">@(Model.StatementOfTruth.Count == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : string.Join("\n\n", Model.StatementOfTruth))</div></div>
         </div>
 
         @* P30: the report's narrative, in print order. Each block tracks its

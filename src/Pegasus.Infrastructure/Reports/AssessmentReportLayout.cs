@@ -268,7 +268,7 @@ internal static class AssessmentReportLayout
         column.Item().PageBreak();
         Section(column, "Statement of Truth", section =>
         {
-            foreach (var paragraph in StatementOfTruth(snapshot))
+            foreach (var paragraph in snapshot.StatementOfTruth)
             {
                 Paragraph(section, paragraph);
             }
@@ -762,12 +762,10 @@ internal static class AssessmentReportLayout
         ("Model", snapshot.Vehicle.Model), ("VIN", snapshot.Vehicle.Vin ?? "—"),
         ("Odometer", snapshot.Vehicle.MileageDescription),
         ("Engine / Fuel", Join(" · ", snapshot.Vehicle.Engine, snapshot.Vehicle.Fuel)),
-        ("VIN Checked", Flag(snapshot.Vehicle.VinChecked)),
         ("Transmission", snapshot.Vehicle.Transmission ?? "—"),
         ("Colour / Body", Join(" · ", snapshot.Vehicle.Colour, snapshot.Vehicle.Body)),
         ("Tax Expiry", Date(snapshot.Vehicle.TaxExpiry)), ("MOT Expiry", Date(snapshot.Vehicle.MotExpiry)),
         ("Airbags Deployed", snapshot.Vehicle.AirbagsDeployed ?? "—"),
-        ("Fault Codes", snapshot.Vehicle.FaultCodes ?? "—"),
         ("Temporary Repairs Possible", Flag(snapshot.Vehicle.TemporaryRepairsPossible)),
         ("Temporary Repair Method", snapshot.Vehicle.TemporaryRepairMethod ?? "—"),
         ("Temporary Repair Cost", OptionalMoney(snapshot.Vehicle.TemporaryRepairCost)),
@@ -848,25 +846,6 @@ internal static class AssessmentReportLayout
             ? "Image Based Assessment"
             : snapshot.LocationAddress!;
         return $"In accordance with your instructions received on {Date(snapshot.InstructionsReceived)} requesting us to provide an independent accident damage report, we assessed the damage on {Date(snapshot.Assessed)}. Vehicle located at: {location}. Our findings are as detailed below.";
-    }
-
-    /// <summary>
-    /// The accepted statement of truth, source-aware. The Glass's sentence is
-    /// printed only when the operator turned "Disclose guide source" on and a
-    /// Glass's valuation guide was actually used; otherwise it is omitted. No
-    /// substitute sentence is written — the approved v3 specification supplies
-    /// none (H5), and it names no other guide.
-    /// </summary>
-    private static IEnumerable<string> StatementOfTruth(AssessmentReportSnapshot snapshot)
-    {
-        yield return AssessmentReportContract.StatementOfTruth1;
-        yield return AssessmentReportContract.StatementOfTruth2;
-        if (snapshot.PrintsGuideDisclosure)
-        {
-            yield return AssessmentReportContract.StatementOfTruthGuide;
-        }
-        yield return AssessmentReportContract.StatementOfTruth3;
-        yield return AssessmentReportContract.StatementOfTruth4;
     }
 
     private static string Display(string value) =>
