@@ -511,15 +511,6 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|ProblemReports')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|ProblemReports')
-    # 20260913200000_CaseFieldProposals: the AI's proposed value per decision field,
-    # kept so Settlement can show Awaiting, Accepted or Corrected. Web and Worker
-    # both record and resolve proposals; neither deletes them.
-    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
-        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-            $expected.Add("$role|G|$permission|CaseFieldProposals")
-        }
-        $expected.Add("$role|D|DELETE|CaseFieldProposals")
-    }
     # 20260921090527_ReportWordingBlocks: the Engineer's changes to the report's
     # narrative blocks (v28 P30). Web writes them with the Case save, the Worker
     # reads them when it renders a report, and nothing deletes one.

@@ -74,13 +74,13 @@ public sealed class ReportRequirementOwnershipTests
             // One missing fact, one blocker.
             var item = Assert.Single(items);
             var writers = new List<string>();
-            if (CaseWorkspaceLabels.Editors.IsStaffConfirmable(path))
+            if (CaseWorkspaceLabels.Editors.HasStaffEditor(path))
             {
                 writers.Add("its Case section");
             }
             // AssessmentWriteSet derives these from the damage impacts.
             if (AssessmentVocabulary.DerivedPaths.Contains(path)
-                && CaseWorkspaceLabels.Editors.IsStaffConfirmable(AssessmentVocabulary.DamageImpacts))
+                && CaseWorkspaceLabels.Editors.HasStaffEditor(AssessmentVocabulary.DamageImpacts))
             {
                 writers.Add("the damage derivation");
             }
@@ -164,7 +164,7 @@ public sealed class ReportRequirementOwnershipTests
             }
 
             var automationWrites = AutomationRefusal(path) is null;
-            var staffConfirmOrClear = !definition.IsFinding && CaseWorkspaceLabels.Editors.IsStaffConfirmable(path);
+            var staffConfirmOrClear = !definition.IsFinding && CaseWorkspaceLabels.Editors.HasStaffEditor(path);
             if (automationWrites != staffConfirmOrClear)
             {
                 failures.Add(automationWrites
@@ -218,7 +218,6 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(AssessmentVocabulary.VehicleTemporaryRepairsPossible, null, null, "settlement")]
     [InlineData(AssessmentVocabulary.VehicleTemporaryRepairMethod, null, null, "settlement")]
     [InlineData(AssessmentVocabulary.VehicleTemporaryRepairCost, null, null, "settlement")]
-    [InlineData(null, 3, null, "estimate")]
     [InlineData(null, null, CaseReportReadiness.SignatoryRequirement, "overview")]
     [InlineData(null, null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
     [InlineData(null, null, CaseReportReadiness.LabourRateRequirement, "estimate")]
@@ -226,10 +225,11 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(null, null, CaseReportReadiness.OverviewImageRequirement, "files")]
     [InlineData(null, null, CaseReportReadiness.ImageSourceRequirement, "files")]
     public void BlockerSectionMapsEachBlockerToTheSectionThatClearsIt(
-        string? field, int? estimateLine, string? requirement, string? section)
+        string? field, int? unused, string? requirement, string? section)
     {
+        _ = unused;
         var item = new AssessmentReadinessItem(
-            requirement ?? "Requirement", "Source", "Why outstanding", "How to resolve", field, estimateLine);
+            requirement ?? "Requirement", "Source", "Why outstanding", "How to resolve", field);
 
         Assert.Equal(section, CaseWorkspaceLabels.Report.BlockerSection(item));
     }
@@ -259,7 +259,7 @@ public sealed class ReportRequirementOwnershipTests
             Assert.DoesNotContain(path, AssessmentVocabulary.DerivedPaths);
             Assert.DoesNotContain(path, AssessmentVocabulary.AdoptedFindingPaths);
             Assert.DoesNotContain(path, AssessmentVocabulary.CaseOwnedPaths);
-            Assert.False(CaseWorkspaceLabels.Editors.IsStaffConfirmable(path));
+            Assert.False(CaseWorkspaceLabels.Editors.HasStaffEditor(path));
             // MCP lets the path through, so Core's field save names the refusal.
             Assert.Null(AutomationRefusal(path));
             var refusal = Assert.Throws<InvalidOperationException>(() =>
@@ -271,8 +271,7 @@ public sealed class ReportRequirementOwnershipTests
 
     /// <summary>
     /// The blocker links a section the Case record has, and its resolution
-    /// names that section. An unconfirmed value's resolution says "its Case
-    /// section": the link is what names it.
+    /// names that section.
     /// </summary>
     private static void AssertLinks(AssessmentReadinessItem item)
     {
@@ -281,10 +280,6 @@ public sealed class ReportRequirementOwnershipTests
         Assert.True(
             section is not null,
             $"'{item.Requirement}' links {key ?? "no section"}, which is not a section of the Case record.");
-        if (item.Requirement.EndsWith(" awaits review", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         var label = section!.Label;
         Assert.True(
@@ -335,25 +330,6 @@ public sealed class ReportRequirementOwnershipTests
             (AssessmentVocabulary.ReportValuationCommentaryText, null),
             (AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),
             (AssessmentVocabulary.DamageUnrelated, null)));
-        yield return NothingElseRecorded(complete with
-        {
-            Fields =
-            [
-                .. complete.Fields.Where(field => field.Path != AssessmentVocabulary.VehicleCondition),
-                new AssessmentFieldValue(
-                    AssessmentVocabulary.VehicleCondition, "good", ActorKind.Automation, "automation",
-                    RecordedAtUtc, null, null)
-            ]
-        });
-        yield return NothingElseRecorded(complete with
-        {
-            EstimateLines =
-            [
-                new CaseEstimateLineRecord(
-                    Guid.NewGuid(), 3, "repair", null, "Nearside door", 2.5m, null, false, null, null,
-                    null, null, null, ActorKind.Automation, "automation", RecordedAtUtc, null, null)
-            ]
-        });
         yield return NothingElseRecorded(complete) with
         {
             CurrentEstimate = new RepairSpecificationVersion(
@@ -402,7 +378,7 @@ public sealed class ReportRequirementOwnershipTests
         null,
         [
             .. AssessmentVocabulary.Definitions.Values.Select(
-                definition => Confirmed(definition.Path, CompleteValue(definition)))
+                definition => Recorded(definition.Path, CompleteValue(definition)))
         ],
         [],
         CompleteCaseOwned);
@@ -435,12 +411,12 @@ public sealed class ReportRequirementOwnershipTests
                 .. projection.Fields.Where(field => !changes.Any(change => change.Path == field.Path)),
                 .. changes
                     .Where(change => change.Value is not null)
-                    .Select(change => Confirmed(change.Path, change.Value!))
+                    .Select(change => Recorded(change.Path, change.Value!))
             ]
         };
 
-    private static AssessmentFieldValue Confirmed(string path, string value) => new(
-        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc);
+    private static AssessmentFieldValue Recorded(string path, string value) => new(
+        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc);
 
     private static Exception? AutomationRefusal(string path) =>
         Record.Exception(() => AssessmentMcpTools.RequireGenericWrite(path));

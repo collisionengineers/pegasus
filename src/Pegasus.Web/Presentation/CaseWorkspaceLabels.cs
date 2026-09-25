@@ -114,7 +114,7 @@ public static class CaseWorkspaceLabels
     // The Case editor's assessment-field membership and labels. Types, allowed
     // codes and finding authority remain owned by AssessmentVocabulary and the
     // workspace command. The Automation MCP write reuses this membership
-    // (IsStaffConfirmable, FRD-10), so adding an editor here widens what
+    // (HasStaffEditor, FRD-10), so adding an editor here widens what
     // automation may write.
     public static class Editors
     {
@@ -225,12 +225,12 @@ public static class CaseWorkspaceLabels
             || path == AssessmentVocabulary.VehicleCondition;
 
         /// <summary>
-        /// Every assessment path a staff member records, and so confirms or
-        /// clears, through the Case editor: the editor fields above and the
+        /// Every assessment path a staff member records, and so can change or
+        /// clear, through the Case editor: the editor fields above and the
         /// paths a section writes through its own typed member.
         /// pegasus_assessment_update accepts only these (FRD-10).
         /// </summary>
-        public static bool IsStaffConfirmable(string path) =>
+        public static bool HasStaffEditor(string path) =>
             IsAssessmentField(path) || CaseWorkspacePolicy.TypedPaths.Contains(path);
 
         /// <summary>
@@ -325,16 +325,11 @@ public static class CaseWorkspaceLabels
 
     /// <summary>
     /// The Settlement section's own words (v26 § Settlement): the figures
-    /// strip, the Decisions strip and its proposal column.
+    /// strip and the Decisions strip.
     /// </summary>
     public static class Settlement
     {
         public const string Decisions = "Decisions";
-        public const string Awaiting = "Awaiting";
-        public const string Accepted = "Accepted";
-        public const string Corrected = "Corrected";
-        public const string Accept = "Accept";
-        public const string AcceptAll = "Accept all";
         public const string SetInValuation = "Set in Valuation";
         public const string ValuationLink = "Valuation";
         public const string EngineersValue = "Engineer's Value";
@@ -351,8 +346,6 @@ public static class CaseWorkspaceLabels
         public const string CostsHireDelays = "Costs, hire & delays";
         public const string Salvage = "Salvage";
         public const string StorageCharge = "Storage charge";
-        public const string AwaitingReview = "awaiting review";
-        public const string AiProposal = "AI proposal";
         public const string NotApplicable = "Not applicable";
         public const string ComputedRepairReserve = "Repair reserve (computed)";
         public const string RoundedUpToFifty = "repair cost rounded up to the next \u00a350";
@@ -395,7 +388,6 @@ public static class CaseWorkspaceLabels
         public static string? BlockerSection(AssessmentReadinessItem item) => item switch
         {
             { Field: { } field } => Editors.SectionOf(field),
-            { EstimateLine: not null } => "estimate",
             { Requirement: CaseReportReadiness.SignatoryRequirement } => "overview",
             { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
             {

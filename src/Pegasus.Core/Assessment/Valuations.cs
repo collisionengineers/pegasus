@@ -235,7 +235,7 @@ public static class ValuationPolicy
         }
         if (details.Source == ValuationSource.EngineersValue)
         {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(actor);
+            AssessmentPolicy.RequireFindingAuthority(actor);
         }
     }
 

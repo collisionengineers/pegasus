@@ -99,7 +99,6 @@ public sealed partial class DetailsModel(
     IListValuationPresets listValuationPresets,
     IPreviewValuationCalculation previewValuation,
     IListAppliedValuations listAppliedValuations,
-    ICaseFieldProposalQueries fieldProposals,
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
@@ -144,12 +143,6 @@ public sealed partial class DetailsModel(
     /// without another request.
     /// </summary>
     public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
-
-    /// <summary>
-    /// The recorded AI proposals on the Settlement decision fields, one per
-    /// field, with their derived Awaiting / Accepted / Corrected status.
-    /// </summary>
-    public IReadOnlyList<CaseFieldProposal> Proposals { get; private set; } = [];
 
     /// <summary>
     /// "is-collapsed" when this browser folded the panel <paramref name="collapseKey"/>
@@ -450,8 +443,6 @@ public sealed partial class DetailsModel(
                     ActorKind.Staff,
                     SelectedEstimate?.CreatedBy ?? string.Empty,
                     DateTimeOffset.UtcNow,
-                    null,
-                    null,
                     ParseNumber(line.PaintHours),
                     string.IsNullOrWhiteSpace(line.Quantity)
                         ? null
@@ -499,7 +490,7 @@ public sealed partial class DetailsModel(
     }
 
     public decimal? EngineerValue =>
-        Assessment?.Field(AssessmentVocabulary.ValueEngineer) is { IsConfirmed: true } engineerValue
+        Assessment?.Field(AssessmentVocabulary.ValueEngineer) is { } engineerValue
             && decimal.TryParse(
                 engineerValue.Value,
                 NumberStyles.Number,
@@ -900,10 +891,6 @@ public sealed partial class DetailsModel(
                 {
                     ClaimSourceChoices = await contactDirectory.ListByRoleAsync(
                         actor, ContactRole.ClaimSource, cancellationToken);
-                }
-                if (!SectionIsDeferred("settlement"))
-                {
-                    Proposals = await fieldProposals.ListForCaseAsync(id, WorkSelector, cancellationToken);
                 }
                 if (!SectionIsDeferred("inspection"))
                 {
@@ -1623,8 +1610,7 @@ public sealed partial class DetailsModel(
                 }
                 var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
                 var assessment = workspace?.Assessment;
-                string? Recorded(string path) => assessment?.Field(path) is { IsConfirmed: true } field
-                    ? field.Value : null;
+                string? Recorded(string path) => assessment?.Field(path)?.Value;
                 decimal? Money(string path) => decimal.TryParse(Recorded(path), NumberStyles.Number,
                     CultureInfo.InvariantCulture, out var value) ? value : null;
                 var persisted = data.Workspace;
@@ -1652,15 +1638,9 @@ public sealed partial class DetailsModel(
                 originalUnit = mileageValue is null ? null : originalUnit ?? CaseOdometerUnit.Miles;
                 var reportFields = assessmentFields.Where(field => EditorLabels.Report.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
-                // A decision's AI proposal awaiting review leaves its control
-                // empty (it shows in the Proposed column, ShownAssessment), so
-                // posting that empty control is "not decided yet", never a
-                // clear of the proposal. Every other control opens holding its
-                // value, so emptying it clears it.
+                // Every control opens holding its value, so emptying it clears it.
                 var settlementFields = assessmentFields
-                    .Where(field => (EditorLabels.Settlement.ContainsKey(field.Key) || EditorLabels.OriginalReport.ContainsKey(field.Key))
-                        && !(string.IsNullOrWhiteSpace(field.Value)
-                            && assessment?.Field(field.Key) is { } recorded && AwaitsReview(recorded)))
+                    .Where(field => EditorLabels.Settlement.ContainsKey(field.Key) || EditorLabels.OriginalReport.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 AssessmentPolicy.RequireOriginalReportScope(
                     settlementFields.Keys,
@@ -2780,7 +2760,7 @@ public sealed partial class DetailsModel(
             [.. lines.Select((line, index) => new CaseEstimateLineRecord(
                 Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
                 line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel, line.Justification,
-                ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow, null, null,
+                ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow,
                 line.PaintWorkUnits, line.Quantity, line.Materials))],
             null, string.Empty, DateTimeOffset.UtcNow, null, null, null, null, details);
         var diff = RepairSpecificationComparison.Compare(baseSpecification, provisional);

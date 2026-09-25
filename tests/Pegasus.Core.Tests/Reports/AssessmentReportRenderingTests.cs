@@ -442,7 +442,7 @@ public sealed class AssessmentReportRenderingTests
         int position, string type, string description, decimal? workUnits, decimal? price) => new(
             Guid.NewGuid(), position, type, null, description, workUnits, price, false, null, null,
             "confirmed", "case", "Test evidence",
-            ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, Quantity: 1);
+            ActorKind.Staff, "engineer-1", RecordedAtUtc, Quantity: 1);
 
     internal static ReportDamage Damage() => new(
         [new("RH Rear", "Moderate", "Quarter panel", ["right_rear"])],

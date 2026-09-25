@@ -103,7 +103,7 @@ A named non-human principal that performs one explicitly authorised Pegasus acti
 _Avoid_: Service account, staff impersonation, background task
 
 **Send to AI**:
-The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed unconfirmed working-data writes through Core. It never confirms professional findings or sends outward correspondence. AiWork push and AiJobs pull remain distinct accepted transports.
+The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed writes through Core, each the Case's value shown with its AI source tag. It never records professional findings or sends outward correspondence. AiWork push and AiJobs pull remain distinct accepted transports.
 _Avoid_: Send to Claude, AI assessment, automatic report
 
 **First sent to Engineer**:

@@ -326,7 +326,6 @@ public sealed class CaseReportGenerationTests
         {
             var material = Assert.Single(reasons, item => item.Requirement == requirement);
             Assert.Null(material.Field);
-            Assert.Null(material.EstimateLine);
         }
     }
 
@@ -848,7 +847,7 @@ public sealed class CaseReportGenerationTests
         new([.. occurrenceId.ToByteArray().Select(value => (byte)(value ^ 0x22))]);
 
     private static AssessmentFieldValue Field(string path, string value) => new(
-        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc);
+        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc);
 
     private sealed class FakeStore : ICaseReportGenerationStore
     {

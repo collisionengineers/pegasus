@@ -19,17 +19,12 @@ internal static class AssessmentModelConfiguration
                 table.HasCheckConstraint(
                     "CK_CaseAssessmentFields_RecordedByKind",
                     "[RecordedByKind] IN ('Staff', 'Automation')");
-                table.HasCheckConstraint(
-                    "CK_CaseAssessmentFields_Confirmation",
-                    "([ConfirmedBy] IS NULL AND [ConfirmedAtUtc] IS NULL) OR "
-                    + "([ConfirmedBy] IS NOT NULL AND [ConfirmedAtUtc] IS NOT NULL)");
             });
             entity.HasKey(item => new { item.WorkId, item.FieldPath });
             entity.Property(item => item.FieldPath).HasMaxLength(60).IsRequired();
             entity.Property(item => item.Value).HasMaxLength(4000).IsRequired();
             entity.Property(item => item.RecordedByKind).HasMaxLength(20).IsRequired();
             entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();
-            entity.Property(item => item.ConfirmedBy).HasMaxLength(200);
             entity.HasIndex(item => item.FieldPath);
             entity.HasOne(item => item.Work)
                 .WithMany()
@@ -85,7 +80,6 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.AmendedBy).HasMaxLength(200);
             entity.Property(item => item.RecordedByKind).HasMaxLength(20).IsRequired();
             entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();
-            entity.Property(item => item.ConfirmedBy).HasMaxLength(200);
             entity.HasIndex(item => new { item.RepairSpecificationId, item.Position })
                 .IsUnique()
                 .HasFilter("[RepairSpecificationId] IS NOT NULL");

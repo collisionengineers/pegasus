@@ -8,8 +8,8 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Settlement and Report sections' read helpers (v26 § Settlement,
-/// § Report): how an assessment value prints, which decision rows carry an
-/// AI proposal, the figures strip, and the report's title and content line.
+/// § Report): how an assessment value prints, the figures strip, and the
+/// report's title and content line.
 /// Values only — every rule they read belongs to the vocabulary or the
 /// report projection.
 /// </summary>
@@ -29,19 +29,11 @@ public sealed partial class DetailsModel
 
     /// <summary>
     /// The recorded value a field's box and its control both show, reading and
-    /// editing alike (operator, 23 September 2026): the value as recorded, with
-    /// its source tag — a staff Save of it is how an Engineer confirms it —
-    /// except an AI proposal on a decision field still awaiting review, which
-    /// is not yet the decision: it shows in the Decisions strip's Proposed
-    /// column with its Accept instead.
+    /// editing alike (operator, 23 September 2026): the value as recorded,
+    /// with its source tag. A recorded value is the Case's value whoever
+    /// recorded it (operator, 25 September 2026).
     /// </summary>
-    public AssessmentFieldValue? ShownAssessment(string path) =>
-        Assessment?.Field(path) is { } field && !AwaitsReview(field) ? field : null;
-
-    /// <summary>A decision's AI proposal still awaiting review: not yet the decision.</summary>
-    public static bool AwaitsReview(AssessmentFieldValue field) =>
-        field is { RecordedByKind: ActorKind.Automation, IsConfirmed: false }
-        && CaseFieldProposalPolicy.DecisionPaths.Contains(field.Path);
+    public AssessmentFieldValue? ShownAssessment(string path) => Assessment?.Field(path);
 
     /// <summary>Whether the value shown at <paramref name="path"/> is absent.</summary>
     public bool AssessmentIsAbsent(string path) =>
@@ -104,54 +96,6 @@ public sealed partial class DetailsModel
     }
 
     public static string FormatPounds(decimal value) => "£" + value.ToString("N2", Pounds);
-
-    /// <summary>
-    /// The AI's proposal for a decision field with its derived status: the
-    /// recorded proposal row when there is one; otherwise, for a value the
-    /// Automation actor wrote before proposals were recorded and no member of
-    /// staff has confirmed, that value as Awaiting. Null when nothing was
-    /// proposed.
-    /// </summary>
-    public CaseFieldProposal? ProposalFor(string path)
-    {
-        if (Proposals.FirstOrDefault(proposal => string.Equals(proposal.FieldPath, path, StringComparison.Ordinal)) is { } recorded)
-        {
-            return recorded;
-        }
-
-        return CaseFieldProposalPolicy.DecisionPaths.Contains(path)
-            && Assessment?.Field(path) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false } field
-            ? new CaseFieldProposal(path, field.Value, field.RecordedBy, field.RecordedAtUtc, CaseFieldProposalStatus.Awaiting, null, null)
-            : null;
-    }
-
-    /// <summary>The proposed value while it still awaits a person's decision, else null.</summary>
-    public string? ProposedDecision(string path) =>
-        ProposalFor(path) is { Status: CaseFieldProposalStatus.Awaiting } proposal ? proposal.ProposedValue : null;
-
-    /// <summary>Whether any decision row carries a proposal in any status, which is what draws the Proposed column.</summary>
-    public bool HasProposedDecisions => DecisionPaths.Append(AssessmentVocabulary.UnroadworthyReason)
-        .Any(path => ProposalFor(path) is not null);
-
-    /// <summary>The rows still awaiting a person's decision.</summary>
-    public int AwaitingDecisionCount => DecisionPaths.Append(AssessmentVocabulary.UnroadworthyReason)
-        .Count(path => ProposedDecision(path) is not null);
-
-    /// <summary>The status word a proposal reads with.</summary>
-    public static string ProposalStatusWord(CaseFieldProposalStatus status) => status switch
-    {
-        CaseFieldProposalStatus.Accepted => CaseWorkspaceLabels.Settlement.Accepted,
-        CaseFieldProposalStatus.Corrected => CaseWorkspaceLabels.Settlement.Corrected,
-        _ => CaseWorkspaceLabels.Settlement.Awaiting
-    };
-
-    /// <summary>The status chip's colour: amber waits, green accepted, blue corrected.</summary>
-    public static string ProposalStatusClass(CaseFieldProposalStatus status) => status switch
-    {
-        CaseFieldProposalStatus.Accepted => "status--green",
-        CaseFieldProposalStatus.Corrected => "status--blue",
-        _ => "status--amber"
-    };
 
     /// <summary>The agreed fee as a figure, if one is recorded.</summary>
     public decimal? AgreedFeeFigure =>

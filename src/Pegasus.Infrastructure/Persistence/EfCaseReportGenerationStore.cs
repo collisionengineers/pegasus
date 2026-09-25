@@ -866,9 +866,7 @@ public sealed class EfCaseReportGenerationStore(
                 Value = value,
                 RecordedByKind = request.Actor.Kind.ToString(),
                 RecordedBy = request.Actor.SubjectId,
-                RecordedAtUtc = now,
-                ConfirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null,
-                ConfirmedAtUtc = request.Actor.Kind == ActorKind.Staff ? now : null,
+                RecordedAtUtc = now
             });
             return;
         }
@@ -876,11 +874,6 @@ public sealed class EfCaseReportGenerationStore(
         existing.RecordedByKind = request.Actor.Kind.ToString();
         existing.RecordedBy = request.Actor.SubjectId;
         existing.RecordedAtUtc = now;
-        if (request.Actor.Kind == ActorKind.Staff)
-        {
-            existing.ConfirmedBy = request.Actor.SubjectId;
-            existing.ConfirmedAtUtc = now;
-        }
     }
 
     private static bool SignatoryMatches(

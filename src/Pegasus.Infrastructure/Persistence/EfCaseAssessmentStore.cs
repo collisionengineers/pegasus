@@ -18,8 +18,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// the case workflow event stream, optimistic case version, the server-owned
 /// edit lease, and the same three history records (workflow event, permanent
 /// action history with before/after values, case history). An Automation
-/// save differs from a staff save only in the stored provenance: its values
-/// carry the unconfirmed mark until staff review.
+/// save differs from a staff save only in the stored provenance.
 /// </summary>
 public sealed class EfCaseAssessmentStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -157,7 +156,6 @@ public sealed class EfCaseAssessmentStore(
 
         var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields, request.Actor.Kind);
         AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);
-        var confirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null;
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
             workId,
@@ -305,9 +303,7 @@ public sealed class EfCaseAssessmentStore(
                 item.Value,
                 ParseActorKind(item.RecordedByKind),
                 item.RecordedBy,
-                item.RecordedAtUtc,
-                item.ConfirmedBy,
-                item.ConfirmedAtUtc))
+                item.RecordedAtUtc))
             .ToArray(),
         lines.Select(item => new CaseEstimateLineRecord(
                 item.Id,
@@ -326,8 +322,6 @@ public sealed class EfCaseAssessmentStore(
                 ParseActorKind(item.RecordedByKind),
                 item.RecordedBy,
                 item.RecordedAtUtc,
-                item.ConfirmedBy,
-                item.ConfirmedAtUtc,
                 item.PaintWorkUnits,
                 item.Quantity))
             .ToArray(),
@@ -383,11 +377,8 @@ public sealed class EfCaseAssessmentStore(
         var mileageSource = CaseVehicleMileageSourcePolicy.Resolve(
             mileageField is null ? null : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind),
             mileageField is not null,
-            // Only a confirmed pick counts, which is the same row the Case
-            // record reads: an unconfirmed draft must not reach the report.
             assessmentFields
-                .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource
-                    && item.ConfirmedAtUtc is not null)
+                .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource)
                 ?.Value);
         // The Case's Received date (CaseDataPolicy.ReceivedDate); the report
         // prints it as the date instructions were received.

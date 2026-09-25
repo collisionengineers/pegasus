@@ -293,7 +293,7 @@ public sealed class RepairSpecificationActTests
         string type, decimal? workUnits = null, decimal? paintWorkUnits = null,
         decimal? price = null, int? quantity = null, decimal? materials = null) => new(
         Guid.NewGuid(), 1, type, null, "Line", workUnits, price, false, null, null, null, null, null,
-        ActorKind.Staff, Engineer.SubjectId, Now, Engineer.SubjectId, Now,
+        ActorKind.Staff, Engineer.SubjectId, Now,
         paintWorkUnits, quantity, materials);
 
     private static RepairSpecificationSnapshot Snapshot(
@@ -318,7 +318,7 @@ public sealed class RepairSpecificationActTests
                 Lines = [.. request.Lines.Select((line, index) => new CaseEstimateLineRecord(
                     Guid.NewGuid(), index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits,
                     line.Price, line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel,
-                    line.Justification, ActorKind.Staff, Engineer.SubjectId, Now, null, null,
+                    line.Justification, ActorKind.Staff, Engineer.SubjectId, Now,
                     line.PaintWorkUnits, line.Quantity, line.Materials))],
             });
         }
@@ -403,8 +403,6 @@ public sealed class RepairSpecificationActTests
                     engineerValue.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
                     Engineer.SubjectId,
-                    Now,
-                    Engineer.SubjectId,
                     Now),
             };
             if (contractSum is { } sum)
@@ -414,15 +412,11 @@ public sealed class RepairSpecificationActTests
                     "contract_repair",
                     ActorKind.Staff,
                     Engineer.SubjectId,
-                    Now,
-                    Engineer.SubjectId,
                     Now));
                 fields.Add(new(
                     AssessmentVocabulary.SettlementContractSum,
                     sum.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
-                    Engineer.SubjectId,
-                    Now,
                     Engineer.SubjectId,
                     Now));
             }

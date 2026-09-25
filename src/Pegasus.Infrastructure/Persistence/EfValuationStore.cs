@@ -453,7 +453,7 @@ public sealed class EfValuationStore(
         CaseValuationEntity saved,
         CancellationToken cancellationToken)
     {
-        AssessmentPolicy.RequireFindingConfirmationAuthority(actor);
+        AssessmentPolicy.RequireFindingAuthority(actor);
         if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
             || !AssessmentPolicy.IsWritableState(state))
         {
@@ -489,15 +489,14 @@ public sealed class EfValuationStore(
             value,
             ActorKind.Staff,
             recordedBy,
-            recordedAtUtc,
-            confirmedBy: recordedBy);
+            recordedAtUtc);
         return new(before, written.Value);
     }
 
     /// <summary>
     /// Writes the basis values an adoption records
     /// (<see cref="ValuationCalculationPolicy.AdoptedBasisFields"/>) as
-    /// confirmed staff findings through the one field writer, and removes one
+    /// staff findings through the one field writer, and removes one
     /// the basis card does not carry, so no figure from an earlier basis
     /// survives.
     /// </summary>
@@ -533,8 +532,7 @@ public sealed class EfValuationStore(
                     value,
                     ActorKind.Staff,
                     actor.SubjectId,
-                    now,
-                    confirmedBy: actor.SubjectId);
+                    now);
             }
             changes[path] = (before, value);
         }

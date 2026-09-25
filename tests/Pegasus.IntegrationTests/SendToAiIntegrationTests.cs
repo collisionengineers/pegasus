@@ -716,8 +716,6 @@ public sealed partial class SendToAiIntegrationTests
                     "9000",
                     ActorKind.Staff,
                     "engineer-1",
-                    DateTimeOffset.UtcNow,
-                    "engineer-1",
                     DateTimeOffset.UtcNow)
             ],
             [],

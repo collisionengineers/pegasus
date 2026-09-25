@@ -124,6 +124,6 @@ public sealed class OriginalReportPrefillPolicyTests
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]
-    public void AFillNeverLandsOnAStaffConfirmedCell(bool hasConfirmed, bool fills) =>
-        Assert.Equal(fills, OriginalReportPrefillPolicy.Fills(hasConfirmed));
+    public void AFillNeverLandsOnACellStaffRecorded(bool staffRecorded, bool fills) =>
+        Assert.Equal(fills, OriginalReportPrefillPolicy.Fills(staffRecorded));
 }

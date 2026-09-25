@@ -231,7 +231,7 @@ public interface IRestoreRepairSpecificationSnapshot
 }
 
 /// <summary>
-/// Apply (v28 P34): the target is derived from the confirmed Engineer's Value
+/// Apply (v28 P34): the target is derived from the Engineer's Value
 /// in the existing assessment projection. Persistence owns the single
 /// transaction that scales the saved draft and freezes both versions.
 /// </summary>
@@ -246,11 +246,11 @@ public sealed class ScaleRepairSpecification(
         RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         var projection = await assessment.GetAsync(request.CaseId, cancellationToken);
         var field = projection?.Field(AssessmentVocabulary.ValueEngineer);
-        if (field is not { IsConfirmed: true }
+        if (field is null
             || !decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var engineerValue)
             || engineerValue <= 0m)
         {
-            throw new InvalidOperationException("A confirmed Engineer's Value is required before scaling.");
+            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
         }
 
         var targetPercent = request.TargetPercentOfValue;

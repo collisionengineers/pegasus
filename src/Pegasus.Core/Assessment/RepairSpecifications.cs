@@ -184,10 +184,10 @@ public static class RepairSpecificationPolicy
         {
             throw new InvalidOperationException("Only a draft repair specification can be accepted.");
         }
-        if (specification.Lines.Count == 0 || specification.Lines.Any(line => !line.IsConfirmed))
+        if (specification.Lines.Count == 0)
         {
             throw new InvalidOperationException(
-                "Every accepted repair specification requires confirmed ordered lines.");
+                "Every accepted repair specification requires ordered lines.");
         }
         _ = ValidateSource(specification.Source);
         if (specification.CalculationBasis is null)
