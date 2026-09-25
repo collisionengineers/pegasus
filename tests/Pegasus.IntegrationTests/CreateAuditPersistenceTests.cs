@@ -404,7 +404,7 @@ public sealed class CreateAuditPersistenceTests
         var fee = Assert.Single(auditFields);
         Assert.Equal("assessment.fee", fee.FieldPath);
         Assert.Equal("150.00", fee.Value);
-        Assert.NotNull(fee.ConfirmedAtUtc);
+        Assert.Equal(nameof(ActorKind.Staff), fee.RecordedByKind);
 
         var sourceSpecifications = await context.CaseRepairSpecifications.AsNoTracking()
             .Include(item => item.Lines)
@@ -442,7 +442,6 @@ public sealed class CreateAuditPersistenceTests
         Assert.Equal(sourceLine.Price, line.Price);
 
         Assert.False(await context.CaseRepairSpecificationSnapshots.AnyAsync(item => item.WorkId == auditWorkId));
-        Assert.False(await context.CaseFieldProposals.AnyAsync(item => item.WorkId == auditWorkId));
 
         var guide = await context.CaseValuations.AsNoTracking().SingleAsync(item => item.WorkId == auditWorkId);
         Assert.NotEqual(harness.GuideValuationId, guide.Id);
@@ -826,14 +825,6 @@ public sealed class CreateAuditPersistenceTests
                     UpdatedBy = engineerId.ToString("D"),
                     UpdatedAtUtc = now.AddDays(-4)
                 });
-                context.CaseFieldProposals.Add(new CaseFieldProposalEntity
-                {
-                    WorkId = caseId,
-                    FieldPath = "assessment.outcome",
-                    ProposedValue = "repairable",
-                    ProposedBy = "automation",
-                    ProposedAtUtc = now.AddDays(-4)
-                });
                 await context.SaveChangesAsync();
             }
 
@@ -872,9 +863,7 @@ public sealed class CreateAuditPersistenceTests
                 Value = "150.00",
                 RecordedByKind = "Staff",
                 RecordedBy = staff,
-                RecordedAtUtc = now.AddDays(-4),
-                ConfirmedBy = staff,
-                ConfirmedAtUtc = now.AddDays(-4)
+                RecordedAtUtc = now.AddDays(-4)
             });
         }
 

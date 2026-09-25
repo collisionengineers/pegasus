@@ -606,7 +606,7 @@ public static class EstimatePolicy
     /// same order, no line amended, the same header and the same supplementary
     /// statement. The one Case Save posts the whole editor every time, so an
     /// estimate nobody touched is left as it is rather than rewritten — which
-    /// would confirm its unconfirmed lines and stale a report it pinned.
+    /// would restamp its lines' provenance and stale a report it pinned.
     /// </summary>
     public static bool IsUnchanged(SaveEstimateRequest evidenced, RepairSpecificationVersion? existing)
     {

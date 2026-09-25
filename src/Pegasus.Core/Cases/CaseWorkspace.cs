@@ -604,12 +604,9 @@ public static class CaseWorkspacePolicy
                 nameof(request));
         }
 
-        var fields = AssessmentFields(request);
-        if (request.Actor.Kind == ActorKind.Staff
-            && fields.Keys.Any(path => AssessmentVocabulary.Definitions[path].IsFinding))
-        {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(request.Actor);
-        }
+        // Every assessment path passes the field gate (finding authority
+        // included) before the transaction opens.
+        _ = AssessmentFields(request);
 
         if (request.Inspection is { } inspection)
         {
@@ -642,7 +639,7 @@ public static class CaseWorkspacePolicy
         // checks.
         if (validated.Valuation is { Adoption: { } adoption } adopting)
         {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(validated.Actor);
+            AssessmentPolicy.RequireFindingAuthority(validated.Actor);
             validated = validated with
             {
                 Valuation = adopting with
@@ -718,7 +715,7 @@ public static class CaseWorkspacePolicy
 
         void Add(string path, string? rawValue)
         {
-            if (!fields.TryAdd(path, AssessmentPolicy.NormalizeWritableField(path, rawValue)))
+            if (!fields.TryAdd(path, AssessmentPolicy.NormalizeWritableField(path, rawValue, request.Actor)))
             {
                 throw new InvalidOperationException(
                     $"The field '{path}' was submitted by more than one section of the Case save.");

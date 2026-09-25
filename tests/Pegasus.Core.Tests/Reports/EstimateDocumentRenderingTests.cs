@@ -279,6 +279,6 @@ public sealed class EstimateDocumentRenderingTests
         decimal? price = null,
         bool unpriced = false) => new(
         Guid.NewGuid(), position, type, guideCode, description, workUnits, price, unpriced,
-        partNumber, null, null, null, null, ActorKind.Staff, "engineer", Now, "engineer", Now,
+        partNumber, null, null, null, null, ActorKind.Staff, "engineer", Now,
         paintWorkUnits, quantity, materials);
 }

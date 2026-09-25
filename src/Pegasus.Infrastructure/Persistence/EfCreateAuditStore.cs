@@ -274,9 +274,7 @@ public sealed class EfCreateAuditStore(
                 Value = field.Value,
                 RecordedByKind = field.RecordedByKind,
                 RecordedBy = field.RecordedBy,
-                RecordedAtUtc = field.RecordedAtUtc,
-                ConfirmedBy = field.ConfirmedBy,
-                ConfirmedAtUtc = field.ConfirmedAtUtc
+                RecordedAtUtc = field.RecordedAtUtc
             });
         }
     }
@@ -382,8 +380,6 @@ public sealed class EfCreateAuditStore(
                     RecordedByKind = line.RecordedByKind,
                     RecordedBy = line.RecordedBy,
                     RecordedAtUtc = line.RecordedAtUtc,
-                    ConfirmedBy = line.ConfirmedBy,
-                    ConfirmedAtUtc = line.ConfirmedAtUtc,
                     Operation = line.Operation,
                     Materials = line.Materials,
                     OriginalValuesJson = line.OriginalValuesJson,

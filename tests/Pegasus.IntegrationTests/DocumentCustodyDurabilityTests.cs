@@ -111,13 +111,13 @@ public sealed class DocumentCustodyDurabilityTests
 
     /// <summary>
     /// The marked document's own reading fills the Original report cells in
-    /// the Mark's transaction (v28 P51, #840): a cell staff confirmed keeps
-    /// its value, an unconfirmed one takes the reading, every filled cell is
-    /// recorded unconfirmed as the report extraction, the history keeps both
+    /// the Mark's transaction (v28 P51, #840): a cell staff recorded keeps
+    /// its value, one the extraction recorded takes the reading, every filled
+    /// cell is recorded as the report extraction, the history keeps both
     /// values, and a replay writes nothing more.
     /// </summary>
     [Fact]
-    public async Task MarkingFillsTheOriginalReportCellsStaffHaveNotConfirmed()
+    public async Task MarkingFillsTheOriginalReportCellsStaffHaveNotRecorded()
     {
         var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
         try
@@ -138,9 +138,7 @@ public sealed class DocumentCustodyDurabilityTests
                         Value = "Northside Assessors",
                         RecordedByKind = nameof(ActorKind.Staff),
                         RecordedBy = "staff-engineer",
-                        RecordedAtUtc = seededAt,
-                        ConfirmedBy = "staff-engineer",
-                        ConfirmedAtUtc = seededAt
+                        RecordedAtUtc = seededAt
                     },
                     new CaseAssessmentFieldEntity
                     {
@@ -194,7 +192,7 @@ public sealed class DocumentCustodyDurabilityTests
                 .Where(item => item.WorkId == caseId)
                 .ToDictionaryAsync(item => item.FieldPath);
             Assert.Equal("Northside Assessors", cells[AssessmentVocabulary.OriginalReportAssessor].Value);
-            Assert.Equal("staff-engineer", cells[AssessmentVocabulary.OriginalReportAssessor].ConfirmedBy);
+            Assert.Equal(nameof(ActorKind.Staff), cells[AssessmentVocabulary.OriginalReportAssessor].RecordedByKind);
             foreach (var (path, value) in new[]
             {
                 (AssessmentVocabulary.OriginalReportDate, "2026-09-01"),
@@ -205,7 +203,6 @@ public sealed class DocumentCustodyDurabilityTests
                 Assert.Equal(value, cells[path].Value);
                 Assert.Equal(nameof(ActorKind.Automation), cells[path].RecordedByKind);
                 Assert.Equal(OriginalReportPrefillPolicy.RecorderId, cells[path].RecordedBy);
-                Assert.Null(cells[path].ConfirmedBy);
             }
 
             var history = await verification.ActionHistory

@@ -65,9 +65,7 @@ public sealed class MonthlyReportActivityPersistenceTests
                 Value = "999.99",
                 RecordedByKind = "Staff",
                 RecordedBy = Guid.NewGuid().ToString("D"),
-                RecordedAtUtc = laterReportGeneratedAt,
-                ConfirmedBy = Guid.NewGuid().ToString("D"),
-                ConfirmedAtUtc = laterReportGeneratedAt
+                RecordedAtUtc = laterReportGeneratedAt
             });
             context.Set<CaseReportGenerationEntity>().AddRange(
                 Generation(firstGenerationId, caseId, firstReportGeneratedAt, "{\"agreedFee\":120.00}", new string('d', 64)),

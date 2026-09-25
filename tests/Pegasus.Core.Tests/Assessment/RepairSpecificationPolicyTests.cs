@@ -20,7 +20,7 @@ public sealed class RepairSpecificationPolicyTests
     }
 
     [Fact]
-    public void AutomationCannotAcceptEvenConfirmedLines()
+    public void AutomationCannotAcceptADraft()
     {
         Assert.Throws<InvalidOperationException>(() =>
             RepairSpecificationPolicy.ValidateAcceptance(
@@ -32,7 +32,7 @@ public sealed class RepairSpecificationPolicyTests
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public void EveryStaffRoleMayAcceptAConfirmedDraft(StaffRole role)
+    public void EveryStaffRoleMayAcceptADraft(StaffRole role)
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
 
@@ -40,12 +40,9 @@ public sealed class RepairSpecificationPolicyTests
     }
 
     [Fact]
-    public void UnconfirmedLineBlocksAcceptance()
+    public void ADraftWithoutLinesCannotBeAccepted()
     {
-        var draft = Draft() with
-        {
-            Lines = [Line("new_part", 1, confirmed: false)],
-        };
+        var draft = Draft() with { Lines = [] };
         Assert.Throws<InvalidOperationException>(() =>
             RepairSpecificationPolicy.ValidateAcceptance(draft, Engineer));
     }
@@ -120,9 +117,7 @@ public sealed class RepairSpecificationPolicyTests
     private static CaseEstimateLineRecord Line(
         string type,
         int position,
-        string description = "Test line",
-        bool confirmed = true) => new(
+        string description = "Test line") => new(
         Guid.NewGuid(), position, type, null, description, null, null, false,
-        null, null, null, null, null, ActorKind.Staff, "engineer", DateTimeOffset.UtcNow,
-        confirmed ? "engineer" : null, confirmed ? DateTimeOffset.UtcNow : null);
+        null, null, null, null, null, ActorKind.Staff, "engineer", DateTimeOffset.UtcNow);
 }

@@ -385,7 +385,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var field = Assert.IsType<AssessmentFieldValue>(
             await ReadEngineersValueAsync(harness, caseId));
         Assert.Equal("3176.00", field.Value);
-        Assert.Equal(engineer.SubjectId, field.ConfirmedBy);
+        Assert.Equal(engineer.SubjectId, field.RecordedBy);
 
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {

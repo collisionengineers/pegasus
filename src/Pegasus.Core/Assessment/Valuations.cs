@@ -43,7 +43,7 @@ public static class ValuationSources
 /// as the first day of that month so two cards for the same month sort and
 /// compare as one value.
 /// An <see cref="ValuationSource.EngineersValue"/> row additionally writes
-/// the confirmed <c>assessment.values.engineer</c> field, which stays the one
+/// the <c>assessment.values.engineer</c> field, which stays the one
 /// owner of the Engineer's Value the product consumes.
 /// A guide source's card holds whatever staff entered or Get valuation brought
 /// back, so any of its mileage, retail, trade and guide month may be absent
@@ -220,9 +220,9 @@ public static class ValuationPolicy
 
     /// <summary>
     /// Recording or correcting a valuation is ordinary casework. An
-    /// Engineer's Value row carries the confirmed
-    /// <c>assessment.values.engineer</c> professional finding, so every staff
-    /// actor who records it passes that field's shared confirmation rule.
+    /// Engineer's Value row carries the <c>assessment.values.engineer</c>
+    /// professional finding, so every staff actor who records it passes that
+    /// field's finding-authority rule.
     /// </summary>
     private static void RequireActor(ActionActor actor, ValuationDetails details)
     {
@@ -235,12 +235,12 @@ public static class ValuationPolicy
         }
         if (details.Source == ValuationSource.EngineersValue)
         {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(actor);
+            AssessmentPolicy.RequireFindingAuthority(actor);
         }
     }
 
     /// <summary>
-    /// The confirmed <c>assessment.values.engineer</c> value an Engineer's
+    /// The <c>assessment.values.engineer</c> value an Engineer's
     /// Value row carries: its retail figure, which is the pre-accident value
     /// a settlement is measured from (FRD-11 total-loss report). Null for
     /// every other source, which writes no assessment field.

@@ -74,13 +74,13 @@ public sealed class ReportRequirementOwnershipTests
             // One missing fact, one blocker.
             var item = Assert.Single(items);
             var writers = new List<string>();
-            if (CaseWorkspaceLabels.Editors.IsStaffConfirmable(path))
+            if (CaseWorkspaceLabels.Editors.HasStaffEditor(path))
             {
                 writers.Add("its Case section");
             }
             // AssessmentWriteSet derives these from the damage impacts.
             if (AssessmentVocabulary.DerivedPaths.Contains(path)
-                && CaseWorkspaceLabels.Editors.IsStaffConfirmable(AssessmentVocabulary.DamageImpacts))
+                && CaseWorkspaceLabels.Editors.HasStaffEditor(AssessmentVocabulary.DamageImpacts))
             {
                 writers.Add("the damage derivation");
             }
@@ -164,12 +164,12 @@ public sealed class ReportRequirementOwnershipTests
             }
 
             var automationWrites = AutomationRefusal(path) is null;
-            var staffConfirmOrClear = !definition.IsFinding && CaseWorkspaceLabels.Editors.IsStaffConfirmable(path);
-            if (automationWrites != staffConfirmOrClear)
+            var staffEdits = !definition.IsFinding && CaseWorkspaceLabels.Editors.HasStaffEditor(path);
+            if (automationWrites != staffEdits)
             {
                 failures.Add(automationWrites
-                    ? $"{path}: automation writes it and staff cannot confirm or clear it on the Case"
-                    : $"{path}: staff confirm it on the Case and automation cannot write it");
+                    ? $"{path}: automation writes it and staff cannot change or clear it on the Case"
+                    : $"{path}: staff record it on the Case and automation cannot write it");
             }
             if (automationWrites)
             {
@@ -179,7 +179,7 @@ public sealed class ReportRequirementOwnershipTests
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
         Assert.Contains(
-            "no staff editor", AutomationRefusal(AssessmentVocabulary.RateCard)!.Message, StringComparison.Ordinal);
+            "no staff editor", McpRefusal(AssessmentVocabulary.RateCard)!.Message, StringComparison.Ordinal);
         Assert.Null(AutomationRefusal(AssessmentVocabulary.CostRecoveryCharge));
         // The 20 non-finding Decisions editors, 4 original report, 8 Report,
         // 14 Damage and 4 Vehicle editors, the vehicle history and condition,
@@ -189,47 +189,46 @@ public sealed class ReportRequirementOwnershipTests
     }
 
     [Theory]
-    [InlineData(AssessmentVocabulary.ValueRetail, null, null, "valuation")]
-    [InlineData(AssessmentVocabulary.ValueTrade, null, null, "valuation")]
-    [InlineData(AssessmentVocabulary.ValueEngineer, null, null, "valuation")]
-    [InlineData(AssessmentVocabulary.Outcome, null, null, "settlement")]
-    [InlineData(AssessmentVocabulary.LegalStatus, null, null, "settlement")]
-    [InlineData(AssessmentVocabulary.SalvageCategory, null, null, "settlement")]
-    [InlineData(AssessmentVocabulary.SettlementContractSum, null, null, "settlement")]
-    [InlineData(AssessmentVocabulary.SettlementClaimantVatRegistered, null, null, "claim")]
-    [InlineData(AssessmentVocabulary.ReportDiscloseGuideSource, null, null, "valuation")]
-    [InlineData(AssessmentVocabulary.VehicleType, null, null, "vehicle")]
-    [InlineData(AssessmentVocabulary.VehicleCondition, null, null, "vehicle")]
-    [InlineData(AssessmentVocabulary.HistoryCheck, null, null, "vehicle")]
-    [InlineData(AssessmentVocabulary.ImpactSeverity, null, null, "damage")]
-    [InlineData(AssessmentVocabulary.DamageUnrelated, null, null, "damage")]
-    [InlineData(AssessmentVocabulary.AgreedFee, null, null, "report")]
-    [InlineData(AssessmentVocabulary.ReportDate, null, null, "report")]
-    [InlineData(AssessmentVocabulary.ReportValuationCommentaryText, null, null, "report")]
-    [InlineData(CaseDataFieldNames.InspectionDate, null, null, "inspection")]
-    [InlineData(CaseDataFieldNames.InspectionAddress, null, null, "inspection")]
-    [InlineData(CaseDataFieldNames.InspectionMode, null, null, "inspection")]
-    [InlineData(CaseDataFieldNames.ClaimantName, null, null, "claim")]
-    [InlineData(CaseDataFieldNames.ClaimNumber, null, null, "overview")]
-    [InlineData(CaseDataFieldNames.IncidentDate, null, null, "overview")]
-    [InlineData(AssessmentVocabulary.VehicleFuel, null, null, "vehicle")]
-    [InlineData(AssessmentVocabulary.VehicleTransmission, null, null, "vehicle")]
-    [InlineData(AssessmentVocabulary.VehicleAirbagsDeployed, null, null, "damage")]
-    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairsPossible, null, null, "settlement")]
-    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairMethod, null, null, "settlement")]
-    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairCost, null, null, "settlement")]
-    [InlineData(null, 3, null, "estimate")]
-    [InlineData(null, null, CaseReportReadiness.SignatoryRequirement, "overview")]
-    [InlineData(null, null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
-    [InlineData(null, null, CaseReportReadiness.LabourRateRequirement, "estimate")]
-    [InlineData(null, null, CaseReportReadiness.CloseUpImageRequirement, "files")]
-    [InlineData(null, null, CaseReportReadiness.OverviewImageRequirement, "files")]
-    [InlineData(null, null, CaseReportReadiness.ImageSourceRequirement, "files")]
+    [InlineData(AssessmentVocabulary.ValueRetail, null, "valuation")]
+    [InlineData(AssessmentVocabulary.ValueTrade, null, "valuation")]
+    [InlineData(AssessmentVocabulary.ValueEngineer, null, "valuation")]
+    [InlineData(AssessmentVocabulary.Outcome, null, "settlement")]
+    [InlineData(AssessmentVocabulary.LegalStatus, null, "settlement")]
+    [InlineData(AssessmentVocabulary.SalvageCategory, null, "settlement")]
+    [InlineData(AssessmentVocabulary.SettlementContractSum, null, "settlement")]
+    [InlineData(AssessmentVocabulary.SettlementClaimantVatRegistered, null, "claim")]
+    [InlineData(AssessmentVocabulary.ReportDiscloseGuideSource, null, "valuation")]
+    [InlineData(AssessmentVocabulary.VehicleType, null, "vehicle")]
+    [InlineData(AssessmentVocabulary.VehicleCondition, null, "vehicle")]
+    [InlineData(AssessmentVocabulary.HistoryCheck, null, "vehicle")]
+    [InlineData(AssessmentVocabulary.ImpactSeverity, null, "damage")]
+    [InlineData(AssessmentVocabulary.DamageUnrelated, null, "damage")]
+    [InlineData(AssessmentVocabulary.AgreedFee, null, "report")]
+    [InlineData(AssessmentVocabulary.ReportDate, null, "report")]
+    [InlineData(AssessmentVocabulary.ReportValuationCommentaryText, null, "report")]
+    [InlineData(CaseDataFieldNames.InspectionDate, null, "inspection")]
+    [InlineData(CaseDataFieldNames.InspectionAddress, null, "inspection")]
+    [InlineData(CaseDataFieldNames.InspectionMode, null, "inspection")]
+    [InlineData(CaseDataFieldNames.ClaimantName, null, "claim")]
+    [InlineData(CaseDataFieldNames.ClaimNumber, null, "overview")]
+    [InlineData(CaseDataFieldNames.IncidentDate, null, "overview")]
+    [InlineData(AssessmentVocabulary.VehicleFuel, null, "vehicle")]
+    [InlineData(AssessmentVocabulary.VehicleTransmission, null, "vehicle")]
+    [InlineData(AssessmentVocabulary.VehicleAirbagsDeployed, null, "damage")]
+    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairsPossible, null, "settlement")]
+    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairMethod, null, "settlement")]
+    [InlineData(AssessmentVocabulary.VehicleTemporaryRepairCost, null, "settlement")]
+    [InlineData(null, CaseReportReadiness.SignatoryRequirement, "overview")]
+    [InlineData(null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
+    [InlineData(null, CaseReportReadiness.LabourRateRequirement, "estimate")]
+    [InlineData(null, CaseReportReadiness.CloseUpImageRequirement, "files")]
+    [InlineData(null, CaseReportReadiness.OverviewImageRequirement, "files")]
+    [InlineData(null, CaseReportReadiness.ImageSourceRequirement, "files")]
     public void BlockerSectionMapsEachBlockerToTheSectionThatClearsIt(
-        string? field, int? estimateLine, string? requirement, string? section)
+        string? field, string? requirement, string? section)
     {
         var item = new AssessmentReadinessItem(
-            requirement ?? "Requirement", "Source", "Why outstanding", "How to resolve", field, estimateLine);
+            requirement ?? "Requirement", "Source", "Why outstanding", "How to resolve", field);
 
         Assert.Equal(section, CaseWorkspaceLabels.Report.BlockerSection(item));
     }
@@ -259,11 +258,11 @@ public sealed class ReportRequirementOwnershipTests
             Assert.DoesNotContain(path, AssessmentVocabulary.DerivedPaths);
             Assert.DoesNotContain(path, AssessmentVocabulary.AdoptedFindingPaths);
             Assert.DoesNotContain(path, AssessmentVocabulary.CaseOwnedPaths);
-            Assert.False(CaseWorkspaceLabels.Editors.IsStaffConfirmable(path));
+            Assert.False(CaseWorkspaceLabels.Editors.HasStaffEditor(path));
             // MCP lets the path through, so Core's field save names the refusal.
-            Assert.Null(AutomationRefusal(path));
+            Assert.Null(McpRefusal(path));
             var refusal = Assert.Throws<InvalidOperationException>(() =>
-                AssessmentPolicy.NormalizeWritableField(path, "1"));
+                AssessmentPolicy.NormalizeWritableField(path, "1", Automation));
             Assert.Contains("filled by the DVLA/DVSA vehicle lookup", refusal.Message, StringComparison.Ordinal);
             Assert.Equal("vehicle", CaseWorkspaceLabels.Editors.SectionOf(path));
         });
@@ -271,8 +270,7 @@ public sealed class ReportRequirementOwnershipTests
 
     /// <summary>
     /// The blocker links a section the Case record has, and its resolution
-    /// names that section. An unconfirmed value's resolution says "its Case
-    /// section": the link is what names it.
+    /// names that section.
     /// </summary>
     private static void AssertLinks(AssessmentReadinessItem item)
     {
@@ -281,10 +279,6 @@ public sealed class ReportRequirementOwnershipTests
         Assert.True(
             section is not null,
             $"'{item.Requirement}' links {key ?? "no section"}, which is not a section of the Case record.");
-        if (item.Requirement.EndsWith(" awaits review", StringComparison.Ordinal))
-        {
-            return;
-        }
 
         var label = section!.Label;
         Assert.True(
@@ -335,25 +329,6 @@ public sealed class ReportRequirementOwnershipTests
             (AssessmentVocabulary.ReportValuationCommentaryText, null),
             (AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),
             (AssessmentVocabulary.DamageUnrelated, null)));
-        yield return NothingElseRecorded(complete with
-        {
-            Fields =
-            [
-                .. complete.Fields.Where(field => field.Path != AssessmentVocabulary.VehicleCondition),
-                new AssessmentFieldValue(
-                    AssessmentVocabulary.VehicleCondition, "good", ActorKind.Automation, "automation",
-                    RecordedAtUtc, null, null)
-            ]
-        });
-        yield return NothingElseRecorded(complete with
-        {
-            EstimateLines =
-            [
-                new CaseEstimateLineRecord(
-                    Guid.NewGuid(), 3, "repair", null, "Nearside door", 2.5m, null, false, null, null,
-                    null, null, null, ActorKind.Automation, "automation", RecordedAtUtc, null, null)
-            ]
-        });
         yield return NothingElseRecorded(complete) with
         {
             CurrentEstimate = new RepairSpecificationVersion(
@@ -391,7 +366,7 @@ public sealed class ReportRequirementOwnershipTests
         ConfirmedImageSources: new Dictionary<Guid, DocumentVersion>());
 
     /// <summary>
-    /// A Case in Report preparation with every assessment path confirmed by
+    /// A Case in Report preparation with every assessment path recorded by
     /// staff and every Case fact the report prints: the report names nothing.
     /// </summary>
     private static CaseAssessmentProjection Complete() => new(
@@ -402,7 +377,7 @@ public sealed class ReportRequirementOwnershipTests
         null,
         [
             .. AssessmentVocabulary.Definitions.Values.Select(
-                definition => Confirmed(definition.Path, CompleteValue(definition)))
+                definition => Recorded(definition.Path, CompleteValue(definition)))
         ],
         [],
         CompleteCaseOwned);
@@ -435,13 +410,20 @@ public sealed class ReportRequirementOwnershipTests
                 .. projection.Fields.Where(field => !changes.Any(change => change.Path == field.Path)),
                 .. changes
                     .Where(change => change.Value is not null)
-                    .Select(change => Confirmed(change.Path, change.Value!))
+                    .Select(change => Recorded(change.Path, change.Value!))
             ]
         };
 
-    private static AssessmentFieldValue Confirmed(string path, string value) => new(
-        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc);
+    private static AssessmentFieldValue Recorded(string path, string value) => new(
+        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc);
 
-    private static Exception? AutomationRefusal(string path) =>
+    private static readonly ActionActor Automation = ActionActor.Automation("pegasus-automation");
+
+    /// <summary>The Web's own refusal: the one rule only the editor list can answer.</summary>
+    private static Exception? McpRefusal(string path) =>
         Record.Exception(() => AssessmentMcpTools.RequireGenericWrite(path));
+
+    /// <summary>What an automation write of <paramref name="path"/> meets: the Web's refusal, else Core's gate.</summary>
+    private static Exception? AutomationRefusal(string path) =>
+        McpRefusal(path) ?? Record.Exception(() => AssessmentPolicy.NormalizeWritableField(path, null, Automation));
 }
