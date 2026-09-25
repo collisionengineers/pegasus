@@ -774,8 +774,9 @@ Repair Spec and the valuation calculator carry no Save or Apply of their own.
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
-repair-estimate launch; a connected Glass's valuation provider
-supersedes the earlier rule that Pegasus "records no Glass's valuation". Glass's and Audatex file
+repair-estimate launch. A Glass's valuation is a card the Engineer fills in;
+no guide provider is connected
+([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
 temporary section-scoped drop overlay; Cazana remains the disabled seam.
 

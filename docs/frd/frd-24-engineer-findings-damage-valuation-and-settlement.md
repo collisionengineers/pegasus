@@ -199,7 +199,7 @@ a wording.
 
 Settlement saves with the Case's single workspace Save. Storage per day and
 recovery use the existing typed Inspection members; a lump storage charge is
-a separate fact. The repair total is read from the Current accepted repair
+a separate fact. The repair total is read from the Current repair
 specification; repair days are no longer recorded (v28 P32). Equity
 uses the report's existing calculation over accepted inputs and is absent
 when those inputs are incomplete, never a made-up zero.

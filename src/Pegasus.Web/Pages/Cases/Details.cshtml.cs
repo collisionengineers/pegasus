@@ -374,7 +374,7 @@ public sealed partial class DetailsModel(
 
     public CaseAssessmentProjection? Assessment { get; private set; }
 
-    public RepairSpecificationVersion? AcceptedSpecification { get; private set; }
+    public RepairSpecificationVersion? CurrentSpecification { get; private set; }
 
     public IReadOnlyList<RepairSpecificationVersion> Estimates { get; private set; } = [];
 
@@ -405,9 +405,7 @@ public sealed partial class DetailsModel(
     public bool SelectedEstimateCanBeCurrent =>
         !AssessmentIsReadOnly
         && AssessmentCanOpen
-        && SelectedEstimate is { IsCurrent: false }
-        && (SelectedEstimate.State == RepairSpecificationState.Draft
-            || SelectedEstimate.State == RepairSpecificationState.Accepted);
+        && SelectedEstimate is { IsCurrent: false, State: RepairSpecificationState.Draft };
 
     public EstimateTotals EditorTotals
     {
@@ -440,7 +438,6 @@ public sealed partial class DetailsModel(
                     null,
                     null,
                     null,
-                    null,
                     ActorKind.Staff,
                     SelectedEstimate?.CreatedBy ?? string.Empty,
                     DateTimeOffset.UtcNow,
@@ -449,13 +446,8 @@ public sealed partial class DetailsModel(
                         ? null
                         : (int?)ParseNumber(line.Quantity),
                     ParseNumber(line.Materials)))],
-                null,
                 SelectedEstimate?.CreatedBy ?? string.Empty,
                 SelectedEstimate?.CreatedAtUtc ?? DateTimeOffset.UtcNow,
-                null,
-                null,
-                null,
-                null,
                 details,
                 SelectedEstimate?.IsCurrent ?? false,
                 SelectedEstimate?.AiJobId,
@@ -521,7 +513,7 @@ public sealed partial class DetailsModel(
     public string? AssessmentEditorValue(string path) => ShownAssessment(path)?.Value;
 
     public ReportSettlement? Settlement => Assessment is null ? null
-        : AssessmentReportProjection.BuildSettlement(Assessment, AcceptedSpecification);
+        : AssessmentReportProjection.BuildSettlement(Assessment, CurrentSpecification);
 
     public IReadOnlyList<SignOffEngineerProfile> EligibleSignOffEngineers { get; private set; } = [];
 
@@ -949,7 +941,7 @@ public sealed partial class DetailsModel(
         }
 
         Assessment = workspace.Assessment;
-        AcceptedSpecification = workspace.AcceptedSpecification;
+        CurrentSpecification = workspace.CurrentSpecification;
         Estimates = await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken);
         LabourRateCards = await labourRateCards.ListAsync(actor, cancellationToken);
         ApplyEstimateSelection(estimate);
@@ -1087,11 +1079,14 @@ public sealed partial class DetailsModel(
         if (string.Equals(estimate, "new", StringComparison.OrdinalIgnoreCase))
         {
             EditingNewEstimate = true;
+            // A new spec starts on the one enabled labour-rate card (FRD-25).
+            var card = LabourRateCardAdministration.ForNewSpecification(LabourRateCards);
             EditorDetails = new EstimateDetails(
                 Name: Labels.CaseWorkspace.EngineerSections.NewEstimate,
-                LabourRate: null,
+                LabourRate: card?.HourlyRate,
                 OtherCosts: null,
-                VatPercent: EstimatePolicy.DefaultVatPercent);
+                VatPercent: EstimatePolicy.DefaultVatPercent,
+                Rate: card is null ? null : new EstimateRateSnapshot(card.Id, card.Version, card.HourlyRate));
             EditorLines = [new EstimateEditorLine("", null, null, null, null, null, null, null)];
             return;
         }
@@ -2799,10 +2794,10 @@ public sealed partial class DetailsModel(
             existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
             [.. lines.Select((line, index) => new CaseEstimateLineRecord(
                 Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
-                line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel, line.Justification,
+                line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
                 ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow,
                 line.PaintWorkUnits, line.Quantity, line.Materials))],
-            null, string.Empty, DateTimeOffset.UtcNow, null, null, null, null, details);
+            string.Empty, DateTimeOffset.UtcNow, details);
         var diff = RepairSpecificationComparison.Compare(baseSpecification, provisional);
         var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
         return new(baseId, reason, explain, RepairSpecificationComparison.SupplementaryStatement(diff, reason));
@@ -3620,7 +3615,6 @@ public sealed partial class DetailsModel(
                 null,
                 null,
                 null,
-                null,
                 paintWorkUnits,
                 parsedQuantity,
                 materials));
@@ -3860,8 +3854,9 @@ public sealed partial class DetailsModel(
             }
 
             var importedBefore = (await listEstimates.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken))
-                .Any(estimate => string.Equals(
-                    estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
+                .Any(estimate => estimate.State != RepairSpecificationState.Discarded
+                    && string.Equals(
+                        estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
             return await ImportRetainedEstimateAsync(new(actor, id, importVersion, importLeaseToken,
                 source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty),

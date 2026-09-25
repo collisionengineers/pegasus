@@ -814,22 +814,6 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// Where a repair specification's lines came from. The
-    /// unresolved legacy route is the fallback: rows recorded before the
-    /// product tracked a source at all.
-    /// </summary>
-    public static string RepairSpecificationRoute(RepairSpecificationSourceRoute route) => route switch
-    {
-        RepairSpecificationSourceRoute.Manual => "entered by hand",
-        RepairSpecificationSourceRoute.Glasses => "imported from Glass's",
-        RepairSpecificationSourceRoute.AudatexPdf => "imported from Audatex",
-        RepairSpecificationSourceRoute.ApprovedAiProposal => "from an approved AI proposal",
-        RepairSpecificationSourceRoute.Json => "imported from a JSON estimate",
-        RepairSpecificationSourceRoute.AiDraft => "drafted by AI",
-        _ => "recorded before source tracking"
-    };
-
-    /// <summary>
     /// An estimate line's operation type, in the same words the line-type
     /// choices offer. An unlisted code prints verbatim rather than being
     /// humanised, because the persisted vocabulary is closed
@@ -2003,8 +1987,6 @@ public static class OperatorLabels
             public static string EstimateState(RepairSpecificationState state) => state switch
             {
                 RepairSpecificationState.Draft => "Draft",
-                RepairSpecificationState.Accepted => "Accepted",
-                RepairSpecificationState.Superseded => "Superseded",
                 RepairSpecificationState.Discarded => "Discarded",
                 _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
             };

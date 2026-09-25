@@ -234,9 +234,9 @@ public sealed class CaseEstimateHeaderWebTests
                 new(RepairSpecificationSourceRoute.Manual, null, null, null),
                 includeLine
                     ? [new(Guid.NewGuid(), 1, "repair", null, "Repair door", 1m, null, false,
-                        null, null, null, null, null, ActorKind.Staff, "engineer", now)]
+                        null, null, null, null, ActorKind.Staff, "engineer", now)]
                     : [],
-                null, "engineer", now, null, null, null, null, details);
+                "engineer", now, details);
         }
 
         public RepairSpecificationVersion Estimate { get; }

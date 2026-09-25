@@ -38,10 +38,10 @@ public static class AssessmentPolicy
             throw new InvalidOperationException(
                 "Only a staff member or the Automation actor can save an assessment.");
         }
-        if (request.Fields.Count == 0 && request.EstimateLines is null)
+        if (request.Fields.Count == 0)
         {
             throw new ArgumentException(
-                "An assessment save requires at least one field or the estimate-line collection.",
+                "An assessment save requires at least one field.",
                 nameof(request));
         }
         if (request.Fields.Count > MaximumFieldsPerSave)
@@ -63,10 +63,7 @@ public static class AssessmentPolicy
             normalizedFields[path] = NormalizeWritableField(path, rawValue, request.Actor);
         }
 
-        var normalizedLines = request.EstimateLines is null
-            ? null
-            : NormalizeLines(request.EstimateLines);
-        return request with { Fields = normalizedFields, EstimateLines = normalizedLines };
+        return request with { Fields = normalizedFields };
     }
 
     /// <summary>
@@ -897,7 +894,6 @@ public static class AssessmentPolicy
                     nameof(lines));
             }
 
-            var status = NormalizeCode(line.Status, EstimateLineCodes.Statuses, "status");
             var evidence = NormalizeCode(
                 line.EvidenceLabel,
                 EstimateLineCodes.EvidenceLabels,
@@ -907,7 +903,6 @@ public static class AssessmentPolicy
                 Type = line.Type!.Trim(),
                 GuideCode = NormalizeText(line.GuideCode, 50, "guide code"),
                 Description = NormalizeText(line.Description, 300, "description"),
-                Status = status,
                 EvidenceLabel = evidence,
                 PartNumber = NormalizeText(line.PartNumber, 100, "part number"),
                 Betterment = NormalizeText(line.Betterment, 100, "betterment"),

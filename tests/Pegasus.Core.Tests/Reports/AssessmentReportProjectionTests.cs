@@ -332,6 +332,18 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
+    public void ACurrentRepairSpecWithNoLinesIsNotReady()
+    {
+        // Taking a spec into use no longer needs lines, so report readiness
+        // names the empty Current spec instead.
+        var result = AssessmentReportProjection.Project(
+            ReadyInput() with { CurrentEstimate = ReadyCurrentEstimate() with { Lines = [] } });
+
+        var reason = AssertNotReady(result, AssessmentReportProjection.RepairCostRequirement);
+        Assert.Equal(CaseReportReadiness.CurrentEstimateEmpty, reason);
+    }
+
+    [Fact]
     public void MissingRepairCostsIsNotReadyNamingTheAcceptedFormulaGap()
     {
         // There is no hand-typed cost path: without a Current repair spec the
@@ -652,16 +664,15 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Theory]
-    [InlineData(RepairSpecificationState.Draft, true)]
-    [InlineData(RepairSpecificationState.Accepted, false)]
-    [InlineData(RepairSpecificationState.Superseded, false)]
-    public void OnlyTheCurrentAcceptedEstimateCanSupplySettlementMoney(
-        RepairSpecificationState state, bool isCurrent)
+    [InlineData(RepairSpecificationState.Draft)]
+    [InlineData(RepairSpecificationState.Discarded)]
+    public void OnlyTheCurrentEstimateCanSupplySettlementMoney(RepairSpecificationState state)
     {
         var input = ReadyInput();
 
+        Assert.NotNull(AssessmentReportProjection.BuildSettlement(input.Assessment, input.CurrentEstimate));
         Assert.Null(AssessmentReportProjection.BuildSettlement(
-            input.Assessment, input.CurrentEstimate! with { State = state, IsCurrent = isCurrent }));
+            input.Assessment, input.CurrentEstimate! with { State = state, IsCurrent = false }));
     }
 
     [Fact]
@@ -680,8 +691,7 @@ public sealed class AssessmentReportProjectionTests
     /// hours at 30, 20 materials and 5 specialist, giving a printed net of
     /// 225, 20 per cent VAT of 45 and a printed gross of 270.
     /// </summary>
-    private static RepairSpecificationVersion DefaultCurrentEstimate() => AcceptedEstimate(
-        new(
+    private static RepairSpecificationVersion DefaultCurrentEstimate() => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
@@ -689,12 +699,11 @@ public sealed class AssessmentReportProjectionTests
             Line(2, "new_part", "Door skin") with { WorkUnits = null, Price = 50m, Quantity = 1 },
             Line(3, "paint_blend", "Blend nearside wing") with { WorkUnits = null, Price = null, Materials = 20m },
         ],
-        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
+        "engineer-1", RecordedAtUtc,
         new EstimateDetails("Repairer", 30m, 5m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-        IsCurrent: true));
+        IsCurrent: true);
 
-    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details, decimal? materials = null) => AcceptedEstimate(
-        new(
+    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details, decimal? materials = null) => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
@@ -702,14 +711,7 @@ public sealed class AssessmentReportProjectionTests
             Line(2, "repair", "Repair wing") with { WorkUnits = 3m },
             Line(3, "paint_repair", "Paint wing") with { WorkUnits = null, PaintWorkUnits = 2.5m, Materials = materials },
         ],
-        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null, details, IsCurrent: true));
-
-    private static RepairSpecificationVersion AcceptedEstimate(RepairSpecificationVersion draft) =>
-        draft with
-        {
-            State = RepairSpecificationState.Accepted,
-            RecordedTotals = EstimateTotals.Compute(draft),
-        };
+        "engineer-1", RecordedAtUtc, details, IsCurrent: true);
 
     private static AssessmentReadinessItem AssertNotReady(
         AssessmentReportProjectionResult result, string requirement)
@@ -894,6 +896,6 @@ public sealed class AssessmentReportProjectionTests
 
     private static CaseEstimateLineRecord Line(int position, string type, string description) => new(
         Guid.NewGuid(), position, type, null, description, 2.5m, null, false, null, null,
-        "confirmed", "case", "Test evidence",
+        "case", "Test evidence",
         ActorKind.Staff, "engineer-1", RecordedAtUtc);
 }

@@ -361,9 +361,6 @@ public static class EstimateLineCodes
         "paint_blend", "paint_prep", "specialist_fixed", "specialist_wu"
     ];
 
-    public static IReadOnlyList<string> Statuses { get; } =
-        ["confirmed", "estimated", "provisional"];
-
     public static IReadOnlyList<string> EvidenceLabels { get; } =
         ["official", "reference", "case", "judgement"];
 }
@@ -382,7 +379,6 @@ public sealed record EstimateLineInput(
     bool Unpriced,
     string? PartNumber,
     string? Betterment,
-    string? Status,
     string? EvidenceLabel,
     string? Justification,
     decimal? PaintWorkUnits = null,
@@ -407,7 +403,6 @@ public sealed record CaseEstimateLineRecord(
     bool Unpriced,
     string? PartNumber,
     string? Betterment,
-    string? Status,
     string? EvidenceLabel,
     string? Justification,
     ActorKind RecordedByKind,
@@ -506,8 +501,7 @@ public sealed record CaseAssessmentProjection(
 
 /// <summary>
 /// One save over the assessment surface: scalar values keyed by the closed
-/// path vocabulary (null clears), optionally a full replacement of the
-/// ordered estimate-line collection, and the same actor, edit-lease,
+/// path vocabulary (null clears), and the same actor, edit-lease,
 /// expected-version, and operation-key guards as every case mutation. The
 /// optional Send-to-AI work-request binding is correlation evidence only and
 /// is never required (companion-plan decision D3).
@@ -520,7 +514,6 @@ public sealed record SaveAssessmentRequest(
     string Reason,
     string EditLeaseToken,
     IReadOnlyDictionary<string, string?> Fields,
-    IReadOnlyList<EstimateLineInput>? EstimateLines = null,
     Guid? AiWorkRequestId = null)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 

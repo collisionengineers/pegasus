@@ -35,7 +35,6 @@ internal static class AssessmentModelConfiguration
         builder.Entity<CaseEstimateLineEntity>(entity =>
         {
             var lineTypes = string.Join(", ", EstimateLineCodes.Types.Select(SqlLiteral));
-            var statuses = string.Join(", ", EstimateLineCodes.Statuses.Select(SqlLiteral));
             var evidenceLabels = string.Join(
                 ", ",
                 EstimateLineCodes.EvidenceLabels.Select(SqlLiteral));
@@ -44,9 +43,6 @@ internal static class AssessmentModelConfiguration
                 table.HasCheckConstraint(
                     "CK_CaseEstimateLines_LineType",
                     $"[LineType] IN ({lineTypes})");
-                table.HasCheckConstraint(
-                    "CK_CaseEstimateLines_Status",
-                    $"[Status] IS NULL OR [Status] IN ({statuses})");
                 table.HasCheckConstraint(
                     "CK_CaseEstimateLines_EvidenceLabel",
                     $"[EvidenceLabel] IS NULL OR [EvidenceLabel] IN ({evidenceLabels})");
@@ -70,7 +66,6 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.Price).HasPrecision(18, 2);
             entity.Property(item => item.PartNumber).HasMaxLength(100);
             entity.Property(item => item.Betterment).HasMaxLength(100);
-            entity.Property(item => item.Status).HasMaxLength(20);
             entity.Property(item => item.EvidenceLabel).HasMaxLength(20);
             entity.Property(item => item.Justification).HasMaxLength(500);
             entity.Property(item => item.Operation).HasMaxLength(200);
@@ -103,13 +98,12 @@ internal static class AssessmentModelConfiguration
                 table.HasCheckConstraint("CK_CaseRepairSpecifications_SourceRoute", $"[SourceRoute] IN ({routes})");
                 table.HasCheckConstraint("CK_CaseRepairSpecifications_Version", "[Version] > 0");
                 table.HasCheckConstraint(
-                    "CK_CaseRepairSpecifications_Acceptance",
-                    "([State] IN ('Accepted', 'Superseded') AND [AcceptedBy] IS NOT NULL AND [AcceptedAtUtc] IS NOT NULL) OR "
-                    + "([State] = 'Draft' AND [AcceptedBy] IS NULL AND [AcceptedAtUtc] IS NULL) OR "
+                    "CK_CaseRepairSpecifications_Discard",
+                    "([State] = 'Draft' AND [DiscardedBy] IS NULL AND [DiscardedAtUtc] IS NULL AND [DiscardReason] IS NULL) OR "
                     + "([State] = 'Discarded' AND [DiscardedBy] IS NOT NULL AND [DiscardedAtUtc] IS NOT NULL AND [DiscardReason] IS NOT NULL)");
                 table.HasCheckConstraint(
                     "CK_CaseRepairSpecifications_Current",
-                    "[IsCurrent] = 0 OR [State] = 'Accepted'");
+                    "[IsCurrent] = 0 OR [State] = 'Draft'");
                 table.HasCheckConstraint(
                     "CK_CaseRepairSpecifications_VatPercent",
                     "[VatPercent] BETWEEN 0 AND 100");
@@ -121,17 +115,8 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.SourceArtifactReference).HasMaxLength(500);
             entity.Property(item => item.SourceVersion).HasMaxLength(100);
             entity.Property(item => item.SourceSha256).HasMaxLength(64).IsFixedLength();
-            entity.Property(item => item.CalculationLabour).HasPrecision(18, 2);
-            entity.Property(item => item.CalculationParts).HasPrecision(18, 2);
-            entity.Property(item => item.CalculationPaintMaterials).HasPrecision(18, 2);
-            entity.Property(item => item.CalculationSpecialistOther).HasPrecision(18, 2);
-            entity.Property(item => item.CalculationVat).HasPrecision(18, 2);
-            entity.Property(item => item.CalculationTotal).HasPrecision(18, 2);
-            entity.Property(item => item.CalculationPolicyVersion).HasMaxLength(100);
             entity.Property(item => item.CreatedBy).HasMaxLength(200).IsRequired();
             entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
-            entity.Property(item => item.AcceptedBy).HasMaxLength(200);
-            entity.Property(item => item.SupersessionReason).HasMaxLength(500);
             entity.Property(item => item.Name).HasMaxLength(EstimatePolicy.MaximumNameLength).IsRequired();
             entity.Property(item => item.LabourRate).HasPrecision(18, 2);
             entity.Property(item => item.OtherCosts).HasPrecision(18, 2);
@@ -140,7 +125,6 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.SpecialistDiscountPercent).HasPrecision(7, 4);
             entity.Property(item => item.OverallDiscountPercent).HasPrecision(7, 4);
             entity.Property(item => item.RepairerVatStatus).HasMaxLength(20);
-            entity.Property(item => item.VatOverrideReason).HasMaxLength(500);
             entity.Property(item => item.VatPercent).HasPrecision(5, 2);
             entity.Property(item => item.DiscardedBy).HasMaxLength(200);
             entity.Property(item => item.DiscardReason).HasMaxLength(500);

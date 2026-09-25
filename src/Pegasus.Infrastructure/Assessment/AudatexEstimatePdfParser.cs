@@ -548,22 +548,22 @@ internal static class AudatexEstimatePdfParser
                     LabourType(description), line.GuideCode, description,
                     WorkUnits: line.Value, Price: null, Unpriced: false,
                     PartNumber: null, Betterment: null,
-                    Status: "provisional", EvidenceLabel: "case", Justification: null),
+                    EvidenceLabel: "case", Justification: null),
                 Section.Paint => new(
                     PaintType(description), line.GuideCode, description,
                     WorkUnits: line.Value, Price: null, Unpriced: false,
                     PartNumber: null, Betterment: null,
-                    Status: "provisional", EvidenceLabel: "case", Justification: null),
+                    EvidenceLabel: "case", Justification: null),
                 Section.Parts => new(
                     "new_part", line.GuideCode, description,
                     WorkUnits: null, Price: line.Value, Unpriced: line.Value is null,
                     PartNumber: line.PartNumber, Betterment: line.Betterment,
-                    Status: "provisional", EvidenceLabel: "case", Justification: null),
+                    EvidenceLabel: "case", Justification: null),
                 Section.Extras => new(
                     "specialist_fixed", line.GuideCode, description,
                     WorkUnits: null, Price: line.Value, Unpriced: line.Value is null,
                     PartNumber: null, Betterment: line.Betterment,
-                    Status: "provisional", EvidenceLabel: "case", Justification: null),
+                    EvidenceLabel: "case", Justification: null),
                 _ => throw new EstimateParseRejectedException(
                     "Text in the estimate could not be attributed to a line, so nothing was imported."),
             };

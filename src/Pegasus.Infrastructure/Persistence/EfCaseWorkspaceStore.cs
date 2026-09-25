@@ -427,7 +427,7 @@ public sealed class EfCaseWorkspaceStore(
                 now,
                 cancellationToken);
         }
-        else if (estimateEdit is { Changed: true, EditingCurrent: true })
+        else if (estimateEdit is { Changed: true, ChangesCurrent: true })
         {
             await EfCaseReportGenerationStore.MarkStaleAsync(
                 context,

@@ -1,50 +1,28 @@
 using Pegasus.Core.Assessment;
-using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Tests.Assessment;
 
 public sealed class RepairSpecificationPolicyTests
 {
-    private static readonly ActionActor Engineer =
-        ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-
+    /// <summary>
+    /// Report-generation snapshots store the state and the route as numbers,
+    /// so the members that remain keep the numbers they always had.
+    /// </summary>
     [Fact]
-    public void LegacySourceCannotBeAccepted()
+    public void TheStatesAndRoutesKeepTheirStoredNumbers()
     {
-        var draft = Draft() with
-        {
-            Source = new(RepairSpecificationSourceRoute.LegacyUnresolved, null, null, null),
-        };
-        Assert.Throws<InvalidOperationException>(() =>
-            RepairSpecificationPolicy.ValidateAcceptance(draft, Engineer));
-    }
+        Assert.Equal(0, (int)RepairSpecificationState.Draft);
+        Assert.Equal(3, (int)RepairSpecificationState.Discarded);
+        Assert.Equal(
+            [RepairSpecificationState.Draft, RepairSpecificationState.Discarded],
+            Enum.GetValues<RepairSpecificationState>());
 
-    [Fact]
-    public void AutomationCannotAcceptADraft()
-    {
-        Assert.Throws<InvalidOperationException>(() =>
-            RepairSpecificationPolicy.ValidateAcceptance(
-                Draft(),
-                ActionActor.Automation("automation")));
-    }
-
-    [Theory]
-    [InlineData(StaffRole.Administrator)]
-    [InlineData(StaffRole.Engineer)]
-    [InlineData(StaffRole.User)]
-    public void EveryStaffRoleMayAcceptADraft(StaffRole role)
-    {
-        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
-
-        RepairSpecificationPolicy.ValidateAcceptance(Draft(), actor);
-    }
-
-    [Fact]
-    public void ADraftWithoutLinesCannotBeAccepted()
-    {
-        var draft = Draft() with { Lines = [] };
-        Assert.Throws<InvalidOperationException>(() =>
-            RepairSpecificationPolicy.ValidateAcceptance(draft, Engineer));
+        Assert.Equal(1, (int)RepairSpecificationSourceRoute.Manual);
+        Assert.Equal(2, (int)RepairSpecificationSourceRoute.Glasses);
+        Assert.Equal(3, (int)RepairSpecificationSourceRoute.AudatexPdf);
+        Assert.Equal(5, (int)RepairSpecificationSourceRoute.Json);
+        Assert.Equal(6, (int)RepairSpecificationSourceRoute.AiDraft);
+        Assert.Equal(5, Enum.GetValues<RepairSpecificationSourceRoute>().Length);
     }
 
     [Fact]
@@ -62,62 +40,14 @@ public sealed class RepairSpecificationPolicyTests
             new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:1", "v1", null)));
         Assert.Throws<InvalidOperationException>(() => RepairSpecificationPolicy.ValidateSource(
             new(RepairSpecificationSourceRoute.Json, "estimate-import:1", "v1", null)));
-        var typed = Draft() with
-        {
-            Source = new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
-        };
-        RepairSpecificationPolicy.ValidateAcceptance(typed, Engineer);
+        var typed = RepairSpecificationPolicy.ValidateSource(
+            new(RepairSpecificationSourceRoute.AiDraft, null, null, null));
+        Assert.Null(typed.ArtifactReference);
+
+        Assert.True(RepairSpecificationPolicy.IsDocumentRoute(RepairSpecificationSourceRoute.Glasses));
+        Assert.True(RepairSpecificationPolicy.IsDocumentRoute(RepairSpecificationSourceRoute.AudatexPdf));
+        Assert.True(RepairSpecificationPolicy.IsDocumentRoute(RepairSpecificationSourceRoute.Json));
+        Assert.False(RepairSpecificationPolicy.IsDocumentRoute(RepairSpecificationSourceRoute.Manual));
+        Assert.False(RepairSpecificationPolicy.IsDocumentRoute(RepairSpecificationSourceRoute.AiDraft));
     }
-
-    [Fact]
-    public void CalculationBasisMustMatchRawInputsAndRecordedVat()
-    {
-        Assert.Throws<InvalidOperationException>(() =>
-            RepairSpecificationPolicy.ValidateCalculationBasis(
-                new(100m, 20m, 10m, 0m, true, 1m, 132m, "calc/v1")));
-        var accepted = RepairSpecificationPolicy.ValidateCalculationBasis(
-            new(100m, 20m, 10m, 0m, true, 17m, 147m, "calc/v1"));
-        Assert.Equal(147m, accepted.Total);
-    }
-
-    /// <summary>
-    /// B04's printed projection: the accepted basis is checked against its own
-    /// printed components, not against the unrounded arithmetic behind them.
-    /// </summary>
-    [Fact]
-    public void ThePrintedBreakdownMustAddUpToTheAcceptedComponentsAndVat()
-    {
-        var printed = new EstimatePrintedTotals(
-            Parts: 20m, PanelLabour: 100m, PaintLabour: 6m, Materials: 4m, Specialist: 0m,
-            Net: 130m, Vat: 26m, Gross: 156m);
-        var basis = RepairSpecificationPolicy.ValidateCalculationBasis(new(
-            100m, 20m, 10m, 0m, true, 26m, 156m, "repair-specification/v4",
-            EstimateVatPolicy.For(RepairerVatStatus.Registered), printed));
-        Assert.Equal(130m, basis.Printed!.Net);
-
-        // A printed net that is not the sum of its own components is refused,
-        // as is a printed gross that is not that net plus the printed VAT.
-        Assert.Throws<InvalidOperationException>(() =>
-            RepairSpecificationPolicy.ValidateCalculationBasis(
-                basis with { Printed = printed with { Parts = 21m, Net = 131m } }));
-        Assert.Throws<InvalidOperationException>(() =>
-            RepairSpecificationPolicy.ValidateCalculationBasis(
-                basis with { Printed = printed with { Gross = 157m } }));
-    }
-
-    private static RepairSpecificationVersion Draft() => new(
-        Guid.NewGuid(), Guid.NewGuid(), 1,
-        RepairSpecificationState.Draft,
-        new(RepairSpecificationSourceRoute.Manual, "case://estimate/1", "v1", new string('a', 64)),
-        [Line("new_part", 1)],
-        new(100m, 20m, 10m, 0m, true, 26m, 156m, "calc/v1"),
-        "engineer", DateTimeOffset.UtcNow, null, null, null, null,
-        new("Estimate 1", null, null, 20m));
-
-    private static CaseEstimateLineRecord Line(
-        string type,
-        int position,
-        string description = "Test line") => new(
-        Guid.NewGuid(), position, type, null, description, null, null, false,
-        null, null, null, null, null, ActorKind.Staff, "engineer", DateTimeOffset.UtcNow);
 }
