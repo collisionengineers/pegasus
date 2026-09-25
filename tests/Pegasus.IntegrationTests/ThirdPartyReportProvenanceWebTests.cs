@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -17,16 +18,15 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// A genuine third-party report, uploaded through the real web host: retention
-/// identifies the document's role, the report reader records what it says, and
-/// the Received screen shows those values with their source locators.
+/// identifies the document's role, and the report reader records what it says
+/// with the source locator of every value.
 ///
 /// Nothing here is a stand-in for the pipeline. The upload goes through the
 /// real page, the bytes are retained through the real artifact store, the text
-/// is read by the real reader, the candidates are written by the real EF store
-/// and the screen is the real Razor page. The only test-only composition is the
-/// registration Stream A owns (C-F02) and has not landed yet, which is stated
-/// where it happens rather than hidden behind an optional dependency that
-/// quietly does nothing.
+/// is read by the real reader and the candidates are written by the real EF
+/// store. The only test-only composition is the logical-document reader, which
+/// is stated where it happens rather than hidden behind an optional dependency
+/// that quietly does nothing.
 /// </summary>
 [Trait("Category", "Corpus")]
 [Trait("Category", "SqlServer")]
@@ -40,7 +40,7 @@ public sealed class ThirdPartyReportProvenanceWebTests
     private const string ReportName = "MontgomeryRepairable1.pdf";
 
     [ReferencePackFact]
-    public async Task AnUploadedReportReachesTheReceivedScreenAsSourceCandidates()
+    public async Task AnUploadedReportIsRecordedAsSourceCandidates()
     {
         var (bytes, hash) = ReadOriginal(ReportName);
         using var factory = new IntakeWebApplicationFactory();
@@ -67,15 +67,12 @@ public sealed class ThirdPartyReportProvenanceWebTests
         Assert.NotNull(receipt);
         Assert.Equal(hash, receipt.SourceHash);
 
-        // The candidates are read back through the contract the Case surfaces
-        // read — not through the writing path that produced them.
-        var candidates = await services.GetRequiredService<ISourceCandidateQueries>()
-            .GetAsync(
-                StaffActor(),
-                receiptId,
-                documentVersionId: null,
-                intakeAssetId: IntakeFileIdentity.SourceAsset(receipt)!.Id,
-                CancellationToken.None);
+        // The candidates are read back from the recorded rows — not through
+        // the writing path that produced them.
+        var candidates = await ReadCandidatesAsync(
+            services,
+            receiptId,
+            IntakeFileIdentity.SourceAsset(receipt)!.Id);
 
         Assert.NotEmpty(candidates);
 
@@ -168,25 +165,6 @@ public sealed class ThirdPartyReportProvenanceWebTests
         // receipt carries no accepted case.
         Assert.Null(receipt.AcceptedCaseId);
         Assert.Null(receipt.CurrentCaseId);
-
-        var reports = await services.GetRequiredService<IThirdPartyReportCandidateQueries>()
-            .GetAsync(
-                StaffActor(),
-                receiptId,
-                documentVersionId: null,
-                intakeAssetId: IntakeFileIdentity.SourceAsset(receipt)!.Id,
-                CancellationToken.None);
-        var report = Assert.Single(reports);
-        Assert.Equal(receiptId, report.Identity.Issuer!.Source.ReceiptId);
-        Assert.Equal(hash, report.Sha256);
-        Assert.Equal(IntakeFileIdentity.SourceAsset(receipt)!.Id, report.IntakeAssetId);
-        Assert.Null(report.DocumentId);
-        Assert.Null(report.DocumentVersionId);
-        Assert.Equal("Montgomery Assessors", report.Identity.Issuer.Value);
-        var assessed = Assert.Single(
-            report.Estimates,
-            estimate => estimate.Role == ThirdPartyEstimateRole.Assessed);
-        Assert.Equal("1582.20", assessed.LabourAmount!.Source.NormalizedValue);
     }
 
     /// <summary>
@@ -272,9 +250,7 @@ public sealed class ThirdPartyReportProvenanceWebTests
         var receiptQueries = services.GetRequiredService<IIntakeReceiptQueries>();
         var receipt = await receiptQueries.GetAsync(receiptId, CancellationToken.None);
         var assetId = IntakeFileIdentity.SourceAsset(receipt!)!.Id;
-        var queries = services.GetRequiredService<ISourceCandidateQueries>();
-        var first = await queries.GetAsync(
-            StaffActor(), receiptId, null, assetId, CancellationToken.None);
+        var first = await ReadCandidatesAsync(services, receiptId, assetId);
         Assert.NotEmpty(first);
 
         // The first pass read the staged copy it was handed, so nothing has
@@ -356,8 +332,7 @@ public sealed class ThirdPartyReportProvenanceWebTests
 
         // And the reading itself is untouched: one candidate set, the same rows
         // with the same identifiers, value for value.
-        var second = await queries.GetAsync(
-            StaffActor(), receiptId, null, assetId, CancellationToken.None);
+        var second = await ReadCandidatesAsync(services, receiptId, assetId);
         Assert.Equal(first.Count, second.Count);
         Assert.Equal(
             first.OrderBy(row => row.Id),
@@ -404,9 +379,7 @@ public sealed class ThirdPartyReportProvenanceWebTests
         var receipt = await services.GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receiptId, CancellationToken.None);
         var assetId = IntakeFileIdentity.SourceAsset(receipt!)!.Id;
-        var queries = services.GetRequiredService<ISourceCandidateQueries>();
-        var first = await queries.GetAsync(
-            StaffActor(), receiptId, null, assetId, CancellationToken.None);
+        var first = await ReadCandidatesAsync(services, receiptId, assetId);
         Assert.NotEmpty(first);
 
         // The key the retention pass recorded under, derived from the asset.
@@ -436,8 +409,7 @@ public sealed class ThirdPartyReportProvenanceWebTests
                 CancellationToken.None));
 
         // Neither attempt added, replaced or removed a candidate.
-        var after = await queries.GetAsync(
-            StaffActor(), receiptId, null, assetId, CancellationToken.None);
+        var after = await ReadCandidatesAsync(services, receiptId, assetId);
         Assert.Equal(
             first.Select(row => row.Id).OrderBy(id => id),
             after.Select(row => row.Id).OrderBy(id => id));
@@ -459,15 +431,66 @@ public sealed class ThirdPartyReportProvenanceWebTests
             : row.NormalizedValue;
     }
 
+    /// <summary>
+    /// The recorded candidates of one retained asset, read straight from the
+    /// analysis rows in the order they were recorded. A pre-case candidate has
+    /// no Case document, so its document id stays null.
+    /// </summary>
+    private static async Task<IReadOnlyList<SourceFieldCandidate>> ReadCandidatesAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        Guid intakeAssetId)
+    {
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var rows = await (
+            from candidate in context.Set<IntakeSourceCandidateEntity>().AsNoTracking()
+            join analysis in context.Set<RetainedInstructionAnalysisEntity>().AsNoTracking()
+                on candidate.AnalysisId equals analysis.Id
+            where analysis.IntakeReceiptId == receiptId
+                && candidate.IntakeAssetId == intakeAssetId
+            orderby analysis.CompletedAtUtc, candidate.Field, candidate.Occurrence
+            select candidate)
+            .ToArrayAsync();
+
+        return rows.Select(row =>
+        {
+            var (sourceLabel, page, locator) = AnalyzeRetainedInstruction.ReadLocator(row.LocatorJson);
+            return new SourceFieldCandidate(
+                row.Id,
+                receiptId,
+                DocumentId: null,
+                row.DocumentVersionId,
+                row.IntakeAssetId,
+                row.SourceSha256,
+                row.Occurrence,
+                row.DocumentRole,
+                row.PartyRole ?? string.Empty,
+                row.ReferenceRole ?? string.Empty,
+                row.Field,
+                row.RawValue,
+                row.NormalizedValue,
+                row.Unit,
+                row.Currency,
+                sourceLabel,
+                page,
+                locator?.Cell,
+                locator?.FormField,
+                locator?.Region,
+                row.ReaderVersion,
+                row.PolicyVersion,
+                Enum.Parse<SourceCandidateDisposition>(row.Disposition));
+        }).ToArray();
+    }
+
     private static ActionActor StaffActor() => ActionActor.Staff(
         DevelopmentOfflineIdentity.AdministratorId,
         [StaffRole.Administrator]);
 
     /// <summary>
-    /// Composes what the Received screen needs to read a recorded analysis.
-    /// These registrations are Stream A's to add to <c>DependencyInjection.cs</c>
-    /// under C-F02; until they land, the store resolves only here, and
-    /// <c>ProcessIntake</c>'s optional dependency stays null in production.
+    /// Composes the retained-analysis store the retention pass records a
+    /// report's reading through, and the command that analyses it.
     ///
     /// The logical-document reader is A04's port, which standalone C composes
     /// nowhere: A owns the concrete adapters and the combined host supplies
@@ -485,12 +508,6 @@ public sealed class ThirdPartyReportProvenanceWebTests
             services.AddScoped<EfRetainedInstructionAnalysisStore>();
             services.AddScoped<IRetainedInstructionAnalysisStore>(provider =>
                 provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
-            services.AddScoped<ISourceCandidateQueries>(provider =>
-                provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
-            services.AddScoped<IThirdPartyReportCandidateQueries>(provider =>
-                provider.GetRequiredService<EfRetainedInstructionAnalysisStore>());
-            services.AddScoped<IGetLatestRetainedInstructionAnalysis,
-                GetLatestRetainedInstructionAnalysis>();
             services.AddScoped<InstructionExtractionPolicySelector>();
             services.AddSingleton<IReadLogicalDocumentVersion>(
                 retainedReader ?? RecordingLogicalDocumentVersionReader.Refusing());

@@ -213,16 +213,9 @@ internal static class ValuationPresetLabels
     public const string PresetLabel = "Label";
     public const string Amount = "Amount";
     public const string State = "State";
-    public const string Version = "Version";
     public const string Save = "Save";
-    public const string Disable = "Disable";
-    public const string Enable = "Enable";
-    public const string Create = "Create preset";
-    public const string Change = "Change";
     public const string Enabled = "Enabled";
-    public const string DisabledState = "Disabled";
     public const string Remove = "Remove";
-    public const string RemoveTitle = "Remove preset";
     public const string Created = "The valuation preset was created.";
     public const string Saved = "The valuation preset was saved.";
     public const string Disabled = "The valuation preset was disabled.";
@@ -236,6 +229,4 @@ internal static class ValuationPresetLabels
     public const string StaleVersion = "The preset changed after this page was loaded. Reload it and try again.";
     public const string OperationConflict = "The form was already used for a different operation. Retry from the current page.";
     public const string NotAccepted = "The change was not accepted.";
-
-    public static string StateName(bool active) => active ? Enabled : DisabledState;
 }

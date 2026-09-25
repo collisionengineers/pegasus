@@ -158,44 +158,6 @@ public sealed class GetIntakeSourceMetadata(IIntakeReceiptQueries queries)
     }
 }
 
-public sealed class ListIntake(IIntakeReceiptQueries queries) : IListIntake
-{
-    private readonly IIntakeReceiptQueries queries =
-        queries ?? throw new ArgumentNullException(nameof(queries));
-
-    public async Task<IntakeListPage> ExecuteAsync(
-        ListIntakeQuery query,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(query);
-        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
-        if (query.Page is < 1 or > 10_000)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(query),
-                "The requested page is outside the supported range.");
-        }
-        if (query.PageSize is < 1 or > 100)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(query),
-                "The requested page size is outside the supported range.");
-        }
-        if (query.Decision is { } decision && !Enum.IsDefined(decision))
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(query),
-                "The intake decision is not recognized.");
-        }
-
-        return await queries.ListAsync(
-            query.Decision,
-            query.Page,
-            query.PageSize,
-            cancellationToken);
-    }
-}
-
 public sealed record ListIntakeByCursorQuery(
     ActionActor Actor,
     IntakeDecision? Decision,

@@ -187,12 +187,6 @@ public sealed record CaseDetails(
     public IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails { get; init; } = [];
 
     /// <summary>
-    /// The operator-facing name for <c>Workflow.ReportApproval.ApprovedBy</c>,
-    /// resolved by <c>GetCase</c>. Null when there is no report approval to name.
-    /// </summary>
-    public string? ReportApprovedByDisplayName { get; init; }
-
-    /// <summary>
     /// The Principal record's and the Claim source record's "Notes on every Case", read
     /// live from the records when the Case is read and never copied onto it, so a
     /// change to a record shows on every Case at once. Absent when a record has none.
@@ -919,14 +913,9 @@ public sealed class GetCase(
             throw new InvalidDataException("A composed case projection belongs to another case.");
         }
 
-        var approvedBy = details.Workflow.ReportApproval?.ApprovedBy;
         var staffIds = details.History
             .Where(entry => entry.ActorKind == nameof(ActorKind.Staff) && Guid.TryParse(entry.Actor, out _))
             .Select(entry => Guid.Parse(entry.Actor));
-        if (approvedBy is { Kind: ActorKind.Staff } && Guid.TryParse(approvedBy.SubjectId, out var approverId))
-        {
-            staffIds = staffIds.Append(approverId);
-        }
         var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
             _staffAccountQueries,
             staffIds,
@@ -946,10 +935,7 @@ public sealed class GetCase(
                         ? ActorDisplayNames.Resolve(actorKind, entry.Actor, staffNames)
                         : ActorDisplayNames.UnknownStaff
                 })
-                .ToArray(),
-            ReportApprovedByDisplayName = approvedBy is null
-                ? null
-                : ActorDisplayNames.Resolve(approvedBy.Kind, approvedBy.SubjectId, staffNames)
+                .ToArray()
         };
     }
 }

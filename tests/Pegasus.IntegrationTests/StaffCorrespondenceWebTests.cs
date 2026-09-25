@@ -1816,15 +1816,6 @@ public sealed class StaffCorrespondenceWebTests
             conversationId);
     }
 
-    private static async Task<Guid> SentEvidenceMailboxIdAsync(WebApplicationFactory<Program> factory)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var store = scope.ServiceProvider.GetRequiredService<IApprovedMailboxStore>();
-        var mailbox = (await store.ListAsync(CancellationToken.None))
-            .Single(item => item.Address == "sc08-sender@collisionengineers.co.uk");
-        return mailbox.Id;
-    }
-
     /// <summary>
     /// GETs a Compose page and reads its rendered hidden <c>OperationKey</c>
     /// and antiforgery token, so a POST carries the real idempotency key the

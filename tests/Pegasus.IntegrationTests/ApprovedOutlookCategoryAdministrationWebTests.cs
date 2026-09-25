@@ -192,7 +192,6 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
 
     [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.CategoryId\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex CategoryIdRegex();
     [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex OperationKeyRegex();
-    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.ExpectedVersion\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex ExpectedVersionRegex();
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex AntiforgeryRegex();
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)] private static partial Regex ValueRegex();
 }

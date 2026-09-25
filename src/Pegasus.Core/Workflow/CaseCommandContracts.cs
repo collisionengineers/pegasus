@@ -108,13 +108,6 @@ public interface IReleaseCaseEditLease
         CancellationToken cancellationToken);
 }
 
-public interface IClearCaseEditLease
-{
-    Task<ClearCaseEditLeaseResult> ExecuteAsync(
-        ClearCaseEditLeaseRequest request,
-        CancellationToken cancellationToken);
-}
-
 public interface IHoldCase
 {
     Task<CaseWorkflowRecord> ExecuteAsync(

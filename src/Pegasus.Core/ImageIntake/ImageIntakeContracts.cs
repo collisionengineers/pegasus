@@ -259,14 +259,6 @@ public interface IImageIntakeQueries
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
 
-    Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
-        Guid submissionGroupId,
-        CancellationToken cancellationToken);
-
-    Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
-        IReadOnlyCollection<Guid> intakeReceiptIds,
-        CancellationToken cancellationToken);
-
     Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
         Guid caseId,
         CancellationToken cancellationToken);

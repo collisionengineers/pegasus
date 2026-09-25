@@ -228,7 +228,6 @@ function Get-RunPaths {
         Mailbox = Join-Path $runRoot 'mailbox'
         MailboxInbox = Join-Path $runRoot 'mailbox/inbox'
         MailboxSent = Join-Path $runRoot 'mailbox/sent'
-        CaseFiles = Join-Path $runRoot 'case-files'
     }
 }
 
@@ -295,8 +294,7 @@ function New-RunManifest {
             $paths.Azurite,
             $paths.Intake,
             $paths.MailboxInbox,
-            $paths.MailboxSent,
-            $paths.CaseFiles)) {
+            $paths.MailboxSent)) {
         [System.IO.Directory]::CreateDirectory($path) | Out-Null
     }
 
@@ -371,7 +369,6 @@ function New-RunManifest {
                 mailbox = $paths.Mailbox
                 mailboxInbox = $paths.MailboxInbox
                 mailboxSent = $paths.MailboxSent
-                caseFiles = $paths.CaseFiles
             }
         }
         endpoints = [ordered]@{
@@ -431,7 +428,6 @@ function Assert-OwnedManifest {
         mailbox = $paths.Mailbox
         mailboxInbox = $paths.MailboxInbox
         mailboxSent = $paths.MailboxSent
-        caseFiles = $paths.CaseFiles
     }
     foreach ($name in $expectedPaths.Keys) {
         $actual = [string]$Manifest.resources.paths.$name
@@ -624,9 +620,10 @@ function Get-WebEnvironment {
         DOTNET_CLI_TELEMETRY_OPTOUT = '1'
         Runtime__Profile = 'DevelopmentOffline'
         ConnectionStrings__Pegasus = Get-RunConnectionString -Manifest $Manifest
+        # Web publishes intake work to the run's own Azurite queue, the one the
+        # Worker's queue trigger reads.
+        AzureWebJobsStorage = Get-AzuriteConnectionString -Manifest $Manifest
         Intake__LocalArtifactPath = [string]$Manifest.resources.paths.intake
-        Custody__OfflineRootPath = [string]$Manifest.resources.paths.caseFiles
-        Mailbox__LocalRootPath = [string]$Manifest.resources.paths.mailbox
         Features__LocalIntake = 'true'
         Features__LocalDocumentCustody = 'true'
     }
@@ -636,6 +633,8 @@ function Get-WorkerEnvironment {
     param([Parameter(Mandatory)][object]$Manifest)
 
     $storageConnection = Get-AzuriteConnectionString -Manifest $Manifest
+    # The schedules and mailbox identities are the values in
+    # src/Pegasus.Worker/local.settings.example.json; the paths are this run's.
     return @{
         AZURE_FUNCTIONS_ENVIRONMENT = 'Development'
         FUNCTIONS_WORKER_RUNTIME = 'dotnet-isolated'
@@ -645,12 +644,20 @@ function Get-WorkerEnvironment {
         ConnectionStrings__Pegasus = Get-RunConnectionString -Manifest $Manifest
         AzureWebJobsStorage = $storageConnection
         IntakeStorage__ConnectionString = $storageConnection
-        Custody__OfflineRootPath = [string]$Manifest.resources.paths.caseFiles
         Intake__LocalArtifactPath = [string]$Manifest.resources.paths.intake
-        Mailbox__LocalRootPath = [string]$Manifest.resources.paths.mailbox
-        IntakeWorkDispatchSchedule = '0 * * * * *'
+        PendingWorkRecoverySchedule = '0 * * * * *'
+        AutomaticEvaReviewSubmissionSchedule = '0 * * * * *'
         IntakeStagedArtifactReconciliationSchedule = '*/10 * * * * *'
-        ExternalWorkDispatchSchedule = '15 * * * * *'
+        ApprovedInboxPollSchedule = '0 */5 * * * *'
+        SentEvidencePollSchedule = '15 * * * * *'
+        DueWorkSweepSchedule = '0 */5 * * * *'
+        ApprovedInbox__MailboxId = 'instructions'
+        ApprovedInbox__MailboxAddress = 'instructions@collisionengineers.co.uk'
+        ApprovedInbox__LocalRootPath = [string]$Manifest.resources.paths.mailbox
+        ApprovedSent__MailboxId = 'instructions'
+        ApprovedSent__MailboxAddress = 'instructions@collisionengineers.co.uk'
+        ApprovedSent__SentFolderIdentity = 'sent-items'
+        ApprovedSent__LocalRootPath = [string]$Manifest.resources.paths.mailboxSent
     }
 }
 

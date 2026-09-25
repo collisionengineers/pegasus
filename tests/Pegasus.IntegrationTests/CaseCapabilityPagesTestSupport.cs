@@ -687,7 +687,7 @@ internal static partial class CaseWebTestSupport
     /// </summary>
 
     internal sealed class StubStaffAccounts(Guid staffId, string userName, StaffRole role = StaffRole.User)
-        : IStaffAccountQueries, IStaffHeldCaseEditLeaseQueries
+        : IStaffAccountQueries
     {
         private readonly StaffAccountSummary account =
             new(staffId, userName, true, false, role);
@@ -709,19 +709,9 @@ internal static partial class CaseWebTestSupport
             Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
                 staffIds.Contains(staffId) ? [account] : []);
 
-        public Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
-            Guid requestedStaffId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StaffHeldCaseEditLease>>([]);
-
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-            Guid requestedStaffId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<SignOffEngineerProfile?>(null);
     }
 
     internal sealed class StubEvaSubmissionStores(EvaSubmissionModes modes) :

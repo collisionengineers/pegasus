@@ -207,7 +207,7 @@ restarts a run.
 
 `Start` prints a generated 32-character run ID. It creates
 `artifacts/local-development/<run-id>/` with its ownership manifest, logs,
-Azurite store, intake/mailbox/case-file roots, dynamic loopback ports, and a
+Azurite store, intake and mailbox roots, dynamic loopback ports, and a
 `PegasusDevelopment_<run-id>` LocalDB instance. It starts Azurite first, runs
 the explicit Development migration path, waits for Web readiness, and then
 starts and checks the actual Functions host. Normal Web and Worker startup
@@ -221,7 +221,10 @@ nor configures an OAuth or MCP client.
 
 The run-specific Web readiness URL and Functions status URL are printed by
 `Start`. All development settings are process-scoped; no tracked configuration
-file, `corpus/`, Azure resource, or another run is changed.
+file, `corpus/`, Azure resource, or another run is changed. Web and the Worker
+share the run's Azurite queue, and the Worker receives each timer schedule and
+offline mailbox setting it binds, with the values in
+`src/Pegasus.Worker/local.settings.example.json` and run-scoped paths.
 
 ### Status and smoke
 
@@ -287,8 +290,14 @@ action. Never manually repurpose these commands to remove another run,
 
 Start with `scripts/Invoke-Verification.ps1`. It selects the checks the change
 set needs and refuses the ones it does not, using the same classifier CI uses:
-prose runs the link check and no build, a commit that already has a green
-exact-head CI run reports that run instead of repeating it, and anything else
+prose runs the link check and no build; a commit whose exact-head CI run
+succeeded in every job the change set routes to (the unit and SQL lanes, and
+the `infrastructure` job when an infrastructure path changed) reports that run
+instead of repeating it; a run whose unit and SQL lanes are green but whose
+`infrastructure` job did not run (a stack's tip classifies only its own files)
+is reused for those lanes; a change set whose build lane is evidenced, or that
+routes only to the infrastructure lane, is pointed at the exact-head
+`infrastructure` job, which only CI runs; and anything else
 gets a focused run over the test classes the changed files own. `-WhatIf`
 prints the selection without running it, and `-Full` takes the whole-solution
 lane below while holding the host slot.

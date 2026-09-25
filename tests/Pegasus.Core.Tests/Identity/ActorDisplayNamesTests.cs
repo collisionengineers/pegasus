@@ -111,10 +111,5 @@ public sealed class ActorDisplayNamesTests
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-            Guid staffId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by these tests.");
     }
 }

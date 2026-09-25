@@ -1297,17 +1297,6 @@ public sealed partial class MultiFormatIntakeWebTests
         return Encoding.ASCII.GetBytes(operators.ToString());
     }
 
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName ?? throw new InvalidOperationException("Repository root not found.");
-    }
-
     private static byte[] CreateImagePdf(params PdfImagePlacement[] images)
         => CreateImagePdf(612, 792, images);
 

@@ -14,45 +14,6 @@ public sealed class EfCaseReportSentEvidenceStore(
     IApprovedMailboxPolicy approvedMailboxPolicy)
     : IApprovedMailboxReportSentEvidenceStore
 {
-    public async Task<RetainedApprovedMailboxReportSentEvidence?> GetAsync(
-        Guid evidenceId,
-        CancellationToken cancellationToken)
-    {
-        if (evidenceId == Guid.Empty)
-        {
-            throw new ArgumentException("A retained Sent-evidence identifier is required.", nameof(evidenceId));
-        }
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.CaseReportSentEvidence
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.Id == evidenceId
-                    && item.DiscoveredByKind == nameof(ActorKind.SystemWorker),
-                cancellationToken);
-        return entity is null ? null : MapRetained(entity);
-    }
-
-    public async Task<IReadOnlyList<RetainedApprovedMailboxReportSentEvidence>> ListUnlinkedAsync(
-        int maximumResults,
-        CancellationToken cancellationToken)
-    {
-        if (maximumResults is < 1 or > 500)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maximumResults));
-        }
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entities = await context.CaseReportSentEvidence
-            .AsNoTracking()
-            .Where(item => item.CaseId == null
-                && item.DiscoveredByKind == nameof(ActorKind.SystemWorker))
-            .OrderBy(item => item.Id)
-            .Take(maximumResults)
-            .ToArrayAsync(cancellationToken);
-        return entities.Select(MapRetained).ToArray();
-    }
-
     public async Task<RetainedApprovedMailboxReportSentEvidence> RetainAsync(
         RetainApprovedMailboxReportSentEvidenceRequest request,
         CancellationToken cancellationToken)

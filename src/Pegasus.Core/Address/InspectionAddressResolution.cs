@@ -59,10 +59,7 @@ public sealed record InspectionAddressSuggestion(
 
 public sealed record InspectionAddressEvaluation(
     InspectionAddressSuggestion? Suggestion,
-    IReadOnlyList<InspectionAddressEvidence> ConflictingEvidence)
-{
-    public bool IsUnresolved => Suggestion is null;
-}
+    IReadOnlyList<InspectionAddressEvidence> ConflictingEvidence);
 
 public sealed record InspectionAddressResolutionSnapshot(
     Guid IntakeReceiptId,

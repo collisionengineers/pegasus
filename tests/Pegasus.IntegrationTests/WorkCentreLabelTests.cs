@@ -23,7 +23,7 @@ public sealed class WorkCentreLabelTests
     }
 
     [Fact]
-    public void EveryOtherKindKeepsItsRecordedTitleAndDetail()
+    public void EveryOtherKindKeepsItsRecordedTitle()
     {
         var item = NewItem(
             NeedsAttentionKind.HeldDecision,
@@ -32,7 +32,6 @@ public sealed class WorkCentreLabelTests
             detail: "QDOS");
 
         Assert.Equal("Mr A Claimant", NeedsAttentionPresentation.TitleLabel(item));
-        Assert.Equal("QDOS", NeedsAttentionPresentation.DetailLabel(item));
     }
 
     /// <summary>
@@ -50,7 +49,6 @@ public sealed class WorkCentreLabelTests
     public void AnAiDraftOpensThroughItsOwnRouteNotARecordPage()
     {
         Assert.Equal("/Operations/Index", NeedsAttentionPresentation.RecordPage(NeedsAttentionKind.AiDraft));
-        Assert.Null(NeedsAttentionPresentation.RecordRouteId(NewItem(NeedsAttentionKind.AiDraft, "Estimate", null)));
     }
 
     /// <summary>

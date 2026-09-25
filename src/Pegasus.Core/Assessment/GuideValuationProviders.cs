@@ -40,10 +40,7 @@ public interface IGuideValuationProvider
 
 /// <summary>The source has no connected provider on this host.</summary>
 public sealed class GuideValuationProviderUnavailableException(ValuationSource source)
-    : InvalidOperationException($"No valuation provider is connected for {source}.")
-{
-    public ValuationSource ValuationSource { get; } = source;
-}
+    : InvalidOperationException($"No valuation provider is connected for {source}.");
 
 public sealed record FetchGuideValuationRequest(
     Guid CaseId,

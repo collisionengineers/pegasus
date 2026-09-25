@@ -83,8 +83,7 @@ internal static class WordBinaryFixture
         bool malformedReservedFc = false,
         bool addUnprocessedRange = false,
         bool complex = true,
-        Action<byte[], byte[]>? configureStreams = null,
-        IReadOnlyList<CompoundFileDirectoryEntry>? additionalEntries = null)
+        Action<byte[], byte[]>? configureStreams = null)
     {
         storyLengths ??= [pieces.Count == 0 ? 0 : pieces[^1].CpEnd, 0, 0, 0, 0, 0, 0, 0];
         byte[] wordDocument = new byte[2048];
@@ -120,24 +119,10 @@ internal static class WordBinaryFixture
             entries.Add(Entry(2, useOneTable ? "1Table" : "0Table", CompoundFileObjectType.Stream, 0, table));
         }
 
-        if (additionalEntries is not null)
-        {
-            entries.AddRange(additionalEntries);
-        }
-
         return new CompoundFile(
             new CompoundFileHeader(0x003e, 3, 512, 64, 0, 1, 0, 0, 4096, 0xfffffffe, 0, 0xfffffffe, 0, []),
             [], [], [], entries.ToImmutable());
     }
-
-    internal static CompoundFileDirectoryEntry AdditionalEntry(
-        uint id,
-        string name,
-        CompoundFileObjectType type,
-        uint? parent,
-        byte[] content,
-        Guid? classId = null) =>
-        Entry(id, name, type, parent, content) with { ClassId = classId ?? Guid.Empty };
 
     internal static void SetFibRange(byte[] wordDocument, int index, uint offset, uint length)
     {

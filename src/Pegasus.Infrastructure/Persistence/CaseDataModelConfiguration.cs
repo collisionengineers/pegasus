@@ -80,6 +80,4 @@ internal static class CaseDataModelConfiguration
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
-
-    private static string SqlLiteral(string value) => $"'{value.Replace("'", "''", StringComparison.Ordinal)}'";
 }

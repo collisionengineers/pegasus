@@ -16,7 +16,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 public sealed class EfEditScopeStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : IEditScopeLeases, IEditScopeRevocations
+    TimeProvider timeProvider) : IEditScopeLeases
 {
     public async Task<EditScopeSnapshot?> GetActiveAsync(
         EditScopeKind scopeKind,
@@ -166,20 +166,6 @@ public sealed class EfEditScopeStore(
         context.Remove(scope!);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-    }
-
-    public async Task ClearForActorAsync(ActionActor actor, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var scopes = await FindForActorAsync(context, actor, cancellationToken);
-        if (scopes.Count == 0)
-        {
-            return;
-        }
-
-        context.RemoveRange(scopes);
-        await context.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>

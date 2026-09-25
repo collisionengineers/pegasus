@@ -173,13 +173,6 @@ public static class ImageIntakeLifecycleRules
                 == MailOperationalDestination.Unidentified;
     }
 
-    /// <summary>
-    /// The media-type prefix that makes retained material an image. Query
-    /// query layers use this prefix only as a coarse filter before applying
-    /// <see cref="InstructionEvidenceImages"/> in memory.
-    /// </summary>
-    public const string ImageMediaTypePrefix = "image/";
-
     private static bool IsSupportedImageEvidenceSource(string mediaType) =>
         InstructionEvidenceImages.IsImage(mediaType)
         || mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
