@@ -13,7 +13,7 @@
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
-        @if (!Model.CreatePostSubmitted && Model.SettingsPostStaffId == Guid.Empty)
+        @if (!Model.CreatePostSubmitted && Model.SettingsPostStaffId == Guid.Empty && Model.GlassAccount is null)
         {
             <partial name="Shared/_ErrorSummary" />
         }
@@ -48,7 +48,7 @@
                                 <td data-account-glass="@account.Id">
                                     <span class="cluster">
                                         <span class="@(row.Glass is { Configured: true } ? "mono" : "muted")">@row.GlassLabel</span>
-                                        <a class="link-button" asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id">Manage login</a>
+                                        <a class="link-button" asp-page="Index" asp-route-glassStaffId="@account.Id">Manage login</a>
                                     </span>
                                 </td>
                                 <td>
@@ -110,7 +110,7 @@
                         <div class="field" data-account-signoff-field><label for="@settingsId-name">Printed name</label><input id="@settingsId-name" name="printedName" value="@Model.SettingsPostPrintedName" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength" /></div>
                         <div class="field" data-account-signoff-field><label for="@settingsId-qualifications">Qualifications</label><input id="@settingsId-qualifications" name="qualifications" value="@Model.SettingsPostQualifications" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffQualificationsLength" /></div>
                     </div>
-                    <section class="account-settings-section" aria-labelledby="@settingsId-glass-title"><div class="settings-line"><div><strong id="@settingsId-glass-title">Glass's repair estimates</strong><span class="meta">Manage this account's login.</span></div><a class="btn" asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id" data-account-glass-login>Manage login</a></div></section>
+                    <section class="account-settings-section" aria-labelledby="@settingsId-glass-title"><div class="settings-line"><div><strong id="@settingsId-glass-title">Glass's repair estimates</strong><span class="meta">Manage this account's login.</span></div><a class="btn" asp-page="Index" asp-route-glassStaffId="@account.Id" data-account-glass-login>Manage login</a></div></section>
                     <div class="field" data-account-signoff-field><label for="@settingsId-signature">@(account.SignOff.HasSignature ? "Replace signature" : "Signature image")</label><input id="@settingsId-signature" name="signature" type="file" accept="@SignOffSignaturePolicy.MediaType" /></div>
                     <label class="choice" for="@settingsId-default" data-account-signoff-field><input id="@settingsId-default" name="isDefaultSignOffEngineer" type="checkbox" value="true" checked="@Model.SettingsPostIsDefault" data-account-default /><span>Default sign-off Engineer</span></label>
                 </div>
@@ -149,6 +149,83 @@
         </dialog>
     }
 
+}
+
+@if (Model.GlassAccount is { } glassAccount && Model.GlassStatus is { } glassStatus)
+{
+    <div class="dialog-backdrop" data-dialog="glass-credential-dialog" data-dialog-open-on-load="true" data-dialog-cancel-form="glass-close-form">
+        <section class="dialog dialog--compact glass-credential-dialog" role="dialog" aria-modal="true" aria-labelledby="glass-credential-title">
+            <div class="dialog-head">
+                <h2 id="glass-credential-title">Glass's login</h2>
+                <partial name="Shared/_StatusChip" model="@Model.GlassStateName" />
+                <form id="glass-close-form" method="get" asp-page="Index"><input type="hidden" name="editStaffId" value="@glassAccount.Id" /><input type="hidden" name="expectedVersion" value="@glassAccount.Version" /></form>
+                <button type="submit" form="glass-close-form" class="dialog-close" aria-label="Back to account"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            </div>
+            <div class="dialog-body stack">
+                <partial name="Shared/_ErrorSummary" />
+                <dl class="detail-list credentials-summary">
+                    <div>
+                        <dt>@CaseWorkspaceLabels.GlassCredential.Account</dt>
+                        <dd>@glassAccount.UserName</dd>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(glassStatus.Username))
+                    {
+                        <div>
+                            <dt>@CaseWorkspaceLabels.GlassCredential.Username</dt>
+                            <dd>@glassStatus.Username</dd>
+                        </div>
+                    }
+                    @if (glassStatus.Configured)
+                    {
+                        <div>
+                            <dt>@CaseWorkspaceLabels.GlassCredential.Generation</dt>
+                            <dd class="tabular">@glassStatus.CredentialGeneration</dd>
+                        </div>
+                        <div>
+                            <dt>@CaseWorkspaceLabels.GlassCredential.Version</dt>
+                            <dd class="tabular">@glassStatus.Version</dd>
+                        </div>
+                    }
+                    @if (glassStatus.UpdatedAtUtc is { } updatedAtUtc)
+                    {
+                        <div>
+                            <dt>@CaseWorkspaceLabels.GlassCredential.Updated</dt>
+                            <dd>
+                                <time datetime="@updatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(updatedAtUtc)</time>
+                            </dd>
+                        </div>
+                    }
+                </dl>
+                <form id="glass-save-form" method="post" asp-page-handler="SaveGlass" class="stack">
+                    <input type="hidden" name="staffId" value="@glassAccount.Id" />
+                    <input type="hidden" name="ExpectedVersion" value="@Model.GlassExpectedVersion" />
+                    <input type="hidden" name="ExpectedStaffAccountVersion" value="@Model.GlassExpectedStaffAccountVersion" />
+                    <fieldset class="stack">
+                    <div class="field">
+                        <label class="req" for="glass-username">@CaseWorkspaceLabels.GlassCredential.Username</label>
+                        <input id="glass-username" name="username" required maxlength="256"
+                               autocomplete="off" value="@Model.GlassUsername" />
+                    </div>
+                    @* No tag helper and no value attribute: the submitted secret
+                       is never written back into this field. *@
+                    <div class="field">
+                        <label class="req" for="glass-password">@CaseWorkspaceLabels.GlassCredential.Password</label>
+                        <input id="glass-password" name="password" type="password" required
+                               maxlength="256" autocomplete="new-password" />
+                    </div>
+                    </fieldset>
+                </form>
+            </div>
+            <div class="dialog-foot">
+                @if (glassStatus.Configured)
+                {
+                    <div class="left"><form method="post" asp-page-handler="ClearGlass"><input type="hidden" name="staffId" value="@glassAccount.Id" /><input type="hidden" name="ExpectedVersion" value="@Model.GlassExpectedVersion" /><input type="hidden" name="ExpectedStaffAccountVersion" value="@Model.GlassExpectedStaffAccountVersion" /><button type="submit" class="btn btn--danger">@CaseWorkspaceLabels.GlassCredential.Clear</button></form></div>
+                }
+                <button type="submit" form="glass-close-form" class="btn">Back to account</button>
+                <button type="submit" form="glass-save-form" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>@CaseWorkspaceLabels.GlassCredential.Save</span></button>
+            </div>
+        </section>
+    </div>
 }
 
 @section Scripts {

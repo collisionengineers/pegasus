@@ -9,7 +9,8 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The per-staff-account Glass repair-estimate credential page.
+/// The per-staff-account Glass repair-estimate credential dialog on the
+/// Accounts page, deep-linked with <c>?glassStaffId=</c>.
 /// Administrator-only, write-only about the secret, and version-checked on
 /// every write.
 /// </summary>
@@ -29,11 +30,11 @@ public sealed partial class GlassCredentialAdministrationWebTests
     private static readonly Guid UnknownStaffId =
         Guid.Parse("00000000-0000-4000-8000-00000000c047");
 
-    private const string Route = "/Administration/Glass";
+    private const string Route = "/Administration/Accounts";
     private const string FixtureUsername = "glass-fixture-account";
     private const string FixturePassword = "glass-fixture-value-not-a-secret";
 
-    private static string PageFor(Guid staffId) => $"{Route}/{staffId:D}";
+    private static string PageFor(Guid staffId) => $"{Route}?glassStaffId={staffId:D}";
 
     [Theory]
     [InlineData("Engineer")]
@@ -52,7 +53,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
         }
 
         using (var written = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Save",
+            $"{Route}?handler=SaveGlass",
             new FormUrlEncodedContent(new Dictionary<string, string>())))
         {
             Assert.Equal(HttpStatusCode.Forbidden, written.StatusCode);
@@ -68,7 +69,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
     /// carry the secret back to the browser.
     /// </summary>
     [Fact]
-    public async Task TheCredentialPageStatesTheStoredAccountNameAndNeverTheSecret()
+    public async Task TheCredentialDialogStatesTheStoredAccountNameAndNeverTheSecret()
     {
         var store = new RecordingCredentialAdministration
         {
@@ -90,17 +91,23 @@ public sealed partial class GlassCredentialAdministrationWebTests
         // The credential mutation is directly available with both current
         // expected versions and no edit-scope token.
         Assert.DoesNotContain("name=\"Reason\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"ExpectedVersion\"", FormOf(html, "Save"), StringComparison.Ordinal);
-        Assert.Contains("name=\"ExpectedStaffAccountVersion\"", FormOf(html, "Save"), StringComparison.Ordinal);
+        Assert.Contains("name=\"ExpectedVersion\"", FormOf(html, "SaveGlass"), StringComparison.Ordinal);
+        Assert.Contains("name=\"ExpectedStaffAccountVersion\"", FormOf(html, "SaveGlass"), StringComparison.Ordinal);
         Assert.DoesNotContain("EditLeaseToken", html, StringComparison.Ordinal);
-        // The credential page has no hint sentence or empty-state panel.
+        // The credential dialog has no hint sentence or empty-state panel.
         // The shared Add dialog can explain the instruction-upload route.
-        var main = Regex.Match(html, @"<main\b[^>]*>(?<content>[\s\S]*?)</main>");
-        Assert.True(main.Success, "The credential page must render its main content.");
-        var content = main.Groups["content"].Value;
-        Assert.DoesNotContain("<p>", content, StringComparison.Ordinal);
-        Assert.DoesNotContain("field-hint", content, StringComparison.Ordinal);
-        Assert.DoesNotContain("empty-state", content, StringComparison.Ordinal);
+        var dialog = DialogOf(html);
+        Assert.DoesNotContain("<p>", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("field-hint", dialog, StringComparison.Ordinal);
+        Assert.DoesNotContain("empty-state", dialog, StringComparison.Ordinal);
+        // The dialog opens over the Accounts area itself: the deep link is a
+        // query of this page, the credential dialog is the one page-owned
+        // dialog that auto-opens, and the settings dialog is not open beside
+        // it. (A pending shell "What's new" note may still open above; that is
+        // the shell's designed stack, not a second page-owned dialog.)
+        Assert.Contains("data-dialog=\"glass-credential-dialog\" data-dialog-open-on-load=\"true\"", html, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(DialogOf(html), Regex.Escape("data-dialog-open-on-load=\"true\"")));
+        Assert.DoesNotContain("settings-", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -116,8 +123,8 @@ public sealed partial class GlassCredentialAdministrationWebTests
         var html = await GetHtmlAsync(client, PageFor(StaffId));
 
         Assert.Equal("Not configured", ChipText(html, "glass-credential-title"));
-        Assert.Contains("handler=Save", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Clear", html, StringComparison.Ordinal);
+        Assert.Contains("handler=SaveGlass\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClearGlass\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -130,12 +137,13 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory, store);
         var html = await GetHtmlAsync(client, PageFor(StaffId));
-        var save = FormOf(html, "Save");
+        var save = FormOf(html, "SaveGlass");
 
         using (var response = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Save",
+            $"{Route}?handler=SaveGlass",
             Form(
                 html,
+                ("staffId", StaffId.ToString("D")),
                 ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
                 ("ExpectedStaffAccountVersion", InputValue(save, "ExpectedStaffAccountVersion")),
                 ("username", FixtureUsername),
@@ -184,11 +192,12 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Equal(StaffRole.User, user.Account.Role);
 
         var html = await GetHtmlAsync(client, PageFor(user.Account.Id));
-        var save = FormOf(html, "Save");
+        var save = FormOf(html, "SaveGlass");
         using var response = await client.PostAsync(
-            $"{PageFor(user.Account.Id)}?handler=Save",
+            $"{Route}?handler=SaveGlass",
             Form(
                 html,
+                ("staffId", user.Account.Id.ToString("D")),
                 ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
                 ("ExpectedStaffAccountVersion", InputValue(save, "ExpectedStaffAccountVersion")),
                 ("username", FixtureUsername),
@@ -208,12 +217,13 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory, store);
         var html = await GetHtmlAsync(client, PageFor(StaffId));
-        var clear = FormOf(html, "Clear");
+        var clear = FormOf(html, "ClearGlass");
 
         using (var response = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Clear",
+            $"{Route}?handler=ClearGlass",
             Form(
                 html,
+                ("staffId", StaffId.ToString("D")),
                 ("ExpectedVersion", InputValue(clear, "ExpectedVersion")),
                 ("ExpectedStaffAccountVersion", InputValue(clear, "ExpectedStaffAccountVersion")))))
         {
@@ -241,12 +251,13 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory, store);
         var html = await GetHtmlAsync(client, PageFor(StaffId));
-        var save = FormOf(html, "Save");
+        var save = FormOf(html, "SaveGlass");
 
         using var response = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Save",
+            $"{Route}?handler=SaveGlass",
             Form(
                 html,
+                ("staffId", StaffId.ToString("D")),
                 ("ExpectedVersion", "4"),
                 ("ExpectedStaffAccountVersion", InputValue(save, "ExpectedStaffAccountVersion")),
                 ("username", FixtureUsername),
@@ -280,12 +291,13 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory, store);
         var html = await GetHtmlAsync(client, PageFor(StaffId));
-        var save = FormOf(html, "Save");
+        var save = FormOf(html, "SaveGlass");
 
         using var response = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Save",
+            $"{Route}?handler=SaveGlass",
             Form(
                 html,
+                ("staffId", StaffId.ToString("D")),
                 ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
                 ("username", FixtureUsername),
                 ("password", FixturePassword)));
@@ -301,7 +313,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
         // The status was reloaded, but the failed form keeps the stale version
         // that was submitted until the operator reloads the page explicitly.
         Assert.Equal(2, store.Reads);
-        Assert.Equal("5", InputValue(FormOf(body, "Save"), "ExpectedVersion"));
+        Assert.Equal("5", InputValue(FormOf(body, "SaveGlass"), "ExpectedVersion"));
     }
 
     /// <summary>
@@ -322,14 +334,15 @@ public sealed partial class GlassCredentialAdministrationWebTests
             BaseAddress = new Uri("https://localhost:7139")
         });
         var initial = await GetHtmlAsync(client, PageFor(StaffId));
-        var initialSave = FormOf(initial, "Save");
+        var initialSave = FormOf(initial, "SaveGlass");
         var initialVersion = InputValue(initialSave, "ExpectedVersion");
         Assert.Contains(">Not configured<", initial, StringComparison.Ordinal);
 
         using (var replaced = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Save",
+            $"{Route}?handler=SaveGlass",
             Form(
                 initial,
+                ("staffId", StaffId.ToString("D")),
                 ("ExpectedVersion", initialVersion),
                 ("ExpectedStaffAccountVersion", InputValue(initialSave, "ExpectedStaffAccountVersion")),
                 ("username", FixtureUsername),
@@ -342,7 +355,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
         var configured = await GetHtmlAsync(client, PageFor(StaffId));
         Assert.Equal(FixtureUsername, FactValue(configured, "Username"));
         Assert.DoesNotContain(FixturePassword, configured, StringComparison.Ordinal);
-        var configuredSave = FormOf(configured, "Save");
+        var configuredSave = FormOf(configured, "SaveGlass");
         var currentVersion = InputValue(configuredSave, "ExpectedVersion");
         Assert.NotEqual(initialVersion, currentVersion);
 
@@ -351,9 +364,10 @@ public sealed partial class GlassCredentialAdministrationWebTests
         // it holds rather than writing the second account name.
         string staleBody;
         using (var stale = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Save",
+            $"{Route}?handler=SaveGlass",
             Form(
                 configured,
+                ("staffId", StaffId.ToString("D")),
                 ("ExpectedVersion", initialVersion),
                 ("ExpectedStaffAccountVersion", InputValue(configuredSave, "ExpectedStaffAccountVersion")),
                 ("username", FixtureUsername + "-replaced"),
@@ -365,24 +379,25 @@ public sealed partial class GlassCredentialAdministrationWebTests
                 "The staff account or Glass's credential changed. Reload this page before trying again.",
                 WebUtility.HtmlDecode(staleBody),
                 StringComparison.Ordinal);
-            Assert.Equal(initialVersion, InputValue(FormOf(staleBody, "Save"), "ExpectedVersion"));
+            Assert.Equal(initialVersion, InputValue(FormOf(staleBody, "SaveGlass"), "ExpectedVersion"));
             Assert.DoesNotContain(FixturePassword, staleBody, StringComparison.Ordinal);
         }
         var unchanged = await GetHtmlAsync(client, PageFor(StaffId));
         Assert.Equal(FixtureUsername, FactValue(unchanged, "Username"));
 
         using (var cleared = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Clear",
+            $"{Route}?handler=ClearGlass",
             Form(
                 staleBody,
+                ("staffId", StaffId.ToString("D")),
                 ("ExpectedVersion", currentVersion),
-                ("ExpectedStaffAccountVersion", InputValue(FormOf(staleBody, "Clear"), "ExpectedStaffAccountVersion")))))
+                ("ExpectedStaffAccountVersion", InputValue(FormOf(staleBody, "ClearGlass"), "ExpectedStaffAccountVersion")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
         }
         var afterClear = await GetHtmlAsync(client, PageFor(StaffId));
         Assert.Contains(">Not configured<", afterClear, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=Clear", afterClear, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClearGlass\"", afterClear, StringComparison.Ordinal);
         Assert.DoesNotContain(FixtureUsername, afterClear, StringComparison.Ordinal);
     }
 
@@ -403,15 +418,16 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory, store);
         var html = await GetHtmlAsync(client, PageFor(StaffId));
-        var save = FormOf(html, "Save");
+        var save = FormOf(html, "SaveGlass");
 
         // The host's error handling turns an unhandled exception into a server
         // error response rather than a refusal notice or a redirect: the page
         // neither caught it nor reported it as something to retry.
         using var response = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Save",
+            $"{Route}?handler=SaveGlass",
             Form(
                 html,
+                ("staffId", StaffId.ToString("D")),
                 ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
                 ("username", FixtureUsername),
                 ("password", FixturePassword)));
@@ -421,11 +437,12 @@ public sealed partial class GlassCredentialAdministrationWebTests
     }
 
     /// <summary>
-    /// The credential page is published at exactly one staff-scoped route: the
-    /// conventional page paths are not addressable.
+    /// The credential is published at exactly one surface: the Accounts page's
+    /// <c>?glassStaffId=</c> deep link. The retired standalone
+    /// <c>/Administration/Glass</c> routes are not addressable.
     /// </summary>
     [Fact]
-    public async Task TheCredentialPageIsPublishedOnlyAtTheStaffScopedRoute()
+    public async Task TheCredentialIsPublishedOnlyOnTheAccountsDeepLink()
     {
         var store = new RecordingCredentialAdministration();
         using var factory = new IntakeWebApplicationFactory();
@@ -436,7 +453,12 @@ public sealed partial class GlassCredentialAdministrationWebTests
             Assert.Equal(HttpStatusCode.OK, scoped.StatusCode);
         }
 
-        foreach (var absent in new[] { Route, $"{Route}/Index", $"{Route}/not-a-guid" })
+        foreach (var absent in new[]
+                 {
+                     "/Administration/Glass",
+                     "/Administration/Glass/Index",
+                     "/Administration/Glass/not-a-guid"
+                 })
         {
             using var response = await client.GetAsync(absent);
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -627,6 +649,20 @@ public sealed partial class GlassCredentialAdministrationWebTests
         var start = html.IndexOf($"handler={handler}\"", StringComparison.Ordinal);
         Assert.True(start >= 0, $"The page must render the '{handler}' form.");
         return html[start..html.IndexOf("</form>", start, StringComparison.Ordinal)];
+    }
+
+    /// <summary>
+    /// The rendered credential dialog, so its content is read apart from the
+    /// Accounts page around it. The dialog is the last body content in
+    /// <c>main</c>.
+    /// </summary>
+    private static string DialogOf(string html)
+    {
+        var start = html.IndexOf("data-dialog=\"glass-credential-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The page must render the Glass's credential dialog.");
+        var end = html.IndexOf("</main>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The credential dialog must close within the page body.");
+        return html[start..end];
     }
 
     private static FormUrlEncodedContent Form(
