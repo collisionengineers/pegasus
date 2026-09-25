@@ -4,9 +4,10 @@ using System.Text.RegularExpressions;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// V26 (Work Centre D7): the Work Centre's four metrics are
+/// V26 (Work Centre D7): the Work Centre's five metrics are
 /// page-queried figures, each an exact link to the Cases tab behind it. Blocked
-/// is no longer an operator concept, so no Blocked metric is drawn.
+/// is no longer an operator concept, so no Blocked metric is drawn. The fifth,
+/// Triages, counts the active Triage Cases.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class DashboardCountersWebTests
@@ -21,12 +22,12 @@ public sealed class DashboardCountersWebTests
         var html = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        foreach (var key in new[] { "not_ready", "review", "held", "unidentified" })
+        foreach (var key in new[] { "not_ready", "review", "held", "unidentified", "triage" })
         {
             Assert.Contains($"data-value=\"{key}\" href=\"/Cases?tab={key}\"", html);
         }
 
-        Assert.Equal(4, Regex.Count(html, "class=\"metric\" data-value="));
+        Assert.Equal(5, Regex.Count(html, "class=\"metric\" data-value="));
         Assert.DoesNotContain("data-value=\"blocked\"", html, StringComparison.Ordinal);
     }
 

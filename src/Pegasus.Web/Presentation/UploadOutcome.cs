@@ -59,6 +59,9 @@ public sealed record UploadOutcomeAttach(
     public IReadOnlyList<UploadCaseSuggestion> SuggestedDestinations => Suggestions ?? [];
 }
 
+/// <summary>The Image intake a file was registered as, automatically, and where its record lives.</summary>
+public sealed record UploadOutcomeRecord(string Reference, string State, string Url);
+
 public sealed record UploadOutcomeView(
     UploadOutcomeKind Kind,
     string StateLabel,
@@ -66,7 +69,8 @@ public sealed record UploadOutcomeView(
     UploadOutcomeAction? PrimaryAction,
     UploadOutcomeAction? SecondaryAction,
     UploadOutcomeAttach? Attach = null,
-    Guid? ThumbnailReceiptId = null)
+    Guid? ThumbnailReceiptId = null,
+    UploadOutcomeRecord? Record = null)
 {
     /// <summary>Whether this state is worth polling again — mirrors the existing Received/Processing refresh rule.</summary>
     public bool IsStillWorking => Kind == UploadOutcomeKind.Working;
@@ -256,7 +260,11 @@ public sealed class UploadOutcomeQueries(
                             detail.Record.Origin.ReceiptId,
                             receipt.Version,
                             await SuggestionsAsync(receipt, actor, cancellationToken))
-                        : null);
+                        : null,
+                    Record: new UploadOutcomeRecord(
+                        detail.Record.ImageIntakeReference,
+                        OperatorLabels.Upload.ImageIntakeState(detail.State),
+                        $"/VehicleImages/{detail.Record.Id:D}"));
             }
         }
 
@@ -395,12 +403,6 @@ public sealed class UploadOutcomeQueries(
         ActionActor actor,
         CancellationToken cancellationToken) =>
         (await destinations.GetSuggestedAsync(receipt, actor, cancellationToken))
-            .Select(item => new UploadCaseSuggestion(
-                item.CaseId,
-                item.Reference,
-                item.Registration,
-                item.Claimant,
-                OperatorLabels.CaseStage(item.State),
-                item.Version))
+            .Select(UploadCaseSuggestion.From)
             .ToArray();
 }

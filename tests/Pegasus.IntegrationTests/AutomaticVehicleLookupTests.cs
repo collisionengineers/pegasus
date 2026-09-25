@@ -21,6 +21,8 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AutomaticVehicleLookupTests
 {
+    private static int principalCodeSequence;
+
     private static readonly DateTimeOffset FixedUtcNow =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
@@ -103,7 +105,7 @@ public sealed class AutomaticVehicleLookupTests
         await using (var context = await database.CreateContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE CaseDataFields SET Value = {"XY34ZAB"}, ValueKind = {"confirmed"}, ConfirmedByActor = {"staff"}, ConfirmedAtUtc = {FixedUtcNow} WHERE CaseId = {caseId} AND FieldName = {"vehicle_registration"}");
+                $"UPDATE CaseDataFields SET Value = {"XY34ZAB"}, ValueKind = {"confirmed"}, ConfirmedByActor = {"staff"}, ConfirmedAtUtc = {FixedUtcNow} WHERE WorkId = {caseId} AND FieldName = {"vehicle_registration"}");
         }
 
         Assert.Equal(1, await SweepAsync(database));
@@ -308,7 +310,7 @@ public sealed class AutomaticVehicleLookupTests
         }
 
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {valueKind}, {"text"}, {registration}, {"intake_evidence"}, {sourceIdentity}, {"Automatic lookup fixture"}, {"auto-lookup-test"}, {1}, {(valueKind == "confirmed" ? "staff" : null)}, {(valueKind == "confirmed" ? FixedUtcNow : (DateTimeOffset?)null)})");
+            $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {valueKind}, {"text"}, {registration}, {"intake_evidence"}, {sourceIdentity}, {"Automatic lookup fixture"}, {"auto-lookup-test"}, {1}, {(valueKind == "confirmed" ? "staff" : null)}, {(valueKind == "confirmed" ? FixedUtcNow : (DateTimeOffset?)null)})");
     }
 
     private static async Task<Guid> SeedCaseAsync(
@@ -321,21 +323,25 @@ public sealed class AutomaticVehicleLookupTests
         var receiptId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
         var sequence = Math.Abs(caseId.GetHashCode() % 999) + 1;
+        // Each seeded Case gets its own Principal, and IX_Principals_Code is unique across the
+        // database, so the code comes from a counter rather than the Case id's hash: a test that
+        // seeds two Cases would otherwise collide about once in a thousand runs.
         await using var context = await database.CreateContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Automatic lookup test {organizationId:N}"}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {FixedUtcNow})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {$"A{sequence % 997:D3}"}, {lineageId}, {true}, {0L})");
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {$"A{System.Threading.Interlocked.Increment(ref principalCodeSequence):D3}"}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {"auto-lookup.eml"}, {"message/rfc822"}, {1L}, {1.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {"manual_upload"}, {receiptId.ToString("D")}, {FixedUtcNow}, {FixedUtcNow}, {"auto-lookup-reader"}, {"1"}, {0L}, {"case_created"}, {"Automatic lookup fixture"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"}, {"{\"version\":1,\"data\":[]}"})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {sequence}, {$"ALK{caseId:N}"[..10].ToUpperInvariant()}, {"inspection"}, {"review"}, {"pending"}, {receiptId}, {true}, {true}, {FixedUtcNow}, {0L}, {Guid.NewGuid()})");
+        await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {state.ToString()}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseDataSnapshots (CaseId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {receiptId}, {"manual_upload"}, {"auto-lookup-source"}, {new string('1', 64)}, {FixedUtcNow}, {"auto-lookup-reader"}, {"1"}, {"auto-lookup-completeness"}, {1}, {true}, {FixedUtcNow})");
+            $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {receiptId}, {"manual_upload"}, {"auto-lookup-source"}, {new string('1', 64)}, {FixedUtcNow}, {"auto-lookup-reader"}, {"1"}, {"auto-lookup-completeness"}, {1}, {true}, {FixedUtcNow})");
         return caseId;
     }
 }

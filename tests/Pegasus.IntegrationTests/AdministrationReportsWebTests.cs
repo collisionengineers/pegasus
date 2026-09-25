@@ -30,6 +30,23 @@ public sealed class AdministrationReportsWebTests
         using var document = SpreadsheetDocument.Open(stream, false);
         var names = document.WorkbookPart!.Workbook!.Sheets!.Elements<Sheet>().Select(sheet => sheet.Name!.Value!).ToArray();
         Assert.Equal(["Engineer activity", "Reports by Principal", "Turnaround", "By month"], names);
+
+        // MI-02's Inspection and Audit split sits beside each total on both
+        // the per-Principal sheet and the month breakdown.
+        var workbookPart = document.WorkbookPart!;
+        foreach (var sheetName in new[] { "Reports by Principal", "By month" })
+        {
+            var sheet = workbookPart.Workbook!.Sheets!.Elements<Sheet>().Single(candidate => candidate.Name!.Value == sheetName);
+            var worksheet = (WorksheetPart)workbookPart.GetPartById(sheet.Id!.Value!);
+            var header = worksheet.Worksheet!.GetFirstChild<SheetData>()!.Elements<Row>().First()
+                .Elements<Cell>().Select(cell => cell.InlineString!.Text!.Text).ToArray();
+            foreach (var measure in new[] { "Reports produced", "Reports sent", "Agreed fees" })
+            {
+                var total = Array.IndexOf(header, measure);
+                Assert.True(total >= 0, $"{sheetName} lacks {measure}.");
+                Assert.Equal([$"{measure} · Inspection", $"{measure} · Audit"], header.Skip(total + 1).Take(2));
+            }
+        }
     }
 
     [Fact]
@@ -48,6 +65,16 @@ public sealed class AdministrationReportsWebTests
         Assert.Contains("id=\"mi02-months-title\"", html, StringComparison.Ordinal);
         Assert.Contains("Disputes", html, StringComparison.Ordinal);
         Assert.Contains("Audit reports sent", html, StringComparison.Ordinal);
+        // MI-02: each measure's Inspection and Audit columns beside its total,
+        // named from the measure's own label (the encoder writes the middle dot
+        // as a numeric reference).
+        foreach (var measure in new[] { "Reports produced", "Reports sent", "Agreed fees" })
+        {
+            Assert.Contains(
+                $"<th scope=\"col\" class=\"num\">{measure}</th><th scope=\"col\" class=\"num\">{measure} &#xB7; Inspection</th><th scope=\"col\" class=\"num\">{measure} &#xB7; Audit</th>",
+                html,
+                StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -71,7 +98,7 @@ public sealed class AdministrationReportsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("data-reports-by-month", html, StringComparison.Ordinal);
-        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"12\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 
@@ -99,7 +126,7 @@ public sealed class AdministrationReportsWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("<td colspan=\"6\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
+        Assert.Contains("<td colspan=\"12\" class=\"muted\">Unavailable</td>", html, StringComparison.Ordinal);
 
         using var workbookResponse = await client.GetAsync($"{Page}?handler=Workbook");
 

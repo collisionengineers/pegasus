@@ -1,0 +1,47 @@
+{
+  "date": "2026-09-25T10:25:57.515844+00:00",
+  "source": "32dabfc59",
+  "result": {
+    "fail": [],
+    "okCount": 2858
+  },
+  "captures": 300,
+  "fullPageCaptures": 5,
+  "widths": [
+    1580,
+    1440,
+    760
+  ],
+  "states": [
+    "ready",
+    "select",
+    "chosen",
+    "uploading",
+    "processing",
+    "multiple",
+    "no-match",
+    "search-error",
+    "mixed",
+    "unreadable",
+    "upload-error",
+    "conflict",
+    "single",
+    "document",
+    "duplicate",
+    "attached",
+    "discarded",
+    "incomplete",
+    "confirm",
+    "discard"
+  ],
+  "designs": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e"
+  ],
+  "consoleErrors": [],
+  "externalRequests": [],
+  "scope": "Offline mockup evidence only; no application build, tests, or live data."
+}

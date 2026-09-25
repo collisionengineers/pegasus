@@ -40,11 +40,15 @@ public sealed class SourceTagLabelTests
     {
         var at = DateTimeOffset.UnixEpoch;
         AssessmentFieldValue Recorded(ActorKind kind, string by) =>
-            new(AssessmentVocabulary.VehicleVin, "WVWZZZ1JZXW000001", kind, by, at, null, null);
+            new(AssessmentVocabulary.VehicleVin, "WVWZZZ1JZXW000001", kind, by, at);
 
         Assert.Equal(
             new OperatorLabels.SourceTagWord("Lookup", "lookup"),
             OperatorLabels.SourceTag(Recorded(ActorKind.Automation, VehicleLookupFillPolicy.RecorderId)));
+        // An Original report cell filled from the filed report (v28 P51).
+        Assert.Equal(
+            new OperatorLabels.SourceTagWord("Extracted", ""),
+            OperatorLabels.SourceTag(Recorded(ActorKind.Automation, OriginalReportPrefillPolicy.RecorderId)));
         Assert.Equal(
             new OperatorLabels.SourceTagWord("AI", "ai"),
             OperatorLabels.SourceTag(Recorded(ActorKind.Automation, "pegasus-automation")));

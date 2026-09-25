@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Web.Presentation;
@@ -57,6 +58,14 @@ public sealed class ReportsModel(
 
     public string? AriaSort(string column) =>
         string.Equals(Sort, column, StringComparison.OrdinalIgnoreCase) ? (Descending ? "descending" : "ascending") : null;
+
+    /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Reports produced · Inspection".</summary>
+    public static string InspectionColumn(string measure) =>
+        $"{measure} · {OperatorLabels.CaseTypeName(CaseType.Inspection)}";
+
+    /// <summary>MI-02's split column: the measure's own label with the work it counts, e.g. "Agreed fees · Audit".</summary>
+    public static string AuditColumn(string measure) =>
+        $"{measure} · {OperatorLabels.CaseTypeName(CaseType.Audit)}";
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
         await LoadAsync(cancellationToken) ? Page() : Forbid();
@@ -134,7 +143,7 @@ public sealed class ReportsModel(
         }
         catch (ArgumentOutOfRangeException)
         {
-            ModelState.AddModelError(string.Empty, "Choose a valid London period.");
+            ModelState.AddModelError(string.Empty, "Choose a valid date range.");
         }
         catch (Exception exception) when (
             exception is not OperationCanceledException
@@ -192,19 +201,33 @@ public sealed class ReportsModel(
     }
 
     /// <summary>
-    /// MI-02: per-Principal report counts by type for the period. Mirrors
-    /// exactly the columns <c>Reports.cshtml</c> renders for this section.
+    /// MI-02: per-Principal report counts by type for the period, each total
+    /// beside its Inspection and Audit split. Mirrors exactly the columns
+    /// <c>Reports.cshtml</c> renders for this section.
     /// </summary>
     private static string ReportsByPrincipalCsv(PrincipalReportActivityReport? report)
     {
-        var builder = new StringBuilder("Principal,Reports produced,Reports sent,Agreed fees,Report types").Append("\r\n");
+        var header = string.Join(
+            ",",
+            "Principal",
+            "Reports produced", InspectionColumn("Reports produced"), AuditColumn("Reports produced"),
+            "Reports sent", InspectionColumn("Reports sent"), AuditColumn("Reports sent"),
+            "Agreed fees", InspectionColumn("Agreed fees"), AuditColumn("Agreed fees"),
+            "Report types");
+        var builder = new StringBuilder(header).Append("\r\n");
         if (report is null) return builder.ToString();
         foreach (var row in report.Rows.Where(row => row.ReportsProduced > 0 || row.Sent > 0))
         {
             builder.Append(EngineerActivityReportCsv.EscapeField(row.PrincipalCode)).Append(',')
                 .Append(row.ReportsProduced).Append(',')
+                .Append(row.InspectionReportsProduced).Append(',')
+                .Append(row.AuditReportsProduced).Append(',')
                 .Append(row.Sent).Append(',')
+                .Append(row.InspectionSent).Append(',')
+                .Append(row.AuditSent).Append(',')
                 .Append(row.AgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.InspectionAgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                .Append(row.AuditAgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
                 .Append(EngineerActivityReportCsv.EscapeField(string.Join(
                     "; ",
                     row.ArtifactTypes

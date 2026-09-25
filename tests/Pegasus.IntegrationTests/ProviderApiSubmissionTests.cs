@@ -508,7 +508,7 @@ public sealed class ProviderApiSubmissionTests
     }
 
     [Fact]
-    public async Task ADeclaredTriageOpensATriageAndAllocatesNoCase()
+    public async Task ADeclaredTriageOpensATriageCaseAndReturnsItsTriageReference()
     {
         using var factory = new IntakeWebApplicationFactory("Development", true, TimeProvider.System);
         using var api = WithProviderApi(factory);
@@ -526,11 +526,12 @@ public sealed class ProviderApiSubmissionTests
 
         using var complete = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{submissionId:D}", secret);
         var result = await ReadJsonAsync(complete);
-        // Triage is pre-case work: it opens a Triage record and allocates no
-        // Case/PO (FRD-03).
-        Assert.Equal(JsonValueKind.Null, result.GetProperty("caseReference").ValueKind);
+        // A Triage is a Case type: it opens a Triage Case, whose t. Case/PO is
+        // the result's reference, and links no instruction receipt (FRD-03, FRD-09).
+        Assert.StartsWith("t.", result.GetProperty("caseReference").GetString(), StringComparison.Ordinal);
         Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Triage"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Cases"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Cases WHERE Type = N'triage'"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseIntakeLinks"));
         // The Triage is the destination. Without this the same material also
         // sits in the Unidentified queue, which is the two-queues defect
         // already closed for the mail route.
@@ -618,7 +619,7 @@ public sealed class ProviderApiSubmissionTests
             .SingleAsync();
 
         var projection = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
-            .GetAsync(caseId, CancellationToken.None);
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
 
         Assert.NotNull(projection);
         Assert.NotNull(projection.Provider.WorkProviderCode.Current);
@@ -787,6 +788,7 @@ public sealed class ProviderApiSubmissionTests
             var duplicateId = Guid.NewGuid();
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({duplicateId}, {template.PrincipalId}, {template.SequenceLineageId}, {template.Year}, {template.Sequence + 1}, {"QDOS29999"}, {template.Type}, {template.InitialState}, {template.CustodyState}, {template.OriginIntakeReceiptId}, {template.InstructionComplete}, {template.ImagesComplete}, {template.CreatedAtUtc}, {0L}, {Guid.NewGuid()})");
+            await CaseWorkFixture.InsertPrimaryWorksAsync(context);
 
             // CaseWorkflows.State is the CaseLifecycleState enum name; the
             // candidate query joins this row and parses it. It is deliberately
@@ -992,13 +994,25 @@ public sealed class ProviderApiSubmissionTests
     {
         await using var scope = api.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var principal = await services.GetRequiredService<ICreatePrincipal>().ExecuteAsync(
-            new("Other Provider", "OTHER", Administrator, "provider-api:principal:other"),
+        await services.GetRequiredService<IContactDirectoryAdministration>().SaveAsync(
+            new SaveContactRequest(
+                Administrator, Guid.NewGuid(), 0, "Other Provider", null, null, null, null, null, true,
+                [ContactRole.Principal], "OTHER", CaseInspectionMode.PhysicalAddress, [],
+                "provider-api:principal:other"),
             default);
+        Guid principalId;
+        await using (var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            principalId = await context.Principals.AsNoTracking()
+                .Where(item => item.Code == "OTHER" && item.IsActive)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
         var issued = await services.GetRequiredService<IIssuePrincipalCredential>().ExecuteAsync(
             await CredentialRequestAsync(
                 services,
-                principal.Id,
+                principalId,
                 0,
                 "provider-api:issue:other",
                 "provider api test"),

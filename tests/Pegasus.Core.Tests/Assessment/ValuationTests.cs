@@ -1,19 +1,15 @@
 ﻿using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Assessment;
 
 public sealed class ValuationTests
 {
-    private static readonly DateTimeOffset Now =
-        new(2030, 5, 6, 10, 30, 0, TimeSpan.Zero);
-    private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly ActionActor Engineer =
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
     private static readonly ActionActor User =
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-    private static readonly string Lease = new('l', CaseEditAuthority.LeaseTokenLength);
 
     [Fact]
     public void SourceVocabularyIsClosed()
@@ -31,8 +27,8 @@ public sealed class ValuationTests
     /// <summary>
     /// Collision Engineers reads the Glass's, Brego, Super CAP, CAP and Cazana
     /// guides and types the figure in; none of them is a live call here. AI
-    /// market research is written only by the automation completion, so it is
-    /// not offered to the staff save and edit actions.
+    /// market research is written only by the automation completion, so staff
+    /// never record it.
     /// </summary>
     [Fact]
     public void OnlyTheTypedGuidesAndTheEngineersValueAreManuallyRecordable()
@@ -124,99 +120,35 @@ public sealed class ValuationTests
             AssessmentPolicy.NormalizeFieldValue(AssessmentVocabulary.ValueEngineer, "12000"));
     }
 
-    [Fact]
-    public async Task SaveAndEditUseCasesForwardValidatedRequests()
-    {
-        var store = new RecordingStore();
-        var save = new SaveValuation(store);
-        var edit = new EditValuation(store);
-        var saveRequest = SaveRequest(Engineer, "valuation-save");
-
-        var saved = await save.ExecuteAsync(saveRequest, CancellationToken.None);
-
-        Assert.Equal(saveRequest, Assert.Single(store.Saves));
-        Assert.Equal(saveRequest.Details, saved.Details);
-
-        var editRequest = new EditValuationRequest(
-            CaseId,
-            4,
-            Engineer,
-            "valuation-edit",
-            "Corrected the recorded valuation.",
-            Lease,
-            saved.ValuationId,
-            Details(retail: 12345.67m));
-        var edited = await edit.ExecuteAsync(editRequest, CancellationToken.None);
-
-        Assert.Equal(editRequest, Assert.Single(store.Edits));
-        Assert.Equal(12345.67m, edited.Details.RetailValue);
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            edit.ExecuteAsync(editRequest with { ValuationId = Guid.Empty }, CancellationToken.None));
-    }
-
+    /// <summary>
+    /// Any staff role may record a guide card. The Engineer's Value is adopted
+    /// by the Case save's Apply, which owns its own authority check.
+    /// </summary>
     [Theory]
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public async Task EveryStaffRoleRecordsMarketAndEngineersValueValuations(StaffRole role)
+    public void EveryStaffRoleRecordsGuideCards(StaffRole role)
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
-        var store = new RecordingStore();
-        var save = new SaveValuation(store);
-        var edit = new EditValuation(store);
 
-        var glasses = await save.ExecuteAsync(
-            SaveRequest(actor, "valuation-staff-glasses"),
-            CancellationToken.None);
-
-        var brego = await save.ExecuteAsync(
-            SaveRequest(actor, "valuation-staff-brego", ValuationSource.Brego),
-            CancellationToken.None);
-        var superCap = await save.ExecuteAsync(
-            SaveRequest(actor, "valuation-staff-super-cap", ValuationSource.SuperCap),
-            CancellationToken.None);
-
-        Assert.Equal(ValuationSource.Glasses, glasses.Details.Source);
-        Assert.Equal(ValuationSource.Brego, brego.Details.Source);
-        Assert.Equal(ValuationSource.SuperCap, superCap.Details.Source);
-        Assert.Equal(3, store.Saves.Count);
-
-        // Cazana is typed in like the other guides (v28 P8).
-        var cazana = await save.ExecuteAsync(
-            SaveRequest(actor, "valuation-staff-cazana", ValuationSource.Cazana),
-            CancellationToken.None);
-        Assert.Equal(ValuationSource.Cazana, cazana.Details.Source);
-        Assert.Equal(4, store.Saves.Count);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            save.ExecuteAsync(
-                SaveRequest(
-                    ActionActor.Automation("pegasus-automation"),
-                    "valuation-automation",
-                    ValuationSource.AiMarketResearch),
-                CancellationToken.None));
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            save.ExecuteAsync(
-                SaveRequest(ActionActor.Provider(Guid.NewGuid()), "valuation-request-provider"),
-                CancellationToken.None));
-
-        var engineers = await save.ExecuteAsync(
-            SaveRequest(actor, "valuation-staff-engineers", ValuationSource.EngineersValue),
-            CancellationToken.None);
-        Assert.Equal(ValuationSource.EngineersValue, engineers.Details.Source);
-
-        var edited = await edit.ExecuteAsync(
-            new EditValuationRequest(
-                CaseId,
-                3,
-                actor,
-                "valuation-staff-engineers-edit",
-                "Corrected the recorded valuation.",
-                Lease,
-                engineers.ValuationId,
-                Details(source: ValuationSource.EngineersValue)),
-            CancellationToken.None);
-        Assert.Equal(actor.SubjectId, edited.RecordedBy);
+        Assert.All(
+            new[]
+            {
+                ValuationSource.Glasses,
+                ValuationSource.Brego,
+                ValuationSource.SuperCap,
+                ValuationSource.Cazana
+            },
+            source =>
+            {
+                var details = Details(source, guideMonth: new DateOnly(2030, 4, 1));
+                Assert.Equal(details, ValuationPolicy.ValidateGuideEntry(actor, details));
+            });
+        Assert.Throws<StaffAuthorizationException>(() =>
+            ValuationPolicy.ValidateGuideEntry(
+                ActionActor.Provider(Guid.NewGuid()),
+                Details(guideMonth: new DateOnly(2030, 4, 1))));
     }
 
     [Fact]
@@ -279,20 +211,8 @@ public sealed class ValuationTests
         var store = new RecordingStore();
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new ListCaseValuations(store).ExecuteAsync(Guid.Empty, CancellationToken.None));
+            new ListCaseValuations(store).ExecuteAsync(Guid.Empty, CaseWorkSelector.Current, CancellationToken.None));
     }
-
-    private static SaveValuationRequest SaveRequest(
-        ActionActor actor,
-        string operationKey,
-        ValuationSource source = ValuationSource.Glasses) => new(
-        CaseId,
-        3,
-        actor,
-        operationKey,
-        "Recorded a valuation.",
-        Lease,
-        Details(source));
 
     private static ValuationDetails Details(
         ValuationSource source = ValuationSource.Glasses,
@@ -311,41 +231,11 @@ public sealed class ValuationTests
 
     private sealed class RecordingStore : IValuationStore
     {
-        public List<SaveValuationRequest> Saves { get; } = [];
-        public List<EditValuationRequest> Edits { get; } = [];
         public IReadOnlyList<CaseValuation> Listed { get; set; } = [];
-
-        public Task<CaseValuation> SaveAsync(
-            SaveValuationRequest request,
-            CancellationToken cancellationToken)
-        {
-            Saves.Add(request);
-            return Task.FromResult(new CaseValuation(
-                Guid.NewGuid(),
-                request.CaseId,
-                request.Details,
-                request.Actor.SubjectId,
-                Now));
-        }
-
-        public Task<CaseValuation> EditAsync(
-            EditValuationRequest request,
-            CancellationToken cancellationToken)
-        {
-            Edits.Add(request);
-            return Task.FromResult(new CaseValuation(
-                request.ValuationId,
-                request.CaseId,
-                request.Details,
-                request.Actor.SubjectId,
-                Now,
-                request.Actor.SubjectId,
-                Now));
-        }
 
         public Task<IReadOnlyList<CaseValuation>> ListForCaseAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult(Listed);
     }
 }

@@ -82,7 +82,7 @@ public sealed class IncidentVehicleCompositionTests
         {
             var snapshot = await context.CaseDataSnapshots
                 .Include(item => item.Fields)
-                .SingleAsync(item => item.CaseId == caseId);
+                .SingleAsync(item => item.WorkId == caseId);
             Assert.Equal(receipt.Id, snapshot.OriginIntakeReceiptId);
             Assert.Equal(IncidentVehicleSourceFixture.Sha256, snapshot.OriginSourceHash, ignoreCase: true);
 

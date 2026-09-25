@@ -62,8 +62,12 @@ zero, so the next allocation is `QDOSyy001`.
   `Organizations*`/`Principals*`, `ProviderDomain*`/
   `ProviderReferences`, `WorkflowConfigurations`, `SendToAiControl`,
   `SecurityEvents`, `ValuationPresets` (administrator-managed configuration),
-  and the four sequence tables, including `TriageSequences` (so no
-  case/image/Triage/unidentified reference is ever reused).
+  and the reference-sequence tables `CaseSequences`, `ImageIntakeSequences`
+  and `UnidentifiedSequences`, plus `TriageSequences` only while the schema
+  still has it (so no case/image/Triage/unidentified reference is ever
+  reused). Migration `20260924180000_CaseWorksAndTriageCases` drops
+  `TriageSequences`: a Triage Case's `t.` reference comes from
+  `CaseSequences`. The script preserves whichever of the two schemas it finds.
 - **Outlook and Box themselves** — the script only touches Azure Blob and
   Azure SQL; no Graph or Box API call exists in it.
 
@@ -125,10 +129,10 @@ messages whose occurrence identities the wipe removed.
 
 4. **Verify:** the script's own post-run output reports blobs remaining
    (expect 0) and "Wiped tables still holding rows" (expect 0), plus an
-   exact before/after comparison of every value in the four reference-sequence
-   tables (`CaseSequences`/`ImageIntakeSequences`/`TriageSequences`/
-   `UnidentifiedSequences`) and the `ValuationPresets` row count (expect 0
-   changes). The expanded reset instead expects only its inventoried QDOS row
+   exact before/after comparison of every value in the reference-sequence
+   tables (`CaseSequences`/`ImageIntakeSequences`/`UnidentifiedSequences`, and
+   `TriageSequences` where it still exists) and the `ValuationPresets` row
+   count (expect 0 changes). The expanded reset instead expects only its inventoried QDOS row
    to become zero and verifies that `alex` is the sole remaining account with
    no attributable OpenIddict or security-event rows for deleted account IDs.
    Reload the

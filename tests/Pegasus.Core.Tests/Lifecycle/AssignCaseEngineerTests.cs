@@ -25,7 +25,7 @@ public sealed class AssignCaseEngineerTests
             new(accountExists, isEnabled));
         var sut = new AssignCaseEngineer(
             store,
-            new DefaultCaseWorkflowConfiguration(),
+            new FixedWorkflowConfiguration(),
             eligibility,
             new StubStaffAccounts([]));
 
@@ -56,7 +56,7 @@ public sealed class AssignCaseEngineerTests
         var eligibility = new StubEligibility(new(true, true));
         var sut = new AssignCaseEngineer(
             store,
-            new DefaultCaseWorkflowConfiguration(),
+            new FixedWorkflowConfiguration(),
             eligibility,
             new StubStaffAccounts([Profile(EngineerId, isDefault: false)]));
         var request = CreateAssignmentRequest();
@@ -81,7 +81,7 @@ public sealed class AssignCaseEngineerTests
         var store = new RecordingWorkflowStore();
         var sut = new AssignCaseEngineer(
             store,
-            new DefaultCaseWorkflowConfiguration(),
+            new FixedWorkflowConfiguration(),
             new StubEligibility(new(true, true)),
             new StubStaffAccounts([Profile(defaultSignOffEngineerId, isDefault: true)]));
 
@@ -102,7 +102,7 @@ public sealed class AssignCaseEngineerTests
         var notifier = new RecordingNotifier();
         var sut = new AssignCaseEngineer(
             store,
-            new DefaultCaseWorkflowConfiguration(),
+            new FixedWorkflowConfiguration(),
             new StubEligibility(new(true, true)),
             new StubStaffAccounts([Profile(EngineerId, isDefault: false)]),
             notifier);
@@ -255,6 +255,11 @@ public sealed class AssignCaseEngineerTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<CaseEditLease?> ResumeAsync(
+            ResumeCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task ReleaseAsync(
             ReleaseCaseEditLeaseRequest request,
             CancellationToken cancellationToken) =>
@@ -312,17 +317,18 @@ public sealed class AssignCaseEngineerTests
             throw new NotSupportedException();
     }
 
+    private sealed class FixedWorkflowConfiguration : ICaseWorkflowConfiguration
+    {
+        public Task<CaseWorkflowConfiguration> GetCurrentAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new CaseWorkflowConfiguration(PolicyKey: "case-workflow", PolicyVersion: 1));
+    }
 
     private sealed class StubStaffAccounts(IReadOnlyList<SignOffEngineerProfile> profiles)
         : IStaffAccountQueries
     {
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) => Task.FromResult(profiles);
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-            Guid staffId,
-            CancellationToken cancellationToken) => Task.FromResult(
-                profiles.FirstOrDefault(profile => profile.StaffId == staffId));
 
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,

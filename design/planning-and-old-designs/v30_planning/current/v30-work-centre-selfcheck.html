@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en-GB"><head><meta charset="utf-8"><title>Work Centre design self-check</title></head>
+<body><h1>Work Centre mockup self-check</h1><p>Offline design evidence only.</p><pre id="result">PENDING</pre><iframe id="frame" title="Work Centre preview" width="1580" height="1000"></iframe>
+<script>
+const fail=[],ok=[],frame=document.querySelector('#frame');
+const check=(name,condition)=>(condition?ok:fail).push(name);
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+window.addEventListener('error',event=>fail.push(event.message));
+async function load(id,state,width=1580,height=1000,extra='') {
+ frame.width=width;frame.height=height;
+ await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Load timed out')),5000);frame.onload=()=>{clearTimeout(timer);resolve();};frame.src=`pegasus_work_centre_${id}_v30.html?state=${state}&embed=1${extra}`;});
+ await frame.contentDocument.fonts.ready;await wait(20);return frame.contentDocument;
+}
+function click(selector){frame.contentDocument.querySelector(selector).click();}
+function model(){return frame.contentWindow.workCentreDemo.getState();}
+function ids(){return frame.contentWindow.workCentreDemo.visibleIds();}
+(async()=>{try{
+ for(const id of ['a','b','c']) {
+  for(const state of ['default','mine','filtered','empty','stale','partial','unavailable','assign','conflict','new-cases','ai-jobs','quiet']) {
+   for(const [width,height] of [[1580,1000],[1440,900],[760,1000]]) {
+    const d=await load(id,state,width,height),prefix=`${id}/${state}/${width}`;
+    check(prefix+': script ready',frame.contentWindow.mockupReady===true);
+    check(prefix+': no exceptions',frame.contentWindow.mockupErrors.length===0);
+    check(prefix+': no horizontal page spill',d.documentElement.scrollWidth<=width);
+    check(prefix+': one page heading',d.querySelectorAll('h1').length===1&&d.querySelector('h1').textContent==='Work Centre');
+    check(prefix+': one Create Case action',d.querySelectorAll('a[href="/Cases/Create"]').length===1);
+    check(prefix+': correct metric availability',d.querySelectorAll('.wd-metric').length===(state==='unavailable'?0:5));
+    check(prefix+': available values are not false zeros',[...d.querySelectorAll('.wd-metric-value')].every(el=>state==='empty'?el.textContent==='0':Number(el.textContent)>0));
+    check(prefix+': all expected attention retained',ids().length===({mine:5,filtered:4,empty:0,quiet:6}[state]??10));
+    check(prefix+': correct assignment modal',d.querySelector('#wd-assignment').open===['assign','conflict'].includes(state));
+    check(prefix+': assigned state is not faked on conflict',state!=='conflict'||model().items.find(i=>i.id==='r3').owner===null);
+    check(prefix+': new-case divider survives',['empty','quiet'].includes(state)||!!d.querySelector('[data-since-divider]'));
+    check(prefix+': partial failure is explicit',state!=='partial'||d.querySelector('#wd-ai-jobs').textContent.includes('AI jobs are unavailable'));
+    check(prefix+': no workflow shell tabs',!d.querySelector('.working-set-strip'));
+    check(prefix+': empty feeds are omitted',!['empty','quiet'].includes(state)||(!d.querySelector('#wd-new-cases')&&!d.querySelector('#wd-ai-jobs')));
+    check(prefix+': no empty overdue group',state!=='quiet'||![...d.querySelectorAll('.wd-group-label,.wd-group-row,.wd-lane-head')].some(el=>el.textContent.includes('Overdue')));
+    check(prefix+': all-empty office omits empty sections',state!=='empty'||(!d.querySelector('[data-section="attention"]')&&!d.querySelector('[data-section="selected"]')&&!d.querySelector('[role="tablist"]')&&d.querySelector('.wd-nothing')));
+    check(prefix+': quiet ledger hides empty tabs',state!=='quiet'||id!=='b'||d.querySelectorAll('[role="tab"]').length===1);
+   }
+  }
+  let d=await load(id,'default');
+  click('[data-scope="mine"]');
+  check(id+': Mine includes owned work and takeable unowned only',ids().join(',')==='r3,r5,r10,r8,r9');
+  click('[data-scope="office"]');click('[data-kind="held"]');click('[data-kind="review"]');
+  check(id+': kind filters combine',ids().join(',')==='r1,r2,r8,r9');
+  check(id+': kind counts stay before filters',d.querySelector('[data-kind="ai"] .n').textContent==='2');
+  click('[data-clear]');
+  const input=d.querySelector('[data-search]');input.value='BH17RZV';input.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));
+  check(id+': reference and vehicle search narrows the full fixture',ids().join(',')==='r3');
+  check(id+': search omits every empty due group',d.querySelectorAll('.wd-group-label,.wd-group-row,.wd-lane-head').length===1);
+  const noMatch=d.querySelector('[data-search]');noMatch.value='NO-MATCH';noMatch.dispatchEvent(new frame.contentWindow.Event('input',{bubbles:true}));
+  check(id+': no-match search retains an escape route',ids().length===0&&!!d.querySelector('[data-clear]')&&!!d.querySelector('[data-search]')&&d.querySelectorAll('.wd-group-label,.wd-group-row,.wd-lane-head').length===0);
+  click('[data-clear]');click('[data-select="r4"]');
+  check(id+': selected work uses the actual selected item',!!d.querySelector('[data-detail="r4"]'));
+  check(id+': Unidentified cannot be assigned to self',!d.querySelector('[data-detail="r4"] [data-take]'));
+  if(id==='c')click('#wd-drawer [data-close]');
+  click('[data-select="r3"]');
+  click('[data-assign="r3"]');
+  d.querySelector('#wd-assignment-form').requestSubmit();
+  check(id+': assignment validates Engineer',!d.querySelector('[data-engineer-error]').hidden&&d.activeElement===d.querySelector('#wd-engineer'));
+  d.querySelector('#wd-engineer').value='R. Khan';d.querySelector('#wd-assignment-form').requestSubmit();
+  check(id+': assignment changes the chosen item',model().items.find(i=>i.id==='r3').owner==='R. Khan');
+  check(id+': assignment changes Unassigned into Review',model().items.find(i=>i.id==='r3').kind==='review');
+  check(id+': assignment closes its dialog',!d.querySelector('#wd-assignment').open);
+  check(id+': assignment confirms once',d.querySelectorAll('.wd-notice.success').length===1);
+  check(id+': unrelated Held item was not changed',model().items.find(i=>i.id==='r2').owner===null);
+  d=await load(id,'conflict');
+  check(id+': conflict is visible and keeps the input usable',!d.querySelector('[data-assignment-error]').hidden&&!!d.querySelector('#wd-engineer'));
+  d=await load(id,'stale');
+  click('[data-kind="triage"]');const before=model();
+  await frame.contentWindow.workCentreDemo.refresh();
+  check(id+': refresh keeps filters and selection',model().selected===before.selected&&model().kinds.join(',')===before.kinds.join(','));
+  check(id+': refresh restores current data without marking new cases seen',model().freshness==='current'&&!!d.querySelector('[data-since-divider]'));
+  d=await load(id,'ai-jobs');
+  click('[data-complete="j4"]');
+  check(id+': completion removes only the supported job',!model().jobs.some(j=>j.id==='j4')&&model().jobs.some(j=>j.id==='j1'));
+  check(id+': completion reconciles the attention list',!model().items.some(i=>i.job==='j4')&&model().items.some(i=>i.job==='j1'));
+  check(id+': estimate has no premature Complete job action',!d.querySelector('[data-job="j1"] [data-complete]'));
+  d=await load(id,'assign');await frame.contentWindow.workCentreDemo.refresh();
+  check(id+': refresh defers while a dialog is open',d.querySelector('#wd-assignment').open&&d.querySelector('#wd-live').textContent.includes('deferred'));
+  d=await load(id,'default',760,1000,'&role=User');
+  check(id+': User role does not expose Administration',[...d.querySelectorAll('.primary-nav a')].every(a=>!a.textContent.includes('Administration')));
+  click('[data-select="r5"]');
+  check(id+': all staff roles may take an unassigned Triage',!!d.querySelector('[data-detail="r5"] [data-take]'));
+ }
+}catch(error){fail.push(error.stack||error.message);}
+window.selfcheckResult={fail,okCount:ok.length};document.querySelector('#result').textContent='RESULT '+JSON.stringify(window.selfcheckResult);
+})();
+</script></body></html>

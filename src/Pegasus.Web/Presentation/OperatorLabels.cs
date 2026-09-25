@@ -46,13 +46,6 @@ public static class OperatorLabels
     public const string PrincipalNotKnown = "Not known";
 
     /// <summary>
-    /// The Triage compact-dialog trigger and title for setting or correcting
-    /// the known principal — the one Image Intake action its inline editor has
-    /// no separate button for, because Triage exposes it as a dialog instead.
-    /// </summary>
-    public const string SetPrincipal = "Set principal";
-
-    /// <summary>
     /// The Triage's own permanent reference, distinct from the originating
     /// provider claim number.
     /// </summary>
@@ -195,42 +188,17 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// What the retained-instruction analysis concluded, in the operator's own
-    /// words. The enum name is never printed: "NoProfile" tells a member of
-    /// staff nothing about what to do next.
+    /// The state a staff "Link to case" destination shows: a Case's stage, or
+    /// a Triage Case's Triage state.
     /// </summary>
-    public static string RetainedInstructionAnalysisOutcome(
-        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome outcome) => outcome switch
+    public static string AssociationDestinationState(IntakeAssociationDestination destination)
     {
-        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.Analyzed =>
-            "Read from the document",
-        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.NoProfile =>
-            "No provider document was recognised",
-        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.Ambiguous =>
-            "More than one provider document was recognised",
-        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.SourceUnavailable =>
-            "The retained file could not be read",
-        Pegasus.Core.Intake.RetainedInstructionAnalysisOutcome.Conflict =>
-            "The receipt changed before the analysis was recorded",
-        _ => throw new InvalidOperationException(
-            $"Unknown retained instruction analysis outcome '{(int)outcome}'.")
-    };
-
-    /// <summary>
-    /// What one recorded field candidate is worth to a member of staff. The
-    /// vocabulary is shared with the case-side source candidates, so a field
-    /// never reads two different ways on two screens.
-    /// </summary>
-    public static string SourceCandidateDisposition(
-        Pegasus.Core.Intake.SourceCandidateDisposition disposition) => disposition switch
-    {
-        Pegasus.Core.Intake.SourceCandidateDisposition.Usable => "Usable",
-        Pegasus.Core.Intake.SourceCandidateDisposition.Missing => "Not stated in the document",
-        Pegasus.Core.Intake.SourceCandidateDisposition.Ambiguous => "Ambiguous",
-        Pegasus.Core.Intake.SourceCandidateDisposition.Conflicting => "Conflicting statements",
-        _ => throw new InvalidOperationException(
-            $"Unknown source candidate disposition '{(int)disposition}'.")
-    };
+        ArgumentNullException.ThrowIfNull(destination);
+        return destination.TriageState is { } triageState
+            ? TriageState(triageState)
+            : CaseStage(destination.State
+                ?? throw new InvalidOperationException("A Case destination has no lifecycle state."));
+    }
 
     /// <summary>
     /// A Not ready case's outstanding requirement as the operator reads it:
@@ -282,18 +250,15 @@ public static class OperatorLabels
     public static class Admin
     {
         public const string Accounts = "Staff accounts & roles";
-        public const string Principals = "Principals";
         public const string Configuration = "Workflow configuration";
         public const string Mail = "Mail settings";
         public const string Automation = "Automation & AI";
 
         // C08 shell administration areas start
-        public const string ActionLogs = "Action logs";
         public const string AiJobs = "AI jobs";
         public const string Reports = "Reports";
         public const string Health = "Service health";
         public const string ValuationPresets = "Valuation presets";
-        public const string ClaimSources = "Claim sources";
         // C08 shell administration areas end
         public const string ReleaseNotes = "Release notes";
         public const string ProblemReports = "Problem reports";
@@ -369,7 +334,7 @@ public static class OperatorLabels
         };
     }
 
-    /// <summary>The shell's own words (v26 shell): the rail foot, the bell and the working set.</summary>
+    /// <summary>The shell's own words (v26 shell): the rail foot and the bell.</summary>
     public static class Shell
     {
         public const string Collapse = "Collapse";
@@ -381,7 +346,6 @@ public static class OperatorLabels
         public const string NoNotifications = "No notifications";
         public const string MarkAllRead = "Mark all read";
         public const string Unread = "Unread";
-        public const string OpenRecords = "Open records";
         public const string AccessDenied = "Access denied";
         public const string AccessDeniedSentence = "Your account does not have access to this page.";
         public const string AdministrationDenied = "Administration is available to Administrators only.";
@@ -555,6 +519,7 @@ public static class OperatorLabels
         CaseType.Inspection => "Inspection",
         CaseType.Audit => "Audit",
         CaseType.InspectionAndAudit => "Inspection and audit",
+        CaseType.Triage => "Triage",
         _ => Humanise(type.ToString())
     };
 
@@ -617,14 +582,6 @@ public static class OperatorLabels
         _ => Humanise(priority.ToString())
     };
 
-    /// <summary>The chip tone for a work-item priority word.</summary>
-    public static string NeedsAttentionPriorityTone(NeedsAttentionPriority priority) => priority switch
-    {
-        Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "red",
-        Pegasus.Core.Operations.NeedsAttentionPriority.Today => "amber",
-        _ => "neutral"
-    };
-
     /// <summary>
     /// The v26 Work Centre's words (Work Centre D2, D4, D8, D9, P1–P6): the
     /// kind chips, the due-day groups and their empty states, the relative due
@@ -632,18 +589,29 @@ public static class OperatorLabels
     /// </summary>
     public static class WorkCentre
     {
+        /// <summary>The metric of the active Triage Cases, last in the strip.</summary>
+        public const string Triages = "Triages";
         public const string Eyebrow = "Office-wide work";
         public const string Title = "Work Centre";
         public const string CreateCase = "Create Case";
-        public const string Refresh = "Refresh";
         public const string NeedsAttention = "Needs attention";
-        public const string Today = "Today";
-        public const string SelectedWork = "Selected work";
         public const string Office = "Office";
         public const string Mine = "Mine";
-        public const string AllKinds = "All kinds";
+        /// <summary>Find within Needs attention (v30 WB): the field's label and its placeholder.</summary>
+        public const string FindInNeedsAttention = "Find in Needs attention";
+        public const string FindPlaceholder = "Find in this work";
+        public const string ClearFilters = "Clear filters";
         public const string NothingNeedsAttention = "Nothing needs attention";
-        public const string SelectAnItem = "Select an item";
+        public const string NoMatches = "No work matches these filters.";
+        /// <summary>The one line an entirely empty Work Centre shows (v30 WG).</summary>
+        public const string NoWorkToShow = "No work to show.";
+        public const string OfficeQueueTotals = "Office queue totals";
+        public const string Sections = "Work Centre sections";
+        public const string NextAction = "Next action";
+        public const string RecordDetail = "Record / detail";
+        public const string Owner = "Owner";
+        public const string Due = "Due";
+        public const string Received = "Received";
         public const string AssignToMe = "Assign to me";
         public const string AssignEngineer = "Assign Engineer";
         public const string Assign = "Assign";
@@ -686,6 +654,20 @@ public static class OperatorLabels
 
         public static string LeaseExpires(DateTimeOffset value) => $"Lease expires {OfficeTime(value)}";
 
+        public static string StartedBy(string name) => $"Started by {name}";
+
+        /// <summary>The Received column: the age alone, the column heading carrying the word.</summary>
+        public static string? ReceivedAge(DateTimeOffset? received, DateTimeOffset now)
+        {
+            if (received is not { } instant)
+            {
+                return null;
+            }
+
+            var days = LondonCalendar.DateAt(now).DayNumber - LondonCalendar.DateAt(instant).DayNumber;
+            return days <= 0 ? "Today" : string.Create(CultureInfo.InvariantCulture, $"{days} d ago");
+        }
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -705,14 +687,6 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => string.Create(CultureInfo.InvariantCulture, $"Overdue ({count})"),
             Pegasus.Core.Operations.NeedsAttentionPriority.Today => string.Create(CultureInfo.InvariantCulture, $"Due today ({count})"),
             _ => string.Create(CultureInfo.InvariantCulture, $"Later ({count})")
-        };
-
-        /// <summary>The group's empty state (P9): absence is visible good news.</summary>
-        public static string GroupEmpty(NeedsAttentionPriority priority) => priority switch
-        {
-            Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "Nothing overdue",
-            Pegasus.Core.Operations.NeedsAttentionPriority.Today => "Nothing due today",
-            _ => "Nothing later"
         };
 
         /// <summary>
@@ -823,9 +797,8 @@ public static class OperatorLabels
     /// </summary>
     /// <remarks>
     /// The abstention case reuses the exact "Unidentified" wording this page
-    /// already shows for the unmatched Queue and Filed-to states
-    /// (<see cref="Pegasus.Web.Pages.Mail.MessageModel.QueueLabel"/> and
-    /// <see cref="Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(IntakeDecision)"/>)
+    /// already shows for the unmatched Filed-to state
+    /// (<see cref="Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(IntakeDecision)"/>)
     /// rather than introducing a second operator-visible spelling of the same
     /// fail-closed state.
     /// </remarks>
@@ -953,6 +926,17 @@ public static class OperatorLabels
     {
         CaseCustodyState.Pending => "Box case folder: preparing",
         _ => "Box case folder: unavailable"
+    };
+
+    /// <summary>
+    /// The Audit's <c>a.</c> Box folder state, mirroring
+    /// <see cref="CustodyFolderState"/> for the cases where there is no
+    /// confirmed folder to name.
+    /// </summary>
+    public static string AuditCustodyFolderState(CaseCustodyState state) => state switch
+    {
+        CaseCustodyState.Pending => "Box audit folder: preparing",
+        _ => "Box audit folder: unavailable"
     };
 
     /// <summary>
@@ -1099,7 +1083,6 @@ public static class OperatorLabels
         "merged_into_instruction_case" => "Merged into Instruction-initiated Case",
         "staff_closed" => "Staff-closed",
         "image_initiated_case_merged" => "Image-initiated Case merged in",
-        "engineer_finding_recorded" => "Engineer finding recorded",
         "report_evidence_auto_linked" => "Sent report linked automatically",
         "standalone_audit_evidence_confirmed" => "Audit evidence confirmed",
         "audit_custody_confirmed" => "Audit evidence stored",
@@ -1329,16 +1312,6 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// The unit word a mileage figure carries ("12,345 miles").
-    /// </summary>
-    public static string MileageUnit(VehicleMileageUnit value) => value switch
-    {
-        VehicleMileageUnit.Miles => "miles",
-        VehicleMileageUnit.Kilometres => "km",
-        _ => Humanise(value.ToString())
-    };
-
-    /// <summary>
     /// The operator word for how material arrived. One owner for the channel
     /// vocabulary; the string overload accepts the persisted channel code.
     /// </summary>
@@ -1382,12 +1355,14 @@ public static class OperatorLabels
 
     /// <summary>
     /// The source tag of a recorded assessment value: the vehicle lookup's
-    /// writes read Lookup, any other Automation actor's AI, a Pegasus worker's
+    /// writes read Lookup, an Original report cell filled from the filed report
+    /// Extracted, any other Automation actor's AI, a Pegasus worker's
     /// Automatic; a staff value carries none.
     /// </summary>
     public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
     {
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
+        ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
         ActorKind.Automation => SourceTagWord.Ai,
         ActorKind.SystemWorker => SourceTagWord.Automatic,
         _ => null
@@ -1567,12 +1542,6 @@ public static class OperatorLabels
         public const string Failed = "Failed";
     }
 
-    /// <summary>The Workflow configuration administration surface — one list.</summary>
-    public static class WorkflowConfiguration
-    {
-        public static string Meta(int policyVersion) => $"Version {policyVersion}";
-    }
-
     /// <summary>The provider-submission API's operator vocabulary — one list.</summary>
     public static class ProviderSubmissionApi
     {
@@ -1597,6 +1566,9 @@ public static class OperatorLabels
     public static class StaffMail
     {
         public const string Reconcile = "Reconcile";
+        public const string Reply = "Reply";
+        public const string ReplyAll = "Reply all";
+        public const string Forward = "Forward";
 
         public static string State(Pegasus.Core.Operations.StaffMailState state) => state switch
         {
@@ -1614,34 +1586,24 @@ public static class OperatorLabels
         };
     }
 
-    /// <summary>The Mail settings area labels and status values — one list.</summary>
+    /// <summary>A Principal contact's own labels (Administration → Contacts, Principal details) — one list.</summary>
     public static class PrincipalAdministration
     {
-        public const string Name = "Name";
         public const string Code = "Principal code";
         public const string State = "State";
-        public const string Settings = "Settings";
-        public const string Create = "Create principal";
-        public const string Back = "Back to Principals";
         public const string ReplaceCode = "Replace code";
         public const string ProviderApi = "Provider API";
     }
 
+    /// <summary>The Mail settings area labels and status values — one list.</summary>
     public static class MailSettings
     {
-        public const string Description = "Approved mailboxes and mail categories";
         public const string ApprovedMailboxes = "Approved mailboxes";
         public const string MailCategories = "Mail categories";
         public const string Mailbox = "Mailbox";
-        public const string Scope = "Scope";
-        public const string LastUpdate = "Last update";
         public const string State = "State";
-        public const string Activated = "Activated";
         public const string Subscription = "Subscription";
-        public const string ReviewFoldersRefresh = "Review folders / Refresh";
         public const string Category = "Category";
-        public const string Review = "Review";
-        public const string ReviewFolders = "Review folders";
         public const string AddMailbox = "Add mailbox";
         public const string AddCategory = "Add category";
         public const string SaveMailbox = "Save mailbox";
@@ -1650,17 +1612,12 @@ public static class OperatorLabels
         public const string ApprovedAddress = "Approved address";
         public const string RouteScope = "Route scope";
         public const string DisplayName = "Display name";
-        public const string Reason = "Reason";
         public const string NoApprovedMailboxes = "No approved mailboxes";
         public const string NoMailCategories = "No mail categories";
         public const string NotActivated = "Not activated";
         public const string NoSubscription = "None.";
         public const string Configured = "Configured";
         public const string NotConfigured = "Not configured";
-
-        public static string Meta(int mailboxCount, int categoryCount) =>
-            $"{mailboxCount} approved {(mailboxCount == 1 ? "mailbox" : "mailboxes")} · " +
-            $"{categoryCount} mail {(categoryCount == 1 ? "category" : "categories")}";
 
         /// <summary>
         /// Both state vocabularies are the enum names themselves, so they
@@ -1675,13 +1632,6 @@ public static class OperatorLabels
 
         public static string FolderState(bool configured) =>
             configured ? Configured : NotConfigured;
-
-        /// <summary>
-        /// The folder disclosure's own control label: how many of the logical
-        /// folders this mailbox has bound, without expanding the list.
-        /// </summary>
-        public static string ReviewFoldersProgress(int configured, int total) =>
-            $"{ReviewFolders} ({configured} of {total})";
 
         public static string PollStatus(
             ApprovedMailbox mailbox,
@@ -1750,35 +1700,18 @@ public static class OperatorLabels
         public const string Disabled = "Disabled";
         public const string PasswordChangeRequired = "Password change required";
 
-        /// <summary>
-        /// The chip shown where Core reports an outstanding access review
-        /// (<c>StaffAccessReviewProjection.ReviewIsOutstanding</c>). "Due"
-        /// is the word <c>_StatusChip</c> already tones amber.
-        /// </summary>
-        public const string ReviewDue = "Due";
-
         public static string State(bool isEnabled) => isEnabled ? Enabled : Disabled;
 
-        public const string PasswordChangeComplete = "Password change complete";
-        public const string Disable = "Disable";
-        public const string Review = "Review";
-        public const string Reason = "Reason";
-        public const string Confirm = "Confirm";
         public const string SignOffEngineer = "Sign-off Engineer";
         public const string Yes = "Yes";
         public const string No = "No";
         public const string PrintedName = "Printed name";
         public const string Qualifications = "Qualifications";
         public const string SignatureImage = "Signature image";
-        public const string OnFile = "On file";
-        public const string NotOnFile = "Not on file";
-        public const string UploadSignature = "Upload signature";
         public const string ReplaceSignature = "Replace signature";
         public const string DefaultSignOffEngineer = "Default sign-off Engineer";
         public const string Settings = "Settings";
-        public const string Save = "Save";
         public const string Cancel = "Cancel";
-        public const string CloseDialog = "Close dialog";
         public const string SignatureMissing = "Signature missing";
         public const string QualificationsMissing = "Yes · qualifications missing";
         public const string Default = "Yes · default";
@@ -1789,7 +1722,6 @@ public static class OperatorLabels
             "Select a PNG signature image no larger than 1 MiB.";
         public const string DefaultRequiresEligible =
             "The default Sign-off Engineer must be eligible to sign off.";
-        public const string SignOffUpdated = "Sign-off Engineer settings updated.";
 
         public static string SignOffState(StaffAccountSummary account)
         {
@@ -1854,7 +1786,6 @@ public static class OperatorLabels
         public const string SendToAiEnabled = "Reviewed AI proposals enabled";
         public const string Save = "Save AI settings";
         public const string RemoveChannelToken = "Remove the channel token";
-        public const string Reason = "Reason";
 
         /// <summary>The state word for a switch an administrator holds.</summary>
         public static string SwitchState(bool enabled) => enabled ? Enabled : Stopped;
@@ -1915,10 +1846,6 @@ public static class OperatorLabels
         public const string OpenMessage = "Open message";
 
         public const string VehicleFactsPanel = "Vehicle";
-        public const string VehicleChecksPanel = "Vehicle checks";
-        public const string RefreshDvla = "Refresh DVLA";
-        public const string RefreshDvsaMot = "Refresh DVSA/MOT";
-        public const string RunExperianCheck = "Run Experian check";
 
         /// <summary>
         /// Why the Experian control is drawn disabled (operator decisions
@@ -1928,9 +1855,6 @@ public static class OperatorLabels
         /// </summary>
         public const string ExperianSeamCondition = "Experian is not connected";
 
-        public const string VehicleChecksHistory = "Recorded checks";
-        public const string AcceptSuggestion = "Accept";
-        public const string CorrectSuggestion = "Correct";
         public const string InspectionAddressPanel = "Inspection address";
 
         /// <summary>
@@ -1958,15 +1882,7 @@ public static class OperatorLabels
         public const string FilesPanel = "Files";
         public const string AddEvidence = "Add evidence";
         public const string OpenOperations = "Open Operations";
-        public const string Preview = "Preview";
         public const string SaveAs = "Save as";
-
-        /// <summary>
-        /// Why a refresh control is disabled: the lookup searches on the
-        /// case's registration, and this case has none recorded. State, not a
-        /// seam — the control enables as soon as a registration is recorded.
-        /// </summary>
-        public const string NoRegistrationCondition = "No registration recorded";
 
         /// <summary>One section of the Case record, as the jump-nav names it.</summary>
         public sealed record CaseSection(string Key, string Label, string Icon);
@@ -2000,7 +1916,6 @@ public static class OperatorLabels
         public const string SectionNav = "Case sections";
 
         // The identity ribbon the frame itself renders (D29, D31).
-        public const string RibbonRegistration = "Registration";
         public const string RibbonClaimant = "Claimant";
         public const string RibbonPrincipal = "Principal";
         public const string RibbonState = "State";
@@ -2015,11 +1930,9 @@ public static class OperatorLabels
         public const string SignOffEngineer = "Sign-off Engineer";
         public const string Unassigned = "Unassigned";
         public const string ReasonForAction = "Reason for action";
-        public const string AssignEngineer = "Assign Engineer";
         public const string SetSignOffEngineer = "Set Sign-off Engineer";
         public const string SendToEva = "Send to EVA";
         public const string EvaHandoff = "EVA handoff";
-        public const string DownloadZip = "Download ZIP";
         public const string SendViaApi = "Send via API";
         public const string EvaApiNotEnabled =
             "EVA API submission is not enabled for this principal.";
@@ -2029,14 +1942,10 @@ public static class OperatorLabels
         // progression actions it must never sit among.
         public const string CloseCase = "Close case";
         public const string ClosureOutcome = "Outcome";
-        public const string AdverseActions = "Adverse actions";
         // end review point 12
 
         // C08 labels batch: Stream B's documents/chase port.
-        public const string Recipient = "Recipient";
         public const string Reason = "Reason";
-        public const string Content = "Content";
-        public const string RecordChase = "Record chase";
         // end C08 labels batch
 
         // The Engineer sections moved from the retired Assessment
@@ -2053,8 +1962,6 @@ public static class OperatorLabels
             public const string NoEstimatesRecorded = "No repair specs recorded";
             public const string NewEstimate = "New repair spec";
             public const string Current = "Current";
-            public const string Recorded = "recorded";
-            public const string DeleteEstimate = "Delete repair spec";
             public const string Duplicate = "Duplicate";
             public const string Compare = "Compare";
             public const string CompareEstimates = "Compare repair specs";
@@ -2069,31 +1976,22 @@ public static class OperatorLabels
             public const string LabourRatePerHour = "Labour rate (\u00a3/h)";
             public const string RegionalUplift = "Regional uplift";
             public const string MaterialPounds = "Material \u00a3";
-            public const string OtherCosts = "Other costs";
             public const string OtherCostsPounds = "Other costs (\u00a3)";
             public const string Vat = "VAT";
             public const string VatPercent = "VAT %";
-            public const string PartsAndOperations = "Parts and operations";
             public const string Operation = "Operation";
             public const string Description = "Description";
             public const string PartNumber = "Part number";
             public const string Quantity = "Quantity";
             public const string QuantityShort = "Qty";
             public const string LabourHours = "Labour hours";
-            public const string LabourHoursShort = "Labour h";
             public const string PaintHours = "Paint hours";
             public const string PaintHoursShort = "Paint h";
             public const string PartAmount = "Part amount";
-            public const string PartPounds = "Part \u00a3";
             public const string Action = "Action";
-            public const string Notes = "Notes";
             public const string NoneRecorded = "None recorded";
             public const string ImportEstimate = "Import estimate";
-            public const string AudatexPdf = "Audatex PDF";
-            public const string JsonEstimate = "JSON estimate";
             public const string Other = "Other";
-            public const string EstimateDropzone = "Drag an estimate here, or choose it";
-            public const string ChooseFile = "Choose a file";
             public const string Reason = "Reason";
             public const string Cancel = "Cancel";
             public const string CloseDialog = "Close dialog";
@@ -2112,75 +2010,188 @@ public static class OperatorLabels
             };
 
             public const string Settlement = "Decisions";
-            public const string Outcome = "Outcome";
-            public const string SalvageCategory = "Salvage category";
-            public const string SalvageValue = "Salvage value";
             public const string RecoveryCharge = "Recovery charge";
-            public const string StorageCharge = "Storage charge";
-            public const string RepairerVatRegistered = "Repairer VAT registered";
 
             public const string Report = "Report";
-            public const string EngineersComments = "Engineer's comments";
-            public const string HistoryCheck = "History check";
-            public const string AgreedFee = "Agreed fee";
-            public const string FeeDescription = "Fee description";
             public const string StatementOfTruth = "Statement of truth";
-            public const string GenerateReportDraft = "Generate report draft";
-            public const string PreviewReportDraft = "Preview report draft";
-            public const string ReportDraftNotReady = "Report draft not ready";
 
-            public const string SendToClaude = "Send to Claude";
             public const string Direction = "Direction";
             public const string TargetEstimate = "Target Estimate";
             public const string CaseValuation = "Case Valuation";
             public const string TargetAmount = "Target amount";
 
             public const string Parts = "Parts";
-            public const string Labour = "Labour";
-            public const string Paint = "Paint";
-            public const string Subtotal = "Subtotal";
-            public const string Total = "Total";
-            public const string Line = "Line";
             public const string Type = "Type";
-            public const string Code = "Code";
-            public const string WorkUnits = "Work units";
-            public const string Price = "Price";
-            public const string Betterment = "Betterment";
             public const string ToBeConfirmed = "To be confirmed";
 
             public const string ReadOnlyOnceComplete = "Read-only once Complete";
             public const string SendingToAiDisabled = "Sending to AI is disabled by an Administrator";
-            public const string ConfirmedEngineerValueRequired = "A confirmed Engineer's Value is required";
+            public const string EngineerValueRequired = "An Engineer's Value is required";
             public const string NotAvailableForCase = "Not available for this case";
             public const string NotReady = "Not ready";
 
             public static string LineField(string label, int line) => $"{label}, line {line}";
 
             public static string RemoveLine(int line) => $"Remove line {line}";
-
-            public static string DeleteEstimatePrompt(string name) =>
-                $"Delete {name} and its lines from this case?";
-
-            public static string SpecificationLinesCaption(string kind) =>
-                $"The {kind} specification's ordered lines, exactly as recorded.";
         }
         // End of the Engineer sections' labels.
     }
 
-    /// Labels for the staff manual-upload surface.
+    /// <summary>
+    /// The Upload surfaces' words (v30 Upload E, "Inspection studio",
+    /// 25 September 2026): choosing files, the review of a stored upload and
+    /// its one Case decision.
     /// </summary>
     public static class Upload
     {
-        public const string Dropzone = "Drag files here or choose files";
+        public const string Title = "Upload";
+        public const string ChoosingSubtitle = "Bring related files into Pegasus.";
+        public const string ReviewSubtitle = "Review your upload and its destination.";
+        public const string SelectEyebrow = "Add files to Pegasus";
+        public const string ChooseHeading = "Choose the files for this upload";
+        public const string DropHeading = "Drop files here";
+        public const string AcceptedKinds = "Images, documents, emails and video";
+        public const string AcceptedExtensions = "JPG, JPEG, PNG, PDF, DOC, DOCX, EML, MSG, MP4 or MOV";
         public const string Choose = "Choose files";
-        public const string Submit = "Upload";
         public const string Clear = "Clear";
-        public const string Another = "Upload another file";
-        public const string Refresh = "Refresh";
-        public static string AcceptedFiles(long maximumFileBytes, int maximumFileCount) =>
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"EML, MSG, PDF, DOC, DOCX, JPG, PNG, MP4 or MOV · up to {FileSize(maximumFileBytes)} each · {maximumFileCount} files");
+        public const string SelectedFiles = "Selected files";
+        public const string FilesInUpload = "Files in this upload";
+        public const string NamesAndOutcomes = "File names and outcomes";
+        public const string NewUpload = "New upload";
+        public const string Open = "Open";
+        public const string OpenOriginal = "Open original";
+        public const string Previous = "Previous";
+        public const string Next = "Next";
+        public const string CheckFiles = "Check the selected files";
+        public const string Remove = "Remove";
+
+        // The decision panel.
+        public const string PendingEyebrow = "Files received";
+        public const string PendingTitle = "Processing your files";
+        public const string ChooseEyebrow = "Choose a destination";
+        public const string ChooseTitle = "Which Case do these files belong to?";
+        public const string NoMatchEyebrow = "No suggested match";
+        public const string NoMatchTitle = "Find the right Case";
+        public const string NoMatchSentence = "Search all Cases and Triage items. The upload is retained while you decide.";
+        public const string SelectHint = "Select a Case to continue.";
+        public const string Review = "Review and add to Case";
+        public const string FindCase = "Find a Case";
+        public const string FindAnotherCase = "Find another Case";
+        public const string SearchLabel = "Search by Case/PO, registration or claimant";
+        public const string SearchPlaceholder = "Case/PO, registration or claimant";
+        public const string Search = "Search";
+        public const string RetrySearch = "Retry search";
+        public const string SearchUnavailable = "Case search is unavailable.";
+        public const string SearchUnavailableSentence = "Your upload is retained. Try again in a moment.";
+        public const string ImageIntake = "Image intake";
+        public const string RegisteredAutomatically = "Registered automatically";
+        public const string Proposal = "Review new Case proposal";
+        public const string ProposalSentence = "Use the extracted instruction details to create a new Case.";
+        public const string LeaveUndecided = "Leave undecided";
+        public const string Discard = "Discard upload";
+        public const string DiscardTitle = "Discard this upload?";
+        public const string DiscardAcknowledgement = "I understand that every file in this upload will be discarded.";
+        public const string DiscardMissing = "Select the confirmation before discarding.";
+        public const string Cancel = "Cancel";
+        public const string ConfirmSentence = "Confirm the exact destination for this upload.";
+        public const string ReviewRequiredEyebrow = "Review required";
+        public const string CompleteEyebrow = "Upload complete";
+        public const string AttachedTitle = "Added to Case";
+        public const string ClosedEyebrow = "Upload closed";
+        public const string DiscardedTitle = "Upload discarded";
+        public const string DiscardedSentence = "The source files and processing record are retained.";
+        public const string StartAnother = "Start another upload";
+        public const string AlreadyReceived = "Already received";
+        public const string UnreadableTitle = "The files could not be read";
+        public const string UnreadableSentence = "The originals are retained in Unidentified. Open a file to inspect it, or review the item in Unidentified.";
+        public const string OpenUnidentified = "Open Unidentified item";
+        public const string IncompleteTitle = "This upload is incomplete";
+        public const string IncompleteSentence = "One file is unavailable. Refresh the status before choosing a Case; nothing has been added.";
+        public const string MixedOutcomesTitle = "Review each file";
+        public const string MixedOutcomesSentence = "The files in this upload reached different outcomes. Each file's outcome is listed with it.";
+
+        // File states.
+        public const string StateReceived = "Received";
+        public const string StateProcessing = "Processing";
+        public const string StateReady = "Ready";
+        public const string StateCouldNotBeRead = "Could not be read";
+        public const string StateAdded = "Added to Case";
+        public const string StateAddedUnreadable = "Added · unreadable";
+        public const string StateDiscarded = "Discarded";
+        public const string StateFailed = "Not processed";
+
+        public static string Files(int count) => count == 1 ? "1 file" : string.Create(CultureInfo.InvariantCulture, $"{count} files");
+
+        public static string UploadFiles(int count) => $"Upload {Files(count)}";
+
+        public static string AddFilesTitle(int count) => $"Add {Files(count)} to this Case?";
+
+        public static string ConfirmAdd(string reference) => $"Confirm and add to {reference}";
+
+        public static string OpenCase(string reference) => $"Open {reference}";
+
+        public static string AttachedSentence(int count) => $"{Files(count)} added to the confirmed destination.";
+
+        public static string PendingSentence(int count) => $"All {Files(count)} are stored. The outcome will appear here when processing finishes.";
+
+        public static string DiscardSentence(int count) => $"Discard all {Files(count)} in this upload. The source files and processing record will be retained.";
+
+        public static string OriginalFiles(int count) => count == 1 ? "1 original file" : string.Create(CultureInfo.InvariantCulture, $"{count} original files");
+
+        public static string CandidatesSentence(int count, string? registration) => (count, registration) switch
+        {
+            (1, null) => "One possible Case. Check the details before adding the files.",
+            (1, _) => $"One possible Case for {registration}. Check the details before adding the files.",
+            (_, null) => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases. Choose the correct claimant and Case."),
+            _ => string.Create(CultureInfo.InvariantCulture, $"{count} possible Cases for {registration}. Choose the correct claimant and Case.")
+        };
+
+        public static string CouldNotBeReadTitle(int count) => count == 1 ? "1 file could not be read" : string.Create(CultureInfo.InvariantCulture, $"{count} files could not be read");
+
+        public static string CouldNotBeReadSentence(int total) => total == 1
+            ? "The original is retained. Check the marked file before adding this upload."
+            : string.Create(CultureInfo.InvariantCulture, $"All {total} originals are retained. Check the marked file before adding this upload.");
+
+        public static string CouldNotBeReadNote(int count) => count == 1
+            ? "1 file could not be read; its original will be included."
+            : string.Create(CultureInfo.InvariantCulture, $"{count} files could not be read; their originals will be included.");
+
+        public static string NoSearchMatches(string term) => $"No Cases or Triage items match “{term}”. Try another reference.";
+
+
+        /// <summary>"Received today, 09:41" or "Received 24 Sep, 09:41", in the office's zone.</summary>
+        public static string ReceivedAt(DateTimeOffset value, DateTimeOffset now)
+        {
+            var day = LondonCalendar.DateAt(value);
+            var today = LondonCalendar.DateAt(now);
+            var when = day == today ? "today" : day.ToString("d MMM", CultureInfo.InvariantCulture);
+            return $"Received {when}, {OfficeClock(value)}";
+        }
+
+        /// <summary>Binary units, as the limits are declared (FRD-18): "3.08 MiB".</summary>
+        public static string FileSize(long bytes) =>
+            string.Create(CultureInfo.InvariantCulture, $"{bytes / 1048576d:0.00} MiB");
+
+        /// <summary>The file's kind in the operator's words, from its media type.</summary>
+        public static string Kind(string? mediaType, string fileName) => (mediaType ?? string.Empty).ToLowerInvariant() switch
+        {
+            "image/jpeg" => "JPEG image",
+            "image/png" => "PNG image",
+            var image when image.StartsWith("image/", StringComparison.Ordinal) => "Image",
+            "application/pdf" => "PDF document",
+            "application/msword" or "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "Word document",
+            "message/rfc822" or "application/vnd.ms-outlook" => "Email",
+            "video/mp4" or "video/quicktime" => "Video",
+            _ => Path.GetExtension(fileName).TrimStart('.').ToUpperInvariant() is { Length: > 0 } extension ? extension + " file" : "File"
+        };
+
+        public static string ImageIntakeState(Pegasus.Core.ImageIntake.ImageInitiatedCaseState state) => state switch
+        {
+            Pegasus.Core.ImageIntake.ImageInitiatedCaseState.AwaitingInstruction => "Awaiting instruction",
+            Pegasus.Core.ImageIntake.ImageInitiatedCaseState.MergedIntoInstructionCase => "Merged into a Case",
+            Pegasus.Core.ImageIntake.ImageInitiatedCaseState.StaffClosed => "Closed",
+            _ => Humanise(state.ToString())
+        };
 
     }
 
@@ -2196,9 +2207,6 @@ public static class OperatorLabels
     /// </remarks>
     public static class VehicleLookup
     {
-        /// <summary>The row title, in read and edit mode alike.</summary>
-        public const string OutcomeTitle = "DVLA & MOT lookup";
-
         /// <summary>No lookup has recorded an answer for this case yet.</summary>
         public const string NotYetLookedUp = "Not yet looked up";
 
@@ -2287,14 +2295,12 @@ public static class OperatorLabels
             _ => "processing"
         };
 
-        /// <summary>The chip tone for an outcome: green when it became work, amber when a person must act, red when processing failed.</summary>
-
         /// <summary>The page a produced record opens.</summary>
         public static string BecameHref(IntakeLogBecame became) => became.Kind switch
         {
             IntakeLogBecameKind.Case => $"/Cases/{became.Id:D}",
             IntakeLogBecameKind.Unidentified => $"/Unidentified/{became.Id:D}",
-            IntakeLogBecameKind.Triage => $"/Triage/{became.Id:D}",
+            IntakeLogBecameKind.Triage => $"/Cases/{became.Id:D}",
             IntakeLogBecameKind.ImageIntake => $"/VehicleImages/{became.Id:D}",
             _ => "/"
         };
@@ -2347,14 +2353,9 @@ public static class OperatorLabels
     /// <summary>Upload: one upload is one group with one decision (Upload, 13 September).</summary>
     public static class UploadDecision
     {
-        public const string ThisUpload = "This upload";
-        public const string OneGroup = "One group";
         public const string Attached = "Attached to a Case";
         public const string VehicleImages = "Registered as vehicle images";
         public const string Unidentified = "Unidentified";
-        public const string Files = "Files";
-        public const string CouldNotBeRead = "Could not be read";
-        public const string NoFileCouldBeRead = "No file in this upload could be read";
     }
 
     // Phase 6 Lane B end

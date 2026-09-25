@@ -70,10 +70,7 @@ public sealed record ExportCaseBundleRequest(
 public sealed record ExportCaseBundleResult(
     EvaBundle? Bundle,
     IReadOnlyList<string> UnrecordedFields,
-    IReadOnlyList<string> BlockingReasons)
-{
-    public bool IsExported => Bundle is not null;
-}
+    IReadOnlyList<string> BlockingReasons);
 
 public interface IExportCaseBundle
 {

@@ -4,33 +4,6 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Cases;
 
-public sealed class ConfirmCompleteness(
-    ICaseDataStore store,
-    ICaseWorkflowConfiguration configuration) : IConfirmCompleteness
-{
-    private readonly ICaseDataStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly ICaseWorkflowConfiguration _configuration =
-        configuration ?? throw new ArgumentNullException(nameof(configuration));
-
-    public async Task<CaseDataProjection> ExecuteAsync(
-        ConfirmCompletenessRequest request,
-        CancellationToken cancellationToken)
-    {
-        CaseDataPolicy.ValidateMutation(request);
-        ArgumentNullException.ThrowIfNull(request.Completeness);
-        CaseDataPolicy.ValidateCompleteness(request.Completeness);
-
-        var currentConfiguration = await _configuration.GetCurrentAsync(cancellationToken);
-        var evaluation = CaseCompletenessPolicy.Evaluate(
-            request.Completeness,
-            currentConfiguration);
-        return await _store.ConfirmCompletenessAsync(
-            request,
-            evaluation,
-            cancellationToken);
-    }
-}
-
 public sealed class SaveCase(ICaseDataStore store) : ISaveCase
 {
     private readonly ICaseDataStore _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -90,6 +63,16 @@ public static class CaseDataPolicy
     /// </summary>
     public static void ValidateCompleteness(CaseCompleteness completeness) =>
         ArgumentNullException.ThrowIfNull(completeness);
+
+    /// <summary>
+    /// The Case's Received date, as its Received cell shows it: the London
+    /// calendar date of its origin receipt's received time, or of its creation
+    /// for a manual Case, which has no receipt. It is the Case's one instruction
+    /// date (operator, 24 September 2026): the report prints it as the date
+    /// instructions were received and the EVA archive sends it as Instruction Date.
+    /// </summary>
+    public static DateOnly ReceivedDate(DateTimeOffset? originReceivedAtUtc, DateTimeOffset caseCreatedAtUtc) =>
+        LondonCalendar.DateAt(originReceivedAtUtc ?? caseCreatedAtUtc);
 
     /// <summary>
     /// The one place the stated report-address treatment becomes the stored
@@ -185,7 +168,6 @@ public static class CaseDataPolicy
         }
 
         ValidateDate(data.IncidentDate, nameof(data.IncidentDate));
-        ValidateDate(data.InstructionDate, nameof(data.InstructionDate));
         ValidateDate(data.InspectionDate, nameof(data.InspectionDate));
         ValidateDate(data.InspectionDeadline, nameof(data.InspectionDeadline));
         ValidateDate(data.DueBy, nameof(data.DueBy));

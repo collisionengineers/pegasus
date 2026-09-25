@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -243,14 +244,6 @@ public sealed class CaseEstimateDocumentWebTests
             SaveEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<RepairSpecificationVersion> StartDraftAsync(
-            StartRepairSpecificationDraftRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<RepairSpecificationVersion> AcceptAsync(
-            AcceptRepairSpecificationRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
         public Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(
             Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -288,7 +281,7 @@ public sealed class CaseEstimateDocumentWebTests
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
-            Guid caseId, CancellationToken cancellationToken) =>
+            Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(

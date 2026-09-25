@@ -103,7 +103,7 @@ public sealed class OperationsPersistenceTests
                 Year = 2031,
                 Sequence = 2,
                 Reference = "OPS-REQUEST",
-                Type = "Inspection",
+                Type = "inspection",
                 InitialState = "NotReady",
                 CustodyState = "Pending",
                 OriginIntakeReceiptId = receiptId,

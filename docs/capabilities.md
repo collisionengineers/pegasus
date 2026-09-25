@@ -51,19 +51,19 @@ exclusion.
 | MAIL-15 | Manually link, unlink, or relink an exact Sent item with a reason | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-16 | Automatically match the exact report Sent item to its case | [Outbound correspondence evidence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence) |
 | MAIL-18 | Generate copyable chaser messages for staff to send manually | [Due work and chasing](frd/frd-13-case-lifecycle-and-workflow.md#due-work-and-chasing) |
-| TRI-01 | Distinct inbox Triage label and separate pre-case record/workflow | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
+| TRI-01 | Distinct inbox Triage label; Triage as a Case type with a `t.` Case/PO and its own workflow | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-02 | Vehicle-registration gate and Triage-specific missing-registration behavior | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-03 | Open, Awaiting information, Finding recorded, Completed, and Cancelled states | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-04 | Roadworthiness and Assessment findings, each optional, corrected by superseding | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-05 | Outcome-based completion and optional Reply with outcome correspondence | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-06 | Reopen and superseding-finding behavior with permanent history | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-07 | Optional later case link, unlink, and relink | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
-| TRI-08 | Dedicated Triage list and detail workspace | [Pre-Case records](frd/frd-15-work-centre-queues-and-search.md#pre-case-records) |
-| TRI-09 | Optional Triage assignee, with no due date and no chasers | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
+| TRI-08 | Dedicated Triage queue and the Triage Case page at `/Cases/{id}` | [The Triage Case page](frd/frd-15-work-centre-queues-and-search.md#the-triage-case-page) |
+| TRI-09 | Optional Triage assignee, due target and manual chaser | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | CASE-01 | Every active Case type travels end to end to handoff | [States and labels](frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels) |
 | CASE-02 | Inspection cases | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-03 | Standalone Audit Case with or without the original report | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
-| CASE-04 | Inspection + Audit: linked Audit Case made by Create audit | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
+| CASE-04 | Inspection + Audit: one Case whose Audit is added by Create audit | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-07 | Shared principal/year case sequence | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-08 | One `a.` Audit reference prefix, independent of assessment outcome | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-09 | Case principal and reference immutability after allocation | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
@@ -99,9 +99,9 @@ exclusion.
 | UI-09 | Full case workspace | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-11 | Accounts, Contacts, mailbox allowlist, and configuration workspace | [Administration](frd/frd-17-administration-workspace.md#administration) |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Operator experience](frd/frd-12-operator-experience.md#operator-experience) |
-| UI-16 | Operations Workspace shell: rail, counts, working set, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
-| UI-17 | Case record: Scroll and Tabs modes over ten sections | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
-| UI-18 | Awaiting instruction pre-Case queue beside Triage | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
+| UI-16 | Operations Workspace shell: rail, counts, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
+| UI-17 | Case record: Scroll and Tabs modes over ten sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
+| UI-18 | Awaiting instruction pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only; Operations links to it | [Operations](frd/frd-15-work-centre-queues-and-search.md#operations) |
 | ENG-03 | Damage record: zones with severity and note, tyres, belts, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
 | ENG-04 | Settlement fields with derived equity | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
@@ -205,7 +205,7 @@ exclusion.
 | RPT-05 | Addenda from accepted data plus a versioned amendment (deferred) | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | RPT-07 | Estimate document rendered per estimate version from the one totals owner | [Report generation entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point) |
 | AI-08 | AI-drafted query response reviewed by human staff before sending | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
-| AI-09 | Send to AI: pointer-only hand-off, attributed unconfirmed writes | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
+| AI-09 | Send to AI: pointer-only hand-off, attributed writes | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | AI-10 | Named AI job kinds with durable lifecycle and job list | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
 | MCP-07 | Administration settings for the Send to AI connector | [Send to AI connector settings](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-connector-settings) |
 | MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | [Reports](frd/frd-17-administration-workspace.md#reports) |

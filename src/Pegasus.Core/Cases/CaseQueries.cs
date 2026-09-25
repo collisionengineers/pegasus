@@ -20,11 +20,11 @@ public sealed record CaseSearchFilters(
     CaseLifecycleState? State = null,
     Guid? EngineerId = null,
     DateOnly? ReceivedDate = null,
-    DateOnly? InstructionDate = null,
     DateOnly? FromDate = null,
     DateOnly? ToDate = null,
     string? Origin = null,
-    string? Query = null);
+    string? Query = null,
+    bool IncludeTriage = false);
 
 /// <summary>
 /// The sort a case list renders in. Newest received first is the default
@@ -69,7 +69,6 @@ public sealed record CaseSearchItem(
     string? Claimant,
     string? ClaimNumber,
     DateTimeOffset ReceivedAtUtc,
-    DateOnly? InstructionDate,
     string Origin,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? NextChaseAtUtc = null,
@@ -100,6 +99,15 @@ public sealed record CaseSearchItem(
 
     /// <summary>When the Case entered its current state, so Review ageing counts from the transition.</summary>
     public DateTimeOffset? StateEnteredAtUtc { get; init; }
+
+    /// <summary>
+    /// The Triage state of a Triage Case row (<see cref="CaseType"/> is
+    /// <see cref="CaseType.Triage"/>), which has no Case workflow: the
+    /// positional <see cref="State"/> is unused for such a row. Null for
+    /// every other Case. Rows of Triage Cases appear only when the search asks
+    /// for them (<see cref="CaseSearchFilters.IncludeTriage"/>).
+    /// </summary>
+    public Pegasus.Core.Triage.TriageState? TriageState { get; init; }
 }
 
 public sealed record SearchCasesResult(
@@ -179,12 +187,6 @@ public sealed record CaseDetails(
     public IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails { get; init; } = [];
 
     /// <summary>
-    /// The operator-facing name for <c>Workflow.ReportApproval.ApprovedBy</c>,
-    /// resolved by <c>GetCase</c>. Null when there is no report approval to name.
-    /// </summary>
-    public string? ReportApprovedByDisplayName { get; init; }
-
-    /// <summary>
     /// The Principal record's and the Claim source record's "Notes on every Case", read
     /// live from the records when the Case is read and never copied onto it, so a
     /// change to a record shows on every Case at once. Absent when a record has none.
@@ -218,7 +220,8 @@ public sealed record CaseSectionFrame(
     CaseWorkflowRecord Workflow,
     CaseEditLeaseSnapshot? ActiveEditLease,
     string? CustodyFolderRemoteId = null,
-    CaseCustodyState CustodyState = CaseCustodyState.Pending);
+    CaseCustodyState CustodyState = CaseCustodyState.Pending,
+    CaseWorkSet? Works = null);
 
 /// <summary>
 /// The already-authorized page inputs a directly rendered body may reuse. A
@@ -233,7 +236,8 @@ public sealed record GetCaseSectionQuery(
     bool HasAssessmentWorkspace = false,
     CaseDataProjection? Data = null,
     IReadOnlyList<CaseDocument>? Documents = null,
-    CaseSectionFrame? Frame = null);
+    CaseSectionFrame? Frame = null,
+    CaseWorkSelector Work = CaseWorkSelector.Current);
 
 /// <summary>
 /// The Case page's first-response frame. It keeps the identity, workflow,
@@ -245,8 +249,7 @@ public sealed record CasePageFrame(
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
-    CaseDataProjection Data,
-    Guid? AuditOfCaseId = null)
+    CaseDataProjection Data)
 {
     public CaseSearchItem Summary => Frame.Summary;
     public CaseWorkflowRecord Workflow => Frame.Workflow;
@@ -258,8 +261,7 @@ public sealed record CasePageFrameData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
-    CaseRecordNotes RecordNotes,
-    Guid? AuditOfCaseId = null);
+    CaseRecordNotes RecordNotes);
 
 public sealed record CaseVehicleSection(
     CaseSectionFrame Frame,
@@ -287,7 +289,8 @@ public sealed record CaseFilesSection(
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
-    Guid? AuditOfCaseId = null);
+    CaseCustodyState? AuditCustodyState = null,
+    string? AuditCustodyFolderRemoteId = null);
 
 /// <summary>
 /// Persistence material used only to prove a fragment's render-only lease
@@ -308,7 +311,8 @@ public sealed record CaseHeader(
     CaseEditLeaseSnapshot? ActiveEditLease,
     int DocumentCount,
     int HistoryCount,
-    int OpenTaskCount);
+    int OpenTaskCount,
+    CaseWorkSet? Works = null);
 
 public interface ICaseQueryStore
 {
@@ -445,6 +449,10 @@ public interface IGetCasePageFrame
 /// The persistence half of <see cref="CaseFilesSection"/>. It contains only
 /// Files-owned rows; the page frame supplies the already-rendered documents.
 /// </summary>
+/// <remarks>
+/// <see cref="AuditCustodyState"/> is the Audit's <c>a.</c> folder, present
+/// only once the Case has an Audit work.
+/// </remarks>
 public sealed record CaseFilesSectionData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
@@ -452,7 +460,8 @@ public sealed record CaseFilesSectionData(
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseCorrespondenceEmail> CorrespondenceEmails,
     Guid? StandaloneAuditEvidenceId = null,
-    Guid? AuditOfCaseId = null);
+    CaseCustodyState? AuditCustodyState = null,
+    string? AuditCustodyFolderRemoteId = null);
 
 public interface IGetCaseVehicleSection
 {
@@ -494,15 +503,14 @@ public sealed class GetCasePageFrame(
             return null;
         }
 
-        var data = await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(
             frame.Frame,
             frame.Documents,
             frame.AvailableReportSentEvidence,
             frame.RecordNotes,
-            data,
-            frame.AuditOfCaseId);
+            data);
     }
 }
 
@@ -522,7 +530,7 @@ public sealed class GetCaseVehicleSection(
         }
 
         var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
-        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         var evidence = workspace?.LatestVehicleObservation
             ?? (await vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken))?.LatestObservation;
@@ -545,7 +553,7 @@ public sealed class GetCaseValuationSection(
         }
 
         var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
-        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, query.Work, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         return new(frame, data, workspace?.Assessment);
     }
@@ -595,7 +603,8 @@ public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSe
 
         return new(body.Frame, query.Documents ?? body.Documents, body.CustodyFolderRemoteId,
             body.CustodyState, body.CorrespondenceEmails,
-            body.StandaloneAuditEvidenceId, body.AuditOfCaseId);
+            body.StandaloneAuditEvidenceId,
+            body.AuditCustodyState, body.AuditCustodyFolderRemoteId);
     }
 }
 
@@ -706,7 +715,7 @@ internal static class CaseSectionQueries
         CancellationToken cancellationToken) =>
         query.HasAssessmentWorkspace
             ? Task.FromResult(query.AssessmentWorkspace)
-            : workspaces.ExecuteAsync(new(query.CaseId, query.Actor), cancellationToken);
+            : workspaces.ExecuteAsync(new(query.CaseId, query.Actor, query.Work), cancellationToken);
 
 }
 
@@ -890,7 +899,7 @@ public sealed class GetCase(
             return null;
         }
 
-        var data = await _caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+        var data = await _caseDataQueries.GetAsync(query.CaseId, CaseWorkSelector.Current, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         var vehicleEvidence = await _vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken);
         var custody = await _caseCustodyQueries.GetPreparationsAsync(query.CaseId, cancellationToken);
@@ -904,14 +913,9 @@ public sealed class GetCase(
             throw new InvalidDataException("A composed case projection belongs to another case.");
         }
 
-        var approvedBy = details.Workflow.ReportApproval?.ApprovedBy;
         var staffIds = details.History
             .Where(entry => entry.ActorKind == nameof(ActorKind.Staff) && Guid.TryParse(entry.Actor, out _))
             .Select(entry => Guid.Parse(entry.Actor));
-        if (approvedBy is { Kind: ActorKind.Staff } && Guid.TryParse(approvedBy.SubjectId, out var approverId))
-        {
-            staffIds = staffIds.Append(approverId);
-        }
         var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
             _staffAccountQueries,
             staffIds,
@@ -931,10 +935,7 @@ public sealed class GetCase(
                         ? ActorDisplayNames.Resolve(actorKind, entry.Actor, staffNames)
                         : ActorDisplayNames.UnknownStaff
                 })
-                .ToArray(),
-            ReportApprovedByDisplayName = approvedBy is null
-                ? null
-                : ActorDisplayNames.Resolve(approvedBy.Kind, approvedBy.SubjectId, staffNames)
+                .ToArray()
         };
     }
 }
@@ -1025,7 +1026,6 @@ public sealed class SearchCasesByCursor(ICaseQueryStore store, ICursorProtector 
             filters.State?.ToString(),
             filters.EngineerId?.ToString(),
             InvariantDate(filters.ReceivedDate),
-            InvariantDate(filters.InstructionDate),
             InvariantDate(filters.FromDate),
             InvariantDate(filters.ToDate),
             filters.Origin,

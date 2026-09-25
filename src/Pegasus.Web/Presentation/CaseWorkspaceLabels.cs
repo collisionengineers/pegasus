@@ -2,6 +2,7 @@
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Web.Presentation;
 
@@ -29,17 +30,27 @@ public static class CaseWorkspaceLabels
         public const string Save = "Save";
         public const string Actions = "Actions";
         public const string More = "More";
-        public const string Refresh = "Refresh";
         public const string Scroll = "Scroll";
         public const string Tabs = "Tabs";
         public const string CollapseSection = "Collapse section";
         public const string ExpandSection = "Expand section";
         public const string RenewEditing = "Renew editing";
-        public const string Release = "Release";
         public const string TakeOver = "Take over";
         public const string Editing = "Editing";
         public const string Archived = "Archived";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
+        /// <summary>The Inspection view's section heads once the Case has its Audit (v29 P3).</summary>
+        public const string ReadOnlyAuditCreated = "Read-only · Audit created";
+        /// <summary>The aside's Views card and its two rows, present once the Case has its Audit (v29 option 4).</summary>
+        public const string Views = "Views";
+        public const string InspectionView = "Inspection";
+        public const string AuditView = "Audit";
+        public const string Sent = "Sent";
+        /// <summary>The Audit view's sent Inspection report line links to its own view (v29 P4).</summary>
+        public const string InspectionViewLink = "Inspection view";
+        /// <summary>The Create audit dialog's facts (v29 P5).</summary>
+        public const string AuditDialogCase = "Case";
+        public const string AuditReference = "Audit reference";
         public const string Figures = "Figures";
         public const string MatterLine = "Matter line";
         public const string Claim = "Claim";
@@ -66,14 +77,10 @@ public static class CaseWorkspaceLabels
         public const string ReturnToEngineer = "Return to Engineer";
         public const string ArchiveCase = "Archive case";
         public const string AssignToMe = "Assign to me";
-        public const string AuditCase = "Audit case";
         public const string OriginalCase = "Original case";
         public const string ReplacementCase = "Replacement case";
-        public const string LifecycleActions = "Lifecycle actions";
         public const string OutstandingRequirements = "Outstanding requirements";
         public const string UnlinkReportEvidence = "Unlink report evidence";
-        public const string CaseDataSaved = "Case data saved";
-        public const string AiDraftReady = "AI draft ready";
         public const string ReviewEstimate = "Review estimate";
         public const string OpenQuery = "Open query";
         public const string Review = "Review";
@@ -102,11 +109,13 @@ public static class CaseWorkspaceLabels
         public const string NotesFromClient = "Notes from client";
         public const string NoClaimSource = "None";
         public const string ReportSent = "Report sent";
-        public const string LeaseExpires = "Lease expires";
     }
 
-    // Presentation membership only; types, allowed codes and authority remain
-    // owned by AssessmentVocabulary and the workspace command.
+    // The Case editor's assessment-field membership and labels. Types, allowed
+    // codes and finding authority remain owned by AssessmentVocabulary and the
+    // workspace command. The Automation MCP write reuses this membership
+    // (HasStaffEditor, FRD-10), so adding an editor here widens what
+    // automation may write.
     public static class Editors
     {
         public static IReadOnlyDictionary<string, string> Settlement { get; } = new Dictionary<string, string>
@@ -116,6 +125,9 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SalvageValue] = "Salvage value",
             [AssessmentVocabulary.LegalStatus] = "Roadworthiness",
             [AssessmentVocabulary.UnroadworthyReason] = "Unroadworthy reason",
+            [AssessmentVocabulary.VehicleTemporaryRepairsPossible] = "Temporary repairs possible",
+            [AssessmentVocabulary.VehicleTemporaryRepairMethod] = "Temporary repair method",
+            [AssessmentVocabulary.VehicleTemporaryRepairCost] = "Temporary repair cost",
             [AssessmentVocabulary.SettlementExcess] = "Excess",
             [AssessmentVocabulary.SettlementBetterment] = "Betterment",
             [AssessmentVocabulary.SettlementClaimantVatRegistered] = "Claimant VAT registered",
@@ -170,15 +182,21 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.DamageCentreBelt] = "Centre belt",
             [AssessmentVocabulary.DamageUnrelated] = "Unrelated damage",
             [AssessmentVocabulary.DamageUnrelatedDeduction] = "Unrelated-damage deduction",
-            [AssessmentVocabulary.DamageMaterialTransfer] = "Material transfer"
+            [AssessmentVocabulary.DamageMaterialTransfer] = "Material transfer",
+            [AssessmentVocabulary.VehicleAirbagsDeployed] = "Airbags deployed"
         };
 
-        /// <summary>The vehicle's identity the Vehicle section edits beside the registration.</summary>
+        /// <summary>
+        /// The vehicle facts the Vehicle section edits in place: its identity
+        /// beside the registration, and the transmission no approved lookup
+        /// returns.
+        /// </summary>
         public static IReadOnlyDictionary<string, string> Vehicle { get; } = new Dictionary<string, string>
         {
             [AssessmentVocabulary.VehicleVin] = "VIN",
             [AssessmentVocabulary.VehicleType] = "Vehicle type",
-            [AssessmentVocabulary.VehicleBody] = "Body type"
+            [AssessmentVocabulary.VehicleBody] = "Body type",
+            [AssessmentVocabulary.VehicleTransmission] = "Transmission"
         };
 
         public static string FormName(string path) => $"assessmentFields[{path}]";
@@ -205,6 +223,60 @@ public static class CaseWorkspaceLabels
             Settlement.ContainsKey(path) || OriginalReport.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
             || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck
             || path == AssessmentVocabulary.VehicleCondition;
+
+        /// <summary>
+        /// Every assessment path a staff member records, and so can change or
+        /// clear, through the Case editor: the editor fields above and the
+        /// paths a section writes through its own typed member.
+        /// pegasus_assessment_update accepts only these (FRD-10).
+        /// </summary>
+        public static bool HasStaffEditor(string path) =>
+            IsAssessmentField(path) || CaseWorkspacePolicy.TypedPaths.Contains(path);
+
+        /// <summary>
+        /// The Case section whose controls record <paramref name="field"/> (an
+        /// assessment path or a Case data field name), for a readiness
+        /// blocker's link (FRD-13); null when no section records it.
+        /// </summary>
+        public static string? SectionOf(string field)
+        {
+            // Fields shown outside the section their editor list names: the
+            // claimant's VAT answer is on Claim, and the report content
+            // switches are Valuation's On the report switches.
+            var shownElsewhere = field switch
+            {
+                AssessmentVocabulary.SettlementClaimantVatRegistered => "claim",
+                AssessmentVocabulary.ReportDiscloseGuideSource
+                    or AssessmentVocabulary.ReportValuationCommentary
+                    or AssessmentVocabulary.ReportIncludeUnrelatedDamage => "valuation",
+                _ => null
+            };
+            if (shownElsewhere is not null) return shownElsewhere;
+            if (Settlement.ContainsKey(field)) return "settlement";
+            if (OriginalReport.ContainsKey(field)) return "original-report";
+            if (Report.ContainsKey(field)) return "report";
+            if (Damage.ContainsKey(field)) return "damage";
+            if (Vehicle.ContainsKey(field)) return "vehicle";
+            if (AssessmentVocabulary.LookupDerivedPaths.Contains(field)) return "vehicle";
+            return field switch
+            {
+                AssessmentVocabulary.HistoryCheck or AssessmentVocabulary.VehicleCondition
+                    or AssessmentVocabulary.VehicleMileageSource or CaseDataFieldNames.VehicleRegistration
+                    or CaseDataFieldNames.VehicleMake or CaseDataFieldNames.VehicleModel
+                    or CaseDataFieldNames.VehicleYear or CaseDataFieldNames.VehicleMileage => "vehicle",
+                AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactSeverity
+                    or AssessmentVocabulary.ImpactLocation => "damage",
+                AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade
+                    or AssessmentVocabulary.ValueEngineer => "valuation",
+                AssessmentVocabulary.ReportDate => "report",
+                AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge
+                    or CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
+                    or CaseDataFieldNames.InspectionAddress => "inspection",
+                CaseDataFieldNames.ClaimantName => "claim",
+                CaseDataFieldNames.ClaimNumber or CaseDataFieldNames.IncidentDate => "overview",
+                _ => null
+            };
+        }
     }
 
     /// <summary>
@@ -253,17 +325,11 @@ public static class CaseWorkspaceLabels
 
     /// <summary>
     /// The Settlement section's own words (v26 § Settlement): the figures
-    /// strip, the Decisions strip and its proposal column.
+    /// strip and the Decisions strip.
     /// </summary>
     public static class Settlement
     {
         public const string Decisions = "Decisions";
-        public const string Proposed = "Proposed";
-        public const string Awaiting = "Awaiting";
-        public const string Accepted = "Accepted";
-        public const string Corrected = "Corrected";
-        public const string Accept = "Accept";
-        public const string AcceptAll = "Accept all";
         public const string SetInValuation = "Set in Valuation";
         public const string ValuationLink = "Valuation";
         public const string EngineersValue = "Engineer's Value";
@@ -276,13 +342,10 @@ public static class CaseWorkspaceLabels
         public const string RepairCostOfValue = "Repair cost of value";
         public const string ExceedsEngineersValue = "Exceeds Engineer's Value";
         public const string FromCurrentEstimate = "From current repair spec";
-        public const string CurrentEstimate = "current estimate";
         public const string SetInValuationMeta = "Set in Valuation";
         public const string CostsHireDelays = "Costs, hire & delays";
         public const string Salvage = "Salvage";
         public const string StorageCharge = "Storage charge";
-        public const string AwaitingReview = "awaiting review";
-        public const string AiProposal = "AI proposal";
         public const string NotApplicable = "Not applicable";
         public const string ComputedRepairReserve = "Repair reserve (computed)";
         public const string RoundedUpToFifty = "repair cost rounded up to the next \u00a350";
@@ -300,7 +363,6 @@ public static class CaseWorkspaceLabels
     {
         public const string More = "More";
         public const string PreviewDraft = "Preview draft";
-        public const string DownloadDraft = "Download draft";
         public const string NotReady = "Report not ready";
         public const string NoGeneration = "No generation yet.";
         public const string Generated = "Generated";
@@ -311,16 +373,30 @@ public static class CaseWorkspaceLabels
         public const string FeeTab = "Fee";
         public const string FeeVat = "VAT";
         public const string FeeTotal = "Total";
-        public const string ReportContent = "Report content";
         public const string DiscloseGuideSource = "Disclose guide source";
         public const string ValuationCommentary = "Valuation commentary";
         public const string UnrelatedDamage = "Unrelated damage";
-        public const string ImagesInReport = "Images in report";
-        public const string InReport = "in report";
-        public const string ReportImagePreparation = "Report image preparation";
         public const string ReviewedRecipients = "Reviewed recipients";
         public const string AddTo = "Add To recipient";
         public const string AddCc = "Add Cc recipient";
+
+        /// <summary>
+        /// The section that clears a report blocker (FRD-13): the one
+        /// recording the fact it names, else the one owning the material it
+        /// names; null when none does.
+        /// </summary>
+        public static string? BlockerSection(AssessmentReadinessItem item) => item switch
+        {
+            { Field: { } field } => Editors.SectionOf(field),
+            { Requirement: CaseReportReadiness.SignatoryRequirement } => "overview",
+            { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
+            {
+                Requirement: CaseReportReadiness.CloseUpImageRequirement
+                    or CaseReportReadiness.OverviewImageRequirement
+                    or CaseReportReadiness.ImageSourceRequirement
+            } => "files",
+            _ => null
+        };
     }
 
     /// <summary>
@@ -344,16 +420,13 @@ public static class CaseWorkspaceLabels
         public const string UpliftPercent = "+ 15 %";
         public const string Suggested = "Suggested";
         public const string LondonAndHomeCounties = "London & Home Counties";
-        public const string Rename = "Rename";
         public const string TargetPercentOfValue = "Target % of value";
         public const string Scaled = "Scaled";
-        public const string Preview = "Preview";
         public const string Apply = "Apply";
         public const string RemoveScaling = "Remove scaling";
         public const string Floors = "Floors";
         public const string FloorLabour = "labour \u00a3/h";
         public const string FloorPrices = "prices %";
-        public const string AsEstimated = "as estimated";
         public const string ContractRepair = "Contract repair";
         public const string ContractRepairAgreed = "Contract repair agreed";
         public const string AgreedTotalSum = "agreed total sum \u00a3";
@@ -417,7 +490,6 @@ public static class CaseWorkspaceLabels
         public const string On = "on";
         public const string RepairCostIncVat = "Repair cost inc VAT";
         public const string DraftSuffix = "draft";
-        public const string EstimateFile = "Estimate file";
         public const string SourceImported = "imported";
         public const string SourceAmended = "amended";
         public const string SourceManual = "manual";
@@ -511,9 +583,9 @@ public static class CaseWorkspaceLabels
         };
 
         /// <summary>
-        /// A lookup-sourced assessment value as a read value: a date in the
-        /// office's short form, an enumerated code as words, everything else
-        /// as recorded.
+        /// A Vehicle-section assessment value as a read value: a date in the
+        /// office's short form, an enumerated code in the words the report
+        /// prints, everything else as recorded.
         /// </summary>
         public static string AssessmentValue(string path, string value)
         {
@@ -525,7 +597,7 @@ public static class CaseWorkspaceLabels
             }
             if (definition.Type == AssessmentFieldType.Enumerated)
             {
-                return OperatorLabels.Humanise(value);
+                return AssessmentReportPresentation.AssessmentCode(value);
             }
             return path == AssessmentVocabulary.VehicleEngineCc ? value + " cc" : value;
         }
@@ -605,7 +677,6 @@ public static class CaseWorkspaceLabels
         public const string Applied = "Applied";
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
-        public const string Listings = "listings";
         public const string ChooseBasis = "Choose a basis card to calculate.";
         public const string GuideRetail = "Guide retail";
         public const string ProposedEngineersValue = "Proposed Engineer's Value";
@@ -710,9 +781,6 @@ public static class CaseWorkspaceLabels
         public const string Specialist = "Specialist discount";
         public const string Overall = "Overall discount";
 
-        /// <summary>The editor's form label: the name with its unit.</summary>
-        public static string Percent(string label) => label + " %";
-
         /// <summary>
         /// The one conversion between Core's fraction and the percentage the
         /// screen states, so the editor's box and the read-only value can
@@ -743,7 +811,6 @@ public static class CaseWorkspaceLabels
         public const string InPrintOrder = "in print order";
         public const string Heading = "Heading";
         public const string Wording = "Wording";
-        public const string Order = "Order";
         public const string OnReport = "On report";
         public const string TracksFields = "tracks fields";
         public const string Edited = "edited";
@@ -753,7 +820,6 @@ public static class CaseWorkspaceLabels
         public const string Recompose = "Recompose from fields";
         public const string MoveUp = "Move up";
         public const string MoveDown = "Move down";
-        public const string Remove = "Remove";
         public const string NewParagraph = "New paragraph";
     }
 
@@ -772,32 +838,14 @@ public static class CaseWorkspaceLabels
         /// <summary>The count line under the image grid: how many of the Case's images the report uses.</summary>
         public static string InReportCount(int included, int total) => $"{included} of {total} in report";
 
-        public const string SectionTitle = "Report position";
         public const string Role = "Role";
         public const string Order = "Order";
         public const string Rotation = "Rotation";
         public const string Crop = "Crop";
-        public const string CropLeft = "Left";
-        public const string CropTop = "Top";
-        public const string CropWidth = "Width";
-        public const string CropHeight = "Height";
-        public const string Save = "Save";
         public const string Reset = "Reset";
-        public const string MoveUp = "Move up";
-        public const string MoveDown = "Move down";
         public const string RotateLeft = "Rotate left";
         public const string RotateRight = "Rotate right";
         public const string FullFrame = "Full frame";
-
-        /// <summary>The reason each preparation command records on the case.</summary>
-        public const string SaveReason = "Report images prepared.";
-        public const string ResetReason = "Report image preparation reset.";
-        public const string WasSaved = "The report image preparation was saved.";
-        public const string WasReset = "The report image preparation was reset.";
-        public const string SaveRefused =
-            "The report image preparation was not saved. Retry the operation.";
-        public const string ResetRefused =
-            "The report image preparation was not reset. Retry the operation.";
 
         public static string RoleLabel(CaseAssetReportRole role) => role switch
         {
@@ -807,33 +855,6 @@ public static class CaseWorkspaceLabels
             CaseAssetReportRole.Supporting => "Supporting",
             _ => role.ToString(),
         };
-
-        public static string RotationLabel(CaseAssetRotation rotation) =>
-            rotation == CaseAssetRotation.None
-                ? "None"
-                : ((int)rotation).ToString(CultureInfo.InvariantCulture) + "°";
-
-        /// <summary>
-        /// The crop as a value: the whole rotated source, or the four
-        /// fractions that select part of it.
-        /// </summary>
-        public static string CropLabel(CaseAssetCrop crop)
-        {
-            ArgumentNullException.ThrowIfNull(crop);
-            return crop.IsFull
-                ? FullFrame
-                : string.Format(
-                    CultureInfo.InvariantCulture,
-                    "{0} {1:0.##} · {2} {3:0.##} · {4} {5:0.##} · {6} {7:0.##}",
-                    CropLeft,
-                    crop.Left,
-                    CropTop,
-                    crop.Top,
-                    CropWidth,
-                    crop.Width,
-                    CropHeight,
-                    crop.Height);
-        }
     }
 
     /// <summary>
@@ -891,8 +912,6 @@ public static class CaseWorkspaceLabels
         public const string AttachImages = "Images";
         public const string FileName = "File name";
         public const string Message = "Message";
-        public const string AddressBook = "Addresses";
-        public const string AddCcCandidate = "Cc";
     }
 
     /// <summary>
@@ -913,11 +932,14 @@ public static class CaseWorkspaceLabels
         public const string CloseConsequence = "Closing this record releases the Glass's account for another estimate.";
         public const string Closed = "The Glass's session was closed.";
         public const string CloseRefused = "The Glass's session was not closed.";
+        public const string CloseChanged = "The Glass's session changed. Its controls have been refreshed. Confirm external closure again before closing it.";
         public const string State = "State";
-        public const string Failure = "Failure";
         public const string OpenOn = "Open on";
 
         /// <summary>The outcomes a launch, a return or a resume reports.</summary>
+        public const string ImportedWithChanges = "The Glass's estimate was recorded as a Draft. Your unsaved changes are still here. Save or cancel them to view it.";
+        public const string ReturnedWithChanges = "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.";
+
         public const string Imported = "The Glass's estimate was recorded as a draft.";
 
         public const string AwaitingImport = "The Glass's estimate is held. Not yet recorded.";
@@ -973,6 +995,7 @@ public static class CaseWorkspaceLabels
     {
         public const string CorrespondenceTab = "Correspondence";
         public const string BoxConfirmed = "Box · confirmed";
+        public const string BoxAuditConfirmed = "Box audit · confirmed";
         public const string OpenInBox = "Open in Box";
         public const string View = "View";
         public const string Remove = "Remove";
@@ -995,9 +1018,7 @@ public static class CaseWorkspaceLabels
         public const string Title = "Image viewer";
         public const string Rotate = "Rotate";
         public const string Zoom = "Zoom";
-        public const string Fit = "Fit";
         public const string Download = "Download";
-        public const string DownloadDraft = "Download draft";
         public const string InReport = "In report";
         public const string Close = "Close";
         public const string Previous = "Previous";
@@ -1018,13 +1039,11 @@ public static class CaseWorkspaceLabels
         public const string DocumentsTab = "Documents";
         public const string ImagesTab = "Images";
         public const string Tag = "Tag";
-        public const string Tags = "Tags";
         public const string NewTag = "New tag";
         public const string Name = "Name";
         public const string Colour = "Colour";
         public const string Create = "Create";
         public const string Crop = "Crop";
-        public const string Done = "Done";
         public const string WasApplied = "The tag was applied.";
         public const string WasRemoved = "The tag was removed.";
         public const string WasCreated = "The tag was created.";
@@ -1080,8 +1099,6 @@ public static class CaseWorkspaceLabels
         public const string Cleared = "The credential was cleared.";
         public const string UsernameRequired = "Enter a username.";
         public const string PasswordRequired = "Enter a password.";
-        public const string StaleVersion =
-            "The credential changed after this page was loaded. Review the current version and retry.";
         public const string NotAccepted = "The change was not accepted.";
     }
 }

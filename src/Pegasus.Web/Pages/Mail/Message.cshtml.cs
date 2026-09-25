@@ -30,12 +30,15 @@ public sealed class MessageModel(
     MoveRetainedMailFolder moveRetainedMailFolder,
     ISearchCases searchCases,
     IGetCase getCase,
+    Pegasus.Core.Triage.IGetTriage getTriage,
+    IIntakeAssociationDestinationQueries destinations,
     IStaffMailSend staffMailSend,
     IStaffMailAttachmentResolver attachmentResolver,
     IApprovedMailboxStore approvedMailboxes,
     IGetIntake getIntake,
     IAcquireCaseEditLease acquireCaseEditLease,
     IReleaseCaseEditLease releaseCaseEditLease,
+    IEditScopeLeases editScopes,
     ILinkIntake linkIntake,
     IReverseIntakeLink reverseIntakeLink,
     IDismissRetainedMail dismissRetainedMail,
@@ -205,7 +208,21 @@ public sealed class MessageModel(
 
     public CaseDetails? CurrentCase { get; private set; }
 
+    /// <summary>
+    /// The Case the message is linked to, of either kind, in the shape of a
+    /// link destination: the version its link authority is checked against
+    /// and, for a Triage Case, its Triage state. A Triage Case has no Case
+    /// workflow, so <see cref="CurrentCase"/> is null for it.
+    /// </summary>
+    public IntakeAssociationDestination? CurrentDestination { get; private set; }
+
     public CaseDetails? TargetCase { get; private set; }
+
+    /// <summary>
+    /// The chosen "Link to case" target, of either kind, as the destination
+    /// owner offers it. <see cref="TargetCase"/> is null for a Triage Case.
+    /// </summary>
+    public IntakeAssociationDestination? TargetDestination { get; private set; }
 
     public IReadOnlyList<UploadCaseSuggestion>? CaseResults { get; private set; }
 
@@ -238,6 +255,9 @@ public sealed class MessageModel(
     public long? AssociationLeaseIntakeVersion { get; private set; }
 
     public string? AssociationLeaseToken { get; private set; }
+
+    /// <summary>The prepared association holds a Triage Case's Triage edit scope, not a Case edit lease.</summary>
+    public bool AssociationLeaseIsTriageCase { get; private set; }
 
     public string? AssociationOperationKey { get; private set; }
 
@@ -333,8 +353,11 @@ public sealed class MessageModel(
 
     /// <summary>
     /// The message's head, text and attachment names as a fragment, for the
-    /// Case's Correspondence dialog. The same actor and read as the record,
-    /// and like the Inbox preview it changes nothing.
+    /// Case's Correspondence dialog, with the record's Reply, Reply all and
+    /// Forward where the record offers them. Each opens the record's composer
+    /// with the dialog's Case (<see cref="CorrespondenceCaseReference"/>)
+    /// chosen. The same actor and read as the record, and like the Inbox
+    /// preview it changes nothing.
     /// </summary>
     public async Task<IActionResult> OnGetContentAsync(
         Guid id,
@@ -359,7 +382,21 @@ public sealed class MessageModel(
             return NotFound();
         }
 
-        return detail is null ? NotFound() : Partial("Shared/_MessageContent", detail);
+        if (detail is null)
+        {
+            return NotFound();
+        }
+
+        Detail = detail;
+        CorrespondenceCaseReference = TryNormalizeCaseReference(CorrespondenceCaseReference, out var reference)
+            ? reference
+            : null;
+        if (StaffMailAvailable)
+        {
+            await LoadRetainedOperationAsync(actor, cancellationToken);
+            CorrespondenceMailbox = await ResolveCorrespondenceMailboxAsync(cancellationToken);
+        }
+        return Partial("Shared/_MessageContent", this);
     }
 
     /// <summary>The route line under a message's subject: its forwarder and its To and Cc recipients.</summary>
@@ -698,22 +735,28 @@ public sealed class MessageModel(
                 throw new IntakeVersionConflictException();
             }
 
-            var selectedCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
-            if (selectedCase is null
-                || selectedCase.Workflow.Version != expectedCaseVersion
-                || selectedCase.Workflow.Archive is not null
-                || CaseLifecycleRules.IsTerminal(selectedCase.Workflow.State))
+            // Staff linking reaches every Case and every Triage Case in any
+            // state (operator, 24 September 2026); the destination owner
+            // refuses only an archived Case.
+            var destination = await destinations.GetAsync(binding, caseId, actor, cancellationToken);
+            if (destination is null || destination.Version != expectedCaseVersion)
             {
                 throw new IntakeVersionConflictException();
             }
-            var lease = await acquireCaseEditLease.ExecuteAsync(
-                new(caseId, expectedCaseVersion, actor, leaseOperationKey),
+            // A Triage Case destination is claimed through its Triage edit scope.
+            var claim = await CaseLinkAuthority.ClaimAsync(
+                destination,
+                expectedCaseVersion,
+                actor,
+                leaseOperationKey,
+                acquireCaseEditLease,
+                editScopes,
                 cancellationToken);
             PreserveAssociationLease(
                 id,
                 binding.Id,
                 LinkAssociationAction,
-                lease,
+                claim,
                 expectedIntakeVersion,
                 Guid.NewGuid().ToString("D"));
             return RedirectToAssociationTarget(id, caseId);
@@ -759,19 +802,24 @@ public sealed class MessageModel(
                 throw new IntakeVersionConflictException();
             }
 
-            var currentCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
-            if (currentCase is null || currentCase.Workflow.Version != expectedCaseVersion)
+            var (current, _) = await GetCurrentDestinationAsync(caseId, actor, cancellationToken);
+            if (current is null || current.Version != expectedCaseVersion)
             {
                 throw new IntakeVersionConflictException();
             }
-            var lease = await acquireCaseEditLease.ExecuteAsync(
-                new(caseId, expectedCaseVersion, actor, leaseOperationKey),
+            var claim = await CaseLinkAuthority.ClaimAsync(
+                current,
+                expectedCaseVersion,
+                actor,
+                leaseOperationKey,
+                acquireCaseEditLease,
+                editScopes,
                 cancellationToken);
             PreserveAssociationLease(
                 id,
                 binding.Id,
                 UnlinkAssociationAction,
-                lease,
+                claim,
                 expectedIntakeVersion,
                 Guid.NewGuid().ToString("D"));
             return RedirectToMessage(id);
@@ -1256,19 +1304,20 @@ public sealed class MessageModel(
         });
     }
 
-    private async Task<bool> LoadCorrespondenceContextAsync(
-        ActionActor actor,
-        bool initializeForm,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// The send-ready approved mailbox that holds this message, which Reply
+    /// and Forward send as; none where the message or its mailbox cannot send.
+    /// </summary>
+    private async Task<ApprovedMailbox?> ResolveCorrespondenceMailboxAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(Detail.ImmutableMessageId)
             || Detail.Summary.Id == Guid.Empty
             || Detail.Summary.MailboxId == Guid.Empty)
         {
-            return false;
+            return null;
         }
         var mailboxes = await approvedMailboxes.ListAsync(cancellationToken);
-        CorrespondenceMailbox = mailboxes.SingleOrDefault(item =>
+        return mailboxes.SingleOrDefault(item =>
             item.Id == Detail.Summary.MailboxId
             && item.State == ApprovedMailboxState.Approved
             && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
@@ -1278,6 +1327,14 @@ public sealed class MessageModel(
             && !string.IsNullOrWhiteSpace(item.SentFolderIdentity)
             && item.Generation > 0
             && item.VerifiedEncodedMessageSizeLimit is > 0);
+    }
+
+    private async Task<bool> LoadCorrespondenceContextAsync(
+        ActionActor actor,
+        bool initializeForm,
+        CancellationToken cancellationToken)
+    {
+        CorrespondenceMailbox = await ResolveCorrespondenceMailboxAsync(cancellationToken);
         if (CorrespondenceMailbox is null)
             return false;
 
@@ -1577,22 +1634,24 @@ public sealed class MessageModel(
 
         if (AssociationReceipt.CurrentCaseId is { } currentCaseId)
         {
-            CurrentCase = await getCase.ExecuteAsync(new(currentCaseId, actor), cancellationToken);
+            (CurrentDestination, CurrentCase) = await GetCurrentDestinationAsync(
+                currentCaseId, actor, cancellationToken);
             return;
         }
 
         if (TargetCaseId is { } targetCaseId)
         {
-            var target = await getCase.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
-            if (target is not null
-                && target.Workflow.Archive is null
-                && !CaseLifecycleRules.IsTerminal(target.Workflow.State))
-            {
-                TargetCase = target;
-            }
-            else
+            // The destination owner offers every Case and every Triage Case in
+            // any state, and refuses only an archived Case.
+            TargetDestination = await destinations.GetAsync(
+                AssociationReceipt, targetCaseId, actor, cancellationToken);
+            if (TargetDestination is null)
             {
                 ModelState.AddModelError(string.Empty, "The selected case is not available for association.");
+            }
+            else if (!TargetDestination.IsTriageCase)
+            {
+                TargetCase = await getCase.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
             }
         }
         if (!string.IsNullOrWhiteSpace(CaseQuery))
@@ -1603,15 +1662,60 @@ public sealed class MessageModel(
                 CaseResults = [];
                 return;
             }
-            var results = await searchCases.ExecuteAsync(
-                new(actor, new(Query: trimmed), Page: 1, PageSize: 8), cancellationToken);
-            CaseResults = results.Items.Select(item => new UploadCaseSuggestion(
+            var results = await destinations.SearchAsync(
+                AssociationReceipt, trimmed, actor, cancellationToken);
+            CaseResults = results.Select(item => new UploadCaseSuggestion(
                 item.CaseId,
                 item.Reference,
                 item.Registration,
                 item.Claimant,
-                OperatorLabels.CaseStage(item.State))).ToArray();
+                OperatorLabels.AssociationDestinationState(item))).ToArray();
         }
+    }
+
+    /// <summary>
+    /// The Case a receipt is linked to, in the shape the link authority takes.
+    /// The destination query answers only a receipt with no Case, so the linked
+    /// Case is read from its own owner: a Case through its workflow, or a
+    /// Triage Case — which has none — through its Triage record.
+    /// </summary>
+    private async Task<(IntakeAssociationDestination? Destination, CaseDetails? Case)> GetCurrentDestinationAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var linkedCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
+        if (linkedCase is not null)
+        {
+            return (
+                new IntakeAssociationDestination(
+                    linkedCase.Summary.CaseId,
+                    linkedCase.Summary.Reference,
+                    linkedCase.Summary.Registration,
+                    linkedCase.Summary.Claimant,
+                    linkedCase.Workflow.State,
+                    linkedCase.Workflow.Version),
+                linkedCase);
+        }
+
+        var triage = await getTriage.ExecuteAsync(new(caseId, actor), cancellationToken);
+        if (triage is null)
+        {
+            return (null, null);
+        }
+
+        return (
+            new IntakeAssociationDestination(
+                triage.Record.CaseId,
+                triage.Record.Reference,
+                triage.Record.NormalizedVehicleRegistration,
+                null,
+                null,
+                triage.Record.Version)
+            {
+                TriageState = triage.Record.State
+            },
+            null);
     }
 
     private async Task<IntakeReceipt?> GetExactAssociationAsync(
@@ -1655,21 +1759,28 @@ public sealed class MessageModel(
             targetCaseId = caseId
         });
 
+    // The authority a prepared association holds: a Case edit lease, or a
+    // Triage Case's Triage edit scope.
+    private const string CaseLeaseKind = "Case";
+
+    private const string TriageCaseLeaseKind = "Triage";
+
     private void PreserveAssociationLease(
         Guid messageId,
         Guid receiptId,
         string action,
-        CaseEditLease lease,
+        CaseLinkAuthorityClaim claim,
         long intakeVersion,
         string operationKey) =>
         PreserveAssociationLease(
             messageId,
             receiptId,
             action,
-            lease.CaseId,
+            claim.CaseId,
+            claim.IsTriageCase,
             intakeVersion,
-            lease.Version,
-            lease.Token,
+            claim.Version,
+            claim.Token,
             operationKey);
 
     private void PreserveAssociationLease(
@@ -1677,6 +1788,7 @@ public sealed class MessageModel(
         Guid receiptId,
         string action,
         Guid caseId,
+        bool isTriageCase,
         long intakeVersion,
         long caseVersion,
         string leaseToken,
@@ -1691,7 +1803,8 @@ public sealed class MessageModel(
             intakeVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
             caseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
             leaseToken,
-            operationKey);
+            operationKey,
+            isTriageCase ? TriageCaseLeaseKind : CaseLeaseKind);
         AssociationLeaseMessageId = messageId;
         AssociationLeaseReceiptId = receiptId;
         AssociationLeaseAction = action;
@@ -1699,13 +1812,14 @@ public sealed class MessageModel(
         AssociationLeaseIntakeVersion = intakeVersion;
         AssociationLeaseCaseVersion = caseVersion;
         AssociationLeaseToken = leaseToken;
+        AssociationLeaseIsTriageCase = isTriageCase;
         AssociationOperationKey = operationKey;
     }
 
     private void RestoreAssociationLease()
     {
         var parts = AssociationLeaseState?.Split('|');
-        if (parts is { Length: 8 }
+        if (parts is { Length: 9 }
             && Guid.TryParse(parts[0], out var messageId)
             && Guid.TryParse(parts[1], out var receiptId)
             && parts[2] is LinkAssociationAction or UnlinkAssociationAction
@@ -1713,7 +1827,8 @@ public sealed class MessageModel(
             && long.TryParse(parts[4], out var intakeVersion)
             && long.TryParse(parts[5], out var caseVersion)
             && parts[6] is { Length: CaseEditAuthority.LeaseTokenLength } leaseToken
-            && Guid.TryParseExact(parts[7], "D", out _))
+            && Guid.TryParseExact(parts[7], "D", out _)
+            && parts[8] is CaseLeaseKind or TriageCaseLeaseKind)
         {
             AssociationLeaseMessageId = messageId;
             AssociationLeaseReceiptId = receiptId;
@@ -1722,6 +1837,7 @@ public sealed class MessageModel(
             AssociationLeaseIntakeVersion = intakeVersion;
             AssociationLeaseCaseVersion = caseVersion;
             AssociationLeaseToken = leaseToken;
+            AssociationLeaseIsTriageCase = parts[8] == TriageCaseLeaseKind;
             AssociationOperationKey = parts[7];
         }
     }
@@ -1737,6 +1853,7 @@ public sealed class MessageModel(
         AssociationLeaseIntakeVersion = null;
         AssociationLeaseCaseVersion = null;
         AssociationLeaseToken = null;
+        AssociationLeaseIsTriageCase = false;
         AssociationOperationKey = null;
     }
 
@@ -1762,13 +1879,28 @@ public sealed class MessageModel(
 
         try
         {
-            await releaseCaseEditLease.ExecuteAsync(
-                new(
-                    caseId,
-                    actor,
-                    $"mail-association-release:{Guid.NewGuid():N}",
-                    editLeaseToken),
-                CancellationToken.None);
+            var releaseOperationKey = $"mail-association-release:{Guid.NewGuid():N}";
+            if (AssociationLeaseIsTriageCase)
+            {
+                await editScopes.ReleaseAsync(
+                    new(
+                        EditScopeKind.Triage,
+                        caseId,
+                        actor,
+                        releaseOperationKey,
+                        editLeaseToken),
+                    CancellationToken.None);
+            }
+            else
+            {
+                await releaseCaseEditLease.ExecuteAsync(
+                    new(
+                        caseId,
+                        actor,
+                        releaseOperationKey,
+                        editLeaseToken),
+                    CancellationToken.None);
+            }
         }
         catch (Exception releaseException) when (IsDefinitiveAssociationFailure(releaseException))
         {
@@ -1829,7 +1961,8 @@ public sealed class MessageModel(
 
     private static string AssociationPreparationFailureMessage(Exception exception) => exception switch
     {
-        CaseEditLeaseConflictException => "This case is currently being edited. Reload and try again later.",
+        CaseEditLeaseConflictException or EditScopeConflictException =>
+            "This case is currently being edited. Reload and try again later.",
         _ => "The message or case changed. Reload it, review the current target, and try again."
     };
 
@@ -1970,14 +2103,6 @@ public sealed class MessageModel(
 
     public static string DecisionLabel(MailCategory category) =>
         OperatorLabels.MailClassification(category);
-
-    public static string QueueLabel(MailRouteDisposition? disposition) => disposition switch
-    {
-        MailRouteDisposition.Accepted => "Accepted",
-        MailRouteDisposition.NoMatch => "No match",
-        MailRouteDisposition.NeedsSorting => "Unidentified",
-        _ => "Not yet processed"
-    };
 
     /// <summary>
     /// The one label for a message's Case association when it has no Case:

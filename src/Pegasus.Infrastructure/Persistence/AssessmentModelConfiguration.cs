@@ -19,21 +19,16 @@ internal static class AssessmentModelConfiguration
                 table.HasCheckConstraint(
                     "CK_CaseAssessmentFields_RecordedByKind",
                     "[RecordedByKind] IN ('Staff', 'Automation')");
-                table.HasCheckConstraint(
-                    "CK_CaseAssessmentFields_Confirmation",
-                    "([ConfirmedBy] IS NULL AND [ConfirmedAtUtc] IS NULL) OR "
-                    + "([ConfirmedBy] IS NOT NULL AND [ConfirmedAtUtc] IS NOT NULL)");
             });
-            entity.HasKey(item => new { item.CaseId, item.FieldPath });
+            entity.HasKey(item => new { item.WorkId, item.FieldPath });
             entity.Property(item => item.FieldPath).HasMaxLength(60).IsRequired();
             entity.Property(item => item.Value).HasMaxLength(4000).IsRequired();
             entity.Property(item => item.RecordedByKind).HasMaxLength(20).IsRequired();
             entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();
-            entity.Property(item => item.ConfirmedBy).HasMaxLength(200);
             entity.HasIndex(item => item.FieldPath);
-            entity.HasOne(item => item.Case)
+            entity.HasOne(item => item.Work)
                 .WithMany()
-                .HasForeignKey(item => item.CaseId)
+                .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -85,13 +80,12 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.AmendedBy).HasMaxLength(200);
             entity.Property(item => item.RecordedByKind).HasMaxLength(20).IsRequired();
             entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();
-            entity.Property(item => item.ConfirmedBy).HasMaxLength(200);
             entity.HasIndex(item => new { item.RepairSpecificationId, item.Position })
                 .IsUnique()
                 .HasFilter("[RepairSpecificationId] IS NOT NULL");
-            entity.HasOne(item => item.Case)
+            entity.HasOne(item => item.Work)
                 .WithMany()
-                .HasForeignKey(item => item.CaseId)
+                .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.RepairSpecification)
                 .WithMany(item => item.Lines)
@@ -153,16 +147,18 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.LastOperationKey).HasMaxLength(100);
             entity.Property(item => item.SupplementaryReason).HasMaxLength(20);
             entity.Property(item => item.SupplementaryStatement).HasMaxLength(4000);
-            entity.HasIndex(item => new { item.CaseId, item.Version }).IsUnique();
-            entity.HasIndex(item => new { item.CaseId, item.CreationOperationKey }).IsUnique();
-            entity.HasIndex(item => item.CaseId)
+            entity.HasIndex(item => new { item.WorkId, item.Version }).IsUnique();
+            entity.HasIndex(item => new { item.WorkId, item.CreationOperationKey }).IsUnique();
+            entity.HasIndex(item => item.WorkId)
                 .IsUnique()
                 .HasFilter("[IsCurrent] = 1");
             entity.HasIndex(item => item.AiJobId);
-            entity.HasOne(item => item.Case)
+            entity.HasOne(item => item.Work)
                 .WithMany()
-                .HasForeignKey(item => item.CaseId)
+                .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
+            // Mapped records name the Case, which the work carries.
+            entity.Navigation(item => item.Work).AutoInclude();
         });
 
         builder.Entity<CaseRepairSpecificationSnapshotEntity>(entity =>
@@ -181,11 +177,12 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.ContentHash).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.Gross).HasPrecision(18, 2);
             entity.HasIndex(item => new { item.SpecificationId, item.Number }).IsUnique();
-            entity.HasIndex(item => item.CaseId);
-            entity.HasOne(item => item.Case)
+            entity.HasIndex(item => item.WorkId);
+            entity.HasOne(item => item.Work)
                 .WithMany()
-                .HasForeignKey(item => item.CaseId)
+                .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.Navigation(item => item.Work).AutoInclude();
         });
 
         builder.Entity<CaseReportWordingEntity>(entity =>
@@ -197,10 +194,10 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.Title).HasMaxLength(ReportWordingComposition.MaximumTitleLength);
             entity.Property(item => item.Text).HasMaxLength(ReportWordingComposition.MaximumTextLength);
             entity.Property(item => item.UpdatedBy).HasMaxLength(200).IsRequired();
-            entity.HasIndex(item => new { item.CaseId, item.BlockKey }).IsUnique();
-            entity.HasOne(item => item.Case)
+            entity.HasIndex(item => new { item.WorkId, item.BlockKey }).IsUnique();
+            entity.HasOne(item => item.Work)
                 .WithMany()
-                .HasForeignKey(item => item.CaseId)
+                .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -246,11 +243,12 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.TradeValue).HasPrecision(18, 2);
             entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();
             entity.Property(item => item.LastEditedBy).HasMaxLength(200);
-            entity.HasIndex(item => new { item.CaseId, item.Date, item.Time });
-            entity.HasOne(item => item.Case)
+            entity.HasIndex(item => new { item.WorkId, item.Date, item.Time });
+            entity.HasOne(item => item.Work)
                 .WithMany()
-                .HasForeignKey(item => item.CaseId)
+                .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.Navigation(item => item.Work).AutoInclude();
         });
 
         builder.Entity<AiWorkRequestEntity>(entity =>

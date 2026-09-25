@@ -1,0 +1,16 @@
+{
+  "recordedUtc": "2026-09-25T08:43:26.873642+00:00",
+  "scope": "Offline sign-in mockups only; not application evidence",
+  "selfcheck": {
+    "fail": [],
+    "okCount": 564
+  },
+  "screenshots": 36,
+  "keyboardDesigns": [
+    "a",
+    "b",
+    "c"
+  ],
+  "consoleErrors": [],
+  "externalRequests": []
+}

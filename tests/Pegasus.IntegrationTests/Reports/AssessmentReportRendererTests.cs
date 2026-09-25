@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
@@ -87,6 +88,8 @@ public sealed partial class AssessmentReportRendererTests
         Assert.Contains(presentation.SettlementText, text, StringComparison.Ordinal);
         Assert.Contains(AssessmentReportContract.StatementOfTruth1, text, StringComparison.Ordinal);
         Assert.Contains(AssessmentReportContract.StatementOfTruth4, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("VIN Checked", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Fault Codes", text, StringComparison.Ordinal);
         Assert.Contains($"{snapshot.Signatory.PrintedName} — {snapshot.Signatory.Qualifications}", text, StringComparison.Ordinal);
         Assert.DoesNotContain("TOTAL DUE", text, StringComparison.Ordinal);
         for (var page = 1; page <= pages.Length; page++)
@@ -355,6 +358,56 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     /// <summary>
+    /// Every image the Engineer includes prints, whatever their number
+    /// (operator, 24 September 2026): thirty ordinary images fill fifteen
+    /// pages of the image pack and fifteen image pages of the report.
+    /// </summary>
+    [Fact]
+    public async Task ThirtyImagesPrintWithoutACountLimit()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var draft = new GenerateAssessmentReportDraft(renderer);
+        var snapshot = ReadySnapshot();
+        var photo = snapshot.Photos.Single();
+        var photos = Enumerable.Range(0, 30)
+            .Select(index => photo with { CustodyReference = $"site-{index}.jpg", Order = index })
+            .ToArray();
+
+        var imagePack = await draft.ExecuteAsync(
+            snapshot with { Photos = photos }, CaseReportArtifactKind.ImagePack);
+        var report = await draft.ExecuteAsync(
+            snapshot with { Photos = photos }, CaseReportArtifactKind.AssessmentReport);
+
+        Assert.Equal(15, imagePack.PageCount);
+        Assert.Equal(15, VehicleImagePageCount(report.Pdf));
+    }
+
+    /// <summary>
+    /// A source image's file size is no limit either (operator, 24 September
+    /// 2026): an image of more than 8 MiB prints as its print-resolution copy,
+    /// so the report is much smaller than the retained source it came from.
+    /// </summary>
+    [Fact]
+    public async Task AnImageOverEightMebibytesPrintsAsAPrintResolutionCopy()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var source = NoiseJpeg(4000, 3000);
+        Assert.True(source.Length > 8 * 1024 * 1024, $"The source image is only {source.Length} bytes.");
+        var large = new ReportImageEvidence(
+            "large.jpg", "image/jpeg", source, Convert.ToHexStringLower(SHA256.HashData(source)));
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer).ExecuteAsync(
+            ReadySnapshot() with { Photos = [large] }, CaseReportArtifactKind.AssessmentReport);
+
+        Assert.Equal(1, VehicleImagePageCount(artifact.Pdf));
+        Assert.True(
+            artifact.Pdf.Length < source.Length / 4,
+            $"The report is {artifact.Pdf.Length} bytes for a {source.Length} byte source image.");
+    }
+
+    /// <summary>
     /// Phase 5b: the valuation commentary text frozen into the snapshot prints
     /// when the switch is on, and not when it is off.
     /// </summary>
@@ -460,6 +513,25 @@ public sealed partial class AssessmentReportRendererTests
         }
         using var image = SKImage.FromBitmap(bitmap);
         using var encoded = image.Encode(format, 90);
+        return encoded.ToArray();
+    }
+
+    /// <summary>
+    /// A photograph-sized JPEG of seeded random noise at full quality. Noise
+    /// barely compresses, so the file is as large as a camera original can be.
+    /// </summary>
+    private static byte[] NoiseJpeg(int width, int height)
+    {
+        var pixels = new byte[checked(width * height * 4)];
+        new Random(834).NextBytes(pixels);
+        for (var alpha = 3; alpha < pixels.Length; alpha += 4)
+        {
+            pixels[alpha] = 255;
+        }
+        using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        Marshal.Copy(pixels, 0, bitmap.GetPixels(), pixels.Length);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, 100);
         return encoded.ToArray();
     }
 

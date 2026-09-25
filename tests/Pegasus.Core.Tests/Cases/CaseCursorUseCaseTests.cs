@@ -186,7 +186,7 @@ public sealed class CaseCursorUseCaseTests
                 .Select(index => new CaseSearchItem(
                     Guid.NewGuid(), $"REF-{index}", null, CaseType.Inspection, "QDOS",
                     CaseLifecycleState.Review, null, null, null, null,
-                    now.AddMinutes(-index), null, "Email", now))
+                    now.AddMinutes(-index), "Email", now))
                 .ToArray();
             return Task.FromResult<IReadOnlyList<CaseSearchItem>>(rows);
         }

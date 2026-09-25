@@ -73,8 +73,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var launched = await workspace.LaunchAsync();
 
-        Assert.Equal(HttpStatusCode.Found, launched.StatusCode);
-        var estimator = new Uri(launched.Headers.Location!.ToString(), UriKind.Absolute);
+        Assert.Equal(HttpStatusCode.OK, launched.StatusCode);
+        var estimator = await ReadEstimatorAsync(launched);
         Assert.Equal(GlassProviderFixture.EstimatorBase.Host, estimator.Host);
         var caller = new Uri(Query(estimator.Query)["caller"], UriKind.Absolute);
         Assert.Equal(new Uri(PegasusOrigin).Host, caller.Host);
@@ -104,8 +104,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
         using var first = await workspace.PostAsync("LaunchGlass", form);
         using var second = await workspace.PostAsync("LaunchGlass", form);
 
-        Assert.Equal(HttpStatusCode.Found, second.StatusCode);
-        Assert.Equal(first.Headers.Location, second.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(await ReadEstimatorAsync(first), await ReadEstimatorAsync(second));
         Assert.Single(await workspace.SessionsAsync());
         Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
     }
@@ -231,7 +231,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var launchForm = await workspace.LaunchFormAsync();
         using (var first = await workspace.PostAsync("LaunchGlass", launchForm))
         {
-            Assert.Equal(HttpStatusCode.Found, first.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         }
         var liveHtml = await workspace.CaseHtmlAsync();
         Assert.DoesNotContain("handler=LaunchGlass", liveHtml, StringComparison.Ordinal);
@@ -315,7 +315,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         await workspace.ClaimLeaseAsync();
         using (var launched = await workspace.LaunchAsync())
         {
-            Assert.Equal(HttpStatusCode.Found, launched.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, launched.StatusCode);
         }
         Assert.Equal(GlassRepairEstimateSessionState.Active, Assert.Single(await workspace.SessionsAsync()).State);
         var html = await workspace.CaseHtmlAsync();
@@ -332,7 +332,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var next = await workspace.LaunchAsync();
 
-        Assert.Equal(HttpStatusCode.Found, next.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
         Assert.Equal(2, (await workspace.SessionsAsync()).Count);
     }
 
@@ -635,6 +635,101 @@ public sealed class GlassRepairEstimateCallbackWebTests
     /// rendering it, so the response is that hand-back document naming the
     /// section, not a redirect to it.
     /// </summary>
+    private static async Task<Uri> ReadEstimatorAsync(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        var html = await response.Content.ReadAsStringAsync();
+        var attribute = Regex.Match(html, "data-glass-launch=\"([^\"]+)\"", RegexOptions.CultureInvariant);
+        Assert.True(attribute.Success, "A successful launch renders the same-origin handoff.");
+        // MapStaticAssets fingerprints the file name in the rendered script URL.
+        Assert.Matches(
+            """<script\b[^>]*\bsrc="/js/glass-return(?:\.[A-Za-z0-9]+)?\.js(?:\?v=[^"]*)?"[^>]*></script>""",
+            html);
+        return new Uri(WebUtility.HtmlDecode(attribute.Groups[1].Value), UriKind.Absolute);
+    }
+
+    [Fact]
+    public async Task GlassControlsReadReturnsCurrentSessionFormsWithoutChangingCaseOrLease()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var initial = await workspace.LaunchFormAsync();
+        using var launched = await workspace.PostAsync("LaunchGlass", initial);
+        await ReadEstimatorAsync(launched);
+        var session = Assert.Single(await workspace.SessionsAsync());
+        var count = workspace.Mva.Requests.Count;
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        request.Headers.Add("X-Pegasus-Edit-Lease", initial["editLeaseToken"]);
+        using var response = await workspace.Client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+        var html = await response.Content.ReadAsStringAsync();
+        var resume = FormFor(html, "ResumeGlass");
+        var close = FormFor(html, "CloseGlass");
+        Assert.Equal(session.Version.ToString(CultureInfo.InvariantCulture), resume["expectedSessionVersion"]);
+        Assert.Equal(resume["expectedSessionVersion"], close["expectedSessionVersion"]);
+        Assert.Equal(initial["editLeaseToken"], resume["editLeaseToken"]);
+        Assert.DoesNotContain("case-edit-form", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("ere.test", html, StringComparison.Ordinal);
+        Assert.Equal(count, workspace.Mva.Requests.Count);
+        Assert.Equal(session, Assert.Single(await workspace.SessionsAsync()));
+        using var readOnly = await workspace.Client.GetAsync($"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        Assert.DoesNotContain("data-glass-window", await readOnly.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StaleClosePreservesTheHoldAndRequiresFreshConfirmation()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        using var launched = await workspace.LaunchAsync();
+        await ReadEstimatorAsync(launched);
+        var html = await workspace.CaseHtmlAsync();
+        var staleClose = FormFor(html, "CloseGlass");
+        using var resumed = await workspace.PostAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
+        await ReadEstimatorAsync(resumed);
+        var current = Assert.Single(await workspace.SessionsAsync());
+        staleClose["reason"] = "Confirmed closed externally";
+        staleClose["externalSessionClosed"] = "true";
+        using var refused = await workspace.PostAsync("CloseGlass", staleClose);
+        Assert.Equal(HttpStatusCode.Found, refused.StatusCode);
+        Assert.Equal(current, Assert.Single(await workspace.SessionsAsync()));
+        var refreshed = await workspace.CaseHtmlAsync();
+        Assert.Contains("Confirm external closure again", refreshed, StringComparison.Ordinal);
+        var fresh = FormFor(refreshed, "CloseGlass");
+        Assert.Equal(current.Version.ToString(CultureInfo.InvariantCulture), fresh["expectedSessionVersion"]);
+        Assert.DoesNotMatch("name=\"externalSessionClosed\"[^>]*checked", refreshed);
+        fresh["reason"] = staleClose["reason"];
+        fresh["externalSessionClosed"] = "true";
+        using var closed = await workspace.PostAsync("CloseGlass", fresh);
+        Assert.Equal(GlassRepairEstimateSessionState.Cancelled, Assert.Single(await workspace.SessionsAsync()).State);
+    }
+
+    [Fact]
+    public async Task ControlsRequireSignInAndNeverExposeAnotherEngineersSession()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.SeedAnotherEngineersSessionAsync();
+        var session = Assert.Single(await workspace.SessionsAsync());
+        using var anonymous = new HttpRequestMessage(HttpMethod.Get, $"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        anonymous.Headers.Add("X-Test-Anonymous", "true");
+        using var challenged = await workspace.Client.SendAsync(anonymous);
+        Assert.Equal(HttpStatusCode.Redirect, challenged.StatusCode);
+        using var ownControls = await workspace.Client.GetAsync($"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        Assert.Equal(HttpStatusCode.OK, ownControls.StatusCode);
+        var html = await ownControls.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(session.Id.ToString("D"), html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=CloseGlass", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ResumeGlass", html, StringComparison.Ordinal);
+        using var missing = await workspace.Client.GetAsync($"/Cases/{Guid.NewGuid():D}?handler=GlassSession");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal(session, Assert.Single(await workspace.SessionsAsync()));
+        Assert.Empty(workspace.Mva.Requests);
+    }
+
     private static async Task AssertHandsBackToTheEstimateSectionAsync(HttpResponseMessage response, Guid caseId)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -854,7 +949,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
             var fields = await context.Set<CaseDataFieldEntity>()
-                .Where(item => item.CaseId == CaseId && item.FieldName == fieldName)
+                .Where(item => item.WorkId == CaseId && item.FieldName == fieldName)
                 .ToArrayAsync();
             Assert.NotEmpty(fields);
             context.RemoveRange(fields);
@@ -897,8 +992,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public async Task<string> LaunchAndReadCorrelationAsync()
         {
             using var launched = await LaunchAsync();
-            Assert.Equal(HttpStatusCode.Found, launched.StatusCode);
-            var estimator = new Uri(launched.Headers.Location!.ToString(), UriKind.Absolute);
+            Assert.Equal(HttpStatusCode.OK, launched.StatusCode);
+            var estimator = await ReadEstimatorAsync(launched);
             return new Uri(Query(estimator.Query)["caller"], UriKind.Absolute).Segments[^1];
         }
 
@@ -937,7 +1032,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             await using var scope = factory.Services.CreateAsyncScope();
             return await scope.ServiceProvider
                 .GetRequiredService<IListCaseEstimates>()
-                .ExecuteAsync(CaseId, CancellationToken.None);
+                .ExecuteAsync(CaseId, CaseWorkSelector.Current, CancellationToken.None);
         }
 
         /// <summary>Every confirmed document the Case now holds, in a stable order.</summary>
@@ -1127,7 +1222,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     Year = 2031,
                     Sequence = 1,
                     Reference = reference,
-                    Type = "Inspection",
+                    Type = "inspection",
                     InitialState = "not_ready",
                     CustodyState = "confirmed",
                     CustodyRootRemoteId = reference,
@@ -1147,7 +1242,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 },
                 new CaseDataSnapshotEntity
                 {
-                    CaseId = caseId,
+                    WorkId = caseId,
                     OriginIntakeReceiptId = receiptId,
                     OriginSourceChannel = "manual_upload",
                     OriginExternalReceiptToken = $"glass:{receiptId:N}",
@@ -1187,7 +1282,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
             {
                 context.Add(new CaseDataFieldEntity
                 {
-                    CaseId = caseId,
+                    WorkId = caseId,
                     FieldName = name,
                     ValueKind = CaseDataCodes.Confirmed,
                     ValueType = type,

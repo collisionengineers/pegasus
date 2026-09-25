@@ -1,0 +1,76 @@
+@using Pegasus.Core.Assessment
+@using Pegasus.Web.Presentation
+@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
+@using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var caseId = Model.Case!.Workflow.CaseId;
+    var glassSession = Model.GlassSession;
+    var showGlassLine = glassSession is not null &&
+        (GlassRepairEstimateSessionPolicy.OccupiesAccount(glassSession.State) || glassSession.State == GlassRepairEstimateSessionState.Failed);
+    var tone = glassSession?.State switch
+    {
+        GlassRepairEstimateSessionState.Failed => "status--red",
+        GlassRepairEstimateSessionState.Unknown or GlassRepairEstimateSessionState.AwaitingImport => "status--amber",
+        _ => "status--blue"
+    };
+}
+<div data-glass-controls="session" data-glass-id="@glassSession?.Id" data-glass-version="@glassSession?.Version"
+     data-glass-imported-dirty="@GlassLabels.ImportedWithChanges" data-glass-returned-dirty="@GlassLabels.ReturnedWithChanges"
+     data-glass-state="@glassSession?.State" hidden="@(Model.GlassSessionElsewhere is null && !showGlassLine)">
+    @* The Glass's session line: only while this staff member's session holds
+       the account or has failed, or while the account is held from
+       another Case (v26 § Glass's). *@
+    @if (Model.GlassSessionElsewhere is { } elsewhere)
+    {
+        <div class="glass-session" data-glass-session="elsewhere" data-glass-elsewhere="@elsewhere.Session.CaseId">
+            <span class="status status--blue">@GlassLabels.Launch session · @GlassLabels.StateLabel(elsewhere.Session.State)</span>
+            <span class="muted grow">@EstimateLabels.HeldFromAnotherCase</span>
+            <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@elsewhere.Session.CaseId" asp-route-section="estimate">
+                <span>@GlassLabels.OpenOn @elsewhere.CaseReference</span>
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            </a>
+        </div>
+    }
+    else if (showGlassLine && glassSession is not null)
+    {
+        <div class="glass-session" data-glass-session="@glassSession.State.ToString().ToLowerInvariant()">
+            <span class="status @tone">@GlassLabels.Launch session · @GlassLabels.StateLabel(glassSession.State)</span>
+            <span class="muted grow">@EstimateLabels.Started @OperatorLabels.OfficeClock(glassSession.CreatedAtUtc)</span>
+            @if (glassSession.FailureCode is { Length: > 0 } glassFailure)
+            {
+                <span class="glass-fail" data-glass-failure>@glassFailure</span>
+            }
+            @if (glassSession.State == GlassRepairEstimateSessionState.AwaitingImport)
+            {
+                <span class="gated"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>@EstimateLabels.AvailableWhileEditing</span></span>
+            }
+            @if (Model.CanCloseGlass)
+            {
+                @* The guarded close (FRD-25): a reason, the confirmation
+                   that Glass's is closed, one consequence, red Close. Never
+                   offered mid-import (Recording). *@
+                <details class="glass-close" data-glass-close>
+                    <summary><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>@GlassLabels.Close</summary>
+                    <form method="post" asp-page="/Cases/Details" asp-page-handler="CloseGlass"
+                          asp-route-id="@caseId" asp-route-section="estimate" class="glass-close-form" data-glass-close-form>
+                        <input type="hidden" name="sessionId" value="@glassSession.Id" />
+                        <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
+                        <div class="fc">
+                            <label for="glass-close-reason">@GlassLabels.CloseReason</label>
+                            <input id="glass-close-reason" class="fi" name="reason" maxlength="2000" required aria-required="true" />
+                        </div>
+                        <label class="choice" for="glass-external-closed">
+                            <input id="glass-external-closed" type="checkbox" name="externalSessionClosed"
+                                   value="true" required aria-required="true" />
+                            <span>@GlassLabels.ExternalClosedConfirmation</span>
+                        </label>
+                        <p class="consequence">@GlassLabels.CloseConsequence</p>
+                        <button type="submit" class="btn btn--danger">@GlassLabels.Close</button>
+                    </form>
+                </details>
+            }
+        </div>
+    }
+
+</div>

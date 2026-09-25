@@ -166,19 +166,19 @@ public sealed class AiJobTests
     }
 
     [Fact]
-    public async Task EstimateJobsNeedAWithEngineerCaseAndCaptureTheConfirmedEngineerValue()
+    public async Task EstimateJobsNeedAWithEngineerCaseAndCaptureTheEngineerValue()
     {
-        var harness = new Harness { CaseState = CaseLifecycleState.Review, EngineerValue = ("4200.00", true) };
+        var harness = new Harness { CaseState = CaseLifecycleState.Review, EngineerValue = "4200.00" };
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             harness.Create.ExecuteAsync(EstimateCommand(harness.CaseId), CancellationToken.None));
         Assert.Contains("With Engineer", refused.Message, StringComparison.Ordinal);
 
-        harness = new Harness { EngineerValue = ("4200.00", false) };
-        var unconfirmed = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        harness = new Harness();
+        var absent = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             harness.Create.ExecuteAsync(EstimateCommand(harness.CaseId), CancellationToken.None));
-        Assert.Contains("Engineer's Value", unconfirmed.Message, StringComparison.Ordinal);
+        Assert.Contains("Engineer's Value", absent.Message, StringComparison.Ordinal);
 
-        harness = new Harness { EngineerValue = ("4200.00", true) };
+        harness = new Harness { EngineerValue = "4200.00" };
         var created = await harness.Create.ExecuteAsync(EstimateCommand(harness.CaseId), CancellationToken.None);
         Assert.Equal(AiJobKind.Estimate, created.Kind);
         Assert.Equal(AiJobSubjectKind.Case, created.SubjectKind);
@@ -326,7 +326,7 @@ public sealed class AiJobTests
         public Guid UnidentifiedId { get; } = Guid.NewGuid();
         public bool ControlEnabled { get; init; } = true;
         public CaseLifecycleState CaseState { get; init; } = CaseLifecycleState.ReportPreparation;
-        public (string Value, bool Confirmed)? EngineerValue { get; init; }
+        public string? EngineerValue { get; init; }
         public UnidentifiedState UnidentifiedState { get; init; } = UnidentifiedState.Open;
         public FakeStore Store { get; } = new();
 
@@ -467,7 +467,7 @@ public sealed class AiJobTests
     private sealed class FakeAssessment(
         Guid caseId,
         CaseLifecycleState state,
-        (string Value, bool Confirmed)? engineerValue) : ICaseAssessmentStore
+        string? engineerValue) : ICaseAssessmentStore
     {
         public Task<CaseAssessmentProjection?> GetAsync(Guid id, CancellationToken cancellationToken)
         {
@@ -481,12 +481,10 @@ public sealed class AiJobTests
                 [
                     new AssessmentFieldValue(
                         AssessmentVocabulary.ValueEngineer,
-                        value.Value,
+                        value,
                         ActorKind.Staff,
                         "engineer",
-                        Now,
-                        value.Confirmed ? "engineer" : null,
-                        value.Confirmed ? Now : null)
+                        Now)
                 ]
                 : [];
             return Task.FromResult<CaseAssessmentProjection?>(new(
@@ -497,7 +495,7 @@ public sealed class AiJobTests
                 null,
                 fields,
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null)));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2031, 5, 6), null, null, null, null, null)));
         }
 
         public Task<CaseAssessmentProjection> SaveAsync(
@@ -534,9 +532,6 @@ public sealed class AiJobTests
             throw new NotSupportedException();
 
         public Task<UnidentifiedResolveResult> ResolveAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<UnidentifiedItem?> GetByOriginAsync(UnidentifiedOrigin origin, CancellationToken cancellationToken = default) =>

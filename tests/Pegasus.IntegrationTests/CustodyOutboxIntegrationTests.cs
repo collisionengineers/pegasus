@@ -168,8 +168,8 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(QueuedIntakeProcessingOutcome.Failed, outcome);
         Assert.Equal(queued.Version, Assert.IsType<IntakeReceipt>(await receipts.GetAsync(
             original.Id, CancellationToken.None)).Version);
-        var failedWork = Assert.IsType<IntakeWorkItem>(await workStore.FindWorkItemAsync(
-            received.StagedReceiptId, CancellationToken.None));
+        var failedWork = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(
+            services, received.StagedReceiptId));
         Assert.Equal(IntakeWorkState.Failed, failedWork.State);
         Assert.Equal("staged_artifact_integrity_failure", failedWork.FailureCode);
     }
@@ -289,8 +289,8 @@ public sealed class CustodyOutboxIntegrationTests
             original.Id, CancellationToken.None));
         Assert.Equal(queued.Version, unchanged.Version);
         Assert.Equal("reevaluation_pending", unchanged.FailureCode);
-        var failedWork = Assert.IsType<IntakeWorkItem>(await workStore.FindWorkItemAsync(
-            received.StagedReceiptId, CancellationToken.None));
+        var failedWork = Assert.IsType<IntakeWorkItem>(await IntakeWorkItemReads.FindAsync(
+            services, received.StagedReceiptId));
         Assert.Equal(IntakeWorkState.Failed, failedWork.State);
         Assert.Equal("staged_artifact_integrity_failure", failedWork.FailureCode);
     }
@@ -536,14 +536,19 @@ public sealed class CustodyOutboxIntegrationTests
         var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
         var content = "retained document"u8.ToArray();
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var state = Assert.IsType<CaseDocumentState>(
-            await scope.ServiceProvider.GetRequiredService<ICaseDocumentStateQueries>()
-                .GetAsync(accepted.CaseId, CancellationToken.None));
+        await using var workflowContext = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var caseVersion = await workflowContext.CaseWorkflows
+            .AsNoTracking()
+            .Where(w => w.CaseId == accepted.CaseId)
+            .Select(w => w.Version)
+            .SingleAsync();
         var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
         var addLease = await leases.ClaimAsync(
             new(
                 accepted.CaseId,
-                state.CaseVersion,
+                caseVersion,
                 actor,
                 $"document-add-lease:{Guid.NewGuid():N}"),
             CancellationToken.None);
@@ -1585,6 +1590,11 @@ public sealed class CustodyOutboxIntegrationTests
         // archive is still named by the case, asserted above.
         Assert.Equal("AMA/47857/1", eva.RootElement.GetProperty("Reference").GetString());
         Assert.Equal(QdosPrincipal.Code, eva.RootElement.GetProperty("Work Provider").GetString());
+        // The Case's Received date is its instruction date (operator,
+        // 24 September 2026), whatever the letter printed.
+        Assert.Equal(
+            Pegasus.Core.LondonCalendar.DateAt(receipt.ReceivedAtUtc).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+            eva.RootElement.GetProperty("Instruction Date").GetString());
         // Operator direction (2026-08-22): an absent inspection date is today's.
         Assert.False(
             string.IsNullOrWhiteSpace(eva.RootElement.GetProperty("Inspection Date").GetString()),
@@ -1695,7 +1705,7 @@ public sealed class CustodyOutboxIntegrationTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
             var addressRows = await addressContext.Set<CaseDataFieldEntity>()
-                .Where(item => item.CaseId == outcome.Identity.CaseId
+                .Where(item => item.WorkId == outcome.Identity.CaseId
                     && item.FieldName == CaseDataFieldNames.ClaimantAddress)
                 .ToListAsync();
             addressContext.RemoveRange(addressRows);
@@ -1713,7 +1723,7 @@ public sealed class CustodyOutboxIntegrationTests
                 }
                 addressContext.Add(new CaseDataFieldEntity
                 {
-                    CaseId = outcome.Identity.CaseId,
+                    WorkId = outcome.Identity.CaseId,
                     FieldName = CaseDataFieldNames.ClaimantAddress,
                     ValueKind = kind,
                     ValueType = CaseDataCodes.Text,
@@ -1760,7 +1770,7 @@ public sealed class CustodyOutboxIntegrationTests
                 CancellationToken.None);
 
             Assert.NotNull(blocked);
-            Assert.False(blocked.IsSubmitted);
+            Assert.Null(blocked.Submission);
             Assert.Equal([EvaSubmissionPolicy.InvalidClaimantAddressReason], blocked.BlockingReasons);
             Assert.Equal(0, evaImages.ReadCount);
             Assert.Equal(0, evaTransport.CallCount);
@@ -1782,7 +1792,7 @@ public sealed class CustodyOutboxIntegrationTests
                 firstActor,
                 "88888888888888888888888888888888"),
             CancellationToken.None);
-        Assert.True(firstApi?.IsSubmitted);
+        Assert.NotNull(firstApi?.Submission);
         var afterFirstApi = (await services.GetRequiredService<ICaseWorkflowQueries>()
             .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!;
         Assert.Equal(CaseLifecycleState.ReportPreparation, afterFirstApi.State);
@@ -1812,7 +1822,7 @@ public sealed class CustodyOutboxIntegrationTests
                 firstActor,
                 "99999999999999999999999999999999"),
             CancellationToken.None);
-        Assert.True(apiResend?.IsSubmitted);
+        Assert.NotNull(apiResend?.Submission);
         var afterApiResend = (await services.GetRequiredService<ICaseWorkflowQueries>()
             .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!;
         Assert.Equal(CaseLifecycleState.ReportPreparation, afterApiResend.State);
@@ -1898,7 +1908,7 @@ public sealed class CustodyOutboxIntegrationTests
         var versionRaceReplay = await racingSubmitter.ExecuteAsync(
             versionRaceRequest,
             CancellationToken.None);
-        Assert.True(versionRaceReplay?.IsSubmitted);
+        Assert.NotNull(versionRaceReplay?.Submission);
         Assert.Equal("eva-1", versionRaceReplay!.Submission!.EvaId);
         Assert.Equal(1, versionRaceTransport.CallCount);
         // Blocker 1: a Rejected or Unknown manual send never
@@ -1941,7 +1951,7 @@ public sealed class CustodyOutboxIntegrationTests
             var undeliveredResult = await undeliveredSubmitter.ExecuteAsync(
                 new(outcome.Identity.CaseId, firstActor, undeliveredKey),
                 CancellationToken.None);
-            Assert.True(undeliveredResult?.IsSubmitted);
+            Assert.NotNull(undeliveredResult?.Submission);
             Assert.Equal(undeliveredOutcome, undeliveredResult!.Submission!.Outcome);
             Assert.False(undeliveredResult.Submission!.IsDelivered);
             Assert.Equal(1, undeliveredTransport.CallCount);
@@ -2252,27 +2262,6 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(
             DocumentSemanticRole.Instruction,
             roles["53364_1_LtrtoEngineerIn.pdf"]);
-
-        // The gallery's own id is what the case-document download
-        // route resolves. It was the document id, not the occurrence id, so
-        // every photograph on the Evidence tab 404d before Box was reached —
-        // built positionally into two adjacent Guid slots, and nothing
-        // asserted which one it was.
-        var occurrenceIds = await context.Set<DocumentOccurrenceEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == outcome.Identity.CaseId)
-            .Select(item => item.Id)
-            .ToListAsync();
-        var gallery = await services
-            .GetRequiredService<ICaseEvidenceImageQueries>()
-            .ListForCaseAsync(outcome.Identity.CaseId, CancellationToken.None);
-
-        Assert.NotEmpty(gallery);
-        Assert.All(gallery, image =>
-        {
-            Assert.True(image.IsCaseDocument);
-            Assert.Contains(image.OccurrenceId!.Value, occurrenceIds);
-        });
     }
 
     /// <summary>
@@ -2420,6 +2409,7 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ProcessIntake>(),
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 services.GetRequiredService<ICreateTriageFromIntake>(),
+                services.GetRequiredService<ITriagePrincipalGate>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
                 services.GetRequiredService<TimeProvider>(),
@@ -2703,6 +2693,7 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<ProcessIntake>(),
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 services.GetRequiredService<ICreateTriageFromIntake>(),
+                services.GetRequiredService<ITriagePrincipalGate>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
                 services.GetRequiredService<IAllocateIntake>(),
                 services.GetRequiredService<TimeProvider>(),
@@ -3103,13 +3094,10 @@ public sealed class CustodyOutboxIntegrationTests
         public virtual async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
             Guid caseId,
             string caseReference,
-            CancellationToken cancellationToken,
-            Guid? parentCaseId = null,
-            string? parentCaseReference = null)
+            CancellationToken cancellationToken)
         {
             EffectCalls++;
-            return await inner.GetExistingCaseRootAsync(
-                caseId, caseReference, cancellationToken, parentCaseId, parentCaseReference);
+            return await inner.GetExistingCaseRootAsync(caseId, caseReference, cancellationToken);
         }
 
         public virtual async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
@@ -3202,9 +3190,7 @@ public sealed class CustodyOutboxIntegrationTests
         public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
             Guid caseId,
             string caseReference,
-            CancellationToken cancellationToken,
-            Guid? parentCaseId = null,
-            string? parentCaseReference = null) => throw Failure();
+            CancellationToken cancellationToken) => throw Failure();
 
         public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
             CaseCustodyRoot root, IntakeSourceCustodyReference source, string operationKey,

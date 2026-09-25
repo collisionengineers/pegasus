@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -23,8 +25,7 @@ internal sealed class EfDocumentCustodyStore(
     IMarkAsOriginalReportStore,
     ITagCaseImage,
     IUntagCaseImage,
-    ICreateImageTag,
-    ICaseDocumentStateQueries
+    ICreateImageTag
 {
     internal const string OriginalReportRecordedEventKind = "original_report_recorded";
     /// <summary>The two history words an image tag writes on the case.</summary>
@@ -115,22 +116,6 @@ internal sealed class EfDocumentCustodyStore(
             throw;
         }
     }
-    async Task<CaseDocumentState?> ICaseDocumentStateQueries.GetAsync(
-        Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        if (caseId == Guid.Empty)
-        {
-            throw new ArgumentException("A case identifier is required.", nameof(caseId));
-        }
-
-        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.CaseWorkflows
-            .AsNoTracking()
-            .Where(value => value.CaseId == caseId)
-            .Select(value => new CaseDocumentState(value.CaseId, value.Version))
-            .SingleOrDefaultAsync(cancellationToken);
-    }
     async Task<CaseDocumentMetadata?> IGetCaseDocumentMetadata.ExecuteAsync(
         GetCaseDocumentMetadataQuery query,
         CancellationToken cancellationToken)
@@ -211,7 +196,7 @@ internal sealed class EfDocumentCustodyStore(
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var caseIdentity = await context.Set<CaseEntity>()
             .Where(value => value.Id == query.CaseId)
-            .Select(value => new { value.Reference, value.CustodyRootRemoteId })
+            .Select(value => new { value.Reference, value.CustodyRootRemoteId, value.AuditCustodyRemoteId })
             .SingleOrDefaultAsync(cancellationToken);
         if (caseIdentity is null)
         {
@@ -229,7 +214,15 @@ internal sealed class EfDocumentCustodyStore(
                 && version.DocumentId == occurrence.DocumentId
                 && version.CustodyStatus == DocumentCustodyStatus.Confirmed
                 && !version.IsLogicallyRemoved
-            select new { Occurrence = occurrence, Version = version })
+            select new
+            {
+                Occurrence = occurrence,
+                Version = version,
+                Folder = context.Set<CaseDocumentEntity>()
+                    .Where(document => document.Id == occurrence.DocumentId)
+                    .Select(document => document.CustodyFolder)
+                    .First()
+            })
             .SingleOrDefaultAsync(cancellationToken);
         if (item is null)
         {
@@ -263,7 +256,8 @@ internal sealed class EfDocumentCustodyStore(
             Address(
                 query.CaseId,
                 caseIdentity.Reference,
-                caseIdentity.CustodyRootRemoteId,
+                CaseCustodyFolders.RootOf(
+                    item.Folder, caseIdentity.CustodyRootRemoteId, caseIdentity.AuditCustodyRemoteId),
                 item.Occurrence,
                 item.Version),
             item.Version.Sha256,
@@ -316,7 +310,7 @@ internal sealed class EfDocumentCustodyStore(
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         var caseIdentity = await context.Set<CaseEntity>()
             .Where(value => value.Id == command.CaseId)
-            .Select(value => new { value.Reference, value.CustodyRootRemoteId })
+            .Select(value => new { value.Reference, value.CustodyRootRemoteId, value.AuditCustodyRemoteId })
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("The case is unavailable.");
         var caseRootRemoteId = caseIdentity.CustodyRootRemoteId;
@@ -354,7 +348,13 @@ internal sealed class EfDocumentCustodyStore(
                     && version.Id == selection.VersionId
                     && version.CustodyStatus == DocumentCustodyStatus.Confirmed
                     && !version.IsLogicallyRemoved
-                select new ExportItem(occurrence, version))
+                select new ExportItem(
+                    occurrence,
+                    version,
+                    context.Set<CaseDocumentEntity>()
+                        .Where(document => document.Id == occurrence.DocumentId)
+                        .Select(document => document.CustodyFolder)
+                        .First()))
                 .SingleOrDefaultAsync(cancellationToken)
                 ?? throw new InvalidOperationException("A selected document version is unavailable.");
             if (item.Version.ContentLength < 0)
@@ -394,6 +394,7 @@ internal sealed class EfDocumentCustodyStore(
             command.CaseId,
             caseIdentity.Reference,
             caseRootRemoteId,
+            caseIdentity.AuditCustodyRemoteId,
             items,
             command.MaximumArchiveBytes,
             cancellationToken);
@@ -483,16 +484,18 @@ internal sealed class EfDocumentCustodyStore(
 
     async Task<OriginalReportRecorded> IMarkAsOriginalReportStore.MarkAsOriginalReportAsync(
         MarkAsOriginalReportCommand command,
+        OriginalReportReading? reading,
         CancellationToken cancellationToken)
     {
         OriginalReportPolicy.ValidateRequest(command);
         var operationKey = command.OperationKey.Trim();
         var requestHash = CaseOperationReplay.Hash(JsonSerializer.Serialize(new
         {
-            schemaVersion = 1,
+            schemaVersion = 2,
             command.CaseId,
             command.ExpectedVersion,
             command.DocumentOccurrenceId,
+            command.DocumentVersionId,
             actorKind = command.Actor.Kind.ToString(),
             actorSubjectId = command.Actor.SubjectId,
             actorRoles = command.Actor.Roles.OrderBy(role => role).Select(role => role.ToString()).ToArray(),
@@ -538,12 +541,12 @@ internal sealed class EfDocumentCustodyStore(
                 "The document occurrence is unavailable.");
         var version = await context.Set<DocumentVersionEntity>()
             .SingleAsync(item => item.Id == occurrence.VersionId, cancellationToken);
-        if (!version.IsCurrent || version.IsLogicallyRemoved)
+        if (!version.IsCurrent || version.IsLogicallyRemoved || version.Id != command.DocumentVersionId)
         {
             throw new InvalidOperationException(
                 "The document occurrence is unavailable.");
         }
-        var caseType = EfCaseQueryStore.ParseCaseType(workflow.Case.Type);
+        var caseType = CaseTypeCodes.Parse(workflow.Case.Type);
         var state = Enum.TryParse<CaseLifecycleState>(workflow.State, out var parsedState)
             && Enum.IsDefined(parsedState)
                 ? parsedState
@@ -579,6 +582,19 @@ internal sealed class EfDocumentCustodyStore(
         var beforeVersion = workflow.Version;
         var beforeRole = occurrence.SemanticRole;
         occurrence.SemanticRole = DocumentSemanticRole.AuditReport;
+        // The marked document fills the Original report cells staff have not
+        // confirmed (v28 P51). A reading of any other bytes fills nothing from
+        // the report.
+        var filled = await OriginalReportPrefillWriter.ApplyAsync(
+            context,
+            await CaseWorkScope.CurrentIdAsync(context, command.CaseId, cancellationToken),
+            reading is not null
+                && string.Equals(reading.Sha256, version.Sha256, StringComparison.OrdinalIgnoreCase)
+                    ? reading
+                    : null,
+            workflow.Case.StandaloneAuditAssessment is { } verdict ? AuditAssessmentCode.Parse(verdict) : null,
+            now,
+            cancellationToken);
         CaseMutationGuard.Complete(workflow);
         var result = new OriginalReportRecorded(
             command.CaseId,
@@ -596,9 +612,19 @@ internal sealed class EfDocumentCustodyStore(
             requestHash,
             beforeVersion,
             workflow.Version,
-            JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = beforeRole.ToString() }),
-            JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = occurrence.SemanticRole.ToString() }),
-            "original-report-role-v1",
+            JsonSerializer.Serialize(new
+            {
+                occurrence.Id,
+                SemanticRole = beforeRole.ToString(),
+                Fields = filled.ToDictionary(item => item.Key, item => item.Value.Before)
+            }),
+            JsonSerializer.Serialize(new
+            {
+                occurrence.Id,
+                SemanticRole = occurrence.SemanticRole.ToString(),
+                Fields = filled.ToDictionary(item => item.Key, item => (string?)item.Value.After)
+            }),
+            "original-report-role-v2",
             now);
         context.CaseWorkflowEvents.Local.Single(item =>
             item.CaseId == command.CaseId
@@ -919,6 +945,7 @@ internal sealed class EfDocumentCustodyStore(
         Guid caseId,
         string caseReference,
         string? caseRootRemoteId,
+        string? auditRootRemoteId,
         IReadOnlyList<ExportItem> items,
         long maximumArchiveBytes,
         CancellationToken cancellationToken)
@@ -953,7 +980,7 @@ internal sealed class EfDocumentCustodyStore(
                         Address(
                             caseId,
                             caseReference,
-                            caseRootRemoteId,
+                            CaseCustodyFolders.RootOf(item.Folder, caseRootRemoteId, auditRootRemoteId),
                             item.Occurrence,
                             item.Version),
                         item.Version.Sha256,
@@ -1212,7 +1239,7 @@ internal sealed class EfDocumentCustodyStore(
             Address(
                 command.CaseId,
                 workflow.Case.Reference,
-                workflow.Case.CustodyRootRemoteId,
+                CaseCustodyFolders.RootOf(workflow.Case, document.CustodyFolder),
                 occurrence,
                 version),
             command.Content,
@@ -1362,5 +1389,6 @@ internal sealed class EfDocumentCustodyStore(
 
     private sealed record ExportItem(
         DocumentOccurrenceEntity Occurrence,
-        DocumentVersionEntity Version);
+        DocumentVersionEntity Version,
+        string Folder);
 }

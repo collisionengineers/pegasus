@@ -29,7 +29,10 @@ public sealed partial class QdosInstructionExtractionPolicy
     // not that document, so every report-sourced mileage was lost.
     // v10 retains interleaved party blocks, records their contact choice, and
     // defaults a missing inspection date from the received London date.
-    public const int Version = 10;
+    // v11 reads no instruction date: the letter's own date row is a label
+    // boundary only, because the Case's Received date is its instruction
+    // date (operator, 24 September 2026).
+    public const int Version = 11;
     public const string SupportedPrincipalCode = "QDOS";
 
     public string PrincipalCode => SupportedPrincipalCode;
@@ -98,6 +101,8 @@ public sealed partial class QdosInstructionExtractionPolicy
 
     private const string ThirdPartyRole = "third-party";
 
+    private const string LetterDateBoundary = "QDOS letter date boundary";
+
     private static readonly InstructionFieldEngine.FieldDefinition[] BareFieldDefinitions =
     [
         new("Claimant name", ["Claimant Name", "Claimant", "Our Client", "Client Name"],
@@ -138,28 +143,17 @@ public sealed partial class QdosInstructionExtractionPolicy
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate,
             PartyRole: ClaimantRole),
-        // The letters date themselves with a bare "Date:" row, so without it
-        // every QDOS case silently fell back to its receipt date.
-        // The bare label is deliberately last: a line that says "Instruction
-        // Date" is matched by the specific label first.
-        //
-        // A bare "Date" also matches other date rows, in two shapes, and both
-        // are shut off here rather than left to conflict resolution:
-        //   "Date of Accident: 14/08/2026" yields "of Accident: 14/08/2026",
-        //   which AcceptsValue rejects at discovery because it is not a date;
-        //   "Accident Date: 14/08/2026" yields a perfectly valid date, so only
-        //   the guarded prefixes can reject it - the value cannot.
-        new(
-            "Instruction date",
-            ["Instruction Date", "Date of Instruction", "Date"],
-            AcceptsValue: value => InstructionFieldEngine.ParseDate(value) is not null,
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
-            CanonicalValue: InstructionFieldEngine.CanonicalDate,
-            GuardedPrefixes: ["Accident", "Incident", "Inspection", "Issue", "Report", "Due"],
-            PartyRole: InstructionRole,
-            DefaultsTo: InstructionFieldEngine.FieldDefaultSource.ProcessedDate,
-            DefaultEvidenceKey: "instruction-date-defaulted",
-            DefaultSourceLabel: "Receipt date"),
+        // The letters print their own date ("Date:", "Instruction Date:",
+        // "Date of Instruction:"), but it is not a Case fact: the Case's
+        // Received date is its instruction date (operator, 24 September
+        // 2026). The row stays a label boundary, so a flattened
+        // "Our Ref: AKH//47743/1 Date: 22/08/2026" still ends the reference
+        // and a party block still skips the row (IsDefinitionLabelledRow).
+        // Refusing every value means it never yields a field, as SBL's
+        // hire-date boundary does.
+        new(LetterDateBoundary, ["Instruction Date", "Date of Instruction", "Date"],
+            IsRequired: false,
+            AcceptsValue: _ => false),
         new("Inspection address", ["Inspection Address", "Vehicle Location", "Inspection Location"],
             PartyRole: InstructionRole),
         // An appended engineer's report states when the vehicle was actually
@@ -284,7 +278,7 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// role recorded with its candidates, and the two cannot drift.
     /// </summary>
     public IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; } =
-        FieldDefinitions.ToDictionary(
+        FieldDefinitions.Where(definition => definition.Name != LetterDateBoundary).ToDictionary(
             definition => definition.Name,
             definition => new InstructionFieldRole(definition.PartyRole, definition.ReferenceRole),
             StringComparer.Ordinal);
@@ -327,6 +321,7 @@ public sealed partial class QdosInstructionExtractionPolicy
             FieldDefinitions,
             FieldRegexCache,
             timing);
+        fields = [.. fields.Where(field => field.Name != LetterDateBoundary)];
         fields = DeriveVehicleRegistration(fields, out var derivedNames);
         missingFields = missingFields.Where(name => !derivedNames.Contains(name)).ToArray();
         evidence.AddRange(fieldEvidence);
@@ -982,7 +977,6 @@ public sealed partial class QdosInstructionExtractionPolicy
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Date of incident"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]),
             ClaimantAddress: InstructionFieldEngine.TypedString(values[ClaimantAddressField], 1000),

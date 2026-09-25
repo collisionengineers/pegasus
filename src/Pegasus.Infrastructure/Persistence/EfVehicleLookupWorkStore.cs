@@ -191,6 +191,8 @@ internal sealed class EfVehicleLookupWorkStore(
             TypeApproval = result.Vehicle?.TypeApproval,
             Wheelplan = result.Vehicle?.Wheelplan,
             RevenueWeightKg = result.Vehicle?.RevenueWeightKg,
+            Colour = result.Vehicle?.Colour,
+            TaxDueDate = result.Vehicle?.TaxDueDate,
             MotTestsJson = SerializeMotTests(result.MotTests),
             MileageValue = outcome.Mileage?.Value,
             MileageUnit = outcome.Mileage?.Unit.ToString(),
@@ -204,34 +206,28 @@ internal sealed class EfVehicleLookupWorkStore(
             RecordedAtUtc = recordedAtUtc
         });
 
+        // Looked-up values fill the current work's empty fields when the answer
+        // is for the registration that work now names.
+        var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
         var caseDataFields = await context.CaseDataFields
-            .Where(item => item.CaseId == workflow.CaseId)
+            .Where(item => item.WorkId == workId)
             .ToListAsync(cancellationToken);
         var selectedMileageSource = await context.CaseAssessmentFields
-            .Where(item => item.CaseId == workflow.CaseId
-                && item.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.VehicleMileageSource
-                && item.ConfirmedAtUtc != null)
+            .Where(item => item.WorkId == workId
+                && item.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.VehicleMileageSource)
             .Select(item => item.Value)
             .SingleOrDefaultAsync(cancellationToken);
         var beforeVehicle = ReportVehicleDependencies(caseDataFields, selectedMileageSource);
-        var vehicleTypeFilled = await FillEmptyVehicleFieldsAsync(
-            context,
-            caseDataFields,
-            workflow.CaseId,
-            observationId,
-            result,
-            outcome.Mileage,
-            recordedAtUtc,
-            cancellationToken);
+        var (beforeAssessment, afterAssessment) = await FillVehicleFieldsAsync(
+            context, caseDataFields, workId, observationId, result, outcome.Mileage, recordedAtUtc, cancellationToken);
         var freshness = CaseReportFreshness.ClassifyVehicle(
             beforeVehicle,
             ReportVehicleDependencies(caseDataFields, selectedMileageSource));
-        // A derived Vehicle type is a printed assessment fact rather than a
-        // Case-data vehicle dependency, so its fill stales the generation
-        // under the same reason the assessment classifier would give it.
-        if (!freshness.IsStale && vehicleTypeFilled)
+        // The Vehicle type and the lookup's own facts are printed assessment facts,
+        // not Case-data vehicle dependencies: the assessment classifier decides.
+        if (!freshness.IsStale)
         {
-            freshness = CaseReportFreshnessDecision.Stale(CaseReportStaleReasons.AssessmentFactsChanged);
+            freshness = CaseReportFreshness.ClassifyAssessment(beforeAssessment, afterAssessment);
         }
         if (freshness.IsStale)
         {
@@ -320,23 +316,48 @@ internal sealed class EfVehicleLookupWorkStore(
     /// own empty vehicle fields instead of sitting beside them as a rival
     /// reading. A filled value is the case's working value from the moment it
     /// lands, carrying Lookup provenance so the report can still say where the
-    /// figure came from. It never overwrites an extracted fact or a staff
-    /// value: <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.Fills"/>
-    /// is the one rule, and a field the case already answers is left alone.
+    /// figure came from.
+    ///
+    /// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.Fills"/> is the
+    /// rule for the Case-data fields and the Vehicle type: it never overwrites
+    /// an extracted fact or a staff value, and a field the case already
+    /// answers is left alone. The facts only the lookup records
+    /// (<see cref="AssessmentVocabulary.LookupDerivedPaths"/>) follow each
+    /// answer as
+    /// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.DerivedAssessmentWrites"/>
+    /// says, recorded by the lookup. All of it applies only when the
+    /// answer is for the work's current registration
+    /// (<see cref="EfVehicleWorkflowStore.CurrentRegistration"/>). Returns the
+    /// lookup-written assessment values before and after this answer, for
+    /// report freshness.
     ///
     /// Runs inside the caller's transaction, alongside the observation it
     /// came from, so the two can never disagree about what the lookup said.
     /// </summary>
-    private static async Task<bool> FillEmptyVehicleFieldsAsync(
+    private static async Task<(Dictionary<string, string?> Before, Dictionary<string, string?> After)> FillVehicleFieldsAsync(
         PegasusDbContext context,
         List<CaseDataFieldEntity> caseDataFields,
-        Guid caseId,
+        Guid workId,
         Guid observationId,
         VehicleLookupResult result,
         VehicleMileageCalculation? mileage,
         DateTimeOffset recordedAtUtc,
         CancellationToken cancellationToken)
     {
+        // An answer describes the vehicle it looked up. One for a registration
+        // the work no longer names (staff corrected it while the lookup was
+        // queued or retrying) records its observation and changes nothing on
+        // the work, so it can never replace or clear the current vehicle's facts.
+        var currentRegistration = EfVehicleWorkflowStore.CurrentRegistration(
+            caseDataFields
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration)
+                .Select(item => (item.ValueKind, item.Value)));
+        if (!string.Equals(currentRegistration, result.Registration, StringComparison.Ordinal))
+        {
+            var unchanged = new Dictionary<string, string?>(StringComparer.Ordinal);
+            return (unchanged, unchanged);
+        }
+
         var answered = caseDataFields
             .Where(item => item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Confirmed)
             .ToArray();
@@ -372,7 +393,7 @@ internal sealed class EfVehicleLookupWorkStore(
 
             var field = new CaseDataFieldEntity
             {
-                CaseId = caseId,
+                WorkId = workId,
                 FieldName = fieldName,
                 ValueKind = CaseDataCodes.Fact,
                 ValueType = valueType,
@@ -424,39 +445,62 @@ internal sealed class EfVehicleLookupWorkStore(
                 derived.MethodVersion);
         }
 
-        var vehicleTypeFilled = false;
-        var vehicleType = VehicleTypePolicy.Classify(result.Vehicle);
-        if (vehicleType is not null)
+        // The Vehicle type keeps its fill rule; the facts only the lookup records
+        // follow each answer. Both are read once, so report freshness compares
+        // their values before and after this answer.
+        string[] assessmentPaths = [AssessmentVocabulary.VehicleType, .. AssessmentVocabulary.LookupDerivedPaths];
+        var assessmentRows = await context.CaseAssessmentFields
+            .Where(item => item.WorkId == workId && assessmentPaths.Contains(item.FieldPath))
+            .ToListAsync(cancellationToken);
+        var before = Values(assessmentRows);
+
+        void Write(CaseAssessmentFieldEntity? existing, string path, string value)
         {
-            var path = AssessmentVocabulary.VehicleType;
-            var existing = await context.CaseAssessmentFields
-                .SingleOrDefaultAsync(
-                    item => item.CaseId == caseId && item.FieldPath == path,
-                    cancellationToken);
-            if (VehicleLookupFillPolicy.Fills(
-                    hasFact: false,
-                    hasConfirmed: existing?.ConfirmedBy is not null)
-                && (existing is null
-                    || !string.Equals(existing.Value, vehicleType, StringComparison.Ordinal)))
+            var written = AssessmentFieldWriter.Write(
+                context, workId, existing, path, value,
+                ActorKind.Automation, VehicleLookupFillPolicy.RecorderId, recordedAtUtc);
+            if (existing is null)
             {
-                var owningCase = await context.Cases
-                    .SingleAsync(item => item.Id == caseId, cancellationToken);
-                AssessmentFieldWriter.Write(
-                    context,
-                    owningCase,
-                    caseId,
-                    existing,
-                    path,
-                    vehicleType,
-                    ActorKind.Automation,
-                    VehicleLookupFillPolicy.RecorderId,
-                    recordedAtUtc,
-                    confirmedBy: null);
-                vehicleTypeFilled = true;
+                assessmentRows.Add(written);
             }
         }
 
-        return vehicleTypeFilled;
+        // Vehicle type: a staff-editable value, filled only where staff have
+        // not recorded one, re-stamped only when it changes.
+        var vehicleType = VehicleTypePolicy.Classify(result.Vehicle);
+        var existingType = assessmentRows.SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleType);
+        if (vehicleType is not null
+            && AssessmentPolicy.FillLands(AssessmentFieldWriter.RecordedByKind(existingType))
+            && !string.Equals(existingType?.Value, vehicleType, StringComparison.Ordinal))
+        {
+            Write(existingType, AssessmentVocabulary.VehicleType, vehicleType);
+        }
+
+        // The facts only the lookup records are its to replace and, on a complete
+        // answer, to clear: recorded by the lookup whatever wrote the row before;
+        // an unchanged value the lookup recorded is left as it stands.
+        foreach (var (path, value) in VehicleLookupFillPolicy.DerivedAssessmentWrites(result))
+        {
+            var existing = assessmentRows.SingleOrDefault(item => item.FieldPath == path);
+            if (value is null)
+            {
+                if (existing is not null)
+                {
+                    context.CaseAssessmentFields.Remove(existing);
+                    assessmentRows.Remove(existing);
+                }
+            }
+            else if (existing is not { RecordedBy: VehicleLookupFillPolicy.RecorderId }
+                || !string.Equals(existing.Value, value, StringComparison.Ordinal))
+            {
+                Write(existing, path, value);
+            }
+        }
+
+        return (before, Values(assessmentRows));
+
+        static Dictionary<string, string?> Values(IEnumerable<CaseAssessmentFieldEntity> rows) =>
+            rows.ToDictionary(item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
     }
 
     private static CaseReportVehicleDependencies ReportVehicleDependencies(
@@ -525,6 +569,8 @@ internal sealed class EfVehicleLookupWorkStore(
                 && entity.TypeApproval is null
                 && entity.Wheelplan is null
                 && entity.RevenueWeightKg is null
+                && entity.Colour is null
+                && entity.TaxDueDate is null
                     ? null
                     : new(
                         entity.Make,
@@ -534,7 +580,9 @@ internal sealed class EfVehicleLookupWorkStore(
                         entity.FuelType,
                         entity.TypeApproval,
                         entity.Wheelplan,
-                        entity.RevenueWeightKg),
+                        entity.RevenueWeightKg,
+                        entity.Colour,
+                        entity.TaxDueDate),
             motTests,
             mileage,
             failure,

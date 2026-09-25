@@ -8,8 +8,9 @@
   is a new reasoned version, never an edit of the old one.
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
-- Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources. Engineer's Value
-  is adopted by a staff member's Save when the calculation changed, in a fixed order.
+- Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
+  Engineer's Value is adopted, with its basis card's retail and trade values,
+  by a staff member's Save when the calculation changed, in a fixed order.
 - Settlement saves with the Case's single workspace Save. Equity is derived,
   never typed in.
 - AI and Market Research only propose. An authorised person decides.
@@ -39,7 +40,10 @@ Roadworthiness (`Roadworthy` or `Unroadworthy`) and Assessment
 (`Repairable` or `Total loss`) are separate professional findings. Neither is
 derived from the other, and Triage findings never fill or change either one.
 Every enabled human staff role may record or correct these findings under the
-existing state, lease and version rules.
+existing state, lease and version rules. On an Inspection + Audit Case with
+an Audit, the Audit's findings, damage, valuation and settlement are
+recorded on the Audit's values; the Inspection's stay as its report was
+sent ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 
 **Corrections.** A correction never edits an accepted or issued finding in
 place. It creates a reasoned superseding report, finding or addendum with
@@ -55,8 +59,9 @@ on a source or an estimate version are evidence only. No finding, figure,
 outcome, deduction or settlement meaning is derived from them. They are shown
 as recorded.
 
-**No money effects.** Triage findings and their corrections have no Case,
-report, Audit-reference, fee or invoice effect. Invoicing is deferred
+**No money effects.** Triage findings and their corrections have no effect
+on a linked instruction Case or on any report, Audit reference, fee or
+invoice. Invoicing is deferred
 separately: a finding correction must not create, alter, credit or void an
 invoice. Any later financial consequence needs the separately accepted,
 versioned finance contract.
@@ -95,10 +100,13 @@ no wider than half the vehicle. Every disc is clipped to the vehicle's body,
 on the workspace and on the report alike.
 
 The record also carries tyres and seat belts per corner, the spare tyre, the
-centre belt, unrelated damage with its deduction, and paint or material
-transfer. `impact_location` and `impact_severity` are derived from the areas
-by `Pegasus.Core`, never typed in: one distinct area reads as itself, more
-read Multiple. The report prints the marked diagram
+centre belt, which airbags deployed in the Engineer's words (for example
+`None` or `Driver and passenger front`, recorded under Tyres & seat belts and
+printed in the report's Vehicle Details), unrelated damage with its
+deduction, and paint or material transfer. `impact_location` and
+`impact_severity` are derived from the areas by `Pegasus.Core`, never typed
+in: one distinct area reads as itself, more read Multiple. The report prints
+the marked diagram
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
 
 ### Valuation sources
@@ -137,21 +145,29 @@ it never becomes the Engineer's Value by itself.
 
 **Engineer's Value** is adopted only by an enabled human staff member's Case
 Save, and only when the valuation calculation changed since the page opened
-(a different basis card, the basis card's figures, or any calculator
+(a different basis card, the basis card's retail or trade, or any calculator
 control; operator, 23 September 2026), in this order:
 commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
 condition deduction, rounding to whole pounds away from zero. No field of the
 Save writes the adopted value directly; an unchanged calculation adopts
-nothing. This calculation is current
-required behaviour. Extra rationale or revaluation-history scope needs its
-own accepted contract.
+nothing. The adoption also records the basis card's retail and trade as the
+Case's retail and trade values, which the report prints beside the
+Engineer's Value; a later adoption replaces all three together. A basis card
+without a trade figure records no trade value, and report readiness names
+Trade value until trade is entered on that card and the Case saved, which
+adopts again
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+This calculation is current required behaviour. Extra rationale or
+revaluation-history scope needs its own accepted contract.
 
 ### Settlement
 
-The settlement fields are outcome, category, salvage value, excess,
-betterment, claimant VAT registered, reserve, equity (derived), repair
-delays, report delay, storage per day, recovery, hire start and daily
-cost, diminution, and salvage logistics. Equity is derived, never typed in.
+The settlement fields are outcome, category, salvage value, roadworthiness
+and the unroadworthy reason, for an unroadworthy vehicle whether temporary
+repairs are possible with their method and cost, excess, betterment,
+claimant VAT registered, reserve, equity (derived), repair delays, report
+delay, storage per day, recovery, hire start and daily cost, diminution, and
+salvage logistics. Equity is derived, never typed in.
 Financial ratio lines are allowed, not required; the "no percentage" rule in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review) applies
 only to completeness. Outcome meanings are owned by
@@ -164,8 +180,13 @@ control, so a browser without script picks the same value from it. Salvage
 value carries a slider reading the share of the Engineer's Value, with 5,
 10, 15, 20 and 25 % snaps: the amount and the share are one fact and the
 last touch wins. While the outcome is not a total loss the salvage rows are
-absent and a "Salvage · Not applicable" line stands in their place. Beside
-the typed reserve, a computed **Repair reserve** reads the Current repair
+absent and a "Salvage · Not applicable" line stands in their place. While
+Roadworthiness is Unroadworthy, Temporary repairs possible (Yes or No),
+Temporary repair method and Temporary repair cost follow the unroadworthy
+reason; otherwise they are absent (operator, 24 September 2026), and the
+report's Vehicle Details prints their values only for an unroadworthy vehicle;
+for any other vehicle those rows read —. Beside the typed
+reserve, a computed **Repair reserve** reads the Current repair
 specification's VAT-inclusive cost rounded up to the next £50 on a
 Repairable outcome, and Not applicable otherwise; it is never written.
 
@@ -215,8 +236,9 @@ circular readiness gate is acceptable.
 - A correction never edits an accepted or issued finding in place.
 - Equity is absent when its accepted inputs are incomplete, never a made-up
   zero.
-- No assessment field writes the Engineer's Value; only a staff Save whose
-  valuation calculation changed adopts it.
+- No assessment field writes the Engineer's Value or its basis card's retail
+  and trade; only a staff Save whose valuation calculation changed adopts
+  them.
 - A valuation source with no connected provider shows the card's notice and
   still lets the figures be typed by hand; the Case Save records them.
 - Research evidence and an AI valuation proposal never become the Engineer's
@@ -225,8 +247,12 @@ circular readiness gate is acceptable.
 
 ## Acceptance evidence
 
-Core tests cover the Engineer's Value order. Live Glass's evidence is a
-separate tier ([engineering](../engineering.md#required-evidence-tiers)).
+Core tests cover the Engineer's Value order. Integration tests cover an
+adoption recording its basis card's retail and trade and a basis card without
+trade leaving Trade value outstanding. Web tests cover Airbags deployed and
+the temporary repair rows in read and edit and through the Case Save. Live
+Glass's evidence is a separate tier
+([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 

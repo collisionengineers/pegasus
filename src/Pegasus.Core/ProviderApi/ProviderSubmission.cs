@@ -261,23 +261,6 @@ public static class ProviderSubmissionPolicy
         return normalized;
     }
 
-    public static string? NormalizeProviderReference(string? providerReference)
-    {
-        var normalized = providerReference?.Trim();
-        if (string.IsNullOrEmpty(normalized))
-        {
-            return null;
-        }
-        if (normalized.Length > MaximumProviderReferenceLength)
-        {
-            throw new ArgumentException(
-                $"A provider reference is at most {MaximumProviderReferenceLength} characters.",
-                nameof(providerReference));
-        }
-
-        return normalized;
-    }
-
     /// <summary>
     /// The envelope bound is the Provider API's own
     /// (<see cref="IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength"/>):
@@ -585,7 +568,8 @@ public sealed class SubmitProviderInstruction(
 public sealed class GetProviderSubmissionResult(
     IProviderSubmissionStore store,
     IQueuedIntakeStatusQueries statusQueries,
-    IIntakeReceiptQueries receiptQueries) : IGetProviderSubmissionResult
+    IIntakeReceiptQueries receiptQueries,
+    Pegasus.Core.Triage.ITriageQueries triageQueries) : IGetProviderSubmissionResult
 {
     public async Task<ProviderSubmissionResult?> ExecuteAsync(
         PrincipalCredentialAuthentication credential,
@@ -613,6 +597,13 @@ public sealed class GetProviderSubmissionResult(
         var receipt = status?.ProcessedReceiptId is { } processedId
             ? await receiptQueries.GetAsync(processedId, cancellationToken)
             : null;
+        // A Triage request becomes a Triage Case rather than an accepted
+        // instruction, so its receipt names no current Case: the result
+        // returns the Triage Case's t. reference instead.
+        var caseReference = receipt?.CurrentCaseReference
+            ?? (receipt is null
+                ? null
+                : (await triageQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken))?.Reference);
         return new(
             record.Id,
             record.ReceivedAtUtc,
@@ -621,6 +612,6 @@ public sealed class GetProviderSubmissionResult(
             receipt?.Decision,
             receipt?.AllocationState?.FailureKind,
             receipt?.FailureCode ?? status?.FailureCode,
-            receipt?.CurrentCaseReference);
+            caseReference);
     }
 }

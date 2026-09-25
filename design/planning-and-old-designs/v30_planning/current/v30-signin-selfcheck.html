@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en-GB">
+<head><meta charset="utf-8"><title>v30 sign-in design self-check</title></head>
+<body>
+<h1>Sign-in mockup self-check</h1>
+<p>Temporary design evidence only. No application or account is contacted.</p>
+<pre id="result">PENDING</pre>
+<iframe id="frame" title="Mockup under review" width="1580" height="1000"></iframe>
+<script>
+const frame = document.querySelector('#frame');
+const fail = [], ok = [];
+const check = (name, condition) => (condition ? ok : fail).push(name);
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+window.addEventListener('error', event => fail.push(event.message));
+async function load(id, state, width, height, extra = '') {
+  frame.width = width;
+  frame.height = height;
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Mockup load timeout')), 5000);
+    frame.onload = () => { clearTimeout(timeout); resolve(); };
+    frame.src = `pegasus_signin_${id}_v30.html?state=${state}&embed=1${extra}`;
+  });
+  await frame.contentDocument.fonts.ready;
+  await wait(25);
+  return frame.contentDocument;
+}
+(async () => {
+  try {
+    for (const id of ['a', 'b', 'c']) {
+      for (const state of ['default', 'validation', 'error', 'signed-out']) {
+        for (const [width, height] of [[1580, 1000], [1440, 900], [760, 1000], [390, 844]]) {
+          const d = await load(id, state, width, height);
+          const prefix = `${id}/${state}/${width}`;
+          check(`${prefix}: script loaded without errors`, frame.contentWindow.mockupReady && frame.contentWindow.mockupErrors.length === 0);
+          check(`${prefix}: no horizontal spill`, d.documentElement.scrollWidth <= width);
+          check(`${prefix}: single heading and sign-in action`, d.querySelectorAll('h1').length === 1 && d.querySelectorAll('[type=submit]').length === 1);
+          check(`${prefix}: brand asset rendered`, [...d.querySelectorAll('.brand img')].every(img => img.complete && img.naturalWidth === 256));
+          check(`${prefix}: controls remain in viewport`, [...d.querySelectorAll('.login-form input:not([type=hidden]),.primary')].every(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.left >= 0 && r.right <= width && r.top >= 0 && r.bottom <= height; }));
+          check(`${prefix}: preview strip hidden`, d.querySelector('.mockup-controls').hidden);
+          check(`${prefix}: error summary matches state`, d.querySelector('#credential-error').hidden === (state !== 'error'));
+          check(`${prefix}: required messages match state`, [...d.querySelectorAll('.field-error')].every(el => el.hidden === (state !== 'validation')));
+          check(`${prefix}: signed-out heading matches state`, d.querySelector('h1').textContent.trim() === (state === 'signed-out' ? 'You are signed out' : 'Sign in'));
+          check(`${prefix}: password always starts empty and masked`, d.querySelector('#Password').value === '' && d.querySelector('#Password').type === 'password');
+          check(`${prefix}: username and password have labels`, ['UserName', 'Password'].every(name => !!d.querySelector(`label[for="${name}"]`)));
+        }
+      }
+      let d = await load(id, 'default', 1580, 1000);
+      const user = d.querySelector('#UserName'), password = d.querySelector('#Password');
+      const form = d.querySelector('form'), reveal = d.querySelector('.reveal');
+      form.requestSubmit();
+      check(`${id}: blank submit focuses username`, d.activeElement === user);
+      check(`${id}: blank submit marks both fields`, user.getAttribute('aria-invalid') === 'true' && password.getAttribute('aria-invalid') === 'true');
+      user.value = 'alex';
+      user.dispatchEvent(new frame.contentWindow.Event('input'));
+      form.requestSubmit();
+      check(`${id}: missing password focuses password`, d.activeElement === password && !user.hasAttribute('aria-invalid'));
+      password.value = 'example-only';
+      password.dispatchEvent(new frame.contentWindow.Event('input'));
+      reveal.click();
+      check(`${id}: reveal exposes typed text and announces state`, password.type === 'text' && reveal.getAttribute('aria-pressed') === 'true' && reveal.getAttribute('aria-label') === 'Show password'.replace('Show', 'Hide'));
+      reveal.click();
+      check(`${id}: hide restores masking without losing value`, password.type === 'password' && password.value === 'example-only' && reveal.getAttribute('aria-pressed') === 'false');
+      form.requestSubmit();
+      check(`${id}: pending submission is explained`, form.getAttribute('aria-busy') === 'true' && d.querySelector('.primary').textContent === 'Signing in…');
+      await wait(750);
+      check(`${id}: demo failure focuses summary`, !d.querySelector('#credential-error').hidden && d.activeElement === d.querySelector('#credential-error'));
+      check(`${id}: failed attempt preserves username and clears password`, user.value === 'alex' && password.value === '' && password.type === 'password');
+      check(`${id}: form becomes available for retry`, !form.hasAttribute('aria-busy') && !d.querySelector('.primary').hasAttribute('aria-disabled'));
+      check(`${id}: no interaction exceptions`, frame.contentWindow.mockupErrors.length === 0);
+      d = await load(id, 'default', 760, 1000, '&reveal=off');
+      check(`${id}: undecided reveal option can be disabled`, d.querySelector('.reveal').hidden && d.querySelector('#Password').type === 'password');
+      d.querySelector('#reveal-control').click();
+      check(`${id}: reveal option can be restored`, !d.querySelector('.reveal').hidden);
+    }
+  } catch (error) { fail.push(error.stack || error.message); }
+  const result = { fail, okCount: ok.length };
+  document.querySelector('#result').textContent = 'RESULT ' + JSON.stringify(result);
+  window.selfcheckResult = result;
+})();
+</script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -28,7 +29,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class AutomationAssessmentIngressTests
 {
     [Fact]
-    public async Task CanonicalEstimateImportThroughMcpPersistsUnconfirmedSourceBackedRowsAndRejectsForeignOrStaleAuthority()
+    public async Task CanonicalEstimateImportThroughMcpPersistsSourceBackedRowsAndRejectsForeignOrStaleAuthority()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         var bytes = Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
@@ -169,12 +170,11 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(14, imported.Lines.Count);
         Assert.All(imported.Lines, line =>
         {
-            Assert.False(line.IsConfirmed);
             Assert.Equal(ActorKind.Automation, line.RecordedByKind);
             Assert.Equal(versionId, line.SourceDocumentVersionId);
             Assert.Equal(hash, line.SourceDocumentSha256);
         });
-        Assert.Single(await store.ListEstimatesAsync(caseId, default));
+        Assert.Single(await store.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default));
         await store.RequireImportAuthorityAsync(new(ActionActor.Automation(imported.CreatedBy), caseId, 2, replayLease.LeaseToken,
             occurrenceId, versionId, hash, "mcp:replay-authority", "Glass's 1"), default);
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -264,7 +264,7 @@ public sealed class AutomationAssessmentIngressTests
         using var document = await ReadJsonRpcAsync(response);
         Assert.Contains("derived from damage.impacts", document.RootElement.ToString(), StringComparison.Ordinal);
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}'"));
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
 
         using var estimateResponse = await PostMcpAsync(client, token, ToolCallPayload(42,
             "pegasus_assessment_update", new
@@ -290,7 +290,7 @@ public sealed class AutomationAssessmentIngressTests
                 fields = new Dictionary<string, string?> { [AssessmentVocabulary.RateCard] = "standard" }
             }));
         using var rateDocument = await ReadJsonRpcAsync(rateResponse);
-        Assert.Contains("named estimate command", rateDocument.RootElement.ToString(), StringComparison.Ordinal);
+        Assert.Contains("no staff editor on the Case", rateDocument.RootElement.ToString(), StringComparison.Ordinal);
 
         using var findingResponse = await PostMcpAsync(client, token, ToolCallPayload(44,
             "pegasus_assessment_update", new
@@ -299,11 +299,11 @@ public sealed class AutomationAssessmentIngressTests
                 expectedVersion = lease.CaseVersion,
                 editLeaseToken = lease.LeaseToken,
                 operationKey = "mcp:generic-finding-rejected",
-                reason = "Attempt a professional finding write.",
+                reason = "Attempt an adopted finding write.",
                 fields = new Dictionary<string, string?> { [AssessmentVocabulary.ValueEngineer] = "12000" }
             }));
         using var findingDocument = await ReadJsonRpcAsync(findingResponse);
-        Assert.Contains("named professional command", findingDocument.RootElement.ToString(), StringComparison.Ordinal);
+        Assert.Contains("only when a Case Save adopts an Engineer", findingDocument.RootElement.ToString(), StringComparison.Ordinal);
 
         using var signatoryResponse = await PostMcpAsync(client, token, ToolCallPayload(45,
             "pegasus_assessment_update", new
@@ -316,7 +316,80 @@ public sealed class AutomationAssessmentIngressTests
                 fields = new Dictionary<string, string?> { [AssessmentVocabulary.EngineerSignature] = "signed" }
             }));
         using var signatoryDocument = await ReadJsonRpcAsync(signatoryResponse);
-        Assert.Contains("named signatory command", signatoryDocument.RootElement.ToString(), StringComparison.Ordinal);
+        Assert.Contains("no staff editor on the Case", signatoryDocument.RootElement.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AssessmentUpdateWritesOnlyFieldsStaffCanRecord()
+    {
+        using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
+        using var mcpFactory = WithAutomationMcp(factory);
+        var caseId = await SeedAcceptedCaseAsync(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var token = await RequestTokenAsync(client, AllScopes);
+        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 50);
+
+        // An automation value is one staff can change or clear on its Case
+        // section, so a fact the vehicle lookup records, a professional
+        // finding, a case-owned fact and the retired paths (the statement of
+        // truth is the report contract's wording) are each refused, naming
+        // the field. A path no section edits, the Engineer signature, is
+        // refused in the test above.
+        var refusals = new (string Path, string Value, string Refusal)[]
+        {
+            (AssessmentVocabulary.VehicleFuel, "Petrol", "filled by the DVLA/DVSA vehicle lookup"),
+            ("statement_of_truth", "I believe the facts stated are true.", "not part of the assessment vocabulary"),
+            (AssessmentVocabulary.LegalStatus, "roadworthy", "is a professional finding"),
+            (AssessmentVocabulary.ValueTrade, "9000", "only when a Case Save adopts an Engineer"),
+            ("incident.assessed", "2031-05-06", "case-detail edit path"),
+            ("costs.repairer_vat_registered", "true", "not part of the assessment vocabulary")
+        };
+        var rpcId = 51;
+        foreach (var (path, value, refusal) in refusals)
+        {
+            using var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId++,
+                "pegasus_assessment_update", new
+                {
+                    caseId,
+                    expectedVersion = lease.CaseVersion,
+                    editLeaseToken = lease.LeaseToken,
+                    operationKey = $"mcp:refused-{path}",
+                    reason = "Attempt a write staff cannot change on the Case.",
+                    fields = new Dictionary<string, string?> { [path] = value }
+                }));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var document = await ReadJsonRpcAsync(response);
+            Assert.Contains(refusal, document.RootElement.ToString(), StringComparison.Ordinal);
+            Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
+        }
+
+        // The Inspection section records the recovery charge, so automation
+        // may write it, attributed to the Automation actor.
+        using (var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId,
+            "pegasus_assessment_update", new
+            {
+                caseId,
+                expectedVersion = lease.CaseVersion,
+                editLeaseToken = lease.LeaseToken,
+                operationKey = "mcp:recovery-charge",
+                reason = "Automation recorded the recovery charge.",
+                fields = new Dictionary<string, string?> { [AssessmentVocabulary.CostRecoveryCharge] = "120" }
+            })))
+        {
+            var structured = await ReadStructuredContentAsync(response);
+            Assert.Equal(lease.CaseVersion + 1, structured.GetProperty("caseVersion").GetInt64());
+        }
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM CaseAssessmentFields
+            WHERE WorkId = '{caseId:D}'
+              AND FieldPath = N'{AssessmentVocabulary.CostRecoveryCharge}'
+              AND Value = N'120.00'
+              AND RecordedByKind = N'Automation'
+            """));
     }
 
     [Fact]
@@ -418,7 +491,7 @@ public sealed class AutomationAssessmentIngressTests
                     fields = new Dictionary<string, string?>
                     {
                         ["vehicle.condition"] = "good",
-                        ["vehicle.colour"] = "Blue"
+                        [AssessmentVocabulary.VehicleBody] = "Hatchback"
                     },
                     workRequestId = workRequestId.ToString("D")
                 })))
@@ -433,14 +506,13 @@ public sealed class AutomationAssessmentIngressTests
                 workRequestId.ToString("D"),
                 structured.GetProperty("correlationId").GetString());
             var fields = structured.GetProperty("fields").EnumerateArray().ToArray();
-            Assert.All(fields, field => Assert.False(field.GetProperty("isConfirmed").GetBoolean()));
         }
 
-        // Stored values carry the unconfirmed automation provenance.
+        // Stored values carry the automation provenance.
         Assert.Equal(2, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM CaseAssessmentFields
-            WHERE RecordedByKind = N'Automation' AND ConfirmedBy IS NULL
+            WHERE RecordedByKind = N'Automation'
             """));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM CaseEstimateLines WHERE RecordedByKind = N'Automation'"));
@@ -480,7 +552,7 @@ public sealed class AutomationAssessmentIngressTests
                     fields = new Dictionary<string, string?>
                     {
                         ["vehicle.condition"] = "good",
-                        ["vehicle.colour"] = "Blue"
+                        [AssessmentVocabulary.VehicleBody] = "Hatchback"
                     },
                     workRequestId = workRequestId.ToString("D")
                 })))
@@ -505,9 +577,45 @@ public sealed class AutomationAssessmentIngressTests
                 .GetProperty("result")
                 .GetProperty("structuredContent");
             Assert.True(structured.GetProperty("readiness").GetArrayLength() > 0);
+            var caseOwned = structured.GetProperty("caseOwned");
+            Assert.Equal("AB12CDE", caseOwned.GetProperty("registration").GetString());
+            // Every Case has a received date; the report prints it as the
+            // date instructions were received.
+            Assert.Matches(@"^\d{4}-\d{2}-\d{2}$", caseOwned.GetProperty("receivedDate").GetString());
+        }
+
+        // A null member is omitted from the structured content, so the
+        // inspection date is recorded through the case-detail path before the
+        // read-back can carry it. The assessment save consumed the first
+        // lease, so the case-detail write claims its own.
+        var detailsLease = await BeginEditAsync(client, token, caseId, caseVersion + 1, rpcId: 60);
+        using (var detailsResponse = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(
+                6,
+                "pegasus_case_update_details",
+                new
+                {
+                    caseId,
+                    expectedVersion = detailsLease.CaseVersion,
+                    editLeaseToken = detailsLease.LeaseToken,
+                    operationKey = "mcp:ingress-inspection-date",
+                    reason = "Automation recorded the inspection date.",
+                    inspectionDate = "2031-05-06"
+                })))
+        {
+            _ = await ReadStructuredContentAsync(detailsResponse);
+        }
+        using (var getResponse = await PostMcpAsync(
+            client,
+            token,
+            ToolCallPayload(7, "pegasus_assessment_get", new { caseId })))
+        {
+            var structured = await ReadStructuredContentAsync(getResponse);
             Assert.Equal(
-                "AB12CDE",
-                structured.GetProperty("caseOwned").GetProperty("registration").GetString());
+                "2031-05-06",
+                structured.GetProperty("caseOwned").GetProperty("inspectionDate").GetString());
         }
     }
 
@@ -635,13 +743,11 @@ public sealed class AutomationAssessmentIngressTests
         }
 
         // Case-detail values save through the same Core path as a staff edit: they land
-        // Confirmed and attributed to the automation immediately, with no unconfirmed mark —
-        // unlike the assessment tranche's staff-review boundary, ordinary case-detail
-        // editing carries no separate confirmation gate.
+        // as the Case's confirmed case-data value, attributed to the automation.
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
-            WHERE CaseId = '{caseId:D}'
+            WHERE WorkId = '{caseId:D}'
               AND FieldName = N'contact_name'
               AND ValueKind = N'confirmed'
               AND Value = N'Automation QA Contact'
@@ -705,7 +811,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
-            WHERE CaseId = '{caseId:D}' AND FieldName = N'contact_name'
+            WHERE WorkId = '{caseId:D}' AND FieldName = N'contact_name'
             """));
     }
 
@@ -922,7 +1028,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
-            WHERE CaseId = '{caseId:D}' AND FieldName = N'contact_name' AND ValueKind = N'confirmed'
+            WHERE WorkId = '{caseId:D}' AND FieldName = N'contact_name' AND ValueKind = N'confirmed'
             """));
     }
 
@@ -943,11 +1049,11 @@ public sealed class AutomationAssessmentIngressTests
     /// <summary>
     /// FRD-10 § AI job and estimate tools: an AI-draft estimate
     /// must cite the Estimate job this client holds, always lands as a
-    /// Draft with unconfirmed lines and never as Current, and is listed
+    /// Draft and never as Current, and is listed
     /// with Pegasus-computed totals.
     /// </summary>
     [Fact]
-    public async Task EstimateSaveRequiresTheHeldEstimateJobAndLandsAsAnUnconfirmedAiDraft()
+    public async Task EstimateSaveRequiresTheHeldEstimateJobAndLandsAsAnAiDraft()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -1002,7 +1108,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Contains("The cited AI job was not found.", document.RootElement.ToString(), StringComparison.Ordinal);
         }
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE CaseId = '{caseId:D}'"));
+            $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE WorkId = '{caseId:D}'"));
 
         Guid estimateId;
         using (var response = await PostMcpAsync(
@@ -1034,9 +1140,6 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal("AiDraft", estimate.GetProperty("sourceRoute").GetString());
             Assert.False(estimate.GetProperty("isCurrent").GetBoolean());
             Assert.Equal(jobId, estimate.GetProperty("aiJobId").GetGuid());
-            Assert.All(
-                estimate.GetProperty("lines").EnumerateArray(),
-                line => Assert.False(line.GetProperty("isConfirmed").GetBoolean()));
             var totals = estimate.GetProperty("totals");
             Assert.Equal(220.40m, totals.GetProperty("parts").GetDecimal());
             Assert.Equal(100m, totals.GetProperty("panelLabour").GetDecimal());
@@ -1063,26 +1166,23 @@ public sealed class AutomationAssessmentIngressTests
             Assert.NotNull(saved);
             Assert.Equal(RepairerVatStatus.Unknown, saved.Details.VatPolicy.RepairerStatus);
             Assert.True(saved.Details.VatPolicy.TreatmentPending);
-            // v28 P10: the unknown VAT status is no refusal; the unconfirmed
-            // AI lines still are.
-            var refusal = Assert.Throws<InvalidOperationException>(() =>
-                EstimatePolicy.ValidateSetCurrent(
-                    saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer])));
-            Assert.DoesNotContain("VAT status", refusal.Message, StringComparison.Ordinal);
-            Assert.Contains("confirmed", refusal.Message, StringComparison.Ordinal);
+            // v28 P10: the unknown VAT status is no refusal, and the AI lines
+            // are the Draft's own; Use estimate is the Engineer's acceptance.
+            EstimatePolicy.ValidateSetCurrent(
+                saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseRepairSpecifications
-            WHERE Id = '{estimateId:D}' AND CaseId = '{caseId:D}' AND State = N'Draft'
+            WHERE Id = '{estimateId:D}' AND WorkId = '{caseId:D}' AND State = N'Draft'
               AND SourceRoute = N'AiDraft' AND IsCurrent = 0 AND AiJobId = '{jobId:D}'
               AND Name = N'Claude draft' AND VatPercent = 20
             """));
         Assert.Equal(3, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseEstimateLines
-            WHERE RepairSpecificationId = '{estimateId:D}' AND RecordedByKind = N'Automation' AND ConfirmedBy IS NULL
+            WHERE RepairSpecificationId = '{estimateId:D}' AND RecordedByKind = N'Automation'
             """));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""

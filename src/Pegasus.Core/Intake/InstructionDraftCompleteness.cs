@@ -25,7 +25,7 @@ public static class InstructionDraftCompleteness
     public static IReadOnlyList<string> MissingFieldNames(InstructionDraft draft)
     {
         ArgumentNullException.ThrowIfNull(draft);
-        var missing = new List<string>(10);
+        var missing = new List<string>(9);
         if (string.IsNullOrWhiteSpace(draft.ClaimantName))
         {
             missing.Add("Claimant name");
@@ -58,10 +58,6 @@ public static class InstructionDraftCompleteness
         {
             missing.Add("Date of incident");
         }
-        if (draft.InstructionDate is null)
-        {
-            missing.Add("Instruction date");
-        }
         if (string.IsNullOrWhiteSpace(draft.InspectionAddress))
         {
             missing.Add("Inspection address");
@@ -83,11 +79,11 @@ public static class InstructionDraftCompleteness
     /// ambiguous, but "once safe processing establishes Principal and Case type,
     /// allocate the Case/PO and retain incomplete ordinary detail, images, or
     /// checks as `Not ready`".
-    /// Vehicle make, model and mileage, the accident circumstances and the dates
-    /// are that ordinary detail: an instruction that arrives without them is a
-    /// case waiting for detail, not a case that cannot exist. The inspection
-    /// address is settled separately by the EXT-18 resolution flow rather than
-    /// here.
+    /// Vehicle make, model and mileage, the accident circumstances and the
+    /// incident date are that ordinary detail: an instruction that arrives
+    /// without them is a case waiting for detail, not a case that cannot exist.
+    /// The inspection address is settled separately by the EXT-18 resolution
+    /// flow rather than here.
     ///
     /// <see cref="MissingFieldNames"/> keeps the fuller list because it answers
     /// the other question — whether a corrected draft is complete enough to be

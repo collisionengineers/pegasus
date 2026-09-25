@@ -38,6 +38,7 @@ public sealed partial class DetailsModel(
     IGetPreCaseImagePreparations getPreparations,
     Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
     TimeProvider timeProvider,
+    IEditScopeLeases editScopes,
     ILogger<DetailsModel> logger) : StaffPageModel
 {
     public const string LinkDialog = "link";
@@ -195,7 +196,10 @@ public sealed partial class DetailsModel(
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken) =>
         await LoadAsync(id, cancellationToken) ?? Page();
 
-    /// <summary>Link to Case: the chosen Case's lease is claimed for the link and consumed by it.</summary>
+    /// <summary>
+    /// Link to Case: the chosen Case's lease — or a Triage Case's edit scope —
+    /// is claimed for the link and consumed by it.
+    /// </summary>
     public async Task<IActionResult> OnPostLinkCaseAsync(
         Guid id,
         Guid caseId,
@@ -207,7 +211,7 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
 
-        CaseEditLease? lease = null;
+        CaseLinkAuthorityClaim? lease = null;
         try
         {
             var context = await getContext.ExecuteAsync(actor, id, cancellationToken);
@@ -218,8 +222,13 @@ public sealed partial class DetailsModel(
 
             var destination = await destinations.GetAsync(receipt, caseId, actor, cancellationToken)
                 ?? throw new InvalidOperationException("The selected Case is not available for this material.");
-            lease = await acquireLease.ExecuteAsync(
-                new ClaimCaseEditLeaseRequest(caseId, destination.Version, actor, NewOperationKey()),
+            lease = await CaseLinkAuthority.ClaimAsync(
+                destination,
+                destination.Version,
+                actor,
+                NewOperationKey(),
+                acquireLease,
+                editScopes,
                 cancellationToken);
             await linkIntake.ExecuteAsync(
                 new LinkIntakeRequest(
@@ -481,10 +490,6 @@ public sealed partial class DetailsModel(
                 : await destinations.SearchAsync(receipt, query.Length > 300 ? query[..300] : query, actor, cancellationToken);
         }
 
-        ViewData["WorkingSetRecord"] = new WorkingSetRecord(
-            $"/Unidentified/{id:D}",
-            WorkingSetRecord.Kinds.Unidentified,
-            context.Item.Reference);
         return null;
     }
 
@@ -572,7 +577,7 @@ public sealed partial class DetailsModel(
         }
     }
 
-    private async Task ReleaseQuietlyAsync(Guid caseId, Pegasus.Core.Identity.ActionActor actor, CaseEditLease? lease)
+    private async Task ReleaseQuietlyAsync(Guid caseId, Pegasus.Core.Identity.ActionActor actor, CaseLinkAuthorityClaim? lease)
     {
         if (lease is null)
         {
@@ -581,9 +586,18 @@ public sealed partial class DetailsModel(
 
         try
         {
-            await releaseLease.ExecuteAsync(
-                new ReleaseCaseEditLeaseRequest(caseId, actor, NewOperationKey(), lease.Token),
-                CancellationToken.None);
+            if (lease.IsTriageCase)
+            {
+                await editScopes.ReleaseAsync(
+                    new ReleaseEditScopeRequest(EditScopeKind.Triage, caseId, actor, NewOperationKey(), lease.Token),
+                    CancellationToken.None);
+            }
+            else
+            {
+                await releaseLease.ExecuteAsync(
+                    new ReleaseCaseEditLeaseRequest(caseId, actor, NewOperationKey(), lease.Token),
+                    CancellationToken.None);
+            }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

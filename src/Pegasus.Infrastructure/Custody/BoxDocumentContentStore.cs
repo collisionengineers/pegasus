@@ -586,20 +586,6 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         }
     }
 
-    private async Task<BoxContentClient.BoxItem> GetFileForManagedReadAsync(
-        string fileId,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await client.GetFileAsync(fileId, cancellationToken);
-        }
-        catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
-        {
-            throw new FileNotFoundException("The managed Box file is unavailable.", exception);
-        }
-    }
-
     private async Task<Stream> OpenOwnedExactVersionAsync(
         string fileId,
         string versionId,
@@ -615,28 +601,6 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         catch (HttpRequestException exception) when (exception.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             throw new FileNotFoundException("The exact managed Box version is unavailable.", exception);
-        }
-    }
-
-    /// <summary>
-    /// Refuse a length mismatch before any bytes move. Dropping
-    /// the per-read metadata GET also dropped the only pre-download size guard,
-    /// so an unbounded body could be buffered — four at once under the fan-out —
-    /// before <see cref="Verify"/> rejected it.
-    ///
-    /// Deliberately tolerant, unlike the metadata check it replaces: a size Box
-    /// declines to send cannot refuse a file, the same reasoning
-    /// <c>DownloadFencedAsync</c> applies to an absent parent. That strictness
-    /// was the reason the old check could not simply be re-pointed at the
-    /// listing. <see cref="Verify"/> stays the closing check on the content.
-    /// </summary>
-    private static void RefuseUnexpectedLength(
-        BoxContentClient.BoxItem file,
-        long expectedLength)
-    {
-        if (file.Size is { } size && size != expectedLength)
-        {
-            throw new InvalidDataException("Document custody length verification failed.");
         }
     }
 

@@ -297,9 +297,6 @@ public static class ThirdPartyReportProfiles
     private static readonly CompiledSignature[] Compiled =
         [.. SignatureTable.Select(CompiledSignature.Compile)];
 
-    /// <summary>The finite signature table, in declaration order.</summary>
-    public static IReadOnlyList<ThirdPartyDocumentSignature> Signatures => SignatureTable;
-
     /// <summary>
     /// Whether a document-owned signature establishes a non-image source role.
     /// Ambiguous signatures still establish that the source is not image-only,

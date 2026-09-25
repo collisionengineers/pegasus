@@ -206,7 +206,6 @@ public sealed class ProcessIntake(
         var assessment = await AssessAsync(
             readResult,
             safeSource.SourceIdentity,
-            processedAtUtc,
             safeSource.ReceivedAtUtc,
             cancellationToken);
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
@@ -432,8 +431,8 @@ public sealed class ProcessIntake(
     ///
     /// Retention is the right place for it: the role is a property of the bytes
     /// that were just retained, not of anything a member of staff does later,
-    /// and reading it here means the Received page has the candidates the first
-    /// time it is opened. It changes no receipt decision, allocates nothing and
+    /// and recording it here keeps the candidates beside the retained source
+    /// from the start. It changes no receipt decision, allocates nothing and
     /// writes no Engineer value — a report remains third-party evidence until
     /// Stream B's own command accepts a figure from it.
     ///
@@ -552,7 +551,7 @@ public sealed class ProcessIntake(
         {
             // Source evidence is supplementary. A receipt that has already been
             // stored must not fail because a report reading could not be
-            // written beside it; the Received page offers analysis on demand.
+            // written beside it.
             //
             // The failure is named on the span rather than swallowed. The
             // intake itself succeeded, so the span's own status stays as the
@@ -768,7 +767,6 @@ public sealed class ProcessIntake(
     private async Task<IntakeAssessment> AssessAsync(
         IntakeSourceReadResult readResult,
         IntakeSourceIdentity sourceIdentity,
-        DateTimeOffset processedAtUtc,
         DateTimeOffset receivedAtUtc,
         CancellationToken cancellationToken)
     {
@@ -871,7 +869,6 @@ public sealed class ProcessIntake(
             return DeclaredAssessment(
                 binding,
                 readerEvidence,
-                processedAtUtc,
                 providerMatchDecision);
         }
 
@@ -1031,7 +1028,7 @@ public sealed class ProcessIntake(
 
         var policyResult = extractionPolicy.Extract(
             instructionRead,
-            new(processedAtUtc, receivedAtUtc),
+            new(receivedAtUtc),
             principalContext);
         EnsureConsistentPolicyResult(policyResult, principalContext);
         var (decision, reason, failureCode, failureReason) = policyResult.Applicability switch
@@ -1249,15 +1246,11 @@ public sealed class ProcessIntake(
     private static IntakeAssessment DeclaredAssessment(
         ProviderSubmissionBinding binding,
         IReadOnlyList<IntakeEvidence> readerEvidence,
-        DateTimeOffset processedAtUtc,
         CaseMatchEvaluationResult? caseMatchDecision)
     {
         var instruction = binding.Instruction;
         var isTriage = instruction.Kind == ProviderInstructionKind.Triage;
-        var draft = ProviderInstructionPolicy.ToDraft(
-            instruction,
-            binding.PrincipalCode,
-            LondonCalendar.DateAt(processedAtUtc));
+        var draft = ProviderInstructionPolicy.ToDraft(instruction, binding.PrincipalCode);
         var fields = ProviderInstructionPolicy.ReviewFields(draft);
         var missingFields = InstructionDraftCompleteness.MissingFieldNames(draft);
         IntakeEvidence[] evidence = isTriage

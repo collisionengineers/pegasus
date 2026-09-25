@@ -231,7 +231,7 @@ public interface IRestoreRepairSpecificationSnapshot
 }
 
 /// <summary>
-/// Apply (v28 P34): the target is derived from the confirmed Engineer's Value
+/// Apply (v28 P34): the target is derived from the Engineer's Value
 /// in the existing assessment projection. Persistence owns the single
 /// transaction that scales the saved draft and freezes both versions.
 /// </summary>
@@ -246,11 +246,11 @@ public sealed class ScaleRepairSpecification(
         RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         var projection = await assessment.GetAsync(request.CaseId, cancellationToken);
         var field = projection?.Field(AssessmentVocabulary.ValueEngineer);
-        if (field is not { IsConfirmed: true }
+        if (field is null
             || !decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var engineerValue)
             || engineerValue <= 0m)
         {
-            throw new InvalidOperationException("A confirmed Engineer's Value is required before scaling.");
+            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
         }
 
         var targetPercent = request.TargetPercentOfValue;
@@ -332,19 +332,6 @@ public static class RepairSpecificationWording
     /// </summary>
     public static string ContractRepair(decimal agreedSum) =>
         $"A contract repair has been agreed for the total sum of {Money(agreedSum)}. Costs cannot increase above this figure.";
-
-    /// <summary>
-    /// The line identities a restored version keeps: a restored line matches
-    /// the draft's line of the same position when it is the same line, so
-    /// its evidence and amendment stamps travel with it.
-    /// </summary>
-    public static IReadOnlyList<Guid?> MatchingIds(RepairSpecificationVersion draft, RepairSpecificationSnapshot version)
-    {
-        ArgumentNullException.ThrowIfNull(draft);
-        ArgumentNullException.ThrowIfNull(version);
-        var live = draft.Lines.ToDictionary(line => line.Id);
-        return version.Lines.Select(line => live.ContainsKey(line.Id) ? (Guid?)line.Id : null).ToArray();
-    }
 }
 
 /// <summary>What a repair specification says about the one it supplements (v28 P20).</summary>

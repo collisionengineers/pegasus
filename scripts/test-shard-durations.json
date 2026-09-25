@@ -130,7 +130,6 @@
   "Pegasus.IntegrationTests.LogsWebTests": 32.62,
   "Pegasus.IntegrationTests.MailboxIntakeIntegrationTests": 96.3,
   "Pegasus.IntegrationTests.MailClassificationLabelTests": 0.01,
-  "Pegasus.IntegrationTests.MailFailureSentenceTests": 0.0,
   "Pegasus.IntegrationTests.MailWorkspaceWebTests": 387.54,
   "Pegasus.IntegrationTests.MonthlyReportActivityPersistenceTests": 5.87,
   "Pegasus.IntegrationTests.MultiFormatIntakeWebTests": 356.29,

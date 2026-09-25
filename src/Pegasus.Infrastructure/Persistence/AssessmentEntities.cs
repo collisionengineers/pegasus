@@ -8,22 +8,20 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 internal sealed class CaseAssessmentFieldEntity
 {
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
+    public Guid WorkId { get; set; }
+    public CaseWorkEntity Work { get; set; } = null!;
     public required string FieldPath { get; set; }
     public required string Value { get; set; }
     public required string RecordedByKind { get; set; }
     public required string RecordedBy { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
-    public string? ConfirmedBy { get; set; }
-    public DateTimeOffset? ConfirmedAtUtc { get; set; }
 }
 
 internal sealed class CaseEstimateLineEntity
 {
     public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
+    public Guid WorkId { get; set; }
+    public CaseWorkEntity Work { get; set; } = null!;
     public int Position { get; set; }
     public required string LineType { get; set; }
     public string? GuideCode { get; set; }
@@ -41,8 +39,6 @@ internal sealed class CaseEstimateLineEntity
     public required string RecordedByKind { get; set; }
     public required string RecordedBy { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
-    public string? ConfirmedBy { get; set; }
-    public DateTimeOffset? ConfirmedAtUtc { get; set; }
     public string? Operation { get; set; }
     public decimal? Materials { get; set; }
     public string? OriginalValuesJson { get; set; }
@@ -60,8 +56,8 @@ internal sealed class CaseEstimateLineEntity
 internal sealed class CaseRepairSpecificationEntity
 {
     public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
+    public Guid WorkId { get; set; }
+    public CaseWorkEntity Work { get; set; } = null!;
     public int Version { get; set; }
     public required string State { get; set; }
     public required string SourceRoute { get; set; }
@@ -84,7 +80,7 @@ internal sealed class CaseRepairSpecificationEntity
     public Guid? SupersedesSpecificationId { get; set; }
     public string? SupersessionReason { get; set; }
 
-    // Named estimate header. Exactly one row per case carries
+    // Named estimate header. Exactly one row per work carries
     // IsCurrent; the Current estimate is the one the report costs from.
     public required string Name { get; set; }
     public decimal? LabourRate { get; set; }
@@ -126,8 +122,8 @@ internal sealed class CaseRepairSpecificationEntity
 internal sealed class CaseRepairSpecificationSnapshotEntity
 {
     public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
+    public Guid WorkId { get; set; }
+    public CaseWorkEntity Work { get; set; } = null!;
     public Guid SpecificationId { get; set; }
     public int Number { get; set; }
     public required string Kind { get; set; }
@@ -160,8 +156,8 @@ internal sealed class UnroadworthyReasonEntity
 internal sealed class CaseReportWordingEntity
 {
     public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
+    public Guid WorkId { get; set; }
+    public CaseWorkEntity Work { get; set; } = null!;
     public required string BlockKey { get; set; }
     public string? Title { get; set; }
     public string? Text { get; set; }
@@ -175,8 +171,8 @@ internal sealed class CaseReportWordingEntity
 internal sealed class CaseValuationEntity
 {
     public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
+    public Guid WorkId { get; set; }
+    public CaseWorkEntity Work { get; set; } = null!;
     public required string Source { get; set; }
     public DateOnly Date { get; set; }
     public TimeOnly Time { get; set; }

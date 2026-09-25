@@ -1,28 +1,10 @@
-﻿using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Assessment;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Cases;
-
-public enum OrganizationRole
-{
-    WorkProvider,
-    InstructionIntermediary
-}
-
-public sealed record Organization(
-    Guid Id,
-    string Name,
-    IReadOnlyList<OrganizationRole> Roles,
-    long Version,
-    string? ContactPerson = null,
-    string? Email = null,
-    string? Telephone = null,
-    string? Address = null,
-    bool Active = true,
-    string? GuidanceTemplate = null,
-    long GuidanceTemplateVersion = 0);
 
 public sealed record Principal(
     Guid Id,
@@ -46,7 +28,8 @@ public enum CaseType
 {
     Inspection,
     Audit,
-    InspectionAndAudit
+    InspectionAndAudit,
+    Triage
 }
 
 public enum AuditAssessment
@@ -70,20 +53,6 @@ public static class AuditAssessmentCode
         "total_loss" => AuditAssessment.TotalLoss,
         _ => throw new InvalidDataException($"Unknown persisted Audit assessment '{value}'.")
     };
-}
-
-/// <summary>
-/// The QDOS principal, as seeded. A code, not a gate.
-/// </summary>
-/// <remarks>
-/// This is here for the seeds and the tests that need to name the principal
-/// the alpha runs on. It authorises nothing: which principals may hold a case
-/// is a question about which principals exist and are active, answered by the
-/// principal record inside the acceptance transaction.
-/// </remarks>
-public static class QdosPrincipal
-{
-    public const string Code = "QDOS";
 }
 
 /// <summary>
@@ -120,16 +89,6 @@ public static class CasePrincipalCode
         return normalized;
     }
 }
-
-public static class AuditIdentity
-{
-    public static string Create(string caseReference)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
-        return "a." + caseReference;
-    }
-}
-
 
 public enum CaseInitialState
 {
@@ -210,7 +169,8 @@ public sealed record CaseAcceptanceRequest(
     Guid? StandaloneAuditEvidenceId = null,
     DateOnly? AcceptedInspectionDeadline = null,
     Guid? AllocationAttemptId = null,
-    DateTimeOffset? AllocationCompletedAtUtc = null);
+    DateTimeOffset? AllocationCompletedAtUtc = null,
+    OriginalReportReading? OriginalReport = null);
 
 /// <summary>
 /// What the acceptance transaction committed. <paramref name="VehicleLookupWorkId"/>
@@ -274,15 +234,6 @@ public interface ILinkedCaseReplacementStore
 }
 
 
-public sealed record CreatePrincipalRequest(
-    string Name,
-    string Code,
-    ActionActor Actor,
-    string OperationKey,
-    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
-    PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
-    PrincipalReportRecipientSettings? ReportRecipients = null);
-
 /// <summary>
 /// EXT-04: change an existing principal's EVA submission settings.
 ///
@@ -311,67 +262,6 @@ public sealed record ReplacePrincipalRequest(
     string? Reason,
     long ExpectedContactVersion);
 
-public sealed record RecordEngineerFindingRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    AuditAssessment Assessment)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
-public static class EngineerFindingPolicy
-{
-    public static Guid ValidateRequest(RecordEngineerFindingRequest request)
-    {
-        CaseLifecycleRules.ValidateMutation(request);
-        if (!Enum.IsDefined(request.Assessment))
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(request),
-                "The Engineer finding assessment is invalid.");
-        }
-        if (request.Actor.Kind != ActorKind.Staff
-            || !Guid.TryParse(request.Actor.SubjectId, out var staffId)
-            || staffId == Guid.Empty)
-        {
-            throw new InvalidOperationException(
-                "An Engineer finding must be recorded by authenticated staff.");
-        }
-
-        return staffId;
-    }
-
-    public static void RequireAssignedInspectionAndAudit(
-        CaseType caseType,
-        CaseLifecycleState state,
-        Guid? assignedEngineerId,
-        Guid actingEngineerId)
-    {
-        if (caseType != CaseType.InspectionAndAudit)
-        {
-            throw new InvalidOperationException(
-                "An Engineer finding can allocate a later Audit identity only for an Inspection and Audit case.");
-        }
-        if (state != CaseLifecycleState.ReportPreparation)
-        {
-            throw new InvalidOperationException(
-                "An Engineer finding can be recorded only during Report preparation.");
-        }
-        if (assignedEngineerId != actingEngineerId)
-        {
-            throw new InvalidOperationException(
-                "Only the staff member assigned to this case can record the finding.");
-        }
-    }
-}
-
-public interface ICreatePrincipal
-{
-    Task<Principal> ExecuteAsync(CreatePrincipalRequest request, CancellationToken cancellationToken);
-}
-
 public interface IReplacePrincipal
 {
     Task<Principal> ExecuteAsync(ReplacePrincipalRequest request, CancellationToken cancellationToken);
@@ -384,12 +274,5 @@ public interface IUpdatePrincipalReportSettings
 {
     Task<Principal> ExecuteAsync(
         UpdatePrincipalReportSettingsRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IRecordEngineerFinding
-{
-    Task<CaseIdentity> ExecuteAsync(
-        RecordEngineerFindingRequest request,
         CancellationToken cancellationToken);
 }

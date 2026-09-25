@@ -13,7 +13,6 @@ internal enum WordBinaryOutcome
     UnsupportedFeature,
     ResourceLimitExceeded,
     Cancelled,
-    TimedOut,
     TechnicalFailure,
 }
 

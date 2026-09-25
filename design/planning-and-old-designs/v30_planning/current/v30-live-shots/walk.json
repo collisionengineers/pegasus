@@ -1,0 +1,354 @@
+{
+  "checks": [
+    {
+      "name": "sign-in heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "identity panel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "company caption",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reveal shown by script",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-default-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-default-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-default-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reveal shows password",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reveal hides again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "required messages",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-validation-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-validation-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-validation-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "refusal notice",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "username kept, password cleared",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-error-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-error-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-error-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signed out heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-signed-out-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-signed-out-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signin-signed-out-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "status-404-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "status-404-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "status-404-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "access-denied-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "access-denied-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "access-denied-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no console errors on auth family",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no New case in utility bar",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Updated in head",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "five metrics",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tabs rendered",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "no row open by itself",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no empty group heading",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-default-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-default-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-default-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "row opens in place",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "open row facts",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-open-row-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-open-row-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-open-row-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "second click closes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Mine selected",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-mine-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-mine-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-mine-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no-match message",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "clear filters shown",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "term kept in field",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-no-match-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-no-match-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-no-match-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "clear filters clears both",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tab new-cases switches in place",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-new-cases-1580 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-new-cases-1440 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "work-centre-new-cases-760 no horizontal spill",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Home key returns to attention from new-cases",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tab ai-jobs omitted (section empty)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "assign dialog (no Unassigned fixture row)",
+      "ok": true,
+      "detail": "skipped"
+    },
+    {
+      "name": "no console errors on Work Centre",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "shots": [
+    "signin-default-1580.png",
+    "signin-default-1440.png",
+    "signin-default-760.png",
+    "signin-validation-1580.png",
+    "signin-validation-1440.png",
+    "signin-validation-760.png",
+    "signin-error-1580.png",
+    "signin-error-1440.png",
+    "signin-error-760.png",
+    "signin-signed-out-1580.png",
+    "signin-signed-out-1440.png",
+    "signin-signed-out-760.png",
+    "status-404-1580.png",
+    "status-404-1440.png",
+    "status-404-760.png",
+    "access-denied-1580.png",
+    "access-denied-1440.png",
+    "access-denied-760.png",
+    "work-centre-default-1580.png",
+    "work-centre-default-1440.png",
+    "work-centre-default-760.png",
+    "work-centre-open-row-1580.png",
+    "work-centre-open-row-1440.png",
+    "work-centre-open-row-760.png",
+    "work-centre-mine-1580.png",
+    "work-centre-mine-1440.png",
+    "work-centre-mine-760.png",
+    "work-centre-no-match-1580.png",
+    "work-centre-no-match-1440.png",
+    "work-centre-no-match-760.png",
+    "work-centre-new-cases-1580.png",
+    "work-centre-new-cases-1440.png",
+    "work-centre-new-cases-760.png"
+  ]
+}

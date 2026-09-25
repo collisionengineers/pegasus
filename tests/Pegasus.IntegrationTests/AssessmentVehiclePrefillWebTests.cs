@@ -160,7 +160,7 @@ public sealed class AssessmentVehiclePrefillWebTests
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
-                DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
             var observation = Observation(caseId);
             var confirmed = includePartialConfirmedFacts
                 ? new ConfirmedVehicleEvidence(null, ConfirmedField("FORD"), null, null, null)
@@ -169,7 +169,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 summary, workflow, null, [], null, CaseCustodyState.Pending, [], [])
             {
                 Data = Data(identity, workflow, includeConfirmedFacts, includePartialConfirmedFacts),
-                VehicleEvidence = new(caseId, confirmed, observation, [observation], []),
+                VehicleEvidence = new(caseId, confirmed, observation, [observation]),
             };
             return details;
         }
@@ -228,7 +228,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 null,
                 [],
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
             return AssessmentWorkspaceTestData.Create(details, assessment);
         }
     }
@@ -294,7 +294,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 includeConfirmedFacts && !partialConfirmedVehicleEvidence ? Confirmed("miles") : Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
-            new(Empty<DateOnly>(), Empty<string>()),
+            new(new DateOnly(2026, 8, 1), Empty<string>()),
             new(Empty<DateOnly>(), Empty<DateOnly>(), Empty<string>(), Empty<CaseInspectionMode>()));
     }
 }

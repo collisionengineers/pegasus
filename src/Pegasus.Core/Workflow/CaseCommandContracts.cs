@@ -101,17 +101,23 @@ public interface IHeartbeatCaseEditLease
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Resumes the live lease the calling staff member already holds, so returning to a case they are
+/// editing puts them straight back into edit mode. Only the Case page resumes; a one-off change
+/// made elsewhere claims, and is refused while the lease is live, so it never ends the holder's
+/// edit session. A caller who holds no live lease gets null.
+/// </summary>
+public interface IResumeCaseEditLease
+{
+    Task<CaseEditLease?> ExecuteAsync(
+        ResumeCaseEditLeaseRequest request,
+        CancellationToken cancellationToken);
+}
+
 public interface IReleaseCaseEditLease
 {
     Task ExecuteAsync(
         ReleaseCaseEditLeaseRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IClearCaseEditLease
-{
-    Task<ClearCaseEditLeaseResult> ExecuteAsync(
-        ClearCaseEditLeaseRequest request,
         CancellationToken cancellationToken);
 }
 

@@ -88,6 +88,9 @@ internal static partial class CaseWebTestSupport
         string route,
         HttpContent form)
     {
+        // The editor is in edit mode, holding the lease, when the command is refused. Earlier
+        // commits in the same test consumed the lease they carried, as the store does.
+        workspace.Store.HoldLease(workspace.Claimant);
         workspace.Store.NextFailure = new InvalidOperationException("The case refused the command.");
         using var refused = await workspace.PostAsync(route, form);
         AssertPrg(refused, workspace.Store.CaseId);
@@ -105,6 +108,8 @@ internal static partial class CaseWebTestSupport
         string route,
         HttpContent form)
     {
+        // The lease really has lapsed on the server, so there is nothing for the page to resume.
+        workspace.Store.LeaseHolder = null;
         workspace.Store.NextFailure =
             new CaseEditLeaseExpiredException(workspace.Store.CaseId, workspace.Store.CaseVersion);
         using var refused = await workspace.PostAsync(route, form);
@@ -197,7 +202,16 @@ internal static partial class CaseWebTestSupport
         }
     }
 
-    internal static async Task<string> ReadCaseAsync(RecordingCaseDetailsStore store)
+    /// <summary>
+    /// The Case as an operator who holds no edit lease reads it, with
+    /// <paramref name="substitutePorts"/> replacing further ports after the
+    /// store's. Without a lease a lazy section (Vehicle among them) is a
+    /// placeholder unless <paramref name="section"/> addresses it.
+    /// </summary>
+    internal static async Task<string> ReadCaseAsync(
+        RecordingCaseDetailsStore store,
+        Action<IServiceCollection>? substitutePorts = null,
+        string? section = null)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -210,6 +224,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
+                substitutePorts?.Invoke(services);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -217,7 +232,9 @@ internal static partial class CaseWebTestSupport
             BaseAddress = new Uri("https://localhost")
         });
 
-        return await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        return await GetHtmlAsync(
+            client,
+            section is null ? $"/Cases/{store.CaseId:D}" : $"/Cases/{store.CaseId:D}?section={section}");
     }
 
     /// <summary>
@@ -666,6 +683,7 @@ internal static partial class CaseWebTestSupport
         Substitute<IGetCaseNotesSection>(services, store);
         Substitute<IGetCaseFilesSection>(services, store);
         Substitute<IGetAssessmentWorkspace>(services, store);
+        Substitute<IResumeCaseEditLease>(services, store);
     }
 
     /// <summary>
@@ -675,7 +693,7 @@ internal static partial class CaseWebTestSupport
     /// </summary>
 
     internal sealed class StubStaffAccounts(Guid staffId, string userName, StaffRole role = StaffRole.User)
-        : IStaffAccountQueries, IStaffHeldCaseEditLeaseQueries
+        : IStaffAccountQueries
     {
         private readonly StaffAccountSummary account =
             new(staffId, userName, true, false, role);
@@ -697,19 +715,9 @@ internal static partial class CaseWebTestSupport
             Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
                 staffIds.Contains(staffId) ? [account] : []);
 
-        public Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
-            Guid requestedStaffId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<StaffHeldCaseEditLease>>([]);
-
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SignOffEngineerProfile>>([]);
-
-        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(
-            Guid requestedStaffId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<SignOffEngineerProfile?>(null);
     }
 
     internal sealed class StubEvaSubmissionStores(EvaSubmissionModes modes) :
@@ -765,6 +773,7 @@ internal static partial class CaseWebTestSupport
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
         IAcquireCaseEditLease,
+        IResumeCaseEditLease,
         IRecordManualCaseChase,
         IHoldCase,
         IReleaseCase,
@@ -901,6 +910,7 @@ internal static partial class CaseWebTestSupport
             GetCaseSectionQuery query,
             CancellationToken cancellationToken)
         {
+            PageFrameQueries.Add(query);
             if (query.CaseId != CaseId)
             {
                 return Task.FromResult<CasePageFrame?>(null);
@@ -911,8 +921,7 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments,
                 AvailableReportSentEvidence,
                 RecordNotes,
-                DataOverride ?? CreateData(),
-                AuditOfCaseId));
+                DataOverride ?? CreateData()));
         }
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
@@ -973,7 +982,8 @@ internal static partial class CaseWebTestSupport
                     CaseCustodyState.Pending,
                     CorrespondenceEmails,
                     StandaloneAuditEvidenceId,
-                    AuditOfCaseId)
+                    AuditCustodyState: AuditCustodyState,
+                    AuditCustodyFolderRemoteId: AuditCustodyFolderRemoteId)
                 : null);
         }
 
@@ -997,7 +1007,6 @@ internal static partial class CaseWebTestSupport
             "Case claimant",
             "CLM-42",
             _now.AddDays(-2),
-            new DateOnly(2031, 5, 5),
             "Email",
             _now.AddDays(-2));
 
@@ -1008,14 +1017,14 @@ internal static partial class CaseWebTestSupport
         private CaseSectionFrame FocusedFrame()
         {
             var workflow = CreateWorkflow();
-            return new(CreateSummary(workflow), workflow, ActiveLease());
+            return new(CreateSummary(workflow), workflow, ActiveLease(), Works: Works);
         }
 
         /// <summary>
         /// The same case the details surface serves, through the port the data-reading
         /// case pages (the EVA send page) use.
         /// </summary>
-        public Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDataProjection?>(caseId == CaseId ? DataOverride ?? CreateData() : null);
 
         Task<CaseWorkflowRecord?> ICaseWorkflowQueries.GetAsync(
@@ -1030,7 +1039,7 @@ internal static partial class CaseWebTestSupport
 
         Task<InspectionAddressChoicesData?> IInspectionAddressChoicesQueries.GetAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<InspectionAddressChoicesData?>(
                 caseId == CaseId ? InspectionChoices : null);
 
@@ -1065,7 +1074,7 @@ internal static partial class CaseWebTestSupport
                 VehicleFields(),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
-                new(Empty<DateOnly>(), Confirmed("Standard")),
+                new(CaseDataPolicy.ReceivedDate(_now.AddDays(-2), _now.AddDays(-2)), Confirmed("Standard")),
                 new(
                     Empty<DateOnly>(),
                     Empty<DateOnly>(),
@@ -1126,6 +1135,27 @@ internal static partial class CaseWebTestSupport
         }
 
 
+        public List<ResumeCaseEditLeaseRequest> Resumes { get; } = [];
+
+        /// <summary>The holder's own live lease, as the store resumes it for any page they open.</summary>
+        Task<CaseEditLease?> IResumeCaseEditLease.ExecuteAsync(
+            ResumeCaseEditLeaseRequest request,
+            CancellationToken cancellationToken)
+        {
+            Resumes.Add(request);
+            return Task.FromResult<CaseEditLease?>(
+                request.CaseId == CaseId
+                && _leaseHolder is not null
+                && CaseEditAuthority.IsHolder(_leaseHolderKind, _leaseHolder, request.Actor)
+                    ? new CaseEditLease(
+                        request.CaseId,
+                        LeaseToken,
+                        _leaseHolder,
+                        CaseVersion,
+                        _now.AddMinutes(5))
+                    : null);
+        }
+
         Task<SaveCaseWorkspaceResult> ISaveCaseWorkspace.ExecuteAsync(
             SaveCaseWorkspaceRequest request,
             CancellationToken cancellationToken)
@@ -1136,6 +1166,7 @@ internal static partial class CaseWebTestSupport
             if (AcceptWorkspaceSaves)
             {
                 CaseVersion++;
+                ConsumeLease();
                 return Task.FromResult(new SaveCaseWorkspaceResult(CreateData(), EngineeringAssessment(), null, false));
             }
             throw new CaseVersionConflictException(CaseId, request.ExpectedVersion, CaseVersion + 1);
@@ -1148,6 +1179,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Holds.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Held });
         }
 
@@ -1158,6 +1190,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Releases.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Review });
         }
 
@@ -1168,6 +1201,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Transitions.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with
             {
                 State = request.Destination == CaseTransitionDestination.ReportPreparation
@@ -1180,14 +1214,19 @@ internal static partial class CaseWebTestSupport
                 CaseId,
                 new(CaseId, "QDOS", 2031, 42, "QDOS3100042"),
                 State,
+                AssignedEngineerId,
                 null,
-                null,
-                null,
+                ReportSentEvidence,
                 _dueWork,
                 null,
                 null,
                 null,
-                CaseVersion) with { HoldReviewOn = HoldReviewOn };
+                CaseVersion) with
+            {
+                HoldReviewOn = HoldReviewOn,
+                AssignedEngineerId = AssignedEngineerId,
+                ReportSentEvidence = ReportSentEvidence
+            };
 
         Task<CaseDueWork> IRecordManualCaseChase.ExecuteAsync(
             ManualChaseRecord request,
@@ -1203,9 +1242,27 @@ internal static partial class CaseWebTestSupport
                 MostRecentNote = request.Note,
                 Version = _dueWork.Version + 1
             };
+            ConsumeLease();
+            return Task.FromResult(_dueWork);
+        }
+
+        /// <summary>
+        /// A committed Case mutation clears the edit lease it carried, exactly as the store's
+        /// <c>CaseMutationGuard.Complete</c> does, so a page opened afterwards has no lease to
+        /// resume until edit mode is claimed again.
+        /// </summary>
+        private void ConsumeLease()
+        {
             _leaseHolder = null;
             _leaseOperationKey = null;
-            return Task.FromResult(_dueWork);
+        }
+
+        /// <summary>The actor holds the live lease, as a scenario that needs it held states.</summary>
+        public void HoldLease(ActionActor actor)
+        {
+            _leaseHolder = actor.SubjectId;
+            _leaseHolderKind = actor.Kind;
+            _leaseOperationKey = Guid.NewGuid().ToString("N");
         }
     }
 

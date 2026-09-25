@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
@@ -196,7 +197,8 @@ public sealed partial class DetailsModel
     /// <summary>What the calculator opened on, as the page posts it back beside the calculator.</summary>
     public string OpeningValuationCanonical => ValuationSelectionForm.Canonical(
         OpeningValuationSelection,
-        DefaultBasis?.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture));
+        DefaultBasis?.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture),
+        DefaultBasis?.Details.TradeValue?.ToString("0.00", CultureInfo.InvariantCulture));
 
     /// <summary>
     /// The latest recorded card of one guide source, which that source's card
@@ -216,8 +218,8 @@ public sealed partial class DetailsModel
     /// </summary>
     private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
     {
-        Valuations = await listCaseValuations.ExecuteAsync(caseId, cancellationToken);
-        AppliedValuations = await listAppliedValuations.ExecuteAsync(caseId, cancellationToken);
+        Valuations = await listCaseValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
+        AppliedValuations = await listAppliedValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
         PendingMarketResearch = await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
         if (LatestAppliedValuation is { } applied)
         {
@@ -296,21 +298,23 @@ public sealed partial class DetailsModel
         /// <summary>
         /// One calculation written the one way, so the one the page opened on
         /// and the one it posts compare as text: the basis card, that card's
-        /// retail as shown, and every control, with amounts to two places.
+        /// retail and trade as shown, and every control, with amounts to two
+        /// places.
         /// </summary>
-        public static string Canonical(ValuationCalculationSelection selection, string? basisRetail)
+        public static string Canonical(ValuationCalculationSelection selection, string? basisRetail, string? basisTrade)
         {
             ArgumentNullException.ThrowIfNull(selection);
             static string Amount(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
-            var retail = string.IsNullOrWhiteSpace(basisRetail)
+            static string? Figure(string? shown) => string.IsNullOrWhiteSpace(shown)
                 ? null
-                : decimal.TryParse(basisRetail.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+                : decimal.TryParse(shown.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
                     ? Amount(parsed)
-                    : basisRetail.Trim();
+                    : shown.Trim();
             return JsonSerializer.Serialize(new
             {
                 basis = selection.GuideValuationId,
-                retail,
+                retail = Figure(basisRetail),
+                trade = Figure(basisTrade),
                 vat = selection.CommercialVat,
                 ptl = selection.PriorTotalLossPercentage is { } percentage ? Amount(percentage) : null,
                 deduction = Amount(selection.ConditionDeduction),
@@ -328,9 +332,10 @@ public sealed partial class DetailsModel
     /// <summary>
     /// The calculation this save adopts (operator, 23 September 2026): the
     /// posted one, when what the calculator shows changed since the page
-    /// opened — a different basis card, the basis card's own figures, or any
-    /// calculator control. An untouched calculator adopts nothing, and so does
-    /// a basis card left with no retail to calculate from.
+    /// opened — a different basis card, the basis card's retail or trade (the
+    /// adoption records both; operator, 24 September 2026), or any calculator
+    /// control. An untouched calculator adopts nothing, and so does a basis
+    /// card left with no retail to calculate from.
     /// </summary>
     private static ValuationCalculationSelection? ChangedCalculation(
         ValuationSelectionForm? selection,
@@ -343,13 +348,19 @@ public sealed partial class DetailsModel
         }
 
         var basis = recorded.FirstOrDefault(card => card.ValuationId == selection.GuideValuationId);
-        // The basis card's retail as the page now shows it: a guide source's
-        // card shows it in its own box, any other card as recorded.
-        var shownRetail = basis is null
-            ? null
-            : guideEntries.FirstOrDefault(entry => entry.Source == basis.Details.Source) is { } entry
-                ? entry.RetailValue
-                : basis.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture);
+        if (basis is null)
+        {
+            return null;
+        }
+        // The basis card's figures as the page now shows them: a guide
+        // source's card shows them in its own boxes, any other card as recorded.
+        var shown = guideEntries.FirstOrDefault(entry => entry.Source == basis.Details.Source);
+        var shownRetail = shown is null
+            ? basis.Details.RetailValue?.ToString("0.00", CultureInfo.InvariantCulture)
+            : shown.RetailValue;
+        var shownTrade = shown is null
+            ? basis.Details.TradeValue?.ToString("0.00", CultureInfo.InvariantCulture)
+            : shown.TradeValue;
         if (string.IsNullOrWhiteSpace(shownRetail))
         {
             return null;
@@ -357,7 +368,7 @@ public sealed partial class DetailsModel
 
         var posted = selection.ToSelection();
         return string.Equals(
-            ValuationSelectionForm.Canonical(posted, shownRetail),
+            ValuationSelectionForm.Canonical(posted, shownRetail, shownTrade),
             selection.Opening,
             StringComparison.Ordinal)
             ? null

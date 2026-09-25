@@ -18,7 +18,19 @@ public sealed record UploadCaseSuggestion(
     string? Registration,
     string? Claimant,
     string Stage,
-    long? Version = null);
+    long? Version = null,
+    string? Principal = null)
+{
+    public static UploadCaseSuggestion From(IntakeAssociationDestination item) =>
+        new(
+            item.CaseId,
+            item.Reference,
+            item.Registration,
+            item.Claimant,
+            OperatorLabels.AssociationDestinationState(item),
+            item.Version,
+            item.Principal);
+}
 
 public sealed record UploadCaseAttachResult(
     bool Succeeded,
@@ -40,7 +52,8 @@ public sealed record UploadCaseAttachmentConfirmation(
     Guid ReceiptId,
     Guid CaseId,
     string Reference,
-    UploadCaseAttachmentInput Input);
+    UploadCaseAttachmentInput Input,
+    UploadCaseSuggestion? Target = null);
 
 /// <summary>
 /// Values a failed first confirmation must retain.  This is deliberately not
@@ -114,6 +127,19 @@ public interface IUploadCaseDecision
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The confirmation step for a Case the operator chose from the shown
+    /// candidates: re-reads the target and renders its exact identity and
+    /// versions, so the review dialog repeats what will be written.
+    /// </summary>
+    Task<UploadCaseAttachmentConfirmation?> PrepareByCaseAsync(
+        Guid receiptId,
+        Guid caseId,
+        Guid operationId,
+        long expectedReceiptVersion,
+        ActionActor actor,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// The submission-level decision: add every still-open member of an
     /// upload group to one found case. Members already on
     /// the chosen case are counted as done (replay safety); a member on a
@@ -137,7 +163,8 @@ public sealed class UploadCaseDecision(
     IAcquireCaseEditLease acquireCaseEditLease,
     ILinkIntake linkIntake,
     IIntakeAssociationDestinationQueries destinations,
-    ReconcileUnidentifiedDestinations unidentifiedDestinations) : IUploadCaseDecision
+    ReconcileUnidentifiedDestinations unidentifiedDestinations,
+    IEditScopeLeases editScopes) : IUploadCaseDecision
 {
     public async Task<IReadOnlyList<UploadCaseSuggestion>> SearchForUploadAsync(
         Guid receiptId,
@@ -180,14 +207,7 @@ public sealed class UploadCaseDecision(
             }
         }
 
-        return common!.Values.Select(item => new UploadCaseSuggestion(
-                item.CaseId,
-                item.Reference,
-                item.Registration,
-                item.Claimant,
-                OperatorLabels.CaseStage(item.State),
-                item.Version))
-            .ToArray();
+        return common!.Values.Select(UploadCaseSuggestion.From).ToArray();
     }
 
     public async Task<IReadOnlyList<UploadCaseSuggestion>> GetSuggestionsForUploadAsync(
@@ -227,14 +247,7 @@ public sealed class UploadCaseDecision(
             }
         }
 
-        return common!.Values.Select(item => new UploadCaseSuggestion(
-                item.CaseId,
-                item.Reference,
-                item.Registration,
-                item.Claimant,
-                OperatorLabels.CaseStage(item.State),
-                item.Version))
-            .ToArray();
+        return common!.Values.Select(UploadCaseSuggestion.From).ToArray();
     }
 
     public async Task<UploadCaseAttachmentConfirmation?> PrepareAsync(
@@ -269,7 +282,38 @@ public sealed class UploadCaseDecision(
                 receiptId,
                 destination.CaseId,
                 destination.Reference,
-                new(operationId, receipt.Version, destination.Version));
+                new(operationId, receipt.Version, destination.Version),
+                UploadCaseSuggestion.From(destination));
+    }
+
+    public async Task<UploadCaseAttachmentConfirmation?> PrepareByCaseAsync(
+        Guid receiptId,
+        Guid caseId,
+        Guid operationId,
+        long expectedReceiptVersion,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (operationId == Guid.Empty || expectedReceiptVersion < 0 || caseId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
+        if (receipt is null || receipt.Version != expectedReceiptVersion)
+        {
+            return null;
+        }
+
+        var destination = await destinations.GetAsync(receipt, caseId, actor, cancellationToken);
+        return destination is null
+            ? null
+            : new(
+                receiptId,
+                destination.CaseId,
+                destination.Reference,
+                new(operationId, receipt.Version, destination.Version),
+                UploadCaseSuggestion.From(destination));
     }
 
     public async Task<UploadCaseAttachResult> AttachAsync(
@@ -348,12 +392,14 @@ public sealed class UploadCaseDecision(
 
         try
         {
-            var lease = await acquireCaseEditLease.ExecuteAsync(
-                new(
-                    targetCaseId,
-                    input.ExpectedCaseVersion,
-                    actor,
-                    $"upload-attach-lease:{operationKey}"),
+            // A Triage Case destination is claimed through its Triage edit scope.
+            var lease = await CaseLinkAuthority.ClaimAsync(
+                destination,
+                input.ExpectedCaseVersion,
+                actor,
+                $"upload-attach-lease:{operationKey}",
+                acquireCaseEditLease,
+                editScopes,
                 cancellationToken);
             await linkIntake.ExecuteAsync(
                 new(
@@ -515,12 +561,13 @@ public sealed class UploadCaseDecision(
                 // Each owned link consumes its lease and advances the Case by
                 // one. Carry that known result forward rather than refreshing
                 // and accidentally treating another writer as our own change.
-                var lease = await acquireCaseEditLease.ExecuteAsync(
-                    new(
-                        targetCaseId,
-                        nextCaseVersion,
-                        actor,
-                        $"upload-attach-lease:{operationKey}"),
+                var lease = await CaseLinkAuthority.ClaimAsync(
+                    currentDestination,
+                    nextCaseVersion,
+                    actor,
+                    $"upload-attach-lease:{operationKey}",
+                    acquireCaseEditLease,
+                    editScopes,
                     cancellationToken);
                 await linkIntake.ExecuteAsync(
                     new(
@@ -593,7 +640,7 @@ public sealed class UploadCaseDecision(
         }
 
         var result = await searchCases.ExecuteAsync(
-            new(actor, new(CaseReference: trimmed), Page: 1, PageSize: 2),
+            new(actor, new(CaseReference: trimmed, IncludeTriage: true), Page: 1, PageSize: 2),
             cancellationToken);
         var exact = result.Items
             .Where(item => string.Equals(item.Reference, trimmed, StringComparison.OrdinalIgnoreCase))

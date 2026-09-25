@@ -114,8 +114,14 @@ public sealed record CaseContactData(
     CaseField<string> EmailAddress,
     CaseField<string> PhoneNumber);
 
+/// <summary>
+/// The instruction's own facts. <see cref="ReceivedDate"/> is the Case's
+/// Received date, which is its one instruction date (operator, 24 September
+/// 2026; <see cref="CaseDataPolicy.ReceivedDate"/>): nothing extracts, stores
+/// or edits a separate instruction date.
+/// </summary>
 public sealed record CaseInstructionData(
-    CaseField<DateOnly> InstructionDate,
+    DateOnly ReceivedDate,
     CaseField<string> VatStatus);
 
 public sealed record CaseInspectionData(
@@ -214,7 +220,6 @@ public sealed record CaseEditableData(
     string? ContactName = null,
     string? ContactEmailAddress = null,
     string? ContactPhoneNumber = null,
-    DateOnly? InstructionDate = null,
     string? VatStatus = null,
     DateOnly? InspectionDate = null,
     DateOnly? InspectionDeadline = null,
@@ -279,16 +284,6 @@ public sealed record CaseEditableData(
     string? ClaimSourceOverrideContactTelephone = null,
     string? ClaimSourceOverrideContactEmailAddress = null);
 
-public sealed record ConfirmCompletenessRequest(
-    Guid CaseId,
-    long ExpectedVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    CaseCompleteness Completeness)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
-
 public sealed record SaveCaseRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -301,25 +296,13 @@ public sealed record SaveCaseRequest(
 
 public interface ICaseDataQueries
 {
-    Task<CaseDataProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken);
+    Task<CaseDataProjection?> GetAsync(Guid caseId, CaseWorkSelector work, CancellationToken cancellationToken);
 }
 
 public interface ICaseDataStore : ICaseDataQueries
 {
-    Task<CaseDataProjection> ConfirmCompletenessAsync(
-        ConfirmCompletenessRequest request,
-        CaseCompletenessEvaluation evaluation,
-        CancellationToken cancellationToken);
-
     Task<CaseDataProjection> SaveAsync(
         SaveCaseRequest request,
-        CancellationToken cancellationToken);
-}
-
-public interface IConfirmCompleteness
-{
-    Task<CaseDataProjection> ExecuteAsync(
-        ConfirmCompletenessRequest request,
         CancellationToken cancellationToken);
 }
 

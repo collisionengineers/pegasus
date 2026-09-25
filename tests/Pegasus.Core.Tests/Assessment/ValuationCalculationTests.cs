@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 
@@ -270,7 +271,6 @@ public sealed class ValuationCalculationTests
                     recordedAdditions: [Addition(TowBar with { Version = 3 }, 300m)])));
 
         Assert.Equal(ValuationPresetError.VersionConflict, exception.Error);
-        Assert.Equal(2, exception.CurrentVersion);
     }
 
     [Fact]
@@ -285,12 +285,12 @@ public sealed class ValuationCalculationTests
     }
 
     /// <summary>
-    /// A preset that moved after the form was rendered is refused with the
-    /// version that is now current, so the Engineer re-reads the maintained
-    /// amount rather than applying the one they were shown.
+    /// A preset that moved after the form was rendered is refused, so the
+    /// Engineer re-reads the maintained amount rather than applying the one
+    /// they were shown.
     /// </summary>
     [Fact]
-    public void APresetThatMovedUnderTheFormIsRefusedWithItsCurrentVersion()
+    public void APresetThatMovedUnderTheFormIsRefused()
     {
         var exception = Assert.Throws<ValuationPresetException>(() =>
             ValuationCalculationPolicy.Resolve(
@@ -298,7 +298,6 @@ public sealed class ValuationCalculationTests
                 Basis(3100m, presets: [TowBar with { Version = 2, SuggestedAmount = 350m }])));
 
         Assert.Equal(ValuationPresetError.VersionConflict, exception.Error);
-        Assert.Equal(2, exception.CurrentVersion);
     }
 
     /// <summary>
@@ -365,7 +364,37 @@ public sealed class ValuationCalculationTests
         Assert.Throws<ArgumentException>(() =>
             ValuationCalculationPolicy.ValidateSelection(Selection(guideValuationId: Guid.Empty), "selection"));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new ListAppliedValuations(new RecordingStore()).ExecuteAsync(Guid.Empty, CancellationToken.None));
+            new ListAppliedValuations(new RecordingStore()).ExecuteAsync(Guid.Empty, CaseWorkSelector.Current, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// An adoption records the report's Retail value and Trade value beside
+    /// the Engineer's Value (operator, 24 September 2026): the basis retail
+    /// the calculation started from, never its proposal, and the basis card's
+    /// trade. A card without a positive trade records none, so the report
+    /// stays blocked on Trade value.
+    /// </summary>
+    [Fact]
+    public void AnAdoptionRecordsTheBasisRetailAndTrade()
+    {
+        var calculation = ValuationCalculationPolicy.Calculate(
+            Input(12500m, commercialVat: true, additions: [Addition(TowBar, 300m)]));
+        Assert.NotEqual(calculation.GuideRetailValue, calculation.Proposal);
+
+        KeyValuePair<string, string?>[] adopted =
+        [
+            new(AssessmentVocabulary.ValueRetail, "12500.00"),
+            new(AssessmentVocabulary.ValueTrade, "10250.00"),
+        ];
+        Assert.Equal(adopted, ValuationCalculationPolicy.AdoptedBasisFields(calculation, 10250m));
+
+        KeyValuePair<string, string?>[] withoutTrade =
+        [
+            new(AssessmentVocabulary.ValueRetail, "12500.00"),
+            new(AssessmentVocabulary.ValueTrade, null),
+        ];
+        Assert.Equal(withoutTrade, ValuationCalculationPolicy.AdoptedBasisFields(calculation, null));
+        Assert.Equal(withoutTrade, ValuationCalculationPolicy.AdoptedBasisFields(calculation, 0m));
     }
 
     /// <summary>
@@ -523,7 +552,7 @@ public sealed class ValuationCalculationTests
 
         public Task<IReadOnlyList<AppliedValuation>> ListAppliedAsync(
             Guid caseId,
-            CancellationToken cancellationToken) =>
+            CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AppliedValuation>>([]);
     }
 

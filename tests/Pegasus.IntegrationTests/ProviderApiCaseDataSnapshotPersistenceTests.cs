@@ -40,6 +40,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
             CancellationToken.None);
         var projection = await harness.DataStore.GetAsync(
             outcome.Identity.CaseId,
+            CaseWorkSelector.Current,
             CancellationToken.None);
 
         Assert.NotNull(projection);
@@ -81,6 +82,7 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
             CancellationToken.None);
         var projection = await harness.DataStore.GetAsync(
             outcome.Identity.CaseId,
+            CaseWorkSelector.Current,
             CancellationToken.None);
 
         Assert.NotNull(projection);

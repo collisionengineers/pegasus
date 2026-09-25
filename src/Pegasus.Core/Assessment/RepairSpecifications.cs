@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
@@ -19,13 +20,6 @@ public enum RepairSpecificationSourceRoute
     ApprovedAiProposal,
     Json,
     AiDraft,
-}
-
-public enum RepairSpecificationDisplaySection
-{
-    NewParts,
-    Repairs,
-    AdditionalOperations,
 }
 
 public sealed record RepairSpecificationSource(
@@ -74,11 +68,6 @@ public sealed record RepairSpecificationVersion(
     string? DiscardReason = null,
     EstimateTotals? RecordedTotals = null,
     RepairSpecificationSupplementary? Supplementary = null);
-
-public sealed record RepairSpecificationDisplayLists(
-    IReadOnlyList<string> NewParts,
-    IReadOnlyList<string> Repairs,
-    IReadOnlyList<string> AdditionalOperations);
 
 public static class RepairSpecificationPolicy
 {
@@ -195,10 +184,10 @@ public static class RepairSpecificationPolicy
         {
             throw new InvalidOperationException("Only a draft repair specification can be accepted.");
         }
-        if (specification.Lines.Count == 0 || specification.Lines.Any(line => !line.IsConfirmed))
+        if (specification.Lines.Count == 0)
         {
             throw new InvalidOperationException(
-                "Every accepted repair specification requires confirmed ordered lines.");
+                "Every accepted repair specification requires ordered lines.");
         }
         _ = ValidateSource(specification.Source);
         if (specification.CalculationBasis is null)
@@ -207,41 +196,6 @@ public static class RepairSpecificationPolicy
         }
         _ = ValidateCalculationBasis(specification.CalculationBasis);
     }
-
-    public static RepairSpecificationDisplayLists ToDisplayLists(RepairSpecificationVersion specification)
-    {
-        ArgumentNullException.ThrowIfNull(specification);
-        if (specification.State != RepairSpecificationState.Accepted)
-        {
-            throw new InvalidOperationException("Only an accepted repair specification can feed report lists.");
-        }
-        var ordered = specification.Lines.OrderBy(line => line.Position).ToArray();
-        return new(
-            Names(ordered, RepairSpecificationDisplaySection.NewParts),
-            Names(ordered, RepairSpecificationDisplaySection.Repairs),
-            Names(ordered, RepairSpecificationDisplaySection.AdditionalOperations));
-    }
-
-    public static RepairSpecificationDisplaySection DisplaySection(string lineType) => lineType switch
-    {
-        "new_part" => RepairSpecificationDisplaySection.NewParts,
-        "rnr" or "repair" => RepairSpecificationDisplaySection.Repairs,
-        "check_labour" or "paint_new" or "paint_repair" or "paint_blend" or "paint_prep"
-            or "specialist_fixed" or "specialist_wu" => RepairSpecificationDisplaySection.AdditionalOperations,
-        _ => throw new InvalidOperationException($"Unknown estimate line type '{lineType}'."),
-    };
-
-    private static string[] Names(
-        IReadOnlyList<CaseEstimateLineRecord> lines,
-        RepairSpecificationDisplaySection section) => lines
-        .Where(line => DisplaySection(line.Type) == section)
-        .Select(line => !string.IsNullOrWhiteSpace(line.Description)
-            ? line.Description!
-            : !string.IsNullOrWhiteSpace(line.GuideCode)
-                ? line.GuideCode!
-                : throw new InvalidOperationException(
-                    $"Estimate line {line.Position} requires a description or guide code for report display."))
-        .ToArray();
 
     private static void Required(string? value, string name)
     {
@@ -254,30 +208,6 @@ public static class RepairSpecificationPolicy
     private static string? Trimmed(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
-
-public sealed record StartRepairSpecificationDraftRequest(
-    Guid CaseId,
-    long ExpectedCaseVersion,
-    RepairSpecificationSource Source,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken,
-    Guid? SupersedesSpecificationId = null,
-    IReadOnlyList<EstimateLineInput>? Lines = null,
-    string? Name = null);
-
-public sealed record AcceptRepairSpecificationRequest(
-    Guid CaseId,
-    long ExpectedCaseVersion,
-    Guid SpecificationId,
-    int ExpectedSpecificationVersion,
-    RepairSpecificationSource Source,
-    RepairCalculationBasis CalculationBasis,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken);
 
 public interface IRepairSpecificationStore
 {
@@ -310,14 +240,6 @@ public interface IRepairSpecificationStore
     /// <summary>Only the canonical retained-document importer supplies these validated source-backed rows.</summary>
     Task<RepairSpecificationVersion> SaveImportedEstimateAsync(
         SaveEstimateRequest request, CancellationToken cancellationToken);
-
-    Task<RepairSpecificationVersion> StartDraftAsync(
-        StartRepairSpecificationDraftRequest request,
-        CancellationToken cancellationToken);
-
-    Task<RepairSpecificationVersion> AcceptAsync(
-        AcceptRepairSpecificationRequest request,
-        CancellationToken cancellationToken);
 
     Task<RepairSpecificationVersion?> GetVersionAsync(
         Guid caseId,
@@ -365,6 +287,7 @@ public interface IRepairSpecificationStore
 
     Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
         Guid caseId,
+        CaseWorkSelector work,
         CancellationToken cancellationToken);
 
     /// <summary>

@@ -228,47 +228,19 @@ public sealed class AssessmentReportRenderingTests
         Assert.Throws<ReportRenderRejectedException>(broken.Validate);
     }
 
+    /// <summary>
+    /// The renderer's own contract reads the same printable category as
+    /// readiness: a total loss prints only Category S, whose wording the
+    /// active template has.
+    /// </summary>
     [Fact]
-    public async Task AnOversizedImageIsRefusedNamingTheImage()
+    public void ATotalLossSnapshotPrintsOnlyCategoryS()
     {
-        var oversized = new byte[AssessmentReportRenderPolicy.MaximumImageBytes + 1];
-        var renderer = new FakeRenderer();
-        var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
-        {
-            Photos =
-            [
-                new ReportImageEvidence(
-                    "box://case/oversized.png",
-                    "image/png",
-                    oversized,
-                    Convert.ToHexStringLower(SHA256.HashData(oversized))),
-            ],
-        };
+        var categoryS = Snapshot(AssessmentReportOutcome.TotalLoss);
+        var categoryN = categoryS with { SalvageCategory = "N" };
 
-        var exception = await Assert.ThrowsAsync<ReportRenderRejectedException>(
-            () => new GenerateAssessmentReportDraft(renderer)
-                .ExecuteAsync(invalid, CaseReportArtifactKind.AssessmentReport));
-        Assert.Contains("box://case/oversized.png", exception.Message, StringComparison.Ordinal);
-        Assert.Null(renderer.Received);
-    }
-
-    [Fact]
-    public async Task MoreImagesThanTheBoundAreRefused()
-    {
-        var renderer = new FakeRenderer();
-        var photo = Snapshot(AssessmentReportOutcome.Repairable).Photos.Single();
-        var invalid = Snapshot(AssessmentReportOutcome.Repairable) with
-        {
-            Photos = Enumerable
-                .Range(0, AssessmentReportRenderPolicy.MaximumImages + 1)
-                .Select(index => photo with { CustodyReference = $"box://case/photo-{index}" })
-                .ToArray(),
-        };
-
-        await Assert.ThrowsAsync<ReportRenderRejectedException>(
-            () => new GenerateAssessmentReportDraft(renderer)
-                .ExecuteAsync(invalid, CaseReportArtifactKind.AssessmentReport));
-        Assert.Null(renderer.Received);
+        categoryS.Validate();
+        Assert.Throws<ReportRenderRejectedException>(categoryN.Validate);
     }
 
     [Fact]
@@ -311,13 +283,16 @@ public sealed class AssessmentReportRenderingTests
     public void TheGuideSentenceNamesGlassesOnlyWhenDisclosedAndUsed()
     {
         var snapshot = Snapshot(AssessmentReportOutcome.Repairable);
-
-        Assert.False(snapshot.PrintsGuideDisclosure);
-        Assert.True((snapshot with
+        var disclosedGlasses = snapshot with
         {
             Content = new CaseReportContentSwitches(true, false, false),
             Guides = new ReportGuideSources([ValuationSource.Glasses]),
-        }).PrintsGuideDisclosure);
+        };
+
+        Assert.False(snapshot.PrintsGuideDisclosure);
+        Assert.True(disclosedGlasses.PrintsGuideDisclosure);
+        Assert.Contains(AssessmentReportContract.StatementOfTruthGuide, disclosedGlasses.StatementOfTruth);
+        Assert.DoesNotContain(AssessmentReportContract.StatementOfTruthGuide, snapshot.StatementOfTruth);
         Assert.False((snapshot with
         {
             Content = new CaseReportContentSwitches(true, false, false),
@@ -421,7 +396,7 @@ public sealed class AssessmentReportRenderingTests
             ClaimantName: "Alex Example", IncidentDate: new DateOnly(2026, 8, 1),
             InstructionsReceived: new DateOnly(2026, 8, 2), Assessed: new DateOnly(2026, 8, 3),
             ReportFor: ["Approved Principal", "1 Example Street"],
-            Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "car", "good", "80,000 miles", "online_data", "VIN", "1600 cc", "Petrol", true, "manual", "Blue", "Hatchback", new(2027, 1, 2), new(2027, 3, 4), "None", "P0001", true, "Secure bumper", 25m),
+            Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "car", "good", "80,000 miles", "online_data", "VIN", "1600 cc", "Petrol", "manual", "Blue", "Hatchback", new(2027, 1, 2), new(2027, 3, 4), "None", true, "Secure bumper", 25m),
             Outcome: outcome, LegalStatus: "roadworthy", UnroadworthyReason: null,
             ImpactSeverity: "moderate", ImpactLocation: "right_rear", AssessmentMethod: "image_based", LocationAddress: null,
             EngineerValue: 5_000m, RetailValue: 5_000m, TradeValue: 4_000m,
@@ -467,7 +442,7 @@ public sealed class AssessmentReportRenderingTests
         int position, string type, string description, decimal? workUnits, decimal? price) => new(
             Guid.NewGuid(), position, type, null, description, workUnits, price, false, null, null,
             "confirmed", "case", "Test evidence",
-            ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, Quantity: 1);
+            ActorKind.Staff, "engineer-1", RecordedAtUtc, Quantity: 1);
 
     internal static ReportDamage Damage() => new(
         [new("RH Rear", "Moderate", "Quarter panel", ["right_rear"])],

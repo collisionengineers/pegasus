@@ -162,9 +162,6 @@ public sealed partial class CreateModel(
     public DateOnly? DateOfIncident { get; set; }
 
     [BindProperty]
-    public DateOnly? InstructionDate { get; set; }
-
-    [BindProperty]
     public DateOnly? InspectionDate { get; set; }
 
     [BindProperty]
@@ -204,7 +201,6 @@ public sealed partial class CreateModel(
             VehicleMileage,
             AccidentCircumstances,
             DateOfIncident,
-            InstructionDate,
             EffectiveInspectionAddress(),
             InspectionDate),
         Receipt.Fields,
@@ -272,7 +268,6 @@ public sealed partial class CreateModel(
         VehicleMileage = draft?.VehicleMileage;
         AccidentCircumstances = draft?.AccidentCircumstances;
         DateOfIncident = draft?.DateOfIncident;
-        InstructionDate = draft?.InstructionDate;
         InspectionDate = draft?.InspectionDate;
         CaseType = Receipt.MailClassificationDecision?.CaseType ?? CaseType.Inspection;
         AddressChoice = AddressSuggestion is null
@@ -516,8 +511,11 @@ public sealed partial class CreateModel(
 
         var mileageUnit = VehicleMileage.HasValue ? VehicleMileageUnit : null;
         await PopulateClaimSourceChoicesAsync(actor, cancellationToken);
-        var claimSource = ResolveClaimSource();
-        var data = new CaseEditableData(
+        // A Triage Case asks only for its Principal and the registration; the
+        // other manual fields are not part of it.
+        var isTriage = CaseType == CaseType.Triage;
+        var claimSource = isTriage ? null : ResolveClaimSource();
+        var data = isTriage ? new CaseEditableData(VehicleRegistration: VehicleRegistration) : new CaseEditableData(
             ClaimantName,
             ClaimNumber,
             VehicleRegistration,
@@ -527,7 +525,6 @@ public sealed partial class CreateModel(
             mileageUnit,
             AccidentCircumstances,
             DateOfIncident,
-            InstructionDate: InstructionDate,
             InspectionDate: InspectionDate,
             InspectionDeadline: InspectionDate,
             InspectionAddress: InspectionAddress,
@@ -548,10 +545,20 @@ public sealed partial class CreateModel(
             data.VehicleMileage,
             data.AccidentCircumstances,
             data.IncidentDate,
-            data.InstructionDate,
             data.InspectionAddress,
             data.InspectionDate);
-        foreach (var missing in InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft))
+        IReadOnlyList<string> missingFields;
+        if (isTriage)
+        {
+            missingFields = string.IsNullOrWhiteSpace(VehicleRegistration)
+                ? ["Vehicle registration"]
+                : [];
+        }
+        else
+        {
+            missingFields = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
+        }
+        foreach (var missing in missingFields)
         {
             ModelState.AddModelError(string.Empty, $"{missing} is needed before a case can be created.");
         }
@@ -660,7 +667,6 @@ public sealed partial class CreateModel(
             VehicleMileage,
             Optional(AccidentCircumstances),
             DateOfIncident,
-            InstructionDate,
             EffectiveInspectionAddress(),
             InspectionDate);
         // Only identity-critical detail blocks allocation. Thin ordinary detail

@@ -217,7 +217,7 @@ public sealed class CaseNotePersistenceTests
                 Year = 2031,
                 Sequence = 3,
                 Reference = "NOTE31003",
-                Type = "Audit",
+                Type = "audit",
                 InitialState = "NotReady",
                 CustodyState = "Pending",
                 OriginIntakeReceiptId = receiptId,

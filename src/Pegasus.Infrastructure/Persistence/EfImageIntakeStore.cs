@@ -699,39 +699,45 @@ public sealed class EfImageIntakeStore(
         string? caseReference = null;
         if (caseId is { } targetCaseId)
         {
-            var workflow = await context.CaseWorkflows.Include(item => item.Case)
-                .SingleOrDefaultAsync(item => item.CaseId == targetCaseId, cancellationToken)
+            // A Case answers through its workflow; a Triage Case, which has
+            // none, through its Triage. Only an archived Case is refused here.
+            var caseAuthority = await CaseMutationAuthority.LoadAsync(context, targetCaseId, cancellationToken)
                 ?? throw new KeyNotFoundException($"Case '{targetCaseId}' does not exist.");
-            ArchivedCaseGuard.RequireNotArchived(workflow);
-            if (!ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(
-                    Enum.Parse<CaseLifecycleState>(workflow.State), workflow.ReportSentEvidenceId is not null))
-            {
-                throw new ImageIntakeCaseNotEligibleException(targetCaseId);
-            }
-            var currentTime = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
-            if (workflow.EditLeaseExpiresAtUtc > currentTime)
-            {
-                throw new IntakeAssociationConflictException("The Case is being edited; image merge yields.");
-            }
+            caseAuthority.RequireMutable(anyLifecycleState: true);
 
             var images = await ListImagesAsync(context, entity.OriginReceiptId, entity.SubmissionGroupId, cancellationToken);
             var memberIds = images.Select(image => image.ReceiptId).Prepend(entity.OriginReceiptId).Distinct().ToArray();
             var associations = await context.IntakeManualAssociations.AsNoTracking()
                 .Where(item => memberIds.Contains(item.IntakeReceiptId)).ToArrayAsync(cancellationToken);
+            // The recorded association owns the decision, not the actor running
+            // this retry. A staff override remains valid even when its initial
+            // association did not require an optional rationale; automatic
+            // links must still agree with the complete current identity set.
+            var originAssociation = associations.SingleOrDefault(item => item.IntakeReceiptId == entity.OriginReceiptId);
+            var staffDecision = originAssociation?.ActorKind == nameof(ActorKind.Staff);
+            // A staff link reaches every Case in any lifecycle state and every
+            // Triage Case (operator, 24 September 2026), and this merge
+            // completes it there. Automatic pairing keeps its eligibility.
+            if (!staffDecision
+                && (caseAuthority.Workflow is not { } workflow
+                    || !ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(
+                        Enum.Parse<CaseLifecycleState>(workflow.State), workflow.ReportSentEvidenceId is not null)))
+            {
+                throw new ImageIntakeCaseNotEligibleException(targetCaseId);
+            }
+            if (caseAuthority.SystemWorkYields(timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow()))
+            {
+                throw new IntakeAssociationConflictException("The Case is being edited; image merge yields.");
+            }
+
             if (associations.Length != memberIds.Length
                 || associations.Any(item => !item.IsActive || item.CaseId != targetCaseId))
             {
                 throw new IntakeAssociationConflictException(
                     "Every registered image receipt must still be linked to the merge destination.");
             }
-            // The recorded association owns the decision, not the actor running
-            // this retry. A staff override remains valid even when its initial
-            // association did not require an optional rationale; automatic
-            // links must still agree with the complete current identity set.
-            var originAssociation = associations.Single(item => item.IntakeReceiptId == entity.OriginReceiptId);
-            var staffDecision = originAssociation.ActorKind == nameof(ActorKind.Staff);
             if (staffDecision
-                ? expectedStaffOriginAssociationVersion != originAssociation.Version
+                ? expectedStaffOriginAssociationVersion != originAssociation!.Version
                 : expectedStaffOriginAssociationVersion is not null)
             {
                 throw new IntakeAssociationConflictException("The originating staff decision changed before merge.");
@@ -747,7 +753,7 @@ public sealed class EfImageIntakeStore(
                     throw new IntakeAssociationConflictException("The automatic image association is no longer unambiguous.");
                 }
             }
-            caseReference = workflow.Case.Reference;
+            caseReference = caseAuthority.Case.Reference;
         }
 
         var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
@@ -845,6 +851,9 @@ public sealed class EfImageIntakeStore(
         var leasedCases = await context.CaseWorkflows.AsNoTracking()
             .Where(workflow => workflow.EditLeaseExpiresAtUtc > now)
             .Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
+        var archivedCases = await context.CaseWorkflows.AsNoTracking()
+            .Where(workflow => workflow.ArchivedAtUtc != null)
+            .Select(workflow => workflow.CaseId).ToArrayAsync(cancellationToken);
         var awaiting = ToCode(ImageInitiatedCaseState.AwaitingInstruction);
         var rows = await ProjectAsync(
             context.ImageIntakes.AsNoTracking()
@@ -866,25 +875,33 @@ public sealed class EfImageIntakeStore(
                 intake.NormalizedVehicleRegistration, candidate.ConfirmedRegistration)).ToArray();
             var automaticTarget = ImageIntakeCasePairing.SelectRegisteredTarget(matches,
                 intake.NormalizedVehicleRegistration, intake.PrincipalId, intake.GroupExpectedMemberCount);
-            var target = automaticTarget;
+            var targetCaseId = automaticTarget?.CaseId;
             var staffDecision = false;
             if (intake.AssociatedCaseId is { } linkedCaseId)
             {
                 staffDecision = associations.TryGetValue(intake.OriginReceiptId, out var association)
                     && association.ActorKind == nameof(ActorKind.Staff);
-                target = staffDecision
-                    ? eligible.SingleOrDefault(candidate => candidate.CaseId == linkedCaseId)
-                    : target?.CaseId == linkedCaseId ? target : null;
+                if (staffDecision)
+                {
+                    // A staff link reaches every Case in any lifecycle state and
+                    // every Triage Case (operator, 24 September 2026); only an
+                    // archived Case is refused its merge.
+                    targetCaseId = archivedCases.Contains(linkedCaseId) ? null : linkedCaseId;
+                }
+                else if (targetCaseId != linkedCaseId)
+                {
+                    targetCaseId = null;
+                }
             }
-            if (target is null || (caseId is not null && target.CaseId != caseId)
-                || leasedCases.Contains(target.CaseId))
+            if (targetCaseId is not { } target || (caseId is not null && target != caseId)
+                || leasedCases.Contains(target))
             {
                 continue;
             }
             var images = await ListImagesAsync(intake.Id, cancellationToken);
             if (images.Any(image => associations.TryGetValue(image.ReceiptId, out var association)
-                    ? !association.IsActive || association.CaseId != target.CaseId
-                    : !staffDecision && automaticTarget?.CaseId != target.CaseId))
+                    ? !association.IsActive || association.CaseId != target
+                    : !staffDecision && automaticTarget?.CaseId != target))
             {
                 continue;
             }
@@ -929,22 +946,6 @@ public sealed class EfImageIntakeStore(
         return entity is null
             ? null
             : await ToDetailAsync(context, entity, entity.Principal?.Code, cancellationToken);
-    }
-
-    public async Task<ImageIntakeDetail?> GetBySubmissionGroupAsync(
-        Guid submissionGroupId,
-        CancellationToken cancellationToken)
-    {
-        if (submissionGroupId == Guid.Empty)
-        {
-            return null;
-        }
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await GetDetailAsync(
-            context,
-            item => item.SubmissionGroupId == submissionGroupId,
-            cancellationToken);
     }
 
     /// <summary>
@@ -1006,24 +1007,6 @@ public sealed class EfImageIntakeStore(
                 on (Guid?)member.GroupId equals intake.SubmissionGroupId
             select intake)
         .FirstOrDefaultAsync(cancellationToken);
-
-    public async Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
-        IReadOnlyCollection<Guid> intakeReceiptIds,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(intakeReceiptIds);
-        if (intakeReceiptIds.Count == 0)
-        {
-            return [];
-        }
-
-        var ids = intakeReceiptIds.ToArray();
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await ProjectAsync(
-            context.ImageIntakes.AsNoTracking().Where(item => ids.Contains(item.OriginReceiptId)),
-            context,
-            cancellationToken);
-    }
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
         Guid caseId,
@@ -1348,11 +1331,14 @@ public sealed class EfImageIntakeStore(
             return null;
         }
 
-        var target = await context.CaseWorkflows.AsNoTracking()
-            .Where(item => item.CaseId == caseId.Value)
-            .Select(item => new { item.Case.Reference, item.Version })
+        var reference = await context.Cases.AsNoTracking()
+            .Where(item => item.Id == caseId.Value)
+            .Select(item => item.Reference)
             .SingleAsync(cancellationToken);
-        return (caseId.Value, target.Reference, target.Version);
+        // A Triage Case is linked to as every Case is; its version is its Triage's.
+        var version = await CaseMutationAuthority.ReadVersionAsync(context, caseId.Value, cancellationToken)
+            ?? throw new KeyNotFoundException($"Case '{caseId.Value}' does not exist.");
+        return (caseId.Value, reference, version);
     }
 
     /// <summary>

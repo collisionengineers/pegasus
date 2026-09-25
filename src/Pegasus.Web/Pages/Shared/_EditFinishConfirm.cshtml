@@ -1,10 +1,9 @@
 @*
     Finishing edit mode with unsaved changes asks first.
 
-    Rendered by every page that carries edit mode. The script in site.js finds
-    this by id and treats any form holding an editLeaseToken as the work that
-    would be lost, so the two pages share one dialog rather than each keeping
-    its own copy of the same three answers.
+    Rendered by the Case record. case-workspace.js finds this by id and asks
+    it (Keep editing / Discard / Save) before an action would discard the
+    Case's unsaved edits.
 *@
 <div id="edit-finish-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-finish-title" hidden>
     <div class="reason-dialog">

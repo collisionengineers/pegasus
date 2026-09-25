@@ -16,7 +16,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 public sealed class EfEditScopeStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : IEditScopeLeases, IEditScopeRevocations
+    TimeProvider timeProvider) : IEditScopeLeases
 {
     public async Task<EditScopeSnapshot?> GetActiveAsync(
         EditScopeKind scopeKind,
@@ -67,22 +67,20 @@ public sealed class EfEditScopeStore(
                 request.ScopeKind, request.RecordId, request.ExpectedVersion, currentVersion.Value);
         }
         var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
-        var previousHolder = scope is not null && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now)
-            ? scope.Holder
-            : null;
-        if (previousHolder is not null)
+        // A live scope refuses every claim that does not explicitly replace it, so a one-off
+        // command never rotates the holder's open window. The record page's Edit replaces the
+        // viewer's own scope without a takeover; only a colleague's scope is a takeover, and only
+        // that is history.
+        var isLive = scope is not null && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now);
+        if (isLive && !request.TakeOver)
         {
-            var isHolder = Enum.TryParse<ActorKind>(scope!.HolderKind, out var holderKind)
-                && EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor);
-            if (!isHolder && !request.TakeOver)
-            {
-                throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
-            }
-            if (isHolder && !request.TakeOver && !EditScopeAuthority.IsStale(scope.ExpiresAtUtc, now))
-            {
-                throw new EditScopeHeldElsewhereException(request.ScopeKind, request.RecordId);
-            }
+            throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
         }
+        var previousHolder = isLive
+            && !(Enum.TryParse<ActorKind>(scope!.HolderKind, out var holderKind)
+                && EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor))
+                ? scope!.Holder
+                : null;
 
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         var generation = checked((scope?.Generation ?? 0) + 1);
@@ -105,7 +103,7 @@ public sealed class EfEditScopeStore(
         scope.ExpectedVersion = request.ExpectedVersion;
         scope.Generation = generation;
         scope.ExpiresAtUtc = now.Add(EditScopeAuthority.Duration);
-        if (previousHolder is not null && request.TakeOver)
+        if (previousHolder is not null)
         {
             await AddTakeoverHistoryAsync(
                 context, request, previousHolder, now, cancellationToken);
@@ -166,20 +164,6 @@ public sealed class EfEditScopeStore(
         context.Remove(scope!);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-    }
-
-    public async Task ClearForActorAsync(ActionActor actor, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var scopes = await FindForActorAsync(context, actor, cancellationToken);
-        if (scopes.Count == 0)
-        {
-            return;
-        }
-
-        context.RemoveRange(scopes);
-        await context.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -255,7 +239,7 @@ public sealed class EfEditScopeStore(
         CancellationToken cancellationToken) => scopeKind switch
     {
         EditScopeKind.Triage => await context.Triage.AsNoTracking()
-            .Where(item => item.Id == recordId).Select(item => (long?)item.Version)
+            .Where(item => item.CaseId == recordId).Select(item => (long?)item.Version)
             .SingleOrDefaultAsync(cancellationToken),
         EditScopeKind.ImageIntake => await context.ImageIntakes.AsNoTracking()
             .Where(item => item.Id == recordId).Select(item => (long?)item.LifecycleVersion)
@@ -380,11 +364,11 @@ public sealed class EfEditScopeStore(
         if (request.ScopeKind == EditScopeKind.Triage)
         {
             var triage = await context.Triage.SingleAsync(
-                item => item.Id == request.RecordId, cancellationToken);
+                item => item.CaseId == request.RecordId, cancellationToken);
             context.TriageHistory.Add(new TriageHistoryEntity
             {
                 Id = Guid.NewGuid(),
-                TriageId = triage.Id,
+                TriageCaseId = triage.CaseId,
                 EventType = "edit_lease_taken_over",
                 Actor = request.Actor.SubjectId,
                 ActorKind = request.Actor.Kind.ToString(),
@@ -396,7 +380,7 @@ public sealed class EfEditScopeStore(
                 AfterVersion = triage.Version,
                 AfterState = triage.State,
                 AfterAssigneeId = triage.AssigneeId,
-                AfterLinkedCaseId = triage.LinkedCaseId
+                AfterLinkedInstructionCaseId = triage.LinkedInstructionCaseId
             });
         }
         else

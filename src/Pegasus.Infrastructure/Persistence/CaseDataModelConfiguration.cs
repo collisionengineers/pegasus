@@ -17,7 +17,7 @@ internal static class CaseDataModelConfiguration
                     "CK_CaseDataSnapshots_ExtractionPolicyVersion",
                     "[ExtractionPolicyVersion] IS NULL OR [ExtractionPolicyVersion] > 0");
             });
-            entity.HasKey(item => item.CaseId);
+            entity.HasKey(item => item.WorkId);
             entity.Property(item => item.OriginSourceChannel).HasMaxLength(40);
             entity.Property(item => item.OriginExternalReceiptToken).HasMaxLength(200);
             entity.Property(item => item.OriginSourceHash).HasMaxLength(64).IsFixedLength();
@@ -29,9 +29,9 @@ internal static class CaseDataModelConfiguration
             entity.Property(item => item.ClaimSourceOverrideContactTelephone).HasMaxLength(100);
             entity.Property(item => item.ClaimSourceOverrideContactEmailAddress).HasMaxLength(300);
             entity.HasIndex(item => item.OriginIntakeReceiptId);
-            entity.HasOne(item => item.Case)
+            entity.HasOne(item => item.Work)
                 .WithOne()
-                .HasForeignKey<CaseDataSnapshotEntity>(item => item.CaseId)
+                .HasForeignKey<CaseDataSnapshotEntity>(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<IntakeReceiptEntity>()
                 .WithMany()
@@ -63,7 +63,7 @@ internal static class CaseDataModelConfiguration
                     "CK_CaseDataFields_PolicyVersion",
                     "[PolicyVersion] > 0");
             });
-            entity.HasKey(item => new { item.CaseId, item.FieldName, item.ValueKind });
+            entity.HasKey(item => new { item.WorkId, item.FieldName, item.ValueKind });
             entity.Property(item => item.FieldName).HasMaxLength(60).IsRequired();
             entity.Property(item => item.ValueKind).HasMaxLength(20).IsRequired();
             entity.Property(item => item.ValueType).HasMaxLength(40).IsRequired();
@@ -76,10 +76,8 @@ internal static class CaseDataModelConfiguration
             entity.HasIndex(item => new { item.FieldName, item.ValueKind });
             entity.HasOne(item => item.Snapshot)
                 .WithMany(item => item.Fields)
-                .HasForeignKey(item => item.CaseId)
+                .HasForeignKey(item => item.WorkId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }
-
-    private static string SqlLiteral(string value) => $"'{value.Replace("'", "''", StringComparison.Ordinal)}'";
 }

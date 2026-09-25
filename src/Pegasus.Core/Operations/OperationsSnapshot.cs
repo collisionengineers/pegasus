@@ -58,7 +58,8 @@ public sealed record NeedsAttentionQuery(
     NeedsAttentionScope Scope = NeedsAttentionScope.Office,
     int Page = 1,
     IReadOnlyCollection<NeedsAttentionKind>? Kinds = null,
-    DateTimeOffset? AsOfUtc = null);
+    DateTimeOffset? AsOfUtc = null,
+    string? Search = null);
 
 public sealed record NeedsAttentionPage(
     IReadOnlyList<NeedsAttentionItem> Items,
@@ -73,8 +74,13 @@ public sealed record NeedsAttentionPage(
     public int TotalPages => TotalCount == 0 ? 1 : (int)Math.Ceiling((double)TotalCount / PageSize);
 }
 
-/// <summary>The metric strip of four (Work Centre D7): Not ready, Review, Held, Unidentified.</summary>
-public sealed record WorkCentreMetrics(int NotReady, int Review, int Held, int Unidentified);
+/// <summary>
+/// The Work Centre metric strip (D7): Not ready, Review, Held, Unidentified and,
+/// last, Triages — the active Triage Cases (Open, Awaiting information and
+/// Finding recorded), counted apart from the ordinary Case stages because a
+/// Triage Case has its own lifecycle.
+/// </summary>
+public sealed record WorkCentreMetrics(int NotReady, int Review, int Held, int Unidentified, int Triages);
 
 /// <summary>
 /// What the Work Centre shows.
@@ -101,7 +107,7 @@ public sealed record OperationsSnapshot(
 
     public NeedsAttentionScope Scope { get; init; } = NeedsAttentionScope.Office;
 
-    public WorkCentreMetrics Metrics { get; init; } = new(CaseStages.NotReady, CaseStages.Review, CaseStages.Held, UnidentifiedCount);
+    public WorkCentreMetrics Metrics { get; init; } = new(CaseStages.NotReady, CaseStages.Review, CaseStages.Held, UnidentifiedCount, TriageCount);
 }
 
 public interface IGetOperationsSnapshot
@@ -172,6 +178,26 @@ public static class NeedsAttentionPolicy
             && kind is NeedsAttentionKind.UnassignedEngineer or NeedsAttentionKind.Triage;
     }
 
+    /// <summary>
+    /// Find within Needs attention (v30 WB): a case-insensitive match on the
+    /// row's reference, title, detail or owner. Kinds are the chips' business,
+    /// so kind names are not searched.
+    /// </summary>
+    public static bool Matches(NeedsAttentionItem item, string? search)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        var term = search?.Trim();
+        if (string.IsNullOrEmpty(term))
+        {
+            return true;
+        }
+
+        return Contains(item.Reference) || Contains(item.Title) || Contains(item.Detail) || Contains(item.Owner);
+
+        bool Contains(string? value) =>
+            value is not null && value.Contains(term, StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool IsMine(NeedsAttentionItem item, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(item);
@@ -225,9 +251,6 @@ public sealed class GetOperationsSnapshot(
     /// <summary>The list's page size (D4): paged, never cut.</summary>
     public const int PageSize = 50;
 
-    /// <summary>Kept for callers that still name the old bound; the list is paged at <see cref="PageSize"/> now.</summary>
-    public const int MaximumNeedsAttention = PageSize;
-
     /// <summary>
     /// The Today pane's bound: more than ten items in a pane is a list the
     /// operator cannot scan, so the same ordered rows are cut here.
@@ -278,10 +301,16 @@ public sealed class GetOperationsSnapshot(
         var intakeRead = intakeQueries.GetCountsAsync(cancellationToken);
         var attentionRead = FetchAttentionInputsAsync(query.Actor, asOfUtc, cancellationToken);
         var stagesRead = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
-        await Task.WhenAll(intakeRead, attentionRead, stagesRead);
+        // The Triages metric counts every active Triage Case; the attention
+        // inputs already hold the two no-finding states, so only the Finding
+        // recorded total is read here.
+        var findingRecordedRead = listTriage.CountAsync(
+            query.Actor, TriageState.FindingRecorded, cancellationToken);
+        await Task.WhenAll(intakeRead, attentionRead, stagesRead, findingRecordedRead);
         var intake = await intakeRead;
         var inputs = await attentionRead;
         var caseStages = await stagesRead;
+        var findingRecordedTriageCount = await findingRecordedRead;
         var all = await ComposeNeedsAttentionAsync(asOfUtc, inputs, cancellationToken);
         var page = Page(all, query, asOfUtc);
 
@@ -296,7 +325,8 @@ public sealed class GetOperationsSnapshot(
         {
             Attention = page,
             Scope = query.Scope,
-            Metrics = new(caseStages.NotReady, caseStages.Review, caseStages.Held, inputs.Unidentified.Count)
+            Metrics = new(caseStages.NotReady, caseStages.Review, caseStages.Held, inputs.Unidentified.Count,
+                inputs.TriageTotalCount + findingRecordedTriageCount)
         };
     }
 
@@ -336,6 +366,9 @@ public sealed class GetOperationsSnapshot(
         {
             filtered = filtered.Where(item => kinds.Contains(item.Kind));
         }
+
+        // The search term narrows the whole scoped list before paging (v30 WB).
+        filtered = filtered.Where(item => NeedsAttentionPolicy.Matches(item, query.Search));
 
         var list = filtered.ToArray();
         var overdue = list.Count(item => NeedsAttentionPolicy.Priority(item.Due, asOfUtc, dayEndUtc) == NeedsAttentionPriority.Overdue);
@@ -614,8 +647,8 @@ public sealed class GetOperationsSnapshot(
             var due = WorkTargets.DueAt(record.CreatedAtUtc, targets.TriageTargetDays);
             items.Add(new(
                 NeedsAttentionKind.Triage,
-                record.Id,
-                record.Reference ?? record.NormalizedVehicleRegistration,
+                record.CaseId,
+                record.Reference,
                 record.NormalizedVehicleRegistration,
                 Detail: null,
                 record.State.ToString(),
@@ -628,7 +661,7 @@ public sealed class GetOperationsSnapshot(
                 Received: record.CreatedAtUtc)
             {
                 OwnerStaffId = record.AssigneeId,
-                Route = $"/Triage/{record.Id:D}"
+                Route = $"/Cases/{record.CaseId:D}"
             });
         }
 

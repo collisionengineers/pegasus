@@ -46,10 +46,7 @@ public sealed record NewReleaseNote(
 
 /// <summary>Thrown when a note changed under the Administrator's edit, or is not a draft any more.</summary>
 public sealed class ReleaseNoteConflictException(Guid noteId)
-    : InvalidOperationException($"Release note {noteId:D} changed before this edit was saved.")
-{
-    public Guid NoteId { get; } = noteId;
-}
+    : InvalidOperationException($"Release note {noteId:D} changed before this edit was saved.");
 
 public interface IReleaseNoteStore
 {

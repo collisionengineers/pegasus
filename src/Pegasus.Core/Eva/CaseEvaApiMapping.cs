@@ -37,10 +37,11 @@ public static class EvaInstructionDefaults
 ///    field as the insurer name; the operator's EVA instance uses it for the
 ///    claimant, and they own that answer. This displaces the work provider,
 ///    which has no other field of its own and so moves into the note.
-/// 2. **The instruction date is not sent at all.** EVA sets it when the
-///    instruction arrives, and for an API submission that instant *is* the
-///    instruction date — sending the case's own value would overwrite a
-///    truth with a guess at it.
+/// 2. **The instruction date is not sent.** EVA's instruction model has no
+///    field for it and EVA stamps its own on arrival (operator, 2026-08-27).
+///    The archive export sends the Case's Received date, which is the Case's
+///    instruction date (operator, 24 September 2026), as
+///    <c>Instruction Date</c>; the API leaves EVA's own stamp in place.
 ///
 /// Two values still have nowhere to go: EVA's instruction model documents no
 /// inspection-date field and no mileage field. They travel as labelled lines

@@ -174,7 +174,7 @@ public sealed class AllocateDefinitiveIntakeTests
     {
         var receipt = Receipt(CaseType.Inspection, "QDOS") with
         {
-            InstructionDraft = new("OTHER", null, null, null, null, null, null, null, null, null, null)
+            InstructionDraft = new("OTHER", null, null, null, null, null, null, null, null, null)
         };
         var sut = new AllocateIntake(
             new ReceiptQueries(receipt),
@@ -311,7 +311,7 @@ public sealed class AllocateDefinitiveIntakeTests
         "Eligible for case allocation.",
         [],
         [],
-        new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null, null),
+        new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null),
         [],
         null,
         null,
@@ -346,18 +346,6 @@ public sealed class AllocateDefinitiveIntakeTests
 
         public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new IntakeQueueCounts(0));
-
-        public Task<IntakeListPage> ListAsync(
-            IntakeDecision? decision,
-            int page,
-            int pageSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new IntakeListPage([], page, pageSize, 0));
-
-        public Task<IntakeAssetRecord?> GetAssetAsync(
-            Guid receiptId,
-            Guid assetId,
-            CancellationToken cancellationToken) => Task.FromResult<IntakeAssetRecord?>(null);
     }
 
     private sealed class EvidenceQueries(Guid receiptId, Guid evidenceId) : IStandaloneAuditEvidenceQueries
