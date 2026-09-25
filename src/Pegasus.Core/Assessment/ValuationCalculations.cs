@@ -431,7 +431,7 @@ public static class ValuationCalculationPolicy
 
     /// <summary>
     /// The calculated proposal adopted as the professional finding.
-    /// It must be a value the confirmed field can hold, so a zero adoption is
+    /// It must be a value the field can hold, so a zero adoption is
     /// refused here rather than at the field write.
     /// </summary>
     public static decimal AcceptedValue(ValuationCalculation calculation)

@@ -53,9 +53,9 @@ internal static class AssessmentFieldWriter
         return existing;
     }
 
-    /// <summary>Whether the row holds a value a staff member recorded.</summary>
-    public static bool IsStaffRecorded(CaseAssessmentFieldEntity? existing) =>
-        existing is { RecordedByKind: nameof(ActorKind.Staff) };
+    /// <summary>The kind of actor that recorded the row, or null when there is no row.</summary>
+    public static ActorKind? RecordedByKind(CaseAssessmentFieldEntity? existing) =>
+        existing is null ? null : Enum.Parse<ActorKind>(existing.RecordedByKind);
 }
 
 /// <summary>
@@ -150,25 +150,18 @@ internal static class AssessmentWriteSet
                 continue;
             }
 
-            if (existing is null || !string.Equals(existing.Value, value, StringComparison.Ordinal))
+            if (existing is null)
             {
-                var written = AssessmentFieldWriter.Write(
-                    context,
-                    workId,
-                    existing,
-                    path,
-                    value,
-                    actor.Kind,
-                    actor.SubjectId,
-                    now);
-                if (existing is null)
-                {
-                    fields.Add(written);
-                }
-                existing = written;
+                fields.Add(AssessmentFieldWriter.Write(
+                    context, workId, null, path, value, actor.Kind, actor.SubjectId, now));
+            }
+            else if (!string.Equals(existing.Value, value, StringComparison.Ordinal))
+            {
+                AssessmentFieldWriter.Write(
+                    context, workId, existing, path, value, actor.Kind, actor.SubjectId, now);
             }
 
-            after[path] = existing.Value;
+            after[path] = value;
         }
 
         return (before, after);

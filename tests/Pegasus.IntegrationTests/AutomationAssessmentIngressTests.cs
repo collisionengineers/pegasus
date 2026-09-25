@@ -339,7 +339,8 @@ public sealed class AutomationAssessmentIngressTests
         {
             (AssessmentVocabulary.VehicleFuel, "Petrol", "filled by the DVLA/DVSA vehicle lookup"),
             ("statement_of_truth", "I believe the facts stated are true.", "not part of the assessment vocabulary"),
-            (AssessmentVocabulary.ValueTrade, "9000", "is a professional finding"),
+            (AssessmentVocabulary.LegalStatus, "roadworthy", "is a professional finding"),
+            (AssessmentVocabulary.ValueTrade, "9000", "adopts an Engineer's Value"),
             ("incident.assessed", "2031-05-06", "case-detail edit path"),
             ("costs.repairer_vat_registered", "true", "not part of the assessment vocabulary")
         };

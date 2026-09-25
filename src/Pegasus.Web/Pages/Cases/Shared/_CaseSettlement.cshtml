@@ -5,15 +5,10 @@
     still fire), the salvage share slider (P14), the firm's unroadworthy
     reason bank (P15), the temporary repair rows for an unroadworthy vehicle,
     the computed repair reserve (P30) and the "Salvage · Not applicable" line
-    (P29) while the outcome is not a total loss. Historic head comment
-    follows.
-
-    Settlement (v26 § Settlement). The figures strip, then the Decisions strip
-    (manager's v24 decision folded in: Outcome, Engineer's Value, Salvage
-    category and value, Roadworthiness and the unroadworthy reason in one
-    place), then the settlement money, the costs/hire/delays sub-panel and
-    the seven salvage fields. One geometry for read and edit: every editable
-    value is a .fc cell whose control joins the record's one Save form.
+    (P29) while the outcome is not a total loss. Then the settlement money,
+    the costs/hire/delays sub-panel and the seven salvage fields. One geometry
+    for read and edit: every editable value is a .fc cell whose control joins
+    the record's one Save form.
 *@
 @using System.Globalization
 @using Pegasus.Core.Assessment
@@ -67,7 +62,6 @@
             }
         </div>
 
-        @* The Decisions strip. *@
         <div class="decisions" data-decisions>
             <div class="dec-head">
                 <h3>@SettlementLabels.Decisions</h3>
@@ -95,7 +89,7 @@
                     share: true);
                 await DecisionRow(AssessmentVocabulary.LegalStatus, labels[AssessmentVocabulary.LegalStatus], false);
             }
-            <div class="dec wide" data-decision="@AssessmentVocabulary.UnroadworthyReason" data-shown-when="unroadworthy" hidden="@(isUnroadworthy ? null : "hidden")">
+            <div class="dec" data-decision="@AssessmentVocabulary.UnroadworthyReason" data-shown-when="unroadworthy" hidden="@(isUnroadworthy ? null : "hidden")">
                 <span class="dl">@labels[AssessmentVocabulary.UnroadworthyReason]</span>
                 @{ await Field(AssessmentVocabulary.UnroadworthyReason, labels[AssessmentVocabulary.UnroadworthyReason], multi: true); }
                 @if (editing && Model.CanEditAssessmentField(AssessmentVocabulary.UnroadworthyReason))
@@ -177,9 +171,8 @@
         var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
         var radios = definition.Type == AssessmentFieldType.Enumerated;
-        var rowTag = Model.AssessmentSourceTag(path);
         <div class="dec" data-decision="@path" data-shown-when="@shownWhen" hidden="@(hidden ? "hidden" : null)">
-            <span class="dl">@label @(rowTag?.Render())</span>
+            <span class="dl">@label @(Model.AssessmentSourceTag(path)?.Render())</span>
             @{ await Field(path, label, radios: radios); }
             @if (share)
             {

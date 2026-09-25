@@ -214,7 +214,7 @@ public sealed class CaseEstimateHeaderWebTests
         Assert.Contains("data-case-editing=\"true\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-estimate-send-to-ai", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
-            OperatorLabels.CaseWorkspace.EngineerSections.ConfirmedEngineerValueRequired,
+            OperatorLabels.CaseWorkspace.EngineerSections.EngineerValueRequired,
             html,
             StringComparison.Ordinal);
     }

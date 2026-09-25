@@ -356,7 +356,7 @@ public sealed class AssessmentReportProjectionTests
             input with { Assessment = input.Assessment with { Fields = contractFields } });
         AssertNotReady(missing, "Agreed contract sum");
 
-        var confirmed = AssessmentReportProjection.Project(
+        var recorded = AssessmentReportProjection.Project(
             input with
             {
                 Assessment = input.Assessment with
@@ -365,8 +365,8 @@ public sealed class AssessmentReportProjectionTests
                         Field(AssessmentVocabulary.SettlementContractSum, "4500.00")).ToArray(),
                 },
             });
-        Assert.True(confirmed.IsReady);
-        Assert.Equal(4500m, confirmed.Snapshot!.Settlement.ContractSum);
+        Assert.True(recorded.IsReady);
+        Assert.Equal(4500m, recorded.Snapshot!.Settlement.ContractSum);
     }
 
     [Fact]

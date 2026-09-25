@@ -325,7 +325,7 @@ internal sealed class EfVehicleLookupWorkStore(
     /// (<see cref="AssessmentVocabulary.LookupDerivedPaths"/>) follow each
     /// answer as
     /// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.DerivedAssessmentWrites"/>
-    /// says, recorded confirmed by the lookup. All of it applies only when the
+    /// says, recorded by the lookup. All of it applies only when the
     /// answer is for the work's current registration
     /// (<see cref="EfVehicleWorkflowStore.CurrentRegistration"/>). Returns the
     /// lookup-written assessment values before and after this answer, for
@@ -383,10 +383,10 @@ internal sealed class EfVehicleLookupWorkStore(
         {
             var hasFact = answered.Any(item =>
                 item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Fact);
-            var hasStaffValue = answered.Any(item =>
+            var hasConfirmed = answered.Any(item =>
                 item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
             if (string.IsNullOrWhiteSpace(value)
-                || !VehicleLookupFillPolicy.Fills(hasFact, hasStaffValue))
+                || !VehicleLookupFillPolicy.Fills(hasFact, hasConfirmed))
             {
                 return;
             }
@@ -470,7 +470,7 @@ internal sealed class EfVehicleLookupWorkStore(
         var vehicleType = VehicleTypePolicy.Classify(result.Vehicle);
         var existingType = assessmentRows.SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleType);
         if (vehicleType is not null
-            && VehicleLookupFillPolicy.Fills(hasFact: false, hasStaffValue: AssessmentFieldWriter.IsStaffRecorded(existingType))
+            && AssessmentPolicy.FillLands(AssessmentFieldWriter.RecordedByKind(existingType))
             && !string.Equals(existingType?.Value, vehicleType, StringComparison.Ordinal))
         {
             Write(existingType, AssessmentVocabulary.VehicleType, vehicleType);

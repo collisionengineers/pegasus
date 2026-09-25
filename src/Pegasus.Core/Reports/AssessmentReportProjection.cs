@@ -327,39 +327,37 @@ public static class AssessmentReportProjection
             return null;
         }
 
-        var fields = assessment.Fields
-            .ToDictionary(field => field.Path, field => (string?)field.Value, StringComparer.Ordinal);
         var costs = ReportRepairCosts.For(currentEstimate);
-        var betterment = ParseMoney(Field(fields, AssessmentVocabulary.SettlementBetterment));
-        var totalLoss = string.Equals(Field(fields, AssessmentVocabulary.Outcome), "total_loss", StringComparison.Ordinal);
-        var contractRepair = string.Equals(Field(fields, AssessmentVocabulary.Outcome), "contract_repair", StringComparison.Ordinal);
-        var salvage = totalLoss ? ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue)) : null;
-        var contractSum = contractRepair ? ParseMoney(Field(fields, AssessmentVocabulary.SettlementContractSum)) : null;
+        var betterment = ParseMoney(Field(assessment, AssessmentVocabulary.SettlementBetterment));
+        var totalLoss = string.Equals(Field(assessment, AssessmentVocabulary.Outcome), "total_loss", StringComparison.Ordinal);
+        var contractRepair = string.Equals(Field(assessment, AssessmentVocabulary.Outcome), "contract_repair", StringComparison.Ordinal);
+        var salvage = totalLoss ? ParseMoney(Field(assessment, AssessmentVocabulary.SalvageValue)) : null;
+        var contractSum = contractRepair ? ParseMoney(Field(assessment, AssessmentVocabulary.SettlementContractSum)) : null;
         if (contractRepair && contractSum is not > 0)
         {
             return null;
         }
 
         return new(
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementExcess)),
+            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementExcess)),
             betterment,
-            ParseFlag(Field(fields, AssessmentVocabulary.SettlementClaimantVatRegistered)),
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementReserve)),
+            ParseFlag(Field(assessment, AssessmentVocabulary.SettlementClaimantVatRegistered)),
+            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementReserve)),
             engineerValue - (costs.Total - (betterment ?? 0m)) - (salvage ?? 0m),
-            Field(fields, AssessmentVocabulary.SettlementRepairDelays),
-            Field(fields, AssessmentVocabulary.SettlementReportDelay),
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementStoragePerDay)),
-            ParseMoney(Field(fields, AssessmentVocabulary.CostRecoveryCharge)),
-            ParseDate(Field(fields, AssessmentVocabulary.SettlementHireStart)),
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementHireDailyCost)),
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementDiminution)),
-            totalLoss ? Field(fields, AssessmentVocabulary.SettlementSalvageAt) : null,
-            totalLoss ? Field(fields, AssessmentVocabulary.SettlementSalvageAgent) : null,
-            totalLoss ? Field(fields, AssessmentVocabulary.SettlementSalvageAgentReference) : null,
-            totalLoss ? ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageMoved)) : null,
-            totalLoss ? ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageOwnerRetains)) : null,
-            totalLoss ? ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageValueAgreed)) : null,
-            totalLoss ? ParseDate(Field(fields, AssessmentVocabulary.SettlementSalvageSettled)) : null,
+            Field(assessment, AssessmentVocabulary.SettlementRepairDelays),
+            Field(assessment, AssessmentVocabulary.SettlementReportDelay),
+            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementStoragePerDay)),
+            ParseMoney(Field(assessment, AssessmentVocabulary.CostRecoveryCharge)),
+            ParseDate(Field(assessment, AssessmentVocabulary.SettlementHireStart)),
+            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementHireDailyCost)),
+            ParseMoney(Field(assessment, AssessmentVocabulary.SettlementDiminution)),
+            totalLoss ? Field(assessment, AssessmentVocabulary.SettlementSalvageAt) : null,
+            totalLoss ? Field(assessment, AssessmentVocabulary.SettlementSalvageAgent) : null,
+            totalLoss ? Field(assessment, AssessmentVocabulary.SettlementSalvageAgentReference) : null,
+            totalLoss ? ParseFlag(Field(assessment, AssessmentVocabulary.SettlementSalvageMoved)) : null,
+            totalLoss ? ParseFlag(Field(assessment, AssessmentVocabulary.SettlementSalvageOwnerRetains)) : null,
+            totalLoss ? ParseFlag(Field(assessment, AssessmentVocabulary.SettlementSalvageValueAgreed)) : null,
+            totalLoss ? ParseDate(Field(assessment, AssessmentVocabulary.SettlementSalvageSettled)) : null,
             contractSum);
     }
 

@@ -425,13 +425,12 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .dec-head{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line);background:var(--surface-2)}
 .dec-head h3{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;margin:0}
 .dec{display:grid;grid-template-columns:160px minmax(0,1fr);gap:10px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--line)}
-.decisions .dec.wide{grid-template-columns:160px minmax(0,1fr)}
 .dec:last-child{border-bottom:0}
 .dec .dl{font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 .dec .fc>label,.dec .fc>.lbl{display:none}
 .dec .fc{margin:0}
 .dec .fv .src-tag{margin-left:6px}
-@media(max-width:900px){.dec,.decisions .dec.wide{grid-template-columns:1fr}.dec .dl{padding-top:4px}}
+@media(max-width:900px){.dec{grid-template-columns:1fr}.dec .dl{padding-top:4px}}
 @media(max-width:760px){#section-settlement .metric-strip{grid-template-columns:repeat(2,1fr)}#section-settlement .metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 
 /* ---- Report (v26): preview card, generation, recipients, image strip -------- */

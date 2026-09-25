@@ -443,7 +443,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             saved.CaseVersion,
             harness.EngineerActor,
             "assessment-lease-staff");
-        var confirmed = await harness.SaveAssessment.ExecuteAsync(
+        var resaved = await harness.SaveAssessment.ExecuteAsync(
             new(
                 caseId,
                 staffLease.Version,
@@ -457,11 +457,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     ["damage.unrelated"] = "Kerbed nearside wheel"
                 }),
             CancellationToken.None);
-        var condition = confirmed.Field("vehicle.condition");
+        var condition = resaved.Field("vehicle.condition");
         Assert.NotNull(condition);
         Assert.Equal("average", condition!.Value);
         Assert.Equal(ActorKind.Staff, condition.RecordedByKind);
-        var unrelated = confirmed.Field("damage.unrelated");
+        var unrelated = resaved.Field("damage.unrelated");
         Assert.NotNull(unrelated);
         Assert.Equal(ActorKind.Automation, unrelated!.RecordedByKind);
 

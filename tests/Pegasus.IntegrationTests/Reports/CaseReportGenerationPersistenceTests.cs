@@ -1156,16 +1156,16 @@ public sealed class CaseReportGenerationPersistenceTests
         var artifactsBefore = await harness.ArtifactRowsAsync();
 
         var recordedAt = new DateTimeOffset(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
-        AssessmentFieldValue Confirmed(string path, string value) => new(
+        AssessmentFieldValue Recorded(string path, string value) => new(
             path, value, ActorKind.Staff, "engineer-1", recordedAt);
         harness.ReviseAssessment(assessment => assessment with
         {
             Fields =
             [
                 .. assessment.Fields.Where(field => field.Path != AssessmentVocabulary.Outcome),
-                Confirmed(AssessmentVocabulary.Outcome, "total_loss"),
-                Confirmed(AssessmentVocabulary.SalvageCategory, "B"),
-                Confirmed(AssessmentVocabulary.SalvageValue, "500.00"),
+                Recorded(AssessmentVocabulary.Outcome, "total_loss"),
+                Recorded(AssessmentVocabulary.SalvageCategory, "B"),
+                Recorded(AssessmentVocabulary.SalvageValue, "500.00"),
             ],
         });
         var renderer = new RecordingRenderer(harness);
