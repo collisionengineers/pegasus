@@ -221,6 +221,37 @@ public sealed class CaseRecordGapsV26WebTests
     }
 
     [Fact]
+    public async Task AnOriginalReportCellFilledFromTheFiledReportIsTaggedExtracted()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            SummaryCaseType = CaseType.Audit,
+            State = CaseLifecycleState.NotReady,
+            CaseState = CaseLifecycleState.NotReady
+        };
+        var ports = new RecordGapPorts(store);
+        ports.Fields.Add(new(
+            AssessmentVocabulary.OriginalReportAssessor, "Laird Assessors", ActorKind.Automation,
+            OriginalReportPrefillPolicy.RecorderId, DateTimeOffset.UnixEpoch, null, null));
+        ports.Staff(AssessmentVocabulary.OriginalReportRoadworthiness, "roadworthy");
+        using var workspace = await EnterEditModeAsync(store, ports.Register);
+
+        var originalReport = SectionHtml(await workspace.GetWorkspaceAsync(), "original-report");
+
+        string Cell(string path)
+        {
+            var start = originalReport.IndexOf($"data-field=\"{path}\"", StringComparison.Ordinal);
+            Assert.True(start >= 0, path);
+            var end = originalReport.IndexOf("data-field=\"", start + 1, StringComparison.Ordinal);
+            return end < 0 ? originalReport[start..] : originalReport[start..end];
+        }
+
+        Assert.Contains("data-provenance-word=\"Extracted\"", Cell(AssessmentVocabulary.OriginalReportAssessor), StringComparison.Ordinal);
+        Assert.Contains("Laird Assessors", Cell(AssessmentVocabulary.OriginalReportAssessor), StringComparison.Ordinal);
+        Assert.DoesNotContain("data-provenance-word", Cell(AssessmentVocabulary.OriginalReportRoadworthiness), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ForgedOriginalReportFieldIsRefusedOnANonAuditCase()
     {
         var store = new RecordingCaseDetailsStore

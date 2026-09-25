@@ -70,7 +70,9 @@ instruction creates the `a.` Case/PO. The Case shows **Original report
 missing** only while it has neither a filed original report nor
 standalone-Audit evidence retained at intake. Staff clear it by marking a
 filed document as the original report. A readable report records the
-assessment at intake. A manual proposal may create an Audit from a receipt
+assessment at intake, and its own reading fills the Case's
+[Original report](frd-16-case-record-workspace.md#original-report) cells at
+acceptance. A manual proposal may create an Audit from a receipt
 already classified Audit, with or without standalone-Audit evidence; where
 evidence exists, acceptance checks that it belongs to that receipt.
 

@@ -240,6 +240,22 @@ public sealed class EfCaseAcceptanceStore(
             Version = 0
         };
         context.Cases.Add(caseEntity);
+        if (standaloneAuditEvidence is not null)
+        {
+            // A standalone Audit is created with its Original report cells
+            // filled from the retained report (v28 P51). A reading of any other
+            // bytes is ignored, which leaves the intake verdict alone to fill
+            // Repairable status.
+            var reading = request.OriginalReport is { } read
+                && string.Equals(
+                    read.Sha256,
+                    standaloneAuditEvidence.OriginalReportAsset.ContentHash,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? read
+                    : null;
+            await OriginalReportPrefillWriter.ApplyAsync(
+                context, caseId, reading, standaloneAuditAssessment, acceptedAtUtc, cancellationToken);
+        }
         var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
         dataSnapshot.CompletenessPolicySatisfied = completenessEvaluation.SatisfiesPolicy;
         dataSnapshot.CompletenessPolicyKey = completenessEvaluation.PolicyKey;

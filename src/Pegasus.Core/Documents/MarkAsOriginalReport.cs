@@ -1,3 +1,4 @@
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
@@ -5,17 +6,32 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Documents;
 
-public sealed class MarkAsOriginalReport(IMarkAsOriginalReportStore store)
+/// <summary>
+/// Marks a filed document as the Audit's original report and fills the
+/// Original report cells from its own reading (v28 P51). The document is read
+/// before the store's transaction opens; a document that cannot be read is
+/// still marked, and its cells stay hand-entered.
+/// </summary>
+public sealed class MarkAsOriginalReport(IMarkAsOriginalReportStore store, IReadOriginalReport originalReport)
 {
     private readonly IMarkAsOriginalReportStore _store =
         store ?? throw new ArgumentNullException(nameof(store));
 
-    public Task<OriginalReportRecorded> ExecuteAsync(
+    private readonly IReadOriginalReport _originalReport =
+        originalReport ?? throw new ArgumentNullException(nameof(originalReport));
+
+    public async Task<OriginalReportRecorded> ExecuteAsync(
         MarkAsOriginalReportCommand command,
         CancellationToken cancellationToken = default)
     {
         OriginalReportPolicy.ValidateRequest(command);
-        return _store.MarkAsOriginalReportAsync(command, cancellationToken);
+        var reading = await _originalReport.ForDocumentAsync(
+            command.Actor,
+            command.CaseId,
+            command.DocumentOccurrenceId,
+            command.DocumentVersionId,
+            cancellationToken);
+        return await _store.MarkAsOriginalReportAsync(command, reading, cancellationToken);
     }
 }
 
@@ -32,6 +48,10 @@ public static class OriginalReportPolicy
         if (command.DocumentOccurrenceId == Guid.Empty)
         {
             throw new ArgumentException("A document occurrence is required.", nameof(command));
+        }
+        if (command.DocumentVersionId == Guid.Empty)
+        {
+            throw new ArgumentException("A document version is required.", nameof(command));
         }
         if (command.ExpectedVersion < 0)
         {

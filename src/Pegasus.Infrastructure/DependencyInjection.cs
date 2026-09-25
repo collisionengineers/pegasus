@@ -704,6 +704,9 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IMarkAsOriginalReportStore>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
+            // Reads a filed original report for the Audit's Original report
+            // cells; acceptance takes it where it is composed (v28 P51).
+            services.AddScoped<IReadOriginalReport, ReadOriginalReport>();
             services.AddScoped<MarkAsOriginalReport>();
             services.AddScoped<ITagCaseImage>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());

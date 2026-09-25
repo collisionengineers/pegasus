@@ -304,7 +304,7 @@ internal static class ThirdPartySections
 public static class ThirdPartyReportExtraction
 {
     /// <summary>Versioned with the rule tables; recorded on every candidate.</summary>
-    public const string ProfileVersion = "third-party-report-extraction/1";
+    public const string ProfileVersion = "third-party-report-extraction/2";
 
     // Printed money is not always two decimals — Laird prints "£1686.7" — and
     // a two-decimal-only pattern silently dropped the tenth, which is exactly
@@ -355,6 +355,9 @@ public static class ThirdPartyReportExtraction
             @"Damage:[ \t]*(?:Light|Moderate|Heavy|Medium|Severe)[ \t]+(?<v>[A-Za-z/ ]{3,40}?)#END#",
             Until: "Incident", Multiple: true),
         new(F.Roadworthiness, K.Text, @"Roadworthy:[ \t]*(?<v>Yes|No)\b"),
+        // The title every narrative signature requires is the report's own
+        // outcome: "Engineer Repairable Report" or "REPAIRABLE REPORT".
+        new(F.Outcome, K.Text, @"\b(?<v>Repairable)\s+Report\b", RawWholeMatch: true),
         new(F.OutcomeReason, K.Text,
             @"not\s+roadworthy\s+at\s+the\s+time\s+of\s+(?:our|my)\s+inspection\s+as\s+a\s+result\s+of\s+the\s+damage\s+sustained\s+due\s+to\s+(?<v>[^\n.]{2,120})\."),
         new(F.Narrative, K.Text, @"^\s*NATURE\s+OF\s+(?:INCIDENT|DAMAGE)\s*$", Section: true),
@@ -415,6 +418,10 @@ public static class ThirdPartyReportExtraction
         new(F.ClaimReference, K.Reference, @"(?<v>[A-Z]{2,4}(?:/[A-Z]{2,4})?/\d{4,}/\d)", ReferenceRole: "your-ref"),
         new(F.ReportDate, K.Date,
             @"Our Reference\s+Your Reference\s+Date[^\n]*\n[^£]{0,200}?(?<v>\d{1,2}(?:st|nd|rd|th)\s+[A-Za-z]{3,9}\s+\d{4})"),
+        // The production reader breaks the same header into one cell per line,
+        // so the date follows its own "Date" line.
+        new(F.ReportDate, K.Date,
+            @"^[ \t]*Date[ \t]*\n[ \t]*(?<v>\d{1,2}(?:st|nd|rd|th)\s+[A-Za-z]{3,9}\s+\d{4})[ \t]*$"),
         new(F.Revision, K.Text, @"^\s*(?<v>Supplementary Report)\s*$"),
         new(F.Claimant, K.Text, @"Claimant[ \t]+(?<v>[^\n]{2,60}?)#END#", PartyRole: "claimant"),
         new(F.Claimant, K.Text, @"^\s*Re:\s*(?<v>[^\n]{2,60}?)\s*$", PartyRole: "claimant"),
@@ -570,7 +577,9 @@ public static class ThirdPartyReportExtraction
         new(F.MileageUnit, K.Text, @"Mileage[ \t]*:[ \t]*[\d,]+[ \t]*(?<v>Miles|Km)\b"),
         new(F.VehicleLocation, K.Text, @"Inspection Location[ \t]*:[ \t]*(?<v>[^\n]{2,40}?)[ \t]*$"),
         new(F.Repairer, K.Text, @"Repairer[ \t]*:[ \t]*(?<v>[^\n]{3,120}?)[ \t]*$", PartyRole: "repairer"),
-        new(F.Repairability, K.Text, @"Vehicle Status[ \t]*:[ \t]*(?<v>[A-Z]{4,20})",
+        // The production reader keeps sPrint's column padding inside the
+        // label ("Vehicle  Status"), so the label's own spacing is not fixed.
+        new(F.Repairability, K.Text, @"Vehicle[ \t]+Status[ \t]*:[ \t]*(?<v>[A-Z]{4,20})",
             RawWholeMatch: true),
         new(F.Roadworthiness, K.Text, @"\b(?<v>UNROADWORTHY|ROADWORTHY)\b"),
         new(F.Severity, K.Text, @"Body[ \t]*:[ \t]*(?<v>HEAVY|MODERATE|LIGHT|MEDIUM|SEVERE)\b",
@@ -656,7 +665,7 @@ public static class ThirdPartyReportExtraction
 
     private const string SPrintLabels =
         @"OSF|NSF|OSR|NSR|Others|Steering|Footbrake|Handbrake|Seatbelts|Mechanical|Body"
-        + @"|Inspection Location|Vehicle Status|Pre-Accident Condition|Cause of Damage"
+        + @"|Inspection Location|Vehicle[ \t]+Status|Pre-Accident Condition|Cause of Damage"
         + @"|Date of Report|Date of Inspection|Date Instructed|Date of Accident|Miles|Km";
 
     /// <summary>

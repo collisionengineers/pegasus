@@ -1399,12 +1399,14 @@ public static class OperatorLabels
 
     /// <summary>
     /// The source tag of a recorded assessment value: the vehicle lookup's
-    /// writes read Lookup, any other Automation actor's AI, a Pegasus worker's
+    /// writes read Lookup, an Original report cell filled from the filed report
+    /// Extracted, any other Automation actor's AI, a Pegasus worker's
     /// Automatic; a staff value carries none.
     /// </summary>
     public static SourceTagWord? SourceTag(AssessmentFieldValue? field) => field is null ? null : field.RecordedByKind switch
     {
         ActorKind.Automation when field.RecordedBy == VehicleLookupFillPolicy.RecorderId => SourceTagWord.Lookup,
+        ActorKind.Automation when field.RecordedBy == OriginalReportPrefillPolicy.RecorderId => SourceTagWord.Extracted,
         ActorKind.Automation => SourceTagWord.Ai,
         ActorKind.SystemWorker => SourceTagWord.Automatic,
         _ => null

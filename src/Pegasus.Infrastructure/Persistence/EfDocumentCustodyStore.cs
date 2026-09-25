@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -499,16 +501,18 @@ internal sealed class EfDocumentCustodyStore(
 
     async Task<OriginalReportRecorded> IMarkAsOriginalReportStore.MarkAsOriginalReportAsync(
         MarkAsOriginalReportCommand command,
+        OriginalReportReading? reading,
         CancellationToken cancellationToken)
     {
         OriginalReportPolicy.ValidateRequest(command);
         var operationKey = command.OperationKey.Trim();
         var requestHash = CaseOperationReplay.Hash(JsonSerializer.Serialize(new
         {
-            schemaVersion = 1,
+            schemaVersion = 2,
             command.CaseId,
             command.ExpectedVersion,
             command.DocumentOccurrenceId,
+            command.DocumentVersionId,
             actorKind = command.Actor.Kind.ToString(),
             actorSubjectId = command.Actor.SubjectId,
             actorRoles = command.Actor.Roles.OrderBy(role => role).Select(role => role.ToString()).ToArray(),
@@ -554,7 +558,7 @@ internal sealed class EfDocumentCustodyStore(
                 "The document occurrence is unavailable.");
         var version = await context.Set<DocumentVersionEntity>()
             .SingleAsync(item => item.Id == occurrence.VersionId, cancellationToken);
-        if (!version.IsCurrent || version.IsLogicallyRemoved)
+        if (!version.IsCurrent || version.IsLogicallyRemoved || version.Id != command.DocumentVersionId)
         {
             throw new InvalidOperationException(
                 "The document occurrence is unavailable.");
@@ -595,6 +599,19 @@ internal sealed class EfDocumentCustodyStore(
         var beforeVersion = workflow.Version;
         var beforeRole = occurrence.SemanticRole;
         occurrence.SemanticRole = DocumentSemanticRole.AuditReport;
+        // The marked document fills the Original report cells staff have not
+        // confirmed (v28 P51). A reading of any other bytes fills nothing from
+        // the report.
+        var filled = await OriginalReportPrefillWriter.ApplyAsync(
+            context,
+            await CaseWorkScope.CurrentIdAsync(context, command.CaseId, cancellationToken),
+            reading is not null
+                && string.Equals(reading.Sha256, version.Sha256, StringComparison.OrdinalIgnoreCase)
+                    ? reading
+                    : null,
+            workflow.Case.StandaloneAuditAssessment is { } verdict ? AuditAssessmentCode.Parse(verdict) : null,
+            now,
+            cancellationToken);
         CaseMutationGuard.Complete(workflow);
         var result = new OriginalReportRecorded(
             command.CaseId,
@@ -612,9 +629,19 @@ internal sealed class EfDocumentCustodyStore(
             requestHash,
             beforeVersion,
             workflow.Version,
-            JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = beforeRole.ToString() }),
-            JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = occurrence.SemanticRole.ToString() }),
-            "original-report-role-v1",
+            JsonSerializer.Serialize(new
+            {
+                occurrence.Id,
+                SemanticRole = beforeRole.ToString(),
+                Fields = filled.ToDictionary(item => item.Key, item => item.Value.Before)
+            }),
+            JsonSerializer.Serialize(new
+            {
+                occurrence.Id,
+                SemanticRole = occurrence.SemanticRole.ToString(),
+                Fields = filled.ToDictionary(item => item.Key, item => (string?)item.Value.After)
+            }),
+            "original-report-role-v2",
             now);
         context.CaseWorkflowEvents.Local.Single(item =>
             item.CaseId == command.CaseId
