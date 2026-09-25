@@ -610,6 +610,7 @@
 
     var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
     function swap(html, command, preferred) {
+        glassRefreshGeneration += 1;
         var parsed = new DOMParser().parseFromString(html, 'text/html');
         var incoming = parsed.querySelector('[data-case-record]');
         if (!incoming) {
@@ -799,8 +800,10 @@
             if (!swap(html, command, preferred)) {
                 throw new Error('The server did not return the Case.');
             }
+            if (form.hasAttribute('data-glass-close-form')) { return refreshGlassControls(); }
         }).catch(function (error) {
             // A failed save runs nothing after it.
+            if (afterSave && afterSave.cancel) { afterSave.cancel(); }
             afterSave = null;
             var failure = isImport
                 ? error.message + ' Import completion was not confirmed. Your unsaved changes are still here; reload the Case before retrying. If the source was already stored, it will be reused.'
@@ -1042,7 +1045,7 @@
         }
         // Cancel is the operator discarding: it needs no second question.
         var isCancel = form.hasAttribute('data-case-cancel-form');
-        if (!isSave && dirty && !isCancel) {
+        if (!isSave && dirty && !isCancel && !form.hasAttribute('data-glass-close-form')) {
             askUnsaved().then(function (answer) {
                 if (answer === 'keep') {
                     return;
@@ -1102,8 +1105,9 @@
     //      over unsaved Case changes) runs what was asked for once the save
     //      has landed, rather than dropping it ------------------------------
     var afterSave = null;
-    function saveThen(save, next) {
-        afterSave = { editor: save.getAttribute('id'), next: next };
+    function saveThen(save, next, cancel) {
+        if (!save.reportValidity()) { if (cancel) { cancel(); } return; }
+        afterSave = { editor: save.getAttribute('id'), next: next, cancel: cancel };
         save.requestSubmit();
     }
     // The action's form is found again after the save's swap, which renders
@@ -1159,9 +1163,138 @@
         var pending = afterSave;
         afterSave = null;
         // A save the server refused leaves its editor unsaved: nothing follows.
-        if (!pending || dirtyEditors.has(pending.editor)) { return; }
+        if (!pending) { return; }
+        if (dirtyEditors.has(pending.editor)) { if (pending.cancel) { pending.cancel(); } return; }
         // After the save's own submission has finished.
         window.setTimeout(pending.next, 0);
+    });
+
+    // Glass's controls are independent of the Case draft and its authority.
+    var glassRefreshGeneration = 0;
+    var glassOpening = false;
+    var glassWindow = null;
+    var glassWindowWatch = null;
+    function finishGlassOpening() {
+        glassOpening = false;
+        if (glassWindowWatch) { window.clearInterval(glassWindowWatch); glassWindowWatch = null; }
+        record.querySelectorAll('[data-glass-window]').forEach(function (form) { form.removeAttribute('aria-busy'); });
+    }
+    function cancelGlassOpening() {
+        if (glassWindow && !glassWindow.closed) { glassWindow.close(); }
+        finishGlassOpening();
+    }
+    function refreshGlassControls() {
+        var host = record.querySelector('[data-glass-controls="launch"]');
+        if (!host) { return Promise.reject(new Error("Glass's controls are unavailable. Reload the Case after saving your changes.")); }
+        var generation = ++glassRefreshGeneration;
+        var lease = record.querySelector('#case-edit-form [name="editLeaseToken"]');
+        return fetch(host.dataset.glassControlsUrl, {
+            credentials: 'same-origin', cache: 'no-store',
+            headers: { 'X-Pegasus-Edit-Lease': lease ? lease.value : '', 'Accept': 'text/html' }
+        }).then(function (response) {
+            if (!response.ok) { throw new Error("Glass's controls could not be refreshed. Save your changes and reload the Case before retrying."); }
+            return response.text();
+        }).then(function (html) {
+            if (generation !== glassRefreshGeneration) { return; }
+            var parsed = new DOMParser().parseFromString(html, 'text/html');
+            var nextLaunch = parsed.querySelector('[data-glass-controls="launch"]');
+            var nextSession = parsed.querySelector('[data-glass-controls="session"]');
+            var nextOutcome = parsed.querySelector('[data-glass-controls="outcome"]');
+            if (!nextLaunch || !nextSession || !nextOutcome) { throw new Error("Sign in again to refresh Glass's controls. Your Case changes are still here."); }
+            var current = record.querySelector('[data-glass-controls="session"]');
+            if (current && current.dataset.glassId === nextSession.dataset.glassId
+                && Number(current.dataset.glassVersion) > Number(nextSession.dataset.glassVersion)) { return; }
+            var saved = anchor();
+            var focused = document.activeElement;
+            var focusedHost = focused && focused.closest('[data-glass-controls]');
+            var focusSelector = focusedHost && (focused.name ? '[name="' + focused.name + '"]' : focused.tagName.toLowerCase());
+            [nextLaunch, nextOutcome, nextSession].forEach(function (next) {
+                var old = record.querySelector('[data-glass-controls="' + next.dataset.glassControls + '"]');
+                if (old) { old.replaceWith(next); bindMounted(next); }
+            });
+            if (focusSelector) {
+                var replacement = record.querySelector('[data-glass-controls="' + focusedHost.dataset.glassControls + '"] ' + focusSelector);
+                if (replacement) { replacement.focus({ preventScroll: true }); }
+            }
+            keep(saved);
+            return nextSession.dataset.glassState;
+        });
+    }
+    window.pegasusGlassHandoff = function () {
+        return refreshGlassControls().catch(function (error) { showActionError(error.message); }).finally(finishGlassOpening);
+    };
+    function showGlassReturnNotice(state) {
+        var host = record.querySelector('[data-glass-controls="outcome"]');
+        var session = record.querySelector('[data-glass-controls="session"]');
+        if (!host || !session) { return; }
+        var text = state === 'Completed'
+            ? (session.dataset.glassImportedDirty || "The Glass's estimate was recorded as a Draft. Your unsaved changes are still here. Save or cancel them to view it.")
+            : (session.dataset.glassReturnedDirty || "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.");
+        var notice = host.querySelector('[data-estimate-notice]');
+        if (!notice) {
+            notice = document.createElement('p'); notice.setAttribute('data-estimate-notice', '');
+            notice.appendChild(document.createElement('span')); host.appendChild(notice);
+        }
+        host.hidden = false;
+        notice.className = state === 'Completed' ? 'notice notice--success' : 'notice';
+        notice.setAttribute('role', 'status');
+        notice.querySelector('span').textContent = text;
+    }
+    window.pegasusGlassReturn = function (url) {
+        if (!samePage(url) || new URL(url, window.location.href).origin !== window.location.origin) {
+            return Promise.reject(new Error('The Glass return does not belong to this Case.'));
+        }
+        return refreshGlassControls().then(function (state) {
+            if (dirty || submitting) {
+                showGlassReturnNotice(state);
+                return;
+            }
+            var versionBeforeRead = record.getAttribute('data-case-version');
+            var generationBeforeRead = glassRefreshGeneration;
+            return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function (response) {
+                if (!response.ok || !samePage(response.url)) { throw new Error('The Case could not be refreshed.'); }
+                return response.text();
+            }).then(function (html) {
+                // A save or another refresh may have finished during this read.
+                // An older response cannot put the record back on its old version.
+                if (submitting || generationBeforeRead !== glassRefreshGeneration
+                    || versionBeforeRead !== record.getAttribute('data-case-version')) { return; }
+                if (!swap(html)) { throw new Error('The Case could not be refreshed.'); }
+                if (dirty) { showGlassReturnNotice(state); }
+            });
+        }).catch(function (error) { showActionError(error.message); throw error; }).finally(finishGlassOpening);
+    };
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-glass-window')) { return; }
+        event.preventDefault();
+        if (glassOpening || submitting || confirmResolve) { return; }
+        var windowName = 'pegasus-glass-' + window.location.pathname;
+        glassWindow = window.open('', windowName, 'popup=yes,width=1280,height=900');
+        if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }
+        glassOpening = true;
+        form.setAttribute('aria-busy', 'true');
+        glassWindowWatch = window.setInterval(function () {
+            if (glassWindow.closed) { finishGlassOpening(); }
+        }, 500);
+        var action = form.getAttribute('action');
+        function launchSaved() {
+            // A save renders the form again with its current lease and session
+            // version. Never reuse the detached form's authority.
+            var next = Array.from(record.querySelectorAll('form[data-glass-window]')).find(function (candidate) {
+                return candidate.getAttribute('action') === action;
+            });
+            if (!next || dirty || glassWindow.closed) {
+                cancelGlassOpening();
+                showActionError("Glass's was not opened. Check the Case changes and try again.");
+                return;
+            }
+            next.target = windowName;
+            next.setAttribute('aria-busy', 'true');
+            HTMLFormElement.prototype.submit.call(next);
+        }
+        var save = activeDirtyForm();
+        if (save) { saveThen(save, launchSaved, cancelGlassOpening); } else { launchSaved(); }
     });
 
     // ---- the section-head Edit posts the ribbon's claim and remembers the
@@ -1217,31 +1350,8 @@
         });
     }
 
-    // Glass's runs in its own window, opened here inside the
-    // submit so no popup rule refuses it, and the Case record stays open with
-    // its edit lease alive. The form's own target="_blank" stands when the
-    // window is refused, and is the no-script path.
-    function bindGlassWindow(root) {
-        Array.prototype.slice.call((root || document).querySelectorAll('form[data-glass-window]')).forEach(function (form) {
-            if (form.dataset.glassWindowBound) { return; }
-            form.dataset.glassWindowBound = 'true';
-            form.addEventListener('submit', function () {
-                var opened = window.open('', 'pegasus-glass', 'popup=yes,width=1280,height=900');
-                if (opened) { form.target = 'pegasus-glass'; }
-            });
-        });
-    }
-
-    // The Glass's window hands its outcome back here: the Estimate section is
-    // reloaded without beaconing the edit scope away, exactly as a posted
-    // command keeps it.
-    window.pegasusGlassReturn = function (url) {
-        if (typeof window.pegasusHoldEditScopeRelease === 'function') { window.pegasusHoldEditScopeRelease(); }
-        window.location.assign(url);
-    };
-
-    bindReportRecipients(document); bindGlassWindow(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(function (root) { bindReportRecipients(root); bindGlassWindow(root); });
+    bindReportRecipients(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindReportRecipients);
 })();
 
 

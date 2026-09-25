@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Pegasus.Core;
+using Pegasus.Core.Assessment;
 
 namespace Pegasus.Infrastructure.Glass;
 
@@ -58,6 +59,7 @@ internal static class GlassFailure
     public const string VehicleIdentity = "glass.vehicle.identity";
     public const string DetailsRequest = "glass.details.request";
     public const string DetailsProfile = "glass.details.profile";
+    public const string DetailsIdentity = "glass.details.identity";
     public const string SelectRequest = "glass.select.request";
     public const string SelectCount = "glass.select.count";
     public const string StartRequest = "glass.start.request";
@@ -280,7 +282,7 @@ internal sealed partial class GlassMvaClient(
 
         var vrm = Text(created, "vrm");
         var id = Text(created, "id");
-        if (!SameRegistration(vrm, registration)
+        if (!GlassRepairEstimateSessionPolicy.SameRegistration(vrm, registration)
             || !long.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var numeric)
             || numeric <= 0)
         {
@@ -297,7 +299,8 @@ internal sealed partial class GlassMvaClient(
     /// settled on.
     /// </summary>
     public async Task RequireVehicleAsync(
-        string vehicleId, string natCode, CancellationToken cancellationToken)
+        string vehicleId, string natCode, string registration, long mileageMiles,
+        CancellationToken cancellationToken)
     {
         await TextAsync(
             new HttpRequestMessage(
@@ -321,11 +324,60 @@ internal sealed partial class GlassMvaClient(
             ajax: true,
             GlassFailure.DetailsRequest,
             cancellationToken);
-        if (!value.Contains(options.RepairProfileId, StringComparison.Ordinal)
-            || !value.Contains(natCode, StringComparison.Ordinal))
+        try
         {
-            throw new GlassMvaStageException(GlassFailure.DetailsProfile);
+            // Only named controls establish identity. Scripts, comments and unrelated
+            // text in the page can contain the right numbers for the wrong vehicle.
+            var controls = InertHtml().Replace(value, string.Empty);
+            var inputs = InputControl().Matches(controls).Cast<Match>()
+                .Select(match => Attributes(match.Groups[1].Value)).ToArray();
+            string? Field(string name)
+            {
+                var values = inputs.Where(input => input.GetValueOrDefault("name") == name)
+                    .Select(input => input.ContainsKey("disabled") ? null : input.GetValueOrDefault("value"))
+                    .Distinct(StringComparer.Ordinal).ToArray();
+                // The captured page repeats id in two forms. Equal repeats are valid;
+                // contradictory repeats or absent values do not identify a vehicle.
+                return values.Length == 1 ? values[0] : null;
+            }
+            var profiles = SelectControl().Matches(controls).Cast<Match>()
+                .Where(match => Attributes(match.Groups[1].Value).GetValueOrDefault("name") == "ere_profile")
+                .ToArray();
+            if (profiles.Length != 1 || Attributes(profiles[0].Groups[1].Value).ContainsKey("disabled")
+                || !OptionControl().Matches(profiles[0].Groups[2].Value).Cast<Match>()
+                    .Select(match => Attributes(match.Groups[1].Value))
+                    .Any(option => !option.ContainsKey("disabled")
+                        && option.GetValueOrDefault("value") == options.RepairProfileId))
+            {
+                throw new GlassMvaStageException(GlassFailure.DetailsProfile);
+            }
+            if (string.IsNullOrWhiteSpace(natCode) || Field("id") != vehicleId || Field("natcode") != natCode
+                || !GlassRepairEstimateSessionPolicy.SameRegistration(Field("registration_number"), registration)
+                || !long.TryParse(Field("mileage"), NumberStyles.None, CultureInfo.InvariantCulture, out var mileage)
+                || mileage != mileageMiles)
+            {
+                throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+            }
         }
+        catch (RegexMatchTimeoutException)
+        {
+            throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+        }
+    }
+
+    private static Dictionary<string, string> Attributes(string html)
+    {
+        var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in HtmlAttribute().Matches(html))
+        {
+            if (!attributes.TryAdd(match.Groups[1].Value,
+                WebUtility.HtmlDecode(match.Groups[2].Success ? match.Groups[2].Value
+                    : match.Groups[3].Success ? match.Groups[3].Value : match.Groups[4].Value)))
+            {
+                throw new GlassMvaStageException(GlassFailure.DetailsIdentity);
+            }
+        }
+        return attributes;
     }
 
     /// <summary>
@@ -886,16 +938,25 @@ internal sealed partial class GlassMvaClient(
             ? parsed
             : null;
 
-    /// <summary>
-    /// Whether two registrations are the same plate. Glass's prints its own
-    /// spacing and casing, so neither decides identity; nothing else about the
-    /// characters is normalised away.
-    /// </summary>
-    internal static bool SameRegistration(string? left, string? right) =>
-        string.Equals(Compact(left), Compact(right), StringComparison.OrdinalIgnoreCase);
+    [GeneratedRegex(@"<!--.*?-->|<(script|style)\b[^>]*>.*?</\1\s*>",
+        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+    private static partial Regex InertHtml();
 
-    private static string Compact(string? value) =>
-        new((value ?? string.Empty).Where(character => !char.IsWhiteSpace(character)).ToArray());
+    [GeneratedRegex("<input\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+    private static partial Regex InputControl();
+
+    [GeneratedRegex("<select\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>(.*?)</select\\s*>",
+        RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+    private static partial Regex SelectControl();
+
+    [GeneratedRegex("<option\\b((?:[^>\"']|\"[^\"]*\"|'[^']*')*)>",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 100)]
+    private static partial Regex OptionControl();
+
+    [GeneratedRegex("([a-zA-Z_:][a-zA-Z0-9_:.-]*)(?:\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+)))?",
+        RegexOptions.CultureInvariant, 100)]
+    private static partial Regex HtmlAttribute();
 
     [GeneratedRegex(
         @"name=""csrf_token""[^>]{0,200}?value=""([0-9a-fA-F]{32})""",
