@@ -311,9 +311,13 @@ public sealed partial class GlassRepairEstimateGateway(
         provider.CaseVersion = request.ExpectedCaseVersion;
         provider.LeaseToken = request.LeaseToken;
 
-        if (session.State == GlassRepairEstimateSessionState.AwaitingImport)
+        if (session.State == GlassRepairEstimateSessionState.AwaitingImport
+            || (session.State is GlassRepairEstimateSessionState.Importing or GlassRepairEstimateSessionState.Unknown
+                && results.Xml is not null))
         {
-            session = await WriteAsync(session, session.State, session.FailureCode, provider,
+            // Claim the import before touching custody or the Case. Close is
+            // unavailable while this claim is running, including after Resume.
+            session = await WriteAsync(session, GlassRepairEstimateSessionState.Importing, session.FailureCode, provider,
                 material.CallbackDigest, results, cancellationToken);
             // A retention whose answer was lost already has its identities, so
             // this asks custody what became of it instead of offering the same
@@ -337,7 +341,7 @@ public sealed partial class GlassRepairEstimateGateway(
                     "The Glass's session has no vehicle or estimate to look up, so its outcome stays for reconciliation.");
             }
 
-            session = await WriteAsync(session, session.State, session.FailureCode, provider,
+            session = await WriteAsync(session, GlassRepairEstimateSessionState.Importing, session.FailureCode, provider,
                 material.CallbackDigest, results, cancellationToken);
             provider.Cookies.Clear();
             var lookup = NewClient(provider.Cookies);

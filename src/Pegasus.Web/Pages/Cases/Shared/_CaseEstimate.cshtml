@@ -117,31 +117,6 @@
         ? null
         : $"{OperatorLabels.RepairSpecificationRoute(estimate.Source.Route)} · {OperatorLabels.OfficeTime(estimate.CreatedAtUtc)} · {estimate.Lines.Count} {(estimate.Lines.Count == 1 ? "line" : "lines")}";
 
-    // The Glass's outcome notice at the top of the section, one sentence per
-    // settled state; absent while a session is simply open.
-    string? glassNoticeTone = null;
-    string? glassNoticeText = null;
-    if (glassSession is not null)
-    {
-        switch (glassSession.State)
-        {
-            case GlassRepairEstimateSessionState.Completed:
-                glassNoticeTone = "notice--success";
-                glassNoticeText = GlassLabels.OutcomeMessage(glassSession.State);
-                break;
-            case GlassRepairEstimateSessionState.AwaitingImport:
-            case GlassRepairEstimateSessionState.Unknown:
-            case GlassRepairEstimateSessionState.Failed:
-                glassNoticeTone = "notice--warning";
-                glassNoticeText = GlassLabels.OutcomeMessage(glassSession.State);
-                break;
-            case GlassRepairEstimateSessionState.Cancelled:
-                glassNoticeTone = "";
-                glassNoticeText = GlassLabels.Closed;
-                break;
-        }
-    }
-
     var editLineAction = Url.Page("/Cases/Details", "EditLine", new { id = caseId, section = "estimate" });
     var lineOrigins = estimate?.Lines.ToDictionary(line => line.Id, line => line) ?? new Dictionary<Guid, CaseEstimateLineRecord>();
     var operations = new[]
@@ -693,14 +668,7 @@
         </div>
     </div>
     <div class="panel-body stack">
-        @if (glassNoticeText is not null)
-        {
-            <div class="notice @glassNoticeTone" role="status" data-estimate-notice>
-                <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
-                <span>@glassNoticeText</span>
-                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
-            </div>
-        }
+        <partial name="/Pages/Cases/Shared/_GlassOutcomeControl.cshtml" model="Model" />
 
         @if (Model.Estimates.Count > 0 || Model.EditingNewEstimate)
         {

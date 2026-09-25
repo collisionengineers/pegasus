@@ -1199,7 +1199,8 @@
             var parsed = new DOMParser().parseFromString(html, 'text/html');
             var nextLaunch = parsed.querySelector('[data-glass-controls="launch"]');
             var nextSession = parsed.querySelector('[data-glass-controls="session"]');
-            if (!nextLaunch || !nextSession) { throw new Error("Sign in again to refresh Glass's controls. Your Case changes are still here."); }
+            var nextOutcome = parsed.querySelector('[data-glass-controls="outcome"]');
+            if (!nextLaunch || !nextSession || !nextOutcome) { throw new Error("Sign in again to refresh Glass's controls. Your Case changes are still here."); }
             var current = record.querySelector('[data-glass-controls="session"]');
             if (current && current.dataset.glassId === nextSession.dataset.glassId
                 && Number(current.dataset.glassVersion) > Number(nextSession.dataset.glassVersion)) { return; }
@@ -1207,7 +1208,7 @@
             var focused = document.activeElement;
             var focusedHost = focused && focused.closest('[data-glass-controls]');
             var focusSelector = focusedHost && (focused.name ? '[name="' + focused.name + '"]' : focused.tagName.toLowerCase());
-            [nextLaunch, nextSession].forEach(function (next) {
+            [nextLaunch, nextOutcome, nextSession].forEach(function (next) {
                 var old = record.querySelector('[data-glass-controls="' + next.dataset.glassControls + '"]');
                 if (old) { old.replaceWith(next); bindMounted(next); }
             });
@@ -1223,16 +1224,21 @@
         return refreshGlassControls().catch(function (error) { showActionError(error.message); }).finally(finishGlassOpening);
     };
     function showGlassReturnNotice(state) {
-        var notices = document.querySelector('[data-case-notices]');
+        var host = record.querySelector('[data-glass-controls="outcome"]');
         var session = record.querySelector('[data-glass-controls="session"]');
-        if (!notices || !session) { return; }
-        var notice = notices.querySelector('[data-glass-notice]');
-        if (!notice) { notice = document.createElement('p'); notice.setAttribute('data-glass-notice', ''); notices.appendChild(notice); }
-        notice.className = state === 'Completed' ? 'notice notice--success mb-2' : 'notice mb-2';
-        notice.setAttribute('role', 'status');
-        notice.textContent = state === 'Completed'
+        if (!host || !session) { return; }
+        var text = state === 'Completed'
             ? (session.dataset.glassImportedDirty || "The Glass's estimate was recorded as a Draft. Your unsaved changes are still here. Save or cancel them to view it.")
             : (session.dataset.glassReturnedDirty || "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.");
+        var notice = host.querySelector('[data-estimate-notice]');
+        if (!notice) {
+            notice = document.createElement('p'); notice.setAttribute('data-estimate-notice', '');
+            notice.appendChild(document.createElement('span')); host.appendChild(notice);
+        }
+        host.hidden = false;
+        notice.className = state === 'Completed' ? 'notice notice--success' : 'notice';
+        notice.setAttribute('role', 'status');
+        notice.querySelector('span').textContent = text;
     }
     window.pegasusGlassReturn = function (url) {
         if (!samePage(url) || new URL(url, window.location.href).origin !== window.location.origin) {
