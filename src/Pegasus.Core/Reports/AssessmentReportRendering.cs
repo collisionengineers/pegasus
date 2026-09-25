@@ -262,7 +262,7 @@ public sealed record ReportRepairCosts(
             hours.PricedPanel,
             hours.PricedPaint,
             estimate.Details.HourlyRate,
-            EstimateTotals.ForProjection(estimate));
+            EstimateTotals.Compute(estimate));
     }
 
     [JsonIgnore]

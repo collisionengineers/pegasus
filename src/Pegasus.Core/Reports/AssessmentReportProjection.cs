@@ -110,9 +110,16 @@ public static class AssessmentReportProjection
         {
             reasons.Add(CaseReportReadiness.CurrentEstimateMissing);
         }
-        else if (currentEstimate.Details.HourlyRate <= 0m)
+        else
         {
-            reasons.Add(CaseReportReadiness.LabourRateMissing);
+            if (currentEstimate.Lines.Count == 0)
+            {
+                reasons.Add(CaseReportReadiness.CurrentEstimateEmpty);
+            }
+            if (currentEstimate.Details.HourlyRate <= 0m)
+            {
+                reasons.Add(CaseReportReadiness.LabourRateMissing);
+            }
         }
 
         return new(reasons);
@@ -311,7 +318,7 @@ public static class AssessmentReportProjection
     }
 
     /// <summary>
-    /// The Case display and report share the same accepted settlement figures.
+    /// The Case display and report share the same settlement figures.
     /// Incomplete calculation inputs withhold the projection; they never
     /// become zero-valued facts. Repair days belong to Current.
     /// </summary>
@@ -320,7 +327,7 @@ public static class AssessmentReportProjection
         RepairSpecificationVersion? currentEstimate)
     {
         ArgumentNullException.ThrowIfNull(assessment);
-        if (currentEstimate is not { IsCurrent: true, State: RepairSpecificationState.Accepted }
+        if (currentEstimate is not { IsCurrent: true }
             || assessment.Field(AssessmentVocabulary.ValueEngineer) is not { } value
             || ParseMoney(value.Value) is not { } engineerValue)
         {

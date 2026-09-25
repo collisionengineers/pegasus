@@ -260,61 +260,56 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 RecordedBy = engineer,
                 RecordedAtUtc = recordedAt
             }));
-        var recordedBreakdown = new EstimateCalculationBreakdown(
-            RepairSpecificationPolicy.PolicyVersion,
-            20m,
-            new EstimateRawTotals(
-                Parts: 200m,
-                PanelLabour: 100m,
-                PaintLabour: 0m,
-                Materials: 50m,
-                Specialist: 0m,
-                OffPattern: 0m,
-                Category: 350m,
-                Net: 350m,
-                Taxable: 350m,
-                Vat: 70m,
-                Gross: 420m),
-            new EstimatePrintedTotals(
-                Parts: 200m,
-                PanelLabour: 100m,
-                PaintLabour: 0m,
-                Materials: 50m,
-                Specialist: 0m,
-                Net: 350m,
-                Vat: 70m,
-                Gross: 420m));
-
-        context.Set<CaseRepairSpecificationEntity>().Add(new()
+        // The Current repair spec: a 200 part carrying 50 materials and 2.5
+        // panel hours at 40, costed live by the one totals owner.
+        var specification = new CaseRepairSpecificationEntity
         {
             Id = Guid.NewGuid(),
             WorkId = caseId,
             Version = 1,
-            State = RepairSpecificationState.Accepted.ToString(),
+            State = RepairSpecificationState.Draft.ToString(),
             SourceRoute = RepairSpecificationSourceRoute.Manual.ToString(),
-            CalculationLabour = 100m,
-            CalculationParts = 200m,
-            CalculationPaintMaterials = 50m,
-            CalculationSpecialistOther = 0m,
-            RepairerVatRegistered = true,
-            CalculationVat = 70m,
-            CalculationTotal = 420m,
-            CalculationPolicyVersion =
-                $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}",
-            CalculationBreakdownJson = JsonSerializer.Serialize(
-                recordedBreakdown,
-                EfRepairSpecificationStore.JsonOptions),
             CreatedBy = engineer,
             CreationOperationKey = "report-ready-estimate",
             CreatedAtUtc = recordedAt,
-            AcceptedBy = engineer,
-            AcceptedAtUtc = recordedAt,
             Name = "Engineer's",
             LabourRate = 40m,
             OtherCosts = 0m,
             VatPercent = 20m,
+            RepairerVatStatus = nameof(RepairerVatStatus.Registered),
             IsCurrent = true
+        };
+        specification.Lines.Add(new CaseEstimateLineEntity
+        {
+            Id = Guid.NewGuid(),
+            WorkId = caseId,
+            RepairSpecification = specification,
+            Position = 1,
+            LineType = "new_part",
+            Description = "Rear bumper",
+            Price = 200m,
+            Materials = 50m,
+            Quantity = 1,
+            Operation = nameof(EstimateOperation.Replace),
+            RecordedByKind = ActorKind.Staff.ToString(),
+            RecordedBy = engineer,
+            RecordedAtUtc = recordedAt
         });
+        specification.Lines.Add(new CaseEstimateLineEntity
+        {
+            Id = Guid.NewGuid(),
+            WorkId = caseId,
+            RepairSpecification = specification,
+            Position = 2,
+            LineType = "repair",
+            Description = "Repair quarter panel",
+            WorkUnits = 2.5m,
+            Operation = nameof(EstimateOperation.Repair),
+            RecordedByKind = ActorKind.Staff.ToString(),
+            RecordedBy = engineer,
+            RecordedAtUtc = recordedAt
+        });
+        context.Set<CaseRepairSpecificationEntity>().Add(specification);
         await context.SaveChangesAsync();
     }
 
@@ -413,20 +408,15 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     // absent: a finding is recorded only by staff, and the
                     // Engineer's Value and its basis card's retail and trade
                     // are recorded only by a Case Save's adoption.
-                },
-                [
-                    new("repair", null, "Repair nearside door", 3.5m, null, false, null, null,
-                        "estimated", "judgement", "Visible panel damage"),
-                    new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
-                        "confirmed", "official", "Distorted beyond repair")
-                ]),
+                }),
             CancellationToken.None);
 
         Assert.Equal(1, saved.CaseVersion);
         Assert.Equal(3, saved.Fields.Count);
         Assert.All(saved.Fields, field => Assert.Equal(ActorKind.Automation, field.RecordedByKind));
-        Assert.Equal(2, saved.EstimateLines.Count);
-        Assert.All(saved.EstimateLines, line => Assert.Equal(ActorKind.Automation, line.RecordedByKind));
+        // An assessment save writes fields only; the lines are the Current
+        // repair spec's, and none is in use yet.
+        Assert.Empty(saved.EstimateLines);
         // No value waits for a review: nothing names a recorded field because
         // of who recorded it.
         Assert.DoesNotContain(saved.Readiness, item => item.Requirement.Contains("review", StringComparison.OrdinalIgnoreCase));
@@ -617,7 +607,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var lease1 = await harness.AcquireLeaseAsync(caseId, 0, actor, "replay-lease-1");
         var create = new SaveEstimateRequest(caseId, 0, actor, "replay-K1", "Recorded an estimate.",
             lease1.Token, null, new("Repairer", 40m, null, 20m),
-            [new("repair", null, "Repair door", 2m, null, false, null, null, "confirmed", "judgement", null)],
+            [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
             new(RepairSpecificationSourceRoute.Manual, null, null, null));
         var first = await save.ExecuteAsync(create, default);
         var lease2 = await harness.AcquireLeaseAsync(caseId, 1, actor, "replay-lease-2");
@@ -689,7 +679,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         async Task<CaseEditLease> LeaseAsync(ActionActor actor, string key) =>
             await harness.AcquireLeaseAsync(caseId, version, actor, key);
 
-        // Two Engineer estimates on one case: both Drafts, staff lines confirmed.
+        // A staff member's first estimate is the one the Case uses at once
+        // (operator, 25 September 2026): there is no separate acceptance.
         var leaseA = await LeaseAsync(engineer, "estimate-lease-a");
         var repairer = await save.ExecuteAsync(
             new(caseId, leaseA.Version, engineer, "estimate-save-a", "Recorded the repairer's estimate.",
@@ -698,11 +689,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
                 [
                     new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
-                        "confirmed", "official", null, Quantity: 1, Materials: 25m),
+                        "official", null, Quantity: 1, Materials: 25m),
                     new("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
-                        "confirmed", "judgement", null),
+                        "judgement", null),
                     new("paint_repair", null, "Paint door", null, null, false, null, null,
-                        "confirmed", "judgement", null, PaintWorkUnits: 1.5m),
+                        "judgement", null, PaintWorkUnits: 1.5m),
                 ],
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
@@ -711,21 +702,16 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal("Repairer", repairer.Details.Name);
         Assert.Equal(3, repairer.Lines.Count);
         Assert.All(repairer.Lines, line => Assert.Equal(ActorKind.Staff, line.RecordedByKind));
-        Assert.False(repairer.IsCurrent);
+        Assert.True(repairer.IsCurrent);
+        // The canonical B04 arithmetic: the one 40.00 hourly rate prices
+        // panel (2.5h = 100.00) and paint (1.5h = 60.00) alike, and the
+        // line materials (25.00) join Materials.
+        Assert.Equal(220.40m + 100m + 60m + 25m, EstimateTotals.Compute(repairer).Printed.Net);
+        Assert.Equal(repairer.SpecificationId,
+            (await harness.RepairSpecifications.GetCurrentAsync(caseId, CancellationToken.None))!.SpecificationId);
 
-        var leaseB = await LeaseAsync(engineer, "estimate-lease-b");
-        var engineers = await save.ExecuteAsync(
-            new(caseId, leaseB.Version, engineer, "estimate-save-b", "Recorded the Engineer's own estimate.",
-                leaseB.Token, null,
-                new("Engineer's", 45m, 0m, 0m,
-                    Vat: EstimateVatPolicy.For(RepairerVatStatus.NotRegistered)),
-                [new("repair", null, "Repair nearside door", 2m, null, false, null, null, "confirmed", "judgement", null)],
-                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
-            CancellationToken.None);
-        version++;
-        Assert.Equal(2, engineers.Version);
-
-        // Duplicate: "<name> copy", Draft, Manual, lines cloned.
+        // Duplicate is a working copy: "<name> copy", Draft, Manual, lines
+        // cloned, and not in use.
         var leaseCopy = await LeaseAsync(engineer, "estimate-lease-copy");
         var copy = await duplicate.ExecuteAsync(
             new(caseId, leaseCopy.Version, engineer, "estimate-duplicate", "Working copy.",
@@ -737,90 +723,95 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(RepairSpecificationSourceRoute.Manual, copy.Source.Route);
         Assert.Equal(3, copy.Lines.Count);
         Assert.Equal(repairer.Details.LabourRate, copy.Details.LabourRate);
+        Assert.False(copy.IsCurrent);
 
-        // Use estimate: the Draft is accepted with the totals owner's basis and becomes Current.
-        var leaseUseA = await LeaseAsync(engineer, "estimate-lease-use-a");
-        var useA = new SetCurrentEstimateRequest(
-            caseId, leaseUseA.Version, engineer, "estimate-use-a", "Use the repairer's estimate.",
-            leaseUseA.Token, repairer.SpecificationId);
-        var currentA = await setCurrent.ExecuteAsync(useA, CancellationToken.None);
-        version++;
-        Assert.Equal(RepairSpecificationState.Accepted, currentA.State);
-        Assert.True(currentA.IsCurrent);
-        var totalsA = EstimateTotals.Compute(currentA);
-        // The canonical B04 arithmetic: the one 40.00 hourly rate prices
-        // panel (2.5h = 100.00) and paint (1.5h = 60.00) alike — the
-        // separate paint rate is gone — and the estimate-level paint
-        // materials (25.00) join Materials.
-        Assert.Equal(220.40m + 100m + 60m + 25m, totalsA.Printed.Net);
-        Assert.Equal(totalsA.Printed.Gross, currentA.CalculationBasis!.Total);
-        Assert.Equal(totalsA.Printed.Vat, currentA.CalculationBasis.Vat);
-        Assert.Equal(currentA.SpecificationId,
-            (await harness.RepairSpecifications.GetCurrentAcceptedAsync(caseId, CancellationToken.None))!.SpecificationId);
-        // Replay returns the same estimate without a second mutation.
-        Assert.Equal(currentA.SpecificationId,
-            (await setCurrent.ExecuteAsync(useA, CancellationToken.None)).SpecificationId);
-
+        // Use repair spec on the estimate already in use changes nothing a
+        // generated report pinned; its replay returns the same estimate.
         var (currentGenerationId, supersededGenerationId) = await SeedGenerationsAsync(harness, caseId);
         var leaseReselectA = await LeaseAsync(engineer, "estimate-lease-reselect-a");
-        var reselectedA = await setCurrent.ExecuteAsync(
-            new(caseId, leaseReselectA.Version, engineer, "estimate-reselect-a", "Keep using the repairer's estimate.",
-                leaseReselectA.Token, repairer.SpecificationId),
-            CancellationToken.None);
+        var reselectA = new SetCurrentEstimateRequest(
+            caseId, leaseReselectA.Version, engineer, "estimate-reselect-a", "Keep using the repairer's estimate.",
+            leaseReselectA.Token, repairer.SpecificationId);
+        var reselectedA = await setCurrent.ExecuteAsync(reselectA, CancellationToken.None);
         version++;
-        Assert.Equal(currentA.SpecificationId, reselectedA.SpecificationId);
+        Assert.Equal(repairer.SpecificationId, reselectedA.SpecificationId);
+        Assert.Equal(repairer.SpecificationId,
+            (await setCurrent.ExecuteAsync(reselectA, CancellationToken.None)).SpecificationId);
         Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentGenerationId:D}'"));
         Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededGenerationId:D}'"));
         Assert.Equal(0, await StaleRowCountAsync(harness, caseId));
 
-        // Switching Current clears the previous in the same transaction; A stays Accepted.
-        var leaseUseB = await LeaseAsync(engineer, "estimate-lease-use-b");
-        var currentB = await setCurrent.ExecuteAsync(
-            new(caseId, leaseUseB.Version, engineer, "estimate-use-b", "Use the Engineer's estimate.",
-                leaseUseB.Token, engineers.SpecificationId),
+        // A second staff estimate replaces the first as Current in the same
+        // save, and the generation that costed the first goes stale.
+        var leaseB = await LeaseAsync(engineer, "estimate-lease-b");
+        var engineers = await save.ExecuteAsync(
+            new(caseId, leaseB.Version, engineer, "estimate-save-b", "Recorded the Engineer's own estimate.",
+                leaseB.Token, null,
+                new("Engineer's", 45m, 0m, 0m,
+                    Vat: EstimateVatPolicy.For(RepairerVatStatus.NotRegistered)),
+                [new("repair", null, "Repair nearside door", 2m, null, false, null, null, "judgement", null)],
+                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
         version++;
-        Assert.True(currentB.IsCurrent);
+        Assert.Equal(3, engineers.Version);
+        Assert.True(engineers.IsCurrent);
         Assert.Equal("Stale", await harness.Database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentGenerationId:D}'"));
         Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededGenerationId:D}'"));
         Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
-        Assert.Equal(CaseReportStaleReasons.EstimateChanged, await LatestStaleReasonAsync(harness, caseId));
+        Assert.Equal("current_estimate_saved", await LatestStaleReasonAsync(harness, caseId));
         var listed = await list.ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
         Assert.Equal(3, listed.Count);
-        Assert.Single(listed, item => item.IsCurrent);
-        Assert.Equal(RepairSpecificationState.Accepted,
-            listed.Single(item => item.SpecificationId == repairer.SpecificationId).State);
-        Assert.Equal(currentB.SpecificationId,
-            (await harness.RepairSpecifications.GetCurrentAcceptedAsync(caseId, CancellationToken.None))!.SpecificationId);
-        Assert.Equal(copy.SpecificationId,
-            (await harness.RepairSpecifications.GetCurrentDraftAsync(caseId, CancellationToken.None))!.SpecificationId);
+        Assert.Equal(engineers.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
+        Assert.All(listed, item => Assert.Equal(RepairSpecificationState.Draft, item.State));
+        Assert.Equal(engineers.SpecificationId,
+            (await harness.RepairSpecifications.GetCurrentAsync(caseId, CancellationToken.None))!.SpecificationId);
 
-        // An accepted estimate is neither discarded nor edited; the copy is discarded with its reason.
+        // Use repair spec switches back, clearing the previous Current in the
+        // same transaction.
+        var leaseUseA = await LeaseAsync(engineer, "estimate-lease-use-a");
+        var currentA = await setCurrent.ExecuteAsync(
+            new(caseId, leaseUseA.Version, engineer, "estimate-use-a", "Use the repairer's estimate.",
+                leaseUseA.Token, repairer.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.True(currentA.IsCurrent);
+        listed = await list.ExecuteAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(repairer.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
+
+        // The estimate in use is edited in place, never discarded; the copy
+        // is discarded with its reason.
         var leaseRefused = await LeaseAsync(engineer, "estimate-lease-refused");
         await Assert.ThrowsAsync<InvalidOperationException>(() => discard.ExecuteAsync(
-            new(caseId, leaseRefused.Version, engineer, "estimate-discard-accepted", "Not wanted.",
+            new(caseId, leaseRefused.Version, engineer, "estimate-discard-current", "Not wanted.",
                 leaseRefused.Token, repairer.SpecificationId),
             CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => save.ExecuteAsync(
-            new(caseId, leaseRefused.Version, engineer, "estimate-edit-accepted", "Change it.",
-                leaseRefused.Token, engineers.SpecificationId, engineers.Details, [],
-                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
-            CancellationToken.None));
+        var edited = await save.ExecuteAsync(
+            new(caseId, leaseRefused.Version, engineer, "estimate-edit-current", "Renamed the estimate in use.",
+                leaseRefused.Token, repairer.SpecificationId, currentA.Details with { Name = "Repairer agreed" },
+                [.. currentA.Lines.Select(RepairSpecificationScaling.ToInput)],
+                currentA.Source,
+                ExistingLineIds: [.. currentA.Lines.Select(line => (Guid?)line.Id)]),
+            CancellationToken.None);
+        version++;
+        Assert.Equal(repairer.SpecificationId, edited.SpecificationId);
+        Assert.Equal("Repairer agreed", edited.Details.Name);
+        Assert.True(edited.IsCurrent);
+        var leaseDiscard = await LeaseAsync(engineer, "estimate-lease-discard");
         var discarded = await discard.ExecuteAsync(
-            new(caseId, leaseRefused.Version, engineer, "estimate-discard-copy", "Superfluous copy.",
-                leaseRefused.Token, copy.SpecificationId),
+            new(caseId, leaseDiscard.Version, engineer, "estimate-discard-copy", "Superfluous copy.",
+                leaseDiscard.Token, copy.SpecificationId),
             CancellationToken.None);
         version++;
         Assert.Equal(RepairSpecificationState.Discarded, discarded.State);
         Assert.Equal("Superfluous copy.", discarded.DiscardReason);
-        Assert.Null(await harness.RepairSpecifications.GetCurrentDraftAsync(caseId, CancellationToken.None));
 
-        // AI draft: the Automation actor cites the Estimate job it holds; the lines carry its
-        // provenance; the Engineer's "Use estimate" accepts the Draft and completes the Draft-ready job.
+        // AI draft: the Automation actor cites the Estimate job it holds; the
+        // draft only proposes, so it is not in use until a staff member's
+        // Use repair spec, which also completes the Draft-ready job.
         var job = await jobs.CreateAsync(
             new(AiJobKind.Estimate, AiJobSubjectKind.Case, caseId, outcome.Identity.Reference,
                 "Draft an estimate at 60 % of the Engineer's Value.", 60, 12000m, engineer,
@@ -834,20 +825,19 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var aiDraft = await save.ExecuteAsync(
             new(caseId, leaseAi.Version, harness.AutomationActor, "mcp:estimate-save-ai", "AI drafted an estimate.",
                 leaseAi.Token, null,
-                // The AI path records no VAT policy of its own, so this draft
-                // carries the status the Engineer recorded on it before using it.
-                // What happens when none is recorded is proved by
-                // AnUnknownRepairerVatStatusBlocksUseAsCurrentUntilItOrTheCategoriesAreRecorded.
                 new("Claude draft", 40m, 0m, 20m,
                     Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-                [new("repair", null, "Repair nearside door", 3m, null, false, null, null, "estimated", "judgement", "Visible damage")],
+                [new("repair", null, "Repair nearside door", 3m, null, false, null, null, "judgement", "Visible damage")],
                 new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
                 job.JobId),
             CancellationToken.None);
         version++;
         Assert.Equal(RepairSpecificationSourceRoute.AiDraft, aiDraft.Source.Route);
         Assert.Equal(job.JobId, aiDraft.AiJobId);
+        Assert.False(aiDraft.IsCurrent);
         Assert.All(aiDraft.Lines, line => Assert.Equal(ActorKind.Automation, line.RecordedByKind));
+        Assert.Equal(repairer.SpecificationId,
+            (await harness.RepairSpecifications.GetCurrentAsync(caseId, CancellationToken.None))!.SpecificationId);
         await jobs.TransitionAsync(
             new(job.JobId, taken.Version, AiJobState.DraftReady, harness.AutomationActor, "estimate-job-ready",
                 Result: new(AiJobResultKind.Estimate, aiDraft.SpecificationId.ToString("D"), null)),
@@ -921,7 +911,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     lease.Token,
                     null,
                     new("Read-only estimate", 40m, null, 20m),
-                    [new("repair", null, "Repair door", 2m, null, false, null, null, "confirmed", "judgement", null)],
+                    [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
                     new(RepairSpecificationSourceRoute.Manual, null, null, null)),
                 CancellationToken.None));
         Assert.Contains("read-only", estimateRefusal.Message, StringComparison.Ordinal);
@@ -931,7 +921,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task ImportedDocumentStorePreservesAuthorityOnReplayAndRequiresEngineerAcceptance()
+    public async Task ImportedDocumentStorePreservesAuthorityOnReplayAndPutsAStaffImportInUse()
     {
         await using var harness = await Harness.CreateAsync();
         var caseId = (await harness.AcceptAsync("import-store-case")).Identity.CaseId;
@@ -982,9 +972,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             await store.RequireImportAuthorityAsync(authority, default);
             await store.RequireImportAuthorityAsync(authority, default);
             imported = await store.SaveImportedEstimateAsync(request, default);
+            // A staff member's import is the repair spec the Case uses at once.
             Assert.Equal(RepairSpecificationState.Draft, imported.State);
-            Assert.False(imported.IsCurrent);
-            Assert.Null(await store.GetCurrentAcceptedAsync(caseId, default));
+            Assert.True(imported.IsCurrent);
+            Assert.Equal(imported.SpecificationId, (await store.GetCurrentAsync(caseId, default))!.SpecificationId);
             await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.RequireImportAuthorityAsync(authority, default));
             await Assert.ThrowsAsync<CaseVersionConflictException>(() => store.SaveImportedEstimateAsync(request, default));
         }
@@ -1042,10 +1033,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         }, default);
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
         var use = new SetCurrentEstimate(harness.RepairSpecifications, jobs, new ConfirmAiJob(jobs), harness.Clock);
-        var useRequest = new SetCurrentEstimateRequest(caseId, 1, engineer, "import-store-use", "Use estimate.", live.Token, imported.SpecificationId);
+        var useRequest = new SetCurrentEstimateRequest(caseId, 1, engineer, "import-store-use", "Use repair spec.", live.Token, imported.SpecificationId);
         await Assert.ThrowsAsync<InvalidOperationException>(() => use.ExecuteAsync(useRequest with { Actor = harness.AutomationActor }, default));
-        var accepted = await use.ExecuteAsync(useRequest, default);
-        Assert.True(accepted.IsCurrent);
+        var inUse = await use.ExecuteAsync(useRequest, default);
+        Assert.True(inUse.IsCurrent);
         Assert.Single(await harness.RepairSpecifications.ListEstimatesAsync(caseId, CaseWorkSelector.Current, default));
         Assert.Equal(2, (await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
     }
@@ -1102,11 +1093,11 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     /// categories that position charges, and the rate card the one rate came
     /// from; every line keeps the facts the editor never shows - its
     /// materials, the values the source document stated, the document and
-    /// row it came from, and its amendment attribution. The row's frozen
-    /// breakdown is the one totals owner's own raw and printed figures.
+    /// row it came from, and its amendment attribution. The money is the one
+    /// totals owner's live calculation over what was recorded.
     /// </summary>
     [Fact]
-    public async Task AnEstimatesCanonicalHeaderLinesAndBreakdownRoundTrip()
+    public async Task AnEstimatesCanonicalHeaderAndLinesRoundTrip()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("estimate-canonical-accept");
@@ -1138,7 +1129,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var lines = new[]
         {
             new EstimateLineInput("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
-                "confirmed", "official", null, Quantity: 1, Materials: 12.50m,
+                "official", null, Quantity: 1, Materials: 12.50m,
                 Origin: origin,
                 SourceDocumentIdentity: "estimate-import:estimate-canonical-save",
                 SourceDocumentVersionId: documentVersionId,
@@ -1147,7 +1138,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 AmendedBy: engineer.SubjectId,
                 AmendedAtUtc: amendedAtUtc),
             new EstimateLineInput("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
-                "confirmed", "judgement", null, Materials: 25m),
+                "judgement", null, Materials: 25m),
         };
         var source = new RepairSpecificationSource(RepairSpecificationSourceRoute.Manual, null, null, null);
 
@@ -1225,15 +1216,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Null(labour.AmendedBy);
 
         var totals = EstimateTotals.Compute(read);
-        var breakdown = JsonSerializer.Deserialize<EstimateCalculationBreakdown>(
-            await harness.Database.ScalarAsync<string>(
-                "SELECT CalculationBreakdownJson FROM CaseRepairSpecifications "
-                + $"WHERE Id = '{saved.SpecificationId:D}'"),
-            EfRepairSpecificationStore.JsonOptions)!;
-        Assert.Equal(RepairSpecificationPolicy.PolicyVersion, breakdown.CalculationPolicyVersion);
-        Assert.Equal(20m, breakdown.VatPercent);
-        Assert.Equal(totals.Raw, breakdown.Raw);
-        Assert.Equal(totals.Printed, breakdown.Printed);
+        Assert.Equal(RepairSpecificationPolicy.PolicyVersion, totals.CalculationPolicyVersion);
+        Assert.Equal(20m, totals.VatPercent);
         // A repairer who is not VAT registered charges parts and materials
         // and never labour, so the printed VAT stands on that base alone.
         Assert.Equal(
@@ -1245,121 +1229,212 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
-    /// An accepted estimate is a frozen report input: it is duplicated to be
-    /// revised, never edited, and the copy's later acceptance leaves the
-    /// original's calculation policy version, its basis and its recorded
-    /// breakdown exactly as they were.
+    /// A staff import is the Case's Current repair spec at once, priced on
+    /// the labour-rate card the import selected; the store resolves the
+    /// card's rate inside its own transaction (operator, 25 September 2026).
     /// </summary>
     [Fact]
-    public async Task AnAcceptedEstimatesBreakdownAndPolicyVersionSurviveALaterRevision()
+    public async Task AStaffImportIsInUseAtOnceOnTheSelectedRateCard()
     {
         await using var harness = await Harness.CreateAsync();
-        var outcome = await harness.AcceptAsync("estimate-frozen-accept");
-        var caseId = outcome.Identity.CaseId;
+        var caseId = (await harness.AcceptAsync("import-in-use-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var rateCard = await new EfLabourRateCardStore(harness.Factory, harness.Clock).SaveAsync(
+            new(Guid.NewGuid(), "80", 80m, true, 0,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                "Create rate", "import-in-use-rate-create"),
+            CancellationToken.None);
+        var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "import-in-use-lease");
+
+        var imported = await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            new(caseId, 0, engineer, "import-in-use-save", ImportRawEstimate.ImportReason,
+                lease.Token, null, new("Glass's 1", null, null, 20m), parsed.Lines,
+                new(RepairSpecificationSourceRoute.Glasses, "estimate-import:in-use", parsed.SourceVersion, hash))
+            {
+                SelectedRateCardId = rateCard.Id,
+                SelectedRateCardVersion = rateCard.Version,
+            },
+            CancellationToken.None);
+
+        Assert.True(imported.IsCurrent);
+        Assert.Equal(RepairSpecificationState.Draft, imported.State);
+        Assert.Equal(80m, imported.Details.LabourRate);
+        Assert.Equal(new EstimateRateSnapshot(rateCard.Id, rateCard.Version, 80m), imported.Details.Rate);
+        Assert.Equal(RepairerVatStatus.Unknown, imported.Details.VatPolicy.RepairerStatus);
+        var current = (await harness.RepairSpecifications.GetCurrentAsync(caseId, CancellationToken.None))!;
+        Assert.Equal(imported.SpecificationId, current.SpecificationId);
+        Assert.Equal(80m, current.Details.HourlyRate);
+    }
+
+    /// <summary>
+    /// The Case Save of a new typed spec replaces the Current one in the same
+    /// transaction. The filtered unique index allows one Current row per work,
+    /// so the previous Current is cleared before the new row lands.
+    /// </summary>
+    [Fact]
+    public async Task ANewTypedSpecReplacesTheCurrentOneInOneCaseSave()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("typed-replaces-current-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var workspace = new EfCaseWorkspaceStore(harness.Factory, harness.Clock);
+
+        var firstLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "typed-current-lease-1");
+        var first = await workspace.SaveAsync(
+            new SaveCaseWorkspaceRequest(caseId, firstLease.Version, engineer, "typed-current-save-1",
+                "Recorded the repairer's spec.", firstLease.Token)
+            {
+                Estimate = new(null, new("Repairer", 40m, 0m, 20m),
+                    [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)]),
+            },
+            CancellationToken.None);
+        var firstSpec = Assert.IsType<RepairSpecificationVersion>(first.Estimate);
+        Assert.True(firstSpec.IsCurrent);
+
+        var (currentGenerationId, _) = await SeedGenerationsAsync(harness, caseId);
+        var secondLease = await harness.AcquireLeaseAsync(caseId, first.Version, engineer, "typed-current-lease-2");
+        var second = await workspace.SaveAsync(
+            new SaveCaseWorkspaceRequest(caseId, secondLease.Version, engineer, "typed-current-save-2",
+                "Recorded the Engineer's own spec.", secondLease.Token)
+            {
+                Estimate = new(null, new("Engineer's", 45m, 0m, 20m),
+                    [new("new_part", null, "Door skin", null, 220.40m, false, "P-1", null, "official", null, Quantity: 1)]),
+            },
+            CancellationToken.None);
+
+        var secondSpec = Assert.IsType<RepairSpecificationVersion>(second.Estimate);
+        Assert.True(secondSpec.IsCurrent);
+        Assert.Equal(first.Version + 1, second.Version);
+        var listed = await harness.RepairSpecifications.ListEstimatesAsync(
+            caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(2, listed.Count);
+        Assert.Equal(secondSpec.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
+        Assert.False(listed.Single(item => item.SpecificationId == firstSpec.SpecificationId).IsCurrent);
+        // The report that costed the first spec is out of date.
+        Assert.Equal("Stale", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentGenerationId:D}'"));
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var history = await context.ActionHistory.AsNoTracking()
+            .Where(item => item.AggregateId == caseId.ToString("D") && item.CorrelationId == "typed-current-save-2")
+            .Select(item => item.EventKind)
+            .ToArrayAsync();
+        Assert.Equal(["case_workspace_saved"], history);
+    }
+
+    /// <summary>
+    /// The spec in use is edited in place: the edit keeps it Current and
+    /// stales the report that costed it. An edit of another spec does not.
+    /// </summary>
+    [Fact]
+    public async Task EditingTheSpecInUseKeepsItCurrentAndStalesTheReport()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("edit-in-use-case")).Identity.CaseId;
         var engineer = harness.EngineerActor;
         var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
         var save = new SaveEstimate(harness.RepairSpecifications, jobs, harness.Clock);
         var duplicate = new DuplicateEstimate(harness.RepairSpecifications);
-        var setCurrent = new SetCurrentEstimate(
-            harness.RepairSpecifications, jobs, new ConfirmAiJob(jobs), harness.Clock);
-        long version = 0;
 
-        async Task<CaseEditLease> LeaseAsync(string key) =>
-            await harness.AcquireLeaseAsync(caseId, version, engineer, key);
-
-        var saveLease = await LeaseAsync("estimate-frozen-lease-save");
-        var original = await save.ExecuteAsync(
-            new(caseId, saveLease.Version, engineer, "estimate-frozen-save",
-                "Recorded the repairer's estimate.", saveLease.Token, null,
-                new("Repairer", 40m, 0m, 20m,
-                    Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-                [
-                    new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
-                        "confirmed", "official", null, Quantity: 1, Materials: 25m),
-                    new("repair", null, "Repair nearside door", 2.5m, null, false, null, null,
-                        "confirmed", "judgement", null),
-                ],
+        var createLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "edit-in-use-lease-create");
+        var inUse = await save.ExecuteAsync(
+            new(caseId, createLease.Version, engineer, "edit-in-use-create", "Recorded the spec.",
+                createLease.Token, null, new("Repairer", 40m, 0m, 20m),
+                [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
-        version++;
-
-        var useLease = await LeaseAsync("estimate-frozen-lease-use");
-        var accepted = await setCurrent.ExecuteAsync(
-            new(caseId, useLease.Version, engineer, "estimate-frozen-use",
-                "Use the repairer's estimate.", useLease.Token, original.SpecificationId),
-            CancellationToken.None);
-        version++;
-        var acceptedBasis = accepted.CalculationBasis!;
-        var acceptedBreakdown = await ReadBreakdownJsonAsync(harness, original.SpecificationId);
-        Assert.Equal(
-            $"repair-specification/v{RepairSpecificationPolicy.PolicyVersion}",
-            acceptedBasis.PolicyVersion);
-        Assert.Equal(EstimateTotals.Compute(accepted).Printed, acceptedBasis.Printed);
-
-        // Revision is a duplicate with its own figures, made current in turn.
-        var copyLease = await LeaseAsync("estimate-frozen-lease-copy");
+        Assert.True(inUse.IsCurrent);
+        var copyLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "edit-in-use-lease-copy");
         var copy = await duplicate.ExecuteAsync(
-            new(caseId, copyLease.Version, engineer, "estimate-frozen-duplicate",
-                "Revise the repairer's figures.", copyLease.Token, original.SpecificationId),
+            new(caseId, copyLease.Version, engineer, "edit-in-use-copy", "Working copy.",
+                copyLease.Token, inUse.SpecificationId),
             CancellationToken.None);
-        version++;
-        var editLease = await LeaseAsync("estimate-frozen-lease-edit");
+        Assert.False(copy.IsCurrent);
+
+        var (currentGenerationId, _) = await SeedGenerationsAsync(harness, caseId);
+        var copyEditLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "edit-in-use-lease-copy-edit");
         await save.ExecuteAsync(
-            new(caseId, editLease.Version, engineer, "estimate-frozen-edit",
-                "Repriced at the agreed rate.", editLease.Token, copy.SpecificationId,
-                copy.Details with { LabourRate = 55m },
-                [
-                    new("new_part", null, "Door skin", null, 310.00m, false, "P-1234", null,
-                        "confirmed", "official", null, Quantity: 1),
-                    new("repair", null, "Repair nearside door", 4m, null, false, null, null,
-                        "confirmed", "judgement", null),
-                ],
+            new(caseId, copyEditLease.Version, engineer, "edit-in-use-copy-edit", "Repriced the copy.",
+                copyEditLease.Token, copy.SpecificationId, copy.Details with { LabourRate = 55m },
+                [.. copy.Lines.Select(RepairSpecificationScaling.ToInput)], copy.Source,
+                ExistingLineIds: [.. copy.Lines.Select(line => (Guid?)line.Id)]),
+            CancellationToken.None);
+        Assert.Equal(0, await StaleRowCountAsync(harness, caseId));
+
+        var editLease = await harness.AcquireLeaseAsync(caseId, 3, engineer, "edit-in-use-lease-edit");
+        var edited = await save.ExecuteAsync(
+            new(caseId, editLease.Version, engineer, "edit-in-use-edit", "Repriced the spec in use.",
+                editLease.Token, inUse.SpecificationId, inUse.Details with { LabourRate = 60m },
+                [.. inUse.Lines.Select(RepairSpecificationScaling.ToInput)], inUse.Source,
+                ExistingLineIds: [.. inUse.Lines.Select(line => (Guid?)line.Id)]),
+            CancellationToken.None);
+
+        Assert.Equal(inUse.SpecificationId, edited.SpecificationId);
+        Assert.True(edited.IsCurrent);
+        Assert.Equal(60m, edited.Details.LabourRate);
+        Assert.Equal("Stale", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentGenerationId:D}'"));
+        Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
+    }
+
+    /// <summary>
+    /// A discarded import no longer holds its source: importing the same
+    /// document again lands a fresh estimate, in use at once, rather than
+    /// replaying to the discarded one.
+    /// </summary>
+    [Fact]
+    public async Task ReimportingADiscardedSourceMakesAFreshCurrentSpec()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("reimport-discarded-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
+        SaveEstimateRequest Import(long version, string token, string key) => new(
+            caseId, version, engineer, key, ImportRawEstimate.ImportReason, token, null,
+            new("Glass's 1", 40m, null, 20m), parsed.Lines,
+            new(RepairSpecificationSourceRoute.Glasses, "estimate-import:reimport", parsed.SourceVersion, hash));
+
+        var firstLease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "reimport-lease-1");
+        var first = await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            Import(0, firstLease.Token, "reimport-first"), CancellationToken.None);
+        // The spec in use cannot be discarded, so a typed spec takes its place first.
+        var typedLease = await harness.AcquireLeaseAsync(caseId, 1, engineer, "reimport-lease-typed");
+        var typed = await new SaveEstimate(harness.RepairSpecifications,
+            new EfAiJobStore(harness.Factory, harness.Clock), harness.Clock).ExecuteAsync(
+            new(caseId, typedLease.Version, engineer, "reimport-typed", "Recorded a typed spec.",
+                typedLease.Token, null, new("Typed", 40m, 0m, 20m),
+                [new("repair", null, "Repair door", 2m, null, false, null, null, "judgement", null)],
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
-        version++;
-        // The edit replaced the copy's whole line list, and the breakdown it
-        // recorded is the calculation over the replacement, not the one the
-        // duplicate started from.
-        var editedCopy = (await harness.RepairSpecifications.GetVersionAsync(
-            caseId, copy.SpecificationId, CancellationToken.None))!;
-        var editedBreakdown = JsonSerializer.Deserialize<EstimateCalculationBreakdown>(
-            await ReadBreakdownJsonAsync(harness, copy.SpecificationId),
-            EfRepairSpecificationStore.JsonOptions)!;
-        Assert.Equal(EstimateTotals.Compute(editedCopy).Raw, editedBreakdown.Raw);
-        Assert.Equal(EstimateTotals.Compute(editedCopy).Printed, editedBreakdown.Printed);
-
-        var useCopyLease = await LeaseAsync("estimate-frozen-lease-use-copy");
-        var revised = await setCurrent.ExecuteAsync(
-            new(caseId, useCopyLease.Version, engineer, "estimate-frozen-use-copy",
-                "Use the revised estimate.", useCopyLease.Token, copy.SpecificationId),
+        Assert.True(typed.IsCurrent);
+        var discardLease = await harness.AcquireLeaseAsync(caseId, 2, engineer, "reimport-lease-discard");
+        await new DiscardEstimate(harness.RepairSpecifications).ExecuteAsync(
+            new(caseId, discardLease.Version, engineer, "reimport-discard", "Wrong document.",
+                discardLease.Token, first.SpecificationId),
             CancellationToken.None);
-        version++;
-        Assert.NotEqual(acceptedBasis.Total, revised.CalculationBasis!.Total);
 
-        var reread = (await harness.RepairSpecifications.GetVersionAsync(
-            caseId, original.SpecificationId, CancellationToken.None))!;
-        Assert.Equal(RepairSpecificationState.Accepted, reread.State);
-        Assert.False(reread.IsCurrent);
-        Assert.Equal(acceptedBasis, reread.CalculationBasis);
-        Assert.Equal(
-            acceptedBreakdown,
-            await ReadBreakdownJsonAsync(harness, original.SpecificationId));
-        var acceptedTotals = JsonSerializer.Deserialize<EstimateCalculationBreakdown>(
-            acceptedBreakdown, EfRepairSpecificationStore.JsonOptions)!;
-        Assert.Equal(acceptedTotals.Raw, reread.RecordedTotals!.Raw);
-        Assert.Equal(acceptedTotals.Printed, reread.RecordedTotals.Printed);
-        Assert.Equal(acceptedTotals.VatPercent, reread.RecordedTotals.VatPercent);
-        Assert.Equal(
-            acceptedTotals.CalculationPolicyVersion,
-            reread.RecordedTotals.CalculationPolicyVersion);
-        Assert.Equal(version, (await LeaseAsync("estimate-frozen-lease-final")).Version);
+        var againLease = await harness.AcquireLeaseAsync(caseId, 3, engineer, "reimport-lease-again");
+        var again = await harness.RepairSpecifications.SaveImportedEstimateAsync(
+            Import(3, againLease.Token, "reimport-again"), CancellationToken.None);
+
+        Assert.NotEqual(first.SpecificationId, again.SpecificationId);
+        Assert.Equal(RepairSpecificationState.Draft, again.State);
+        Assert.True(again.IsCurrent);
+        var listed = await harness.RepairSpecifications.ListEstimatesAsync(
+            caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(RepairSpecificationState.Discarded,
+            listed.Single(item => item.SpecificationId == first.SpecificationId).State);
+        Assert.Equal(again.SpecificationId, Assert.Single(listed, item => item.IsCurrent).SpecificationId);
     }
 
     /// <summary>
     /// Unknown is a real recorded state, not a missing value: an estimate
-    /// whose repairer VAT position was never recorded cannot be made Current
-    /// at the store boundary until the position is recorded, or until the
-    /// categories are selected by hand.
+    /// whose repairer VAT position was never recorded charges VAT on nothing,
+    /// and it never gates Use repair spec (v28 P10).
     /// </summary>
     [Fact]
     public async Task AnUnknownRepairerVatStatusNoLongerBlocksUseAsCurrent()
@@ -1385,7 +1460,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     new(name, 40m, 0m, 20m, null, vat, null),
                     [
                         new("new_part", null, "Door skin", null, 220.40m, false, "P-1234", null,
-                            "confirmed", "official", null, Quantity: 1),
+                            "official", null, Quantity: 1),
                     ],
                     new(RepairSpecificationSourceRoute.Manual, null, null, null)),
                 CancellationToken.None);
@@ -1414,8 +1489,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(RepairerVatStatus.Unknown, unknown.Details.VatPolicy.RepairerStatus);
         Assert.True(unknown.Details.VatPolicy.TreatmentPending);
 
-        // v28 P10: the unknown status no longer refuses Use as Current; the
-        // accepted basis simply carries no VAT.
+        // v28 P10: the unknown status never refuses Use repair spec; the
+        // totals simply carry no VAT.
         var unknownUseLease = await LeaseAsync("estimate-vat-lease-use-unknown");
         var unknownCurrent = await setCurrent.ExecuteAsync(
             new(caseId, unknownUseLease.Version, engineer, "estimate-vat-use-unknown",
@@ -1423,7 +1498,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         version++;
         Assert.True(unknownCurrent.IsCurrent);
-        Assert.Equal(0m, unknownCurrent.CalculationBasis!.Vat);
+        Assert.Equal(0m, EstimateTotals.Compute(unknownCurrent).Printed.Vat);
 
         // Recording the status on a later edit is an ordinary header change.
         var recordedLease = await LeaseAsync("estimate-vat-lease-recorded");
@@ -1465,11 +1540,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.True(overriddenCurrent.IsCurrent);
         Assert.Equal(version, (await LeaseAsync("estimate-vat-lease-final")).Version);
     }
-
-    private static Task<string> ReadBreakdownJsonAsync(Harness harness, Guid specificationId) =>
-        harness.Database.ScalarAsync<string>(
-            "SELECT CalculationBreakdownJson FROM CaseRepairSpecifications "
-            + $"WHERE Id = '{specificationId:D}'");
 
     /// <summary>
     /// Stream A review (comments 5560764306/5560667174, one staleness root

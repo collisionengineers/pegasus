@@ -94,8 +94,7 @@ public sealed record AssessmentWorkspace(
     CaseDataProjection Data,
     VehicleLookupObservation? LatestVehicleObservation,
     CaseAssessmentProjection Assessment,
-    RepairSpecificationVersion? DraftSpecification,
-    RepairSpecificationVersion? AcceptedSpecification);
+    RepairSpecificationVersion? CurrentSpecification);
 
 public sealed record GetAssessmentWorkspaceQuery(
     Guid CaseId,

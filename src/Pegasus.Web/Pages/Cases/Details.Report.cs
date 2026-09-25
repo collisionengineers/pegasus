@@ -139,7 +139,7 @@ public sealed partial class DetailsModel
             : null;
 
     /// <summary>The Current estimate's labour hours (panel and paint), for the figures strip.</summary>
-    public decimal? LabourHours => AcceptedSpecification is { } estimate
+    public decimal? LabourHours => CurrentSpecification is { } estimate
         ? EstimateHours.Of(estimate).PricedTotal
         : null;
 

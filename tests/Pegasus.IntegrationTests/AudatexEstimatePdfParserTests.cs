@@ -79,9 +79,9 @@ public sealed class AudatexEstimatePdfParserTests
         Assert.Equal("4 WHEEL ALIGNMENT", specialist.Description);
         Assert.Equal(110.00m, specialist.Price);
 
-        // Every imported line is a provisional proposal until acceptance,
-        // and the whole set passes the one shared line normalization.
-        Assert.All(result.Lines, line => Assert.Equal("provisional", line.Status));
+        // Every imported line carries the report's own evidence label, and
+        // the whole set passes the one shared line normalization.
+        Assert.All(result.Lines, line => Assert.Equal("case", line.EvidenceLabel));
         var normalized = AssessmentPolicy.NormalizeRepairSpecificationLines(result.Lines);
         Assert.Equal(result.Lines.Count, normalized.Count);
     }

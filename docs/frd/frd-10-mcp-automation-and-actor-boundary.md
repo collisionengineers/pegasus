@@ -154,12 +154,14 @@ stopped automation client is refused before any tool runs.
 
 `pegasus_estimate_import` and **Import estimate** on the Repair Spec section
 are two callers of one Core command. Both use the same parser types, the same
-fail-closed provider detection, the same provider-plus-sequence Draft naming
-and the same replay rule. The caller does not choose a trusted provider
+fail-closed provider detection, the same provider-plus-sequence naming, the
+same labour-rate card and the same replay rule. The caller does not choose a trusted provider
 route. Even a source-hash replay needs the current actor, version and lease
 authority and the exact retained source tuple. An unsupported estimate
-document is refused without OCR or partial rows. The import stays a
-Draft with no AI job reference and cannot become Current through MCP. These contracts do not prove live provider acceptance.
+document is refused without OCR or partial rows. A staff Import on the Case
+is the Current repair spec at once; the MCP import runs as the Automation
+actor, so it stays a Draft with no AI job reference and cannot become Current
+through MCP. These contracts do not prove live provider acceptance.
 
 **Scopes.** `automation.jobs` is its own scope with a consent description on
 the Administrator consent page; a token without it cannot see the ledger. The

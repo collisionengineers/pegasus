@@ -76,7 +76,7 @@ public sealed record EstimateDocumentSnapshot(
                 line.Price,
                 line.Unpriced))
             .ToArray();
-        var totals = EstimateTotals.ForProjection(estimate);
+        var totals = EstimateTotals.Compute(estimate);
         return new(
             ourReference.Trim(),
             string.IsNullOrWhiteSpace(yourReference) ? null : yourReference.Trim(),
@@ -103,8 +103,6 @@ public sealed record EstimateDocumentSnapshot(
     public string Status => IsCurrent ? "CURRENT" : State switch
     {
         RepairSpecificationState.Draft => "DRAFT",
-        RepairSpecificationState.Accepted => "ACCEPTED",
-        RepairSpecificationState.Superseded => "SUPERSEDED",
         RepairSpecificationState.Discarded => "DISCARDED",
         _ => throw new ReportRenderRejectedException("The estimate document has an unsupported state."),
     };

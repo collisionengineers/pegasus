@@ -214,7 +214,7 @@ public sealed partial class DetailsModel
 
     /// <summary>The Figures aside's repair cost inc VAT from the current estimate.</summary>
     public decimal? RepairCostIncVat =>
-        AcceptedSpecification is { } estimate
+        CurrentSpecification is { } estimate
             ? Pegasus.Core.Reports.ReportRepairCosts.For(estimate).Total
             : null;
 

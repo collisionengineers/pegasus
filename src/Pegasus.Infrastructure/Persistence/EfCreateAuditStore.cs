@@ -281,7 +281,7 @@ public sealed class EfCreateAuditStore(
 
     /// <summary>
     /// Every live repair specification with its lines, every column: new ids,
-    /// with the supersedes and supplementary links re-pointed at the copies.
+    /// with the supplementary links re-pointed at the copies.
     /// A link to a specification that is not copied (a discarded one) is
     /// cleared. Specification snapshots are not copied.
     /// </summary>
@@ -312,21 +312,9 @@ public sealed class EfCreateAuditStore(
                 SourceArtifactReference = source.SourceArtifactReference,
                 SourceVersion = source.SourceVersion,
                 SourceSha256 = source.SourceSha256,
-                CalculationLabour = source.CalculationLabour,
-                CalculationParts = source.CalculationParts,
-                CalculationPaintMaterials = source.CalculationPaintMaterials,
-                CalculationSpecialistOther = source.CalculationSpecialistOther,
-                RepairerVatRegistered = source.RepairerVatRegistered,
-                CalculationVat = source.CalculationVat,
-                CalculationTotal = source.CalculationTotal,
-                CalculationPolicyVersion = source.CalculationPolicyVersion,
                 CreatedBy = source.CreatedBy,
                 CreationOperationKey = source.CreationOperationKey,
                 CreatedAtUtc = source.CreatedAtUtc,
-                AcceptedBy = source.AcceptedBy,
-                AcceptedAtUtc = source.AcceptedAtUtc,
-                SupersedesSpecificationId = Remap(source.SupersedesSpecificationId),
-                SupersessionReason = source.SupersessionReason,
                 Name = source.Name,
                 LabourRate = source.LabourRate,
                 RegionalUplift = source.RegionalUplift,
@@ -342,8 +330,6 @@ public sealed class EfCreateAuditStore(
                 MaterialsVatApplicable = source.MaterialsVatApplicable,
                 SpecialistVatApplicable = source.SpecialistVatApplicable,
                 RepairerVatStatus = source.RepairerVatStatus,
-                VatOverrideReason = source.VatOverrideReason,
-                CalculationBreakdownJson = source.CalculationBreakdownJson,
                 VatPercent = source.VatPercent,
                 IsCurrent = source.IsCurrent,
                 AiJobId = source.AiJobId,
@@ -374,7 +360,6 @@ public sealed class EfCreateAuditStore(
                     Unpriced = line.Unpriced,
                     PartNumber = line.PartNumber,
                     Betterment = line.Betterment,
-                    Status = line.Status,
                     EvidenceLabel = line.EvidenceLabel,
                     Justification = line.Justification,
                     RecordedByKind = line.RecordedByKind,
@@ -383,7 +368,6 @@ public sealed class EfCreateAuditStore(
                     Operation = line.Operation,
                     Materials = line.Materials,
                     OriginalValuesJson = line.OriginalValuesJson,
-                    CurrentValuesJson = line.CurrentValuesJson,
                     SourceDocumentIdentity = line.SourceDocumentIdentity,
                     SourceDocumentVersionId = line.SourceDocumentVersionId,
                     SourceDocumentSha256 = line.SourceDocumentSha256,
