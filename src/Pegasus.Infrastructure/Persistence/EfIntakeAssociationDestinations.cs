@@ -124,7 +124,8 @@ public sealed class EfIntakeAssociationDestinations(
                 {
                     destination = new(item.CaseId, item.Reference, item.Registration, item.Claimant, null, triageVersion)
                     {
-                        TriageState = triageState
+                        TriageState = triageState,
+                        Principal = item.Principal
                     };
                 }
                 else if (states.TryGetValue(item.CaseId, out var state)
@@ -132,7 +133,10 @@ public sealed class EfIntakeAssociationDestinations(
                     && IntakeAssociationDestinationPolicy.IsViable(state.ArchivedAtUtc is not null))
                 {
                     destination = new(
-                        item.CaseId, item.Reference, item.Registration, item.Claimant, lifecycleState, state.Version);
+                        item.CaseId, item.Reference, item.Registration, item.Claimant, lifecycleState, state.Version)
+                    {
+                        Principal = item.Principal
+                    };
                 }
 
                 if (destination is not null)

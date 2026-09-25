@@ -592,7 +592,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | --- | --- | --- | --- |
 | `dashboard` | `layout-dashboard` | `F8A9AFA8D2245E34D3DAEB88C9FF80A2AA546D1F8671212896E743E596F3752B` | Rail: Work Centre |
 | `inbox` | `inbox` | `0817485BFAE1A740458AA3FC1E6E4542047FA890C547D35B17C771E6D352E901` | Rail: Inbox; Inbox scopes |
-| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; dropzone |
+| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; the picker's drop target |
 | `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it); Cases rail groups |
 | `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
 | `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
@@ -909,7 +909,7 @@ deleted in wave 5.
 | `assessment-v3`, `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
 | `ai-jobs-panel` | Operations AI Job List |
 | `admin-layout`, `admin-nav` | Administration |
-| `dropzone`, `file-list`, `file-row`, `upload-outcome` | Upload |
+| `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |
 | `report-preview` | Report draft preview dialog body |
 
 ### Dialogs and feedback
@@ -940,7 +940,7 @@ second caller and a recorded reason.
 | `_LucideSprite` | The inlined sprite |
 | `_ShellDialogs` | Account, Notifications, command palette |
 | `_AdminNav` | Administration panel nav |
-| `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadOutcome` | Retained, restyled to the vocabulary |
+| `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadReview` | Retained, restyled to the vocabulary |
 | `Presentation/OperatorLabels.cs` | The one label map |
 | `Presentation/RailCountsPageFilter.cs` | Rail counts |
 

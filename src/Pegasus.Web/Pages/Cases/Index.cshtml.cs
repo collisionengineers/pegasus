@@ -452,22 +452,9 @@ public sealed class IndexModel(
             && !RequiresGroupConfirmation(image);
     }
 
-    protected override Task<IReadOnlyList<Guid>> SearchReceiptIdsAsync(
-        Guid surfaceId,
-        CancellationToken cancellationToken) =>
-        SelectedOriginReceiptIdsAsync(surfaceId, cancellationToken);
-
-    private async Task<IReadOnlyList<Guid>> SelectedOriginReceiptIdsAsync(
-        Guid surfaceId,
-        CancellationToken cancellationToken)
-    {
-        var image = await _imageIntakeQueries.GetAsync(surfaceId, cancellationToken);
-        return image is null
-            || image.State != ImageInitiatedCaseState.AwaitingInstruction
-            || RequiresGroupConfirmation(image)
-            ? []
-            : [image.Record.Origin.ReceiptId];
-    }
+    // The Cases page types the exact reference; Find within the upload's
+    // viable Cases belongs to the Upload surfaces.
+    protected override IReadOnlyList<Guid> SearchReceiptIds => [];
 
     protected override async Task<IActionResult> RenderSurfaceAsync(
         Guid surfaceId,

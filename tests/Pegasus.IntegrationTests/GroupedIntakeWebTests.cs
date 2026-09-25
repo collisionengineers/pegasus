@@ -60,7 +60,7 @@ public sealed class GroupedIntakeWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.True(
-            System.Text.RegularExpressions.Regex.Count(html, "data-upload-decision=") <= 1,
+            System.Text.RegularExpressions.Regex.Count(html, "data-upload-review-button") <= 1,
             "An upload shows one decision for the whole group, never one per file.");
         Assert.Contains("overview.jpg", html, StringComparison.Ordinal);
         Assert.Contains("damage-close-up.jpg", html, StringComparison.Ordinal);
