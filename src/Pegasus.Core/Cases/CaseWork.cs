@@ -51,16 +51,6 @@ public sealed record CaseWorkSet(CaseWork Primary, CaseWork? Audit)
 public static class CaseWorkPolicy
 {
     /// <summary>
-    /// Only the current work is edited: once an Audit exists the Inspection's
-    /// data is read-only.
-    /// </summary>
-    public static bool IsEditable(CaseWorkSet works, CaseWorkSelector selector)
-    {
-        ArgumentNullException.ThrowIfNull(works);
-        return selector == CaseWorkSelector.Current || !works.HasAudit;
-    }
-
-    /// <summary>
     /// A report is an Audit report when it is made on a standalone Audit Case
     /// or from the Audit work of an Inspection + Audit Case.
     /// </summary>
