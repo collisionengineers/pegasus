@@ -1,4 +1,5 @@
-﻿using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Assessment;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
@@ -201,7 +202,8 @@ public sealed record CaseAcceptanceRequest(
     Guid? StandaloneAuditEvidenceId = null,
     DateOnly? AcceptedInspectionDeadline = null,
     Guid? AllocationAttemptId = null,
-    DateTimeOffset? AllocationCompletedAtUtc = null);
+    DateTimeOffset? AllocationCompletedAtUtc = null,
+    OriginalReportReading? OriginalReport = null);
 
 /// <summary>
 /// What the acceptance transaction committed. <paramref name="VehicleLookupWorkId"/>

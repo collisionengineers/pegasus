@@ -1,3 +1,4 @@
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -128,6 +129,50 @@ public sealed class ImmediateExternalPublicationTests
     }
 
     [Fact]
+    public async Task AStandaloneAuditIsAcceptedWithItsOriginalReportReading()
+    {
+        var store = new AcceptanceStore(Guid.NewGuid());
+        var reading = new OriginalReportReading(
+            new string('a', 64), "Laird Assessors", "2026-09-01", "roadworthy", "repairable", false);
+        var reader = new RecordingReader(reading);
+        var evidenceId = Guid.NewGuid();
+        var request = AcceptanceRequest() with { CaseType = CaseType.Audit, StandaloneAuditEvidenceId = evidenceId };
+        var acceptance = new AcceptIntake(
+            store,
+            new ConfigurationStore(),
+            new InspectionModeStore(),
+            new RecordingPublisher(),
+            new RecordingTriagePairing(),
+            originalReport: reader);
+
+        await acceptance.ExecuteAsync(request, CancellationToken.None);
+
+        Assert.Equal((request.ReceiptId, evidenceId), Assert.Single(reader.Reads));
+        Assert.Equal(reading, store.LastRequest!.OriginalReport);
+    }
+
+    [Fact]
+    public async Task AnAuditWithNoOriginalReportEvidenceReadsNoReport()
+    {
+        var store = new AcceptanceStore(Guid.NewGuid());
+        var reader = new RecordingReader(null);
+        var acceptance = new AcceptIntake(
+            store,
+            new ConfigurationStore(),
+            new InspectionModeStore(),
+            new RecordingPublisher(),
+            new RecordingTriagePairing(),
+            originalReport: reader);
+
+        await acceptance.ExecuteAsync(
+            AcceptanceRequest() with { CaseType = CaseType.Audit },
+            CancellationToken.None);
+
+        Assert.Empty(reader.Reads);
+        Assert.Null(store.LastRequest!.OriginalReport);
+    }
+
+    [Fact]
     public async Task NonAuditWithOriginalReportEvidenceIsRefused()
     {
         var store = new AcceptanceStore(Guid.NewGuid());
@@ -201,6 +246,22 @@ public sealed class ImmediateExternalPublicationTests
 
     private static ActionActor Staff() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+    private sealed class RecordingReader(OriginalReportReading? reading) : IReadOriginalReport
+    {
+        public List<(Guid, Guid)> Reads { get; } = [];
+
+        public Task<OriginalReportReading?> ForIntakeAsync(
+            Guid receiptId, Guid standaloneAuditEvidenceId, CancellationToken cancellationToken)
+        {
+            Reads.Add((receiptId, standaloneAuditEvidenceId));
+            return Task.FromResult(reading);
+        }
+
+        public Task<OriginalReportReading?> ForDocumentAsync(
+            ActionActor actor, Guid caseId, Guid occurrenceId, Guid versionId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class RecordingPublisher : ICommittedExternalWorkPublisher
     {
