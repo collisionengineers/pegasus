@@ -10,10 +10,11 @@
 <head>
     <meta charset="utf-8" />
     <meta name="robots" content="noindex" />
-    <meta http-equiv="refresh" content="0;url=@Model" />
     <title>Pegasus</title>
 </head>
 <body data-glass-return="@Model">
+    <p>Returning to the Case. <a href="@Model">Open the Case</a>.</p>
+    <noscript><meta http-equiv="refresh" content="0;url=@Model" /></noscript>
     <script src="~/js/glass-return.js" asp-append-version="true"></script>
 </body>
 </html>

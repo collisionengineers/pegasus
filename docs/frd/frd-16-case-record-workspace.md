@@ -349,6 +349,29 @@ The calculator applies presets and custom lines through Core. Valuation
 sources are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources).
 
+### Glass's window and Case edits
+
+Launch and Resume open the provider window from the staff gesture and save
+pending Case edits through the existing keep-edit Save first. Only a confirmed
+save continues with the freshly rendered authority. Validation failure, a
+conflict, lost response or new edits during the save leaves the draft intact
+and makes no provider request. A blocked popup gives an actionable refusal.
+
+The same-origin launch handoff refreshes only the Glass's launch slot and
+session controls on the original Case before visiting the provider URL. It
+preserves dirty fields, their Case version and lease, focus, and reading
+position. Older refresh responses cannot overwrite newer controls. Save &
+Exit refreshes the workspace in place when it is clean; with pending edits it
+refreshes the session controls and reports the returned result without
+rebasing or discarding the draft. The latest Draft becomes visible after the
+staff member saves or cancels those edits. With no opener, the popup retains
+a server-rendered route back to the Case.
+
+Close uses the displayed session version and fresh confirmation that the
+external session is closed. A version conflict refreshes the controls and asks
+for confirmation again. Close never silently substitutes the current version
+for the version the staff member confirmed.
+
 ### Repair Spec
 
 Repair Spec carries the specification set and raw estimate import. See
