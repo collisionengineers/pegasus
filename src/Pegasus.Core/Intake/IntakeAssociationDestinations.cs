@@ -24,6 +24,9 @@ public sealed record IntakeAssociationDestination(
 {
     public Pegasus.Core.Triage.TriageState? TriageState { get; init; }
 
+    /// <summary>The Principal the Case belongs to, when the source query carries it.</summary>
+    public string? Principal { get; init; }
+
     public bool IsTriageCase => TriageState is not null;
 }
 

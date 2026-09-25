@@ -38,13 +38,12 @@ public sealed partial class UploadModel(
     public static string MaximumSizeLabel =>
         OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength);
 
-    /// <summary>
-    /// The accepted types and limits line the dropzone draws, from the one
-    /// place the limits are declared.
-    /// </summary>
-    public string AcceptedFiles => OperatorLabels.Upload.AcceptedFiles(
-        IntakeEnvelopeLimits.MaximumContentLength,
-        IntakeEnvelopeLimits.MaximumBatchFileCount);
+    /// <summary>The limits the picker states and upload.js checks before posting, from their one owner (FRD-18).</summary>
+    public static int MaximumFileCount => IntakeEnvelopeLimits.MaximumBatchFileCount;
+
+    public static long MaximumFileBytes => IntakeEnvelopeLimits.MaximumContentLength;
+
+    public static long MaximumTotalBytes => IntakeEnvelopeLimits.MaximumBatchFileContentLength;
 
     [BindProperty]
     public IFormFile[] Upload { get; set; } = [];

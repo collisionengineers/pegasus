@@ -59,7 +59,7 @@ public sealed class QdosIntakeWebTests
         using var statusPage = await client.GetAsync(upload.Location);
         statusPage.EnsureSuccessStatusCode();
         var html = await statusPage.Content.ReadAsStringAsync();
-        Assert.Contains("<h1>Received</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"pending\"", html, StringComparison.Ordinal);
         Assert.Contains("ordinary-correspondence.eml", html, StringComparison.Ordinal);
         Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
         // The state is the heading and the values are the panel: nothing
@@ -75,15 +75,15 @@ public sealed class QdosIntakeWebTests
         using var completedStatusPage = await client.GetAsync(upload.Location);
         completedStatusPage.EnsureSuccessStatusCode();
         var completedHtml = await completedStatusPage.Content.ReadAsStringAsync();
-        Assert.Contains("<h1>Complete</h1>", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("data-upload-phase=\"decision\"", completedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("data-auto-refresh=\"2000\"", completedHtml, StringComparison.Ordinal);
         // Manual material stays unallocated while staff choose a destination
         // or open an editable proposal; opening that choice is not acceptance.
-        Assert.Contains("Choose a case destination", completedHtml, StringComparison.Ordinal);
-        Assert.Contains("Create a new case", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Find the right Case", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Review new Case proposal", completedHtml, StringComparison.Ordinal);
         Assert.Contains($"/Cases/Create?receiptId={processedReceiptId:D}", completedHtml, StringComparison.Ordinal);
-        Assert.Contains("Add to an existing case", completedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Open case", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Review and add to Case", completedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Added to Case", completedHtml, StringComparison.Ordinal);
         await using (var receiptScope = factory.Services.CreateAsyncScope())
         {
             var receipt = Assert.IsType<IntakeReceipt>(await receiptScope.ServiceProvider
@@ -104,10 +104,7 @@ public sealed class QdosIntakeWebTests
         Assert.Equal(stagedReceiptId, IntakeWebDriver.Landing(duplicate).StagedReceiptId);
         using var duplicateStatusPage = await client.GetAsync(duplicate.Location);
         var duplicateHtml = await duplicateStatusPage.Content.ReadAsStringAsync();
-        Assert.Contains(
-            "<dt>Duplicate</dt><dd>Already received</dd>",
-            duplicateHtml,
-            StringComparison.Ordinal);
+        Assert.Contains("Already received", duplicateHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("No duplicate was created", duplicateHtml, StringComparison.Ordinal);
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -167,10 +164,8 @@ public sealed class QdosIntakeWebTests
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains(
-            "<dt>Reason</dt><dd>Processing failed for a technical reason</dd>",
-            html,
-            StringComparison.Ordinal);
+        Assert.Contains("The file could not be processed", html, StringComparison.Ordinal);
+        Assert.Contains("Processing failed for a technical reason", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "unexpected_intake_processing_failure",
             html,
@@ -211,7 +206,7 @@ public sealed class QdosIntakeWebTests
         using var statusPage = await client.GetAsync(upload.Location);
         statusPage.EnsureSuccessStatusCode();
         var html = await statusPage.Content.ReadAsStringAsync();
-        Assert.Contains("Open case", html, StringComparison.Ordinal);
+        Assert.Contains("Added to Case", html, StringComparison.Ordinal);
         Assert.Contains("/Cases/", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Open receipt", html, StringComparison.Ordinal);
     }
