@@ -192,7 +192,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260923180000_ValuationCardFiguresOptional",
                 "20260924090000_IntakeAssetBoxParentFolder",
                 "20260924180000_CaseWorksAndTriageCases",
-                "20260925090000_VehicleLookupDerivedFacts"
+                "20260925090000_VehicleLookupDerivedFacts",
+                "20260925120000_RetireInstructionDate"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -769,9 +770,9 @@ public sealed class IntakePersistenceIntegrationTests
         $"{decision} integration-test decision",
         [new(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Weak, IntakeEvidenceFinding.Information,
             "integration-test", "Persistence boundary evidence")],
-        [new("Instruction date", "2031-05-06", [], true, false)],
+        [new("Date of incident", "2031-05-06", [], false, false)],
         decision == IntakeDecision.CaseCreated
-            ? new("QDOS", null, null, null, null, null, null, null, null, new DateOnly(2031, 5, 6), null)
+            ? new("QDOS", null, null, null, null, null, null, null, new DateOnly(2031, 5, 6), null)
             : null,
         [],
         null,

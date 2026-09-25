@@ -220,10 +220,6 @@ public sealed class EfCaseQueryStore(
             rows = rows.Where(item => item.ReceivedAtUtc >= receivedStart
                 && (receivedEnd == null || item.ReceivedAtUtc < receivedEnd));
         }
-        if (filters.InstructionDate is { } instructionDate)
-        {
-            rows = rows.Where(item => item.InstructionDate == instructionDate);
-        }
         if (filters.FromDate is { } fromDate)
         {
             var from = LondonCalendar.StartOfDay(fromDate);
@@ -792,7 +788,6 @@ public sealed class EfCaseQueryStore(
                 ? confirmedCircumstances!.Value
                 : draft.AccidentCircumstances,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
-            InstructionDate = draft == null ? null : draft.InstructionDate,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
             NextChaseAtUtc = workflow == null || workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
@@ -866,7 +861,6 @@ public sealed class EfCaseQueryStore(
                 ? confirmedCircumstances!.Value
                 : draft.AccidentCircumstances,
             ReceivedAtUtc = receipt == null ? caseEntity.CreatedAtUtc : receipt.ReceivedAtUtc,
-            InstructionDate = draft == null ? null : draft.InstructionDate,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
             NextChaseAtUtc = workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
@@ -1150,7 +1144,6 @@ public sealed class EfCaseQueryStore(
         item.Claimant,
         item.ClaimNumber,
         item.ReceivedAtUtc,
-        item.InstructionDate,
         item.Origin,
         item.CreatedAtUtc,
         item.NextChaseAtUtc,
@@ -1367,7 +1360,6 @@ public sealed class EfCaseQueryStore(
         public string? Claimant { get; init; }
         public string? ClaimNumber { get; init; }
         public DateTimeOffset ReceivedAtUtc { get; init; }
-        public DateOnly? InstructionDate { get; init; }
         public required string Origin { get; init; }
         public DateTimeOffset CreatedAtUtc { get; init; }
         public DateTimeOffset? NextChaseAtUtc { get; init; }

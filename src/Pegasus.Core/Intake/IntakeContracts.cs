@@ -630,7 +630,6 @@ public sealed record InstructionReviewField(
         "Vehicle mileage unit" => CaseDataFieldNames.VehicleMileageUnit,
         "Accident circumstances" => CaseDataFieldNames.AccidentCircumstances,
         "Date of incident" or "Incident date" => CaseDataFieldNames.IncidentDate,
-        "Instruction date" => CaseDataFieldNames.InstructionDate,
         "Inspection date" => CaseDataFieldNames.InspectionDate,
         "Inspection address" => CaseDataFieldNames.InspectionAddress,
         "Claimant contact number" or "Claimant mobile telephone" or "Claimant home telephone"
@@ -659,7 +658,6 @@ public sealed record InstructionDraft(
     long? VehicleMileage,
     string? AccidentCircumstances,
     DateOnly? DateOfIncident,
-    DateOnly? InstructionDate,
     string? InspectionAddress,
     DateOnly? InspectionDate = null,
     // Below here: fields no extraction policy reads today. A provider that
@@ -846,26 +844,15 @@ public sealed record EstablishedPrincipalContext(
     string PolicyKey,
     int PolicyVersion);
 
-public sealed record InstructionExtractionTiming(
-    DateTimeOffset ProcessedAtUtc,
-    DateTimeOffset ReceivedAtUtc)
+public sealed record InstructionExtractionTiming(DateTimeOffset ReceivedAtUtc)
 {
-    public InstructionExtractionTiming(
-        int year,
-        int month,
-        int day,
-        int hour,
-        int minute,
-        int second,
-        TimeSpan offset)
-        : this(
-            new DateTimeOffset(year, month, day, hour, minute, second, offset),
-            new DateTimeOffset(year, month, day, hour, minute, second, offset))
+    public InstructionExtractionTiming(int year, int month, int day, int hour, int minute, int second, TimeSpan offset)
+        : this(new DateTimeOffset(year, month, day, hour, minute, second, offset))
     {
     }
 
-    public static implicit operator InstructionExtractionTiming(DateTimeOffset processedAtUtc) =>
-        new(processedAtUtc, processedAtUtc);
+    public static implicit operator InstructionExtractionTiming(DateTimeOffset receivedAtUtc) =>
+        new(receivedAtUtc);
 }
 
 public interface IInstructionExtractionPolicy

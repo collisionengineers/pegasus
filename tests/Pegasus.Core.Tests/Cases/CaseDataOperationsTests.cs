@@ -281,6 +281,16 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
+    public void TheReceivedDateIsTheOriginReceiptsLondonDayOrTheCasesCreation()
+    {
+        var created = new DateTimeOffset(2026, 7, 3, 9, 0, 0, TimeSpan.Zero);
+        // 23:30 UTC on 1 July is 00:30 on 2 July in London (BST).
+        Assert.Equal(new DateOnly(2026, 7, 2), CaseDataPolicy.ReceivedDate(new DateTimeOffset(2026, 7, 1, 23, 30, 0, TimeSpan.Zero), created));
+        // A manual Case has no receipt: it was received when staff created it.
+        Assert.Equal(new DateOnly(2026, 7, 3), CaseDataPolicy.ReceivedDate(null, created));
+    }
+
+    [Fact]
     public async Task SaveCaseNormalizesExplicitConfirmedValuesWithoutAnIdentityField()
     {
         var store = new RecordingStore();

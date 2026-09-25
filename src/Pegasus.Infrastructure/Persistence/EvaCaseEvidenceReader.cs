@@ -54,7 +54,7 @@ public static class EvaCaseEvidenceReader
             VehicleModel(acceptedVehicle, caseData),
             FromCaseField(caseData.Claimant.Name, static value => value),
             FromCaseField(caseData.Accident.IncidentDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
-            FromCaseField(caseData.Instruction.InstructionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
+            caseData.Instruction.ReceivedDate,
             FromCaseField(caseData.Inspection.InspectionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
             inspection,
             FromCaseField(caseData.Accident.Circumstances, static value => value),

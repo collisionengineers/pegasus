@@ -2081,7 +2081,6 @@ public sealed class CaseWorkspacePersistenceTests
         null,
         null,
         null,
-        null,
         null);
 
     private static CaseWorkspaceInspection Inspection(

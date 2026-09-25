@@ -176,7 +176,7 @@ public sealed class AssessmentCopyWebTests
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
-                DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
                 summary, workflow, null, [], null, CaseCustodyState.Pending, [], []);
             return Task.FromResult<CaseDetails?>(details);

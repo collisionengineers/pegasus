@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Pegasus.Core;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -390,11 +389,9 @@ public sealed class EfCaseAssessmentStore(
                 .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource
                     && item.ConfirmedAtUtc is not null)
                 ?.Value);
-        // The Case's received date is what its Received cell shows: its origin
-        // receipt's received time, or its creation for a manual Case, as a
-        // London calendar date. The report prints it as the date instructions
-        // were received (operator, 24 September 2026).
-        var receivedDate = LondonCalendar.DateAt(originReceivedAtUtc ?? caseEntity.CreatedAtUtc);
+        // The Case's Received date (CaseDataPolicy.ReceivedDate); the report
+        // prints it as the date instructions were received.
+        var receivedDate = CaseDataPolicy.ReceivedDate(originReceivedAtUtc, caseEntity.CreatedAtUtc);
         return new(
             Current(CaseDataFieldNames.VehicleRegistration),
             Current(CaseDataFieldNames.VehicleMake),

@@ -1781,7 +1781,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
-                DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
             var documents = RetainedDocuments
                 .GroupBy(file => file.Version.DocumentId)
                 .Select(group => new CaseDocument(

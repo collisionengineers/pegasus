@@ -114,8 +114,14 @@ public sealed record CaseContactData(
     CaseField<string> EmailAddress,
     CaseField<string> PhoneNumber);
 
+/// <summary>
+/// The instruction's own facts. <see cref="ReceivedDate"/> is the Case's
+/// Received date, which is its one instruction date (operator, 24 September
+/// 2026; <see cref="CaseDataPolicy.ReceivedDate"/>): nothing extracts, stores
+/// or edits a separate instruction date.
+/// </summary>
 public sealed record CaseInstructionData(
-    CaseField<DateOnly> InstructionDate,
+    DateOnly ReceivedDate,
     CaseField<string> VatStatus);
 
 public sealed record CaseInspectionData(
@@ -214,7 +220,6 @@ public sealed record CaseEditableData(
     string? ContactName = null,
     string? ContactEmailAddress = null,
     string? ContactPhoneNumber = null,
-    DateOnly? InstructionDate = null,
     string? VatStatus = null,
     DateOnly? InspectionDate = null,
     DateOnly? InspectionDeadline = null,

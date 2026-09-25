@@ -240,10 +240,7 @@ public sealed class QdosIntakeWebTests
             && item.Strength == IntakeEvidenceStrength.Strong
             && item.Finding == IntakeEvidenceFinding.SupportsPrincipal
             && item.Signal == "established-principal");
-        var instructionDate = Assert.Single(receipt.Fields, field => field.Name == "Instruction date");
-        Assert.False(instructionDate.IsDefaulted);
-        Assert.Equal("10 July 2026", instructionDate.SuggestedValue);
-        Assert.Equal(new DateOnly(2026, 7, 10), draft.InstructionDate);
+        Assert.DoesNotContain(receipt.Fields, field => field.Name == "Instruction date");
         Assert.Equal("QDOS", draft.SuggestedPrincipalCode);
 
         var route = Assert.IsType<MailRouteEvaluationResult>(receipt.MailRouteDecision);

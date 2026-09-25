@@ -4520,9 +4520,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("InspectionDate")
                         .HasColumnType("date");
 
-                    b.Property<DateOnly?>("InstructionDate")
-                        .HasColumnType("date");
-
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");

@@ -18,9 +18,9 @@ namespace Pegasus.Web.Pages.Search;
 /// <remarks>
 /// The grid's ten fields map 1:1 onto the existing search parameters; the
 /// pre-port parameters this design does not draw (<c>case</c>,
-/// <c>receivedDate</c>, <c>instructionDate</c>, <c>kind</c>) stay bound and
-/// pager-preserved, so the <c>/Cases</c> bookmarks the shell redirects here
-/// keep working with their values intact. The preview pane is built from
+/// <c>receivedDate</c>, <c>kind</c>) stay bound and pager-preserved, so the
+/// <c>/Cases</c> bookmarks the shell redirects here keep working with their
+/// values intact. The preview pane is built from
 /// the row projection plus one batched Engineer-name resolve rather than
 /// <c>IGetCase</c>: the wave-1 selection script needs a preview template
 /// per row regardless, and this keeps the page at its two queries.
@@ -66,9 +66,6 @@ public sealed partial class IndexModel(
 
     [BindProperty(SupportsGet = true)]
     public DateOnly? ReceivedDate { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public DateOnly? InstructionDate { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public DateOnly? FromDate { get; set; }
@@ -185,7 +182,6 @@ public sealed partial class IndexModel(
                         State,
                         EngineerId,
                         ReceivedDate,
-                        InstructionDate,
                         FromDate,
                         ToDate,
                         Origin,
@@ -426,10 +422,6 @@ public sealed partial class IndexModel(
             values,
             "receivedDate",
             ReceivedDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
-        AddIfPresent(
-            values,
-            "instructionDate",
-            InstructionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         AddIfPresent(
             values,
             "fromDate",

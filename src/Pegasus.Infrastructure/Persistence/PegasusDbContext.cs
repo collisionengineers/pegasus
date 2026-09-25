@@ -338,7 +338,6 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.VehicleModel).HasMaxLength(100);
             entity.Property(item => item.AccidentCircumstances).HasMaxLength(2000);
             entity.Property(item => item.DateOfIncident).HasColumnType("date");
-            entity.Property(item => item.InstructionDate).HasColumnType("date");
             entity.Property(item => item.InspectionAddress).HasMaxLength(1000);
             entity.Property(item => item.VehicleMileageUnit).HasMaxLength(40);
             entity.Property(item => item.VatStatus).HasMaxLength(100);
@@ -1620,7 +1619,6 @@ internal sealed class InstructionDraftEntity
     public long? VehicleMileage { get; set; }
     public string? AccidentCircumstances { get; set; }
     public DateOnly? DateOfIncident { get; set; }
-    public DateOnly? InstructionDate { get; set; }
     public DateOnly? InspectionDate { get; set; }
     public string? InspectionAddress { get; set; }
 

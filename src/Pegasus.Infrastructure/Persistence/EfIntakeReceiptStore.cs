@@ -581,7 +581,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 VehicleMileage = draft.InstructionDraft.VehicleMileage,
                 AccidentCircumstances = draft.InstructionDraft.AccidentCircumstances,
                 DateOfIncident = draft.InstructionDraft.DateOfIncident,
-                InstructionDate = draft.InstructionDraft.InstructionDate,
                 InspectionDate = draft.InstructionDraft.InspectionDate,
                 InspectionAddress = draft.InstructionDraft.InspectionAddress,
                 VehicleMileageUnit = draft.InstructionDraft.VehicleMileageUnit,
@@ -733,7 +732,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.VehicleMileage,
         entity.AccidentCircumstances,
         entity.DateOfIncident,
-        entity.InstructionDate,
         entity.InspectionAddress,
         entity.InspectionDate,
         entity.VehicleMileageUnit,
@@ -1001,7 +999,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.VehicleMileage = draft.VehicleMileage;
         entity.AccidentCircumstances = draft.AccidentCircumstances;
         entity.DateOfIncident = draft.DateOfIncident;
-        entity.InstructionDate = draft.InstructionDate;
         entity.InspectionAddress = draft.InspectionAddress;
         entity.InspectionDate = draft.InspectionDate;
         entity.VehicleMileageUnit = draft.VehicleMileageUnit;

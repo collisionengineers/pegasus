@@ -874,7 +874,6 @@ public sealed partial class QdosTriageIntegrationTests
         VehicleMileage: null,
         AccidentCircumstances: null,
         DateOfIncident: null,
-        InstructionDate: null,
         InspectionAddress: null);
 
     private static async Task<Guid> GetMailboxIdAsync(
