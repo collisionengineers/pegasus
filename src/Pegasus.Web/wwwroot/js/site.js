@@ -1957,8 +1957,7 @@ window.pegasusPreferences = (function () {
 // --- Rail collapse (v25 C3) ----------------------------------------------------
 // The Collapse control at the rail's foot narrows it to icons and counts;
 // the choice is per browser in the "pegasus-rail" cookie, which the server
-// reads for its first paint. The old localStorage "pegasus.rail" value only
-// seeds a missing cookie once. A collapsed link carries its label as a title
+// reads for its first paint. A collapsed link carries its label as a title
 // so the name is still readable.
 (function () {
     'use strict';
@@ -1968,7 +1967,6 @@ window.pegasusPreferences = (function () {
         return;
     }
     var prefs = window.pegasusPreferences;
-    var KEY = 'pegasus.rail';
     var COOKIE = 'pegasus-rail';
     var links = Array.prototype.slice.call(shell.querySelectorAll('.primary-nav .nav-link'));
     var collapseLabel = toggle.getAttribute('data-label-collapse') || 'Collapse navigation';
@@ -1979,14 +1977,8 @@ window.pegasusPreferences = (function () {
         if (value === 'collapsed' || value === 'expanded') {
             return value === 'collapsed';
         }
-        var legacy = false;
-        try {
-            legacy = window.localStorage.getItem(KEY) === 'collapsed';
-        } catch (error) {
-            legacy = false;
-        }
-        prefs.write(COOKIE, legacy ? 'collapsed' : 'expanded', prefs.year);
-        return legacy;
+        prefs.write(COOKIE, 'expanded', prefs.year);
+        return false;
     }
 
     function apply(collapsed) {
@@ -2020,9 +2012,7 @@ window.pegasusPreferences = (function () {
 //   [data-dismiss]           removes the enclosing .notice (or [data-dismissable])
 //   [data-collapse="key"]    a panel whose [data-collapse-toggle] folds its body,
 //                            remembered in the "pegasus-collapsed" cookie (the
-//                            folded keys joined by "|", served in the first
-//                            paint); localStorage "pegasus.collapsed.<key>"
-//                            only seeds a missing cookie once
+//                            folded keys joined by "|", served in the first paint)
 (function () {
     'use strict';
 
@@ -2080,7 +2070,6 @@ window.pegasusPreferences = (function () {
 
     var prefs = window.pegasusPreferences;
     var COLLAPSED_COOKIE = 'pegasus-collapsed';
-    var LEGACY_PREFIX = 'pegasus.collapsed.';
     var KEY_PATTERN = /^[a-z0-9.-]{1,40}$/;
     var MAX_KEYS = 40;
 
@@ -2093,22 +2082,8 @@ window.pegasusPreferences = (function () {
         if (value !== null) {
             return value.split('|').filter(function (key) { return KEY_PATTERN.test(key); }).slice(0, MAX_KEYS);
         }
-        var keys = [];
-        try {
-            for (var i = 0; i < window.localStorage.length; i++) {
-                var name = window.localStorage.key(i);
-                if (name && name.indexOf(LEGACY_PREFIX) === 0 && window.localStorage.getItem(name) === '1') {
-                    var legacyKey = name.substring(LEGACY_PREFIX.length);
-                    if (KEY_PATTERN.test(legacyKey) && keys.length < MAX_KEYS) {
-                        keys.push(legacyKey);
-                    }
-                }
-            }
-        } catch (error) {
-            keys = [];
-        }
-        saveCollapsedKeys(keys);
-        return keys;
+        saveCollapsedKeys([]);
+        return [];
     }
 
     function bindCollapsible(root) {
