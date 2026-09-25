@@ -218,9 +218,10 @@ public sealed class EfValuationStore(
     /// card for a new guide month, that new card is the one on screen. The
     /// claimant's VAT position is the one this save records. The Case save
     /// owns the version, the workflow event and the history line; this writes
-    /// the Engineer's Value row and field, the applied snapshot and its
-    /// action-history entry. No stamp is checked: every writer of a guide
-    /// card moves the Case version, which the save has already checked.
+    /// the Engineer's Value row and field, the basis card's retail and trade
+    /// fields, the applied snapshot and its action-history entry. No stamp is
+    /// checked: every writer of a guide card moves the Case version, which the
+    /// save has already checked.
     /// </summary>
     internal static async Task<ValuationAdopted> AdoptAsync(
         PegasusDbContext context,
@@ -284,6 +285,17 @@ public sealed class EfValuationStore(
             previousSource: null,
             now,
             cancellationToken);
+        // The report's Retail value and Trade value are the basis card's
+        // (operator, 24 September 2026), recorded with the Engineer's Value
+        // from the card as this save leaves it, so they change only when a
+        // Save adopts again.
+        var basisValues = await WriteAdoptedBasisValuesAsync(
+            context,
+            workId,
+            actor,
+            ValuationCalculationPolicy.AdoptedBasisFields(calculation, guideEntity.TradeValue),
+            now,
+            cancellationToken);
 
         var snapshot = new AppliedValuationSnapshot(
             resultingCaseVersion,
@@ -329,11 +341,22 @@ public sealed class EfValuationStore(
             "valuation_applied",
             operationKey,
             reason,
-            engineersValue?.Before is null
+            engineersValue?.Before is null && basisValues.Values.All(change => change.Before is null)
                 ? null
-                : JsonSerializer.Serialize(new { EngineersValue = engineersValue.Before }, SerializerOptions),
+                : JsonSerializer.Serialize(
+                    new
+                    {
+                        EngineersValue = engineersValue?.Before,
+                        BasisValues = basisValues.ToDictionary(pair => pair.Key, pair => pair.Value.Before),
+                    },
+                    SerializerOptions),
             JsonSerializer.Serialize(
-                new { AppliedValuation = result, EngineersValue = engineersValue?.After },
+                new
+                {
+                    AppliedValuation = result,
+                    EngineersValue = engineersValue?.After,
+                    BasisValues = basisValues.ToDictionary(pair => pair.Key, pair => pair.Value.After),
+                },
                 SerializerOptions),
             ValuationCalculationPolicy.PolicyStamp,
             now);
@@ -610,8 +633,9 @@ public sealed class EfValuationStore(
     /// this same transaction, from the case's latest Engineer's Value row, so
     /// the Valuations table stays the entry surface and never becomes a
     /// second owner. A row edited away from Engineer's Value re-resolves the
-    /// field from the rows that remain; when none remain the field is removed
-    /// so no stale Engineer's Value survives its last source row.
+    /// field from the rows that remain; when none remain the field is removed,
+    /// with the retail and trade an adoption recorded beside it, so no stale
+    /// Engineer's Value or basis value survives its last source row.
     /// </summary>
     private static async Task<EngineersValueChange?> WriteEngineersValueAsync(
         PegasusDbContext context,
@@ -654,6 +678,14 @@ public sealed class EfValuationStore(
         var before = existing?.Value;
         if (latest is null)
         {
+            // The retail and trade an adoption recorded never outlive its Engineer's Value.
+            await WriteAdoptedBasisValuesAsync(
+                context,
+                workId,
+                actor,
+                [new(AssessmentVocabulary.ValueRetail, null), new(AssessmentVocabulary.ValueTrade, null)],
+                now,
+                cancellationToken);
             if (existing is null)
             {
                 return null;
@@ -680,6 +712,53 @@ public sealed class EfValuationStore(
             recordedAtUtc,
             confirmedBy: recordedBy);
         return new(before, written.Value);
+    }
+
+    /// <summary>
+    /// Writes the basis values an adoption records
+    /// (<see cref="ValuationCalculationPolicy.AdoptedBasisFields"/>) as
+    /// confirmed staff findings through the one field writer, and removes one
+    /// the basis card does not carry, so no figure from an earlier basis
+    /// survives.
+    /// </summary>
+    private static async Task<Dictionary<string, (string? Before, string? After)>> WriteAdoptedBasisValuesAsync(
+        PegasusDbContext context,
+        Guid workId,
+        ActionActor actor,
+        IReadOnlyList<KeyValuePair<string, string?>> values,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var changes = new Dictionary<string, (string? Before, string? After)>(StringComparer.Ordinal);
+        foreach (var (path, value) in values)
+        {
+            var existing = await context.CaseAssessmentFields.SingleOrDefaultAsync(
+                item => item.WorkId == workId && item.FieldPath == path,
+                cancellationToken);
+            var before = existing?.Value;
+            if (value is null)
+            {
+                if (existing is not null)
+                {
+                    context.CaseAssessmentFields.Remove(existing);
+                }
+            }
+            else
+            {
+                AssessmentFieldWriter.Write(
+                    context,
+                    workId,
+                    existing,
+                    path,
+                    value,
+                    ActorKind.Staff,
+                    actor.SubjectId,
+                    now,
+                    confirmedBy: actor.SubjectId);
+            }
+            changes[path] = (before, value);
+        }
+        return changes;
     }
 
     internal sealed record EngineersValueChange(string? Before, string? After);

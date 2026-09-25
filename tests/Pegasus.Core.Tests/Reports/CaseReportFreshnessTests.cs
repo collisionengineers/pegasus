@@ -145,6 +145,47 @@ public sealed class CaseReportFreshnessTests
         Assert.Equal(CaseReportStaleReasons.AssessmentFactsChanged, decision.ReasonCode);
     }
 
+    /// <summary>
+    /// The report says the damage was assessed on the Case's Inspection date
+    /// (#834), so changing it stales the report like any printed Case fact.
+    /// </summary>
+    [Fact]
+    public void ChangedInspectionDateStalesWithTheAssessmentReason()
+    {
+        var before = new CaseEditableData(InspectionDate: new DateOnly(2026, 8, 3));
+        var after = before with { InspectionDate = new DateOnly(2026, 8, 4) };
+
+        var decision = CaseReportFreshness.ClassifyCaseData(before, after);
+        var workspace = CaseReportFreshness.ClassifyWorkspace(
+            before,
+            after,
+            wordingChanged: false,
+            new Dictionary<string, string?>(),
+            new Dictionary<string, string?>(),
+            null,
+            null);
+
+        Assert.True(decision.IsStale);
+        Assert.Equal(CaseReportStaleReasons.AssessmentFactsChanged, decision.ReasonCode);
+        Assert.True(workspace.IsStale);
+        Assert.Equal(CaseReportStaleReasons.AssessmentFactsChanged, workspace.ReasonCode);
+    }
+
+    /// <summary>
+    /// The inspection deadline is a working date the report never prints.
+    /// </summary>
+    [Fact]
+    public void ChangedInspectionDeadlineDoesNotStale()
+    {
+        var before = new CaseEditableData(InspectionDeadline: new DateOnly(2026, 8, 10));
+        var after = before with { InspectionDeadline = new DateOnly(2026, 8, 11) };
+
+        var decision = CaseReportFreshness.ClassifyCaseData(before, after);
+
+        Assert.False(decision.IsStale);
+        Assert.Null(decision.ReasonCode);
+    }
+
     [Fact]
     public void SignOffEngineerChangesStaleWithTheSignatoryReason()
     {

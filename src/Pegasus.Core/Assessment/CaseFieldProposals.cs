@@ -34,8 +34,8 @@ public sealed record CaseFieldProposal(
 /// <summary>
 /// The one owner of which fields carry proposals and how a write moves one.
 /// Infrastructure calls <see cref="Next"/> from the single field writer, so
-/// the assessment command, the Case save and the valuation Apply resolve a
-/// proposal identically.
+/// the assessment command, the Case save and the Engineer's Value adoption
+/// resolve a proposal identically.
 /// </summary>
 public static class CaseFieldProposalPolicy
 {

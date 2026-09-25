@@ -42,11 +42,14 @@ proposals until an authorised person accepts or rejects them through Core.
 hands a scoped worker a pointer to one Case, never Case content. The worker
 writes back through the same Core commands, edit lease, operation-key replay
 and version guards as a staff save, attributed and recorded like any human
-action. What the automation records is unconfirmed working data for the
-assigned Engineer to review. Confirming a professional finding is for every
-enabled human staff role. Report approval and
-sending stay human acts. No model, skill, prompt or external source ever
-issues an accepted Case, engineering, financial, legal or report outcome.
+action. What the automation records is unconfirmed working data that staff
+review; it writes only fields staff can record on the Case, so a staff Save
+of the field's section confirms or clears each value
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)).
+Confirming a professional finding is for every enabled human staff role.
+Report approval and sending stay human acts. No model, skill, prompt or
+external source ever issues an accepted Case, engineering, financial, legal
+or report outcome.
 
 **Settlement proposals.** For Outcome, Engineer's Value, Salvage category,
 Salvage value, Roadworthiness and the unroadworthy reason, Pegasus keeps the
@@ -122,12 +125,14 @@ claims and progress; queued jobs wait and taken jobs expire back to `Queued`.
 **Operations panel.** The AI Job List on `/operations` shows every
 non-terminal job and the terminal jobs of the current day: Job (kind and
 detail), Record, Started by, Created, State, Action. The action is one of
-`Review estimate` (opens the Estimate section), `Open query` (opens the
-message) or `Review` (opens the Unidentified item) for a `Draft ready` job;
-`Complete job` for a `Draft ready` Query response or Unidentified-queue
-pass; `Cancel` (reason required) for any non-terminal job; otherwise
-nothing. `Send Unidentified to AI` creates an Unidentified-resolution job for
-a chosen U reference.
+`Review estimate` (opens the Case's Repair Spec section), `Open query`
+(opens the message it answers, or the Case when the job names none) or
+`Review` (opens the Unidentified item) for a `Draft ready` job, the same
+place the Work Centre and the Case's Next action open; `Complete job` for a
+`Draft ready` Query response or Unidentified-queue pass; `Cancel` (reason
+required) for any non-terminal job; otherwise nothing.
+`Send Unidentified to AI` creates an Unidentified-resolution job for a chosen
+U reference.
 
 **Administration.** Automation & AI shows the active and failed job counts
 and the Stop/Start automation control. That control is the

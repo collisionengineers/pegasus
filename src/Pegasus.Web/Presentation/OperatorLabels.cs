@@ -2137,7 +2137,6 @@ public static class OperatorLabels
             public const string SalvageValue = "Salvage value";
             public const string RecoveryCharge = "Recovery charge";
             public const string StorageCharge = "Storage charge";
-            public const string RepairerVatRegistered = "Repairer VAT registered";
 
             public const string Report = "Report";
             public const string EngineersComments = "Engineer's comments";

@@ -15,6 +15,7 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests.Reports;
 
@@ -160,6 +161,11 @@ public sealed partial class AssessmentReportDraftWebTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
         Assert.Contains(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
+        // FRD-13: the readiness list links the blocker to the section that clears it.
+        AssertBlockerLinks(
+            BlockerRow(BlockerList(WebUtility.HtmlDecode(html)), AssessmentReportProjection.RepairCostRequirement),
+            caseId,
+            "estimate");
         // FRD-11: the control stays, disabled with its condition — no
         // submittable Generate form and no Preview link are offered.
         Assert.DoesNotContain("handler=\"GenerateReportDraft\"", html, StringComparison.Ordinal);
@@ -238,6 +244,10 @@ public sealed partial class AssessmentReportDraftWebTests
         foreach (var reason in readiness.Reasons)
         {
             Assert.Contains(WebUtility.HtmlEncode(reason.Requirement), html, StringComparison.Ordinal);
+            if (CaseWorkspaceLabels.Report.BlockerSection(reason) is { } key)
+            {
+                Assert.Contains($"data-report-blocker=\"{key}\"", html, StringComparison.Ordinal);
+            }
         }
         if (eligibleSignatory)
         {
@@ -247,6 +257,137 @@ public sealed partial class AssessmentReportDraftWebTests
         {
             Assert.DoesNotContain("Preview report draft", html, StringComparison.Ordinal);
         }
+    }
+
+    /// <summary>
+    /// FRD-13 (issue #834): every report blocker is a row that names what is
+    /// missing and links to the Case section that clears it, and the Next
+    /// action links the first blocker to its own section rather than to
+    /// Valuation.
+    /// </summary>
+    [Fact]
+    public async Task EachReportBlockerLinksToTheSectionThatClearsIt()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        var source = new FakeProjectionSource(ReadyInput(caseId));
+        var full = FullAssessmentProjection(caseId);
+        var automationAt = DateTimeOffset.UtcNow;
+        source.Readiness = source.Readiness with
+        {
+            // A missing Vehicle finding and basis retail, an Automation value
+            // awaiting review, and no sign-off, repair spec, adoption or images.
+            Assessment = full with
+            {
+                Fields =
+                [
+                    .. full.Fields.Where(field => field.Path is not (AssessmentVocabulary.VehicleCondition
+                        or AssessmentVocabulary.ValueRetail or AssessmentVocabulary.Outcome)),
+                    new AssessmentFieldValue(
+                        AssessmentVocabulary.Outcome, "repairable", ActorKind.Automation,
+                        "pegasus-automation", automationAt, null, null),
+                ],
+            },
+            EligibleSignOffEngineers = [],
+            CurrentEstimate = null,
+            AppliedValuation = null,
+            Preparations = [],
+        };
+        var readiness = CaseReportReadiness.Evaluate(source.Readiness);
+        var expected = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Pre-incident condition"] = "vehicle",
+            ["Retail value"] = "valuation",
+            [$"{AssessmentVocabulary.Outcome} awaits review"] = "settlement",
+            [CaseReportReadiness.SignatoryRequirement] = "overview",
+            [CaseReportReadiness.CurrentEstimateRequirement] = "estimate",
+            [CaseReportReadiness.EngineerValueRequirement] = "valuation",
+            [CaseReportReadiness.CloseUpImageRequirement] = "files",
+            [CaseReportReadiness.OverviewImageRequirement] = "files",
+        };
+        Assert.Equal(
+            expected.Keys.Order(StringComparer.Ordinal),
+            readiness.Reasons.Select(reason => reason.Requirement).Order(StringComparer.Ordinal));
+        Assert.Equal("Pre-incident condition", readiness.Reasons[0].Requirement);
+        using var factory = Compose(
+            baseFactory, new FakeGetCase(caseId), full, source, new FakeRenderer([1]));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var list = BlockerList(html);
+        // A list that stays, not a warning the operator can dismiss.
+        Assert.DoesNotContain("data-dismiss", list, StringComparison.Ordinal);
+        Assert.DoesNotContain("notice--warning", list, StringComparison.Ordinal);
+        foreach (var reason in readiness.Reasons)
+        {
+            var key = expected[reason.Requirement];
+            Assert.Equal(key, CaseWorkspaceLabels.Report.BlockerSection(reason));
+            AssertBlockerLinks(BlockerRow(list, reason.Requirement), caseId, key);
+        }
+
+        var nextAction = NextActionRegex().Match(html);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        var panel = nextAction.Value;
+        Assert.Equal(
+            $"{readiness.Reasons[0].Requirement} · {readiness.Reasons.Count - 1} more",
+            NextLabelRegex().Match(panel).Groups["label"].Value);
+        var link = SectionJumpRegex().Match(panel);
+        Assert.True(link.Success, "The Next action must link to a section.");
+        Assert.Equal("vehicle", link.Groups["key"].Value);
+        Assert.Contains($"href=\"/Cases/{caseId:D}?section=vehicle#section-vehicle\"", link.Value, StringComparison.Ordinal);
+        Assert.Equal("Vehicle", link.Groups["label"].Value);
+        Assert.DoesNotContain("section=valuation", panel, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Issue #834: a fact the report prints but the Case lacks is a named
+    /// blocker, not a failure. The Case page loads (it answered 503 while the
+    /// report wording projected an unready Case) and links the blocker to the
+    /// section that records the fact, and the enhanced preview refuses naming
+    /// it without rendering.
+    /// </summary>
+    [Fact]
+    public async Task TheCasePageLoadsAndNamesAMissingPrintedFact()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        var ready = ReadyInput(caseId);
+        var input = ready with
+        {
+            Assessment = ready.Assessment with
+            {
+                CaseOwned = ready.Assessment.CaseOwned with { ClaimantName = null }
+            }
+        };
+        var renderer = new FakeRenderer([1]);
+        using var factory = Compose(
+            baseFactory, new FakeGetCase(caseId), input.Assessment, new FakeProjectionSource(input), renderer);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+        AssertBlockerLinks(BlockerRow(BlockerList(html), "Claimant name"), caseId, "claim");
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{caseId:D}?handler=PreviewReportDraft&section=report");
+        request.Headers.Add("X-Pegasus-Document-Preview", "1");
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var detail = Assert.IsType<string>(problem.RootElement.GetProperty("detail").GetString());
+        Assert.Contains("Claimant name", detail, StringComparison.Ordinal);
+        Assert.Null(renderer.Snapshot);
     }
 
     [Theory]
@@ -274,6 +415,28 @@ public sealed partial class AssessmentReportDraftWebTests
                 ConfirmedBy = engineer.SubjectId,
                 ConfirmedAtUtc = ReportFixtureAtUtc
             }));
+            // The report's Assessed date is the Case's Inspection date: the
+            // harness's intake suggests one, and the fixture confirms its own.
+            context.Set<CaseDataFieldEntity>().RemoveRange(await context.Set<CaseDataFieldEntity>()
+                .Where(field => field.WorkId == harness.CaseId
+                    && field.FieldName == CaseDataFieldNames.InspectionDate
+                    && field.ValueKind == CaseDataCodes.Confirmed)
+                .ToArrayAsync());
+            context.Set<CaseDataFieldEntity>().Add(new CaseDataFieldEntity
+            {
+                WorkId = harness.CaseId,
+                FieldName = CaseDataFieldNames.InspectionDate,
+                ValueKind = CaseDataCodes.Confirmed,
+                ValueType = CaseDataCodes.Date,
+                Value = "2026-08-03",
+                SourceKind = CaseDataCodes.StaffCorrection,
+                SourceIdentity = engineer.SubjectId,
+                SourceLabel = "Report fixture",
+                PolicyKey = CaseDataPolicy.EditPolicyKey,
+                PolicyVersion = CaseDataPolicy.EditPolicyVersion,
+                ConfirmedByActor = engineer.SubjectId,
+                ConfirmedAtUtc = ReportFixtureAtUtc
+            });
             await context.SaveChangesAsync();
         }
         var initial = await harness.GetRequiredDataAsync();
@@ -281,14 +444,14 @@ public sealed partial class AssessmentReportDraftWebTests
         var saved = await harness.WorkspaceStore.SaveAsync(new(
             harness.CaseId, initial.Version, engineer, "save-preview-fields", "Recorded the Case workspace", lease.Token)
         {
-            // The minimal intake harness has no incident/instruction dates.
-            // Record the existing report fixture's dates through the real writer.
+            // The minimal intake harness has no incident date. Record the
+            // existing report fixture's through the real writer.
             Overview = new(initial.Claimant.Name.Current?.Value,
                 initial.Claimant.ContactNumber.Current?.Value, initial.Claimant.Address.Current?.Value,
                 initial.Claim.Number.Current?.Value, initial.Contact.Name.Current?.Value,
                 initial.Contact.EmailAddress.Current?.Value, initial.Contact.PhoneNumber.Current?.Value,
                 existing.Assessment.CaseOwned.IncidentDate, initial.Accident.Circumstances.Current?.Value,
-                existing.Assessment.CaseOwned.InstructionDate, initial.Instruction.VatStatus.Current?.Value,
+                initial.Instruction.InstructionDate.Current?.Value, initial.Instruction.VatStatus.Current?.Value,
                 initial.Inspection.RepairerAddress?.Current?.Value, initial.Workspace?.ClaimSource),
             Vehicle = new(initial.Vehicle.Registration.Current?.Value,
                 initial.Vehicle.Make.Current?.Value, initial.Vehicle.Model.Current?.Value,
@@ -323,9 +486,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var input = existing with
         {
             Assessment = persisted,
-            ClaimantName = saved.Data.Claimant.Name.Current?.Value,
             OurReference = saved.Data.Identity.Reference,
-            YourReference = saved.Data.Claim.Number.Current?.Value,
             ReportDate = null
         };
         var source = new FakeProjectionSource(input);
@@ -360,6 +521,10 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(overrideDate ? new DateOnly(2026, 8, 19) : new DateOnly(2026, 9, 7), snapshot.ReportDate);
         Assert.Equal(overrideDate, snapshot.ReportDateOverridden);
         Assert.Equal("2026-08-19", persisted.Field(AssessmentVocabulary.ReportDate)?.Value);
+        Assert.Equal(new DateOnly(2026, 8, 3), snapshot.Assessed);
+        // The claimant and Your Ref are the Case's own facts, read with the assessment.
+        Assert.Equal(saved.Data.Claimant.Name.Current?.Value, snapshot.ClaimantName);
+        Assert.Equal(saved.Data.Claim.Number.Current?.Value, snapshot.YourReference);
     }
 
     private static WebApplicationFactory<Program> Compose(
@@ -459,9 +624,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var source = new AcceptedReportSource("instruction.pdf", "1", new string('a', 64));
         return new AssessmentReportProjectionInput(
             FullAssessmentProjection(caseId),
-            ClaimantName: "Alex Example",
             OurReference: "CE-100",
-            YourReference: "P-100",
             ReportFor: ["Approved Principal"],
             ReportDate: new DateOnly(2026, 8, 19),
             Photos: [photo],
@@ -501,8 +664,9 @@ public sealed partial class AssessmentReportDraftWebTests
 
     /// <summary>
     /// Every assessment field <see cref="AssessmentPolicy.EvaluateReadiness"/>
-    /// requires, confirmed — the same fixture shape as the Core projection
-    /// tests (<c>tests/Pegasus.Core.Tests/Reports/AssessmentReportProjectionTests.cs</c>),
+    /// requires, confirmed, and every Case fact the report prints — the same
+    /// fixture shape as the Core projection tests
+    /// (<c>tests/Pegasus.Core.Tests/Reports/AssessmentReportProjectionTests.cs</c>),
     /// so a "ready" web test genuinely reaches the renderer rather than
     /// tripping over the shared readiness rail.
     /// </summary>
@@ -516,13 +680,11 @@ public sealed partial class AssessmentReportDraftWebTests
         {
             Field(AssessmentVocabulary.VehicleType, "car"),
             Field(AssessmentVocabulary.VehicleCondition, "good"),
-            Field(AssessmentVocabulary.IncidentAssessed, "2026-08-03"),
             Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
             Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
             Field(AssessmentVocabulary.ValueRetail, "5000.00"),
             Field(AssessmentVocabulary.ValueTrade, "4000.00"),
             Field(AssessmentVocabulary.ValueEngineer, "5000.00"),
-            Field(AssessmentVocabulary.CostRepairerVatRegistered, "true"),
             Field(AssessmentVocabulary.Outcome, "repairable"),
             Field(AssessmentVocabulary.LegalStatus, "roadworthy"),
             Field(AssessmentVocabulary.HistoryCheck, "History clear"),
@@ -540,9 +702,12 @@ public sealed partial class AssessmentReportDraftWebTests
             MileageUnit: "miles",
             MileageSource: "online_data",
             IncidentDate: new DateOnly(2026, 8, 1),
-            InstructionDate: new DateOnly(2026, 8, 2),
+            ReceivedDate: new DateOnly(2026, 8, 2),
             InspectionMode: "ImageBasedAssessment",
-            InspectionAddress: null);
+            InspectionAddress: null,
+            InspectionDate: new DateOnly(2026, 8, 3),
+            ClaimantName: "Alex Example",
+            ClaimNumber: "P-100");
         return new CaseAssessmentProjection(
             caseId, "CE-100", 0, CaseLifecycleState.Review, Guid.NewGuid(), fields, [], caseOwned);
     }
@@ -579,6 +744,56 @@ public sealed partial class AssessmentReportDraftWebTests
 
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
+
+    /// <summary>The Report section's readiness list in decoded markup.</summary>
+    private static string BlockerList(string html)
+    {
+        var list = BlockerListRegex().Match(html);
+        Assert.True(list.Success, "The Report section must list what the report still needs.");
+        return list.Value;
+    }
+
+    /// <summary>The readiness list's row that names <paramref name="requirement"/>.</summary>
+    private static string BlockerRow(string list, string requirement)
+    {
+        var row = Regex.Match(
+            list,
+            $"<li class=\"blocker\"[^>]*>\\s*<strong>{Regex.Escape(requirement)}</strong>.*?</li>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.True(row.Success, $"The readiness list must name {requirement}.");
+        return row.Value;
+    }
+
+    /// <summary>
+    /// The row names the section that clears it and jumps there, labelled as
+    /// the section row labels that section.
+    /// </summary>
+    private static void AssertBlockerLinks(string row, Guid caseId, string key)
+    {
+        Assert.Contains($"data-report-blocker=\"{key}\"", row, StringComparison.Ordinal);
+        var link = SectionJumpRegex().Match(row);
+        Assert.True(link.Success, "A blocker with a section must link to it.");
+        Assert.Equal(key, link.Groups["key"].Value);
+        Assert.Contains(
+            $"href=\"/Cases/{caseId:D}?section={key}#section-{key}\"",
+            link.Value,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            OperatorLabels.CaseWorkspace.Sections.Single(section => section.Key == key).Label,
+            link.Groups["label"].Value);
+    }
+
+    [GeneratedRegex("<div[^>]*data-report-not-ready[^>]*>.*?</ul>\\s*</div>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex BlockerListRegex();
+
+    [GeneratedRegex("<section[^>]*data-next-action[^>]*>.*?</section>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex NextActionRegex();
+
+    [GeneratedRegex("<span data-next-label>(?<label>.*?)</span>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex NextLabelRegex();
+
+    [GeneratedRegex("<a[^>]*data-section-jump=\"(?<key>[^\"]+)\"[^>]*>(?<label>[^<]*)</a>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex SectionJumpRegex();
 
     private sealed class FakeGetCase(Guid caseId) :
         IGetCase,
@@ -689,7 +904,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
             var assessment = new CaseAssessmentProjection(
                 caseId, identity.Reference, workflow.Version, workflow.State, null, [], [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
             CaseDetails details = new(
                 summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [])
             {

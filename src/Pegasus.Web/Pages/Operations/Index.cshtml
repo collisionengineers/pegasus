@@ -106,9 +106,9 @@
                                          view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' />
                             </td>
                             <td>
-                                @if (review is { } action && job.SubjectId is { } reviewSubjectId)
+                                @if (review is { } action)
                                 {
-                                    <a class="btn btn--small" asp-page="@action.Page" asp-route-id="@reviewSubjectId">@action.Label</a>
+                                    <a class="btn btn--small" href="@action.Route">@action.Label</a>
                                 }
                                 @if (canComplete)
                                 {

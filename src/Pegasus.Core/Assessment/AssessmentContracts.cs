@@ -8,9 +8,10 @@ namespace Pegasus.Core.Assessment;
 /// exact <c>name</c> attributes of the Engineers assessment screen (which
 /// follow reference/rendererref1/report_data_schema.json); an unknown
 /// path fails closed. Fields owned by the accepted case record (registration,
-/// make, model, mileage, incident and instruction dates, inspection mode and
-/// address) are readable through the assessment projection but are written
-/// only through the existing case-data edit path, keeping one owner per fact.
+/// make, model, mileage, the claimant's name and claim reference, incident,
+/// received and inspection dates, inspection mode and address) are readable
+/// through the assessment projection but are written only through the
+/// existing case-data edit path, keeping one owner per fact.
 /// </summary>
 public enum AssessmentFieldType
 {
@@ -60,7 +61,6 @@ public static class AssessmentVocabulary
     public const string VehicleTemporaryRepairsPossible = "vehicle.temporary_repairs_possible";
     public const string VehicleTemporaryRepairMethod = "vehicle.temporary_repair_method";
     public const string VehicleTemporaryRepairCost = "vehicle.temporary_repair_cost";
-    public const string IncidentAssessed = "incident.assessed";
     public const string ImpactSeverity = "assessment.impact_severity";
     public const string ImpactLocation = "assessment.impact_location";
     public const string DamageImpacts = "damage.impacts";
@@ -87,7 +87,6 @@ public static class AssessmentVocabulary
     public const string RateRegionalUplift = "rates.regional_uplift";
     public const string CostRecoveryCharge = "costs.recovery_charge";
     public const string CostStorageCharge = "costs.storage_charge";
-    public const string CostRepairerVatRegistered = "costs.repairer_vat_registered";
     public const string Outcome = "assessment.outcome";
     public const string LegalStatus = "assessment.legal_status";
     public const string UnroadworthyReason = "assessment.unroadworthy_reason";
@@ -217,7 +216,6 @@ public static class AssessmentVocabulary
         new(VehicleModifications, AssessmentFieldType.Text, 2000, IsFinding: false),
         new(VehicleHistoryNotes, AssessmentFieldType.Text, 4000, IsFinding: false),
         new(VehicleEngineerNotes, AssessmentFieldType.Text, 4000, IsFinding: false),
-        new(IncidentAssessed, AssessmentFieldType.Date, 10, IsFinding: false),
         new(ImpactSeverity, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: DamageSeverities.Keys.ToArray()),
         new(ImpactLocation, AssessmentFieldType.Enumerated, 20, IsFinding: false,
@@ -247,7 +245,6 @@ public static class AssessmentVocabulary
         new(RateRegionalUplift, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(CostRecoveryCharge, AssessmentFieldType.Money, 20, IsFinding: false),
         new(CostStorageCharge, AssessmentFieldType.Money, 20, IsFinding: false),
-        new(CostRepairerVatRegistered, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(Outcome, AssessmentFieldType.Enumerated, 20, IsFinding: true,
             Codes: ["total_loss", "repairable", "cash_in_lieu", "contract_repair"]),
         new(LegalStatus, AssessmentFieldType.Enumerated, 20, IsFinding: true,
@@ -307,16 +304,18 @@ public static class AssessmentVocabulary
     };
 
     /// <summary>
-    /// Findings a generic assessment save never writes or clears, because a
-    /// named command owns the act of adopting them. The accepted
-    /// Engineer's value is adopted only by the valuation Apply command, which
-    /// records the suggested and chosen amounts together; a Web or MCP field
-    /// save that touched it would silently rewrite a professional finding
-    /// without that evidence.
+    /// Findings a generic assessment save never writes or clears, because the
+    /// Case Save's valuation adoption records them together (one Save, 23
+    /// September 2026; operator, 24 September 2026): the accepted Engineer's
+    /// Value and the retail and trade values of the guide card it was
+    /// calculated from. A Web or MCP field save that touched one would rewrite
+    /// a professional finding apart from the calculation that is its evidence.
     /// </summary>
     public static IReadOnlySet<string> AdoptedFindingPaths { get; } = new HashSet<string>(
         StringComparer.Ordinal)
     {
+        ValueRetail,
+        ValueTrade,
         ValueEngineer
     };
 
@@ -335,6 +334,8 @@ public static class AssessmentVocabulary
         "vehicle.odometer_miles",
         "incident.date",
         "incident.instructions_received",
+        // The report's assessed date is the Case's Inspection date (operator, 24 September 2026).
+        "incident.assessed",
         "assessment.method",
         "assessment.location_address"
     };
@@ -452,15 +453,39 @@ public sealed record AssessmentCaseOwnedData(
     // came from. Never absent: a case with no mileage reads "tbc".
     string MileageSource,
     DateOnly? IncidentDate,
-    DateOnly? InstructionDate,
+    // The London calendar date the Case was received, as its Received cell
+    // shows it: its receipt's received time, or its creation for a manual
+    // Case. The report prints it as the date instructions were received
+    // (operator, 24 September 2026); every Case has one.
+    DateOnly ReceivedDate,
     string? InspectionMode,
-    string? InspectionAddress);
+    string? InspectionAddress,
+    // Appended, never inserted. The Inspection date is the date the report
+    // says the damage was assessed (#834); the claimant's name and the
+    // Principal's claim reference (printed as Your Ref) are read here so
+    // readiness and the projection read one value.
+    DateOnly? InspectionDate,
+    string? ClaimantName,
+    string? ClaimNumber);
 
+/// <summary>
+/// One named blocker (FRD-13). <paramref name="Field"/> is the one recorded
+/// fact the blocker names: an <see cref="AssessmentVocabulary"/> path, or a
+/// <see cref="Pegasus.Core.Cases.CaseDataFieldNames"/> name for a Case fact.
+/// <paramref name="EstimateLine"/> is the position of the repair spec line the
+/// blocker names. Both are null when the blocker names other material (the
+/// sign-off account, the Current repair spec, report images);
+/// <see cref="Pegasus.Core.Reports.CaseReportReadiness"/> names those by its
+/// public requirement constants. The Web decides which section clears a
+/// blocker; Core holds no section list.
+/// </summary>
 public sealed record AssessmentReadinessItem(
     string Requirement,
     string Source,
     string WhyOutstanding,
-    string HowToResolve);
+    string HowToResolve,
+    string? Field = null,
+    int? EstimateLine = null);
 
 public sealed record CaseAssessmentProjection(
     Guid CaseId,

@@ -34,7 +34,6 @@ public sealed class TriageCaseWebTests
         "Vehicle",
         "Workflow",
         "Closure",
-        "Assessment",
         "Documents/Export",
         "Eva/Send"
     ];
@@ -136,10 +135,10 @@ public sealed class TriageCaseWebTests
         }
 
         // The guard is by kind, not a blanket refusal: an instructed Case still
-        // answers on its own sub-routes. The others are post-only, so the one
-        // that answers a GET (the Assessment redirect) is the control.
-        using var caseAssessment = await client.GetAsync($"/Cases/{inspection.CaseId:D}/Assessment");
-        Assert.NotEqual(HttpStatusCode.NotFound, caseAssessment.StatusCode);
+        // answers on its own sub-routes. The others are post-only, so
+        // Documents/Export's GET (a redirect to the Case) is the control.
+        using var caseExport = await client.GetAsync($"/Cases/{inspection.CaseId:D}/Documents/Export");
+        Assert.NotEqual(HttpStatusCode.NotFound, caseExport.StatusCode);
     }
 
     [Fact]

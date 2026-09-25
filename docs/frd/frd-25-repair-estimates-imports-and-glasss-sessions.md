@@ -177,10 +177,13 @@ confirmed fact by itself. The full inspection address rules are in
 
 Repair cost figures come from external estimate imports (including Audatex
 and Glass's), AI estimates returned through MCP, or staff file import. Manual
-repair totals are never invented to get around the estimate contract. An
-unknown repairer VAT status needs an explicit status or category before
-totals are accepted. Supplied, observed, derived and professionally accepted
-values keep their distinctions.
+repair totals are never invented to get around the estimate contract. The
+repairer's VAT status is recorded on each repair specification, the one
+owner of that fact; an `Unknown` status never blocks **Use repair spec**, and
+the specification's selected VAT categories govern its totals
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report)).
+Report readiness asks no separate repairer VAT question. Supplied, observed,
+derived and professionally accepted values keep their distinctions.
 
 ### Retained PDF estimate import
 

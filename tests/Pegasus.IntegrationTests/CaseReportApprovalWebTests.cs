@@ -350,7 +350,7 @@ public sealed class CaseReportApprovalWebTests
             null,
             [],
             [],
-            new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+            new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null, null, null, null));
 
         private CaseSectionFrame Frame()
         {

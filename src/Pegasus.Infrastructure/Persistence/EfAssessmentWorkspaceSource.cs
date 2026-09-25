@@ -78,7 +78,8 @@ internal sealed class EfAssessmentWorkspaceSource(
             workflow,
             assessmentFields,
             currentSpecification?.Lines ?? [],
-            snapshot.Fields);
+            snapshot.Fields,
+            snapshot.OriginReceivedAtUtc);
         return new(
             new(
                 caseId,

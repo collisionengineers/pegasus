@@ -13,9 +13,9 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The Engineer sections carry no explanatory copy, render without
-/// the retired Assessment availability gate, the old route redirects, and
-/// D11's CanOpen mutation gate still refuses a POST on the Case handler host
-/// when the workspace can't open.
+/// the retired Assessment availability gate, the retired Assessment route is
+/// not found, and D11's CanOpen mutation gate still refuses a POST on the Case
+/// handler host when the workspace can't open.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class AssessmentCopyWebTests
@@ -88,16 +88,21 @@ public sealed class AssessmentCopyWebTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    /// <summary>
+    /// The Assessment page and its permanent redirect are retired (#834): the
+    /// route is not found rather than forwarded, so no link can depend on it.
+    /// </summary>
     [Fact]
-    public async Task RetiredAssessmentRouteRedirectsPermanentlyToCaseEstimate()
+    public async Task RetiredAssessmentRouteIsNotFound()
     {
         var caseId = Guid.NewGuid();
         using var factory = Compose(caseId, out _);
         using var client = EngineerClient(factory);
+
         using var response = await client.GetAsync($"/Cases/{caseId:D}/Assessment");
 
-        Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
-        Assert.Equal($"/Cases/{caseId:D}?section=estimate", response.Headers.Location?.OriginalString);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Null(response.Headers.Location);
     }
 
     private static WebApplicationFactory<Program> Compose(
@@ -212,6 +217,6 @@ public sealed class AssessmentCopyWebTests
             null,
             [],
             [],
-            new(null, null, null, null, null, null, "tbc", null, null, null, null));
+            new(null, null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 1), null, null, null, null, null));
     }
 }

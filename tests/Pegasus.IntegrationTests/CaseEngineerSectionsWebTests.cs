@@ -180,7 +180,8 @@ public sealed class CaseEngineerSectionsWebTests
                 null,
                 Fields(),
                 [],
-                new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+                new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,
+                    null, "Alex Example", "P-100"));
             workspace = AssessmentWorkspaceTestData.Create(assessment);
             details = new(
                 summary,
@@ -242,8 +243,7 @@ public sealed class CaseEngineerSectionsWebTests
 
         public Task<CaseReportFreezeInputs?> GetAsync(Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<CaseReportFreezeInputs?>(caseId != CaseId ? null : new(
-                new(workspace.Assessment, details.Summary.Claimant, workspace.Assessment.Reference,
-                    "P-100", [], null, [], [], estimate),
+                new(workspace.Assessment, workspace.Assessment.Reference, [], null, [], [], estimate),
                 new(workspace.Assessment, null, null, [], estimate, null, [], new Dictionary<Guid, DocumentVersion>()),
                 workspace.Assessment.Reference, details.Workflow.Version));
 
@@ -267,7 +267,6 @@ public sealed class CaseEngineerSectionsWebTests
                 Field(AssessmentVocabulary.SalvageValue, "750.00"),
                 Field(AssessmentVocabulary.CostRecoveryCharge, "120.00"),
                 Field(AssessmentVocabulary.CostStorageCharge, "80.00"),
-                Field(AssessmentVocabulary.CostRepairerVatRegistered, "true"),
                 Field(AssessmentVocabulary.EngineersComments, "Engineer comments recorded"),
                 Field(AssessmentVocabulary.HistoryCheck, "History clear"),
                 Field(AssessmentVocabulary.AgreedFee, "120.00"),

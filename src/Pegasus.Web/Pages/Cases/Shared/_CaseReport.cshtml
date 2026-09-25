@@ -1,9 +1,10 @@
 ﻿@*
     Report (v26 § Report). Head: one primary (Generate report, gated by the
     readiness the projection states) and one More menu (Preview draft,
-    Generate fee note, Include fee note). Body: the readiness notice, the
-    preview card, the generation facts and artifacts, the stale notice, the
-    reviewed recipients and delivery, and the report fields. Mark report sent is the
+    Generate fee note, Include fee note). Body: the readiness list (each
+    blocker linked to the section that clears it), the preview card, the
+    generation facts and artifacts, the stale notice, the reviewed
+    recipients and delivery, and the report fields. Mark report sent is the
     ribbon's Actions item and Unlink report evidence is Overview's Lifecycle
     actions; neither is repeated here.
 *@
@@ -55,7 +56,6 @@
         && feeNoteArtifact?.Status != CaseReportArtifactStatus.Confirmed;
     var feeNoteOperationKey = feeNoteArtifact?.OperationKey ?? Model.GenerateFeeNoteOperationKey;
     var canPreview = offersHead && Model.ReportDraftCondition is null;
-    var reasons = string.Join("; ", Model.ReportDraftReasons.Select(reason => reason.Requirement));
     var isStale = generation is { State: CaseReportGenerationState.Stale };
     var generatedAt = generation is null
         ? null
@@ -134,7 +134,7 @@
             {
                 <span class="gated" data-report-gate>
                     <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
-                    @* One availability label in the head; the notice below names every missing item. *@
+                    @* One availability label in the head; the list below names every missing item and links each to its section. *@
                     <span>@Words.NotReady</span>
                 </span>
             }
@@ -241,10 +241,35 @@
         <div id="report-pane-report" class="stack" role="tabpanel" aria-label="@Words.ReportTab" data-report-pane="report">
         @if (!Model.AssessmentIsReadOnly && Model.ReportDraftNotReady)
         {
-            <div class="notice notice--warning" role="status" data-dismissable data-report-not-ready>
-                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                <span>@Words.NotReady: @reasons.</span>
-                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            @* FRD-13: one row per blocker: what is missing, where it comes
+               from, why it is required, what clears it, and a jump to the
+               section that clears it (the Outstanding requirements pattern). The head's Not ready label
+               stays the one availability label. Never rendered in the
+               read-only Inspection view, so no link carries the view. *@
+            <div class="sub-panel blockers" data-report-not-ready>
+                <h3>@Words.NotReady</h3>
+                <ul class="blocker-list">
+                    @foreach (var reason in Model.ReportDraftReasons)
+                    {
+                        var blockerSection = Model.BlockerSectionKey(reason);
+                        <li class="blocker" data-report-blocker="@blockerSection">
+                            <strong>@reason.Requirement</strong>
+                            <small>
+                                <b>Source:</b> @reason.Source
+                                <br /><b>Why:</b> @reason.WhyOutstanding
+                                <br />@reason.HowToResolve
+                            </small>
+                            @if (blockerSection is not null)
+                            {
+                                <div class="blocker-actions">
+                                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@caseId"
+                                       asp-route-section="@blockerSection" asp-fragment="section-@blockerSection"
+                                       data-section-jump="@blockerSection">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == blockerSection).Label</a>
+                                </div>
+                            }
+                        </li>
+                    }
+                </ul>
             </div>
         }
 

@@ -15,14 +15,10 @@ namespace Pegasus.Core.Reports;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <see cref="Photos"/> are confirmed <c>Image</c>-role case documents,
-/// following the same custody query the EVA hand-off bundle already uses
-/// (<see cref="Pegasus.Core.Eva.EvaBundleImage"/>): current, not logically
-/// removed, custody-confirmed. UI-15's photograph curation (which photo, what
-/// order) is explicitly deferred — see the "Report images" section of
-/// <c>src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml</c> — so every
-/// confirmed image on the case is offered in custody (occurrence) order
-/// rather than an operator-curated subset.
+/// <see cref="Photos"/> are the operator's prepared report images
+/// (<see cref="Pegasus.Core.Documents.CaseAssetPreparationPolicy.ForReport"/>):
+/// Close-up, Overview, then Supporting in order, each with its rotation, crop
+/// and full-page flag, joined to its confirmed custody version.
 /// </para>
 /// <para>
 /// <see cref="Sources"/> are every other confirmed case document (any
@@ -55,9 +51,7 @@ namespace Pegasus.Core.Reports;
 /// </remarks>
 public sealed record AssessmentReportProjectionInput(
     CaseAssessmentProjection Assessment,
-    string? ClaimantName,
     string OurReference,
-    string? YourReference,
     IReadOnlyList<string> ReportFor,
     DateOnly? ReportDate,
     IReadOnlyList<ReportImageEvidence> Photos,
@@ -82,12 +76,13 @@ public sealed record AssessmentReportProjectionResult(
 
 /// <summary>
 /// Builds an <see cref="AssessmentReportSnapshot"/> from an accepted
-/// assessment plus its case-report inputs, or names the assessment/report work
-/// still outstanding. Case identity, instruction and image completeness are
-/// not re-decided here: entry to Review already proved those lifecycle gates.
-/// If persisted Review data later violates one of those invariants, generation
-/// fails at the immutable snapshot boundary instead of presenting the defect as
-/// ordinary assessment work.
+/// assessment plus its case-report inputs, or names the work still
+/// outstanding. Every fact the report prints is a readiness item
+/// <see cref="Prepare"/> returns (<see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/>
+/// plus the sign-off, Current repair spec and labour-rate items it shares with
+/// <see cref="CaseReportReadiness"/>), so a Case that is not ready is refused
+/// with named items before anything is projected; the guards in
+/// <see cref="Project"/> are invariant assertions a ready Case never reaches.
 /// </summary>
 public static class AssessmentReportProjection
 {
@@ -103,33 +98,22 @@ public static class AssessmentReportProjection
         var reasons = new List<AssessmentReadinessItem>(
             AssessmentPolicy.EvaluatePostReviewReadiness(assessment));
 
-        void Require(bool ok, string requirement, string source, string whyOutstanding, string howToResolve)
+        // These are CaseReportReadiness's own items, so the preview and
+        // generation name them identically. The report's repair cost is the
+        // Current repair spec's canonical total (EXT-09, FRD-11 § Estimate VAT
+        // on the rendered report); there is no hand-typed cost path.
+        if (signatory?.IsComplete != true)
         {
-            if (!ok)
-            {
-                reasons.Add(new(requirement, source, whyOutstanding, howToResolve));
-            }
+            reasons.Add(CaseReportReadiness.SignatoryMissing);
         }
-
-        Require(
-            signatory?.IsComplete == true,
-            CaseReportReadiness.SignatoryRequirement, "Case sign-off account",
-            "The Case has no complete sign-off Engineer tuple.",
-            "Select an eligible sign-off Engineer with a signature on file.");
-
-        // The report's repair cost is the Current estimate's canonical total
-        // (EXT-09, FRD-11 § Estimate VAT on the rendered report). There is no
-        // hand-typed cost path.
-        Require(
-            currentEstimate is not null,
-            RepairCostRequirement, "Estimates",
-            "No estimate is marked Current on the case (EXT-09).",
-            "Use an estimate on the Assessment page.");
-        Require(
-            currentEstimate is null || currentEstimate.Details.HourlyRate > 0m,
-            LabourRateRequirement, "Estimates",
-            "The Current estimate has no labour rate, and the report prints the hourly rate.",
-            "Record the labour rate on the Current estimate.");
+        if (currentEstimate is null)
+        {
+            reasons.Add(CaseReportReadiness.CurrentEstimateMissing);
+        }
+        else if (currentEstimate.Details.HourlyRate <= 0m)
+        {
+            reasons.Add(CaseReportReadiness.LabourRateMissing);
+        }
 
         return new(reasons);
     }
@@ -158,15 +142,13 @@ public static class AssessmentReportProjection
             input.ReportDate ?? throw new InvalidDataException(
                 "A report date is set only when a generation or a labelled preview is rendered."));
 
-        var claimantName = RequiredReviewValue(input.ClaimantName, "claimant name");
-        var yourReference = RequiredReviewValue(input.YourReference, "claim number");
-        var incidentDate = RequiredReviewDate(assessment.CaseOwned.IncidentDate, "incident date");
-        var instructionDate = RequiredReviewDate(
-            assessment.CaseOwned.InstructionDate,
-            "instruction date");
-        var assessmentMethod = MapAssessmentMethod(assessment.CaseOwned.InspectionMode)
-            ?? throw new InvalidDataException(
-                "A Review case is missing its accepted inspection method.");
+        var owned = assessment.CaseOwned;
+        var claimantName = Ready(owned.ClaimantName, "claimant name");
+        var yourReference = Ready(owned.ClaimNumber, "claim reference");
+        var incidentDate = Ready(owned.IncidentDate, "incident date");
+        var assessedOn = Ready(owned.InspectionDate, "inspection date");
+        var assessmentMethod = MapAssessmentMethod(owned.InspectionMode)
+            ?? throw new InvalidDataException("A ready report is missing its inspection type.");
         var reportOutcome = MapOutcome(Field(fields, AssessmentVocabulary.Outcome)!);
         var signatory = input.Signatory!;
 
@@ -176,8 +158,8 @@ public static class AssessmentReportProjection
             ReportDate: reportDate,
             ClaimantName: claimantName,
             IncidentDate: incidentDate,
-            InstructionsReceived: instructionDate,
-            Assessed: ParseDate(Field(fields, AssessmentVocabulary.IncidentAssessed)) ?? default,
+            InstructionsReceived: owned.ReceivedDate,
+            Assessed: assessedOn,
             ReportFor: input.ReportFor,
             Vehicle: BuildVehicle(assessment, fields),
             Outcome: reportOutcome,
@@ -186,7 +168,7 @@ public static class AssessmentReportProjection
             ImpactSeverity: Field(fields, AssessmentVocabulary.ImpactSeverity)!,
             ImpactLocation: Field(fields, AssessmentVocabulary.ImpactLocation)!,
             AssessmentMethod: assessmentMethod!,
-            LocationAddress: assessment.CaseOwned.InspectionAddress,
+            LocationAddress: owned.InspectionAddress,
             EngineerValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueEngineer)) ?? 0m,
             RetailValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueRetail)) ?? 0m,
             TradeValue: ParseMoney(Field(fields, AssessmentVocabulary.ValueTrade)) ?? 0m,
@@ -233,13 +215,15 @@ public static class AssessmentReportProjection
         return new(snapshot, []);
     }
 
-    private static string RequiredReviewValue(string? value, string name) =>
+    // Prepare named each fact the report prints, so reaching here without one
+    // is a defect for the error page, not casework.
+    private static string Ready(string? value, string name) =>
         string.IsNullOrWhiteSpace(value)
-            ? throw new InvalidDataException($"A Review case is missing its accepted {name}.")
+            ? throw new InvalidDataException($"A ready report is missing its {name}.")
             : value;
 
-    private static DateOnly RequiredReviewDate(DateOnly? value, string name) =>
-        value ?? throw new InvalidDataException($"A Review case is missing its accepted {name}.");
+    private static DateOnly Ready(DateOnly? value, string name) =>
+        value ?? throw new InvalidDataException($"A ready report is missing its {name}.");
 
     private static string? Field(CaseAssessmentProjection assessment, string path) =>
         assessment.Field(path)?.Value;
@@ -471,8 +455,8 @@ public interface IAssessmentReportProjectionSource
 
 /// <summary>
 /// The read-only preparation a control renders from: assessment/report work is
-/// complete, or the exact remaining reasons. Review-entry requirements are not
-/// repeated here.
+/// complete, or the exact remaining reasons, including every Case fact the
+/// report prints.
 /// </summary>
 public sealed record AssessmentReportDraftPreparation(IReadOnlyList<AssessmentReadinessItem> Reasons)
 {
