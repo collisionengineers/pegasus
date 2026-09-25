@@ -1079,23 +1079,59 @@
         var form = activeDirtyForm();
         if (form) { form.requestSubmit(); }
     }, true);
+    // Leaving the Case by a link ends edit mode (FRD-14): unsaved changes are
+    // asked about first, and the lease is released as the operator goes, so
+    // the Case is free rather than held until its lease lapses. A link to
+    // this same Case (a section, a view, one of its own pages) keeps editing.
+    function leavesCase(link) {
+        var beacon = record.querySelector('[data-case-release-beacon]');
+        if (!beacon) {
+            return false;
+        }
+        var url;
+        try {
+            url = new URL(link.href, window.location.href);
+        } catch (error) {
+            return false;
+        }
+        var caseId = (beacon.getAttribute('data-case-id') || '').toLowerCase();
+        return url.origin !== window.location.origin
+            || (url.pathname.toLowerCase().indexOf(caseId) === -1
+                && (url.searchParams.get('id') || '').toLowerCase() !== caseId);
+    }
+    function releaseOnLeaving(link) {
+        var beacon = record.querySelector('[data-case-release-beacon]');
+        if (beacon && typeof navigator.sendBeacon === 'function' && leavesCase(link)) {
+            navigator.sendBeacon(beacon.action, new FormData(beacon));
+        }
+    }
     document.addEventListener('click', function (event) {
         var link = event.target.closest('a[href]');
-        if (!dirty || !link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey
+        if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey
             || link.hasAttribute('target') || link.hasAttribute('download') || link.hasAttribute('data-section-link')
             || link.getAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
             || link.getAttribute('href').startsWith('#')) { return; }
+        if (!dirty) {
+            // A post still in flight decides the lease itself; a release
+            // overtaking it could refuse a save.
+            if (!submitting) { releaseOnLeaving(link); }
+            return;
+        }
         event.preventDefault();
         if (submitting || confirmResolve) { return; }
         askUnsaved().then(function (answer) {
             if (answer === 'save') {
                 var form = activeDirtyForm();
                 if (form) {
-                    saveThen(form, function () { window.location.assign(link.href); });
+                    saveThen(form, function () {
+                        releaseOnLeaving(link);
+                        window.location.assign(link.href);
+                    });
                 }
             } else if (answer === 'discard') {
                 dirtyEditors.clear();
                 setDirty(false);
+                releaseOnLeaving(link);
                 window.location.assign(link.href);
             }
         });

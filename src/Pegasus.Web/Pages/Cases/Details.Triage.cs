@@ -223,7 +223,8 @@ public sealed partial class DetailsModel
         if (!view.IsEditing && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
         {
             view.CanTakeOverEdit = await ports.EditScopes.GetActiveAsync(
-                EditScopeKind.Triage, id, actor, cancellationToken) is not null;
+                    EditScopeKind.Triage, id, actor, cancellationToken) is { } active
+                && !EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
         }
 
         view.Message = TempData["TriageStatus"] as string;
@@ -518,13 +519,9 @@ public sealed partial class DetailsModel
                 },
                 cancellationToken);
         }
-        catch (EditScopeHeldElsewhereException)
-        {
-            canTakeOver = true;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(TriageCaseView.RecordName));
-        }
         catch (EditScopeConflictException)
         {
+            // Only a colleague's live scope refuses a claim; the viewer's own is claimed back.
             canTakeOver = true;
             ModelState.AddModelError(string.Empty,
                 await DescribeTriageHeldAsync(id, actor, ports, cancellationToken));

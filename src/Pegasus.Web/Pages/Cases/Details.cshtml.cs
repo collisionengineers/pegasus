@@ -78,6 +78,7 @@ public sealed partial class DetailsModel(
     IAcquireCaseEditLease acquireLease,
     IRenewCaseEditLease renewLease,
     IHeartbeatCaseEditLease heartbeatLease,
+    IResumeCaseEditLease resumeLease,
     IReleaseCaseEditLease releaseLease,
     ISaveCaseWorkspace saveCaseWorkspace,
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
@@ -866,7 +867,7 @@ public sealed partial class DetailsModel(
             AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
             // The lease decides how much of the record is rendered now, so it is
             // restored before deciding which section bodies render directly.
-            RestoreLeaseState(id, actor, Case.ActiveEditLease);
+            await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
             if (LeaseToken is not null)
             {
                 // Only this page renders a manual renew control, so only it needs that key.
@@ -1440,6 +1441,44 @@ public sealed partial class DetailsModel(
             editLeaseToken,
             () => RedirectToSection(id, section),
             cancellationToken);
+
+    /// <summary>
+    /// The release a page sends as its operator leaves the Case by a link (FRD-14). It is not an
+    /// operator action and has no page to return to: it answers 204 whether or not a lease was
+    /// still there to release, and it reads and writes no TempData, because the page the operator
+    /// is heading to is loading at the same moment and owns that cookie. Antiforgery is validated
+    /// as it is for every post.
+    /// </summary>
+    public async Task<IActionResult> OnPostReleaseLeaseBeaconAsync(
+        Guid id,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (id == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return new NoContentResult();
+        }
+
+        try
+        {
+            await releaseLease.ExecuteAsync(
+                new(id, actor, NewOperationKey(), editLeaseToken),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IsLeaseLoss(exception))
+        {
+            // The lease had already lapsed or moved to a colleague.
+        }
+        return new NoContentResult();
+    }
 
     public async Task<IActionResult> OnPostSaveAsync(
         Guid id,

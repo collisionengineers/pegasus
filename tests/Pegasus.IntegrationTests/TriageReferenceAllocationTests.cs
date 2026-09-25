@@ -233,6 +233,40 @@ public sealed class TriageReferenceAllocationTests
     }
 
     /// <summary>
+    /// The holder is the staff member, not the window: their own second claim takes the live
+    /// scope back at once, with no "held elsewhere" refusal and no takeover of themselves in the
+    /// history. The earlier window's token is rotated out.
+    /// </summary>
+    [Fact]
+    public async Task TheHoldersOwnSecondClaimTakesTheScopeBackWithoutATakeover()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-OWN-RECLAIM");
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var holder = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var held = await leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, holder, "triage-own-first"),
+            CancellationToken.None);
+
+        var again = await leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, holder, "triage-own-second"),
+            CancellationToken.None);
+
+        Assert.NotEqual(held.Token, again.Token);
+        Assert.Equal(holder.SubjectId, again.Holder);
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.HeartbeatAsync(
+            new(EditScopeKind.Triage, created.CaseId, holder, held.Token), CancellationToken.None));
+        var detail = Assert.IsType<TriageDetail>(
+            await services.GetRequiredService<ITriageQueries>()
+                .GetAsync(created.CaseId, CancellationToken.None));
+        Assert.DoesNotContain(detail.History,
+            entry => entry.EventType == "edit_lease_taken_over");
+    }
+
+    /// <summary>
     /// One receipt with its retained accepted-match evidence and its
     /// evaluation revision — everything Triage creation requires, and nothing
     /// that races.
