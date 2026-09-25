@@ -245,9 +245,18 @@ the facts only the lookup holds.
   recorded confirmed with Lookup provenance, so none awaits review, and the
   Case shows it read-only; no staff or automation save writes it. Each answer
   replaces a changed value, leaves an unchanged one as it stands and stales a
-  generated report when one changes. An answer with no provider failure, both
-  providers' not-found included, also clears a fact it no longer carries; a
-  partial or failed answer leaves what it did not carry.
+  generated report when one changes. An answer where each provider either
+  described the vehicle or said it holds no such vehicle also clears a fact
+  it no longer carries, so a DVSA not-found clears MOT expiry and a DVLA
+  not-found clears tax expiry. An answer with a failed provider leaves what
+  it did not carry.
+- An answer changes the Case only when it is for the registration the Case's
+  current work names. An answer for a registration staff have since changed
+  is kept as an observation and fills nothing. A save that changes the
+  registration removes Engine, Fuel, Colour, Tax expiry and MOT expiry in the
+  same transaction and stales a generated report. They come back from the
+  automatic lookup of a registration the Case has not looked up before, or
+  from Look up DVLA & MOT.
 - There are no per-field suggestion chips and no suggestion table.
 - The Model comes from the DVSA MOT history vehicle record. DVLA supplies no
   model. Experian stays a disabled seam.

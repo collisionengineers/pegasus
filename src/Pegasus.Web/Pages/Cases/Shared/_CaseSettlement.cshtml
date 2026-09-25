@@ -204,14 +204,18 @@
 
 @functions {
     // One decision row: the label column, the Proposed column when the strip
-    // carries proposals, and the cell itself.
+    // carries proposals, and the cell itself. The strip hides the cell's own
+    // label, so a row that is not a decision (a temporary repair) carries its
+    // value's source tag in the label column; a decision's AI value shows its
+    // tag in the Proposed column instead.
     private async Task DecisionRow(string path, string label, bool hidden, string? shownWhen = null, bool share = false)
     {
         var definition = AssessmentVocabulary.Definitions[path];
         var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
         var radios = definition.Type == AssessmentFieldType.Enumerated;
+        var rowTag = CaseFieldProposalPolicy.DecisionPaths.Contains(path) ? null : Model.AssessmentSourceTag(path);
         <div class="dec" data-decision="@path" data-shown-when="@shownWhen" hidden="@(hidden ? "hidden" : null)">
-            <span class="dl">@label</span>
+            <span class="dl">@label @(rowTag?.Render())</span>
             @{ Proposal(path); }
             @{ await Field(path, label, radios: radios); }
             @if (share)

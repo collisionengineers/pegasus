@@ -543,12 +543,21 @@ public static class AssessmentPolicy
                 Field: AssessmentVocabulary.SettlementContractSum));
         }
 
+        // Temporary repairs are the unroadworthy vehicle's: the report prints
+        // them only then and Decisions shows their rows only then. For any
+        // other vehicle an unconfirmed temporary repair would block the report
+        // on a value it does not print, from rows the operator cannot see, so
+        // it blocks nothing.
+        var temporaryRepairsApply = AssessmentVocabulary.TemporaryRepairsApply(
+            fields.GetValueOrDefault(AssessmentVocabulary.LegalStatus));
+
         // One actionable blocker per unconfirmed value, naming the exact
         // field or line and who recorded it. A single aggregate count is
         // prohibited: an unmet requirement has to identify its own material,
         // provenance, reason, and permitted resolution.
         foreach (var field in projection.Fields.Where(field => !field.IsConfirmed
-            && !(contractRepair && field.Path == AssessmentVocabulary.SettlementContractSum)))
+            && !(contractRepair && field.Path == AssessmentVocabulary.SettlementContractSum)
+            && (temporaryRepairsApply || !AssessmentVocabulary.TemporaryRepairPaths.Contains(field.Path))))
         {
             items.Add(new(
                 $"{field.Path} awaits review",

@@ -258,8 +258,8 @@ public static class AssessmentReportProjection
             ? $"{value.ToString("N0", CultureInfo.GetCultureInfo("en-GB"))} {mileageUnit}"
             : "To be confirmed";
 
-        // Temporary repairs are the unroadworthy vehicle's (Decisions shows them only then), so a roadworthy vehicle prints none, as salvage prints only on a total loss.
-        var unroadworthy = string.Equals(Field(fields, AssessmentVocabulary.LegalStatus), "unroadworthy", StringComparison.Ordinal);
+        // Temporary repairs are the unroadworthy vehicle's (Decisions shows them only then), so a roadworthy vehicle's report carries no temporary-repair value and its rows print a dash.
+        var unroadworthy = AssessmentVocabulary.TemporaryRepairsApply(Field(fields, AssessmentVocabulary.LegalStatus));
         return new ReportVehicle(
             Registration: assessment.CaseOwned.Registration ?? string.Empty,
             Make: assessment.CaseOwned.Make ?? string.Empty,

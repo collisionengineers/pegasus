@@ -307,6 +307,26 @@ public static class AssessmentVocabulary
     };
 
     /// <summary>
+    /// The temporary-repair findings, which belong to an unroadworthy vehicle
+    /// (operator, 24 September 2026): Decisions shows them, the report prints
+    /// them and an unconfirmed one awaits review only while
+    /// <see cref="TemporaryRepairsApply"/> holds.
+    /// </summary>
+    public static IReadOnlySet<string> TemporaryRepairPaths { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        VehicleTemporaryRepairsPossible,
+        VehicleTemporaryRepairMethod,
+        VehicleTemporaryRepairCost
+    };
+
+    /// <summary>
+    /// Whether the recorded roadworthiness makes the temporary repairs part of
+    /// the assessment: only an unroadworthy vehicle has them.
+    /// </summary>
+    public static bool TemporaryRepairsApply(string? legalStatus) =>
+        string.Equals(legalStatus, "unroadworthy", StringComparison.Ordinal);
+
+    /// <summary>
     /// Findings a generic assessment save never writes or clears, because the
     /// Case Save's valuation adoption records them together (one Save, 23
     /// September 2026; operator, 24 September 2026): the accepted Engineer's

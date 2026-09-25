@@ -594,6 +594,14 @@ public sealed class CaseRecordGapsV26WebTests
         Assert.True(control.Success, "The temporary repairs select must render.");
         Assert.Contains("value=\"true\" selected=\"selected\"", control.Groups["options"].Value, StringComparison.Ordinal);
         Assert.Contains($"1 {CaseWorkspaceLabels.Settlement.AwaitingReview}", settlement, StringComparison.Ordinal);
+        // The strip hides the cell's own label, so the AI value's source tag
+        // is in the row's visible label column.
+        Assert.Matches(
+            new Regex(
+                $"<div class=\"dec\" data-decision=\"{Regex.Escape(AssessmentVocabulary.VehicleTemporaryRepairsPossible)}\"[^>]*>\\s*"
+                    + "<span class=\"dl\">[^<]*<span class=\"src-tag src-tag--ai\" data-provenance-word=\"AI\">AI</span></span>",
+                RegexOptions.Singleline),
+            settlement);
     }
 
     [Theory]

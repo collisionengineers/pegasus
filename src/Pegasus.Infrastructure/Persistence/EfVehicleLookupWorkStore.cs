@@ -206,7 +206,8 @@ internal sealed class EfVehicleLookupWorkStore(
             RecordedAtUtc = recordedAtUtc
         });
 
-        // Looked-up values fill the current work's empty fields.
+        // Looked-up values fill the current work's empty fields when the answer
+        // is for the registration that work now names.
         var workId = await CaseWorkScope.CurrentIdAsync(context, workflow.CaseId, cancellationToken);
         var caseDataFields = await context.CaseDataFields
             .Where(item => item.WorkId == workId)
@@ -325,8 +326,11 @@ internal sealed class EfVehicleLookupWorkStore(
     /// (<see cref="AssessmentVocabulary.LookupDerivedPaths"/>) follow each
     /// answer as
     /// <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.DerivedAssessmentWrites"/>
-    /// says, recorded confirmed by the lookup. Returns the lookup-written
-    /// assessment values before and after this answer, for report freshness.
+    /// says, recorded confirmed by the lookup. All of it applies only when the
+    /// answer is for the work's current registration
+    /// (<see cref="EfVehicleWorkflowStore.CurrentRegistration"/>). Returns the
+    /// lookup-written assessment values before and after this answer, for
+    /// report freshness.
     ///
     /// Runs inside the caller's transaction, alongside the observation it
     /// came from, so the two can never disagree about what the lookup said.
@@ -341,6 +345,20 @@ internal sealed class EfVehicleLookupWorkStore(
         DateTimeOffset recordedAtUtc,
         CancellationToken cancellationToken)
     {
+        // An answer describes the vehicle it looked up. One for a registration
+        // the work no longer names (staff corrected it while the lookup was
+        // queued or retrying) records its observation and changes nothing on
+        // the work, so it can never replace or clear the current vehicle's facts.
+        var currentRegistration = EfVehicleWorkflowStore.CurrentRegistration(
+            caseDataFields
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration)
+                .Select(item => (item.ValueKind, item.Value)));
+        if (!string.Equals(currentRegistration, result.Registration, StringComparison.Ordinal))
+        {
+            var unchanged = new Dictionary<string, string?>(StringComparer.Ordinal);
+            return (unchanged, unchanged);
+        }
+
         var answered = caseDataFields
             .Where(item => item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Confirmed)
             .ToArray();

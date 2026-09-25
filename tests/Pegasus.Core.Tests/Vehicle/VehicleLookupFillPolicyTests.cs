@@ -190,12 +190,52 @@ public sealed class VehicleLookupFillPolicyTests
             VehicleLookupOutcome.Partial,
             new("FORD", "FOCUS", 2019, null, "DIESEL", Colour: "Blue"),
             [Test(new(2025, 9, 20), new(2026, 9, 24))],
-            new VehicleLookupFailure("dvla_not_found", Retryable: false)));
+            new VehicleLookupFailure("dvla_unavailable", Retryable: true)));
 
         AssertWrites(
             writes,
             (AssessmentVocabulary.VehicleFuel, "DIESEL"),
             (AssessmentVocabulary.VehicleColour, "Blue"),
+            (AssessmentVocabulary.VehicleMotExpiry, "2026-09-24"));
+    }
+
+    [Fact]
+    public void DvsaNotFindingTheVehicleClearsItsMotExpiry()
+    {
+        // An MOT-exempt vehicle DVLA knows: DVSA's not-found is a definite
+        // reply, so the answer is complete and an earlier MOT expiry is cleared.
+        var writes = VehicleLookupFillPolicy.DerivedAssessmentWrites(Result(
+            VehicleLookupOutcome.Partial,
+            new("MORRIS", null, 1962, 948, "PETROL", Colour: "GREEN", TaxDueDate: new(2027, 3, 1)),
+            [],
+            new VehicleLookupFailure(VehicleLookupFailure.DvsaNotFound, Retryable: false)));
+
+        AssertWrites(
+            writes,
+            (AssessmentVocabulary.VehicleEngineCc, "948"),
+            (AssessmentVocabulary.VehicleFuel, "PETROL"),
+            (AssessmentVocabulary.VehicleColour, "GREEN"),
+            (AssessmentVocabulary.VehicleTaxExpiry, "2027-03-01"),
+            (AssessmentVocabulary.VehicleMotExpiry, null));
+    }
+
+    [Fact]
+    public void DvlaNotFindingTheVehicleClearsItsTaxExpiry()
+    {
+        // DVSA described the vehicle and DVLA said it holds none: the answer is
+        // complete, so an earlier tax expiry is cleared.
+        var writes = VehicleLookupFillPolicy.DerivedAssessmentWrites(Result(
+            VehicleLookupOutcome.Partial,
+            new("FORD", "FOCUS", 2019, null, "DIESEL", Colour: "Blue"),
+            [Test(new(2025, 9, 20), new(2026, 9, 24))],
+            new VehicleLookupFailure(VehicleLookupFailure.DvlaNotFound, Retryable: false)));
+
+        AssertWrites(
+            writes,
+            (AssessmentVocabulary.VehicleEngineCc, null),
+            (AssessmentVocabulary.VehicleFuel, "DIESEL"),
+            (AssessmentVocabulary.VehicleColour, "Blue"),
+            (AssessmentVocabulary.VehicleTaxExpiry, null),
             (AssessmentVocabulary.VehicleMotExpiry, "2026-09-24"));
     }
 

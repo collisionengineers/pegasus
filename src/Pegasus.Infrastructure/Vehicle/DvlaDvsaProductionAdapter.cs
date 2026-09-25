@@ -90,8 +90,8 @@ internal sealed class DvlaDvsaProductionAdapter(
         {
             var failure = dvla.Failure
                 ?? dvsa.Failure
-                ?? (dvla.NotFound ? new VehicleLookupFailure("dvla_not_found", Retryable: false) : null)
-                ?? (dvsa.NotFound ? new VehicleLookupFailure("dvsa_not_found", Retryable: false) : null);
+                ?? (dvla.NotFound ? new VehicleLookupFailure(VehicleLookupFailure.DvlaNotFound, Retryable: false) : null)
+                ?? (dvsa.NotFound ? new VehicleLookupFailure(VehicleLookupFailure.DvsaNotFound, Retryable: false) : null);
             var sourceAge = MaxAge(dvla.ResponseAge, dvsa.ResponseAge);
             result = new(
                 request.Registration,

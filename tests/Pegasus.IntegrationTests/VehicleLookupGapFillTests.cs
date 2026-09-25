@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -22,6 +23,15 @@ public sealed class VehicleLookupGapFillTests
 {
     private static readonly DateTimeOffset FixedUtcNow =
         new(2026, 8, 22, 18, 47, 0, TimeSpan.Zero);
+
+    private static readonly ActionActor Staff =
+        ActionActor.Staff(Guid.Parse("33333333-3333-3333-3333-333333333333"), [StaffRole.User]);
+
+    /// <summary>The registration the seeded Case was instructed with.</summary>
+    private const string FixtureRegistration = "ST66BCE";
+
+    /// <summary>The registration staff correct the Case to.</summary>
+    private const string CorrectedRegistration = "AB12CDE";
 
     private static readonly DateOnly FixtureTaxDueDate = new(2027, 3, 1);
 
@@ -230,7 +240,7 @@ public sealed class VehicleLookupGapFillTests
             colour: null,
             clearTax: true,
             outcome: VehicleLookupOutcome.Partial,
-            failure: new("dvla_not_found", Retryable: false),
+            failure: new("dvla_unavailable", Retryable: true),
             recordedAtUtc: FixedUtcNow.AddMinutes(1));
 
         var rows = await DerivedFactRowsAsync(database, caseId);
@@ -238,6 +248,107 @@ public sealed class VehicleLookupGapFillTests
         Assert.Equal("BLUE", Assert.Single(rows, item => item.FieldPath == AssessmentVocabulary.VehicleColour).Value);
         Assert.Equal("2027-03-01", Assert.Single(rows, item => item.FieldPath == AssessmentVocabulary.VehicleTaxExpiry).Value);
         Assert.Equal("Diesel", Assert.Single(rows, item => item.FieldPath == AssessmentVocabulary.VehicleFuel).Value);
+    }
+
+    /// <summary>
+    /// An answer describes the registration it looked up. One that lands after
+    /// staff corrected the registration, complete or not-found, is kept as an
+    /// observation and leaves the current vehicle's facts, its Vehicle type and
+    /// the report as they stand.
+    /// </summary>
+    [Theory]
+    [InlineData(VehicleLookupOutcome.Current)]
+    [InlineData(VehicleLookupOutcome.NotFound)]
+    public async Task ALateAnswerForAPreviousRegistrationLeavesTheCurrentFacts(VehicleLookupOutcome outcome)
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_registration"}, {"confirmed"}, {"text"}, {CorrectedRegistration}, {"staff_correction"}, {"staff"}, {"staff case-data correction"}, {"case-data-edit"}, {1}, {"staff"}, {FixedUtcNow})");
+        }
+        await RecordLookupAsync(database, caseId, registration: CorrectedRegistration);
+        var (currentId, _) = await SeedGenerationsAsync(database, caseId);
+
+        await RecordLookupAsync(
+            database,
+            caseId,
+            typeApproval: "N1",
+            engineCapacityCc: null,
+            colour: "RED",
+            clearMot: true,
+            outcome: outcome,
+            registration: FixtureRegistration,
+            recordedAtUtc: FixedUtcNow.AddMinutes(1));
+
+        var rows = await DerivedFactRowsAsync(database, caseId);
+        Assert.Equal(FixtureDerivedFacts.Length, rows.Count);
+        foreach (var (path, value) in FixtureDerivedFacts)
+        {
+            var row = Assert.Single(rows, item => item.FieldPath == path);
+            Assert.Equal(value, row.Value);
+            Assert.Equal(FixedUtcNow, row.RecordedAtUtc);
+        }
+        Assert.Equal("car", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal("Confirmed", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal(0, await StaleRowCountAsync(database, caseId));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupObservations WHERE Registration = '{FixtureRegistration}' AND WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
+    }
+
+    /// <summary>
+    /// The lookup's own facts describe the vehicle it looked up, so a staff
+    /// save that changes the registration removes them in its own transaction
+    /// and stales the report that printed them. A lookup of the new
+    /// registration records them again.
+    /// </summary>
+    [Fact]
+    public async Task AStaffRegistrationChangeClearsTheLookupsOwnFacts()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        var (currentId, _) = await SeedGenerationsAsync(database, caseId);
+        var version = await database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var lease = await scope.ServiceProvider.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+                new(caseId, version, Staff, "registration-change-lease"),
+                CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<ICaseWorkspaceStore>().SaveAsync(
+                new SaveCaseWorkspaceRequest(
+                    caseId,
+                    version,
+                    Staff,
+                    "registration-change",
+                    "Registration corrected",
+                    lease.Token)
+                {
+                    Vehicle = new(CorrectedRegistration, "RENAULT", "CAPTUR", null, null)
+                },
+                CancellationToken.None);
+        }
+
+        Assert.Empty(await DerivedFactRowsAsync(database, caseId));
+        // The Vehicle type is staff-editable working data, not the lookup's own.
+        Assert.Equal("car", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE WorkId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal("Stale", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal(1, await StaleRowCountAsync(database, caseId));
+
+        await RecordLookupAsync(
+            database,
+            caseId,
+            registration: CorrectedRegistration,
+            recordedAtUtc: FixedUtcNow.AddMinutes(1));
+
+        Assert.Equal(FixtureDerivedFacts.Length, (await DerivedFactRowsAsync(database, caseId)).Count);
     }
 
     [Fact]
@@ -689,6 +800,7 @@ public sealed class VehicleLookupGapFillTests
         bool clearMot = false,
         VehicleLookupOutcome outcome = VehicleLookupOutcome.Current,
         VehicleLookupFailure? failure = null,
+        string registration = FixtureRegistration,
         DateTimeOffset? recordedAtUtc = null,
         IVehicleLookupWorkStore? store = null)
     {
@@ -699,7 +811,7 @@ public sealed class VehicleLookupGapFillTests
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO ExternalWorkItems (Id, CaseId, Kind, OperationKey, State, AttemptCount, DueAtUtc) VALUES ({workItemId}, {caseId}, {ExternalWorkKinds.VehicleLookup}, {$"gap-fill-{workItemId:N}"}, {"pending"}, {0}, {FixedUtcNow})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO VehicleLookupRequests (WorkItemId, CaseId, Registration, OperationKey, RequestFingerprint, RequestedByKind, RequestedBySubjectId, RequestedByRolesJson, RequestedAtUtc, ResultingCaseVersion) VALUES ({workItemId}, {caseId}, {"ST66BCE"}, {$"gap-fill-{workItemId:N}"}, {new string('0', 64)}, {ActorKind.Automation.ToString()}, {"vehicle-lookup-reconciliation"}, {"[]"}, {FixedUtcNow}, {0L})");
+                $"INSERT INTO VehicleLookupRequests (WorkItemId, CaseId, Registration, OperationKey, RequestFingerprint, RequestedByKind, RequestedBySubjectId, RequestedByRolesJson, RequestedAtUtc, ResultingCaseVersion) VALUES ({workItemId}, {caseId}, {registration}, {$"gap-fill-{workItemId:N}"}, {new string('0', 64)}, {ActorKind.Automation.ToString()}, {"vehicle-lookup-reconciliation"}, {"[]"}, {FixedUtcNow}, {0L})");
         }
 
         await using var scope = database.CreateAsyncScope();
@@ -710,16 +822,10 @@ public sealed class VehicleLookupGapFillTests
                 FixedUtcNow,
                 TimeSpan.FromMinutes(5),
                 CancellationToken.None));
-        var result = new VehicleLookupResult(
-            "ST66BCE",
-            outcome,
-            "offline-replay",
-            "fixture-v1",
-            $"gap-fill-response-{workItemId:N}",
-            FixedUtcNow,
-            FixedUtcNow,
-            FixedUtcNow,
-            new(
+        // Both providers not finding the vehicle carries no evidence at all.
+        VehicleDetails? vehicle = outcome == VehicleLookupOutcome.NotFound
+            ? null
+            : new(
                 "RENAULT",
                 "CAPTUR",
                 2016,
@@ -729,8 +835,21 @@ public sealed class VehicleLookupGapFillTests
                 wheelplan,
                 revenueWeightKg,
                 Colour: colour,
-                TaxDueDate: clearTax ? null : FixtureTaxDueDate),
-            [new(new(2025, 9, 25), "PASSED", clearMot ? null : FixtureMotExpiry, mileage, VehicleMileageUnit.Miles)],
+                TaxDueDate: clearTax ? null : FixtureTaxDueDate);
+        IReadOnlyList<MotTestObservation> motTests = outcome == VehicleLookupOutcome.NotFound
+            ? []
+            : [new(new(2025, 9, 25), "PASSED", clearMot ? null : FixtureMotExpiry, mileage, VehicleMileageUnit.Miles)];
+        var result = new VehicleLookupResult(
+            registration,
+            outcome,
+            "offline-replay",
+            "fixture-v1",
+            $"gap-fill-response-{workItemId:N}",
+            FixedUtcNow,
+            FixedUtcNow,
+            FixedUtcNow,
+            vehicle,
+            motTests,
             failure);
         await workStore.RecordOutcomeAsync(
             workItemId,
@@ -771,6 +890,8 @@ public sealed class VehicleLookupGapFillTests
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {CaseLifecycleState.Review.ToString()}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {receiptId}, {"manual_upload"}, {"gap-fill-source"}, {new string('1', 64)}, {FixedUtcNow}, {"gap-fill-reader"}, {"1"}, {"gap-fill-completeness"}, {1}, {true}, {FixedUtcNow})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseDataFields (WorkId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {"vehicle_registration"}, {"fact"}, {"text"}, {FixtureRegistration}, {"intake_evidence"}, {"instruction.pdf"}, {"page 1"}, {"extraction"}, {1})");
         return caseId;
     }
 }

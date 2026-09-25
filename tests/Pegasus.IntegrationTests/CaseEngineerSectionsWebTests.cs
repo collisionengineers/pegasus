@@ -69,15 +69,13 @@ public sealed class CaseEngineerSectionsWebTests
         Assert.DoesNotContain("staff-reviewed", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("reviewed by staff", html, StringComparison.OrdinalIgnoreCase);
         // The Incident narrative and the statement of truth are Core's, composed
-        // wherever the assessment opens; neither is a recorded field.
-        if (AssessmentAccessPolicy.CanOpen(new AssessmentAccessState(state)))
-        {
-            Assert.Contains(
-                $"data-damage-narrative>{ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear")}</div>",
-                html,
-                StringComparison.Ordinal);
-            Assert.Contains(AssessmentReportContract.StatementOfTruth1, html, StringComparison.Ordinal);
-        }
+        // in every state, as the issued report printed them; neither is a
+        // recorded field.
+        Assert.Contains(
+            $"data-damage-narrative>{ReportWordingComposition.NatureOfIncidentSentence("moderate", "right_rear")}</div>",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportContract.StatementOfTruth1, html, StringComparison.Ordinal);
 
         if (!AssessmentPolicy.IsWritableState(state))
         {

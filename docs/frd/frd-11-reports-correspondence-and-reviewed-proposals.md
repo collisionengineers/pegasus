@@ -79,8 +79,9 @@ that is their order until the Engineer moves one. The Damage and Tyres tables
 are not wording: they follow the Nature of Incident block. The Damage
 section's Incident narrative reads the Nature of Incident block from the same
 owner: the Engineer's wording when written, else the composed sentence. It is
-available once the damage record has a headline impact, before a report can
-be projected, whether or not the report carries the block; Damage keeps no
+available once the Engineer has written that wording or the damage record has
+a headline impact, in every lifecycle state and before a report can be
+projected, whether or not the report carries the block; Damage keeps no
 narrative of its own (operator, 24 September 2026).
 
 A block tracks the Case's own facts until the Engineer writes wording in its
@@ -347,7 +348,11 @@ Inspection date, and changing it makes the current generation stale. An
 Automation value stays a blocker until a staff Save of its section confirms
 or clears it; the facts only the DVLA/DVSA lookup records
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment))
-are recorded confirmed and never wait for review. VAT comes only from the
+are recorded confirmed and never wait for review. A temporary repair value
+waits for review only while the vehicle is recorded unroadworthy: otherwise
+the report prints no temporary repair and Decisions shows none
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)).
+VAT comes only from the
 Current repair spec
 ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report));
 readiness asks no separate repairer VAT question.
