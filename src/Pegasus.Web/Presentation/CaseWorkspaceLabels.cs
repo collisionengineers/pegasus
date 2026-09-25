@@ -534,6 +534,7 @@ public static class CaseWorkspaceLabels
         public const string ActionInProgress = "Wait for the current Case action to finish before importing an estimate.";
         public const string StorageFailed = "The estimate source could not be retained.";
         public const string Imported = "Estimate imported. It is the repair spec in use.";
+        public const string NotAnEstimateFile = "That file cannot be imported as a repair spec.";
     }
 
     /// <summary>
@@ -1008,6 +1009,7 @@ public static class CaseWorkspaceLabels
         public const string BoxAuditConfirmed = "Box audit · confirmed";
         public const string OpenInBox = "Open in Box";
         public const string View = "View";
+        public const string ImportEstimate = "Import as repair spec";
         public const string Remove = "Remove";
         public const string RemoveFile = "Remove file";
         public const string Compose = "Compose";

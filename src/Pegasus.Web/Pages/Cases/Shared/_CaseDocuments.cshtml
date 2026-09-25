@@ -75,6 +75,20 @@ else
                             <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                         </a>
                     }
+                    @if (Model.CanImportEstimate(entry))
+                    {
+                        @* An estimate already in Case Files — one that arrived
+                           by email, say — imports here without a second copy
+                           (operator, 25 September 2026). *@
+                        <form method="post" asp-page="/Cases/Details" asp-page-handler="ImportCaseFileEstimate" asp-route-id="@workflow.CaseId" data-import-case-file-estimate>
+                            <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
+                            <input type="hidden" name="versionId" value="@version.Id" />
+                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                            <button type="submit" class="btn btn--small">@FilesLabels.ImportEstimate</button>
+                        </form>
+                    }
                     @if (mayEdit)
                     {
                         @if (Model.OriginalReportMissing)
