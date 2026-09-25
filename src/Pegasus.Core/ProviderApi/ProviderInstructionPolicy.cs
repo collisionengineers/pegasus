@@ -29,7 +29,6 @@ public sealed record ProviderInstruction(
     string? AccidentCircumstances = null,
     DateOnly? InspectionDateRequested = null,
     string? InspectionAddress = null,
-    DateOnly? InstructionDate = null,
     string? VatStatus = null,
     string? Notes = null);
 
@@ -117,7 +116,6 @@ public static class ProviderInstructionPolicy
         public const string VehicleMileageUnit = "Vehicle mileage unit";
         public const string AccidentCircumstances = "Accident circumstances";
         public const string DateOfIncident = "Date of incident";
-        public const string InstructionDate = "Instruction date";
         public const string InspectionDate = "Inspection date";
         public const string InspectionAddress = "Inspection address";
         public const string VatStatus = "VAT status";
@@ -190,15 +188,11 @@ public static class ProviderInstructionPolicy
 
     /// <summary>
     /// The declared instruction as the draft every downstream owner already
-    /// reads. <paramref name="receivedOn"/> is the submission's own date, which
-    /// stands in for an instruction date the provider did not state: an
-    /// instruction dates from when it was given, and for an API submission that
-    /// instant is when it arrived.
+    /// reads. It carries no instruction date: the submission's received time is
+    /// the Case's Received date, which is its instruction date (operator,
+    /// 24 September 2026).
     /// </summary>
-    public static InstructionDraft ToDraft(
-        ProviderInstruction instruction,
-        string principalCode,
-        DateOnly receivedOn)
+    public static InstructionDraft ToDraft(ProviderInstruction instruction, string principalCode)
     {
         ArgumentNullException.ThrowIfNull(instruction);
         ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
@@ -212,7 +206,6 @@ public static class ProviderInstructionPolicy
             instruction.VehicleMileage,
             instruction.AccidentCircumstances,
             instruction.DateOfIncident,
-            instruction.InstructionDate ?? receivedOn,
             instruction.InspectionAddress,
             instruction.InspectionDateRequested,
             instruction.VehicleMileageUnit,
@@ -234,7 +227,7 @@ public static class ProviderInstructionPolicy
     public static IReadOnlyList<InstructionReviewField> ReviewFields(InstructionDraft draft)
     {
         ArgumentNullException.ThrowIfNull(draft);
-        var fields = new List<InstructionReviewField>(18);
+        var fields = new List<InstructionReviewField>(17);
         Add(fields, FieldNames.ClaimantName, draft.ClaimantName);
         Add(fields, FieldNames.ClaimantContactNumber, draft.ClaimantContactNumber);
         Add(fields, FieldNames.ClaimantAddress, draft.ClaimantAddress);
@@ -246,7 +239,6 @@ public static class ProviderInstructionPolicy
         Add(fields, FieldNames.VehicleMileageUnit, draft.VehicleMileageUnit);
         Add(fields, FieldNames.AccidentCircumstances, draft.AccidentCircumstances);
         Add(fields, FieldNames.DateOfIncident, Date(draft.DateOfIncident));
-        Add(fields, FieldNames.InstructionDate, Date(draft.InstructionDate));
         Add(fields, FieldNames.InspectionDate, Date(draft.InspectionDate));
         Add(fields, FieldNames.InspectionAddress, draft.InspectionAddress);
         Add(fields, FieldNames.VatStatus, draft.VatStatus);

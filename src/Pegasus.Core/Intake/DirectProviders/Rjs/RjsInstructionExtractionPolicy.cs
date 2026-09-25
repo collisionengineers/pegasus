@@ -18,7 +18,6 @@ public sealed partial class RjsInstructionExtractionPolicy
         new("Vehicle make", ["Client vehicle make"], PartyRole: "claimant"),
         new("Vehicle model", ["Client vehicle model"], IsRequired: false, PartyRole: "claimant"),
         new("Incident date", ["Accident"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "claimant"),
-        new("Instruction date", ["Header date"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "instruction"),
         new("Inspection address", ["Inspection address"], IsRequired: false, PartyRole: "inspection-location"),
         new("Accident circumstances", ["Accident circumstances"], IsRequired: false, PartyRole: "claimant"),
         new("Claimant address", ["Claimant address"], IsRequired: false, PartyRole: "claimant"),
@@ -60,7 +59,6 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Incident date"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]), null,
             InstructionFieldEngine.TypedString(values["VAT status"], 100), null, null);
@@ -81,7 +79,6 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         var header = text[..dear.Index];
         var body = text[dear.Index..signature.Index];
         foreach (Match match in ReferenceRegex().Matches(header)) yield return Label(fragment, "Our Reference", match.Groups["value"].Value);
-        foreach (Match match in HeaderDateRegex().Matches(header)) yield return Label(fragment, "Header date", match.Groups["value"].Value);
         foreach (var (regex, label) in BodyLabels)
             foreach (Match match in regex.Matches(body)) yield return Label(fragment, label, match.Groups["value"].Value);
         foreach (Match match in AddressRegex().Matches(body)) yield return Label(fragment, "Claimant address", match.Groups["value"].Value);
@@ -101,7 +98,6 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
     [GeneratedRegex(@"(?im)^\s*Dear\s+Sirs\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex DearSirsRegex();
     [GeneratedRegex(@"(?im)^\s*Robert\s+James\s+Solicitors\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex SignatureRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Reference\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ReferenceRegex();
-    [GeneratedRegex(@"(?im)^\s*(?<value>\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex HeaderDateRegex();
     [GeneratedRegex(@"(?im)^\s*Our\s+Client\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ClaimantRegex();
     [GeneratedRegex(@"(?im)^\s*Accident\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex AccidentRegex();
     [GeneratedRegex(@"(?im)^\s*Client\s+vehicle\s+(?:registration|reg)\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex RegistrationRegex();

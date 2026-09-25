@@ -89,7 +89,6 @@ public static class ProviderInstructionJson
             incident.Circumstances,
             inspection.DateRequested,
             inspection.Location,
-            parsed.InstructionDate,
             parsed.VatStatus,
             parsed.Notes);
         return (instruction, Files(parsed.Files));
@@ -182,6 +181,16 @@ public sealed record ProviderInstructionInspectionBody(
     DateOnly? DateRequested = null,
     string? Location = null);
 
+/// <summary>
+/// API-01's request body. It has no instruction date: the time Pegasus received
+/// the submission is the Case's Received date, which is its instruction date
+/// (operator, 24 September 2026). A member this contract does not name,
+/// including the retired <c>instructionDate</c>, is ignored rather than
+/// refused: <see cref="ProviderInstructionJson.Options"/> and
+/// <see cref="ProviderInstructionJson.StorageOptions"/> keep System.Text.Json's
+/// default unmapped-member handling, so retained request bodies (re-read by
+/// ProviderApiIntakeSourceReader) and stored declarations keep parsing.
+/// </summary>
 public sealed record ProviderSubmissionBody(
     string? Principal = null,
     string? ClaimNumber = null,
@@ -192,7 +201,6 @@ public sealed record ProviderSubmissionBody(
     ProviderInstructionVehicleBody? Vehicle = null,
     ProviderInstructionIncidentBody? Incident = null,
     ProviderInstructionInspectionBody? Inspection = null,
-    DateOnly? InstructionDate = null,
     string? VatStatus = null,
     string? Notes = null,
     IReadOnlyList<ProviderSubmissionFileBody>? Files = null);

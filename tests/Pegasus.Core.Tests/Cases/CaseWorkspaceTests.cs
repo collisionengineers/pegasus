@@ -52,7 +52,7 @@ public sealed class CaseWorkspaceTests
             request.CaseId, request.ExpectedVersion, request.Actor, request.OperationKey, reason, request.EditLeaseToken)
         {
             Overview = new(
-                "A Claimant", null, null, null, null, null, null, null, null, null, null, null, null)
+                "A Claimant", null, null, null, null, null, null, null, null, null, null, null)
         });
 
         var normalized = CaseWorkspacePolicy.ValidateAndNormalize(request);
@@ -328,7 +328,7 @@ public sealed class CaseWorkspaceTests
             Request(request => request with
             {
                 Overview = new(
-                    null, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, null, null,
                     new CaseWorkspaceClaimSource(
                         sourceId, 4, "Acme Claims", "Directory Handler", "0113 000 0000", null,
                         OverrideContactName: " Directory Handler ",

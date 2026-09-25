@@ -379,7 +379,6 @@ public sealed class OrganizationAdministrationPersistenceTests
                     null,
                     null,
                     null,
-                    null,
                     "Image Based Assessment"),
                 [],
                 null,

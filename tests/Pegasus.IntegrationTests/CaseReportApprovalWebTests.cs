@@ -316,7 +316,6 @@ public sealed class CaseReportApprovalWebTests
                 "Case claimant",
                 "CLM-42",
                 now.AddDays(-2),
-                new DateOnly(2031, 5, 5),
                 "Email",
                 now.AddDays(-2));
             CaseDetails details = new(

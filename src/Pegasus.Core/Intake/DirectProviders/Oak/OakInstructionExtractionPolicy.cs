@@ -4,7 +4,7 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// Reads Oakwood instructions, including the compound header table whose
-/// labels and values must remain aligned before reference or date is trusted.
+/// labels and values must remain aligned before the reference is trusted.
 /// </summary>
 public sealed partial class OakInstructionExtractionPolicy
     : IInstructionExtractionPolicy, IInstructionDocumentProfile, IInstructionFieldRoles
@@ -85,12 +85,9 @@ public sealed partial class OakInstructionExtractionPolicy
         var header = AssertAlignedHeader(readResult.Content);
         var fields = extracted.Where(field => field.Name != HeaderAlignmentField).Select(RestoreApostrophe).ToList();
         fields.Add(HeaderField("Claim reference", header.Reference, header.Candidate));
-        fields.Add(HeaderField("Instruction date", header.Date, header.Candidate));
         var missing = engineMissing.Where(name => name != HeaderAlignmentField).ToList();
         if (header.Reference is null)
             missing.Add("Claim reference");
-        if (header.Date is null)
-            missing.Add("Instruction date");
 
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(
@@ -103,7 +100,6 @@ public sealed partial class OakInstructionExtractionPolicy
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Incident date"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]),
             null,
@@ -112,7 +108,6 @@ public sealed partial class OakInstructionExtractionPolicy
             null);
         var evidence = new List<IntakeEvidence>(fieldEvidence.Where(item => item.Signal != HeaderAlignmentField));
         AddHeaderEvidence(evidence, "Claim reference", header.Reference, header.Candidate);
-        AddHeaderEvidence(evidence, "Instruction date", header.Date, header.Candidate);
         evidence.Add(new(
             IntakeEvidenceSource.Sender,
             IntakeEvidenceStrength.Strong,
@@ -177,7 +172,7 @@ public sealed partial class OakInstructionExtractionPolicy
             yield return Labelled(fragment, RequestedWorkField, match.Groups["value"].Value);
     }
 
-    private static (string? Reference, string? Date, InstructionFieldCandidate? Candidate) AssertAlignedHeader(
+    private static (string? Reference, InstructionFieldCandidate? Candidate) AssertAlignedHeader(
         IReadOnlyList<IntakeContentFragment> fragments)
     {
         var labels = fragments
@@ -189,7 +184,7 @@ public sealed partial class OakInstructionExtractionPolicy
                 StringComparison.Ordinal))
             .ToArray();
         if (labels.Length != 1)
-            return (null, null, null);
+            return (null, null);
 
         var label = labels[0];
         var locator = label.Locator!;
@@ -205,7 +200,7 @@ public sealed partial class OakInstructionExtractionPolicy
             && column == locator.Column + 1
             && !string.IsNullOrWhiteSpace(fragment.Text)).ToArray();
         if (values.Length != 1)
-            return (null, null, null);
+            return (null, null);
 
         var value = values[0];
         var normalizedValue = WhitespaceRegex().Replace(value.Text, " ").Trim();
@@ -217,13 +212,9 @@ public sealed partial class OakInstructionExtractionPolicy
             string.Equals(normalizedValue, value.Text, StringComparison.Ordinal) ? null : value.Text);
         var match = HeaderValuesRegex().Match(candidate.Value);
         if (!match.Success)
-            return (null, null, candidate);
+            return (null, candidate);
         var reference = Clean(match.Groups["reference"].Value);
-        var date = Clean(match.Groups["date"].Value);
-        return (
-            reference.Length == 0 ? null : reference,
-            InstructionFieldEngine.ParseDate(date) is null ? null : date,
-            candidate);
+        return (reference.Length == 0 ? null : reference, candidate);
     }
 
     private static string HeaderCellText(string value) =>
@@ -268,7 +259,6 @@ public sealed partial class OakInstructionExtractionPolicy
             definition => new InstructionFieldRole(definition.PartyRole, definition.ReferenceRole),
             StringComparer.Ordinal);
         roles.Add("Claim reference", new("principal", "principal"));
-        roles.Add("Instruction date", new("instruction", null));
         return roles;
     }
 

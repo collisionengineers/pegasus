@@ -288,13 +288,6 @@ internal static class CaseDataSnapshotFactory
             snapshot,
             receipt,
             fields,
-            CaseDataFieldNames.InstructionDate,
-            CaseDataCodes.Date,
-            Date(draft.InstructionDate));
-        AddExtractedValue(
-            snapshot,
-            receipt,
-            fields,
             CaseDataFieldNames.InspectionDate,
             CaseDataCodes.Date,
             Date(draft.InspectionDate));

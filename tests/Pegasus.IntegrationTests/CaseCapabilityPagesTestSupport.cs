@@ -1010,7 +1010,6 @@ internal static partial class CaseWebTestSupport
             "Case claimant",
             "CLM-42",
             _now.AddDays(-2),
-            new DateOnly(2031, 5, 5),
             "Email",
             _now.AddDays(-2));
 
@@ -1078,7 +1077,7 @@ internal static partial class CaseWebTestSupport
                 VehicleFields(),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
-                new(Empty<DateOnly>(), Confirmed("Standard")),
+                new(CaseDataPolicy.ReceivedDate(_now.AddDays(-2), _now.AddDays(-2)), Confirmed("Standard")),
                 new(
                     Empty<DateOnly>(),
                     Empty<DateOnly>(),

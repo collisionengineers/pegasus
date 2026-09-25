@@ -30,7 +30,7 @@ public sealed class CaseRecordGapsTests
             Guid.NewGuid(), 3, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), "op-client-notes", null, new string('a', 32))
         {
             Overview = new CaseWorkspaceOverview(
-                "A Claimant", null, null, null, null, null, null, null, null, null, null, null, null,
+                "A Claimant", null, null, null, null, null, null, null, null, null, null, null,
                 ClientNotes: "Collected from the depot on Monday.")
         };
 

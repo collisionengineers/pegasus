@@ -338,7 +338,7 @@ public sealed class CaseDamageAndViewerWebTests
                 new CaseSearchItem(
                     CaseId, workflow.Identity.Reference, null, CaseType.Inspection, "Approved Principal",
                     workflow.State, null, "AB12CDE", "Alex Example", "P-100", DateTimeOffset.UtcNow,
-                    new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow),
+                    "Email", DateTimeOffset.UtcNow),
                 workflow,
                 null,
                 [],

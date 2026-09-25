@@ -41,7 +41,7 @@ public sealed class MailboxPhotoReceiptTests
     {
         var receipt = Receipt([Asset("vehicle.jpg", "image/jpeg", IntakeAssetKind.Attachment)]) with
         {
-            InstructionDraft = new(null, null, null, null, null, null, null, null, null, null, null)
+            InstructionDraft = new(null, null, null, null, null, null, null, null, null, null)
         };
 
         Assert.False(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));

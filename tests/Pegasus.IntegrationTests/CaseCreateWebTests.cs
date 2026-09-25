@@ -69,6 +69,7 @@ public sealed partial class CaseCreateWebTests
         await SeedPrincipalAsync(factory.Services, PrincipalCode);
 
         var form = await OpenManualCaseScreenAsync(client);
+        Assert.DoesNotContain("name=\"InstructionDate\"", form.Html, StringComparison.Ordinal);
         var fields = KeyedFields();
         fields["VehicleMileage"] = string.Empty;
         fields["VehicleMileageUnit"] = "miles";
@@ -88,6 +89,10 @@ public sealed partial class CaseCreateWebTests
         Assert.Contains(snapshot.Fields, item => item.FieldName == CaseDataFieldNames.ClaimantName
             && item.ValueKind == CaseDataCodes.Confirmed
             && item.SourceKind == CaseDataCodes.StaffCorrection);
+        Assert.DoesNotContain(snapshot.Fields, item => item.FieldName == "instruction_date");
+        var caseData = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CaseWorkSelector.Current, CancellationToken.None);
+        Assert.Equal(CaseDataPolicy.ReceivedDate(null, created.CreatedAtUtc), caseData!.Instruction.ReceivedDate);
         Assert.Equal(0, await CountAsync(factory.Services, "CaseIntakeLinks"));
     }
 
@@ -324,6 +329,7 @@ public sealed partial class CaseCreateWebTests
         // suggestion to fingerprint.
         Assert.Equal(string.Empty, form.Values["AddressSuggestionFingerprint"]);
         Assert.DoesNotContain("name=\"InstructionComplete\"", form.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"InstructionDate\"", form.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"ImagesComplete\"", form.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("InstructionConfirmedByStaff", form.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("ImagesConfirmedByStaff", form.Html, StringComparison.Ordinal);
@@ -824,7 +830,6 @@ public sealed partial class CaseCreateWebTests
         ["VehicleMileage"] = "12345",
         ["AccidentCircumstances"] = "Keyed circumstances from the retained document.",
         ["DateOfIncident"] = "2031-03-04",
-        ["InstructionDate"] = "2031-03-05",
         ["InspectionDate"] = "2031-03-20",
         ["InspectionAddress"] = "1 Example Street, Exampleton EX1 1EX",
         ["AddressChoice"] = nameof(Pegasus.Web.Pages.Cases.CreateModel.AddressChoiceKind.UseEnteredAddress)
@@ -926,7 +931,6 @@ public sealed partial class CaseCreateWebTests
                 12345L,
                 "Keyed circumstances from the retained document.",
                 new DateOnly(2031, 3, 4),
-                new DateOnly(2031, 3, 5),
                 null));
 
     private static Task<IntakeReceipt> CreateReceiptWithExtractedAddressAsync(

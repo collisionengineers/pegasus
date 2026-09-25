@@ -106,7 +106,7 @@ public sealed class IndexModel(
     private static readonly string[] SearchOnlyParameters =
     [
         "case", "registration", "claimant", "claimNumber", "engineerId",
-        "receivedDate", "instructionDate", "fromDate", "toDate", "query"
+        "receivedDate", "fromDate", "toDate", "query"
     ];
 
     /// <summary>

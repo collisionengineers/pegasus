@@ -42,10 +42,6 @@ public sealed partial class QclInstructionExtractionPolicy
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate,
             PartyRole: "claimant"),
-        new("Instruction date", ["Header date"], IsRequired: false,
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
-            CanonicalValue: InstructionFieldEngine.CanonicalDate,
-            PartyRole: "instruction"),
         new("Inspection address", ["Inspection location"], IsRequired: false, PartyRole: "inspection-location"),
         new("Inspection date", ["Completed inspection date"], IsRequired: false,
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
@@ -104,7 +100,6 @@ public sealed partial class QclInstructionExtractionPolicy
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]),
             InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000),
             InstructionFieldEngine.ParseDate(values["Incident date"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]),
             null,
@@ -150,8 +145,6 @@ public sealed partial class QclInstructionExtractionPolicy
             yield return Labelled(fragment, "Claimant model", match.Groups["value"].Value);
         foreach (Match match in AccidentDateRegex().Matches(instruction.Value.Text))
             yield return Labelled(fragment, "Accident date", match.Groups["value"].Value);
-        foreach (Match match in HeaderDateRegex().Matches(text[..instruction.Value.Start]))
-            yield return Labelled(fragment, "Header date", match.Groups["value"].Value);
         foreach (Match match in LocationRegex().Matches(instruction.Value.Text))
             yield return Labelled(fragment, "Inspection location", match.Groups["value"].Value);
         foreach (Match match in MileageRegex().Matches(instruction.Value.Text))
@@ -210,9 +203,6 @@ public sealed partial class QclInstructionExtractionPolicy
 
     [GeneratedRegex(@"(?im)^\s*Acc\s+date\s*:?[ \t]*(?<value>\d{1,2}[-/]\p{L}{3,9}[-/]\d{4}|\d{1,2}/\d{1,2}/\d{4})", RegexOptions.CultureInvariant, 100)]
     private static partial Regex AccidentDateRegex();
-
-    [GeneratedRegex(@"(?im)^\s*Date\s*:\s*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)]
-    private static partial Regex HeaderDateRegex();
 
     [GeneratedRegex(@"(?im)^\s*Location\s*:?[ \t]*(?<value>.+?)(?=\s+Contact\s+no\s*:|$)", RegexOptions.CultureInvariant, 100)]
     private static partial Regex LocationRegex();

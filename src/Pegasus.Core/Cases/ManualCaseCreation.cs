@@ -60,7 +60,6 @@ public sealed class CreateManualCase(
             data.VehicleMileage,
             data.AccidentCircumstances,
             data.IncidentDate,
-            data.InstructionDate,
             data.InspectionAddress,
             data.InspectionDate);
         // A Triage Case asks only for its Principal and the vehicle

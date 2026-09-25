@@ -633,7 +633,7 @@ public sealed partial class SendToAiIntegrationTests
             var summary = new CaseSearchItem(
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
-                DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow, "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
                 summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [])
             {
