@@ -207,7 +207,7 @@ public sealed class CasesIndexWebTests
         var engineerId = Guid.NewGuid();
         var path = "/Search?case=QDOS3100042&registration=AB12CDE&claimant=Claimant&claimNumber=CLM42"
             + $"&principal=QDOS&state=Review&engineerId={engineerId:D}"
-            + "&receivedDate=2031-05-01&instructionDate=2031-05-02"
+            + "&receivedDate=2031-05-01"
             + "&fromDate=2031-04-01&toDate=2031-05-31&origin=Email&query=needle&page=2";
 
         using var response = await client.GetAsync(path);
@@ -231,7 +231,6 @@ public sealed class CasesIndexWebTests
         Assert.Equal(CaseLifecycleState.Review, query.Filters.State);
         Assert.Equal(engineerId, query.Filters.EngineerId);
         Assert.Equal(new DateOnly(2031, 5, 1), query.Filters.ReceivedDate);
-        Assert.Equal(new DateOnly(2031, 5, 2), query.Filters.InstructionDate);
         Assert.Equal(new DateOnly(2031, 4, 1), query.Filters.FromDate);
         Assert.Equal(new DateOnly(2031, 5, 31), query.Filters.ToDate);
         Assert.Equal("Email", query.Filters.Origin);
@@ -261,7 +260,7 @@ public sealed class CasesIndexWebTests
                      "case=QDOS3100042", "registration=AB12CDE", "claimant=Claimant",
                      "claimNumber=CLM42", "principal=QDOS", "state=Review",
                      $"engineerId={engineerId:D}", "receivedDate=2031-05-01",
-                     "instructionDate=2031-05-02", "fromDate=2031-04-01", "toDate=2031-05-31",
+                     "fromDate=2031-04-01", "toDate=2031-05-31",
                      "origin=Email", "query=needle", "page=3"
                  })
         {
@@ -522,7 +521,6 @@ public sealed class CasesIndexWebTests
                         "Claimant",
                         "CLM44",
                         received,
-                        new DateOnly(2031, 5, 2),
                         "Email",
                         received),
                     new(
@@ -537,7 +535,6 @@ public sealed class CasesIndexWebTests
                         null,
                         null,
                         received,
-                        null,
                         "Email",
                         received)
                     {
@@ -565,7 +562,6 @@ public sealed class CasesIndexWebTests
                         "Claimant",
                         "CLM42",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero),
-                        new DateOnly(2031, 5, 2),
                         "Email",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero)),
                     new(
@@ -580,7 +576,6 @@ public sealed class CasesIndexWebTests
                         "Claimant",
                         "CLM43",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero),
-                        new DateOnly(2031, 5, 2),
                         "Email",
                         new DateTimeOffset(2031, 5, 1, 10, 0, 0, TimeSpan.Zero))
                     {

@@ -390,7 +390,7 @@ public sealed class AiWorkTests
                     Empty<string>()),
                 new(Empty<DateOnly>(), Empty<string>()),
                 new(Empty<string>(), Empty<string>(), Empty<string>()),
-                new(Empty<DateOnly>(), Empty<string>()),
+                new(new DateOnly(2031, 1, 1), Empty<string>()),
                 new(
                     Empty<DateOnly>(),
                     Empty<DateOnly>(),

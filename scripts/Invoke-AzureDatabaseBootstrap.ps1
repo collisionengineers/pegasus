@@ -149,8 +149,8 @@ function Get-MigrationPermissionMatrix {
     }
     # 20260917140000_GrantWorkerCaseAssessmentFields: the Worker's vehicle-lookup
     # fill reads the confirmed mileage source for report freshness and writes the
-    # derived Vehicle type, so it needs the same read/insert/update rights Web holds;
-    # DELETE stays denied for both roles.
+    # derived Vehicle type, so it needs the same read/insert/update rights Web holds.
+    # The Worker's DELETE follows in 20260925090000_VehicleLookupDerivedFacts below.
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseAssessmentFields")
     }
@@ -576,6 +576,9 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseWorks')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseWorks')
     $expected.Add('pegasus_web_runtime_role|G|INSERT|Triage')
+    # 20260925090000_VehicleLookupDerivedFacts: the Worker's lookup fill clears a
+    # lookup-derived Case fact that a complete answer no longer carries.
+    $expected.Add('pegasus_worker_runtime_role|G|DELETE|CaseAssessmentFields')
     return @($expected | Sort-Object -Unique)
 }
 

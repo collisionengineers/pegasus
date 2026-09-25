@@ -86,7 +86,6 @@ public sealed class PchInstructionExtractionPolicyTests
         Assert.Equal("573942", draft.ClaimNumber);
         Assert.Equal("VN20XFC", draft.VehicleRegistration);
         Assert.Equal(new DateOnly(2026, 3, 31), draft.DateOfIncident);
-        Assert.Equal(new DateOnly(2026, 5, 6), draft.InstructionDate);
         Assert.Equal("Our client has been stationary in traffic.", draft.AccidentCircumstances);
         Assert.Equal(InstructionPolicyApplicability.Applicable, result.Applicability);
     }
@@ -135,11 +134,10 @@ public sealed class PchInstructionExtractionPolicyTests
             "Connexus Vehicle Solutions",
             Field(result, "Hire company").SuggestedValue);
         Assert.Equal("01/04/2026", Field(result, "Hire out date").SuggestedValue);
-        // The incident and instruction dates are the document's own, and the
-        // hire-out date has displaced neither.
+        // The incident date is the document's own, and the hire-out date has
+        // not displaced it.
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal(new DateOnly(2026, 3, 31), draft.DateOfIncident);
-        Assert.Equal(new DateOnly(2026, 5, 6), draft.InstructionDate);
         Assert.Equal(
             "hire-provider",
             new PchInstructionExtractionPolicy().FieldRoles["Hire company"].PartyRole);
@@ -193,14 +191,14 @@ public sealed class PchInstructionExtractionPolicyTests
     }
 
     [Fact]
-    public void AnAbsentInstructionDateIsNotTodaysDate()
+    public void TheMessageDateRowIsNotACaseFact()
     {
-        var result = Extract("Policyholder Name:\tMr Junior Cover\nRegistration No:\tJR07CVR");
+        var result = Extract(AuditInstruction);
 
-        var field = Field(result, "Instruction date");
-        Assert.Null(field.SuggestedValue);
-        Assert.False(field.IsDefaulted);
-        Assert.Null(Assert.IsType<InstructionDraft>(result.InstructionDraft).InstructionDate);
+        Assert.DoesNotContain(
+            result.Fields,
+            field => field.Name is "Instruction date" or "PCH message date boundary");
+        Assert.False(new PchInstructionExtractionPolicy().FieldRoles.ContainsKey("PCH message date boundary"));
     }
 
     [Fact]

@@ -61,7 +61,7 @@ public sealed class CaseHeaderTests
             new CaseSearchItem(
                 Guid.NewGuid(), "REF-1", null, CaseType.Inspection, "QDOS",
                 CaseLifecycleState.Review, null, null, null, null,
-                DateTimeOffset.UnixEpoch, null, "Email", DateTimeOffset.UnixEpoch),
+                DateTimeOffset.UnixEpoch, "Email", DateTimeOffset.UnixEpoch),
             new CaseWorkflowRecord(
                 Guid.NewGuid(),
                 new CaseIdentity(Guid.NewGuid(), "QDOS", 2031, 1, "QDOS/2031/001"),

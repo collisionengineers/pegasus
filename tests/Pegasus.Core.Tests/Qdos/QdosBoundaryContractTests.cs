@@ -275,7 +275,7 @@ public sealed class QdosBoundaryContractTests
             accepted with { Value = "Model" },
             accepted with { Value = "Claimant" },
             accepted with { Value = "2031-05-01" },
-            accepted with { Value = "2031-05-02" },
+            new DateOnly(2031, 5, 2),
             accepted with { Value = "2031-05-03" },
             new(
                 EvaInspectionMode.ImageBasedAssessment,

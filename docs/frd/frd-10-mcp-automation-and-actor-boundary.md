@@ -77,12 +77,16 @@ day, recovery charge and report date). Any other field is refused and named,
 so every unconfirmed Automation value is one the next staff Save of its
 section confirms or clears (operator, 24 September 2026). Professional
 findings (including the Engineer's Value and its basis card's retail and
-trade), Case-owned facts and fields derived from damage entries are refused.
-Case facts, including the Inspection date the report prints as the date the
-damage was assessed, change through `pegasus_case_update_details`, and
-`pegasus_assessment_get` returns them under `caseOwned`. Estimates go through
-the named estimate tools, with the same actor, lease, version and replay
-checks as the Case UI
+trade), Case-owned facts, fields derived from damage entries and the facts
+the DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry)
+are refused. Case facts, including the Inspection date the report prints as
+the date the damage was assessed, change through
+`pegasus_case_update_details`, and `pegasus_assessment_get` returns them
+under `caseOwned`. The Case's Received date, which is its instruction date,
+is read-only: `caseOwned.receivedDate` and the Case summary's
+`receivedAtUtc` carry it, and no tool accepts an instruction date.
+Estimates go through the named estimate tools, with the same actor, lease,
+version and replay checks as the Case UI
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). Unidentified reason
 codes on the wire are the Core list under `unidentified`. The tool list has
 no autonomous Send and never exposes Glass's credentials or sessions.

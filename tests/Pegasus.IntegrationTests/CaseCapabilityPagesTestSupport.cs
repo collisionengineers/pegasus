@@ -197,7 +197,16 @@ internal static partial class CaseWebTestSupport
         }
     }
 
-    internal static async Task<string> ReadCaseAsync(RecordingCaseDetailsStore store)
+    /// <summary>
+    /// The Case as an operator who holds no edit lease reads it, with
+    /// <paramref name="substitutePorts"/> replacing further ports after the
+    /// store's. Without a lease a lazy section (Vehicle among them) is a
+    /// placeholder unless <paramref name="section"/> addresses it.
+    /// </summary>
+    internal static async Task<string> ReadCaseAsync(
+        RecordingCaseDetailsStore store,
+        Action<IServiceCollection>? substitutePorts = null,
+        string? section = null)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -210,6 +219,7 @@ internal static partial class CaseWebTestSupport
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentWorkspace>(services, store);
+                substitutePorts?.Invoke(services);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -217,7 +227,9 @@ internal static partial class CaseWebTestSupport
             BaseAddress = new Uri("https://localhost")
         });
 
-        return await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        return await GetHtmlAsync(
+            client,
+            section is null ? $"/Cases/{store.CaseId:D}" : $"/Cases/{store.CaseId:D}?section={section}");
     }
 
     /// <summary>
@@ -988,7 +1000,6 @@ internal static partial class CaseWebTestSupport
             "Case claimant",
             "CLM-42",
             _now.AddDays(-2),
-            new DateOnly(2031, 5, 5),
             "Email",
             _now.AddDays(-2));
 
@@ -1056,7 +1067,7 @@ internal static partial class CaseWebTestSupport
                 VehicleFields(),
                 new(Empty<DateOnly>(), Confirmed("Rear impact")),
                 new(Confirmed("Case contact"), Empty<string>(), Empty<string>()),
-                new(Empty<DateOnly>(), Confirmed("Standard")),
+                new(CaseDataPolicy.ReceivedDate(_now.AddDays(-2), _now.AddDays(-2)), Confirmed("Standard")),
                 new(
                     Empty<DateOnly>(),
                     Empty<DateOnly>(),

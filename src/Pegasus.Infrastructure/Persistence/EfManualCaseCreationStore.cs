@@ -336,7 +336,6 @@ public sealed class EfManualCaseCreationStore(
             data.VehicleMileage,
             data.AccidentCircumstances,
             data.IncidentDate,
-            data.InstructionDate,
             data.InspectionAddress,
             data.InspectionDate));
 

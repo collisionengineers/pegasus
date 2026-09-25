@@ -162,9 +162,6 @@ public sealed partial class CreateModel(
     public DateOnly? DateOfIncident { get; set; }
 
     [BindProperty]
-    public DateOnly? InstructionDate { get; set; }
-
-    [BindProperty]
     public DateOnly? InspectionDate { get; set; }
 
     [BindProperty]
@@ -204,7 +201,6 @@ public sealed partial class CreateModel(
             VehicleMileage,
             AccidentCircumstances,
             DateOfIncident,
-            InstructionDate,
             EffectiveInspectionAddress(),
             InspectionDate),
         Receipt.Fields,
@@ -272,7 +268,6 @@ public sealed partial class CreateModel(
         VehicleMileage = draft?.VehicleMileage;
         AccidentCircumstances = draft?.AccidentCircumstances;
         DateOfIncident = draft?.DateOfIncident;
-        InstructionDate = draft?.InstructionDate;
         InspectionDate = draft?.InspectionDate;
         CaseType = Receipt.MailClassificationDecision?.CaseType ?? CaseType.Inspection;
         AddressChoice = AddressSuggestion is null
@@ -530,7 +525,6 @@ public sealed partial class CreateModel(
             mileageUnit,
             AccidentCircumstances,
             DateOfIncident,
-            InstructionDate: InstructionDate,
             InspectionDate: InspectionDate,
             InspectionDeadline: InspectionDate,
             InspectionAddress: InspectionAddress,
@@ -551,7 +545,6 @@ public sealed partial class CreateModel(
             data.VehicleMileage,
             data.AccidentCircumstances,
             data.IncidentDate,
-            data.InstructionDate,
             data.InspectionAddress,
             data.InspectionDate);
         IReadOnlyList<string> missingFields;
@@ -674,7 +667,6 @@ public sealed partial class CreateModel(
             VehicleMileage,
             Optional(AccidentCircumstances),
             DateOfIncident,
-            InstructionDate,
             EffectiveInspectionAddress(),
             InspectionDate);
         // Only identity-critical detail blocks allocation. Thin ordinary detail

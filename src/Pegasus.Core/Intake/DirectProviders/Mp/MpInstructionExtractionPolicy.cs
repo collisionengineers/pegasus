@@ -16,7 +16,6 @@ public sealed partial class MpInstructionExtractionPolicy
         new("Vehicle registration", ["Vehicle Reg"], IsValidTyped: IsSupportedUkRegistration, CanonicalValue: InstructionFieldEngine.NormalizeRegistration, PartyRole: "claimant"),
         new("Vehicle make and model", ["Vehicle description"], PartyRole: "claimant"),
         new("Incident date", ["Date of Accident"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "claimant"),
-        new("Instruction date", ["Header date"], IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null, CanonicalValue: InstructionFieldEngine.CanonicalDate, PartyRole: "instruction"),
         new("Inspection address", ["Vehicle inspection address"], IsRequired: false, PartyRole: "inspection-location"),
         new("Accident circumstances", ["Accident circumstances"], IsRequired: false, PartyRole: "claimant"),
         new("Vehicle mileage", ["Mileage"], IsRequired: false, IsValidTyped: value => InstructionFieldEngine.ParseMileage(value) is not null, PartyRole: "claimant"),
@@ -42,7 +41,7 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         var draft = new InstructionDraft(SupportedPrincipalCode, InstructionFieldEngine.TypedString(values["Claimant name"], 300), InstructionFieldEngine.TypedString(values["Claim reference"], 100),
             InstructionFieldEngine.NormalizeRegistration(values["Vehicle registration"]), InstructionFieldEngine.TypedString(values["Vehicle make and model"], 100), null,
             InstructionFieldEngine.ParseMileage(values["Vehicle mileage"]), InstructionFieldEngine.TypedString(values["Accident circumstances"], 2000), InstructionFieldEngine.ParseDate(values["Incident date"]),
-            InstructionFieldEngine.ParseDate(values["Instruction date"]), InstructionFieldEngine.TypedString(values["Inspection address"], 1000), InstructionFieldEngine.ParseDate(values["Inspection date"]),
+            InstructionFieldEngine.TypedString(values["Inspection address"], 1000), InstructionFieldEngine.ParseDate(values["Inspection date"]),
             null, InstructionFieldEngine.TypedString(values["VAT status"], 100), null, null);
         var evidence = new List<IntakeEvidence>(extracted) { new(IntakeEvidenceSource.Sender, IntakeEvidenceStrength.Strong, IntakeEvidenceFinding.SupportsPrincipal, "established-principal", $"Principal MP was established by {principalContext.PolicyKey} v{principalContext.PolicyVersion}.") };
         return new(InstructionPolicyApplicability.Applicable, evidence, fields, draft, missing, Key, Version);
@@ -56,8 +55,6 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
         foreach (Match match in ReferenceRegex().Matches(header)) yield return Label(fragment, "Our Ref", match.Groups["value"].Value);
         foreach (Match match in VehicleRegex().Matches(header)) { var registration = match.Groups["registration"].Value; if (IsSupportedUkRegistration(registration)) yield return Label(fragment, "Vehicle Reg", registration); yield return Label(fragment, "Vehicle description", match.Groups["vehicle"].Value); }
         foreach (Match match in AccidentRegex().Matches(header)) yield return Label(fragment, "Date of Accident", match.Groups["value"].Value);
-        foreach (Match match in HeaderDateRegex().Matches(header)) yield return Label(fragment, "Header date", match.Groups["value"].Value);
-        if (text.Contains("[OCR page", StringComparison.Ordinal) && !header.Contains("MONTREAL", StringComparison.OrdinalIgnoreCase)) foreach (Match match in OcrCompactHeaderDateRegex().Matches(header)) yield return Label(fragment, "Header date", $"{match.Groups["day"].Value}/{match.Groups["month"].Value}/{match.Groups["year"].Value}");
         foreach (Match match in LocationRegex().Matches(body)) yield return Label(fragment, "Vehicle inspection address", match.Groups["value"].Value);
         foreach (Match match in CircumstancesRegex().Matches(body)) yield return Label(fragment, "Accident circumstances", match.Groups["value"].Value);
         foreach (Match match in MileageRegex().Matches(body)) yield return Label(fragment, "Mileage", match.Groups["value"].Value);
@@ -71,8 +68,6 @@ public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, In
     [GeneratedRegex(@"(?im)^\s*Our\s+Ref\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex ReferenceRegex();
     [GeneratedRegex(@"(?im)^\s*Vehicle\s+Reg\s*:[ \t]*(?<registration>[^,\r\n]+)[ \t]*,[ \t]*(?<vehicle>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex VehicleRegex();
     [GeneratedRegex(@"(?im)^\s*Date\s+of\s+Accident\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex AccidentRegex();
-    [GeneratedRegex(@"(?m)^\s*(?<value>\d{1,2}/\d{1,2}/\d{4})\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex HeaderDateRegex();
-    [GeneratedRegex(@"(?m)^\s*(?<day>\d{1,2})/(?<month>\d{2})(?<year>\d{4})\s*$", RegexOptions.CultureInvariant, 100)] private static partial Regex OcrCompactHeaderDateRegex();
     [GeneratedRegex(@"(?ims)The\s+vehicle\s+is\s+to\s+be\s+inspected\s+at\s*:[ \t]*(?<value>.+?)(?=\n\s*Kind\s+regards)", RegexOptions.CultureInvariant, 100)] private static partial Regex LocationRegex();
     [GeneratedRegex(@"(?ims)^\s*(?:Accident\s+circumstances|Circumstances)\s*:[ \t]*(?<value>.+?)(?=\n\s*(?:The\s+vehicle|Kind\s+regards))", RegexOptions.CultureInvariant, 100)] private static partial Regex CircumstancesRegex();
     [GeneratedRegex(@"(?im)^\s*Mileage\s*:[ \t]*(?<value>[^\r\n]+)", RegexOptions.CultureInvariant, 100)] private static partial Regex MileageRegex();

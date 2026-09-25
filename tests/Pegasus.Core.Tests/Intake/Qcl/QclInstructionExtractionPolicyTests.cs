@@ -32,7 +32,7 @@ public sealed class QclInstructionExtractionPolicyTests
         Assert.Equal("BMW X3", draft.VehicleMake);
         Assert.Null(draft.VehicleModel);
         Assert.Equal(new DateOnly(2026, 5, 4), draft.DateOfIncident);
-        Assert.Equal(new DateOnly(2026, 5, 6), draft.InstructionDate);
+        Assert.DoesNotContain(result.Fields, field => field.Name == "Instruction date");
         Assert.Equal("54 Street Austell Drive Heald Green Cheadle SK8 3EG", draft.InspectionAddress);
         Assert.Null(draft.InspectionDate);
         Assert.Equal("QCL24257", Field(result, "Box reference").SuggestedValue);

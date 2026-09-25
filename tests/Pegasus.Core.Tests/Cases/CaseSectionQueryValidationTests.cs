@@ -71,7 +71,7 @@ public sealed class CaseSectionQueryValidationTests
             new(
                 summaryCaseId, identity.Reference, null, CaseType.Inspection, "QDOS",
                 CaseLifecycleState.Review, null, null, null, null,
-                DateTimeOffset.UnixEpoch, null, "Email", DateTimeOffset.UnixEpoch),
+                DateTimeOffset.UnixEpoch, "Email", DateTimeOffset.UnixEpoch),
             new(workflowCaseId, identity, CaseLifecycleState.Review, null, null, null, null, null, null, null, 1),
             null,
             "case-root",
@@ -95,7 +95,7 @@ public sealed class CaseSectionQueryValidationTests
             new(text, text, text, text, new(null, null, null), text),
             new(date, text),
             new(text, text, text),
-            new(date, text),
+            new(new DateOnly(1970, 1, 1), text),
             new(date, date, text, new(null, null, null)));
     }
 

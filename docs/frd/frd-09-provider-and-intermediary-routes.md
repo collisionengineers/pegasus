@@ -147,6 +147,11 @@ already holds the fields, so it states them.
   field. Only the identity-critical fields withhold a reference: claimant
   name, claim number and vehicle registration. Ordinary detail missing from
   a declaration leaves the Case `Not ready`, exactly as for an email.
+- **No instruction date.** The Case's Received date, which is its
+  instruction date, is the day Pegasus received the submission
+  ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings)).
+  The body has no `instructionDate` member; a member the contract does not
+  name is ignored, not refused.
 - **Existing-Case rejection.** The Case-match policy runs on the declared
   claim number, vehicle registration, claimant and incident date. A unique
   or ambiguous existing-Case match fails with

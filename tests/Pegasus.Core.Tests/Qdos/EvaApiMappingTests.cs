@@ -71,10 +71,10 @@ public sealed class EvaApiMappingTests
     }
 
     /// <summary>
-    /// EVA sets the instruction date when the instruction arrives, so for an
-    /// API submission that instant is the instruction date. Sending the case's
-    /// own value would overwrite a truth with a guess at it, so it is not sent
-    /// at all - not in a field, and not in the note.
+    /// EVA's instruction model has no instruction-date field and EVA stamps
+    /// its own on arrival (operator, 2026-08-27), so the Case's Received date,
+    /// which the archive export sends as Instruction Date, is not sent here at
+    /// all: not in a field, and not in the note.
     /// </summary>
     [Fact]
     public void TheInstructionDateIsLeftToEvaToSetOnReceipt()

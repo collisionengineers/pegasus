@@ -125,6 +125,9 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SalvageValue] = "Salvage value",
             [AssessmentVocabulary.LegalStatus] = "Roadworthiness",
             [AssessmentVocabulary.UnroadworthyReason] = "Unroadworthy reason",
+            [AssessmentVocabulary.VehicleTemporaryRepairsPossible] = "Temporary repairs possible",
+            [AssessmentVocabulary.VehicleTemporaryRepairMethod] = "Temporary repair method",
+            [AssessmentVocabulary.VehicleTemporaryRepairCost] = "Temporary repair cost",
             [AssessmentVocabulary.SettlementExcess] = "Excess",
             [AssessmentVocabulary.SettlementBetterment] = "Betterment",
             [AssessmentVocabulary.SettlementClaimantVatRegistered] = "Claimant VAT registered",
@@ -179,15 +182,21 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.DamageCentreBelt] = "Centre belt",
             [AssessmentVocabulary.DamageUnrelated] = "Unrelated damage",
             [AssessmentVocabulary.DamageUnrelatedDeduction] = "Unrelated-damage deduction",
-            [AssessmentVocabulary.DamageMaterialTransfer] = "Material transfer"
+            [AssessmentVocabulary.DamageMaterialTransfer] = "Material transfer",
+            [AssessmentVocabulary.VehicleAirbagsDeployed] = "Airbags deployed"
         };
 
-        /// <summary>The vehicle's identity the Vehicle section edits beside the registration.</summary>
+        /// <summary>
+        /// The vehicle facts the Vehicle section edits in place: its identity
+        /// beside the registration, and the transmission no approved lookup
+        /// returns.
+        /// </summary>
         public static IReadOnlyDictionary<string, string> Vehicle { get; } = new Dictionary<string, string>
         {
             [AssessmentVocabulary.VehicleVin] = "VIN",
             [AssessmentVocabulary.VehicleType] = "Vehicle type",
-            [AssessmentVocabulary.VehicleBody] = "Body type"
+            [AssessmentVocabulary.VehicleBody] = "Body type",
+            [AssessmentVocabulary.VehicleTransmission] = "Transmission"
         };
 
         public static string FormName(string path) => $"assessmentFields[{path}]";
@@ -248,6 +257,7 @@ public static class CaseWorkspaceLabels
             if (Report.ContainsKey(field)) return "report";
             if (Damage.ContainsKey(field)) return "damage";
             if (Vehicle.ContainsKey(field)) return "vehicle";
+            if (AssessmentVocabulary.LookupDerivedPaths.Contains(field)) return "vehicle";
             return field switch
             {
                 AssessmentVocabulary.HistoryCheck or AssessmentVocabulary.VehicleCondition
@@ -581,9 +591,9 @@ public static class CaseWorkspaceLabels
         };
 
         /// <summary>
-        /// A lookup-sourced assessment value as a read value: a date in the
-        /// office's short form, an enumerated code as words, everything else
-        /// as recorded.
+        /// A Vehicle-section assessment value as a read value: a date in the
+        /// office's short form, an enumerated code in the words the report
+        /// prints, everything else as recorded.
         /// </summary>
         public static string AssessmentValue(string path, string value)
         {
@@ -595,7 +605,7 @@ public static class CaseWorkspaceLabels
             }
             if (definition.Type == AssessmentFieldType.Enumerated)
             {
-                return OperatorLabels.Humanise(value);
+                return AssessmentReportPresentation.AssessmentCode(value);
             }
             return path == AssessmentVocabulary.VehicleEngineCc ? value + " cc" : value;
         }

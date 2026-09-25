@@ -567,6 +567,20 @@ public sealed partial class DetailsModel(
     public IReadOnlyDictionary<string, string> ReportWordingComposed { get; private set; } =
         new Dictionary<string, string>(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The Damage section's Incident narrative: the report's Nature of Incident
+    /// block as Core composes it for this view's work (operator, 24 September
+    /// 2026), in every state the workspace loads. Null while there is none.
+    /// </summary>
+    public string? IncidentNarrative { get; private set; }
+
+    /// <summary>
+    /// The accepted statement of truth this Case's report prints, from Core, shown
+    /// read-only in the Report section in every state the workspace loads. Empty
+    /// only when the report inputs cannot be read.
+    /// </summary>
+    public IReadOnlyList<string> StatementOfTruth { get; private set; } = [];
+
     public string? ReportDraftCondition { get; private set; }
 
     public bool ReportDraftNotReady =>
@@ -976,22 +990,29 @@ public sealed partial class DetailsModel(
                 ? null
                 : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
         }
-        if (AssessmentCanOpen)
+        // Readiness is the current work's: it drives the Next action, and only
+        // while the assessment can open. The wording is the view's own (v29 P3),
+        // read in every state so the Incident narrative and the statement of
+        // truth show what the report prints even on a Held, Query or closed
+        // Case; only the editable wording blocks wait for the assessment.
+        var inputs = AssessmentCanOpen
+            ? await reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, cancellationToken)
+            : null;
+        if (inputs is not null)
         {
-            // Readiness is the current work's: it drives the Next action. The
-            // wording is the view's own (v29 P3).
-            var inputs = await reportSnapshotSource.GetAsync(id, actor, CaseWorkSelector.Current, cancellationToken);
-            if (inputs is not null)
-            {
-                var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
-                ReportDraftPreparation = new(readiness.Reasons);
-                EligibleSignOffEngineers = inputs.Readiness.EligibleSignOffEngineers;
-                SelectedSignOffEngineerId = readiness.Signatory?.StaffId;
-            }
-            var wordingInputs = IsInspectionView
-                ? await reportSnapshotSource.GetAsync(id, actor, WorkSelector, cancellationToken)
-                : inputs;
-            if (wordingInputs is not null)
+            var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
+            ReportDraftPreparation = new(readiness.Reasons);
+            EligibleSignOffEngineers = inputs.Readiness.EligibleSignOffEngineers;
+            SelectedSignOffEngineerId = readiness.Signatory?.StaffId;
+        }
+        var wordingInputs = IsInspectionView || !AssessmentCanOpen
+            ? await reportSnapshotSource.GetAsync(id, actor, WorkSelector, cancellationToken)
+            : inputs;
+        if (wordingInputs is not null)
+        {
+            IncidentNarrative = ReportWordingComposition.NatureOfIncidentOf(wordingInputs.Projection);
+            StatementOfTruth = AssessmentReportContract.StatementOfTruthOf(wordingInputs.Projection);
+            if (AssessmentCanOpen)
             {
                 var wording = WordingOf(wordingInputs.Projection);
                 ReportWording = wording.Offered;
@@ -1456,7 +1477,6 @@ public sealed partial class DetailsModel(
         string? contactName,
         string? contactEmailAddress,
         string? contactPhoneNumber,
-        DateOnly? instructionDate,
         string? vatStatus,
         DateOnly? inspectionDate,
         DateOnly? inspectionDeadline,
@@ -1567,8 +1587,9 @@ public sealed partial class DetailsModel(
                 var damageFields = assessmentFields.Where(field => EditorLabels.Damage.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 var damageSubmitted = Posted(nameof(damageImpacts)) || damageFields.Count > 0;
-                // The vehicle's identity (VIN, type, body) is edited wherever the
-                // Vehicle section edits, like its registration — not an Engineer field.
+                // The vehicle's identity (VIN, type, body) and its transmission are
+                // edited wherever the Vehicle section edits, like its registration —
+                // not an Engineer field.
                 var vehicleIdentityFields = assessmentFields.Where(field => EditorLabels.Vehicle.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 // D4/FRD-12: an image preparation is not an engineering field.
@@ -1647,7 +1668,7 @@ public sealed partial class DetailsModel(
                 var reportSubmitted = reportFields.Count > 0 || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
                 var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
                     nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
-                    nameof(incidentDate), nameof(dueBy), nameof(accidentCircumstances), nameof(instructionDate), nameof(vatStatus),
+                    nameof(incidentDate), nameof(dueBy), nameof(accidentCircumstances), nameof(vatStatus),
                     nameof(repairerName), nameof(repairerAddress), nameof(repairerDirectoryId),
                     nameof(principalNotes), nameof(claimSourceNotes), nameof(clientNotes), nameof(claimSourceId),
                     nameof(claimSourceContactName), nameof(claimSourceContactTelephone),
@@ -1762,7 +1783,6 @@ public sealed partial class DetailsModel(
                             Submitted(nameof(contactPhoneNumber), contactPhoneNumber, Accepted(data.Contact.PhoneNumber)?.Value),
                             Submitted(nameof(incidentDate), incidentDate, Accepted(data.Accident.IncidentDate)?.Value),
                             Submitted(nameof(accidentCircumstances), accidentCircumstances, Accepted(data.Accident.Circumstances)?.Value),
-                            Submitted(nameof(instructionDate), instructionDate, Accepted(data.Instruction.InstructionDate)?.Value),
                             Submitted(nameof(vatStatus), vatStatus, Accepted(data.Instruction.VatStatus)?.Value),
                             linkedRepairer?.Address
                                 ?? Submitted(nameof(repairerAddress), repairerAddress,
@@ -4079,7 +4099,6 @@ public sealed partial class DetailsModel(
             "contactName" => Accepted(data.Contact.Name)?.Value,
             "contactEmailAddress" => Accepted(data.Contact.EmailAddress)?.Value,
             "contactPhoneNumber" => Accepted(data.Contact.PhoneNumber)?.Value,
-            "instructionDate" => Accepted(data.Instruction.InstructionDate)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             "vatStatus" => Accepted(data.Instruction.VatStatus)?.Value,
             "inspectionDate" => Accepted(data.Inspection.InspectionDate)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             "inspectionDeadline" => Accepted(data.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -4125,7 +4144,6 @@ public sealed partial class DetailsModel(
         "contactName" => "Contact name",
         "contactEmailAddress" => "Contact email",
         "contactPhoneNumber" => "Contact phone",
-        "instructionDate" => "Instruction date",
         "vatStatus" => "VAT status",
         "inspectionDate" => "Inspection date",
         "inspectionDeadline" => "Inspection deadline",

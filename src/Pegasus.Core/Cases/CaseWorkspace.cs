@@ -179,7 +179,6 @@ public sealed record CaseWorkspaceOverview(
     string? ContactPhoneNumber,
     DateOnly? IncidentDate,
     string? AccidentCircumstances,
-    DateOnly? InstructionDate,
     string? VatStatus,
     string? RepairerAddress,
     CaseWorkspaceClaimSource? ClaimSource,
@@ -316,8 +315,8 @@ public sealed record CaseWorkspaceCompleteness(
 /// <summary>
 /// One Case edit. Every section is optional: a null section was not submitted
 /// and is left exactly as persisted, while a submitted section replaces its
-/// own members — a null member inside it clears that value. Engineer notes and
-/// Case notes are separately attributed append commands and are deliberately
+/// own members — a null member inside it clears that value. Case notes are a
+/// separately attributed append command (AddCaseNote) and are deliberately
 /// absent from this replace-style payload.
 ///
 /// The save needs no reason (planning decision A, 13 September): its history
@@ -817,7 +816,6 @@ public static class CaseWorkspacePolicy
                 PrincipalNotes = overview.PrincipalNotes,
                 ClaimSourceNotes = overview.ClaimSourceNotes,
                 ClientNotes = overview.ClientNotes,
-                InstructionDate = overview.InstructionDate,
                 VatStatus = overview.VatStatus,
                 RepairerAddress = overview.RepairerAddress,
                 RepairerName = overview.Repairer?.Name,

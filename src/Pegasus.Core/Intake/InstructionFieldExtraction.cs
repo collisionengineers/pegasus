@@ -71,7 +71,6 @@ internal static partial class InstructionFieldEngine
 
     internal enum FieldDefaultSource
     {
-        ProcessedDate,
         ReceivedDate
     }
 
@@ -469,7 +468,6 @@ internal static partial class InstructionFieldEngine
             {
                 var defaultDate = defaultSource switch
                 {
-                    FieldDefaultSource.ProcessedDate => LondonCalendar.DateAt(timing.ProcessedAtUtc),
                     FieldDefaultSource.ReceivedDate => LondonCalendar.DateAt(timing.ReceivedAtUtc),
                     _ => throw new ArgumentOutOfRangeException(nameof(timing))
                 };

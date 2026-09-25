@@ -185,12 +185,11 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(12345L, typed.VehicleMileage);
         Assert.Equal("Controlled protocol circumstances", typed.AccidentCircumstances);
         Assert.Equal(new DateOnly(2031, 3, 4), typed.DateOfIncident);
-        Assert.Equal(new DateOnly(2031, 3, 5), typed.InstructionDate);
         Assert.Equal("Image Based Assessment", typed.InspectionAddress);
-        // QDOS extraction v8 retains the complete 26-field instruction,
+        // QDOS extraction v11 retains the complete 25-field instruction,
         // party, damage, repairer and requested-work projection, including
         // unavailable optional fields for review.
-        Assert.Equal(26, receipt.Fields.Count);
+        Assert.Equal(25, receipt.Fields.Count);
         Assert.Contains(receipt.Fields, field => field.Name == "Vehicle description");
         Assert.Contains(receipt.Fields, field => field.Name == "Third-party registration");
         Assert.Contains(receipt.Fields, field => field.Name == "Repairer details");

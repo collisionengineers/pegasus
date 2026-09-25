@@ -84,9 +84,12 @@ plus every eligible retained Case-vehicle image:
 13. `Mileage Unit`
 
 `Reference` is the work provider's reference, not the Pegasus Case
-reference. The archive holds the JSON and an `Images/` folder only. There is
-no manifest and no provenance sidecar. Pegasus does not choose or order
-images for EVA, with one exception: an image tagged Third party image
+reference. `Instruction Date` is the Case's Received date
+([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings))
+as `dd/MM/yyyy`; every Case has one, so it is never blank. The archive holds
+the JSON and an `Images/` folder only. There is no manifest and no
+provenance sidecar. Pegasus does not choose or order images for EVA, with
+one exception: an image tagged Third party image
 ([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)) is left
 out. An image's custody status is used to find its verified bytes, not as a
 readiness decision.
@@ -118,8 +121,8 @@ unchanged.
 
 **Values EVA has no field for.** The inspection date and the mileage go as
 labelled lines in the instruction note. The work provider travels the same
-way, because the claimant name occupies `InsName`. The instruction date is
-not sent; EVA sets it on arrival.
+way, because the claimant name occupies `InsName`. The Case's Received
+date is not sent; EVA sets its own instruction date on arrival.
 
 **Automatic sends.** An automatic API policy creates one durable intent in
 the same transaction that moves the Case into Review. The Worker may run only

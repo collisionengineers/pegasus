@@ -1590,6 +1590,11 @@ public sealed class CustodyOutboxIntegrationTests
         // archive is still named by the case, asserted above.
         Assert.Equal("AMA/47857/1", eva.RootElement.GetProperty("Reference").GetString());
         Assert.Equal(QdosPrincipal.Code, eva.RootElement.GetProperty("Work Provider").GetString());
+        // The Case's Received date is its instruction date (operator,
+        // 24 September 2026), whatever the letter printed.
+        Assert.Equal(
+            Pegasus.Core.LondonCalendar.DateAt(receipt.ReceivedAtUtc).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+            eva.RootElement.GetProperty("Instruction Date").GetString());
         // Operator direction (2026-08-22): an absent inspection date is today's.
         Assert.False(
             string.IsNullOrWhiteSpace(eva.RootElement.GetProperty("Inspection Date").GetString()),

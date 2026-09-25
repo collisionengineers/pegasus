@@ -119,7 +119,8 @@ public sealed partial class DetailsModel
             return recorded;
         }
 
-        return Assessment?.Field(path) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false } field
+        return CaseFieldProposalPolicy.DecisionPaths.Contains(path)
+            && Assessment?.Field(path) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false } field
             ? new CaseFieldProposal(path, field.Value, field.RecordedBy, field.RecordedAtUtc, CaseFieldProposalStatus.Awaiting, null, null)
             : null;
     }

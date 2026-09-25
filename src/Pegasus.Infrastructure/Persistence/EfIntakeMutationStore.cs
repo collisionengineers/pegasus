@@ -1130,7 +1130,6 @@ internal sealed class EfIntakeMutationStore(
         entity.VehicleMileage = draft.VehicleMileage;
         entity.AccidentCircumstances = draft.AccidentCircumstances;
         entity.DateOfIncident = draft.DateOfIncident;
-        entity.InstructionDate = draft.InstructionDate;
         entity.InspectionDate = draft.InspectionDate;
         entity.InspectionAddress = draft.InspectionAddress;
         receipt.InstructionDraft = entity;
@@ -1172,7 +1171,6 @@ internal sealed class EfIntakeMutationStore(
             ("Vehicle mileage", draft.VehicleMileage?.ToString(CultureInfo.InvariantCulture)),
             ("Accident circumstances", draft.AccidentCircumstances),
             ("Date of incident", draft.DateOfIncident?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
-            ("Instruction date", draft.InstructionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
             ("Inspection address", draft.InspectionAddress),
             ("Inspection date", draft.InspectionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
         ];
@@ -1238,7 +1236,6 @@ internal sealed class EfIntakeMutationStore(
                 receipt.InstructionDraft.VehicleMileage,
                 receipt.InstructionDraft.AccidentCircumstances,
                 receipt.InstructionDraft.DateOfIncident,
-                receipt.InstructionDraft.InstructionDate,
                 receipt.InstructionDraft.InspectionAddress,
                 receipt.InstructionDraft.InspectionDate
             },

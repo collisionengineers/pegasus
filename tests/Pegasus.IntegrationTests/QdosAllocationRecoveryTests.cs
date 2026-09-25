@@ -43,9 +43,9 @@ public sealed class QdosAllocationRecoveryTests
         var original = originals.Single(item => item.Principal == principalCode);
         Top15InstructionCorpusTests.ExpectedIdentity? expectedIdentity = principalCode switch
         {
-            "ALS" => new("Mr Martin Neilly", "160754", "K40NLY", new(2026, 7, 6), new(2026, 7, 10)),
+            "ALS" => new("Mr Martin Neilly", "160754", "K40NLY", new(2026, 7, 6)),
             "FW" => fairway.Identity,
-            "SBL" => new("Mr Farzod Fazliddnov", "SBL-B0711442", "EY70LPO", new(2026, 7, 2), new(2026, 7, 9)),
+            "SBL" => new("Mr Farzod Fazliddnov", "SBL-B0711442", "EY70LPO", new(2026, 7, 2)),
             _ => null
         };
         var expectedMake = principalCode switch { "ALS" => "Vauxhall", "FW" => "Toyota PRIUS", "SBL" => "MAN tgx 3", _ => null };
@@ -101,7 +101,7 @@ public sealed class QdosAllocationRecoveryTests
             var draft = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
             Assert.Equal(expectedIdentity, new Top15InstructionCorpusTests.ExpectedIdentity(
                 draft.ClaimantName, draft.ClaimNumber, draft.VehicleRegistration,
-                draft.DateOfIncident, draft.InstructionDate));
+                draft.DateOfIncident));
             Assert.Equal(expectedMake, draft.VehicleMake);
             if (original.Principal == "ALS")
             {
@@ -2024,7 +2024,7 @@ internal static class AllocationTestData
                     [new("AB12CDE", IntakeEvidenceSource.DocumentContent, "retained instruction")],
                     false,
                     false)],
-                new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null, null),
+                new(principalCode, null, null, "AB12CDE", null, null, null, null, null, null),
                 [],
                 null,
                 null,
