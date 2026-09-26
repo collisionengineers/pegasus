@@ -310,11 +310,37 @@
             }
         };
 
+        // The photographs pulled out of a document travel with its roster
+        // entry, so switching the inspected file redraws them without a fetch.
+        var photos = function (file) {
+            var block = inspector.querySelector('[data-inspect-photos]');
+            if (!block) { return; }
+            var strip = block.querySelector('[data-inspect-photos-strip]');
+            var list = file.photos || [];
+            strip.replaceChildren.apply(strip, list.map(function (photo) {
+                var tile = document.createElement('a');
+                tile.className = 'up-film';
+                tile.href = photo.url;
+                tile.target = '_blank';
+                tile.rel = 'noopener';
+                tile.setAttribute('aria-label', photo.name);
+                var img = document.createElement('img');
+                img.src = photo.url;
+                img.loading = 'lazy';
+                img.alt = '';
+                tile.appendChild(img);
+                return tile;
+            }));
+            block.querySelector('[data-inspect-photos-count]').textContent = file.photosLabel || '';
+            block.hidden = list.length === 0;
+        };
+
         var inspect = function (index) {
             var file = roster[index];
             if (!file) { return; }
             inspected = index;
             media(file, inspector.querySelector('[data-inspect-photo]'));
+            photos(file);
             var name = inspector.querySelector('[data-inspect-name]');
             name.textContent = file.name;
             name.title = file.name;

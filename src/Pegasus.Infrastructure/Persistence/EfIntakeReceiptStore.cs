@@ -118,6 +118,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         receipt.OcrCandidatesJson = SerializeEnvelope(draft.ScannedPdfPages);
         receipt.FailureCode = draft.FailureCode;
         receipt.FailureReason = draft.FailureReason;
+        receipt.DeclaredCaseId = draft.DeclaredCaseId;
         ApplyInstructionDraft(context, receipt, draft.InstructionDraft);
         ApplyMailRouteDecision(context, receipt, draft.MailRouteDecision);
         ApplyMailClassificationDecision(
@@ -466,7 +467,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             FieldsJson = SerializeFields(draft.Fields),
             OcrCandidatesJson = SerializeEnvelope(draft.ScannedPdfPages),
             FailureCode = draft.FailureCode,
-            FailureReason = draft.FailureReason
+            FailureReason = draft.FailureReason,
+            DeclaredCaseId = draft.DeclaredCaseId
         };
         if (draft.InstructionDraft is not null)
         {
@@ -606,7 +608,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 : null,
             entity.ManualAssociation is { IsActive: true } activeAssociationKey
                 ? activeAssociationKey.LastOperationKey
-                : null);
+                : null,
+            entity.DeclaredCaseId);
     }
 
     private static async Task<IntakeAllocationState?> GetAllocationStateAsync(

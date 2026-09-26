@@ -152,10 +152,14 @@ different change fails closed.
 
 **Automatic resolution.** If an open item's origin receipt later reaches a
 real destination, a formal Case or a registered Image intake, Pegasus
-resolves the item to that destination itself, in the receipt's own
-processing pass or by a sweep for receipts promoted outside their pass. The
+resolves the item to that destination itself: in the receipt's own
+processing pass, in the staff link request that gave it the destination
+([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)),
+or by a sweep for receipts promoted outside both. The
 destination is written to the item's history. A receipt that is still
-genuinely unidentified is never force-closed.
+genuinely unidentified is never force-closed. An upload whose Case was
+declared before the upload never becomes Unidentified
+([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)).
 
 **What the operator sees.** When no category can be determined, the record
 shows the U-reference, the reason, the bounded safe detail, the source or

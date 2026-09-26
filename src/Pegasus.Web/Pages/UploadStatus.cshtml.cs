@@ -220,7 +220,10 @@ public sealed class UploadStatusModel(
             Receipt is null ? null : $"/Received/{Receipt.Id:D}/Source",
             label,
             tone,
-            unreadable);
+            unreadable)
+        {
+            Photographs = UploadReviewFile.PhotographsOf(Receipt)
+        };
     }
 
     protected override IActionResult RedirectToSurface(Guid id) =>

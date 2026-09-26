@@ -56,9 +56,14 @@ public sealed record GroupedIntakeFile(
 
 public sealed record StreamedGroupedIntakeFile(int Ordinal, StreamedIntakeSource Source);
 
+/// <param name="DeclaredCaseId">
+/// The one destination the member of staff chose before uploading (Add
+/// evidence on a Case page): the submission's one decision, stamped on every
+/// file (FRD-18). Null for an upload whose destination is still to be chosen.
+/// </param>
 public sealed record StreamedGroupedIntakeSubmissionRequest(string SubmissionToken, string Actor,
     DateTimeOffset ReceivedAtUtc, IReadOnlyList<StreamedGroupedIntakeFile> Files,
-    IntakeSourceChannel Channel, Guid? ParentReceiptId = null);
+    IntakeSourceChannel Channel, Guid? ParentReceiptId = null, Guid? DeclaredCaseId = null);
 
 public sealed record GroupedIntakeSubmissionRequest(
     string SubmissionToken,
@@ -66,7 +71,8 @@ public sealed record GroupedIntakeSubmissionRequest(
     DateTimeOffset ReceivedAtUtc,
     IReadOnlyList<GroupedIntakeFile> Files,
     IntakeSourceChannel Channel,
-    Guid? ParentReceiptId = null);
+    Guid? ParentReceiptId = null,
+    Guid? DeclaredCaseId = null);
 
 public sealed record GroupedIntakeSubmissionResult(
     IntakeSubmissionGroup Group,
@@ -258,7 +264,8 @@ public sealed class SubmitGroupedIntake(
             var childOperation = $"{OperationPrefix(request.Channel)}:{request.SubmissionToken}:{file.Ordinal}";
             var source = file.Source with
             {
-                SourceIdentity = new(request.Channel, childToken)
+                SourceIdentity = new(request.Channel, childToken),
+                DeclaredCaseId = request.DeclaredCaseId
             };
             var received = await submission.ExecuteAsync(source, childOperation, cancellationToken);
             await groupStore.AddMemberAsync(group.Id, file.Ordinal, received, cancellationToken);
@@ -317,7 +324,8 @@ public sealed class SubmitGroupedIntake(
             var childOperation = $"{OperationPrefix(request.Channel)}:{request.SubmissionToken}:{file.Ordinal}";
             var childSource = file.Source with
             {
-                SourceIdentity = new IntakeSourceIdentity(request.Channel, childToken)
+                SourceIdentity = new IntakeSourceIdentity(request.Channel, childToken),
+                DeclaredCaseId = request.DeclaredCaseId
             };
             ReceiveIntake.ValidateStreamedSource(childSource, childOperation);
             ReceiveIntake.ValidateStreamedSource(
@@ -360,7 +368,8 @@ public sealed class SubmitGroupedIntake(
             {
                 SourceIdentity = new(
                     request.Channel,
-                    GroupedIntakeMemberToken.Create(request.SubmissionToken, file.Ordinal))
+                    GroupedIntakeMemberToken.Create(request.SubmissionToken, file.Ordinal)),
+                DeclaredCaseId = request.DeclaredCaseId
             };
             var received = await submission.ExecuteStreamedAsync(
                 source,

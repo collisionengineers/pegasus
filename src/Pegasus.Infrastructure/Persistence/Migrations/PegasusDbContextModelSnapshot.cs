@@ -5207,6 +5207,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<Guid?>("DeclaredCaseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("EvidenceJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -5283,6 +5286,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DeclaredCaseId");
 
                     b.HasIndex("SourceHash");
 
@@ -5462,6 +5467,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<Guid?>("DeclaredCaseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("ExternalReceiptToken")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -5502,6 +5510,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DeclaredCaseId");
 
                     b.HasIndex("SourceHash");
 

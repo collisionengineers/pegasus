@@ -2047,6 +2047,12 @@ public static class OperatorLabels
         public const string CheckFiles = "Check the selected files";
         public const string Remove = "Remove";
 
+        // A destination declared before the upload: Add evidence on a Case
+        // page opened Upload for that Case (FRD-18).
+        public const string AddingTo = "Adding to";
+        public const string DestinationSentence = "The files in this upload go straight to this Case. Nothing is matched or sorted.";
+        public const string DestinationUnavailable = "This Case is not available for evidence. Files you upload here will need a destination after upload.";
+
         // The decision panel.
         public const string PendingEyebrow = "Files received";
         public const string PendingTitle = "Processing your files";
@@ -2139,6 +2145,17 @@ public static class OperatorLabels
             : string.Create(CultureInfo.InvariantCulture, $"{count} files could not be read; their originals will be included.");
 
         public static string NoSearchMatches(string term) => $"No Cases or Triage items match “{term}”. Try another reference.";
+
+        /// <summary>The Case page's notice after Add evidence: the files are stored and on their way to Files.</summary>
+        public static string ReceivedForCase(int count, string reference) =>
+            $"{Files(count)} received for {reference}. They appear under Files once processed.";
+
+        public static string AlreadyReceivedForCase(string reference) => $"Already received for {reference}.";
+
+        /// <summary>What Pegasus pulled out of a document, on the review's inspector.</summary>
+        public static string PhotographsFound(int count) => count == 1
+            ? "1 photograph found in this file"
+            : string.Create(CultureInfo.InvariantCulture, $"{count} photographs found in this file");
 
 
         /// <summary>"Received today, 09:41" or "Received 24 Sep, 09:41", in the office's zone.</summary>

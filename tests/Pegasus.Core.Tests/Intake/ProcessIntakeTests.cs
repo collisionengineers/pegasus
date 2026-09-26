@@ -63,6 +63,108 @@ public sealed class ProcessIntakeTests
         Assert.Equal(failureCode, result.FailureCode);
     }
 
+    /// <summary>
+    /// Add evidence on a Case page declares the upload's Case before the
+    /// upload (FRD-18). Processing keeps the file and its photographs like
+    /// any other upload but identifies nothing: no principal, no OCR, no
+    /// Unidentified item. The queued caller links it where the member of
+    /// staff said.
+    /// </summary>
+    [Fact]
+    public async Task DeclaredDestinationRecordsNeedsSortingWithoutAssessmentOcrOrUnidentified()
+    {
+        var declaredCaseId = Guid.NewGuid();
+        var photograph = new IntakeAssetCandidate(
+            "uploaded selected.pdf, page 1, image 1",
+            "page-1-image-1.jpg",
+            "image/jpeg",
+            new byte[60_000],
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            PageNumber: 1,
+            WidthPixels: 640,
+            HeightPixels: 480);
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.PdfContent, "uploaded source", "Vehicle photographs")],
+            [],
+            [],
+            RequiresOcr: true,
+            Assets: [photograph],
+            OcrCandidates: [new("uploaded selected.pdf", 1)]);
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(new StubReader(read), store, registerUnidentified: registerUnidentified);
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(IntakeSourceChannel.ManualUpload, "33333333333333333333333333333333"),
+            DeclaredCaseId = declaredCaseId
+        };
+
+        var receipt = await sut.ExecuteRetainedAsync(source, "retained/selected.pdf");
+
+        var draft = Assert.Single(store.Drafts);
+        Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
+        Assert.Equal(ProcessQueuedIntake.DeclaredDestinationReason, draft.DecisionReason);
+        Assert.Equal(declaredCaseId, draft.DeclaredCaseId);
+        Assert.Contains(draft.Evidence, evidence =>
+            evidence.Signal == IntakeEvidenceSignals.DeclaredDestination
+            && evidence.Finding == IntakeEvidenceFinding.Information);
+        Assert.Null(draft.MailRouteDecision);
+        Assert.Null(draft.CaseMatchDecision);
+        Assert.Null(draft.InstructionDraft);
+        Assert.Empty(draft.Fields);
+        // Scanned pages exist only for identification, which does not run.
+        Assert.Empty(draft.ScannedPdfPages);
+        Assert.Contains(draft.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
+        Assert.Empty(registerUnidentified.Requests);
+        Assert.Equal(declaredCaseId, receipt.DeclaredCaseId);
+        Assert.True(receipt.HasDeclaredDestination);
+        Assert.True(ProcessIntake.IsDeferredForAutomation(receipt));
+        Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
+    }
+
+    [Fact]
+    public async Task DeclaredDestinationUnreadableSourceKeepsItsReaderDecisionAndIsNotRegistered()
+    {
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Unsupported,
+            [],
+            [],
+            [],
+            false,
+            "unsupported_test",
+            "The test source is unsupported.");
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(new StubReader(read), store, registerUnidentified: registerUnidentified);
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(IntakeSourceChannel.ManualUpload, "44444444444444444444444444444444"),
+            DeclaredCaseId = Guid.NewGuid()
+        };
+
+        var receipt = await sut.ExecuteRetainedAsync(source, "retained/selected.pdf");
+
+        var draft = Assert.Single(store.Drafts);
+        Assert.Equal(IntakeDecision.Unsupported, draft.Decision);
+        Assert.Equal("unsupported_test", draft.FailureCode);
+        Assert.NotNull(draft.DeclaredCaseId);
+        // The queued caller links it and files the original; nothing here
+        // gives it a U-reference it is about to stop deserving.
+        Assert.Empty(registerUnidentified.Requests);
+        Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
+    }
+
+    [Fact]
+    public async Task DeclaredDestinationIsRefusedOnTheDirectPath()
+    {
+        var sut = CreateSut(new StubReader(Readable()), new RecordingStore());
+        var source = CreateSource() with { DeclaredCaseId = Guid.NewGuid() };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => sut.ExecuteAsync(source));
+    }
+
     [Fact]
     public async Task ReaderExceptionIsSanitisedBeforePersistence()
     {
@@ -1797,7 +1899,8 @@ public sealed class ProcessIntakeTests
                 Assets: draft.Assets,
                 MailRouteDecision: draft.MailRouteDecision,
                 MailClassificationDecision: draft.MailClassificationDecision,
-                CaseMatchDecision: draft.CaseMatchDecision);
+                CaseMatchDecision: draft.CaseMatchDecision,
+                DeclaredCaseId: draft.DeclaredCaseId);
     }
 
     private sealed class RecordingRegisterUnidentified : IRegisterUnidentified

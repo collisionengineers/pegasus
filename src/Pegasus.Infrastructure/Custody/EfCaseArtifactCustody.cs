@@ -21,11 +21,6 @@ internal sealed class EfCaseArtifactCustody(
     string? holdingFolderId = null) : ICaseArtifactCustody, ICaseArtifactCustodyStatus
 {
     internal const long MaximumArtifactContentLength = 128L * 1024 * 1024;
-    internal static readonly string[] AutomaticPromotionEligibleStates =
-        Enum.GetValues<CaseLifecycleState>()
-            .Where(state => ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, false))
-            .Select(state => state.ToString())
-            .ToArray();
     public async Task<CaseArtifactCustodyResult> RetainAsync(
         CaseArtifactCustodyRequest request,
         CancellationToken cancellationToken)
@@ -179,19 +174,13 @@ internal sealed class EfCaseArtifactCustody(
         }
 
         // A Triage Case keeps standard Case files but has no workflow; its
-        // Triage is the authority. Automatic evidence promotion never targets
-        // it: automatic association only ever reaches an instructed Case.
+        // Triage is the authority, and a member of staff's link may file
+        // receipt evidence on it (IntakePromotionTarget owns that rule).
         var authority = await CaseMutationAuthority.LoadAsync(db, caseId, cancellationToken)
             ?? throw new InvalidOperationException("The artifact Case is unavailable.");
         if (request.IsAutomaticIntakeEvidencePromotion)
         {
-            if (authority.Workflow is not { } promotionWorkflow)
-            {
-                throw new IntakeDependencyUnavailableException(
-                    "The automatically associated Case is no longer safe for evidence filing.");
-            }
-
-            await RequireAutomaticPromotionTargetAsync(db, promotionWorkflow, request, cancellationToken);
+            await RequireAutomaticPromotionTargetAsync(db, caseId, request, cancellationToken);
         }
         var caseEntity = authority.Case;
         var lastOrdinal = await db.Set<CaseDocumentEntity>()
@@ -261,10 +250,9 @@ internal sealed class EfCaseArtifactCustody(
         }
 
         if (request.IsAutomaticIntakeEvidencePromotion
-            && !await IsAutomaticPromotionTargetCurrent(
+            && !await IntakePromotionTarget.IsCurrentAsync(
                 db, caseId, request.IntakeReceiptId!.Value,
-                request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow())
-                .AnyAsync(cancellationToken))
+                request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken))
         {
             return Pending(version, occurrence.Id, "case_custody_pending");
         }
@@ -296,6 +284,13 @@ internal sealed class EfCaseArtifactCustody(
         var capturedRoot = address.CaseRootRemoteId!;
         await using var confirmation = await db.Database.BeginTransactionAsync(
             System.Data.IsolationLevel.Serializable, cancellationToken);
+        // Rechecked inside the serializable confirmation, so a Case that moved
+        // while the bytes were being written is caught before the version is
+        // confirmed against it.
+        var promotionTargetCurrent = !request.IsAutomaticIntakeEvidencePromotion
+            || await IntakePromotionTarget.IsCurrentAsync(
+                db, caseId, request.IntakeReceiptId!.Value,
+                request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
         var changed = await db.Set<DocumentVersionEntity>()
             .Where(value => value.Id == version.Id
                 && value.CustodyStatus == DocumentCustodyStatus.Pending
@@ -304,19 +299,7 @@ internal sealed class EfCaseArtifactCustody(
                     && (auditFolder
                         ? caseValue.AuditCustodyRemoteId == capturedRoot
                         : caseValue.CustodyRootRemoteId == capturedRoot))
-                && (!request.IsAutomaticIntakeEvidencePromotion || db.CaseWorkflows.Any(workflow =>
-                    workflow.CaseId == caseId
-                    && workflow.Version == request.ExpectedCaseVersion!.Value
-                    && workflow.ArchivedAtUtc == null
-                    && AutomaticPromotionEligibleStates.Contains(workflow.State)
-                    && workflow.ReportSentEvidenceId == null
-                    && (workflow.EditLeaseExpiresAtUtc == null
-                        || workflow.EditLeaseExpiresAtUtc <= timeProvider.GetUtcNow())
-                    && db.IntakeManualAssociations.Any(association =>
-                        association.IntakeReceiptId == request.IntakeReceiptId!.Value
-                        && association.CaseId == caseId
-                        && association.IsActive
-                        && association.ActorKind == nameof(ActorKind.SystemWorker)))))
+                && promotionTargetCurrent)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(value => value.BoxFileId, write.RemoteId)
                 .SetProperty(value => value.BoxVersionId, write.BoxVersionId)
@@ -348,39 +331,20 @@ internal sealed class EfCaseArtifactCustody(
 
     private async Task RequireAutomaticPromotionTargetAsync(
         PegasusDbContext db,
-        CaseWorkflowEntity workflow,
+        Guid caseId,
         CaseArtifactCustodyRequest request,
         CancellationToken cancellationToken)
     {
         if (request.Actor.Kind != ActorKind.SystemWorker
             || request.IntakeReceiptId is not { } receiptId
             || request.ExpectedCaseVersion is not { } expectedVersion
-            || !await IsAutomaticPromotionTargetCurrent(
-                db, workflow.CaseId, receiptId, expectedVersion, timeProvider.GetUtcNow())
-                .AnyAsync(cancellationToken))
+            || !await IntakePromotionTarget.IsCurrentAsync(
+                db, caseId, receiptId, expectedVersion, timeProvider.GetUtcNow(), cancellationToken))
         {
             throw new IntakeDependencyUnavailableException(
-                "The automatically associated Case is no longer safe for evidence filing.");
+                "The associated Case is no longer safe for evidence filing.");
         }
     }
-
-    internal static IQueryable<CaseWorkflowEntity> IsAutomaticPromotionTargetCurrent(
-        PegasusDbContext db,
-        Guid caseId,
-        Guid receiptId,
-        long expectedCaseVersion,
-        DateTimeOffset nowUtc) =>
-        db.CaseWorkflows.Where(workflow => workflow.CaseId == caseId
-            && workflow.Version == expectedCaseVersion
-            && workflow.ArchivedAtUtc == null
-            && AutomaticPromotionEligibleStates.Contains(workflow.State)
-            && workflow.ReportSentEvidenceId == null
-            && (workflow.EditLeaseExpiresAtUtc == null || workflow.EditLeaseExpiresAtUtc <= nowUtc)
-            && db.IntakeManualAssociations.Any(association =>
-                association.IntakeReceiptId == receiptId
-                && association.CaseId == caseId
-                && association.IsActive
-                && association.ActorKind == nameof(ActorKind.SystemWorker)));
 
     internal static bool TryGetAutomaticPromotionReceiptId(
         string operationKey,
@@ -417,8 +381,8 @@ internal sealed class EfCaseArtifactCustody(
                 == AutomaticCaseEvidencePromotionOperationKey.Plan(receiptId), cancellationToken);
         if (plan?.CaseId != caseId
             || string.IsNullOrWhiteSpace(plan.AfterJson)
-            || !await IsAutomaticPromotionTargetCurrent(
-                db, caseId, receiptId, expectedCaseVersion, nowUtc).AnyAsync(cancellationToken))
+            || !await IntakePromotionTarget.IsCurrentAsync(
+                db, caseId, receiptId, expectedCaseVersion, nowUtc, cancellationToken))
         {
             return;
         }
@@ -445,7 +409,12 @@ internal sealed class EfCaseArtifactCustody(
         {
             return;
         }
-        if (!promotionPlan!.HasSelectedPhotographs)
+        // A Triage Case has no workflow and records no image completeness;
+        // its filing completes like a receipt with no photographs.
+        var workflow = await db.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        if (!promotionPlan!.HasSelectedPhotographs || workflow is null)
         {
             db.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
             {
@@ -456,7 +425,9 @@ internal sealed class EfCaseArtifactCustody(
                 ActorKind = nameof(ActorKind.SystemWorker),
                 ActorSubjectId = "intake-processing",
                 ActorRolesJson = "[]",
-                Reason = "All planned retained receipt evidence has confirmed Case custody; no selected photographs were present.",
+                Reason = workflow is null
+                    ? "All planned retained receipt evidence has confirmed Case custody; a Triage Case records no image completeness."
+                    : "All planned retained receipt evidence has confirmed Case custody; no selected photographs were present.",
                 OperationKey = completionKey,
                 RequestFingerprint = plan.RequestFingerprint,
                 OccurredAtUtc = nowUtc,
@@ -476,12 +447,9 @@ internal sealed class EfCaseArtifactCustody(
             .ThenInclude(item => item.Case)
             .ThenInclude(item => item.Principal)
             .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
-            ?? throw new InvalidDataException("The automatically associated Case has no data snapshot.");
-        var workflow = await db.CaseWorkflows
-            .Include(item => item.Case)
-            .SingleAsync(item => item.CaseId == caseId, cancellationToken);
-        if (!await IsAutomaticPromotionTargetCurrent(
-                db, caseId, receiptId, expectedCaseVersion, nowUtc).AnyAsync(cancellationToken))
+            ?? throw new InvalidDataException("The associated Case has no data snapshot.");
+        if (!await IntakePromotionTarget.IsCurrentAsync(
+                db, caseId, receiptId, expectedCaseVersion, nowUtc, cancellationToken))
         {
             return;
         }
@@ -982,9 +950,9 @@ public sealed class ReconcilePendingArtifactCustody
                 await using var confirmation = await update.Database.BeginTransactionAsync(
                     System.Data.IsolationLevel.Serializable, cancellationToken);
                 if (automaticPromotion is { } promotion
-                    && !await EfCaseArtifactCustody.IsAutomaticPromotionTargetCurrent(
+                    && !await IntakePromotionTarget.IsCurrentAsync(
                         update, candidate.Case.Id, promotion.ReceiptId, promotion.ExpectedCaseVersion,
-                        timeProvider.GetUtcNow()).AnyAsync(cancellationToken))
+                        timeProvider.GetUtcNow(), cancellationToken))
                 {
                     await RecordAttemptAsync(candidate.Version.Id, "Retained", "AutomaticPromotionTargetChanged");
                     retained++;
@@ -1060,22 +1028,10 @@ public sealed class ReconcilePendingArtifactCustody
         {
             return new(receiptId, 0, false);
         }
-        var nowUtc = timeProvider.GetUtcNow();
-        var currentVersion = await db.CaseWorkflows.AsNoTracking()
-            .Where(workflow => workflow.CaseId == caseId
-                && workflow.ArchivedAtUtc == null
-                && EfCaseArtifactCustody.AutomaticPromotionEligibleStates.Contains(workflow.State)
-                && workflow.ReportSentEvidenceId == null
-                && (workflow.EditLeaseExpiresAtUtc == null || workflow.EditLeaseExpiresAtUtc <= nowUtc)
-                && db.IntakeManualAssociations.Any(association =>
-                    association.IntakeReceiptId == receiptId
-                    && association.CaseId == caseId
-                    && association.IsActive
-                    && association.ActorKind == nameof(ActorKind.SystemWorker)))
-            .Select(workflow => (long?)workflow.Version)
-            .SingleOrDefaultAsync(cancellationToken);
-        return currentVersion is { } version
-            ? new(receiptId, version, true)
+        var target = await IntakePromotionTarget.EvaluateAsync(
+            db, caseId, receiptId, timeProvider.GetUtcNow(), cancellationToken);
+        return target.Disposition == PromotionTargetDisposition.Current
+            ? new(receiptId, target.Version, true)
             : new(receiptId, 0, false);
     }
 
