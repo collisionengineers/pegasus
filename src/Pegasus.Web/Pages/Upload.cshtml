@@ -37,6 +37,25 @@
                 <p class="up-eyebrow">@Labels.SelectEyebrow</p>
                 <h2 data-select-heading>@Labels.ChooseHeading</h2>
             </div>
+            @* Opened from a Case page: the destination is already decided
+               and travels with the files (FRD-18). It stays in view while
+               files are chosen; the picker itself is unchanged. *@
+            @if (Model.DeclaredCaseId is not null && Model.Destination is { } destination)
+            {
+                <input asp-for="DeclaredCaseId" type="hidden" />
+                <div class="up-declared" data-upload-declared>
+                    <p class="up-eyebrow">@Labels.AddingTo</p>
+                    <partial name="Shared/_UploadDestinationCard" model="@destination" />
+                    <p class="up-explainer">@Labels.DestinationSentence</p>
+                </div>
+            }
+            else if (Model.DestinationUnavailable)
+            {
+                <div class="up-alert" role="status" data-upload-declared-unavailable>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+                    <div><strong>@Labels.DestinationUnavailable</strong></div>
+                </div>
+            }
             @if (errors.Length > 0)
             {
                 <div class="up-alert up-alert--error" role="alert" tabindex="-1">

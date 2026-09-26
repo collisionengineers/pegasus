@@ -105,7 +105,9 @@ Notes do not apply to it.
 **Files.** A Triage Case has standard Case custody: a Box case folder, as for
 any Case, holding the retained request source and its attachments and any
 staff uploads. Its Files panel shows the folder's state, **Add evidence**
-(which opens Upload), the Case Files header's Open Box case folder and Open
+(which opens Upload for this Triage Case, the destination declared before
+the upload, [FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)),
+the Case Files header's Open Box case folder and Open
 Operations, and the documents, each with view and download. A failed custody
 job is retried as any Case's is. Staff
 may link uploaded material to a Triage Case in any state

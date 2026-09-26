@@ -85,6 +85,175 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
     }
 
+    /// <summary>
+    /// The operator's own case (26 September 2026): a PDF of vehicle
+    /// photographs with no readable plate, uploaded from the Case page. Add
+    /// evidence declares the Case before the upload, so processing links the
+    /// file there in the operator's name, files the PDF and its photographs
+    /// on the Case, identifies nothing and makes no Unidentified item; the
+    /// operator lands back on the Case's Files panel (FRD-18).
+    /// </summary>
+    [Fact]
+    public async Task AddEvidenceFromACaseFilesThePdfAndItsPhotographsOnTheCaseWithNoUnidentifiedItem()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "DECLARED-CASE-01");
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+
+        // Add evidence on the Case opens Upload for that Case, and the picker
+        // states the destination it will declare; no Case is offered to pick.
+        var casePage = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+        Assert.Contains($"href=\"/Upload?caseId={caseId:D}\"", casePage, StringComparison.OrdinalIgnoreCase);
+        var picker = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload?caseId={caseId:D}");
+        Assert.Contains("data-upload-declared", picker, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{caseId:D}\"", picker, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(caseReference, picker, StringComparison.Ordinal);
+        Assert.Contains("Adding to", picker, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-candidate", picker, StringComparison.Ordinal);
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            "vehicle-photographs.pdf",
+            "application/pdf",
+            IntakeTestEvidence.CreatePhotographPdf(2),
+            declaredCaseId: caseId);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        Assert.NotNull(upload.Location);
+        Assert.StartsWith($"/Cases/{caseId:D}", upload.Location!.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("section=files", upload.Location.OriginalString, StringComparison.Ordinal);
+        var landing = await IntakeWebDriver.GetHtmlAsync(client, upload.Location.OriginalString);
+        Assert.Contains($"1 file received for {caseReference}", landing, StringComparison.Ordinal);
+
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None);
+            Assert.NotNull(receipt);
+            Assert.Equal(caseId, receipt!.DeclaredCaseId);
+            Assert.Equal(caseId, receipt.CurrentCaseId);
+            Assert.True(receipt.AssociationWasStaffDecision);
+            Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+            Assert.Contains(receipt.Evidence, evidence => evidence.Signal == IntakeEvidenceSignals.DeclaredDestination);
+            Assert.Null(receipt.MailRouteDecision);
+            Assert.Null(receipt.CaseMatchDecision);
+            Assert.Empty(receipt.ScannedPdfPages);
+            Assert.Equal(2, receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.EmbeddedImage));
+            Assert.Null(await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+                .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+        }
+
+        // The PDF and both photographs are the Case's documents; nothing was held.
+        var filed = await FiledDocumentsAsync(factory, receiptId, caseId);
+        Assert.Equal(3, filed.Count);
+        Assert.Equal(1, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.OriginalSource));
+        Assert.Equal(2, filed.Count(document => document.SemanticRole == Pegasus.Core.Documents.DocumentSemanticRole.Image));
+        var stagedReceiptId = await StagedReceiptIdAsync(factory, upload.ExternalReceiptToken!);
+        var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
+        Assert.Contains("data-upload-phase=\"attached\"", statusPage, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{caseId:D}\"", statusPage, StringComparison.Ordinal);
+
+        // A replay of the completed work item files nothing twice.
+        await using (var replay = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.CreateProcessor(replay.ServiceProvider)
+                .ExecuteAsync(stagedReceiptId, CancellationToken.None);
+        }
+        Assert.Equal(3, (await FiledDocumentsAsync(factory, receiptId, caseId)).Count);
+    }
+
+    /// <summary>
+    /// The same PDF through the generic Upload page: no plate, no principal,
+    /// so it becomes an Unidentified item and waits for a destination. Adding
+    /// it to a Case files the PDF and its photographs on that Case and resolves
+    /// the item in the same request; no sweep runs in this test.
+    /// </summary>
+    [Fact]
+    public async Task AttachFilesAPhotographPdfOnTheChosenCaseAndResolvesItsUnidentifiedItemInRequest()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "ATTACH-PHOTOS-01");
+
+        var upload = await IntakeWebDriver.UploadAsync(
+            client, "vehicle-photographs.pdf", "application/pdf", IntakeTestEvidence.CreatePhotographPdf(2, seed: 7));
+        var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var receiptId = IntakeWebDriver.ReceiptId(processed);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var item = await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+                .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None);
+            Assert.NotNull(item);
+            Assert.Equal(UnidentifiedState.Open, item!.State);
+        }
+
+        // The review shows the photographs the PDF holds, before any decision.
+        var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
+        Assert.Contains("data-upload-phase=\"decision\"", statusPage, StringComparison.Ordinal);
+        Assert.Contains("2 photographs found in this file", statusPage, StringComparison.Ordinal);
+        Assert.Contains($"/Received/{receiptId:D}/Asset/", statusPage, StringComparison.OrdinalIgnoreCase);
+
+        var (receiptVersion, caseVersion) = await AttachmentVersionsAsync(factory, receiptId, caseId);
+        var redirect = await PostAttachAsync(
+            client,
+            $"/Upload/Status/{stagedReceiptId:D}?handler=Attach",
+            receiptId,
+            caseId: caseId,
+            operationId: Guid.NewGuid(),
+            receiptVersion: receiptVersion,
+            caseVersion: caseVersion);
+        Assert.Equal(HttpStatusCode.Redirect, redirect);
+
+        await AssertLinkedAsync(factory, receiptId, caseId);
+        var filed = await FiledDocumentsAsync(factory, receiptId, caseId);
+        Assert.Equal(3, filed.Count);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var item = await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+                .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None);
+            Assert.NotNull(item);
+            Assert.Equal(UnidentifiedState.Resolved, item!.State);
+            Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, item.ResolutionTargetKind);
+            Assert.Equal(caseId.ToString("N"), item.ResolutionTargetId);
+        }
+        var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
+        Assert.Contains("data-upload-phase=\"attached\"", afterPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AddEvidenceRefusesAnUnknownCaseAndStagesNothing()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var unknownCaseId = Guid.NewGuid();
+
+        var picker = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload?caseId={unknownCaseId:D}");
+        Assert.Contains("data-upload-declared-unavailable", picker, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-upload-declared>", picker, StringComparison.Ordinal);
+
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var refused = await IntakeWebDriver.PostUploadAsync(
+            client,
+            form.AntiforgeryToken,
+            "vehicle-photographs.pdf",
+            "application/pdf",
+            IntakeTestEvidence.CreatePhotographPdf(1),
+            form.ExternalReceiptToken,
+            declaredCaseId: unknownCaseId);
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("This Case is not available for evidence", refused.ResponseBody, StringComparison.Ordinal);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.Null(await scope.ServiceProvider.GetRequiredService<IIntakeWorkStore>().FindBySourceIdentityAsync(
+            new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, form.ExternalReceiptToken),
+            CancellationToken.None));
+    }
+
     [Fact]
     public async Task AttachAddsAnUnmatchedInstructionUploadToTheChosenCaseAndReplaysSafely()
     {
@@ -121,6 +290,9 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.Redirect, redirect);
 
         await AssertLinkedAsync(factory, receiptId, caseId);
+        // The link itself files the material on the Case, in the same request
+        // (FRD-22): no Worker pass and no sweep ran between the post and this.
+        await AssertFiledOnCaseAsync(factory, receiptId, caseId, minimumDocuments: 1);
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
         Assert.Contains("data-upload-phase=\"attached\"", afterPage, StringComparison.Ordinal);
         Assert.Contains("Added to Case", afterPage, StringComparison.Ordinal);
@@ -909,6 +1081,43 @@ public sealed class UploadConfirmationWebTests
         Assert.NotNull(receipt);
         Assert.Equal(caseId, receipt!.CurrentCaseId);
         Assert.NotNull(receipt.ManualAssociationVersion);
+    }
+
+    /// <summary>The Case documents the receipt's evidence filing recorded, whatever their custody state.</summary>
+    private static async Task<IReadOnlyList<DocumentOccurrenceEntity>> FiledDocumentsAsync(
+        IntakeWebApplicationFactory factory,
+        Guid receiptId,
+        Guid caseId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var prefix = $"case-intake:{caseId:N}:{receiptId:N}:";
+        return await db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            .Where(occurrence => occurrence.CaseId == caseId && occurrence.OperationKey.StartsWith(prefix))
+            .ToListAsync();
+    }
+
+    private static async Task AssertFiledOnCaseAsync(
+        IntakeWebApplicationFactory factory,
+        Guid receiptId,
+        Guid caseId,
+        int minimumDocuments)
+    {
+        var filed = await FiledDocumentsAsync(factory, receiptId, caseId);
+        Assert.True(
+            filed.Count >= minimumDocuments,
+            $"The staff link files the uploaded material on the Case; {filed.Count} document(s) were filed.");
+    }
+
+    private static async Task<Guid> StagedReceiptIdAsync(IntakeWebApplicationFactory factory, string externalReceiptToken)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var staged = await scope.ServiceProvider.GetRequiredService<IIntakeWorkStore>().FindBySourceIdentityAsync(
+            new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, externalReceiptToken),
+            CancellationToken.None);
+        Assert.NotNull(staged);
+        return staged!.Id;
     }
 
     private sealed class InterruptSecondLink(ILinkIntake inner, bool interrupt) : ILinkIntake

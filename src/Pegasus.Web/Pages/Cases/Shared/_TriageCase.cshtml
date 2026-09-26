@@ -66,6 +66,18 @@
         <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
     </div>
 }
+@* The one-time notice a write elsewhere leaves for this record (Upload's
+   Add evidence), drawn as the Case record draws it. *@
+<div data-case-notices>
+@if (TempData["CaseStatus"] is string caseStatus)
+{
+    <div class="notice notice--success mb-2" role="status" data-confirmation>
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>@caseStatus</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+}
+</div>
 
 <article class="record triage-record" data-triage-record data-triage-state="@record.State">
     <div class="ribbon triage-ribbon" aria-label="Triage identity">
@@ -578,7 +590,7 @@
                     <span class="status @(custodyState == CaseCustodyState.Failed ? "status--red" : "status--amber") status--plain" data-custody-chip>@OperatorLabels.CustodyFolderState(custodyState)</span>
                 }
                 <div class="panel-actions">
-                    <a class="btn btn--small btn--primary" asp-page="/Upload" data-add-evidence>
+                    <a class="btn btn--small btn--primary" asp-page="/Upload" asp-route-caseId="@record.CaseId" data-add-evidence>
                         <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                         <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
                     </a>
