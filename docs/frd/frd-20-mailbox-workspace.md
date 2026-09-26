@@ -48,8 +48,10 @@ open. Once that item resolves, the message leaves the scope but keeps its
 classification record and Case association. Mail views link to the same
 Unidentified item; they never create a second queue row.
 
-Each row shows sender, subject and a short excerpt of the body. Rows show
-retained read and unread state, but this workspace never changes that state.
+Each row shows sender, subject and a short excerpt of the body. The subject
+opens the message. The selected row is marked. Up and Down move through the
+rows. Rows show retained read and unread state, but this workspace never
+changes that state.
 Lists use accessible pagination, not infinite scrolling. Active mailbox,
 folder, queue and search filters stay visible and are kept when the operator
 returns from a message or a Case. A fresh visit resets to the default
@@ -67,10 +69,14 @@ external access requirement.
 The quick preview opens on pointer or keyboard intent, works with a keyboard
 and a screen reader, and never clips or covers nearby controls. When the
 intent moves away, the pane keeps the selected message and its navigation
-links instead of going blank. It shows sender, subject, time, excerpt,
-classification, association and attachment names. It has no controls that
-change anything. Previewing never changes classification, association, read
-state, Case state or custody.
+links instead of going blank. It shows the sender, subject, time, mailbox
+and state. It shows the message text with its line breaks, up to the first
+eight lines. It counts the attachments by kind and does not name them. It
+shows the classification, the Case or Triage Case, and the folder. While a
+search term is typed, it also says where the term matched. Its actions are
+Open full message and Open Case, or Open Triage when the message opened a
+Triage. It has no controls that change anything. Previewing never changes
+classification, association, read state, Case state or custody.
 
 Opening a message keeps the list's filter and position. The record shows the
 full retained message, its attachments and a chronological thread, and
