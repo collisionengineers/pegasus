@@ -17,11 +17,14 @@ namespace Pegasus.Web.Pages.Administration.Accounts;
 /// TempData entry or rendered field ever carries a password back to the
 /// browser, and the submitted password is dropped from ModelState as soon as it
 /// has been read so a refused post cannot redisplay it. Both the staff account
-/// and the credential retain independent expected-version checks.
+/// and the credential retain independent expected-version checks. Each dialog
+/// resolves its account on its own, not from the list page behind it, so a deep
+/// link or a post reaches an account beyond the first page of the list.
 /// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
     IListStaffAccounts listStaffAccounts,
+    IGetStaffAccount getStaffAccount,
     ICreateStaffAccount createStaffAccount,
     IUpdateStaffAccountSettings updateStaffAccountSettings,
     IDisableStaffAccount disableStaffAccount,
@@ -41,6 +44,9 @@ public sealed class IndexModel(
     public string CreateOperationKey { get; private set; } = NewOperationKey();
     public bool CreatePostSubmitted { get; private set; }
     public Guid SettingsPostStaffId { get; private set; }
+
+    /// <summary>The account whose settings dialog is open, resolved on its own.</summary>
+    public StaffAccountRow? SettingsRow { get; private set; }
     public StaffRole SettingsPostRole { get; private set; } = StaffRole.User;
     public bool SettingsPostIsSignOffEngineer { get; private set; }
     public string SettingsPostPrintedName { get; private set; } = string.Empty;
@@ -83,14 +89,16 @@ public sealed class IndexModel(
         }
         if (editStaffId is not { } staffId) return Page();
 
-        var account = Rows.SingleOrDefault(item => item.Account.Id == staffId)?.Account;
-        if (account is null) return NotFound();
+        var row = await ResolveRowAsync(actor, staffId, cancellationToken);
+        if (row is null) return NotFound();
+        var account = row.Account;
         if (expectedVersion != account.Version)
         {
             ModelState.AddModelError(string.Empty, "The account changed. Reload and try again.");
             return Page();
         }
 
+        SettingsRow = row;
         SettingsPostStaffId = staffId;
         SettingsPostRole = account.Role;
         SettingsPostIsSignOffEngineer = account.SignOff.IsSignOffEngineer;
@@ -231,12 +239,13 @@ public sealed class IndexModel(
         Guid staffId,
         CancellationToken cancellationToken)
     {
-        var account = Rows.SingleOrDefault(item => item.Account.Id == staffId)?.Account;
-        if (account is null)
+        var row = await ResolveRowAsync(actor, staffId, cancellationToken);
+        if (row is null)
         {
             return false;
         }
 
+        var account = row.Account;
         GlassAccount = account;
         GlassStatus = await externalCredentials.GetAsync(actor, staffId, GlassProvider, cancellationToken);
         GlassExpectedVersion = GlassStatus.Version;
@@ -395,6 +404,7 @@ public sealed class IndexModel(
         }
         CreateOperationKey = NewOperationKey();
         await LoadAsync(actor, cancellationToken);
+        SettingsRow = await ResolveRowAsync(actor, SettingsPostStaffId, cancellationToken);
         return Page();
     }
 
@@ -438,7 +448,7 @@ public sealed class IndexModel(
         AutomationComposed = HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         var accounts = await listStaffAccounts.ExecuteAsync(new(actor, PageSize: ListStaffAccounts.MaximumPageSize), cancellationToken);
         HasMoreAccounts = accounts.HasMoreAccounts;
-        var currentOperatorId = Guid.TryParse(actor.SubjectId, out var id) ? id : (Guid?)null;
+        var currentOperatorId = CurrentOperatorId(actor);
         var glassByAccount = await externalCredentials.GetManyAsync(
             actor,
             accounts.Accounts.Select(account => account.Id).ToArray(),
@@ -456,6 +466,30 @@ public sealed class IndexModel(
         }
         Rows = rows;
     }
+
+    /// <summary>
+    /// One account by id, read directly rather than found in <see cref="Rows"/>:
+    /// the list holds only its first page, and a dialog must open for any
+    /// account. An empty id is no account; so is an unknown one.
+    /// </summary>
+    private async Task<StaffAccountRow?> ResolveRowAsync(
+        ActionActor actor,
+        Guid staffId,
+        CancellationToken cancellationToken)
+    {
+        if (staffId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var result = await getStaffAccount.ExecuteAsync(new(actor, staffId), cancellationToken);
+        return result is null
+            ? null
+            : new StaffAccountRow(result.Account, result.Account.Id == CurrentOperatorId(actor));
+    }
+
+    private static Guid? CurrentOperatorId(ActionActor actor) =>
+        Guid.TryParse(actor.SubjectId, out var id) ? id : null;
 }
 
 public sealed record StaffAccountRow(
