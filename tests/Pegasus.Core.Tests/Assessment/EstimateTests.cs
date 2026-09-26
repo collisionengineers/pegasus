@@ -109,76 +109,6 @@ public sealed class EstimateTests
     }
 
     [Fact]
-    public void DraftProjectionUsesTheCurrentCalculationInputs()
-    {
-        var draft = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
-        var expected = EstimateTotals.Compute(draft);
-        var projected = EstimateTotals.ForProjection(draft);
-
-        Assert.Equal(expected.Raw, projected.Raw);
-        Assert.Equal(expected.Printed, projected.Printed);
-        Assert.Equal(expected.VatPolicy, projected.VatPolicy);
-        Assert.Equal(expected.VatPercent, projected.VatPercent);
-        Assert.Equal(expected.CalculationPolicyVersion, projected.CalculationPolicyVersion);
-        Assert.Equal(expected.OffPattern, projected.OffPattern);
-    }
-
-    [Theory]
-    [InlineData(RepairSpecificationState.Accepted)]
-    [InlineData(RepairSpecificationState.Superseded)]
-    [InlineData(RepairSpecificationState.Discarded)]
-    public void AcceptedProjectionUsesItsRecordedBreakdownWhenInputsDiffer(RepairSpecificationState state)
-    {
-        var original = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
-        var recorded = EstimateTotals.Compute(original);
-        var accepted = original with
-        {
-            State = state,
-            Details = Header(rate: 90m),
-            Lines = [Line("new_part", price: 999m)],
-            RecordedTotals = recorded,
-        };
-
-        var projected = EstimateTotals.ForProjection(accepted);
-
-        Assert.Equal(recorded.Raw, projected.Raw);
-        Assert.Equal(recorded.Printed, projected.Printed);
-        Assert.NotEqual(EstimateTotals.Compute(accepted).Printed, projected.Printed);
-    }
-
-    [Fact]
-    public void AcceptedProjectionRefusesMissingOrIncompleteRecordedBreakdown()
-    {
-        var draft = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
-        var recorded = EstimateTotals.Compute(draft);
-        var accepted = draft with { State = RepairSpecificationState.Accepted };
-
-        Assert.Throws<InvalidOperationException>(() => EstimateTotals.ForProjection(accepted));
-
-        Assert.Throws<InvalidOperationException>(() =>
-            EstimateTotals.ForProjection(accepted with { RecordedTotals = recorded with { Raw = null! } }));
-    }
-
-    [Fact]
-    public void RecordedPrintedAmountsAreNotRoundedAgainOnProjection()
-    {
-        var draft = Estimate(Header(rate: 40m), Line("new_part", price: 100.005m));
-        var computed = EstimateTotals.Compute(draft);
-        var recorded = computed with
-        {
-            Printed = computed.Printed with { Parts = 100m, Net = 100m, Gross = 120m },
-        };
-        var accepted = draft with
-        {
-            State = RepairSpecificationState.Accepted,
-            RecordedTotals = recorded,
-        };
-
-        Assert.NotEqual(computed.Printed, recorded.Printed);
-        Assert.Same(recorded, EstimateTotals.ForProjection(accepted));
-    }
-
-    [Fact]
     public void EveryLineTypeMapsToExactlyOneOperationAndBack()
     {
         foreach (var type in EstimateLineCodes.Types)
@@ -343,24 +273,59 @@ public sealed class EstimateTests
     }
 
     [Fact]
-    public void OnlyADraftIsEditableAndTheAutomationOnlyEditsAiDrafts()
+    public void EveryLiveEstimateIsEditableAndTheAutomationOnlyEditsAnAiDraftNotInUse()
     {
-        var accepted = Estimate(Details(), Line("repair", workUnits: 1m)) with { State = RepairSpecificationState.Accepted };
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(accepted, Engineer));
-        var manualDraft = Estimate(Details(), Line("repair", workUnits: 1m));
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(manualDraft, Client));
-        EstimatePolicy.ValidateEditable(manualDraft, Engineer);
+        var manual = Estimate(Details(), Line("repair", workUnits: 1m));
+        var current = manual with { IsCurrent = true };
+        EstimatePolicy.ValidateEditable(manual, Engineer);
+        // The spec in use stays editable in place (operator, 25 September 2026).
+        EstimatePolicy.ValidateEditable(current, Engineer);
+
+        var discarded = manual with { State = RepairSpecificationState.Discarded };
+        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(discarded, Engineer));
+
+        var aiDraft = manual with { Source = new(RepairSpecificationSourceRoute.AiDraft, null, null, null) };
+        EstimatePolicy.ValidateEditable(aiDraft, Client);
+        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(manual, Client));
+        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateEditable(aiDraft with { IsCurrent = true }, Client));
     }
 
     [Fact]
-    public void AnAcceptedOrCurrentEstimateCannotBeDiscardedAndDiscardedCannotBeDuplicated()
+    public void TheEstimateInUseCannotBeDiscardedAndDiscardedCannotBeDuplicated()
     {
-        var accepted = Estimate(Details(), Line("repair", workUnits: 1m)) with { State = RepairSpecificationState.Accepted };
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateDiscard(accepted));
+        var current = Estimate(Details(), Line("repair", workUnits: 1m)) with { IsCurrent = true };
+        var inUse = Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateDiscard(current));
+        Assert.Equal("The repair spec in use cannot be discarded.", inUse.Message);
         var discarded = Estimate(Details(), Line("repair", workUnits: 1m)) with { State = RepairSpecificationState.Discarded };
         Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateDiscard(discarded));
         Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateDuplicate(discarded));
         EstimatePolicy.ValidateDiscard(Estimate(Details(), Line("repair", workUnits: 1m)));
+        EstimatePolicy.ValidateDuplicate(current);
+    }
+
+    [Fact]
+    public void OnlyAStaffMembersNewEstimateIsInUseWhenCreated()
+    {
+        Assert.True(RepairSpecificationPolicy.BecomesCurrentWhenCreated(Engineer));
+        Assert.True(RepairSpecificationPolicy.BecomesCurrentWhenCreated(User));
+        Assert.True(RepairSpecificationPolicy.BecomesCurrentWhenCreated(
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])));
+        // An AI draft only proposes (FRD-25): it waits for Use repair spec.
+        Assert.False(RepairSpecificationPolicy.BecomesCurrentWhenCreated(Client));
+    }
+
+    [Fact]
+    public void ANewSpecificationStartsOnTheOneEnabledRateCard()
+    {
+        var enabled = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 3);
+        var disabled = new LabourRateCard(Guid.NewGuid(), "Old", 60m, false, 1);
+        var another = new LabourRateCard(Guid.NewGuid(), "London", 95m, true, 1);
+
+        Assert.Same(enabled, LabourRateCardAdministration.ForNewSpecification([disabled, enabled]));
+        Assert.Null(LabourRateCardAdministration.ForNewSpecification([]));
+        Assert.Null(LabourRateCardAdministration.ForNewSpecification([disabled]));
+        // Several enabled cards leave the choice to the staff member.
+        Assert.Null(LabourRateCardAdministration.ForNewSpecification([enabled, another]));
     }
 
     [Theory]
@@ -390,7 +355,7 @@ public sealed class EstimateTests
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public void EveryStaffRoleMayMakeAnEstimateCurrentWithTheTotalsOwnersBasis(StaffRole role)
+    public void EveryStaffRoleMaySwitchTheEstimateInUse(StaffRole role)
     {
         var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
         var draft = Estimate(
@@ -398,17 +363,13 @@ public sealed class EstimateTests
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             Line("new_part", price: 100m), Line("repair", workUnits: 2m));
         EstimatePolicy.ValidateSetCurrent(draft, actor);
-
-        var basis = EstimatePolicy.BasisFor(draft);
-        var totals = EstimateTotals.Compute(draft);
-        Assert.Equal(totals.Printed.Gross, basis.Total);
-        Assert.Equal(totals.Printed.Vat, basis.Vat);
-        Assert.Equal("repair-specification/v4", basis.PolicyVersion);
-        Assert.Equal(basis, RepairSpecificationPolicy.ValidateCalculationBasis(basis));
+        // Switching is not acceptance: an estimate with no lines can be put in
+        // use, and report readiness then names what it lacks.
+        EstimatePolicy.ValidateSetCurrent(Estimate(Details()), actor);
 
         var discarded = draft with { State = RepairSpecificationState.Discarded };
         Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(discarded, actor));
-        EstimatePolicy.ValidateSetCurrent(draft with { State = RepairSpecificationState.Accepted }, actor);
+        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(draft, Client));
     }
 
     [Fact]
@@ -823,48 +784,6 @@ public sealed class EstimateTests
         Assert.Equal("repair", Assert.Single(changedOperation.Lines).Type);
     }
 
-    [Fact]
-    public void AnAcceptedEstimateKeepsThePolicyVersionItWasCostedUnder()
-    {
-        // A basis accepted under an earlier policy stays valid as it stands;
-        // policy version 4 is stamped only on what this policy costs.
-        var historic = RepairSpecificationPolicy.ValidateCalculationBasis(
-            new(100m, 20m, 10m, 0m, true, 26m, 156m, "repair-specification/v2"));
-        Assert.Equal("repair-specification/v2", historic.PolicyVersion);
-
-        var basis = EstimatePolicy.BasisFor(Estimate(Header(rate: 40m), Line("repair", workUnits: 2m)));
-        Assert.Equal("repair-specification/v4", basis.PolicyVersion);
-        Assert.Equal(4, RepairSpecificationPolicy.PolicyVersion);
-    }
-
-    [Fact]
-    public void TheAcceptedBasisCarriesThePrintedBreakdownAndTheVatPolicy()
-    {
-        var estimate = DiscountedEstimate(RepairerVatStatus.NotRegistered);
-
-        var basis = EstimatePolicy.BasisFor(estimate);
-
-        Assert.Equal(238.29m, basis.Labour);
-        Assert.Equal(255.77m, basis.Parts);
-        Assert.Equal(232.26m, basis.PaintMaterials);
-        Assert.Equal(225.96m, basis.SpecialistOther);
-        Assert.False(basis.RepairerVatRegistered);
-        Assert.Equal(65.16m, basis.Vat);
-        Assert.Equal(1_017.44m, basis.Total);
-        Assert.Equal(RepairerVatStatus.NotRegistered, basis.VatPolicy!.RepairerStatus);
-        Assert.Equal(952.28m, basis.Printed!.Net);
-        Assert.Equal(basis, RepairSpecificationPolicy.ValidateCalculationBasis(basis));
-    }
-
-    [Fact]
-    public void APrintedBreakdownThatDoesNotAddUpIsRefused()
-    {
-        var basis = EstimatePolicy.BasisFor(DiscountedEstimate(RepairerVatStatus.Registered));
-
-        Assert.Throws<InvalidOperationException>(() => RepairSpecificationPolicy.ValidateCalculationBasis(
-            basis with { Printed = basis.Printed! with { Net = basis.Printed.Net + 0.01m } }));
-    }
-
     // ---- Provider hours are kept at the provider's own precision ----
 
     [Fact]
@@ -897,7 +816,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
-            save);
+            save, NoCards);
 
         await import.ExecuteAsync(
             ImportRequest(name: "  Repairer quote  ", actor: actor),
@@ -916,7 +835,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
-            save);
+            save, NoCards);
 
         var id = await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
@@ -953,11 +872,56 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(existing),
-            save);
+            save, NoCards);
 
         await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
         Assert.Equal("Audatex 2", Assert.Single(save.Saved).Details.Name);
+    }
+
+    [Fact]
+    public async Task AnImportStartsOnTheOneEnabledRateCardAndNeverOnTheDocumentsRate()
+    {
+        var card = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 4);
+        var save = new FakeSpecificationStore();
+        var import = new ImportRawEstimate(
+            [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
+            Retained,
+            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
+            new StubList(),
+            save,
+            new StubRateCards(card, new LabourRateCard(Guid.NewGuid(), "Retired", 55m, false, 2)));
+
+        await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
+
+        var saved = Assert.Single(save.Saved);
+        Assert.Equal(card.Id, saved.SelectedRateCardId);
+        Assert.Equal(card.Version, saved.SelectedRateCardVersion);
+        // The store resolves the card's rate inside its transaction; the
+        // request never carries a rate the document printed.
+        Assert.Null(saved.Details.LabourRate);
+    }
+
+    [Fact]
+    public async Task AnImportWithNoSingleEnabledCardLeavesTheRateForTheStaffMember()
+    {
+        var save = new FakeSpecificationStore();
+        var import = new ImportRawEstimate(
+            [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
+            Retained,
+            new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
+            new StubList(),
+            save,
+            new StubRateCards(
+                new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 1),
+                new LabourRateCard(Guid.NewGuid(), "London", 95m, true, 1)));
+
+        await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
+
+        var saved = Assert.Single(save.Saved);
+        Assert.Null(saved.SelectedRateCardId);
+        Assert.Null(saved.SelectedRateCardVersion);
+        Assert.Null(saved.Details.LabourRate);
     }
 
     [Fact]
@@ -971,12 +935,12 @@ public sealed class EstimateTests
                 new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex"),
                 new StubParser(RepairSpecificationSourceRoute.Json, ".pdf", "Other"),
             ],
-            Retained, documents, new StubList(), save);
+            Retained, documents, new StubList(), save, NoCards);
         var many = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => ambiguous.ExecuteAsync(ImportRequest(), CancellationToken.None));
         Assert.Contains("More than one", many.Message, StringComparison.Ordinal);
 
-        var none = new ImportRawEstimate([JsonStub()], Retained, documents, new StubList(), save);
+        var none = new ImportRawEstimate([JsonStub()], Retained, documents, new StubList(), save, NoCards);
         var unrecognized = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => none.ExecuteAsync(ImportRequest(), CancellationToken.None));
         Assert.Contains("No estimate format", unrecognized.Message, StringComparison.Ordinal);
@@ -998,7 +962,7 @@ public sealed class EstimateTests
             Retained,
             documents,
             new StubList(already),
-            save);
+            save, NoCards);
 
         var id = await import.ExecuteAsync(ImportRequest(operationKey: "op-import-2"), CancellationToken.None);
 
@@ -1010,6 +974,30 @@ public sealed class EstimateTests
     }
 
     [Fact]
+    public async Task ADiscardedImportNoLongerHoldsItsSource()
+    {
+        var save = new FakeSpecificationStore();
+        var discarded = Estimate(Details()) with
+        {
+            State = RepairSpecificationState.Discarded,
+            Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", ImportSha256),
+        };
+        var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
+        var import = new ImportRawEstimate(
+            [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
+            Retained,
+            documents,
+            new StubList(discarded),
+            save, NoCards);
+
+        await import.ExecuteAsync(ImportRequest(operationKey: "op-import-again"), CancellationToken.None);
+
+        Assert.Empty(save.SourceReplayBindings);
+        Assert.Single(documents.Requests);
+        Assert.Equal(ImportSha256, Assert.Single(save.Saved).Source.Sha256);
+    }
+
+    [Fact]
     public async Task AnImportRefusesBytesThatDoNotMatchTheHashItRecorded()
     {
         var save = new FakeSpecificationStore();
@@ -1018,7 +1006,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments("different bytes"u8.ToArray(), "estimate.pdf", "application/pdf"),
             new StubList(),
-            save);
+            save, NoCards);
 
         var rejected = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => import.ExecuteAsync(ImportRequest(), CancellationToken.None));
@@ -1036,7 +1024,7 @@ public sealed class EstimateTests
             Retained,
             new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"),
             new StubList(),
-            save);
+            save, NoCards);
 
         await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
         Assert.Equal(RepairSpecificationSourceRoute.Json, Assert.Single(save.Saved).Source.Route);
@@ -1049,7 +1037,7 @@ public sealed class EstimateTests
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained, documents, new StubList(), save);
+            Retained, documents, new StubList(), save, NoCards);
 
         await import.ExecuteAsync(ImportRequest(), CancellationToken.None);
 
@@ -1068,7 +1056,7 @@ public sealed class EstimateTests
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            new StubMetadata(retained: null), documents, new StubList(), save);
+            new StubMetadata(retained: null), documents, new StubList(), save, NoCards);
 
         var rejected = await Assert.ThrowsAsync<EstimateParseRejectedException>(
             () => import.ExecuteAsync(ImportRequest(), CancellationToken.None));
@@ -1090,7 +1078,7 @@ public sealed class EstimateTests
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained, documents, estimates, save);
+            Retained, documents, estimates, save, NoCards);
 
         // Non-staff actors, malformed mutation envelopes and stale persisted
         // authority all fail before consulting a source-hash replay.
@@ -1122,7 +1110,7 @@ public sealed class EstimateTests
         var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser((RepairSpecificationSourceRoute)99, ".pdf", "Audatex")],
-            Retained, documents, estimates, save);
+            Retained, documents, estimates, save, NoCards);
 
         await Assert.ThrowsAsync<EstimateParseRejectedException>(() => import.ExecuteAsync(
             ImportRequest(), CancellationToken.None));
@@ -1206,7 +1194,7 @@ public sealed class EstimateTests
         Line("check_labour", price: 12.50m));
 
     private static EstimateLineInput LineInput(string type) =>
-        new(type, null, "Line", null, null, false, null, null, null, null, null);
+        new(type, null, "Line", null, null, false, null, null, null, null);
 
     // ---- Import fixtures ----
 
@@ -1232,6 +1220,8 @@ public sealed class EstimateTests
         actor ?? Engineer, CaseId, expectedVersion, lease ?? Lease,
         OccurrenceId, DocumentVersionId, ImportSha256, operationKey, name);
 
+    private static readonly StubRateCards NoCards = new();
+
     private static StubParser JsonStub() =>
         new(RepairSpecificationSourceRoute.Json, ".json", "Repairer");
 
@@ -1248,6 +1238,15 @@ public sealed class EstimateTests
             [LineInput("repair") with { WorkUnits = 1.5m, Materials = 4m }],
             providerName, route,
             new EstimateSourceTotals(Net: 60m));
+    }
+
+    private sealed class StubRateCards(params LabourRateCard[] cards) : ILabourRateCardStore
+    {
+        public Task<IReadOnlyList<LabourRateCard>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<LabourRateCard>>(cards);
+
+        public Task<LabourRateCard> SaveAsync(SaveLabourRateCardRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class StubMetadata(CaseDocumentMetadata? retained) : IGetCaseDocumentMetadata
@@ -1298,18 +1297,18 @@ public sealed class EstimateTests
         new(route, null, null, null), jobId);
 
     private static SetCurrentEstimateRequest SetCurrentRequest(ActionActor actor, string operationKey) => new(
-        CaseId, 3, actor, operationKey, "Use estimate.", Lease, Guid.NewGuid());
+        CaseId, 3, actor, operationKey, "Use repair spec.", Lease, Guid.NewGuid());
 
     private static RepairSpecificationVersion Estimate(EstimateDetails details, params CaseEstimateLineRecord[] lines) => new(
         Guid.NewGuid(), CaseId, 1, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
-        lines, null, Engineer.SubjectId, Now, null, null, null, null, details);
+        lines, Engineer.SubjectId, Now, details);
 
     private static CaseEstimateLineRecord Line(
         string type, decimal? workUnits = null, decimal? paintWorkUnits = null,
         decimal? price = null, int? quantity = null,
         decimal? materials = null) => new(
-        Guid.NewGuid(), 1, type, null, "Line", workUnits, price, false, null, null, null, null, null,
+        Guid.NewGuid(), 1, type, null, "Line", workUnits, price, false, null, null, null, null,
         ActorKind.Staff, Engineer.SubjectId, Now,
         paintWorkUnits, quantity, materials);
 
@@ -1438,10 +1437,7 @@ public sealed class EstimateTests
         public Task<RepairSpecificationVersion?> GetVersionAsync(Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(Guid caseId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<RepairSpecificationVersion?> GetCurrentDraftAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<RepairSpecificationVersion?> GetCurrentAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<RepairSpecificationVersion> DuplicateEstimateAsync(DuplicateEstimateRequest request, CancellationToken cancellationToken)

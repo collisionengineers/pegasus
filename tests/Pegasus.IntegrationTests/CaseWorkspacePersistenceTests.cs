@@ -21,7 +21,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// One Case edit is one transaction. These tests prove that it either records
 /// the whole authorized snapshot or none of it: a stale version, a lease that
-/// is missing, foreign or expired, an accepted estimate, a terminal case and a
+/// is missing, foreign or expired, a discarded estimate, a terminal case and a
 /// replayed operation key with a different payload each leave the record
 /// exactly as it was.
 /// </summary>
@@ -1164,7 +1164,7 @@ public sealed class CaseWorkspacePersistenceTests
             engineer,
             "lease-partial");
         var historyBefore = await harness.HistoryCountAsync();
-        var accepted = await AcceptAnEstimateAsync(harness);
+        var discarded = await DiscardAnEstimateAsync(harness);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             harness.WorkspaceStore.SaveAsync(
@@ -1189,9 +1189,9 @@ public sealed class CaseWorkspacePersistenceTests
                         [AssessmentVocabulary.EngineersComments] = "Never written",
                         [AssessmentVocabulary.AgreedFee] = "120.00"
                     }, null, new DateOnly(2031, 5, 20)),
-                    // An accepted spec is not an editor's Draft: the refusal
-                    // comes after the Case facts were written.
-                    Estimate = new(accepted, new("Accepted estimate", null, null, 20m), [])
+                    // A discarded spec cannot be changed: the refusal comes
+                    // after the Case facts were written.
+                    Estimate = new(discarded, new("Discarded estimate", null, null, 20m), [])
                 },
                 CancellationToken.None));
 
@@ -1203,25 +1203,25 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     [Fact]
-    public async Task AnAcceptedEstimateAndAClosedCaseRefuseTheWorkspaceSave()
+    public async Task ADiscardedEstimateAndAClosedCaseRefuseTheWorkspaceSave()
     {
         await using var harness = await Harness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
-        var accepted = await AcceptAnEstimateAsync(harness);
+        var discarded = await DiscardAnEstimateAsync(harness);
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
             engineer,
-            "lease-accepted");
+            "lease-discarded");
 
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             harness.WorkspaceStore.SaveAsync(
-                Request(harness, initial.Version, lease.Token, "workspace-accepted", engineer) with
+                Request(harness, initial.Version, lease.Token, "workspace-discarded", engineer) with
                 {
-                    Estimate = new(accepted, new("Accepted estimate", null, null, 20m), [])
+                    Estimate = new(discarded, new("Discarded estimate", null, null, 20m), [])
                 },
                 CancellationToken.None));
-        Assert.Contains("Only a draft estimate can be changed", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("A discarded estimate cannot be changed", refusal.Message, StringComparison.Ordinal);
 
         await MarkTerminalAsync(harness);
         await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
@@ -1262,13 +1262,14 @@ public sealed class CaseWorkspacePersistenceTests
                         null,
                         null,
                         null,
-                        null,
                         1)])
             },
             CancellationToken.None);
 
         Assert.NotNull(result.Estimate);
         Assert.Equal(RepairSpecificationState.Draft, result.Estimate!.State);
+        // A staff member's new spec is the one the Case uses at once.
+        Assert.True(result.Estimate.IsCurrent);
         Assert.Equal("Estimate 1", result.Estimate.Details.Name);
         Assert.Equal(45m, result.Estimate.Details.LabourRate);
         var line = Assert.Single(result.Estimate.Lines);
@@ -1297,7 +1298,7 @@ public sealed class CaseWorkspacePersistenceTests
                 Estimate = new(
                     null,
                     new("Estimate 1", 45m, 0m, 20m),
-                    [new("new_part", null, "Front bumper", 1.5m, 240m, false, "BP-1", null, null, null, null, null, 1)])
+                    [new("new_part", null, "Front bumper", 1.5m, 240m, false, "BP-1", null, null, null, null, 1)])
             },
             CancellationToken.None);
         var spec = Assert.IsType<RepairSpecificationVersion>(first.Estimate);
@@ -1909,7 +1910,7 @@ public sealed class CaseWorkspacePersistenceTests
         Guid.Parse(harness.StaffActor.SubjectId),
         [role]);
 
-    private static async Task<Guid> AcceptAnEstimateAsync(Harness harness)
+    private static async Task<Guid> DiscardAnEstimateAsync(Harness harness)
     {
         var id = Guid.NewGuid();
         await using var context = await harness.Factory.CreateDbContextAsync();
@@ -1917,12 +1918,13 @@ public sealed class CaseWorkspacePersistenceTests
             $"""
             INSERT INTO CaseRepairSpecifications
                 (Id, WorkId, Version, State, SourceRoute, CreatedBy, CreationOperationKey,
-                 CreatedAtUtc, Name, VatPercent, RepairerVatStatus, IsCurrent, AcceptedBy, AcceptedAtUtc)
+                 CreatedAtUtc, Name, VatPercent, RepairerVatStatus, IsCurrent,
+                 DiscardedBy, DiscardedAtUtc, DiscardReason)
             VALUES
-                ({id}, {harness.CaseId}, {1}, {"Accepted"}, {"LegacyUnresolved"},
-                 {harness.StaffActor.SubjectId}, {"accepted-estimate"},
-                 {DateTimeOffset.UtcNow}, {"Accepted estimate"}, {20m}, {"Unknown"}, {true},
-                 {harness.StaffActor.SubjectId}, {DateTimeOffset.UtcNow})
+                ({id}, {harness.CaseId}, {1}, {"Discarded"}, {"Manual"},
+                 {harness.StaffActor.SubjectId}, {"discarded-estimate"},
+                 {DateTimeOffset.UtcNow}, {"Discarded estimate"}, {20m}, {"Unknown"}, {false},
+                 {harness.StaffActor.SubjectId}, {DateTimeOffset.UtcNow}, {"Entered in error"})
             """);
         return id;
     }

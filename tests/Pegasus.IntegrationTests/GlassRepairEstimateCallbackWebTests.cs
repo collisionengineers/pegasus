@@ -356,14 +356,16 @@ public sealed class GlassRepairEstimateCallbackWebTests
     // ------------------------------------------------------------- the return
 
     /// <summary>
-    /// The whole operator journey: Save &amp; Exit lands the calculation as a
-    /// Draft on the Case, keeps both of the provider's documents, completes the
-    /// session, and puts the operator back on the Estimate section.
+    /// The whole operator journey: Save &amp; Exit lands the calculation as the
+    /// Case's repair spec in use, priced on the one enabled labour-rate card,
+    /// keeps both of the provider's documents, completes the session, and puts
+    /// the operator back on the Estimate section.
     /// </summary>
     [Fact]
-    public async Task TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession()
+    public async Task TheProvidersReturnLandsTheSpecInUseKeepsBothDocumentsAndCompletesTheSession()
     {
         await using var workspace = await Workspace.CreateAsync(role: StaffRoleNames.User);
+        var card = await workspace.AddRateCardAsync("80", 80m);
         await workspace.ClaimLeaseAsync();
         var launchVersion = await workspace.CaseVersionAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
@@ -379,6 +381,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var estimate = Assert.Single(await workspace.EstimatesAsync());
         Assert.Equal(RepairSpecificationSourceRoute.Glasses, estimate.Source.Route);
         Assert.Equal(RepairSpecificationState.Draft, estimate.State);
+        Assert.True(estimate.IsCurrent);
+        Assert.Equal(new EstimateRateSnapshot(card.Id, card.Version, 80m), estimate.Details.Rate);
+        Assert.Equal(80m, estimate.Details.HourlyRate);
         Assert.NotEmpty(estimate.Lines);
         Assert.Equal(BothDocuments, await workspace.RetainedMediaTypesAsync());
         // Only landing the Draft is a staff mutation; retaining its two source
@@ -624,6 +629,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
         var estimate = Assert.Single(await workspace.EstimatesAsync());
         Assert.Equal(RepairSpecificationSourceRoute.Glasses, estimate.Source.Route);
+        Assert.True(estimate.IsCurrent);
         Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
     }
 
@@ -1025,6 +1031,19 @@ public sealed class GlassRepairEstimateCallbackWebTests
             }
 
             return sessions;
+        }
+
+        /// <summary>An enabled labour-rate card, as an Administrator records it.</summary>
+        public async Task<LabourRateCard> AddRateCardAsync(string name, decimal hourlyRate)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            return await scope.ServiceProvider
+                .GetRequiredService<ILabourRateCardStore>()
+                .SaveAsync(
+                    new(Guid.NewGuid(), name, hourlyRate, true, 0,
+                        ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                        "Create rate", $"rate-card-{Guid.NewGuid():N}"),
+                    CancellationToken.None);
         }
 
         public async Task<IReadOnlyList<RepairSpecificationVersion>> EstimatesAsync()

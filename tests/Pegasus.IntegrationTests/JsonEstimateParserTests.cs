@@ -55,7 +55,6 @@ public sealed class JsonEstimateParserTests
         Assert.Equal(2, bumper.Quantity);
         Assert.Equal(620.20m, bumper.Price);
         Assert.False(bumper.Unpriced);
-        Assert.Equal("estimated", bumper.Status);
         Assert.Equal("reference", bumper.EvidenceLabel);
 
         Assert.Equal("repair", result.Lines[1].Type);

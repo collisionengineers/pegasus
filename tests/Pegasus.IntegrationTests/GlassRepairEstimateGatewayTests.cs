@@ -740,7 +740,7 @@ public sealed class GlassRepairEstimateGatewayTests
     // -------------------------------------------------------------- callback
 
     [Fact]
-    public async Task ACompletedCallbackRetainsBothArtifactsAndLandsOneDraft()
+    public async Task ACompletedCallbackRetainsBothArtifactsAndLandsOneSpecInUse()
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();
@@ -763,6 +763,8 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(Harness.CaseVersion, import.ExpectedVersion);
         Assert.Equal(Harness.LeaseToken, import.EditLeaseToken);
         Assert.Equal(harness.Custody.Retained[0].Sha256, import.Sha256);
+        // The returning staff member imports it, so it is the spec in use at once.
+        Assert.True(RepairSpecificationPolicy.BecomesCurrentWhenCreated(import.Actor));
 
         var results = harness.Store.ResultsOf(session.Id)!;
         Assert.Contains($"\"importedEstimateId\":\"{harness.Import.EstimateId:D}\"", results, StringComparison.Ordinal);

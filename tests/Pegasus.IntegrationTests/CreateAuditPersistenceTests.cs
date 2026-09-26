@@ -417,14 +417,17 @@ public sealed class CreateAuditPersistenceTests
         Assert.Equal(CopiedSpecificationVersions, auditSpecifications.Select(item => item.Version).Order());
         Assert.DoesNotContain(auditSpecifications, item => item.State == nameof(RepairSpecificationState.Discarded));
         Assert.Empty(auditSpecifications.Select(item => item.Id).Intersect(sourceSpecifications.Select(item => item.Id)));
-        var superseded = Assert.Single(auditSpecifications, item => item.Version == 1);
+        var earlier = Assert.Single(auditSpecifications, item => item.Version == 1);
         var current = Assert.Single(auditSpecifications, item => item.Version == 2);
         var draft = Assert.Single(auditSpecifications, item => item.Version == 4);
-        Assert.Equal(superseded.Id, current.SupersedesSpecificationId);
+        Assert.False(earlier.IsCurrent);
+        Assert.Equal(nameof(RepairSpecificationState.Draft), earlier.State);
         Assert.Null(draft.SupplementaryOfSpecificationId);
         Assert.Equal("additional", draft.SupplementaryReason);
+        // The Current choice is copied with the estimates: one Current Draft.
         Assert.True(current.IsCurrent);
-        Assert.Equal(nameof(RepairSpecificationState.Accepted), current.State);
+        Assert.Equal(nameof(RepairSpecificationState.Draft), current.State);
+        Assert.Single(auditSpecifications, item => item.IsCurrent);
         Assert.Equal(harness.AiJobId, current.AiJobId);
         Assert.Equal("specification-2", current.CreationOperationKey);
         var sourceLine = Assert.Single(sourceSpecifications.Single(item => item.Version == 2).Lines);
@@ -434,7 +437,6 @@ public sealed class CreateAuditPersistenceTests
         Assert.Equal(current.Id, line.RepairSpecificationId);
         Assert.Equal(sourceLine.Materials, line.Materials);
         Assert.Equal(sourceLine.OriginalValuesJson, line.OriginalValuesJson);
-        Assert.Equal(sourceLine.CurrentValuesJson, line.CurrentValuesJson);
         Assert.Equal(sourceLine.SourceDocumentIdentity, line.SourceDocumentIdentity);
         Assert.Equal(sourceLine.SourceRowIdentity, line.SourceRowIdentity);
         Assert.Equal(sourceLine.AmendedBy, line.AmendedBy);
@@ -892,22 +894,16 @@ public sealed class CreateAuditPersistenceTests
         };
 
         /// <summary>
-        /// Four specifications: v1 superseded by the current v2, a discarded v3,
+        /// Four specifications: an earlier v1, the v2 in use, a discarded v3,
         /// and a draft v4 supplementing the discarded one.
         /// </summary>
         private static void SeedSpecifications(PegasusDbContext context, Guid caseId, Guid aiJobId, DateTimeOffset now)
         {
-            var superseded = Specification(caseId, 1, nameof(RepairSpecificationState.Superseded), now);
-            superseded.AcceptedBy = "engineer";
-            superseded.AcceptedAtUtc = now.AddDays(-6);
-            superseded.Lines.Add(Line(caseId, superseded.Id, now));
-            var current = Specification(caseId, 2, nameof(RepairSpecificationState.Accepted), now);
-            current.AcceptedBy = "engineer";
-            current.AcceptedAtUtc = now.AddDays(-5);
+            var earlier = Specification(caseId, 1, nameof(RepairSpecificationState.Draft), now);
+            earlier.Lines.Add(Line(caseId, earlier.Id, now));
+            var current = Specification(caseId, 2, nameof(RepairSpecificationState.Draft), now);
             current.IsCurrent = true;
             current.AiJobId = aiJobId;
-            current.SupersedesSpecificationId = superseded.Id;
-            current.SupersessionReason = "Revised after inspection";
             current.Lines.Add(Line(caseId, current.Id, now));
             var discarded = Specification(caseId, 3, nameof(RepairSpecificationState.Discarded), now);
             discarded.DiscardedBy = "engineer";
@@ -917,7 +913,7 @@ public sealed class CreateAuditPersistenceTests
             draft.SupplementaryOfSpecificationId = discarded.Id;
             draft.SupplementaryReason = "additional";
             draft.SupplementaryStatement = "Further damage found.";
-            context.CaseRepairSpecifications.AddRange(superseded, current, discarded, draft);
+            context.CaseRepairSpecifications.AddRange(earlier, current, discarded, draft);
             context.CaseRepairSpecificationSnapshots.Add(new CaseRepairSpecificationSnapshotEntity
             {
                 Id = Guid.NewGuid(),
@@ -967,13 +963,11 @@ public sealed class CreateAuditPersistenceTests
             WorkUnits = 10m,
             Quantity = 1,
             Price = 400m,
-            Status = "confirmed",
             RecordedByKind = "Staff",
             RecordedBy = "engineer",
             RecordedAtUtc = now.AddDays(-6),
             Materials = 80m,
             OriginalValuesJson = "{\"price\":380}",
-            CurrentValuesJson = "{\"price\":400}",
             SourceDocumentIdentity = "estimate.pdf",
             SourceRowIdentity = "row-1",
             AmendedBy = "engineer",

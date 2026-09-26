@@ -335,16 +335,11 @@ public sealed class ReportRequirementOwnershipTests
                 SpecificationId: Guid.NewGuid(),
                 CaseId: complete.CaseId,
                 Version: 1,
-                State: RepairSpecificationState.Accepted,
+                State: RepairSpecificationState.Draft,
                 Source: new RepairSpecificationSource(RepairSpecificationSourceRoute.Manual, null, null, null),
                 Lines: [],
-                CalculationBasis: null,
                 CreatedBy: "engineer-1",
                 CreatedAtUtc: RecordedAtUtc,
-                AcceptedBy: "engineer-1",
-                AcceptedAtUtc: RecordedAtUtc,
-                SupersedesSpecificationId: null,
-                SupersessionReason: null,
                 Details: new EstimateDetails("Repair spec", LabourRate: null, OtherCosts: null, VatPercent: 20m),
                 IsCurrent: true)
         };

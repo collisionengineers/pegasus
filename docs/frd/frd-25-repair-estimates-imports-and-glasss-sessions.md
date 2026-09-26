@@ -4,15 +4,19 @@
 
 ## Short version
 
-- Every repair estimate is an immutable version. Each Case has exactly one
-  current accepted version, and once an Inspection + Audit Case has its
-  Audit, the Inspection and the Audit each have one.
-- Imported or AI material stays a Draft until an enabled human staff member accepts it with
-  **Use estimate**. Importing never changes Current.
+- A repair spec a staff member creates is the one in use at once: typed in,
+  imported, or returned from Glass's. Each Case has at most one Current repair
+  spec, and once an Inspection + Audit Case has its Audit, the Inspection and
+  the Audit each have one.
+- The Current repair spec stays editable while the Case is writable.
+  **Use repair spec** switches back to another one.
+- An imported spec takes the one enabled Pegasus labour-rate card. AI and
+  automation material stays a Draft until a staff member presses
+  **Use repair spec**.
 - An import is keyed by Case plus source hash. The same hash replays the same
-  Draft.
+  live spec.
 - Estimate PDFs need readable embedded text. An unreadable or ambiguous
-  source refuses the whole import, with no OCR and no partial Draft.
+  source refuses the whole import, with no OCR and no partial spec.
 - A Glass's answer that was lost stays `Unknown` and holds the account until
   the owning staff member closes the session with a reason.
 
@@ -34,34 +38,40 @@ leases are owned by
 
 ### Canonical repair specifications
 
-**One current version.** Every accepted repair specification is an
-immutable, versioned Core aggregate. Each Case has exactly one current
-accepted version, shared by all of the Case's report projections. Create
-audit copies every live estimate, with its lines and its Current choice,
-into the Audit; discarded estimates and revision snapshots are not copied
+**One Current spec.** A Case holds several live repair specifications and at
+most one Current one, shared by all of the Case's report projections. A spec
+a staff member types in, imports or brings back from Glass's becomes Current
+when it is created (operator, 25 September 2026). The one it replaces stays
+in the list, and **Use repair spec** switches back to it. An AI draft only
+proposes: it stays a Draft until a staff member presses **Use repair spec**.
+The Current spec stays editable while the Case is writable; each change marks
+a generated report stale, and the numbered versions below keep the history.
+Create audit copies every live estimate, with its lines and its Current
+choice, into the Audit; discarded estimates and revision snapshots are not
+copied
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
-From then on the Inspection and the Audit each have their own current
-version, feeding their own report. Every estimate edit, import, Glass's
-return and Use estimate acts on the Audit's estimates; the Inspection's stay
-as its report was sent.
+From then on the Inspection and the Audit each have their own Current spec,
+feeding their own report. Every estimate edit, import, Glass's return and
+Use repair spec acts on the Audit's estimates; the Inspection's stay as its
+report was sent.
 
-Each version keeps its stable identity, ordered technical lines, source
-route, source artifact identity, version and hash, mapping evidence, raw
-calculation basis and totals, the selected labour-rate card version if one
-was selected, creating actor and time, and, when accepted, the named staff member
-and acceptance time. Glass's, Audatex PDF, an approved AI proposal and manual
-entry are provenance routes, never authorities. Imported or automated
-material stays a Draft until an authorised human staff member accepts the exact source,
-mapping, ordered lines and calculation basis. A Draft without the required
-provenance cannot satisfy report readiness. Obsolete development-state
-estimates need not be converted or kept.
+Each spec keeps its stable identity, ordered technical lines, source route,
+source artifact identity, version and hash, the selected labour-rate card
+version if one was selected, and its creating actor and time. Its totals are
+calculated from its lines and header whenever they are read. Glass's,
+Audatex PDF, JSON, an AI draft and manual entry are provenance routes, never
+authorities. Obsolete development-state estimates need not be converted or
+kept.
 
 **Import is keyed by Case plus source hash.** A raw artifact imported through
 either caller of the shared import command uses that key. The same Case with
-the same hash is a replay that returns the existing Draft. A different
-artifact creates the next immutable Draft. The provider and parser are
-detected from the registered types; an ambiguous artifact is refused, never
-guessed.
+the same hash is a replay that returns the existing live spec and leaves the
+spec in use as it was; the page reports that the file was already imported
+and shows that spec, and a Glass's return reports its estimate as recorded
+rather than as the spec in use. A discarded spec no longer holds its source,
+so importing that file again creates a new one. A different artifact creates
+the next spec. The provider and parser are detected from the registered
+types; an ambiguous artifact is refused, never guessed.
 
 **Authority is checked twice.** Before reading a replay or parsing the source,
 the command proves the typed actor, the current persisted Case version, and
@@ -70,11 +80,9 @@ need an assessment-writable state: Not ready, Review or With Engineer, where
 With Engineer covers before and after the report
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A file
 occurrence must name the exact confirmed, non-removed document version; a
-correctly paired historical version is still valid evidence. The new Draft is
-guarded again in the save transaction. Importing never changes Current, even
-when a staff member started it. The human staff **Use estimate** action
-accepts the Draft once its source, mapping, rows and calculation basis pass
-the normal acceptance rules.
+correctly paired historical version is still valid evidence. The new spec is
+guarded again in the save transaction. A staff import becomes the Current
+spec; an automation import through MCP stays a Draft.
 
 **Glass's calculation PDFs.** These keep ordered Body, Auxiliary and Paint
 rows, included-operation context, source guide codes, unambiguous
@@ -87,9 +95,15 @@ the printed rate × section hours as the source computes it. Missing or
 ambiguous required evidence refuses the whole import. Source rates and VAT do
 not select a Pegasus rate card or decide a repairer's VAT status.
 
+**Labour rate on a new spec.** A new repair spec — imported, returned from
+Glass's, or started with **New repair spec** — takes the one enabled Pegasus
+labour-rate card. With no enabled card, or several, the rate stays blank and
+report readiness asks for it. The staff member can change it. A source
+document's own rate never picks the card.
+
 **Readable text is required.** Estimate PDFs need readable embedded text.
 Unreadable, scan-like or unsupported estimates are refused, with no OCR and
-no partial Draft. A staff upload stores the confirmed source through the normal
+no partial spec. A staff upload stores the confirmed source through the normal
 Case document flow, then parses it immediately in the same Import action.
 After an interrupted or refused parse, retrying the same source reuses the
 confirmed retained document under current Case authority without uploading it
@@ -97,28 +111,29 @@ again. Source attribution and complete arithmetic must agree before an import
 succeeds. Replaying the original operation does not revive its old lease or
 assume another Case-version increment.
 
-**Engineer acts on a Draft (v28, ruled 20 September 2026).** Target % of
-value scales a Draft down under the Engineer's hand: one factor lowers every
+**Engineer acts on a spec (v28, ruled 20 September 2026).** Target % of
+value scales a spec down under the Engineer's hand: one factor lowers every
 part price, every materials figure and the labour rate, each to its floor
 (£50 an hour and 65 % of price unless the Engineer sets others); hours never
-move. Apply saves the Case first (the one Save, which records the Draft as
-edited), then freezes the saved draft, saves the scaled specification and
+move. Apply saves the Case first (the one Save, which records the spec as
+edited), then freezes the saved spec, saves the scaled specification and
 freezes it again as the scaled version; Remove scaling likewise saves first
-and returns the Draft to the version frozen before. A contract repair's agreed sum is Case data the
+and returns the spec to the version frozen before. A contract repair's agreed sum is Case data the
 Engineer records beside the specification; recording it sets the outcome to
 Contract repair, and a different sum is a scaling target. Every import,
 scale, removal, restore and sent report freezes a numbered version with how
-it came about; Restore makes a frozen version the Draft after freezing the
-outgoing one; the version a sent report used is marked. Compare reads any
+it came about; Restore makes a frozen version the spec's content after
+freezing the outgoing one; the version a sent report used is marked. Compare reads any
 two of a Case's specifications line by line; a specification may name the
 one it supplements, with a reason, and the composed supplementary statement
 prints on the report when the Engineer says so. Send to AI proposes only.
 
-**Corrections and projections.** A correction creates a new reasoned version
-that keeps and supersedes the earlier accepted one. Accepted rows and their
-evidence are never edited in place. A Case with no unambiguous current
-accepted version fails closed. The specification uses one line vocabulary and
-one calculation basis. The three assessment-report lists (new parts, repairs
+**Corrections and projections.** A correction is an edit of the spec, Current
+or not; an imported line keeps the values its source printed beside the
+amendment, and the numbered versions keep what a scale, restore or sent
+report replaced. There is no separate supersede step (operator,
+25 September 2026). A Case with no Current spec cannot generate a report. The
+specification uses one line vocabulary and one calculation basis. The three assessment-report lists (new parts, repairs
 and additional operations) are one deterministic names-only projection of
 those ordered lines, not a second renderer-owned specification.
 
@@ -161,9 +176,9 @@ claim that the hosted editor has initialized successfully.
 
 Keeping a returned estimate's source files does not use up the staff member's
 still-valid Case edit authority. The import uses that authority to land one
-Draft. A genuine Case edit in between, or an expired or lost lease, leaves
-the retained result waiting until the staff member regains authority. Callback
-replay creates neither another Draft nor another change.
+spec, which becomes Current. A genuine Case edit in between, or an expired or
+lost lease, leaves the retained result waiting until the staff member regains
+authority. Callback replay creates neither another spec nor another change.
 
 **Unknown answers hold the account.** A provider write whose answer was lost
 stays `Unknown` and keeps the account. It must not create another vehicle or
@@ -205,7 +220,7 @@ derived and professionally accepted values keep their distinctions.
 
 The estimate-import command accepts the supplied Glass's calculation and
 Audatex full-report PDFs through their deterministic provider mappings. It
-keeps the original document and its source hash before importing a Draft;
+keeps the original document and its source hash before importing the spec;
 the same Case and hash replay the same import. Printed totals, rates, line
 structure and provider identity must agree. PDF net labour is not reduced
 again by the XML-specific overlap rule.
@@ -217,35 +232,38 @@ action accepts one supported file and stores the source through the existing
 Case document upload mechanism before parsing it immediately. The confirmed
 source appears in Case Files even when parsing refuses it; retrying the same
 file uses that retained source, while a replay of the same operation returns
-the same import. Import never selects a Current estimate.
+the same import. A staff Import makes the imported spec Current.
 
 ## States and transitions
 
 | Thing | States |
 | --- | --- |
-| Repair specification | Draft, then accepted (Current) by Use estimate; a correction makes a new version that supersedes the old |
+| Repair specification | Draft (live) or Discarded. At most one live spec is Current: a staff-created spec is Current at once, and Use repair spec switches. Edits keep the spec; imports, scales, restores and sent reports freeze numbered versions |
 | Glass's session | launched, `Unknown` (holds the account), resumed, closed by the owning staff member with a reason |
 
 ## Edge cases and fail-closed behaviour
 
 - An ambiguous estimate artifact, an unreadable PDF, or a reconciliation
   mismatch refuses the whole import.
-- A Case with no unambiguous current accepted specification fails closed.
+- A Case with no Current repair spec, or a Current spec with no lines or no
+  labour rate, cannot generate a report.
+- The Current repair spec cannot be discarded; switch to another one first.
 - A lost Glass's answer stays `Unknown` and holds the account until the
   owning staff member closes it with a reason.
 
 ## Acceptance evidence
 
 Core and integration evidence covers identity, current authority, account
-exclusivity, uncertain writes, callback replay, custody and one Draft import.
+exclusivity, uncertain writes, callback replay, custody and one import that
+lands as the Current spec on the rate card.
 Browser evidence covers save-before-launch, refusal without provider work,
 fresh controls, stale Close and preservation of edits during return.
 
 The hosted editor must also pass live acceptance on the deployed artifact:
 three fresh launches across two vehicle models (cold and warm browser), three
 positive-ID resumes including reload and host restart, deliberate estimate
-changes followed by Save & Exit and automatic Draft import, replay producing
-one Draft, expired-lease recovery, original-window closure, and a second Case
+changes followed by Save & Exit and an automatic import that lands as the
+Current spec, replay producing one spec, expired-lease recovery, original-window closure, and a second Case
 refused while the account is held. Chrome is primary; Edge also covers a fresh
 launch and Resume. Manual export/import does not satisfy this integration's
 acceptance. Supplier startup failures remain open until that journey passes

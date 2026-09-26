@@ -1264,7 +1264,7 @@
         var session = record.querySelector('[data-glass-controls="session"]');
         if (!host || !session) { return; }
         var text = state === 'Completed'
-            ? (session.dataset.glassImportedDirty || "The Glass's estimate was recorded as a Draft. Your unsaved changes are still here. Save or cancel them to view it.")
+            ? (session.dataset.glassImportedDirty || "The Glass's estimate was recorded as a repair spec, and your unsaved changes are still here. Save or cancel them to view it.")
             : (session.dataset.glassReturnedDirty || "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.");
         var notice = host.querySelector('[data-estimate-notice]');
         if (!notice) {

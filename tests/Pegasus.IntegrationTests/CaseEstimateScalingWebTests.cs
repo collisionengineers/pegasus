@@ -28,26 +28,26 @@ public sealed class CaseEstimateScalingWebTests
         var caseId = Guid.NewGuid();
         var store = new AssessmentEstimateImportWebTests.RecordingStores(caseId)
         {
-            CurrentDraft = AssessmentEstimateImportWebTests.DraftSpecification(caseId),
+            WorkingEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId),
         };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = AssessmentEstimateImportWebTests.Compose(baseFactory, store);
         using var client = AssessmentEstimateImportWebTests.CreateEngineerClient(factory);
         var html = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
-            client, caseId, $"?section=estimate&estimate={store.CurrentDraft.SpecificationId:D}");
+            client, caseId, $"?section=estimate&estimate={store.WorkingEstimate.SpecificationId:D}");
         var fields = AssessmentEstimateImportWebTests.NewEnumerable(
             ("__RequestVerificationToken", AssessmentEstimateImportWebTests.AntiforgeryValue(html)),
             ("id", caseId.ToString("D")),
             ("operationKey", AssessmentEstimateImportWebTests.NewOperationKey()),
             ("editLeaseToken", AssessmentEstimateImportWebTests.InputValue(html, "editLeaseToken")),
             ("expectedVersion", staleVersion ? "6" : AssessmentEstimateImportWebTests.InputValue(html, "expectedVersion")),
-            ("estimateId", store.CurrentDraft.SpecificationId.ToString("D")),
+            ("estimateId", store.WorkingEstimate.SpecificationId.ToString("D")),
             ("estimateName", "New repairer draft"),
             ("estimateLabourRate", "81.25"),
             ("estimateOtherCosts", "14.40"),
             ("estimateVatPercent", "17.5"),
             ("estimateVatStatus", "Registered"),
-            ("lineId", store.CurrentDraft.Lines[0].Id.ToString("D")),
+            ("lineId", store.WorkingEstimate.Lines[0].Id.ToString("D")),
             ("lineOperation", "Replace"),
             ("lineDescription", "Front bumper revision"),
             ("linePartNumber", "FB-123"),
@@ -85,28 +85,22 @@ public sealed class CaseEstimateScalingWebTests
     public async Task ApplyUsesThePercentageThenRemovalBecomesUnavailable()
     {
         var caseId = Guid.NewGuid();
-        var acceptedDraft = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
+        // A second estimate on the Case is the one in use; the page scales
+        // the one the operator has open.
+        var baseEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
         {
             SpecificationId = Guid.NewGuid(),
-        };
-        // Accepting a version freezes its calculation with it, and the report
-        // reads only that frozen record. A version that says Accepted while
-        // carrying none is a state the store cannot produce, and asking the
-        // page to project it is what turned this into a 500.
-        var baseEstimate = acceptedDraft with
-        {
-            State = RepairSpecificationState.Accepted,
-            RecordedTotals = EstimateTotals.Compute(acceptedDraft),
+            IsCurrent = true,
         };
         var store = new AssessmentEstimateImportWebTests.RecordingStores(caseId, 1_000m)
         {
-            CurrentDraft = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
+            WorkingEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
             {
                 Details = new("Repairer", 80m, null, 20m,
                     Vat: Pegasus.Core.Assessment.EstimateVatPolicy.For(
                         Pegasus.Core.Assessment.RepairerVatStatus.Registered)),
             },
-            CurrentAccepted = baseEstimate,
+            OtherEstimate = baseEstimate,
         };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = AssessmentEstimateImportWebTests.Compose(baseFactory, store);
@@ -115,8 +109,8 @@ public sealed class CaseEstimateScalingWebTests
         var html = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
             client,
             caseId,
-            $"?section=estimate&estimate={store.CurrentDraft.SpecificationId:D}");
-        var draft = store.CurrentDraft;
+            $"?section=estimate&estimate={store.WorkingEstimate.SpecificationId:D}");
+        var draft = store.WorkingEstimate;
         // Apply is its own form, saved first: it carries the scaling intent
         // alone, never the editor's content.
         Assert.Contains("id=\"case-estimate-scale-form\"", html, StringComparison.Ordinal);
@@ -144,8 +138,8 @@ public sealed class CaseEstimateScalingWebTests
         Assert.Equal(1_000m, applied.EngineerValue);
         Assert.Equal(leaseToken, applied.EditLeaseToken);
         Assert.Equal(draft.SpecificationId, applied.SpecificationId);
-        Assert.True(store.CurrentDraft!.Details.BaseHourlyRate < 80m);
-        Assert.Null(store.CurrentDraft.Details.Rate);
+        Assert.True(store.WorkingEstimate!.Details.BaseHourlyRate < 80m);
+        Assert.Null(store.WorkingEstimate.Details.Rate);
 
         var afterApply = await AssessmentEstimateImportWebTests.GetHtmlAsync(
             client, response.Headers.Location!.OriginalString);
@@ -178,7 +172,7 @@ public sealed class CaseEstimateScalingWebTests
         var caseId = Guid.NewGuid();
         var store = new AssessmentEstimateImportWebTests.RecordingStores(caseId, 1_000m)
         {
-            CurrentDraft = AssessmentEstimateImportWebTests.DraftSpecification(caseId),
+            WorkingEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId),
             DataOverride = RegionalData(caseId, repairerAddress: "Repairer Yard, SW1A 1AA", inspectionAddress: "Workshop, B1 1AA")
         };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -188,7 +182,7 @@ public sealed class CaseEstimateScalingWebTests
         var html = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
             client,
             caseId,
-            $"?section=estimate&estimate={store.CurrentDraft.SpecificationId:D}");
+            $"?section=estimate&estimate={store.WorkingEstimate.SpecificationId:D}");
 
         Assert.Contains("Repairer (SW1)", html, StringComparison.Ordinal);
     }
@@ -223,7 +217,7 @@ public sealed class CaseEstimateScalingWebTests
         var caseId = Guid.NewGuid();
         var store = new AssessmentEstimateImportWebTests.RecordingStores(caseId, 1_000m, 450m)
         {
-            CurrentDraft = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
+            WorkingEstimate = AssessmentEstimateImportWebTests.DraftSpecification(caseId) with
             {
                 Details = new("Repairer", 80m, null, 20m,
                     Vat: Pegasus.Core.Assessment.EstimateVatPolicy.For(
@@ -237,8 +231,8 @@ public sealed class CaseEstimateScalingWebTests
         var html = await AssessmentEstimateImportWebTests.EnterEditModeAsync(
             client,
             caseId,
-            $"?section=estimate&estimate={store.CurrentDraft.SpecificationId:D}");
-        var draft = store.CurrentDraft;
+            $"?section=estimate&estimate={store.WorkingEstimate.SpecificationId:D}");
+        var draft = store.WorkingEstimate;
         Assert.Contains("Agreed sum suggests 45%.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"contractTarget\"", html, StringComparison.Ordinal);
         var fields = AssessmentEstimateImportWebTests.NewEnumerable(

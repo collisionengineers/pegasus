@@ -95,16 +95,6 @@
     string VersionOrigin(RepairSpecificationVersion version) =>
         $"Populated {OperatorLabels.OfficeTime(version.CreatedAtUtc)} by {version.CreatedBy}, {RepairSpecificationRouteWords.Of(version.Source.Route)} · {EstimateLabels.LinesCount(version.Lines.Count)} · {EngineerLabels.LabourRate.ToLowerInvariant()} {Money(version.Details.HourlyRate)}/h";
 
-    string RouteTag(RepairSpecificationSourceRoute route) => route switch
-    {
-        RepairSpecificationSourceRoute.Manual => EstimateLabels.RouteManual,
-        RepairSpecificationSourceRoute.Glasses => EstimateLabels.RouteGlasses,
-        RepairSpecificationSourceRoute.AudatexPdf => EstimateLabels.RouteAudatex,
-        RepairSpecificationSourceRoute.Json => EstimateLabels.RouteJson,
-        RepairSpecificationSourceRoute.ApprovedAiProposal or RepairSpecificationSourceRoute.AiDraft => EstimateLabels.RouteAi,
-        _ => EstimateLabels.RouteUnknown
-    };
-
     string StateTone(RepairSpecificationState state, bool isCurrent) =>
         isCurrent ? "status--green"
         : state == RepairSpecificationState.Draft ? "status--amber"
@@ -115,7 +105,7 @@
 
     var meta = estimate is null
         ? null
-        : $"{OperatorLabels.RepairSpecificationRoute(estimate.Source.Route)} · {OperatorLabels.OfficeTime(estimate.CreatedAtUtc)} · {estimate.Lines.Count} {(estimate.Lines.Count == 1 ? "line" : "lines")}";
+        : $"{RepairSpecificationRouteWords.Of(estimate.Source.Route)} · {OperatorLabels.OfficeTime(estimate.CreatedAtUtc)} · {estimate.Lines.Count} {(estimate.Lines.Count == 1 ? "line" : "lines")}";
 
     var editLineAction = Url.Page("/Cases/Details", "EditLine", new { id = caseId, section = "estimate" });
     var lineOrigins = estimate?.Lines.ToDictionary(line => line.Id, line => line) ?? new Dictionary<Guid, CaseEstimateLineRecord>();
@@ -682,7 +672,7 @@
                        aria-selected="@(isSelected ? "true" : "false")"
                        data-estimate-tab="@version.SpecificationId">
                         <span data-estimate-tab-label>@version.Details.Name</span>
-                        <span class="src-tag">@RouteTag(version.Source.Route)</span>
+                        <span class="src-tag">@EstimateLabels.RouteTag(version.Source.Route)</span>
                         <span class="status status--plain @StateTone(version.State, version.IsCurrent)">@StateWord(version)</span>
                     </a>
                 }
@@ -834,9 +824,9 @@
                         <tbody>
                             @foreach (var compared in Model.Estimates)
                             {
-                                var comparedTotals = EstimateTotals.ForProjection(compared).Printed;
+                                var comparedTotals = EstimateTotals.Compute(compared).Printed;
                                 <tr>
-                                    <td>@compared.Details.Name<br /><small class="muted">@RouteTag(compared.Source.Route) · @OperatorLabels.OfficeTime(compared.CreatedAtUtc)</small></td>
+                                    <td>@compared.Details.Name<br /><small class="muted">@EstimateLabels.RouteTag(compared.Source.Route) · @OperatorLabels.OfficeTime(compared.CreatedAtUtc)</small></td>
                                     <td><span class="status status--plain @StateTone(compared.State, compared.IsCurrent)">@StateWord(compared)</span></td>
                                     <td class="num mono">@Money(comparedTotals.Net)</td>
                                     <td class="num mono">@Money(comparedTotals.Vat)</td>

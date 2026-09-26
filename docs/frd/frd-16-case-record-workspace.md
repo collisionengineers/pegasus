@@ -15,8 +15,9 @@
   are editable by every enabled staff role in Not ready, Review and With
   Engineer, and read-only in Held,
   Completed and Query.
-- Engineers can import an estimate directly from the Estimate section using
-  its keyboard-accessible Import action or a section-scoped file drop.
+- Staff with Case edit rights can import an estimate on the Repair Spec
+  section using its keyboard-accessible Import action or a section-scoped
+  file drop. The imported spec is the one in use at once.
 - Once an Inspection + Audit Case has its Audit, a Views card heads the
   aside. The Audit view is the default; the Inspection view is read-only.
 
@@ -512,7 +513,9 @@ when the repairer, claimant or storage postcode is in London or the Home
 Counties) — VAT categories, lines with a Material amount each (P48; the
 Materials total is the column's sum) and totals. There are no repair days
 and no notes on a spec (P32); a spec is renamed by double-clicking its tab.
-One spec is Current and drives the report. Each version's rate prices
+One spec is Current and drives the report. A new spec — typed in, imported
+or returned from Glass's — is Current as soon as it is recorded; **Use repair
+spec** switches to another live spec. Each version's rate prices
 panel, paint and Specialist work-unit hours. The VAT rule is owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report);
 an unknown repairer VAT status never gates **Use repair spec** (P10). Lines
@@ -523,7 +526,7 @@ Off-pattern, and the rollup carries the off-pattern amount as specialist
 line or lines can be put back from the toast for eight seconds (P16). No
 provider-versus-assessed savings figure is shown. Reading and editing are one
 layout (operator, 23 September 2026): a spec that cannot be changed — every
-spec while reading, and a spec that is not a Draft while editing — shows the
+spec while reading, and a discarded spec while editing — shows the
 same header cells, the same grid columns and the same contract, discount and
 VAT bars as the editor, each value greyed in its control's place and a line's
 Type in the editor's words; a scaled spec's Target % of value bar stands in
@@ -532,7 +535,8 @@ its place with the Scaled state; the tools (add and delete lines, the Target
 edits. The spec has no save of its own: the ribbon Save records it, and a
 spec left unchanged is not rewritten. Apply and Remove scaling save first and
 then scale the saved spec. The More menu holds New repair spec
-(editing, recorded by the Save), **Print Repair Spec** for a saved spec with lines, and Compare,
+(editing, recorded by the Save and starting on the one enabled labour-rate
+card), **Print Repair Spec** for a saved spec with lines, and Compare,
 greyed out until the Case holds two specs (P9). Previewing the document
 does not save or discard pending edits. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
@@ -577,8 +581,9 @@ edit lease against the submitted Case version before storing the file through
 the normal Case document upload flow.
 
 After the source is confirmed in Case Files, its registered provider parser
-runs immediately. A successful import selects the new named Draft and displays
-its estimate lines in the editor. A parser refusal creates no partial Draft;
+runs immediately. A successful import records the new named spec as the
+Current one, on the one enabled labour-rate card, and displays its lines in
+the editor. A parser refusal creates no partial spec;
 the confirmed original remains in Case Files so the same source can be retried.
 Only registered parser types are accepted. An ambiguous file is refused, not
 guessed. Provenance and replay rules are owned by

@@ -808,35 +808,30 @@ public sealed class AssessmentPolicyTests
     public void EstimateLinesValidateTypePrecisionAndUnpricedRules()
     {
         Assert.Throws<ArgumentException>(() =>
-            AssessmentPolicy.ValidateAndNormalize(
-                Request(lines: [Line("unknown_type")])));
+            AssessmentPolicy.NormalizeRepairSpecificationLines([Line("unknown_type")]));
         // Hours are kept at the provider's own precision (B04): a quarter of
         // an hour is a real time, a seventh decimal place is not.
-        AssessmentPolicy.ValidateAndNormalize(
-            Request(lines: [Line("repair") with { WorkUnits = 1.25m }]));
+        AssessmentPolicy.NormalizeRepairSpecificationLines([Line("repair") with { WorkUnits = 1.25m }]);
         Assert.Throws<ArgumentException>(() =>
-            AssessmentPolicy.ValidateAndNormalize(
-                Request(lines: [Line("repair") with { WorkUnits = 1.2345678m }])));
+            AssessmentPolicy.NormalizeRepairSpecificationLines([Line("repair") with { WorkUnits = 1.2345678m }]));
         Assert.Throws<ArgumentException>(() =>
-            AssessmentPolicy.ValidateAndNormalize(
-                Request(lines: [Line("new_part") with { Unpriced = true, Price = 10m }])));
+            AssessmentPolicy.NormalizeRepairSpecificationLines([Line("new_part") with { Unpriced = true, Price = 10m }]));
 
-        var normalized = AssessmentPolicy.ValidateAndNormalize(
-            Request(lines:
+        var normalized = AssessmentPolicy.NormalizeRepairSpecificationLines(
             [
-                Line("repair") with { WorkUnits = 2.5m, Status = "estimated" },
+                Line("repair") with { WorkUnits = 2.5m },
                 Line("new_part") with { Price = 120.50m, EvidenceLabel = "official" }
-            ]));
-        Assert.Equal(2, normalized.EstimateLines!.Count);
+            ]);
+        Assert.Equal(2, normalized.Count);
     }
 
     [Fact]
-    public void AnEmptySaveIsRefusedAndAnEmptyLineCollectionClears()
+    public void AnEmptySaveIsRefused()
     {
+        // An assessment save carries fields only; estimate lines change
+        // through the repair spec commands.
         Assert.Throws<ArgumentException>(() =>
             AssessmentPolicy.ValidateAndNormalize(Request(new())));
-        var normalized = AssessmentPolicy.ValidateAndNormalize(Request(lines: []));
-        Assert.Empty(normalized.EstimateLines!);
     }
 
     [Fact]
@@ -1136,19 +1131,17 @@ public sealed class AssessmentPolicyTests
 
     private static SaveAssessmentRequest Request(
         Dictionary<string, string?>? fields = null,
-        ActionActor? actor = null,
-        IReadOnlyList<EstimateLineInput>? lines = null) => new(
+        ActionActor? actor = null) => new(
         Guid.NewGuid(),
         0,
         actor ?? Automation,
         "mcp:test-operation",
         "Test save",
         "lease-token",
-        fields ?? new Dictionary<string, string?>(StringComparer.Ordinal),
-        lines);
+        fields ?? new Dictionary<string, string?>(StringComparer.Ordinal));
 
     private static EstimateLineInput Line(string type) =>
-        new(type, null, "Test line", null, null, false, null, null, null, null, null);
+        new(type, null, "Test line", null, null, false, null, null, null, null);
 
     private static string FindingValue(AssessmentFieldDefinition definition) => definition.Type switch
     {

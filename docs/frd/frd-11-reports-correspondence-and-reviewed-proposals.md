@@ -336,7 +336,7 @@ Each fact is recorded in one section of the Case record
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
 | Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
 | The Engineer's Value and, from its basis guide card, the retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
-| A Current repair spec with a labour rate | Repair Spec |
+| A Current repair spec with lines and a labour rate | Repair Spec |
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage value and a category the template prints (Category S only); on a contract repair the agreed contract sum | Decisions |
 | Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
 | One Close-up and one Overview image matching their confirmed sources | Files |
