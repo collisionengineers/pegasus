@@ -65,11 +65,13 @@ kept.
 
 **Import is keyed by Case plus source hash.** A raw artifact imported through
 either caller of the shared import command uses that key. The same Case with
-the same hash is a replay that returns the existing live spec. A discarded
-spec no longer holds its source, so importing that file again creates a new
-one. A different artifact creates the next spec. The provider and parser are
-detected from the registered types; an ambiguous artifact is refused, never
-guessed.
+the same hash is a replay that returns the existing live spec and leaves the
+spec in use as it was; the page reports that the file was already imported
+and shows that spec, and a Glass's return reports its estimate as recorded
+rather than as the spec in use. A discarded spec no longer holds its source,
+so importing that file again creates a new one. A different artifact creates
+the next spec. The provider and parser are detected from the registered
+types; an ambiguous artifact is refused, never guessed.
 
 **Authority is checked twice.** Before reading a replay or parsing the source,
 the command proves the typed actor, the current persisted Case version, and
