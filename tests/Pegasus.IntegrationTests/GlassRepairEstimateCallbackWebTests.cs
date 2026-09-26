@@ -626,6 +626,34 @@ public sealed class GlassRepairEstimateCallbackWebTests
     }
 
     /// <summary>
+    /// The return has already succeeded when the landing's own Case read
+    /// faults: the estimate stays held for Resume, nothing is imported, and
+    /// the operator is handed back to the Estimate section with the session
+    /// as it stands rather than an error page.
+    /// </summary>
+    [Fact]
+    public async Task AReturnWhoseCaseReadFaultsKeepsTheEstimateHeldAndReportsTheSession()
+    {
+        var fault = new CaseReadFault();
+        await using var workspace = await Workspace.CreateAsync(caseReadFault: fault);
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        await workspace.FinishEditingAsync();
+        fault.Armed = true;
+
+        using (var returned = await workspace.ReturnAsync(correlation))
+        {
+            await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
+        }
+        fault.Armed = false;
+
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.AwaitingImport, session.State);
+        Assert.NotNull(session.CallbackConsumedAtUtc);
+        Assert.Empty(await workspace.EstimatesAsync());
+    }
+
+    /// <summary>
     /// The same return while the staff member is back in edit mode under a
     /// new lease: landing the estimate would overtake their unsaved edits, so
     /// it waits, with everything the provider produced kept, until Resume
@@ -858,6 +886,21 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public bool OnComplete { get; set; }
     }
 
+    /// <summary>A switch the test flips to make the host's Case read fault.</summary>
+    private sealed class CaseReadFault
+    {
+        public bool Armed { get; set; }
+    }
+
+    /// <summary>The host's own Case read, faulting while the switch is armed.</summary>
+    private sealed class FaultingCases(IGetCase inner, CaseReadFault fault) : IGetCase
+    {
+        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
+            fault.Armed
+                ? throw new InvalidDataException("The Case read faulted on the return.")
+                : inner.ExecuteAsync(query, cancellationToken);
+    }
+
     /// <summary>The real gateway with one fault a test can switch on: an unrelated failure inside a return.</summary>
     private sealed class FaultingGateway(IGlassRepairEstimateGateway inner, GatewayFault fault) : IGlassRepairEstimateGateway
     {
@@ -916,7 +959,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public Guid CaseId { get; }
 
         public static async Task<Workspace> CreateAsync(
-            bool credentialed = true, string role = StaffRoleNames.Engineer, GatewayFault? fault = null)
+            bool credentialed = true,
+            string role = StaffRoleNames.Engineer,
+            GatewayFault? fault = null,
+            CaseReadFault? caseReadFault = null)
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
@@ -946,6 +992,12 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         services.AddScoped<GlassRepairEstimateGateway>();
                         services.AddScoped<IGlassRepairEstimateGateway>(provider =>
                             new FaultingGateway(provider.GetRequiredService<GlassRepairEstimateGateway>(), fault));
+                    }
+                    if (caseReadFault is not null)
+                    {
+                        services.AddScoped<GetCase>();
+                        services.AddScoped<IGetCase>(provider =>
+                            new FaultingCases(provider.GetRequiredService<GetCase>(), caseReadFault));
                     }
                 });
             });
