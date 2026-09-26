@@ -4,8 +4,9 @@ namespace Pegasus.Core.Tests.Intake;
 
 /// <summary>
 /// The intake size bounds are separate facts and must not converge, and the
-/// four channel limits C07 item 5 set are exact values
-/// rather than arithmetic anyone may re-derive.
+/// four channel limits are exact values rather than arithmetic anyone may
+/// re-derive: the manual per-file and batch figures are decimal megabytes
+/// (operator, 26 September 2026); the rest are C07 item 5's.
 /// </summary>
 public sealed class IntakeEnvelopeLimitsTests
 {
@@ -52,8 +53,8 @@ public sealed class IntakeEnvelopeLimitsTests
     [Fact]
     public void TheFourChannelLimitsAreTheExactValuesTheyWereSetTo()
     {
-        Assert.Equal(104_857_600, IntakeEnvelopeLimits.MaximumContentLength);
-        Assert.Equal(209_715_200L + 65_536L, IntakeEnvelopeLimits.MaximumBatchContentLength);
+        Assert.Equal(100_000_000, IntakeEnvelopeLimits.MaximumContentLength);
+        Assert.Equal(200_000_000L + 65_536L, IntakeEnvelopeLimits.MaximumBatchContentLength);
         Assert.Equal(20, IntakeEnvelopeLimits.MaximumBatchFileCount);
         Assert.Equal(31_457_280, IntakeEnvelopeLimits.MaximumProviderApiEnvelopeLength);
     }
@@ -63,7 +64,7 @@ public sealed class IntakeEnvelopeLimitsTests
     {
         Assert.Equal(65_536L, IntakeEnvelopeLimits.MultipartOverhead);
         Assert.Equal(
-            (200L * 1024 * 1024) + IntakeEnvelopeLimits.MultipartOverhead,
+            200_000_000L + IntakeEnvelopeLimits.MultipartOverhead,
             IntakeEnvelopeLimits.MaximumBatchContentLength);
         Assert.True(
             IntakeEnvelopeLimits.MaximumBatchContentLength

@@ -1126,11 +1126,13 @@ public static class OperatorLabels
     /// <summary>
     /// A file size the operator can act on. Bytes are an implementation detail
     /// and a KB branch lets a 10 MB limit render as "10240 KB", so MB with one
-    /// decimal is the only form — and only where the size matters at all.
+    /// decimal is the only form — and only where the size matters at all. A
+    /// megabyte is 1,000,000 bytes, the unit the upload limits are declared
+    /// in (FRD-18), so 100,000,000 bytes reads "100.0 MB".
     /// </summary>
     public static string FileSize(long bytes)
     {
-        var megabytes = bytes / 1024d / 1024d;
+        var megabytes = bytes / 1_000_000d;
         return megabytes < 0.1d
             ? "under 0.1 MB"
             : string.Create(CultureInfo.InvariantCulture, $"{megabytes:0.0} MB");
@@ -2165,10 +2167,6 @@ public static class OperatorLabels
             var when = day == today ? "today" : day.ToString("d MMM", CultureInfo.InvariantCulture);
             return $"Received {when}, {OfficeClock(value)}";
         }
-
-        /// <summary>Binary units, as the limits are declared (FRD-18): "3.08 MiB".</summary>
-        public static string FileSize(long bytes) =>
-            string.Create(CultureInfo.InvariantCulture, $"{bytes / 1048576d:0.00} MiB");
 
         /// <summary>The file's kind in the operator's words, from its media type.</summary>
         public static string Kind(string? mediaType, string fileName) => (mediaType ?? string.Empty).ToLowerInvariant() switch
