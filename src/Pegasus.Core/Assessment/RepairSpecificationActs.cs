@@ -171,7 +171,7 @@ public static class RepairSpecificationScaling
         ArgumentNullException.ThrowIfNull(line);
         return new(
             line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price, line.Unpriced,
-            line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel, line.Justification,
+            line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
             line.PaintWorkUnits, line.Quantity, line.Materials, line.Origin,
             line.SourceDocumentIdentity, line.SourceDocumentVersionId, line.SourceDocumentSha256,
             line.SourceRowIdentity, line.AmendedBy, line.AmendedAtUtc);
@@ -231,7 +231,7 @@ public interface IRestoreRepairSpecificationSnapshot
 }
 
 /// <summary>
-/// Apply (v28 P34): the target is derived from the confirmed Engineer's Value
+/// Apply (v28 P34): the target is derived from the Engineer's Value
 /// in the existing assessment projection. Persistence owns the single
 /// transaction that scales the saved draft and freezes both versions.
 /// </summary>
@@ -246,11 +246,11 @@ public sealed class ScaleRepairSpecification(
         RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         var projection = await assessment.GetAsync(request.CaseId, cancellationToken);
         var field = projection?.Field(AssessmentVocabulary.ValueEngineer);
-        if (field is not { IsConfirmed: true }
+        if (field is null
             || !decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var engineerValue)
             || engineerValue <= 0m)
         {
-            throw new InvalidOperationException("A confirmed Engineer's Value is required before scaling.");
+            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
         }
 
         var targetPercent = request.TargetPercentOfValue;
@@ -304,9 +304,8 @@ public static class RepairSpecificationRouteWords
         RepairSpecificationSourceRoute.Glasses => "from Glass's",
         RepairSpecificationSourceRoute.AudatexPdf => "from Audatex",
         RepairSpecificationSourceRoute.Json => "from a JSON estimate",
-        RepairSpecificationSourceRoute.ApprovedAiProposal => "from an approved AI proposal",
         RepairSpecificationSourceRoute.AiDraft => "drafted by AI",
-        _ => "recorded before source tracking"
+        _ => throw new ArgumentOutOfRangeException(nameof(route))
     };
 }
 
@@ -394,8 +393,8 @@ public static class RepairSpecificationComparison
         var removed = fromLines.Where(line => !used.Contains(line.Id)).ToArray();
         return new(
             added, changed, removed,
-            EstimateTotals.ForProjection(from).Printed.Gross,
-            EstimateTotals.ForProjection(to).Printed.Gross);
+            EstimateTotals.Compute(from).Printed.Gross,
+            EstimateTotals.Compute(to).Printed.Gross);
     }
 
     /// <summary>The composed paragraph: the reason's lead, then what was added, revised, no longer required and the movement of the cost.</summary>

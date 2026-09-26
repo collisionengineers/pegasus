@@ -29,7 +29,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class AutomationAssessmentIngressTests
 {
     [Fact]
-    public async Task CanonicalEstimateImportThroughMcpPersistsUnconfirmedSourceBackedRowsAndRejectsForeignOrStaleAuthority()
+    public async Task CanonicalEstimateImportThroughMcpPersistsSourceBackedRowsAndRejectsForeignOrStaleAuthority()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         var bytes = Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
@@ -170,7 +170,6 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(14, imported.Lines.Count);
         Assert.All(imported.Lines, line =>
         {
-            Assert.False(line.IsConfirmed);
             Assert.Equal(ActorKind.Automation, line.RecordedByKind);
             Assert.Equal(versionId, line.SourceDocumentVersionId);
             Assert.Equal(hash, line.SourceDocumentSha256);
@@ -277,8 +276,13 @@ public sealed class AutomationAssessmentIngressTests
                 reason = "Attempt a generic estimate write.",
                 estimateLines = new[] { new { description = "Repair" } }
             }));
-        using var estimateDocument = await ReadJsonRpcAsync(estimateResponse);
-        Assert.Contains("named estimate command", estimateDocument.RootElement.ToString(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, estimateResponse.StatusCode);
+        // The generic command takes fields only: estimate lines change through
+        // the named estimate commands, so nothing is written here.
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseEstimateLines WHERE WorkId = '{caseId:D}'"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE WorkId = '{caseId:D}'"));
 
         using var rateResponse = await PostMcpAsync(client, token, ToolCallPayload(43,
             "pegasus_assessment_update", new
@@ -300,11 +304,11 @@ public sealed class AutomationAssessmentIngressTests
                 expectedVersion = lease.CaseVersion,
                 editLeaseToken = lease.LeaseToken,
                 operationKey = "mcp:generic-finding-rejected",
-                reason = "Attempt a professional finding write.",
+                reason = "Attempt an adopted finding write.",
                 fields = new Dictionary<string, string?> { [AssessmentVocabulary.ValueEngineer] = "12000" }
             }));
         using var findingDocument = await ReadJsonRpcAsync(findingResponse);
-        Assert.Contains("is a professional finding", findingDocument.RootElement.ToString(), StringComparison.Ordinal);
+        Assert.Contains("only when a Case Save adopts an Engineer", findingDocument.RootElement.ToString(), StringComparison.Ordinal);
 
         using var signatoryResponse = await PostMcpAsync(client, token, ToolCallPayload(45,
             "pegasus_assessment_update", new
@@ -321,7 +325,7 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     [Fact]
-    public async Task AssessmentUpdateWritesOnlyFieldsStaffCanConfirm()
+    public async Task AssessmentUpdateWritesOnlyFieldsStaffCanRecord()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -330,7 +334,7 @@ public sealed class AutomationAssessmentIngressTests
         var token = await RequestTokenAsync(client, AllScopes);
         var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 50);
 
-        // An automation value stays unconfirmed until staff save its Case
+        // An automation value is one staff can change or clear on its Case
         // section, so a fact the vehicle lookup records, a professional
         // finding, a case-owned fact and the retired paths (the statement of
         // truth is the report contract's wording) are each refused, naming
@@ -340,7 +344,8 @@ public sealed class AutomationAssessmentIngressTests
         {
             (AssessmentVocabulary.VehicleFuel, "Petrol", "filled by the DVLA/DVSA vehicle lookup"),
             ("statement_of_truth", "I believe the facts stated are true.", "not part of the assessment vocabulary"),
-            (AssessmentVocabulary.ValueTrade, "9000", "is a professional finding"),
+            (AssessmentVocabulary.LegalStatus, "roadworthy", "is a professional finding"),
+            (AssessmentVocabulary.ValueTrade, "9000", "only when a Case Save adopts an Engineer"),
             ("incident.assessed", "2031-05-06", "case-detail edit path"),
             ("costs.repairer_vat_registered", "true", "not part of the assessment vocabulary")
         };
@@ -354,7 +359,7 @@ public sealed class AutomationAssessmentIngressTests
                     expectedVersion = lease.CaseVersion,
                     editLeaseToken = lease.LeaseToken,
                     operationKey = $"mcp:refused-{path}",
-                    reason = "Attempt a write staff cannot confirm on the Case.",
+                    reason = "Attempt a write staff cannot change on the Case.",
                     fields = new Dictionary<string, string?> { [path] = value }
                 }));
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -365,7 +370,7 @@ public sealed class AutomationAssessmentIngressTests
         }
 
         // The Inspection section records the recovery charge, so automation
-        // may write it, unconfirmed until staff save that section.
+        // may write it, attributed to the Automation actor.
         using (var response = await PostMcpAsync(client, token, ToolCallPayload(rpcId,
             "pegasus_assessment_update", new
             {
@@ -389,7 +394,6 @@ public sealed class AutomationAssessmentIngressTests
               AND FieldPath = N'{AssessmentVocabulary.CostRecoveryCharge}'
               AND Value = N'120.00'
               AND RecordedByKind = N'Automation'
-              AND ConfirmedBy IS NULL
             """));
     }
 
@@ -507,14 +511,13 @@ public sealed class AutomationAssessmentIngressTests
                 workRequestId.ToString("D"),
                 structured.GetProperty("correlationId").GetString());
             var fields = structured.GetProperty("fields").EnumerateArray().ToArray();
-            Assert.All(fields, field => Assert.False(field.GetProperty("isConfirmed").GetBoolean()));
         }
 
-        // Stored values carry the unconfirmed automation provenance.
+        // Stored values carry the automation provenance.
         Assert.Equal(2, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM CaseAssessmentFields
-            WHERE RecordedByKind = N'Automation' AND ConfirmedBy IS NULL
+            WHERE RecordedByKind = N'Automation'
             """));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM CaseEstimateLines WHERE RecordedByKind = N'Automation'"));
@@ -745,9 +748,7 @@ public sealed class AutomationAssessmentIngressTests
         }
 
         // Case-detail values save through the same Core path as a staff edit: they land
-        // Confirmed and attributed to the automation immediately, with no unconfirmed mark —
-        // unlike the assessment tranche's staff-review boundary, ordinary case-detail
-        // editing carries no separate confirmation gate.
+        // as the Case's confirmed case-data value, attributed to the automation.
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseDataFields
@@ -1053,11 +1054,11 @@ public sealed class AutomationAssessmentIngressTests
     /// <summary>
     /// FRD-10 § AI job and estimate tools: an AI-draft estimate
     /// must cite the Estimate job this client holds, always lands as a
-    /// Draft with unconfirmed lines and never as Current, and is listed
+    /// Draft and never as Current, and is listed
     /// with Pegasus-computed totals.
     /// </summary>
     [Fact]
-    public async Task EstimateSaveRequiresTheHeldEstimateJobAndLandsAsAnUnconfirmedAiDraft()
+    public async Task EstimateSaveRequiresTheHeldEstimateJobAndLandsAsAnAiDraft()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -1144,9 +1145,6 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal("AiDraft", estimate.GetProperty("sourceRoute").GetString());
             Assert.False(estimate.GetProperty("isCurrent").GetBoolean());
             Assert.Equal(jobId, estimate.GetProperty("aiJobId").GetGuid());
-            Assert.All(
-                estimate.GetProperty("lines").EnumerateArray(),
-                line => Assert.False(line.GetProperty("isConfirmed").GetBoolean()));
             var totals = estimate.GetProperty("totals");
             Assert.Equal(220.40m, totals.GetProperty("parts").GetDecimal());
             Assert.Equal(100m, totals.GetProperty("panelLabour").GetDecimal());
@@ -1173,13 +1171,10 @@ public sealed class AutomationAssessmentIngressTests
             Assert.NotNull(saved);
             Assert.Equal(RepairerVatStatus.Unknown, saved.Details.VatPolicy.RepairerStatus);
             Assert.True(saved.Details.VatPolicy.TreatmentPending);
-            // v28 P10: the unknown VAT status is no refusal; the unconfirmed
-            // AI lines still are.
-            var refusal = Assert.Throws<InvalidOperationException>(() =>
-                EstimatePolicy.ValidateSetCurrent(
-                    saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer])));
-            Assert.DoesNotContain("VAT status", refusal.Message, StringComparison.Ordinal);
-            Assert.Contains("confirmed", refusal.Message, StringComparison.Ordinal);
+            // v28 P10: the unknown VAT status is no refusal, and the AI lines
+            // are the Draft's own; Use repair spec is a staff member's choice.
+            EstimatePolicy.ValidateSetCurrent(
+                saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
@@ -1192,7 +1187,7 @@ public sealed class AutomationAssessmentIngressTests
         Assert.Equal(3, await factory.Database.ScalarAsync<int>(
             $"""
             SELECT COUNT(*) FROM CaseEstimateLines
-            WHERE RepairSpecificationId = '{estimateId:D}' AND RecordedByKind = N'Automation' AND ConfirmedBy IS NULL
+            WHERE RepairSpecificationId = '{estimateId:D}' AND RecordedByKind = N'Automation'
             """));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"""

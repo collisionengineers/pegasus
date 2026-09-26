@@ -1,0 +1,31 @@
+@using Pegasus.Core.Assessment
+@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var state = Model.GlassSession?.State;
+    var text = state switch
+    {
+        GlassRepairEstimateSessionState.Completed or GlassRepairEstimateSessionState.AwaitingImport
+            or GlassRepairEstimateSessionState.Unknown or GlassRepairEstimateSessionState.Failed
+            => GlassLabels.OutcomeMessage(state.Value),
+        GlassRepairEstimateSessionState.Cancelled => GlassLabels.Closed,
+        _ => null
+    };
+    var tone = state switch
+    {
+        GlassRepairEstimateSessionState.Completed => "notice--success",
+        GlassRepairEstimateSessionState.AwaitingImport or GlassRepairEstimateSessionState.Unknown
+            or GlassRepairEstimateSessionState.Failed => "notice--warning",
+        _ => string.Empty
+    };
+}
+<div data-glass-controls="outcome" hidden="@(text is null)">
+    @if (text is not null)
+    {
+        <div class="notice @tone" role="status" data-estimate-notice>
+            <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+            <span>@text</span>
+            <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+        </div>
+    }
+</div>

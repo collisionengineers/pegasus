@@ -272,20 +272,16 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var source = new FakeProjectionSource(ReadyInput(caseId));
         var full = FullAssessmentProjection(caseId);
-        var automationAt = DateTimeOffset.UtcNow;
         source.Readiness = source.Readiness with
         {
-            // A missing Vehicle finding and basis retail, an Automation value
-            // awaiting review, and no sign-off, repair spec, adoption or images.
+            // A missing Vehicle finding, basis retail and outcome, and no
+            // sign-off, repair spec, adoption or images.
             Assessment = full with
             {
                 Fields =
                 [
                     .. full.Fields.Where(field => field.Path is not (AssessmentVocabulary.VehicleCondition
                         or AssessmentVocabulary.ValueRetail or AssessmentVocabulary.Outcome)),
-                    new AssessmentFieldValue(
-                        AssessmentVocabulary.Outcome, "repairable", ActorKind.Automation,
-                        "pegasus-automation", automationAt, null, null),
                 ],
             },
             EligibleSignOffEngineers = [],
@@ -298,7 +294,7 @@ public sealed partial class AssessmentReportDraftWebTests
         {
             ["Pre-incident condition"] = "vehicle",
             ["Retail value"] = "valuation",
-            [$"{AssessmentVocabulary.Outcome} awaits review"] = "settlement",
+            ["Assessment outcome"] = "settlement",
             [CaseReportReadiness.SignatoryRequirement] = "overview",
             [CaseReportReadiness.CurrentEstimateRequirement] = "estimate",
             [CaseReportReadiness.EngineerValueRequirement] = "valuation",
@@ -411,9 +407,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 Value = field.Value,
                 RecordedByKind = nameof(ActorKind.Staff),
                 RecordedBy = engineer.SubjectId,
-                RecordedAtUtc = ReportFixtureAtUtc,
-                ConfirmedBy = engineer.SubjectId,
-                ConfirmedAtUtc = ReportFixtureAtUtc
+                RecordedAtUtc = ReportFixtureAtUtc
             }));
             // The report's Assessed date is the Case's Inspection date: the
             // harness's intake suggests one, and the fixture confirms its own.
@@ -637,29 +631,21 @@ public sealed partial class AssessmentReportDraftWebTests
     /// The Current estimate the ready fixture prices from: 50 parts, five
     /// panel hours at 30, 20 materials and 5 specialist, at 20 per cent VAT.
     /// </summary>
-    internal static RepairSpecificationVersion CurrentEstimate()
-    {
-        var draft = new RepairSpecificationVersion(
+    internal static RepairSpecificationVersion CurrentEstimate() => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
             EstimateLine(1, "repair", "Nearside door", 5m, null),
             EstimateLine(2, "new_part", "Door skin", null, 50m) with { Materials = 20m },
         ],
-        null, "engineer-1", ReportFixtureAtUtc, "engineer-1", ReportFixtureAtUtc, null, null,
+        "engineer-1", ReportFixtureAtUtc,
         new EstimateDetails("Repairer", 30m, 5m, 20m), IsCurrent: true);
-        return draft with
-        {
-            State = RepairSpecificationState.Accepted,
-            RecordedTotals = EstimateTotals.Compute(draft),
-        };
-    }
 
     private static CaseEstimateLineRecord EstimateLine(
         int position, string type, string description, decimal? workUnits, decimal? price) => new(
             Guid.NewGuid(), position, type, null, description, workUnits, price, false, null, null,
-            "confirmed", "case", "Test evidence",
-            ActorKind.Staff, "engineer-1", ReportFixtureAtUtc, "engineer-1", ReportFixtureAtUtc,
+            "case", "Test evidence",
+            ActorKind.Staff, "engineer-1", ReportFixtureAtUtc,
             Quantity: 1);
 
     /// <summary>
@@ -672,9 +658,9 @@ public sealed partial class AssessmentReportDraftWebTests
     /// </summary>
     internal static CaseAssessmentProjection FullAssessmentProjection(Guid caseId)
     {
-        var confirmedAt = DateTimeOffset.UtcNow;
+        var recordedAt = DateTimeOffset.UtcNow;
         AssessmentFieldValue Field(string path, string value) => new(
-            path, value, ActorKind.Staff, "engineer-1", confirmedAt, "engineer-1", confirmedAt);
+            path, value, ActorKind.Staff, "engineer-1", recordedAt);
 
         var fields = new[]
         {

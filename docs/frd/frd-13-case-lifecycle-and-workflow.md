@@ -60,9 +60,11 @@ none of them has its own version of the rules.
 **Blockers are specific.** Each unmet requirement is one named blocker. The
 screen shows exactly which field or material is missing, where it should come
 from, why it is required, and what would clear it. Pegasus never shows an
-overall score, a percentage, or a summary such as "no unresolved field
-reviews". On the Case record each report blocker links to the section that
-clears it. Once the Case is With Engineer, while the report is not ready the
+overall score, a percentage, or a summary such as "3 items outstanding". On
+the Case record each report blocker links to the section that clears it. A
+recorded value is never a blocker because of who recorded it: there is no
+per-field review, and Hand to Engineer is the only review (operator, 25
+September 2026). Once the Case is With Engineer, while the report is not ready the
 Next action names the first blocker and links to its section (in Not ready
 and Review it names the outstanding requirement or Hand to Engineer)
 ([FRD-16](frd-16-case-record-workspace.md#report),

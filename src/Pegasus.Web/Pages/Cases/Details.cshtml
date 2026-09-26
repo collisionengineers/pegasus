@@ -242,6 +242,13 @@
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     </form>
+                    @* Script beacons this as the operator leaves the Case by a
+                       link, so leaving ends edit mode (FRD-14). *@
+                    <form method="post" asp-page-handler="ReleaseLeaseBeacon" data-case-release-beacon
+                          data-case-id="@summary.CaseId" hidden>
+                        <input type="hidden" name="id" value="@summary.CaseId" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    </form>
                     <span class="status status--navy status--plain case-edit-badge">@Frame.Editing</span>
                     <button type="submit" form="case-finish-editing-form" class="btn" data-case-cancel>
                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
@@ -258,21 +265,22 @@
                 else if (!Model.IsInspectionView
                     && (details.ActiveEditLease is null || details.ActiveEditLease.HolderKind == Pegasus.Core.Identity.ActorKind.Staff))
                 {
-                    @* A staff lease can be taken over by an authorised editor;
-                       the operation rotates its token and records the prior holder.
+                    @* A colleague's staff lease can be taken over by an authorised
+                       editor; the operation rotates its token and records the prior
+                       holder. The viewer's own lease is resumed, never taken over.
                        The Inspection view offers no Edit (v29 P3). *@
                     <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
-                        @if (details.ActiveEditLease is not null)
+                        @if (Model.ColleagueIsEditing)
                         {
                             <input type="hidden" name="takeOver" value="true" />
                         }
                         <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
                         <button type="submit" class="btn btn--dark" data-case-edit>
                             <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-                            <span>@(details.ActiveEditLease is not null ? Frame.TakeOver : Model.IsPostReportReadOnly ? Frame.EnableReturn : Frame.EditCase)</span>
+                            <span>@(Model.ColleagueIsEditing ? Frame.TakeOver : Model.IsPostReportReadOnly ? Frame.EnableReturn : Frame.EditCase)</span>
                         </button>
                     </form>
                 }

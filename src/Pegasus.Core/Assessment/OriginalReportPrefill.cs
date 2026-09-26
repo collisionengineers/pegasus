@@ -39,8 +39,10 @@ public sealed record OriginalReportReading(
 /// verdict): it fills when the report printed no outcome at all, and a
 /// disagreement between the two leaves the cell blank.
 ///
-/// A fill never overwrites a staff-confirmed cell; an unconfirmed one is
-/// working data and takes the newer reading. A staff Save confirms the cells.
+/// A fill never overwrites a cell staff recorded; a cell the extraction
+/// recorded takes the newer reading (<see cref="AssessmentPolicy.FillLands"/>).
+/// There is no per-field review (operator, 25 September 2026): a filled cell
+/// is the Case's value, tagged Extracted until staff change it.
 /// </summary>
 public static class OriginalReportPrefillPolicy
 {
@@ -149,9 +151,6 @@ public static class OriginalReportPrefillPolicy
         Add(writes, AssessmentVocabulary.OriginalReportOutcome, outcome);
         return writes;
     }
-
-    /// <summary>A fill lands only where staff have not confirmed the cell.</summary>
-    public static bool Fills(bool hasConfirmed) => !hasConfirmed;
 
     private static (string? Code, bool Unreadable) Outcome(ThirdPartyReportFact<string?>? fact) =>
         fact switch

@@ -15,8 +15,9 @@
   are editable by every enabled staff role in Not ready, Review and With
   Engineer, and read-only in Held,
   Completed and Query.
-- Engineers can import an estimate directly from the Estimate section using
-  its keyboard-accessible Import action or a section-scoped file drop.
+- Staff with Case edit rights can import an estimate on the Repair Spec
+  section using its keyboard-accessible Import action or a section-scoped
+  file drop. The imported spec is the one in use at once.
 - Once an Inspection + Audit Case has its Audit, a Views card heads the
   aside. The Audit view is the default; the Inspection view is read-only.
 
@@ -108,9 +109,9 @@ controls. The Overview and Inspection sections each show exactly one panel
 per mode. Each value carries its source tag in its label line in both modes
 (Extracted, AI, E-mail, Lookup, Principal, Automatic); a staff value carries
 none ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)).
-A control opens holding the value its box shows, except a decision's AI
-proposal awaiting review, which stays in the Decisions strip's Proposed
-column. The edit-mode Overview uses the label **Claim reference** for
+A control opens holding the value its box shows. A value keeps its tag
+until staff change it: a Save that reposts it unchanged leaves its
+provenance alone (operator, 25 September 2026). The edit-mode Overview uses the label **Claim reference** for
 the provider's claim number everywhere it appears. Our ref is the separate,
 immutable Case reference. The Registration, Make and Model inputs live in
 the Vehicle section's edit state, not on Overview.
@@ -241,8 +242,8 @@ itself, never the e-mail it arrived in:
 - when a standalone Audit is accepted, from the report retained at intake;
 - when staff **Mark as original report**, from that document.
 
-A filled cell is tagged **Extracted** until a staff Save confirms it. A fill
-lands only on a cell staff have not confirmed and never clears one, so a
+A filled cell is tagged **Extracted** until staff change it. A fill lands
+only on a cell staff have not recorded and never clears one, so a
 staff-entered value is never overwritten. A cell stays blank for staff when
 the report prints no value for it, prints two different values, or prints a
 word the cell's list does not hold. Roadworthiness reads a printed Yes/No or
@@ -282,7 +283,7 @@ Transmission keeps its place among them and is edited in place, picked from
 Manual, Automatic, Semi-automatic, CVT or Unknown, because no approved lookup
 returns it (operator, 24 September 2026). One **Look up DVLA & MOT** action
 (`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
-that staff have not confirmed, and records the lookup's own facts. It never
+that staff have not recorded, and records the lookup's own facts. It never
 overwrites an extracted or staff-entered value. There is no checks panel and
 no suggestion table. Run Experian check stays the disabled seam. A labelled
 Vehicle history area holds the history-check narrative as read-only text,
@@ -349,6 +350,29 @@ The calculator applies presets and custom lines through Core. Valuation
 sources are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources).
 
+### Glass's window and Case edits
+
+Launch and Resume open the provider window from the staff gesture and save
+pending Case edits through the existing keep-edit Save first. Only a confirmed
+save continues with the freshly rendered authority. Validation failure, a
+conflict, lost response or new edits during the save leaves the draft intact
+and makes no provider request. A blocked popup gives an actionable refusal.
+
+The same-origin launch handoff refreshes only the Glass's launch slot and
+session controls on the original Case before visiting the provider URL. It
+preserves dirty fields, their Case version and lease, focus, and reading
+position. Older refresh responses cannot overwrite newer controls. Save &
+Exit refreshes the workspace in place when it is clean; with pending edits it
+refreshes the session controls and reports the returned result without
+rebasing or discarding the draft. The latest Draft becomes visible after the
+staff member saves or cancels those edits. With no opener, the popup retains
+a server-rendered route back to the Case.
+
+Close uses the displayed session version and fresh confirmation that the
+external session is closed. A version conflict refreshes the controls and asks
+for confirmation again. Close never silently substitutes the current version
+for the version the staff member confirmed.
+
 ### Repair Spec
 
 Repair Spec carries the specification set and raw estimate import. See
@@ -408,7 +432,12 @@ recorded time and custody-state chip, with Preview, Save as and, while
 editing, delete. When an Audit lists **Original report missing**, each
 non-image row also offers **Mark as original report** while editing. That
 action assigns the Audit report role, clears the requirement and fills the
-[Original report](#original-report) cells from that document.
+[Original report](#original-report) cells from that document. While the
+Engineer sections are editable, a confirmed row that exactly one estimate
+format recognises — an Audatex that arrived by email, say — also offers
+**Import as repair spec** (operator, 25 September 2026). It imports that
+file through the same import as the Repair Spec section, with no second copy
+([Assessment](#assessment)).
 
 **Images** is one grid of every image occurrence: the Case's own image
 documents plus, for each vehicle-images record associated with the Case, its
@@ -491,7 +520,9 @@ when the repairer, claimant or storage postcode is in London or the Home
 Counties) — VAT categories, lines with a Material amount each (P48; the
 Materials total is the column's sum) and totals. There are no repair days
 and no notes on a spec (P32); a spec is renamed by double-clicking its tab.
-One spec is Current and drives the report. Each version's rate prices
+One spec is Current and drives the report. A new spec — typed in, imported
+or returned from Glass's — is Current as soon as it is recorded; **Use repair
+spec** switches to another live spec. Each version's rate prices
 panel, paint and Specialist work-unit hours. The VAT rule is owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report);
 an unknown repairer VAT status never gates **Use repair spec** (P10). Lines
@@ -502,7 +533,7 @@ Off-pattern, and the rollup carries the off-pattern amount as specialist
 line or lines can be put back from the toast for eight seconds (P16). No
 provider-versus-assessed savings figure is shown. Reading and editing are one
 layout (operator, 23 September 2026): a spec that cannot be changed — every
-spec while reading, and a spec that is not a Draft while editing — shows the
+spec while reading, and a discarded spec while editing — shows the
 same header cells, the same grid columns and the same contract, discount and
 VAT bars as the editor, each value greyed in its control's place and a line's
 Type in the editor's words; a scaled spec's Target % of value bar stands in
@@ -511,7 +542,8 @@ its place with the Scaled state; the tools (add and delete lines, the Target
 edits. The spec has no save of its own: the ribbon Save records it, and a
 spec left unchanged is not rewritten. Apply and Remove scaling save first and
 then scale the saved spec. The More menu holds New repair spec
-(editing, recorded by the Save), **Print Repair Spec** for a saved spec with lines, and Compare,
+(editing, recorded by the Save and starting on the one enabled labour-rate
+card), **Print Repair Spec** for a saved spec with lines, and Compare,
 greyed out until the Case holds two specs (P9). Previewing the document
 does not save or discard pending edits. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
@@ -553,11 +585,14 @@ opens the native file picker; dropping a file over Repair Spec uses
 the same upload path and shows a temporary drop overlay. Exactly one supported
 PDF, XML or JSON file is accepted. From read mode, the server acquires the Case
 edit lease against the submitted Case version before storing the file through
-the normal Case document upload flow.
+the normal Case document upload flow. A dropped file whose bytes are already
+confirmed in Case Files, and a Documents row's **Import as repair spec**,
+import that stored file instead of storing another copy.
 
 After the source is confirmed in Case Files, its registered provider parser
-runs immediately. A successful import selects the new named Draft and displays
-its estimate lines in the editor. A parser refusal creates no partial Draft;
+runs immediately. A successful import records the new named spec as the
+Current one, on the one enabled labour-rate card, and displays its lines in
+the editor. A parser refusal creates no partial spec;
 the confirmed original remains in Case Files so the same source can be retried.
 Only registered parser types are accepted. An ambiguous file is refused, not
 guessed. Provenance and replay rules are owned by

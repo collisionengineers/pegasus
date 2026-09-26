@@ -18,7 +18,7 @@ enablement and external connector authentication.
 
 ## Current applicability
 
-Direct unconfirmed working-data writes are permitted within the current FRD-10 guards, which admit only fields a staff Save of the Case record can confirm or clear. AiWork push and ADR-0035’s AiJobs pull are distinct transports; neither grants confirmation or outward dispatch.
+Direct attributed writes are permitted within the current FRD-10 guards, which admit only fields staff can change or clear on the Case record. The per-field confirmation state those writes once carried is retired (operator, 25 September 2026): a recorded value is the Case's value whoever recorded it, shown with its source tag, so the consequence below that Automation values wait for staff review no longer applies; automation still never records a finding. AiWork push and ADR-0035’s AiJobs pull are distinct transports; neither grants finding authority or outward dispatch.
 
 ## Context
 

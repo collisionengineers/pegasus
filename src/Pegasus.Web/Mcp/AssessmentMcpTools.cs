@@ -15,10 +15,7 @@ internal sealed record AssessmentFieldToolItem(
     string Value,
     string RecordedByKind,
     string RecordedBy,
-    DateTimeOffset RecordedAtUtc,
-    bool IsConfirmed,
-    string? ConfirmedBy,
-    DateTimeOffset? ConfirmedAtUtc);
+    DateTimeOffset RecordedAtUtc);
 
 internal sealed record EstimateLineToolItem(
     int Position,
@@ -30,11 +27,9 @@ internal sealed record EstimateLineToolItem(
     bool Unpriced,
     string? PartNumber,
     string? Betterment,
-    string? Status,
     string? EvidenceLabel,
     string? Justification,
     string RecordedByKind,
-    bool IsConfirmed,
     decimal? PaintWorkUnits = null,
     int? Quantity = null);
 
@@ -47,7 +42,6 @@ internal sealed record EstimateLineToolInput(
     bool Unpriced = false,
     string? PartNumber = null,
     string? Betterment = null,
-    string? Status = null,
     string? EvidenceLabel = null,
     string? Justification = null,
     decimal? PaintWorkUnits = null,
@@ -101,8 +95,7 @@ internal sealed record EstimateListToolItem(
     string State,
     string Source,
     string Name,
-    bool IsCurrent,
-    string? CalculationBasis);
+    bool IsCurrent);
 
 internal sealed record EstimateListToolResult(
     Guid CaseId,
@@ -167,10 +160,11 @@ internal sealed record CaseUpdateDetailsToolResult(
 /// ADR-0031 / FRD-10 (docs/adr/0031-automation-actor-contract-without-eva-export-tools.md,
 /// docs/frd/frd-10-mcp-automation-and-actor-boundary.md)): direct writes over the same
 /// Core commands, edit lease, and version guards as a staff save, attributed
-/// to the Automation actor with the values stored unconfirmed until staff
-/// review and limited to fields a staff member can confirm on the Case.
-/// Structurally absent, on purpose: any finding-confirmation tool,
-/// any report-approval tool, and any tool that dispatches anything outward.
+/// to the Automation actor and limited to fields a staff member records on
+/// the Case. A recorded value is the Case's value whoever recorded it, shown
+/// with its source tag; there is no per-field review (operator, 25 September
+/// 2026). Structurally absent, on purpose: any finding write, any
+/// report-approval tool, and any tool that dispatches anything outward.
 /// </summary>
 [McpServerToolType]
 internal sealed class AssessmentMcpTools(
@@ -193,7 +187,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, edit lease, parser route and replay rules as the Case UI apply.")]
+    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, edit lease, parser route and replay rules as the Case UI apply. An automation import lands as a Draft; a staff member puts it in use with Use repair spec.")]
     public async Task<EstimateImportToolResult> ImportEstimateAsync(
         Guid caseId,
         long expectedVersion,
@@ -238,7 +232,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Saves an AI-draft estimate on a case (FRD-10 § AI job and estimate tools): creates a named Draft, or replaces the header and lines of an existing AI-draft estimate when estimateId is supplied. Requires the edit lease and expected case version like every case mutation, and must cite the Estimate job this client currently holds (aiJobId); the estimate always lands as Draft with unconfirmed lines and never becomes Current here — an Engineer does that with Use estimate. Rates are per hour in pounds; vatPercent is free per estimate and defaults to 20. Line types follow the estimate-line vocabulary (new_part, repair, rnr, paint_*, check_labour, specialist_*); workUnits are labour hours, paintWorkUnits paint hours, price is per unit and multiplied by quantity (default 1).")]
+    [Description("Saves an AI-draft estimate on a case (FRD-10 § AI job and estimate tools): creates a named Draft, or replaces the header and lines of an existing AI-draft estimate when estimateId is supplied. Requires the edit lease and expected case version like every case mutation, and must cite the Estimate job this client currently holds (aiJobId); the estimate always lands as Draft and never becomes Current here — a staff member does that with Use repair spec. Rates are per hour in pounds; vatPercent is free per estimate and defaults to 20. Line types follow the estimate-line vocabulary (new_part, repair, rnr, paint_*, check_labour, specialist_*); workUnits are labour hours, paintWorkUnits paint hours, price is per unit and multiplied by quantity (default 1).")]
     public async Task<EstimateSaveToolResult> SaveEstimateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -354,7 +348,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Returns the recorded assessment surface for one case: every recorded field value with provenance and its confirmed/unconfirmed mark, the ordered estimate lines, the case-owned fields the assessment reads (registration, make, model, mileage, incident, received and inspection dates, inspection mode and address; receivedDate is the Case's received date, which the report prints as the date instructions were received), and the readiness list naming what is still outstanding.")]
+    [Description("Returns the recorded assessment surface for one case: every recorded field value with its provenance, the ordered estimate lines, the case-owned fields the assessment reads (registration, make, model, mileage, incident, received and inspection dates, inspection mode and address; receivedDate is the Case's received date, which the report prints as the date instructions were received), and the readiness list naming what is still outstanding.")]
     public async Task<AssessmentGetToolResult> GetAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         CancellationToken cancellationToken = default)
@@ -395,7 +389,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Records assessment fields that staff can also record on the Case, under the case edit lease and expected version. Values written by automation stay unconfirmed until a staff member saves the field's Case section, which confirms or clears them. Professional findings, case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field. The optional workRequestId correlates the write with a Send to AI hand-off.")]
+    [Description("Records assessment fields that staff can also record on the Case, under the case edit lease and expected version. A value written by automation is the Case's value, attributed to the Automation actor and shown with its source tag until a staff member changes or clears it on the field's Case section. Professional findings, case-owned facts (use pegasus_case_update_details), fields derived from damage.impacts, fields the DVLA/DVSA vehicle lookup fills and fields with no staff editor on the Case are refused, naming the field. The optional workRequestId correlates the write with a Send to AI hand-off.")]
     public async Task<AssessmentUpdateToolResult> UpdateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -403,7 +397,6 @@ internal sealed class AssessmentMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("Scalar assessment values keyed by field path, limited to fields staff can record on the Case; a null value clears the field.")] Dictionary<string, string?>? fields = null,
-        [Description("Unsupported on this generic command; use a named estimate command.")] IReadOnlyList<EstimateLineToolInput>? estimateLines = null,
         [Description("Optional Send to AI work-request identifier for round-trip correlation.")] string? workRequestId = null,
         CancellationToken cancellationToken = default)
     {
@@ -424,11 +417,6 @@ internal sealed class AssessmentMcpTools(
                 {
                     throw new McpException("An active edit lease token is required.");
                 }
-                if (estimateLines is not null)
-                {
-                    throw new McpException(
-                        "Estimate lines must be changed through a named estimate command.");
-                }
                 foreach (var path in fields?.Keys ?? Enumerable.Empty<string>())
                 {
                     RequireGenericWrite(path);
@@ -443,7 +431,6 @@ internal sealed class AssessmentMcpTools(
                         reason,
                         editLeaseToken,
                         fields ?? new Dictionary<string, string?>(StringComparer.Ordinal),
-                        estimateLines?.Select(MapLineInput).ToArray(),
                         binding),
                     cancellationToken);
                 return new AssessmentUpdateToolResult(
@@ -460,30 +447,26 @@ internal sealed class AssessmentMcpTools(
     }
 
     /// <summary>
-    /// Refuses a generic automation write staff could not confirm or clear on
-    /// the Case (FRD-10): a professional finding, or a path with no staff
-    /// editor on the Case. Unknown, case-owned, impact-derived and
-    /// lookup-derived paths fall through to Core's NormalizeWritableField,
-    /// which names each.
+    /// Refuses a generic automation write of a path with no staff editor on
+    /// the Case (FRD-10), the one rule only the Web can answer because it owns
+    /// the editor list. A professional finding, an unknown, case-owned,
+    /// impact-derived or lookup-derived path falls through to Core's
+    /// NormalizeWritableField, which names each.
     /// </summary>
     internal static void RequireGenericWrite(string path)
     {
         if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition)
+            || definition.IsFinding
             || AssessmentVocabulary.DerivedPaths.Contains(path)
             || AssessmentVocabulary.LookupDerivedPaths.Contains(path))
         {
             return;
         }
-        if (definition.IsFinding)
-        {
-            throw new McpException(
-                $"The field '{path}' is a professional finding; only staff record it on the Case.");
-        }
-        if (!CaseWorkspaceLabels.Editors.IsStaffConfirmable(path))
+        if (!CaseWorkspaceLabels.Editors.HasStaffEditor(path))
         {
             throw new McpException(
                 $"The field '{path}' has no staff editor on the Case, so automation cannot write it: "
-                + "a value staff cannot confirm or clear would block the report.");
+                + "staff could neither change nor clear the value.");
         }
     }
 
@@ -600,10 +583,7 @@ internal sealed class AssessmentMcpTools(
         field.Value,
         field.RecordedByKind.ToString(),
         field.RecordedBy,
-        field.RecordedAtUtc,
-        field.IsConfirmed,
-        field.ConfirmedBy,
-        field.ConfirmedAtUtc);
+        field.RecordedAtUtc);
 
     private static EstimateLineToolItem MapLine(CaseEstimateLineRecord line) => new(
         line.Position,
@@ -615,11 +595,9 @@ internal sealed class AssessmentMcpTools(
         line.Unpriced,
         line.PartNumber,
         line.Betterment,
-        line.Status,
         line.EvidenceLabel,
         line.Justification,
         line.RecordedByKind.ToString(),
-        line.IsConfirmed,
         line.PaintWorkUnits,
         line.Quantity);
 
@@ -632,7 +610,6 @@ internal sealed class AssessmentMcpTools(
         line.Unpriced,
         line.PartNumber,
         line.Betterment,
-        line.Status,
         line.EvidenceLabel,
         line.Justification,
         line.PaintWorkUnits,
@@ -641,7 +618,7 @@ internal sealed class AssessmentMcpTools(
 
     private static EstimateToolItem MapEstimate(RepairSpecificationVersion estimate)
     {
-        var totals = EstimateTotals.ForProjection(estimate);
+        var totals = EstimateTotals.Compute(estimate);
         var details = estimate.Details;
         return new(
             estimate.SpecificationId,
@@ -676,8 +653,7 @@ internal sealed class AssessmentMcpTools(
         estimate.State.ToString(),
         estimate.Source.Route.ToString(),
         estimate.Name,
-        estimate.IsCurrent,
-        estimate.CalculationBasis?.ToString());
+        estimate.IsCurrent);
 
     private static AssessmentCaseOwnedToolData MapCaseOwned(AssessmentCaseOwnedData data) => new(
         data.Registration,

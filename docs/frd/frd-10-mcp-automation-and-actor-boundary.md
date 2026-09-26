@@ -70,12 +70,14 @@ identity. ZIP output streams in order, without ranges. An invalid, expired or
 foreign export ticket gets the same non-disclosing unavailable response.
 
 **Assessment writes.** `pegasus_assessment_update` writes only non-finding
-assessment fields a staff member records, and so confirms or clears, on the
+assessment fields a staff member records, and so can change or clear, on the
 Case: the fields a Case section's editor posts and those a section writes
 through its own typed member (damage entries, mileage source, storage per
 day, recovery charge and report date). Any other field is refused and named,
-so every unconfirmed Automation value is one the next staff Save of its
-section confirms or clears (operator, 24 September 2026). Professional
+so every Automation value is one staff can change or clear on its section
+(operator, 24 September 2026). A value it writes is the Case's value, shown
+with its AI source tag until staff change it; there is no per-field review
+(operator, 25 September 2026). Professional
 findings (including the Engineer's Value and its basis card's retail and
 trade), Case-owned facts, fields derived from damage entries and the facts
 the DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry)
@@ -152,13 +154,14 @@ stopped automation client is refused before any tool runs.
 
 `pegasus_estimate_import` and **Import estimate** on the Repair Spec section
 are two callers of one Core command. Both use the same parser types, the same
-fail-closed provider detection, the same provider-plus-sequence Draft naming
-and the same replay rule. The caller does not choose a trusted provider
+fail-closed provider detection, the same provider-plus-sequence naming, the
+same labour-rate card and the same replay rule. The caller does not choose a trusted provider
 route. Even a source-hash replay needs the current actor, version and lease
 authority and the exact retained source tuple. An unsupported estimate
-document is refused without OCR or partial rows. The import stays an
-unconfirmed Draft with no AI job reference and cannot become Current through
-MCP. These contracts do not prove live provider acceptance.
+document is refused without OCR or partial rows. A staff Import on the Case
+is the Current repair spec at once; the MCP import runs as the Automation
+actor, so it stays a Draft with no AI job reference and cannot become Current
+through MCP. These contracts do not prove live provider acceptance.
 
 **Scopes.** `automation.jobs` is its own scope with a consent description on
 the Administrator consent page; a token without it cannot see the ledger. The

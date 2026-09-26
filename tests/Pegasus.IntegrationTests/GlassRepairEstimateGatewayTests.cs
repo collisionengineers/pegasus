@@ -126,7 +126,7 @@ public sealed class GlassRepairEstimateGatewayTests
             Assert.Equal(starts, harness.Mva.Count("POST /ere/start-ere"));
             restarted.Clock.Offset = TimeSpan.FromHours(9);
             var expired = await restarted.Gateway.ResumeAsync(
-                new(harness.Engineer, resumed.Id, resumed.Version), CancellationToken.None);
+                new(harness.Engineer, resumed.Id, resumed.Version, Harness.CaseVersion, Harness.LeaseToken), CancellationToken.None);
             Assert.Equal(GlassRepairEstimateSessionState.Unknown, expired.State);
             await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() =>
                 restarted.LaunchAsync(operationKey: "must-not-duplicate"));
@@ -215,8 +215,8 @@ public sealed class GlassRepairEstimateGatewayTests
         var restarted = Restarted(before, database.NewStore(),
             new EfGlassRepairEstimateCaseAuthority(database.Factory, database.TimeProvider));
         var request = new GlassRepairEstimateResumeRequest(before.Engineer, held.Id, held.Version, regainedVersion, regainedToken);
-        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => restarted.Gateway.ResumeAsync(request with { LeaseToken = null }, default));
-        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => restarted.Gateway.ResumeAsync(request with { ExpectedCaseVersion = null }, default));
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => restarted.Gateway.ResumeAsync(request with { LeaseToken = string.Empty }, default));
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => restarted.Gateway.ResumeAsync(request with { ExpectedCaseVersion = 0 }, default));
         await Assert.ThrowsAsync<CaseVersionConflictException>(() => restarted.Gateway.ResumeAsync(request with { ExpectedCaseVersion = Harness.CaseVersion }, default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() => restarted.Gateway.ResumeAsync(request with { LeaseToken = Harness.LeaseToken }, default));
         await using (var db = await database.Factory.CreateDbContextAsync())
@@ -286,9 +286,9 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(path.StartsWith("POST", StringComparison.Ordinal) ? 1 : 0, starts);
 
         var restarted = Restarted(harness, database.NewStore());
-        var resumed = await restarted.Gateway.ResumeAsync(new(harness.Engineer, unknown.Id, unknown.Version), default);
+        var resumed = await restarted.Gateway.ResumeAsync(new(harness.Engineer, unknown.Id, unknown.Version, Harness.CaseVersion, Harness.LeaseToken), default);
         restarted.Clock.Offset = TimeSpan.FromHours(9);
-        var expired = await restarted.Gateway.ResumeAsync(new(harness.Engineer, resumed.Id, resumed.Version), default);
+        var expired = await restarted.Gateway.ResumeAsync(new(harness.Engineer, resumed.Id, resumed.Version, Harness.CaseVersion, Harness.LeaseToken), default);
         Assert.Equal(GlassRepairEstimateSessionState.Unknown, expired.State);
         Assert.NotNull(await database.ActiveAccountKeyAsync(unknown.Id));
         var refusal = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(() => restarted.LaunchAsync(operationKey: "no-second-write"));
@@ -740,7 +740,7 @@ public sealed class GlassRepairEstimateGatewayTests
     // -------------------------------------------------------------- callback
 
     [Fact]
-    public async Task ACompletedCallbackRetainsBothArtifactsAndLandsOneDraft()
+    public async Task ACompletedCallbackRetainsBothArtifactsAndLandsOneSpecInUse()
     {
         var harness = Harness.Create();
         var session = await harness.LaunchAsync();
@@ -763,6 +763,8 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(Harness.CaseVersion, import.ExpectedVersion);
         Assert.Equal(Harness.LeaseToken, import.EditLeaseToken);
         Assert.Equal(harness.Custody.Retained[0].Sha256, import.Sha256);
+        // The returning staff member imports it, so it is the spec in use at once.
+        Assert.True(RepairSpecificationPolicy.BecomesCurrentWhenCreated(import.Actor));
 
         var results = harness.Store.ResultsOf(session.Id)!;
         Assert.Contains($"\"importedEstimateId\":\"{harness.Import.EstimateId:D}\"", results, StringComparison.Ordinal);
@@ -1062,7 +1064,7 @@ public sealed class GlassRepairEstimateGatewayTests
 
         await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(
             () => harness.Gateway.ResumeAsync(
-                new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, waiting.Version),
+                new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, waiting.Version, Harness.CaseVersion, string.Empty),
                 CancellationToken.None));
     }
 
@@ -1107,6 +1109,195 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Empty(harness.Import.Requests);
     }
 
+    [Theory]
+    [InlineData("Prepared", true)]
+    [InlineData("Prepared", false)]
+    [InlineData("Launching", true)]
+    [InlineData("Launching", false)]
+    [InlineData("Active", true)]
+    [InlineData("Active", false)]
+    [InlineData("AwaitingImport", true)]
+    [InlineData("AwaitingImport", false)]
+    [InlineData("Unknown", true)]
+    [InlineData("Unknown", false)]
+    public async Task ResumeRefusesChangedCaseVehicleBeforeAnyProviderWorkAndKeepsTheHold(string state, bool registrationChanged)
+    {
+        var harness = Harness.Create();
+        GlassRepairEstimateSession session;
+        if (state is "Prepared" or "Launching")
+        {
+            using var interrupted = new GatedStore(harness.Store);
+            var checkpoints = 0;
+            interrupted.Refuse = material => (state == "Prepared"
+                ? material.Session.State == GlassRepairEstimateSessionState.Prepared
+                : material.Session.State == GlassRepairEstimateSessionState.Launching
+                    && material.Session.ProviderVehicleId is not null && ++checkpoints == 2)
+                ? new InvalidOperationException("Stopped before provider work") : null;
+            await Assert.ThrowsAsync<InvalidOperationException>(() => Restarted(harness, interrupted).LaunchAsync());
+            session = Assert.Single(harness.Store.Sessions.Values).Session;
+        }
+        else
+        {
+            session = await harness.LaunchAsync();
+            if (state == "AwaitingImport")
+            {
+                harness.Import.Refusal = new CaseEditLeaseExpiredException(harness.CaseId, Harness.CaseVersion);
+                session = await harness.CompleteAsync(session);
+            }
+            else if (state == "Unknown")
+            {
+                harness.Mva.Set("GET /ere/export-vehicle/", new(HttpStatusCode.OK, "<div>nothing published yet</div>"));
+                session = await harness.CompleteAsync(session);
+            }
+        }
+        Assert.Equal(Enum.Parse<GlassRepairEstimateSessionState>(state), session.State);
+        var beforeResume = (await harness.Store.GetAsync(session.Id, default))!;
+        harness.CaseAuthority.Facts = new(registrationChanged ? "XY99ZZZ" : Registration,
+            registrationChanged ? MileageMiles : MileageMiles + 1);
+        var requests = harness.Mva.Requests.Count;
+        var imports = harness.Import.Requests.Count;
+        var refused = await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Gateway.ResumeAsync(
+            new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken), default));
+        Assert.Contains("registration or mileage has changed", refused.Message, StringComparison.Ordinal);
+        Assert.Equal(requests, harness.Mva.Requests.Count);
+        Assert.Equal(imports, harness.Import.Requests.Count);
+        Assert.Equal(beforeResume, await harness.Store.GetAsync(session.Id, default));
+        Assert.True(GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State));
+    }
+
+    [Theory]
+    [InlineData("registration")]
+    [InlineData("mileage")]
+    [InlineData("vehicle")]
+    [InlineData("natcode")]
+    [InlineData("missing")]
+    [InlineData("contradictory")]
+    [InlineData("script")]
+    [InlineData("profile")]
+    public async Task ResumeProvesNamedProviderFieldsBeforeSelectingOrStarting(string mismatch)
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        var detail = GlassProviderFixture.VehicleDetail(
+            registration: mismatch == "registration" ? "XY99ZZZ" : Registration,
+            mileage: mismatch == "mileage" ? MileageMiles + 1 : MileageMiles,
+            vehicleId: mismatch == "vehicle" ? "9999" : VehicleId,
+            natCode: mismatch == "natcode" ? "9999" : NatCode,
+            profile: mismatch == "profile" ? "9999" : GlassProviderFixture.ProfileId);
+        if (mismatch == "missing") { detail = detail.Replace("name=\"mileage\"", "name=\"other\"", StringComparison.Ordinal); }
+        if (mismatch == "contradictory") { detail += "<input name='id' value='9999'>"; }
+        if (mismatch == "script") { detail = "<!--" + detail + "--><script>" + detail + "</script>"; }
+        // Correct-looking text elsewhere cannot rescue the wrong named field.
+        detail += $"<script>var profile='{GlassProviderFixture.ProfileId}'; var natcode='{NatCode}';</script>";
+        harness.Mva.Set("GET /index/vehicle-details-value/", new(HttpStatusCode.OK, detail));
+        var resumed = await harness.Gateway.ResumeAsync(
+            new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken), default);
+        Assert.Equal(GlassRepairEstimateSessionState.Unknown, resumed.State);
+        Assert.Equal(mismatch is "profile" or "script" ? GlassFailure.DetailsProfile : GlassFailure.DetailsIdentity, resumed.FailureCode);
+        Assert.Equal(1, harness.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(1, harness.Mva.Count("GET /index/get-selected-vehicle-count"));
+        Assert.Equal(1, harness.Mva.Count("GET /index/create-new-vehicle"));
+        Assert.Empty(harness.Import.Requests);
+    }
+
+    [Fact]
+    public async Task ActiveResumeChecksAuthorityAndRenewsItForTheAutomaticImport()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        var request = new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version,
+            Harness.CaseVersion + 1, new string('b', 64));
+        var count = harness.Mva.Requests.Count;
+        harness.CaseAuthority.Refusal = new CaseVersionConflictException(harness.CaseId, Harness.CaseVersion, Harness.CaseVersion + 1);
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() => harness.Gateway.ResumeAsync(request, default));
+        Assert.Equal(count, harness.Mva.Requests.Count);
+        Assert.Equal(session, (await harness.Store.GetAsync(session.Id, default))!.Session);
+        harness.CaseAuthority.Refusal = null;
+        harness.CaseAuthority.Facts = new(" ab12 cde ", MileageMiles);
+        var resumed = await harness.Gateway.ResumeAsync(request, default);
+        Assert.Equal(GlassRepairEstimateSessionState.Active, resumed.State);
+        Assert.Equal(2, harness.Mva.Count("GET /index/vehicle-details-value/"));
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, (await harness.CompleteAsync(resumed)).State);
+        var imported = Assert.Single(harness.Import.Requests);
+        Assert.Equal(request.ExpectedCaseVersion, imported.ExpectedVersion);
+        Assert.Equal(request.LeaseToken, imported.EditLeaseToken);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ResumeCannotUseDisabledOrReplacedCredentials(bool waiting, bool replaced)
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        if (waiting)
+        {
+            harness.Import.Refusal = new CaseEditLeaseExpiredException(harness.CaseId, Harness.CaseVersion);
+            session = await harness.CompleteAsync(session);
+        }
+        var beforeResume = (await harness.Store.GetAsync(session.Id, default))!;
+        if (replaced) { harness.Credentials.Give(harness.Engineer, harness.EngineerId, generation: 9); }
+        else { harness.Credentials.Revoke(harness.Engineer); }
+        var requests = harness.Mva.Requests.Count;
+        var imports = harness.Import.Requests.Count;
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Gateway.ResumeAsync(
+            new(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken), default));
+        Assert.Equal(beforeResume, await harness.Store.GetAsync(session.Id, default));
+        Assert.Equal(requests, harness.Mva.Requests.Count);
+        Assert.Equal(imports, harness.Import.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(-1, false)]
+    [InlineData(Harness.CaseVersion, true)]
+    public async Task ActiveResumeRequiresBothAuthorityFields(long version, bool missingLease)
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        var requests = harness.Mva.Requests.Count;
+        await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Gateway.ResumeAsync(
+            new(harness.Engineer, session.Id, session.Version, version, missingLease ? string.Empty : Harness.LeaseToken), default));
+        Assert.Equal(session, (await harness.Store.GetAsync(session.Id, default))!.Session);
+        Assert.Equal(requests, harness.Mva.Requests.Count);
+        Assert.Empty(harness.Import.Requests);
+    }
+
+    [Fact]
+    public async Task ResumedImportCannotBeClosedMidWriteAndRecoversRetainedSourcesAfterInterruption()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.Import.Refusal = new CaseEditLeaseExpiredException(harness.CaseId, Harness.CaseVersion);
+        var waiting = await harness.CompleteAsync(session);
+        harness.Import.Refusal = null;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Import.BeforeReturn = async () => { entered.SetResult(); await release.Task; };
+        var resumed = harness.Gateway.ResumeAsync(
+            new(harness.Engineer, session.Id, waiting.Version, Harness.CaseVersion, Harness.LeaseToken), default);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var importing = (await harness.Store.GetAsync(session.Id, default))!.Session;
+            Assert.Equal(GlassRepairEstimateSessionState.Importing, importing.State);
+            await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Gateway.CloseAsync(
+                new(harness.Engineer, session.Id, importing.Version, true, "External editor closed"), default));
+        }
+        finally { release.TrySetException(new InvalidOperationException("Host interrupted before import answered")); }
+        await Assert.ThrowsAsync<InvalidOperationException>(() => resumed);
+        var held = (await harness.Store.GetAsync(session.Id, default))!.Session;
+        var providerRequests = harness.Mva.Requests.Count;
+        harness.Import.BeforeReturn = null;
+        var completed = await harness.Gateway.ResumeAsync(
+            new(harness.Engineer, held.Id, held.Version, Harness.CaseVersion, Harness.LeaseToken), default);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+        Assert.Equal(providerRequests, harness.Mva.Requests.Count);
+        Assert.Equal(2, harness.Custody.Retained.Count);
+    }
+
     // ---------------------------------------------------------------- resume
 
     [Fact]
@@ -1118,7 +1309,7 @@ public sealed class GlassRepairEstimateGatewayTests
             harness.Engineer, session.Id, CancellationToken.None);
 
         var resumed = await harness.Gateway.ResumeAsync(
-            new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version),
+            new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken),
             CancellationToken.None);
 
         Assert.Equal(GlassRepairEstimateSessionState.Active, resumed.State);
@@ -1148,7 +1339,7 @@ public sealed class GlassRepairEstimateGatewayTests
                 $"https://mva.test/ere/ere-callback/ere_id/53768/ere_session/{GlassProviderFixture.EreSession}"))));
 
         var resumed = await harness.Gateway.ResumeAsync(
-            new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version),
+            new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken),
             CancellationToken.None);
         Assert.Equal("53768", resumed.ProviderEstimateId);
 
@@ -1209,7 +1400,7 @@ public sealed class GlassRepairEstimateGatewayTests
                 harness.OtherEngineer, session.Id, CancellationToken.None));
         await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(
             () => harness.Gateway.ResumeAsync(
-                new GlassRepairEstimateResumeRequest(harness.OtherEngineer, session.Id, session.Version),
+                new GlassRepairEstimateResumeRequest(harness.OtherEngineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken),
                 CancellationToken.None));
     }
 
@@ -1424,7 +1615,7 @@ public sealed class GlassRepairEstimateGatewayTests
 
         Assert.Null(await harness.Gateway.GetEstimatorUrlAsync(harness.Engineer, session.Id, CancellationToken.None));
         var expired = await harness.Gateway.ResumeAsync(
-            new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version),
+            new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version, Harness.CaseVersion, Harness.LeaseToken),
             CancellationToken.None);
 
         Assert.Equal(GlassRepairEstimateSessionState.Expired, expired.State);
@@ -1434,7 +1625,7 @@ public sealed class GlassRepairEstimateGatewayTests
         await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() =>
             harness.Gateway.ResumeAsync(
                 new GlassRepairEstimateResumeRequest(
-                    harness.Engineer, expired.Id, expired.Version),
+                    harness.Engineer, expired.Id, expired.Version, Harness.CaseVersion, Harness.LeaseToken),
                 CancellationToken.None));
     }
 
@@ -1680,6 +1871,7 @@ public sealed class GlassRepairEstimateGatewayTests
 
     private sealed class CaseAuthorityDouble(GlassRepairEstimateCaseFacts facts) : IGlassRepairEstimateCaseAuthority
     {
+        public GlassRepairEstimateCaseFacts Facts { get; set; } = facts;
         public Exception? Refusal { get; set; }
 
         public Task<GlassRepairEstimateCaseFacts> RequireEditAuthorityAsync(
@@ -1689,7 +1881,7 @@ public sealed class GlassRepairEstimateGatewayTests
             string editLeaseToken,
             CancellationToken cancellationToken) =>
             Refusal is null
-                ? Task.FromResult(facts)
+                ? Task.FromResult(Facts)
                 : Task.FromException<GlassRepairEstimateCaseFacts>(Refusal);
     }
 
@@ -1812,13 +2004,16 @@ public sealed class GlassRepairEstimateGatewayTests
 
         public Exception? Refusal { get; set; }
 
+        public Func<Task>? BeforeReturn { get; set; }
+
         public List<ImportRawEstimateRequest> Requests { get; } = [];
 
-        public Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
+        public async Task<EstimateImportResult> ExecuteAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
-            return Refusal is null ? Task.FromResult(new EstimateImportResult(EstimateId))
-                : Task.FromException<EstimateImportResult>(Refusal);
+            if (BeforeReturn is not null) { await BeforeReturn(); }
+            if (Refusal is not null) { throw Refusal; }
+            return new EstimateImportResult(EstimateId);
         }
     }
 

@@ -179,7 +179,7 @@ internal sealed class EfAssessmentReportProjectionSource(
             ReportDate: null,
             photos,
             sources,
-            CurrentEstimate: workspace.AcceptedSpecification,
+            CurrentEstimate: workspace.CurrentSpecification,
             Signatory: signOffEngineer is null
                 ? null
                 : new ReportSignatory(
@@ -197,7 +197,7 @@ internal sealed class EfAssessmentReportProjectionSource(
             workflow.SignOffEngineerId,
             workflow.AssignedEngineerId,
             profiles,
-            workspace.AcceptedSpecification,
+            workspace.CurrentSpecification,
             latestApplied,
             preparations,
             ConfirmedImageSources(confirmed));

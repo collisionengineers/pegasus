@@ -44,12 +44,10 @@ internal sealed class EfAssessmentWorkspaceSource(
             .Where(item => item.WorkId == workId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
-        var specificationEntities = await context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.WorkId == workId
-                && (item.State == RepairSpecificationState.Draft.ToString()
-                    || item.State == RepairSpecificationState.Accepted.ToString()))
+        var currentEntity = await EfRepairSpecificationStore.CurrentQuery(context, workId)
+            .AsNoTracking()
             .Include(item => item.Lines)
-            .ToArrayAsync(cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken);
         var latestObservationEntity = await context.Set<VehicleLookupObservationEntity>()
             .AsNoTracking()
             .Include(item => item.Request)
@@ -58,21 +56,11 @@ internal sealed class EfAssessmentWorkspaceSource(
             .ThenByDescending(item => item.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-        // Named estimates: a case may hold several drafts and
-        // several accepted estimates; the workspace shows the latest draft
-        // and the Current one, the same choice EfRepairSpecificationStore's
-        // DraftQuery / AcceptedQuery make.
-        var draftEntity = specificationEntities
-            .Where(item => item.State == RepairSpecificationState.Draft.ToString())
-            .OrderByDescending(item => item.Version)
-            .FirstOrDefault();
-        var acceptedEntity = specificationEntities.SingleOrDefault(item => item.IsCurrent);
-        var currentSpecification = acceptedEntity ?? draftEntity;
         var data = EfCaseDataStore.Map(snapshot, workflow);
         var assessment = EfCaseAssessmentStore.Map(
             workflow,
             assessmentFields,
-            currentSpecification?.Lines ?? [],
+            currentEntity?.Lines ?? [],
             snapshot.Fields,
             snapshot.OriginReceivedAtUtc);
         return new(
@@ -91,7 +79,6 @@ internal sealed class EfAssessmentWorkspaceSource(
                 ? null
                 : EfVehicleLookupWorkStore.MapObservation(latestObservationEntity),
             assessment,
-            draftEntity is null ? null : EfRepairSpecificationStore.Map(draftEntity),
-            acceptedEntity is null ? null : EfRepairSpecificationStore.Map(acceptedEntity));
+            currentEntity is null ? null : EfRepairSpecificationStore.Map(currentEntity));
     }
 }

@@ -213,27 +213,6 @@ public sealed class AssessmentReportProjectionTests
         }
     }
 
-    [Fact]
-    public void UnconfirmedEstimateLineBlocksTheWholeDraftViaTheSharedReadinessRail()
-    {
-        // The estimate-line grouping never has to filter by confirmation
-        // itself: AssessmentPolicy.EvaluatePostReviewReadiness already blocks the
-        // whole draft on the first unconfirmed line, of any type.
-        var input = ReadyInput();
-        var unconfirmed = input.Assessment.EstimateLines[0] with { ConfirmedBy = null, ConfirmedAtUtc = null };
-        var withUnconfirmedLine = input with
-        {
-            Assessment = input.Assessment with
-            {
-                EstimateLines = [.. input.Assessment.EstimateLines.Skip(1), unconfirmed]
-            }
-        };
-
-        var result = AssessmentReportProjection.Project(withUnconfirmedLine);
-
-        AssertNotReady(result, $"Estimate line {unconfirmed.Position} ({unconfirmed.Type}) awaits review");
-    }
-
     /// <summary>
     /// Entry to Review proves only instruction and image completeness, so each
     /// Case fact the report prints is named before anything is projected. The
@@ -353,18 +332,15 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void UnconfirmedAssessmentFieldSurfacesFromTheSharedReadinessRail()
+    public void ACurrentRepairSpecWithNoLinesIsNotReady()
     {
-        var input = ReadyInput();
-        var mutatedFields = input.Assessment.Fields
-            .Select(field => field.Path == AssessmentVocabulary.Outcome
-                ? field with { ConfirmedBy = null, ConfirmedAtUtc = null }
-                : field)
-            .ToArray();
+        // Taking a spec into use no longer needs lines, so report readiness
+        // names the empty Current spec instead.
         var result = AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { Fields = mutatedFields } });
+            ReadyInput() with { CurrentEstimate = ReadyCurrentEstimate() with { Lines = [] } });
 
-        AssertNotReady(result, $"{AssessmentVocabulary.Outcome} awaits review");
+        var reason = AssertNotReady(result, AssessmentReportProjection.RepairCostRequirement);
+        Assert.Equal(CaseReportReadiness.CurrentEstimateEmpty, reason);
     }
 
     [Fact]
@@ -379,7 +355,7 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void ContractRepairWithoutAConfirmedSumIsNotReady()
+    public void ContractRepairWithoutASumIsNotReady()
     {
         var input = ReadyInput();
         var contractFields = input.Assessment.Fields
@@ -392,18 +368,7 @@ public sealed class AssessmentReportProjectionTests
             input with { Assessment = input.Assessment with { Fields = contractFields } });
         AssertNotReady(missing, "Agreed contract sum");
 
-        var unconfirmed = contractFields
-            .Append(Field(AssessmentVocabulary.SettlementContractSum, "4500.00") with
-            {
-                ConfirmedBy = null,
-                ConfirmedAtUtc = null,
-            })
-            .ToArray();
-        var refused = AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { Fields = unconfirmed } });
-        AssertNotReady(refused, "Agreed contract sum");
-
-        var confirmed = AssessmentReportProjection.Project(
+        var recorded = AssessmentReportProjection.Project(
             input with
             {
                 Assessment = input.Assessment with
@@ -412,8 +377,8 @@ public sealed class AssessmentReportProjectionTests
                         Field(AssessmentVocabulary.SettlementContractSum, "4500.00")).ToArray(),
                 },
             });
-        Assert.True(confirmed.IsReady);
-        Assert.Equal(4500m, confirmed.Snapshot!.Settlement.ContractSum);
+        Assert.True(recorded.IsReady);
+        Assert.Equal(4500m, recorded.Snapshot!.Settlement.ContractSum);
     }
 
     [Fact]
@@ -699,31 +664,15 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Theory]
-    [InlineData(AssessmentVocabulary.ValueEngineer)]
-    [InlineData(AssessmentVocabulary.SettlementBetterment)]
-    [InlineData(AssessmentVocabulary.SalvageValue)]
-    public void UnconfirmedCalculationInputsDoNotBecomeAcceptedSettlementMoney(string path)
-    {
-        var input = path == AssessmentVocabulary.SalvageValue ? TotalLossInput() : ReadyInput();
-        var fields = input.Assessment.Fields.Where(field => field.Path != path)
-            .Append(Field(path, "500.00") with { ConfirmedBy = null, ConfirmedAtUtc = null })
-            .ToArray();
-
-        Assert.Null(AssessmentReportProjection.BuildSettlement(
-            input.Assessment with { Fields = fields }, input.CurrentEstimate));
-    }
-
-    [Theory]
-    [InlineData(RepairSpecificationState.Draft, true)]
-    [InlineData(RepairSpecificationState.Accepted, false)]
-    [InlineData(RepairSpecificationState.Superseded, false)]
-    public void OnlyTheCurrentAcceptedEstimateCanSupplySettlementMoney(
-        RepairSpecificationState state, bool isCurrent)
+    [InlineData(RepairSpecificationState.Draft)]
+    [InlineData(RepairSpecificationState.Discarded)]
+    public void OnlyTheCurrentEstimateCanSupplySettlementMoney(RepairSpecificationState state)
     {
         var input = ReadyInput();
 
+        Assert.NotNull(AssessmentReportProjection.BuildSettlement(input.Assessment, input.CurrentEstimate));
         Assert.Null(AssessmentReportProjection.BuildSettlement(
-            input.Assessment, input.CurrentEstimate! with { State = state, IsCurrent = isCurrent }));
+            input.Assessment, input.CurrentEstimate! with { State = state, IsCurrent = false }));
     }
 
     [Fact]
@@ -742,8 +691,7 @@ public sealed class AssessmentReportProjectionTests
     /// hours at 30, 20 materials and 5 specialist, giving a printed net of
     /// 225, 20 per cent VAT of 45 and a printed gross of 270.
     /// </summary>
-    private static RepairSpecificationVersion DefaultCurrentEstimate() => AcceptedEstimate(
-        new(
+    private static RepairSpecificationVersion DefaultCurrentEstimate() => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
@@ -751,12 +699,11 @@ public sealed class AssessmentReportProjectionTests
             Line(2, "new_part", "Door skin") with { WorkUnits = null, Price = 50m, Quantity = 1 },
             Line(3, "paint_blend", "Blend nearside wing") with { WorkUnits = null, Price = null, Materials = 20m },
         ],
-        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
+        "engineer-1", RecordedAtUtc,
         new EstimateDetails("Repairer", 30m, 5m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-        IsCurrent: true));
+        IsCurrent: true);
 
-    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details, decimal? materials = null) => AcceptedEstimate(
-        new(
+    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details, decimal? materials = null) => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
@@ -764,14 +711,7 @@ public sealed class AssessmentReportProjectionTests
             Line(2, "repair", "Repair wing") with { WorkUnits = 3m },
             Line(3, "paint_repair", "Paint wing") with { WorkUnits = null, PaintWorkUnits = 2.5m, Materials = materials },
         ],
-        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null, details, IsCurrent: true));
-
-    private static RepairSpecificationVersion AcceptedEstimate(RepairSpecificationVersion draft) =>
-        draft with
-        {
-            State = RepairSpecificationState.Accepted,
-            RecordedTotals = EstimateTotals.Compute(draft),
-        };
+        "engineer-1", RecordedAtUtc, details, IsCurrent: true);
 
     private static AssessmentReadinessItem AssertNotReady(
         AssessmentReportProjectionResult result, string requirement)
@@ -952,10 +892,10 @@ public sealed class AssessmentReportProjectionTests
         fields.Select(field => field.Path == path ? field with { Value = value } : field).ToArray();
 
     private static AssessmentFieldValue Field(string path, string value) => new(
-        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc);
+        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc);
 
     private static CaseEstimateLineRecord Line(int position, string type, string description) => new(
         Guid.NewGuid(), position, type, null, description, 2.5m, null, false, null, null,
-        "confirmed", "case", "Test evidence",
-        ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc);
+        "case", "Test evidence",
+        ActorKind.Staff, "engineer-1", RecordedAtUtc);
 }

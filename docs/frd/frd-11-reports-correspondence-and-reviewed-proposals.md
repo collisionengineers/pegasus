@@ -1,4 +1,4 @@
-# FRD-11: Reports, correspondence, and reviewed proposals
+# FRD-11: Reports and correspondence
 
 > Owner capabilities: CASE-23, CASE-31, EXT-08, EXT-11, RPT-01 to RPT-07 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
@@ -336,22 +336,22 @@ Each fact is recorded in one section of the Case record
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
 | Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
 | The Engineer's Value and, from its basis guide card, the retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
-| A Current repair spec with a labour rate | Repair Spec |
-| Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage value and a category the template prints (Category S only); on a contract repair the confirmed agreed contract sum | Decisions |
+| A Current repair spec with lines and a labour rate | Repair Spec |
+| Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage value and a category the template prints (Category S only); on a contract repair the agreed contract sum | Decisions |
 | Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
 | One Close-up and one Overview image matching their confirmed sources | Files |
 
 The date the report says instructions were received is the Case's Received
 date (operator, 24 September 2026); every Case has one, so it is never a
 blocker. On an Inspection + Audit Case each report prints its own work's
-Inspection date, and changing it makes the current generation stale. An
-Automation value stays a blocker until a staff Save of its section confirms
-or clears it; the facts only the DVLA/DVSA lookup records
-([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment))
-are recorded confirmed and never wait for review. A temporary repair value
-waits for review only while the vehicle is recorded unroadworthy: otherwise
-the report prints no temporary repair and Decisions shows none
-([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement)).
+Inspection date, and changing it makes the current generation stale. A
+recorded value is the Case's value whoever recorded it (operator, 25
+September 2026): there is no per-field review, so no blocker names a value
+because a lookup, an extraction or the Automation actor recorded it. Where a
+value came from is its source tag
+([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)),
+and Hand to Engineer is the only review
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)).
 VAT comes only from the
 Current repair spec
 ([Estimate VAT on the rendered report](#estimate-vat-on-the-rendered-report));

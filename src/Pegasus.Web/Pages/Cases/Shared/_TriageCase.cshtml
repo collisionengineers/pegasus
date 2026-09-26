@@ -118,6 +118,11 @@
                 }
                 else
                 {
+                    @* The viewer's own scope from another window is replaced, not taken over. *@
+                    @if (view.ViewerHoldsEditScope)
+                    {
+                        <input type="hidden" name="takeOver" value="true" />
+                    }
                     <button type="submit" class="btn btn--primary">Edit Triage</button>
                 }
             </form>
