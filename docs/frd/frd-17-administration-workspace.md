@@ -63,7 +63,11 @@ once, on the redisplayed page, to the Administrator. The rule is owned by
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts).
 Administrators may configure sign-off flags, qualifications and signature
 images for any staff role; these controls do not make Administration available
-to that account.
+to that account. Each account's Glass's repair-estimate credential is managed
+in a dialog on this area, opened from the account's row or settings and
+deep-linked with `?glassStaffId=`; the dialog never owns a page of its own,
+and the secret is write-only
+([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)).
 
 ### Contacts
 
