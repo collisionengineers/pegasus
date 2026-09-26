@@ -69,8 +69,11 @@
 .up-alert > .icon { flex: none; margin-top: 1px; width: 16px; height: 16px; }
 .up-alert--error { background: var(--danger-bg); border-left-color: var(--danger); }
 
-/* Choosing files. */
-.up-workspace.is-choosing { grid-template-columns: minmax(320px, 1.25fr) minmax(0, .88fr); }
+/* Choosing files: one centred column until a file is chosen. upload.js sets
+   has-files when it shows the roster; the picker then sits left of the
+   selected files (FRD-18). Below 900px both states stack, further down. */
+.up-workspace.is-choosing { display: block; max-width: 760px; margin: auto; }
+.up-workspace.has-files { display: grid; grid-template-columns: minmax(320px, 1.25fr) minmax(0, .88fr); max-width: none; }
 .up-select { grid-column: 1; grid-row: 1; padding: 30px; min-width: 0; }
 .up-select-title { margin-bottom: 18px; }
 .up-declared { margin-bottom: 18px; }

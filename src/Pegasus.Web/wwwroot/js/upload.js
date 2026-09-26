@@ -100,6 +100,7 @@
             summary.textContent = any ? files(chosen.length) + ' · ' + mib(total) : '';
             submitLabel.textContent = 'Upload ' + files(chosen.length);
             panel.hidden = !any;
+            select.classList.toggle('has-files', any);
             count.textContent = any ? files(chosen.length) + ' · ' + mib(total) : '';
             revoke();
             list.replaceChildren.apply(list, chosen.map(function (file, index) {
