@@ -43,8 +43,12 @@
         : null;
     var reportAlreadyConfirmed = generation is not { State: CaseReportGenerationState.Stale }
         && reportArtifact?.Status == CaseReportArtifactStatus.Confirmed;
-    var canGenerate = editing
-        && offersHead
+    // Generate report is offered in and out of edit mode (operator, 26
+    // September 2026). Outside it the handler claims the lease for the one
+    // generation, so it is not offered while someone holds the lease; inside
+    // it the form saves the Case first (data-case-save-first).
+    var canGenerate = offersHead
+        && (editing || Model.CurrentEditLease is null)
         && (reportRetryArtifact is not null
             || !reportAlreadyConfirmed && Model.ReportDraftCondition is null);
     var reportOperationKey = reportRetryArtifact?.OperationKey ?? Model.GenerateReportOperationKey;
@@ -116,9 +120,12 @@
             @if (canGenerate)
             {
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
-                      asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report>
+                      asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report data-case-save-first>
                     <input type="hidden" name="operationKey" value="@reportOperationKey" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    @if (editing)
+                    {
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    }
                     <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                     @if (reportRetryArtifact is not null)
                     {
@@ -130,7 +137,7 @@
                     </button>
                 </form>
             }
-            else if (offersHead && editing && Model.ReportDraftCondition is not null)
+            else if (offersHead && Model.ReportDraftCondition is not null)
             {
                 <span class="gated" data-report-gate>
                     <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
