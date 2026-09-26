@@ -79,7 +79,6 @@
 .up-declared { margin-bottom: 18px; }
 .up-declared .up-final-destination { margin: 6px 0 0; padding: 12px 0; border-top: 0; }
 .up-declared .up-final-destination strong { font-size: 18px; }
-.up-declared .up-explainer { margin-top: 8px; }
 .up-drop { border: 1px dashed var(--line-strong); border-radius: 4px; background: var(--surface-2); text-align: center; padding: 42px 24px; display: flex; align-items: center; flex-direction: column; gap: 12px; }
 .up-drop.is-over { background: var(--navy-bg); border-color: var(--navy); }
 .up-drop > .icon { color: var(--muted); height: 29px; width: 29px; margin-bottom: 4px; }
