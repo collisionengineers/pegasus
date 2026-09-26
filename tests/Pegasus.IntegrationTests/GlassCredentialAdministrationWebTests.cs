@@ -230,7 +230,8 @@ public sealed partial class GlassCredentialAdministrationWebTests
         await SeedUserAccountsAsync(factory, ListStaffAccounts.MaximumPageSize);
 
         var html = await GetHtmlAsync(client, PageFor(StaffId));
-        Assert.Contains($"{ListStaffAccounts.MaximumPageSize}+ accounts", html, StringComparison.Ordinal);
+        // Razor encodes the plus sign, so the meta is read decoded.
+        Assert.Contains($"{ListStaffAccounts.MaximumPageSize}+ accounts", WebUtility.HtmlDecode(html), StringComparison.Ordinal);
         Assert.DoesNotContain($"glassStaffId={StaffId:D}", html, StringComparison.Ordinal);
         var save = FormOf(DialogOf(html), "SaveGlass");
         var accountVersion = InputValue(save, "ExpectedStaffAccountVersion");
