@@ -344,10 +344,21 @@
             return;
         }
         var actions = facts.querySelector('[data-mail-preview-actions]');
+        var matched = facts.querySelector('[data-mail-preview-matched]');
         activeRow = selectedRow;
 
         var field = function (name) {
             return facts.querySelector('[data-mail-preview-' + name + ']');
+        };
+        // The state chip is the _StatusChip partial's span; its tone class is
+        // the one the server's tone table gave it, and the JSON carries the
+        // same table's answer for a hovered row.
+        var chip = function () {
+            return field('state').querySelector('.status');
+        };
+        var toneOf = function (element) {
+            var tone = /status--([a-z]+)/.exec(element.className);
+            return tone ? tone[1] : 'neutral';
         };
 
         // The pane already shows the selected message; seeding the cache from
@@ -362,12 +373,14 @@
                 subject: field('subject').textContent,
                 received: field('received').textContent,
                 receivedAtUtc: field('received').getAttribute('datetime'),
+                mailbox: field('mailbox').textContent,
+                state: chip().textContent,
+                stateTone: toneOf(chip()),
                 excerpt: field('excerpt').textContent,
+                attachments: field('attachments').textContent,
                 classification: field('classification').textContent,
                 association: field('association').textContent,
-                attachments: Array.prototype.map.call(
-                    field('attachments').querySelectorAll('li'),
-                    function (item) { return item.textContent; })
+                folder: field('folder').textContent
             });
 
         var render = function (data) {
@@ -375,18 +388,14 @@
             field('subject').textContent = data.subject;
             field('received').textContent = data.received;
             field('received').setAttribute('datetime', data.receivedAtUtc);
+            field('mailbox').textContent = data.mailbox;
+            chip().textContent = data.state;
+            chip().className = 'status status--' + data.stateTone;
             field('excerpt').textContent = data.excerpt;
+            field('attachments').textContent = data.attachments;
             field('classification').textContent = data.classification;
             field('association').textContent = data.association;
-
-            var attachments = field('attachments');
-            attachments.replaceChildren();
-            (data.attachments.length === 0 ? ['No attachments'] : data.attachments)
-                .forEach(function (name) {
-                    var item = document.createElement('li');
-                    item.textContent = name;
-                    attachments.appendChild(item);
-                });
+            field('folder').textContent = data.folder;
 
             status.hidden = true;
             facts.hidden = false;
@@ -416,6 +425,11 @@
                 // The pane's actions belong to the selected message; while a
                 // transient preview shows a different row, they are not its.
                 actions.hidden = row !== selectedRow;
+            }
+            if (matched) {
+                // Where the search term matched is known for the selected
+                // message; a hovered row's preview does not carry it.
+                matched.hidden = row !== selectedRow;
             }
             panel.hidden = false;
             status.hidden = false;

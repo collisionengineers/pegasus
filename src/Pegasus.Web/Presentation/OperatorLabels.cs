@@ -1166,6 +1166,115 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The tone a status chip takes for a state label. One table: the
+    /// <c>_StatusChip</c> partial reads it when it renders, and the Inbox
+    /// preview's JSON carries it so a chip repainted by script takes the
+    /// colour the server would give it. Tones follow docs/design/README.md:
+    /// amber is incomplete or pending, navy is Review and other in-flight
+    /// states, red is blocked, failed or denied, green is confirmed completion
+    /// only, and neutral covers absent, loading, current and settled-terminal
+    /// states.
+    /// </summary>
+    public static string StatusTone(string? state)
+    {
+        // Normalising only `_` and `-` meant a PascalCase compound reaching the
+        // chip — "NotReady", "PostReportComplete" — matched no key and fell
+        // through to neutral grey, losing both the wording and the
+        // amber/navy/green tone contract. Callers should pass an operator
+        // label, but the chip must not silently mis-tone a state when one
+        // does not.
+        var key = Humanise(string.IsNullOrWhiteSpace(state) ? "Unknown" : state.Trim()).ToLowerInvariant();
+        key = new string(key
+            .Where(character => char.IsLetterOrDigit(character) || character == ' ')
+            .ToArray());
+        key = string.Join(' ', key.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+        return key switch
+        {
+            // Case lifecycle (D3 display labels)
+            "not ready" => "amber",
+            "review" => "navy",
+            "with engineer" => "navy",
+            "held" => "amber",
+            "complete" or "completed" or "post report completion" => "green",
+            "cancelled" or "provider cancellation" or "archived" => "neutral",
+            "created in error" => "neutral",
+            "reopened" or "open" => "navy",
+
+            // Intake and Triage
+            "needs sorting" or "unidentified" => "amber",
+            "blocked intake" or "blocked" => "red",
+            "document text required" or "unsupported" => "amber",
+            "awaiting information" => "amber",
+            "finding recorded" => "navy",
+            "registration missing" => "amber",
+
+            // Query freshness
+            "current" => "neutral",
+            "loading" or "refreshing" => "neutral",
+            "stale" => "amber",
+            "partial" or "limit reached" => "amber",
+            "unavailable" => "red",
+            "failed" or "technical failure" or "error" => "red",
+
+            // Access and mutation
+            "denied" or "unauthenticated" => "red",
+            "disabled" => "neutral",
+            "enabled" => "navy",
+            "conflict" or "stale version" => "red",
+            "lease lost" => "red",
+            "lease held" or "editing" => "navy",
+            "lease expired" => "amber",
+            "locked" => "neutral",
+
+            // Access review
+            "due no review recorded" or "due" => "amber",
+            "recorded" => "neutral",
+
+            // Chase state (Case-side CaseDueWorkState and the Image-initiated
+            // Case's derived due/not-due read share this vocabulary)
+            "chase due" => "amber",
+            "chasing paused" => "amber",
+            "chasing stopped" => "neutral",
+            "not yet due" => "neutral",
+
+            // External and document custody
+            "pending" => "amber",
+            "retry" => "amber",
+            "success" => "green",
+            "unknown" => "neutral",
+
+            // Service health and request operations
+            "running" => "blue",
+            "review required" => "amber",
+            "needs attention" or "not configured" => "amber",
+            "active" => "navy",
+
+            // Tone by meaning (v28 P2, 18 September 2026): green for an operation
+            // or outcome that succeeded, red for one that did not, amber for
+            // waiting on someone or something, navy for in hand, neutral for
+            // settled. One table owns this; pages pass the label, never a tone.
+            "case created" or "ready for case allocation" or "linked" or "linked to case" or "email linked" or "reply linked"
+                or "vehicle images" or "triage"
+                or "vehicle images registered" or "sent" or "report sent" or "delivered" or "saved" or "stored" or "document stored"
+                or "approved" or "accepted" or "applied" or "resolved" or "registered" or "connected"
+                or "configured" or "succeeded" or "passed" or "roadworthy" => "green",
+            "could not be read" or "case not created" or "rejected" or "refused" or "overdue"
+                or "unroadworthy" or "failure" => "red",
+            "query" or "creating case" or "not yet processed" or "draft" or "password change required"
+                or "overridden" or "today" => "amber",
+            "repairable" => "blue",
+            "dismissed" or "staff closed" or "no recorded activity" => "neutral",
+            _ when key.StartsWith("awaiting ", StringComparison.Ordinal) || key.EndsWith(" preparing", StringComparison.Ordinal) => "amber",
+            _ when key.EndsWith(" failed", StringComparison.Ordinal) || key.StartsWith("failed ", StringComparison.Ordinal) => "red",
+
+            // Every other state, including the D3 "Closed · <outcome>" terminals,
+            // is settled or absent and reads neutral.
+            _ => "neutral"
+        };
+    }
+
+    /// <summary>
     /// Turns a persisted code into a sentence: <c>case_returned_to_review</c>
     /// becomes "Case returned to review", <c>PostReportComplete</c> becomes
     /// "Post report complete".
@@ -2347,6 +2456,43 @@ public static class OperatorLabels
         public const string RestoredNotice = "Restored";
         public const string OpenFile = "Open file";
         public const string OpenFullMessage = "Open full message";
+
+        // The quick preview (26 September 2026): one attachment line, the
+        // Case cell naming the Case/PO or the Triage's t. reference, and a
+        // Matched cell only while a search term is typed.
+        public const string Case = "Case";
+        public const string NoCase = "None";
+        public const string Matched = "Matched";
+        public const string OpenCase = WorkCentre.OpenCase;
+        public const string OpenTriage = "Open Triage";
+        public const string NoAttachments = "No attachments";
+
+        /// <summary>"1 attachment · document", "11 attachments · 10 images, 1 document".</summary>
+        public static string Attachments(IReadOnlyList<RetainedMailAttachment> attachments)
+        {
+            if (attachments.Count == 0)
+            {
+                return NoAttachments;
+            }
+
+            var kinds = attachments
+                .GroupBy(attachment => attachment.Kind)
+                .OrderBy(group => group.Key)
+                .Select(group => Counted(group.Count(), AttachmentKind(group.Key)));
+            return $"{Counted(attachments.Count, "attachment")} · {string.Join(", ", kinds)}";
+        }
+
+        private static string AttachmentKind(RetainedMailAttachmentKind kind) => kind switch
+        {
+            RetainedMailAttachmentKind.Image => "image",
+            RetainedMailAttachmentKind.Document => "document",
+            RetainedMailAttachmentKind.Email => "e-mail",
+            RetainedMailAttachmentKind.Video => "video",
+            _ => "other file"
+        };
+
+        private static string Counted(int count, string noun) =>
+            $"{count} {noun}{(count == 1 ? string.Empty : "s")}";
     }
 
     /// <summary>Upload: one upload is one group with one decision (Upload, 13 September).</summary>
