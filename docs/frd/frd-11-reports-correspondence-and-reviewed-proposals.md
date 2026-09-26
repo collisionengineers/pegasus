@@ -434,9 +434,9 @@ The Case's own states are in
 - A stale version in the browser is refused, never replaced.
 - A stale generation cannot be prepared or sent.
 - A fee-note request against a report that already contains one is refused.
-- A missing printed fact or a total-loss category other than S is a named
-  readiness item: preview and Generate refuse before any generation is
-  recorded, never at render.
+- A missing printed fact, such as a total loss with no salvage category, is
+  a named readiness item: preview and Generate refuse before any generation
+  is recorded, never at render.
 - No generated file, preview, draft or export counts as Report sent.
 
 ## Acceptance evidence
