@@ -314,8 +314,8 @@
     });
 })();
 
-// UI-10: evidence-only mail preview. A subject remains an ordinary full-detail
-// link; this enhancement selects its row on pointer/keyboard intent and reads
+// UI-10: evidence-only mail preview. A subject is the message's own link;
+// this enhancement previews its row on pointer/keyboard intent and reads
 // the same authorized exact-message projection without moving focus or state.
 // When that intent moves on, the pane restores the server-selected message
 // instead of hiding: the pane is a fixture of the page, not a tooltip.
@@ -335,10 +335,9 @@
 
         // The pane renders only beside a list that has a server-selected row
         // (the page model resolves one whenever it renders the pane at all),
-        // and that row's trigger is the pane's fallback wherever intent goes.
+        // and that row is the pane's fallback wherever intent goes.
         var selectedRow = rows.filter(function (row) {
-            var trigger = row.querySelector('[data-mail-preview-trigger]');
-            return trigger && trigger.getAttribute('aria-current') === 'true';
+            return row.getAttribute('aria-current') === 'true';
         })[0] || null;
         if (!selectedRow) {
             return;
@@ -1793,6 +1792,11 @@ window.pegasusPreferences = (function () {
             var row = rows[next];
             if (row.tagName === 'TR' && !row.hasAttribute('tabindex')) {
                 row.setAttribute('tabindex', '-1');
+            }
+            // A row that is a container rather than a control (the Inbox's
+            // rows) hands focus to its first link, which is what Enter opens.
+            if (row.tagName === 'DIV') {
+                row = row.querySelector('a[href]') || row;
             }
             row.focus();
         });

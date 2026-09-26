@@ -152,8 +152,9 @@
             }
         </div>
         @* The list and preview scroll bodies are height-capped at constrained
-           widths, so each must be keyboard-scrollable, not pointer-only. *@
-        <div class="pane-body pane-scroll" tabindex="0">
+           widths, so each must be keyboard-scrollable, not pointer-only.
+           Up and Down move through the rows (docs/design/README.md). *@
+        <div class="pane-body pane-scroll" tabindex="0" data-row-list>
             @if (Model.SearchValidationMessage is { } validationMessage)
             {
                 <div class="notice notice--warning" role="alert">
@@ -244,9 +245,11 @@
                 @foreach (var item in Model.Results.Items)
                 {
                     var isSelected = selectedSummary?.Id == item.Id;
-                    @* The row is a container, not a widget: selection state
-                       lives on the row's link, where aria-current is legal. *@
-                    <div class="row-button inbox-row @(item.IsRead ? null : "unread")" data-mail-preview-row data-mail-row="@item.Id">
+                    @* The selection mark sits on the row, where the shared
+                       highlight rule reads it; the subject opens the message. *@
+                    <div class="row-button inbox-row @(item.IsRead ? null : "unread")"
+                         data-mail-preview-row data-mail-row="@item.Id"
+                         aria-current="@(isSelected ? "true" : null)">
                         <span class="row-top">
                             <span class="row-title">
                                 @if (!item.IsRead)
@@ -265,20 +268,18 @@
                             </span>
                         </span>
                         <a class="row-title"
-                           asp-page="/Mail/Index"
+                           asp-page="/Mail/Message"
+                           asp-route-id="@item.Id"
                            asp-route-mailbox="@Model.MailboxFilter"
                            asp-route-folder="@Model.FolderRouteValue"
                            asp-route-search="@Model.SearchTerm"
                            asp-route-queue="@Model.QueueFilter"
                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                            asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
-                           asp-route-selected="@item.Id"
                            data-mail-preview-trigger
                            data-mail-preview-url="@Url.Page("/Mail/Index", "Preview", new { id = item.Id })"
                            aria-controls="mail-quick-preview"
-                           aria-expanded="@(isSelected ? "true" : "false")"
-                           aria-current="@(isSelected ? "true" : null)"
-                           title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
+                           aria-expanded="@(isSelected ? "true" : "false")">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
                         @* The excerpt sits beneath the subject: it is what lets an
                            operator sort the morning's post without opening every
                            message. *@
