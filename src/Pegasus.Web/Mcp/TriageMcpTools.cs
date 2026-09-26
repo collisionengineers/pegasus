@@ -192,9 +192,9 @@ internal sealed class TriageMcpTools(
     }
 
     [McpServerTool(Name = "pegasus_triage_await_information", Title = "Mark Triage awaiting information", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    public Task<TriageDetailToolResult> AwaitInformationAsync(Guid caseId, long expectedVersion, string editLeaseToken, string reason, string operationKey, CancellationToken cancellationToken = default) =>
+    public Task<TriageDetailToolResult> AwaitInformationAsync(Guid caseId, long expectedVersion, string editLeaseToken, string operationKey, CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_await_information", caseId, operationKey, editLeaseToken,
-            (actor, key, token) => awaitInformation.ExecuteAsync(new(caseId, expectedVersion, actor, key, reason) { EditLeaseToken = token }, cancellationToken), cancellationToken);
+            (actor, key, token) => awaitInformation.ExecuteAsync(new(caseId, expectedVersion, actor, key) { EditLeaseToken = token }, cancellationToken), cancellationToken);
 
     [McpServerTool(Name = "pegasus_triage_record_finding", Title = "Record Triage finding", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     public Task<TriageDetailToolResult> RecordFindingAsync(Guid caseId, long expectedVersion, string editLeaseToken, string reason, RoadworthinessFinding? roadworthiness, AssessmentFinding? assessment, string operationKey, CancellationToken cancellationToken = default) =>
@@ -217,9 +217,9 @@ internal sealed class TriageMcpTools(
             async (actor, key, token) => { await unlinkResponse.ExecuteAsync(new(caseId, sentEvidenceId, expectedVersion, actor, key, reason) { EditLeaseToken = token }, cancellationToken); }, cancellationToken);
 
     [McpServerTool(Name = "pegasus_triage_complete", Title = "Complete Triage", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    public Task<TriageDetailToolResult> CompleteAsync(Guid caseId, long expectedVersion, string editLeaseToken, string reason, string operationKey, CancellationToken cancellationToken = default) =>
+    public Task<TriageDetailToolResult> CompleteAsync(Guid caseId, long expectedVersion, string editLeaseToken, string operationKey, CancellationToken cancellationToken = default) =>
         MutateAsync("pegasus_triage_complete", caseId, operationKey, editLeaseToken,
-            (actor, key, token) => complete.ExecuteAsync(new(caseId, expectedVersion, actor, key, reason) { EditLeaseToken = token }, cancellationToken), cancellationToken);
+            (actor, key, token) => complete.ExecuteAsync(new(caseId, expectedVersion, actor, key) { EditLeaseToken = token }, cancellationToken), cancellationToken);
 
     [McpServerTool(Name = "pegasus_triage_cancel", Title = "Cancel Triage", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     public Task<TriageDetailToolResult> CancelAsync(Guid caseId, long expectedVersion, string editLeaseToken, string reason, string operationKey, CancellationToken cancellationToken = default) =>

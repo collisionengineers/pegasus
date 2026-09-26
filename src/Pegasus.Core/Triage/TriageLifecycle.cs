@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Triage;
@@ -162,6 +163,9 @@ public sealed class AddTriageNote(ITriageStore store) : IAddTriageNote
 
 public sealed class UnassignTriage(ITriageStore store) : IUnassignTriage
 {
+    /// <summary>Removing the assignee needs no reason; the history line is fixed.</summary>
+    public const string Reason = "Unassigned.";
+
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
     public async Task<TriageRecord> ExecuteAsync(
@@ -177,15 +181,18 @@ public sealed class UnassignTriage(ITriageStore store) : IUnassignTriage
 
 public sealed class AwaitTriageInformation(ITriageStore store) : IAwaitTriageInformation
 {
+    /// <summary>The fixed history text: the transition asks for no reason.</summary>
+    public const string Reason = "Awaiting information.";
+
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
     public async Task<TriageRecord> ExecuteAsync(
-        TriageMutationRequest request,
+        TriageTransitionRequest request,
         CancellationToken cancellationToken)
     {
-        TriageLifecycleRules.ValidateMutation(request);
+        var mutation = TriageLifecycleRules.ToMutation(request, Reason);
         var replay = await _store.ProbeStateChangeReplayAsync(
-            request,
+            mutation,
             TriageState.AwaitingInformation,
             cancellationToken);
         if (replay is not null)
@@ -200,7 +207,7 @@ public sealed class AwaitTriageInformation(ITriageStore store) : IAwaitTriageInf
                 "Triage can await information only while open or after a finding is recorded.");
         }
 
-        return await _store.ChangeStateAsync(request, TriageState.AwaitingInformation, cancellationToken);
+        return await _store.ChangeStateAsync(mutation, TriageState.AwaitingInformation, cancellationToken);
     }
 }
 
@@ -308,15 +315,18 @@ public sealed class UnlinkTriageResponseEvidence(ITriageStore store) : IUnlinkTr
 
 public sealed class CompleteTriage(ITriageStore store) : ICompleteTriage
 {
+    /// <summary>The fixed history text: completion records the outcome, actor and time.</summary>
+    public const string Reason = "Outcome recorded.";
+
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
     public async Task<TriageRecord> ExecuteAsync(
-        TriageMutationRequest request,
+        TriageTransitionRequest request,
         CancellationToken cancellationToken)
     {
-        TriageLifecycleRules.ValidateMutation(request);
+        var mutation = TriageLifecycleRules.ToMutation(request, Reason);
         var replay = await _store.ProbeStateChangeReplayAsync(
-            request,
+            mutation,
             TriageState.Completed,
             cancellationToken);
         if (replay is not null)
@@ -330,7 +340,7 @@ public sealed class CompleteTriage(ITriageStore store) : ICompleteTriage
             throw new InvalidOperationException("Triage can be completed only after a finding is recorded.");
         }
 
-        return await _store.ChangeStateAsync(request, TriageState.Completed, cancellationToken);
+        return await _store.ChangeStateAsync(mutation, TriageState.Completed, cancellationToken);
     }
 }
 
@@ -443,6 +453,38 @@ public static class TriageLifecycleRules
         ValidateActorAndOperation(request.Actor, request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request));
     }
+
+    /// <summary>
+    /// A reasonless transition as the store records it: the same mutation
+    /// every state change writes, with the command's fixed history text.
+    /// </summary>
+    public static TriageMutationRequest ToMutation(TriageTransitionRequest request, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var mutation = new TriageMutationRequest(
+            request.CaseId,
+            request.ExpectedVersion,
+            request.Actor,
+            request.OperationKey,
+            reason)
+        {
+            EditLeaseToken = request.EditLeaseToken
+        };
+        ValidateMutation(mutation);
+        return mutation;
+    }
+
+    /// <summary>
+    /// The staff reply a Triage offers from its origin message: the chaser until
+    /// the outcome is recorded, Reply with outcome once Completed, and none once
+    /// Cancelled. Sending is never a gate (FRD-03).
+    /// </summary>
+    public static StaffMailPurpose? ReplyPurpose(TriageState state) => state switch
+    {
+        TriageState.Completed => StaffMailPurpose.TriageOutcomeReply,
+        TriageState.Cancelled => null,
+        _ => StaffMailPurpose.TriageChaser
+    };
 
     public static void ValidateNote(AddTriageNoteRequest request)
     {
