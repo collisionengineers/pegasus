@@ -1,9 +1,11 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -205,6 +207,54 @@ public sealed partial class GlassCredentialAdministrationWebTests
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(user.Account.Id, Assert.Single(store.Replaced).PegasusUserId);
+    }
+
+    /// <summary>
+    /// The list behind the dialogs shows its first page only. An account
+    /// beyond that page still opens the credential dialog from its deep link,
+    /// a save still lands back on that dialog, and the dialog's own exit still
+    /// opens the account's settings: each dialog resolves its account directly
+    /// rather than finding it among the rendered rows.
+    /// </summary>
+    [Fact]
+    public async Task AnAccountBeyondTheFirstListPageStillOpensItsDialogs()
+    {
+        var store = new RecordingCredentialAdministration
+        {
+            Status = Configured(version: 0, generation: 0)
+        };
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory, store);
+        // Sorted before the seeded administrator, these fill the first page
+        // and leave the administrator as the 101st account.
+        await SeedUserAccountsAsync(factory, ListStaffAccounts.MaximumPageSize);
+
+        var html = await GetHtmlAsync(client, PageFor(StaffId));
+        Assert.Contains($"{ListStaffAccounts.MaximumPageSize}+ accounts", html, StringComparison.Ordinal);
+        Assert.DoesNotContain($"glassStaffId={StaffId:D}", html, StringComparison.Ordinal);
+        var save = FormOf(DialogOf(html), "SaveGlass");
+        var accountVersion = InputValue(save, "ExpectedStaffAccountVersion");
+
+        using (var response = await client.PostAsync(
+            $"{Route}?handler=SaveGlass",
+            Form(
+                html,
+                ("staffId", StaffId.ToString("D")),
+                ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
+                ("ExpectedStaffAccountVersion", accountVersion),
+                ("username", FixtureUsername),
+                ("password", FixturePassword))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal(PageFor(StaffId), response.Headers.Location?.ToString(), ignoreCase: true);
+        }
+        Assert.Equal(StaffId, Assert.Single(store.Replaced).PegasusUserId);
+        DialogOf(await GetHtmlAsync(client, PageFor(StaffId)));
+
+        var settings = await GetHtmlAsync(
+            client,
+            $"{Route}?editStaffId={StaffId:D}&expectedVersion={accountVersion}");
+        Assert.Equal(StaffId.ToString("D"), InputValue(FormOf(settings, "Settings"), "staffId"));
     }
 
     [Fact]
@@ -475,6 +525,36 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using var response = await client.GetAsync(PageFor(UnknownStaffId));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Enabled User-role accounts written straight to the store, one row and
+    /// one role each, with no password to hash.
+    /// </summary>
+    private static async Task SeedUserAccountsAsync(IntakeWebApplicationFactory factory, int count)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var role = await context.Roles.SingleAsync(item => item.Name == StaffRoleNames.User);
+        for (var index = 0; index < count; index++)
+        {
+            var userName = $"bulk-{index:D3}";
+            var user = new PegasusIdentityUser
+            {
+                Id = Guid.NewGuid(),
+                UserName = userName,
+                NormalizedUserName = userName.ToUpperInvariant(),
+                IsEnabled = true,
+                MustChangePassword = false,
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                ConcurrencyStamp = Guid.NewGuid().ToString("N"),
+            };
+            context.Users.Add(user);
+            context.UserRoles.Add(new IdentityUserRole<Guid> { UserId = user.Id, RoleId = role.Id });
+        }
+        await context.SaveChangesAsync();
     }
 
     private static PerUserExternalCredentialStatus Configured(long version, long generation) =>
