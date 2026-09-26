@@ -139,12 +139,17 @@ Worker permissions. Receipt and asset GUIDs are typed identities, never matched 
 filename, source label or formatted string. The designated Box holding
 folder is only for intake whose destination is not settled automatically
 (operator, 23 September 2026): Unidentified and refused material, Triage,
-a manual upload, a failed or suppressed allocation, and material a member of
-staff links later. Intake that automation files to a new Case, to a matched
-Case or to a Vehicle images record goes straight to that destination's Box
-folder and never through holding. The holding decision is taken after
-destination automation; a held source, its documents and its selected
-photographs each carry verified content and confirmed file and version IDs.
+a manual upload whose destination is still to be chosen, a failed or
+suppressed allocation, and material a member of staff links later. Intake
+that automation files to a new Case, to a matched Case or to a Vehicle
+images record, and an upload whose Case was declared before the upload
+([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)), goes
+straight to that destination's Box folder and never through holding. When
+a member of staff later links held material to a Case, its copies are filed
+on that Case; the holding copies remain as retained intake. The holding
+decision is taken after destination automation; a held source, its
+documents and its selected photographs each carry verified content and
+confirmed file and version IDs.
 Each intake asset records the Box folder its confirmed copy is in (holding,
 the Case root or the Vehicle images folder), and reads expect exactly that
 folder. Unknown or pending holding custody is unfinished work, not success.

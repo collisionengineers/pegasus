@@ -174,7 +174,20 @@ item, and the Inbox's link) offers every Case and every Triage Case,
 whatever its state (operator, 24 September 2026). Only staff linking is
 widened. The automatic rules are unchanged: automatic association never
 links new material to an archived Case, and the matcher's withholding rules
-still apply. Automatic Image-initiated
+still apply.
+
+**Staff linking files the material.** A staff link means the material is on
+the Case (operator, 26 September 2026): as the link is made, the source,
+its documents and its selected photographs are filed on the Case, in the
+same request, and the material's Unidentified item is resolved to that
+Case. A staff decision files on any Case or Triage Case in any state; only
+an archived Case never files, and filing waits for a live edit lease and
+retries. A filing the request cannot finish is handed to the Worker, which
+files it on its next pass over the receipt. A destination declared before
+the upload (Add evidence on a Case page,
+[FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)) is a staff
+decision made first: processing records it as that member of staff's
+association and files the material in the same pass. Automatic Image-initiated
 association checks the current Case version and yields to an active staff
 lease; the later image merge also yields to a live lease and rechecks the
 current associations in its own transaction. Filing the associated mail's

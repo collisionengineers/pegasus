@@ -1,0 +1,27 @@
+@*
+    One Case as an upload's destination: the exact target the operator
+    declared before uploading (Add evidence on a Case page), or the one the
+    upload was added to. Reference, registration · claimant, Principal and
+    stage, drawn the same wherever a destination is stated (FRD-18).
+
+    Model: Pegasus.Web.Presentation.UploadReviewDestination
+*@
+@model Pegasus.Web.Presentation.UploadReviewDestination
+@{
+    var person = new[] { Model.Registration, Model.Claimant }.Where(part => !string.IsNullOrWhiteSpace(part)).ToArray();
+}
+<div class="up-final-destination" data-upload-destination>
+    <strong class="mono">@Model.Reference</strong>
+    @if (person.Length > 0)
+    {
+        <p>@string.Join(" · ", person)</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.Principal))
+    {
+        <p>@Model.Principal</p>
+    }
+    @if (Model.Stage is { } stage)
+    {
+        <partial name="Shared/_StatusChip" model="@stage" />
+    }
+</div>
