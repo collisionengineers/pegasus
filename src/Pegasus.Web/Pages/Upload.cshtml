@@ -21,7 +21,6 @@
 <header class="page-header up-head">
     <div class="page-title">
         <h1>@Labels.Title</h1>
-        <p class="up-subtitle">@Labels.ChoosingSubtitle</p>
     </div>
 </header>
 
@@ -38,15 +37,14 @@
                 <h2 data-select-heading>@Labels.ChooseHeading</h2>
             </div>
             @* Opened from a Case page: the destination is already decided
-               and travels with the files (FRD-18). It stays in view while
-               files are chosen; the picker itself is unchanged. *@
+               and travels with the files (FRD-18). The card alone says
+               where the files go; it stays in view while files are chosen. *@
             @if (Model.DeclaredCaseId is not null && Model.Destination is { } destination)
             {
                 <input asp-for="DeclaredCaseId" type="hidden" />
                 <div class="up-declared" data-upload-declared>
                     <p class="up-eyebrow">@Labels.AddingTo</p>
                     <partial name="Shared/_UploadDestinationCard" model="@destination" />
-                    <p class="up-explainer">@Labels.DestinationSentence</p>
                 </div>
             }
             else if (Model.DestinationUnavailable)

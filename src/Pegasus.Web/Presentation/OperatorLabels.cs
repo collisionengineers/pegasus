@@ -2027,7 +2027,6 @@ public static class OperatorLabels
     public static class Upload
     {
         public const string Title = "Upload";
-        public const string ChoosingSubtitle = "Bring related files into Pegasus.";
         public const string ReviewSubtitle = "Review your upload and its destination.";
         public const string SelectEyebrow = "Add files to Pegasus";
         public const string ChooseHeading = "Choose the files for this upload";
@@ -2048,9 +2047,9 @@ public static class OperatorLabels
         public const string Remove = "Remove";
 
         // A destination declared before the upload: Add evidence on a Case
-        // page opened Upload for that Case (FRD-18).
+        // page opened Upload for that Case (FRD-18). The card alone says
+        // where the files go; no sentence follows it.
         public const string AddingTo = "Adding to";
-        public const string DestinationSentence = "The files in this upload go straight to this Case. Nothing is matched or sorted.";
         public const string DestinationUnavailable = "This Case is not available for evidence. Files you upload here will need a destination after upload.";
 
         // The decision panel.
