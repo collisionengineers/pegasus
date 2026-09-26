@@ -3674,30 +3674,11 @@ public sealed partial class DetailsModel(
         IFormFile? estimateFile,
         CancellationToken cancellationToken)
     {
-        if (!TryGetActor(out var actor))
+        var (actor, details, refusal) = await StartEstimateImportAsync(
+            id, expectedVersion, operationKey, cancellationToken);
+        if (refusal is not null)
         {
-            ClearLeaseState();
-            return Forbid();
-        }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true) return NotFound();
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null) return NotFound();
-        if (access.IsReadOnly || details.Workflow.Archive is not null
-            || CaseLifecycleRules.IsTerminal(details.Workflow.State))
-        {
-            TempData["CaseError"] = "The Case is read-only and cannot accept estimate imports.";
-            return RedirectToEstimate(id);
-        }
-        if (!IsOperationKeyValid(operationKey))
-        {
-            TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToEstimate(id);
-        }
-        if (details.Workflow.Version != expectedVersion)
-        {
-            TempData["CaseError"] = "The Case changed before the estimate was imported. Reload and try again.";
-            return RedirectToEstimate(id);
+            return refusal;
         }
         if (!Request.HasFormContentType || Request.Form.Files.Count != 1
             || !string.Equals(Request.Form.Files[0].Name, "estimateFile", StringComparison.Ordinal)
@@ -3708,11 +3689,8 @@ public sealed partial class DetailsModel(
         }
         estimateFile = Request.Form.Files[0];
         var fileName = Path.GetFileName(estimateFile.FileName);
-        var extension = Path.GetExtension(fileName);
         if (estimateFile.Length is <= 0 or > ImportRawEstimate.MaximumDocumentBytes
-            || estimateParsers.Count(parser =>
-                parser.FileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)
-                && parser.CanParse(fileName, estimateFile.ContentType)) != 1)
+            || EstimateFormatCount(fileName, estimateFile.ContentType) != 1)
         {
             TempData["CaseError"] = "Choose a non-empty supported estimate file of 32 MiB or less.";
             return RedirectToEstimate(id);
@@ -3740,63 +3718,23 @@ public sealed partial class DetailsModel(
 
         var fileBytes = buffer.ToArray();
         var uploadedSha256 = Convert.ToHexStringLower(SHA256.HashData(fileBytes));
-        var activeLeaseToken = editLeaseToken;
-        if (string.IsNullOrWhiteSpace(activeLeaseToken))
+        var (activeLeaseToken, claimResult) = await ClaimEstimateImportAsync(
+            actor!, id, expectedVersion, operationKey, editLeaseToken, uploadedSha256,
+            "case-estimate-import-form", cancellationToken);
+        if (claimResult is not null)
         {
-            try
-            {
-                var lease = await acquireLease.ExecuteAsync(
-                    new(id, expectedVersion, actor, NewOperationKey()), cancellationToken);
-                activeLeaseToken = lease.Token;
-                StoreLeaseAuthority(id, lease.Token);
-            }
-            catch (StaffAuthorizationException) { return Forbid(); }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                HandleLeaseFailure(id, null, exception);
-                TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
-                return RedirectToEstimate(id);
-            }
+            return claimResult;
         }
 
-        try
-        {
-            await repairSpecifications.RequireImportAuthorityAsync(
-                new(actor, id, expectedVersion, activeLeaseToken!, Guid.Empty, Guid.Empty,
-                    uploadedSha256, operationKey, string.Empty), cancellationToken);
-        }
-        catch (StaffAuthorizationException) { return Forbid(); }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            HandleLeaseFailure(id, activeLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
-            return RedirectToEstimate(id);
-        }
-
-        try
-        {
-            if (await repairSpecifications.ProbeSourceHashReplayAsync(
-                    id, operationKey, uploadedSha256, cancellationToken)
-                is { } replay)
-            {
-                RecordEditorCommit("case-estimate-import-form", operationKey, expectedVersion, expectedVersion);
-                TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
-                return RedirectToEstimate(id, replay.EstimateId.ToString("D"));
-            }
-        }
-        catch (StaffAuthorizationException) { return Forbid(); }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
-            return RedirectToEstimate(id);
-        }
-
+        // The same bytes already confirmed in Case Files — a retry, or a file
+        // that arrived by email — are imported from there, not stored again,
+        // when that stored file is itself importable: the import reads its
+        // stored name and type, not the dropped file's.
         var sourceIdentity = $"estimate-import:{operationKey}";
-        var reusable = CaseFiles.Live(details.Documents)
-            .Where(file => file.Occurrence.SourceOccurrenceIdentity.StartsWith("estimate-import:", StringComparison.Ordinal)
-                && file.Version.ContentLength == fileBytes.LongLength
-                && string.Equals(file.Version.Sha256, uploadedSha256, StringComparison.OrdinalIgnoreCase))
+        var reusable = CaseFiles.Live(details!.Documents)
+            .Where(file => file.Version.ContentLength == fileBytes.LongLength
+                && string.Equals(file.Version.Sha256, uploadedSha256, StringComparison.OrdinalIgnoreCase)
+                && IsImportableEstimate(file))
             .OrderBy(file => file.Occurrence.Ordinal)
             .FirstOrDefault();
 
@@ -3805,8 +3743,6 @@ public sealed partial class DetailsModel(
         if (reusable is not null
             && !string.Equals(reusable.Occurrence.SourceOccurrenceIdentity, sourceIdentity, StringComparison.Ordinal))
         {
-            // A retry with the same bytes but a new operation key reuses the
-            // confirmed Case file instead of creating another Box document.
             source = reusable;
         }
         else
@@ -3817,7 +3753,7 @@ public sealed partial class DetailsModel(
                 retained = await addCaseDocument.ExecuteAsync(
                     new(id, fileName, estimateFile.ContentType, fileBytes,
                         DocumentSemanticRole.Other, DocumentSource.StaffUpload, sourceIdentity,
-                        actor, $"{operationKey}-document", expectedVersion, activeLeaseToken),
+                        actor!, $"{operationKey}-document", expectedVersion, activeLeaseToken!),
                     cancellationToken);
             }
             catch (StaffAuthorizationException) { return Forbid(); }
@@ -3833,7 +3769,7 @@ public sealed partial class DetailsModel(
         }
 
         var importVersion = expectedVersion;
-        var importLeaseToken = activeLeaseToken;
+        var importLeaseToken = activeLeaseToken!;
         try
         {
             if (newDocumentStored)
@@ -3842,7 +3778,7 @@ public sealed partial class DetailsModel(
                 // exactly that version before the importer performs its mutation.
                 importVersion = checked(expectedVersion + 1);
                 var lease = await acquireLease.ExecuteAsync(
-                    new(id, importVersion, actor, NewOperationKey()), cancellationToken);
+                    new(id, importVersion, actor!, NewOperationKey()), cancellationToken);
                 importLeaseToken = lease.Token;
                 StoreLeaseAuthority(id, lease.Token);
             }
@@ -3858,7 +3794,7 @@ public sealed partial class DetailsModel(
                     && string.Equals(
                         estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
-            return await ImportRetainedEstimateAsync(new(actor, id, importVersion, importLeaseToken,
+            return await ImportRetainedEstimateAsync(new(actor!, id, importVersion, importLeaseToken,
                 source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty),
                 cancellationToken, expectedVersion, resultingVersion);
         }
@@ -3869,6 +3805,195 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = MutationRefusalMessage(exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
             return RedirectToEstimate(id);
         }
+    }
+
+    /// <summary>
+    /// Imports an estimate the Case already holds in Case Files — one that
+    /// arrived by email, say — through the same import as a drop, so no second
+    /// copy is stored (operator, 25 September 2026).
+    /// </summary>
+    public async Task<IActionResult> OnPostImportCaseFileEstimateAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? editLeaseToken,
+        Guid occurrenceId,
+        Guid versionId,
+        CancellationToken cancellationToken)
+    {
+        var (actor, details, refusal) = await StartEstimateImportAsync(
+            id, expectedVersion, operationKey, cancellationToken);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+        var source = CaseFiles.Live(details!.Documents)
+            .FirstOrDefault(file => file.Occurrence.Id == occurrenceId && file.Version.Id == versionId);
+        if (source is null || !IsImportableEstimate(source))
+        {
+            TempData["CaseError"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.NotAnEstimateFile;
+            return RedirectToEstimate(id);
+        }
+
+        var (leaseToken, claimResult) = await ClaimEstimateImportAsync(
+            actor!, id, expectedVersion, operationKey, editLeaseToken, source.Version.Sha256,
+            editor: null, cancellationToken);
+        if (claimResult is not null)
+        {
+            return claimResult;
+        }
+        try
+        {
+            return await ImportRetainedEstimateAsync(
+                new(actor!, id, expectedVersion, leaseToken!, source.Occurrence.Id, source.Version.Id,
+                    source.Version.Sha256, operationKey, string.Empty),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException) { return Forbid(); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleLeaseFailure(id, PeekLeaseToken(), exception);
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The estimate could not be imported. Retry the import.");
+            return RedirectToEstimate(id);
+        }
+    }
+
+    /// <summary>
+    /// Whether a Case file can be imported as a repair spec from its Files row:
+    /// the Engineer sections are editable and <see cref="IsImportableEstimate"/>
+    /// holds. Importing a file already imported replays to the spec it made.
+    /// </summary>
+    public bool CanImportEstimate(CaseFile file) => CanEditEngineering && IsImportableEstimate(file);
+
+    /// <summary>
+    /// A confirmed file Pegasus did not generate, within the import's size
+    /// bound, that exactly one estimate format recognises by name and type.
+    /// </summary>
+    private bool IsImportableEstimate(CaseFile file) =>
+        file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed
+        && file.Occurrence.Source != DocumentSource.Generated
+        && file.Version.ContentLength is > 0 and <= ImportRawEstimate.MaximumDocumentBytes
+        && EstimateFormatCount(file.Version.FileName, file.Version.MediaType) == 1;
+
+    private int EstimateFormatCount(string fileName, string mediaType)
+    {
+        var extension = Path.GetExtension(fileName);
+        return estimateParsers.Count(parser =>
+            parser.FileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)
+            && parser.CanParse(fileName, mediaType));
+    }
+
+    /// <summary>
+    /// The checks every estimate import makes before it reads or retains a
+    /// source: the staff member, assessment access, a writable Case, a live
+    /// form and the Case version the form was rendered at.
+    /// </summary>
+    private async Task<(ActionActor? Actor, CaseDetails? Details, IActionResult? Refusal)> StartEstimateImportAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return (null, null, Forbid());
+        }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access?.CanOpen != true) return (null, null, NotFound());
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null) return (null, null, NotFound());
+        if (access.IsReadOnly || details.Workflow.Archive is not null
+            || CaseLifecycleRules.IsTerminal(details.Workflow.State))
+        {
+            TempData["CaseError"] = "The Case is read-only and cannot accept estimate imports.";
+            return (null, null, RedirectToEstimate(id));
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return (null, null, RedirectToEstimate(id));
+        }
+        if (details.Workflow.Version != expectedVersion)
+        {
+            TempData["CaseError"] = "The Case changed before the estimate was imported. Reload and try again.";
+            return (null, null, RedirectToEstimate(id));
+        }
+        return (actor, details, null);
+    }
+
+    /// <summary>
+    /// Takes the edit lease when the import starts from read mode, proves the
+    /// import authority and answers a replay of the same operation and source.
+    /// A result means the import ends here; otherwise the lease token is the
+    /// one to import under. <paramref name="editor"/> names the client form
+    /// whose commit a replay records, when there is one.
+    /// </summary>
+    private async Task<(string? LeaseToken, IActionResult? Result)> ClaimEstimateImportAsync(
+        ActionActor actor,
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? editLeaseToken,
+        string sha256,
+        string? editor,
+        CancellationToken cancellationToken)
+    {
+        var activeLeaseToken = editLeaseToken;
+        if (string.IsNullOrWhiteSpace(activeLeaseToken))
+        {
+            try
+            {
+                var lease = await acquireLease.ExecuteAsync(
+                    new(id, expectedVersion, actor, NewOperationKey()), cancellationToken);
+                activeLeaseToken = lease.Token;
+                StoreLeaseAuthority(id, lease.Token);
+            }
+            catch (StaffAuthorizationException) { return (null, Forbid()); }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                HandleLeaseFailure(id, null, exception);
+                TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
+                return (null, RedirectToEstimate(id));
+            }
+        }
+
+        try
+        {
+            await repairSpecifications.RequireImportAuthorityAsync(
+                new(actor, id, expectedVersion, activeLeaseToken!, Guid.Empty, Guid.Empty,
+                    sha256, operationKey, string.Empty), cancellationToken);
+        }
+        catch (StaffAuthorizationException) { return (null, Forbid()); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleLeaseFailure(id, activeLeaseToken, exception);
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
+            return (null, RedirectToEstimate(id));
+        }
+
+        try
+        {
+            if (await repairSpecifications.ProbeSourceHashReplayAsync(
+                    id, operationKey, sha256, cancellationToken)
+                is { } replay)
+            {
+                if (editor is not null)
+                {
+                    RecordEditorCommit(editor, operationKey, expectedVersion, expectedVersion);
+                }
+                TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
+                return (null, RedirectToEstimate(id, replay.EstimateId.ToString("D")));
+            }
+        }
+        catch (StaffAuthorizationException) { return (null, Forbid()); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
+            return (null, RedirectToEstimate(id));
+        }
+        return (activeLeaseToken, null);
     }
 
     private async Task<IActionResult> ImportRetainedEstimateAsync(

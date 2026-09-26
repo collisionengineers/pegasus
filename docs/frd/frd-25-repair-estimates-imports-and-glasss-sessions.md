@@ -107,7 +107,7 @@ no partial spec. A staff upload stores the confirmed source through the normal
 Case document flow, then parses it immediately in the same Import action.
 After an interrupted or refused parse, retrying the same source reuses the
 confirmed retained document under current Case authority without uploading it
-again. Source attribution and complete arithmetic must agree before an import
+again, and any file already confirmed in Case Files imports from there. Source attribution and complete arithmetic must agree before an import
 succeeds. Replaying the original operation does not revive its old lease or
 assume another Case-version increment.
 
@@ -176,9 +176,13 @@ claim that the hosted editor has initialized successfully.
 
 Keeping a returned estimate's source files does not use up the staff member's
 still-valid Case edit authority. The import uses that authority to land one
-spec, which becomes Current. A genuine Case edit in between, or an expired or
-lost lease, leaves the retained result waiting until the staff member regains
-authority. Callback replay creates neither another spec nor another change.
+spec, which becomes Current. When that authority is no longer current — a
+Case save while Glass's was open, or an expired or lost lease — the return
+takes a fresh lease for the returning staff member and lands the spec, as long
+as nobody holds the Case. While anyone holds it, the same staff member in
+another window included, the retained result waits for **Resume**, so unsaved
+edits are never overtaken. Callback replay creates neither another spec nor
+another change.
 
 **Unknown answers hold the account.** A provider write whose answer was lost
 stays `Unknown` and keeps the account. It must not create another vehicle or

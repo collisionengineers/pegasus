@@ -11,6 +11,17 @@
     // carries the custody chip, so a file still being stored or whose storage
     // failed says so here instead of being left off the tab.
     var files = Model.CaseDocumentFiles;
+
+    // What a row's action posts to change the Case: which file and version,
+    // and the Case version and edit authority the change is made under.
+    void RowMutationFields(Guid occurrenceId, Guid versionId)
+    {
+        <input type="hidden" name="occurrenceId" value="@occurrenceId" />
+        <input type="hidden" name="versionId" value="@versionId" />
+        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+        <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+    }
 }
 
 @* The Files section's Documents tab: every live file as a row (v26 `.doc-row`).
@@ -75,16 +86,22 @@ else
                             <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                         </a>
                     }
+                    @if (Model.CanImportEstimate(entry))
+                    {
+                        @* An estimate already in Case Files — one that arrived
+                           by email, say — imports here without a second copy
+                           (operator, 25 September 2026). *@
+                        <form method="post" asp-page="/Cases/Details" asp-page-handler="ImportCaseFileEstimate" asp-route-id="@workflow.CaseId" data-import-case-file-estimate>
+                            @{ RowMutationFields(occurrence.Id, version.Id); }
+                            <button type="submit" class="btn btn--small">@FilesLabels.ImportEstimate</button>
+                        </form>
+                    }
                     @if (mayEdit)
                     {
                         @if (Model.OriginalReportMissing)
                         {
                             <form method="post" asp-page="/Cases/Custody" asp-page-handler="MarkAsOriginalReport" asp-route-id="@workflow.CaseId">
-                                <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
-                                <input type="hidden" name="versionId" value="@version.Id" />
-                                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                                @{ RowMutationFields(occurrence.Id, version.Id); }
                                 <button type="submit" class="btn btn--small">@OperatorLabels.MarkAsOriginalReport</button>
                             </form>
                         }
