@@ -26,6 +26,7 @@ public sealed class CustodyModel(
     IGetCase getCase,
     IAcquireCaseEditLease acquireLease,
     IGetCaseKind getCaseKind,
+    IEditScopeLeases editScopes,
     ILogger<CustodyModel> logger) : CaseMutationPageModel(logger)
 {
     /// <summary>
@@ -44,7 +45,7 @@ public sealed class CustodyModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CustodyTargetKind targetKind,
         CancellationToken cancellationToken)
     {
@@ -54,16 +55,28 @@ public sealed class CustodyModel(
         }
 
         // A Triage Case keeps standard Case custody, so its failed custody is
-        // retried here too. Its expected version and token are its Triage
-        // version and Triage edit scope, which the store checks. It holds no
-        // Case edit lease for this page to keep, and its page shows the
-        // outcome as its Triage status.
+        // retried here too. Its expected version is its Triage version, and
+        // its authority is the Triage edit scope, claimed for this one save
+        // (a Triage Case has no Edit step). It holds no Case edit lease for
+        // this page to keep, and its page shows the outcome as its Triage
+        // status.
         var triageCase = await getCaseKind.ExecuteAsync(id, cancellationToken) == CaseType.Triage;
         try
         {
-            var result = await retryCaseCustody.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken, targetKind),
-                cancellationToken);
+            var result = triageCase
+                ? await TriageWriteAuthority.ExecuteAsync(
+                    editScopes,
+                    id,
+                    expectedVersion,
+                    actor,
+                    operationKey,
+                    token => retryCaseCustody.ExecuteAsync(
+                        new(id, expectedVersion, actor, operationKey, reason, token, targetKind),
+                        cancellationToken),
+                    cancellationToken)
+                : await retryCaseCustody.ExecuteAsync(
+                    new(id, expectedVersion, actor, operationKey, reason, editLeaseToken ?? string.Empty, targetKind),
+                    cancellationToken);
             if (triageCase)
             {
                 TempData["TriageStatus"] = result.Message;

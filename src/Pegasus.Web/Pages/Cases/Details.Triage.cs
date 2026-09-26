@@ -8,13 +8,16 @@ using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
+using Labels = Pegasus.Web.Presentation.OperatorLabels.Triage;
 
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// What a Triage Case's record renders on <c>/Cases/{id}</c>: the Triage
-/// workspace (determinations, source, evidence images, exact response
-/// evidence, chaser correspondence), the Case Files panel and the Triage notes.
+/// What a Triage Case's record renders on <c>/Cases/{id}</c>: the ribbon, the
+/// Determinations panel, the evidence images, the exact response evidence,
+/// the reply the correspondence panel offers, the Case Files panel and the
+/// Triage notes. There is no Edit step: every action claims and releases the
+/// Triage edit scope inside its own save (<see cref="TriageWriteAuthority"/>).
 /// </summary>
 public sealed class TriageCaseView(TriageDetail triage)
 {
@@ -28,18 +31,6 @@ public sealed class TriageCaseView(TriageDetail triage)
     /// <summary>The Triage Case's <c>t.</c> Case/PO.</summary>
     public string Reference => Triage.Record.Reference;
 
-    public EditScopeLease? EditLease { get; set; }
-
-    public bool IsEditing => EditLease is not null;
-
-    /// <summary>An authorised editor may replace a live scope held in another window.</summary>
-    public bool CanTakeOverEdit { get; set; }
-
-    /// <summary>
-    /// The viewer holds a live scope from another window; Edit replaces it without a takeover.
-    /// </summary>
-    public bool ViewerHoldsEditScope { get; set; }
-
     /// <summary>Each evidence image's recorded crop and tags, by its asset (pre-Case crop and tag, v26).</summary>
     public IReadOnlyDictionary<Guid, Pegasus.Core.ImageIntake.PreCaseImagePreparation> Preparations { get; set; } =
         new Dictionary<Guid, Pegasus.Core.ImageIntake.PreCaseImagePreparation>();
@@ -49,23 +40,37 @@ public sealed class TriageCaseView(TriageDetail triage)
 
     public IReadOnlyList<TriageFinding> ActiveFindings { get; set; } = [];
 
+    /// <summary>The finding the record stands on, when it has exactly one.</summary>
+    public TriageFinding? CurrentFinding => ActiveFindings.Count == 1 ? ActiveFindings[0] : null;
+
     public RetainedMailDetail? RetainedMail { get; set; }
 
-    public StaffMailOperation? ChaserOperation { get; set; }
+    public StaffMailOperation? ReplyOperation { get; set; }
 
-    public bool ChaserOperationBlocked { get; set; }
+    public bool ReplyOperationBlocked { get; set; }
 
-    public ApprovedMailbox? ChaserMailbox { get; set; }
+    public ApprovedMailbox? ReplyMailbox { get; set; }
 
-    public string ChaserOperationKey { get; set; } = string.Empty;
+    public string ReplyOperationKey { get; set; } = string.Empty;
 
-    public string? ChaserTo { get; set; }
+    public string? ReplyTo { get; set; }
 
-    public string? ChaserCc { get; set; }
+    public string? ReplyCc { get; set; }
 
-    public string? ChaserSubject { get; set; }
+    public string? ReplySubject { get; set; }
 
-    public string? ChaserBody { get; set; }
+    public string? ReplyBody { get; set; }
+
+    /// <summary>The reply this state offers: the chaser, Reply with outcome, or none once Cancelled.</summary>
+    public StaffMailPurpose? ReplyPurpose => TriageLifecycleRules.ReplyPurpose(Record.State);
+
+    public bool IsOutcomeReply => ReplyPurpose == StaffMailPurpose.TriageOutcomeReply;
+
+    /// <summary>A reply can be sent: the Triage came by e-mail and its approved mailbox may send.</summary>
+    public bool CanSendReply => RetainedMail is not null && ReplyMailbox is not null;
+
+    /// <summary>The completion notice carries a Reply with outcome link when a reply can be sent.</summary>
+    public bool NoticeOffersReply { get; set; }
 
     public IReadOnlyList<StaffMailAttachmentOption> AvailableAttachments { get; set; } = [];
 
@@ -94,8 +99,8 @@ public sealed class TriageCaseView(TriageDetail triage)
 
     public string? AssigneeName { get; set; }
 
-    /// <summary>Assign to me (Work Centre P8): an Engineer takes a Triage with no assignee.</summary>
-    public bool CanAssignToMe { get; set; }
+    /// <summary>The linked instruction Case's Case/PO, when it can be read.</summary>
+    public string? LinkedCaseReference { get; set; }
 
     public string? CaseAssociationUnavailableReason { get; set; }
 
@@ -105,8 +110,17 @@ public sealed class TriageCaseView(TriageDetail triage)
 
     public string? Message { get; set; }
 
-    /// <summary>The enabled staff accounts this Triage may be assigned to.</summary>
+    /// <summary>The enabled staff accounts this Triage may be assigned to, the signed-in account first.</summary>
     public IReadOnlyList<CaseEngineerChoice> EngineerChoices { get; set; } = [];
+
+    /// <summary>The signed-in staff account, marked "(you)" in the roster.</summary>
+    public Guid ViewerStaffId { get; set; }
+
+    public string AssigneeChoiceLabel(CaseEngineerChoice choice)
+    {
+        ArgumentNullException.ThrowIfNull(choice);
+        return choice.StaffId == ViewerStaffId ? Labels.You(choice.DisplayName) : choice.DisplayName;
+    }
 
     /// <summary>The Triage Case's files: its current documents, as the Case Files section lists them.</summary>
     public IReadOnlyList<Pegasus.Core.Documents.CaseFile> Files =>
@@ -132,21 +146,9 @@ public sealed class TriageCaseView(TriageDetail triage)
     public static string SourceChannelLabel(IntakeSourceChannel channel) =>
         OperatorLabels.SourceChannel(channel);
 
-    public static string RoadworthinessLabel(RoadworthinessFinding finding) => finding switch
-    {
-        RoadworthinessFinding.Roadworthy => "Roadworthy",
-        RoadworthinessFinding.Unroadworthy => "Unroadworthy",
-        _ => throw new InvalidOperationException(
-            $"Unknown roadworthiness finding value '{(int)finding}'.")
-    };
+    public static string RoadworthinessLabel(RoadworthinessFinding finding) => TriageOutcomeReply.Label(finding);
 
-    public static string AssessmentLabel(AssessmentFinding finding) => finding switch
-    {
-        AssessmentFinding.Repairable => "Repairable",
-        AssessmentFinding.TotalLoss => "Total loss",
-        _ => throw new InvalidOperationException(
-            $"Unknown assessment finding value '{(int)finding}'.")
-    };
+    public static string AssessmentLabel(AssessmentFinding finding) => TriageOutcomeReply.Label(finding);
 
     public static string EventLabel(string eventType) => eventType switch
     {
@@ -224,17 +226,6 @@ public sealed partial class DetailsModel
         }
 
         var view = TriageCase!;
-        view.EngineerChoices = await ports.EngineerChoices.GetAsync(actor, cancellationToken);
-        if (!view.IsEditing && StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
-        {
-            if (await ports.EditScopes.GetActiveAsync(
-                    EditScopeKind.Triage, id, actor, cancellationToken) is { } active)
-            {
-                view.ViewerHoldsEditScope = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
-                view.CanTakeOverEdit = !view.ViewerHoldsEditScope;
-            }
-        }
-
         view.Message = TempData["TriageStatus"] as string;
         if (TempData["TriageUnavailableCase"] is string unavailableCase)
         {
@@ -251,44 +242,17 @@ public sealed partial class DetailsModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostTriageAssignToMeAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        [FromServices] TriageCasePorts ports,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(ports);
-        if (!TryGetTriageActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await ports.AssignToMe.ExecuteAsync(
-                new AssignTriageToMeRequest(id, expectedVersion, actor, operationKey),
-                cancellationToken);
-            TempData["TriageStatus"] = "The Triage was assigned to you.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (IsExpectedTriageRefusal(exception))
-        {
-            TempData["TriageStatus"] = "The Triage was not assigned because it changed or the action is not permitted.";
-        }
-
-        return RedirectToPage(new { id });
-    }
-
+    /// <summary>
+    /// One staff action on the Triage. Each posts once: the action claims the
+    /// Triage edit scope for this save, runs, and the store ends the scope as
+    /// the save commits. Complete and Await information carry no reason.
+    /// </summary>
     public async Task<IActionResult> OnPostTriageActionAsync(
         Guid id,
         string actionName,
         long expectedVersion,
         string operationKey,
-        string reason,
+        string? reason,
         RoadworthinessFinding? roadworthiness,
         AssessmentFinding? assessment,
         Guid? supersedesFindingId,
@@ -297,7 +261,6 @@ public sealed partial class DetailsModel
         Guid? caseId,
         Guid? assigneeId,
         string? note,
-        string? editLeaseToken,
         [FromServices] TriageCasePorts ports,
         CancellationToken cancellationToken)
     {
@@ -307,189 +270,80 @@ public sealed partial class DetailsModel
             return Forbid();
         }
 
-        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        if (actionName is "link_case" or "unlink_case")
         {
-            if (!await LoadTriageCaseAsync(id, actionActor, ports, cancellationToken))
-            {
-                return NotFound();
-            }
-
-            TriageCase!.Message = "Select Edit Triage before changing this record.";
-            return Page();
+            return await ExecuteTriageCaseAssociationAsync(
+                linking: actionName == "link_case",
+                id,
+                caseId ?? Guid.Empty,
+                expectedVersion,
+                actionActor,
+                operationKey,
+                reason ?? string.Empty,
+                ports,
+                cancellationToken);
         }
 
-        string? message;
+        // The assignee is chosen from the eligible roster, never defaulted to
+        // whoever is signed in; a choice outside the roster is no choice.
+        CaseEngineerChoice? assignee = null;
+        if (actionName == "assign")
+        {
+            var roster = await ports.EngineerChoices.GetAsync(actionActor, cancellationToken);
+            assignee = roster.FirstOrDefault(choice => choice.StaffId == assigneeId);
+            if (assignee is null)
+            {
+                ModelState.AddModelError("assigneeId", Labels.ChooseAssignee);
+                return await GetTriageCaseAsync(id, actionActor, ports, cancellationToken);
+            }
+        }
+
+        string message;
         var nextOperationKey = operationKey;
+        var applied = false;
         try
         {
-            var mutation = new TriageMutationRequest(
+            message = await TriageWriteAuthority.ExecuteAsync(
+                ports.EditScopes,
                 id,
                 expectedVersion,
                 actionActor,
                 operationKey,
-                reason)
-            {
-                EditLeaseToken = editLeaseToken
-            };
-            switch (actionName)
-            {
-                case "assign":
-                    // The engineer is chosen explicitly. Defaulting to the
-                    // signed-in staff member is what "Assign to me" did, and
-                    // it made the roster invisible.
-                    if (assigneeId is not { } chosenEngineer || chosenEngineer == Guid.Empty)
-                    {
-                        ModelState.AddModelError("assigneeId", "Choose the engineer to assign.");
-                        return await GetTriageCaseAsync(id, actionActor, ports, cancellationToken);
-                    }
-
-                    await ports.Assign.ExecuteAsync(
-                        new(
-                            id,
-                            expectedVersion,
-                            chosenEngineer,
-                            actionActor,
-                            operationKey,
-                            reason)
-                        {
-                            EditLeaseToken = editLeaseToken
-                        },
-                        cancellationToken);
-                    break;
-                case "note":
-                    await ports.AddNote.ExecuteAsync(
-                        new(id, expectedVersion, actionActor, operationKey, note ?? string.Empty)
-                        {
-                            EditLeaseToken = editLeaseToken
-                        },
-                        cancellationToken);
-                    break;
-                case "unassign":
-                    await ports.Unassign.ExecuteAsync(mutation, cancellationToken);
-                    break;
-                case "await_information":
-                    await ports.AwaitInformation.ExecuteAsync(mutation, cancellationToken);
-                    break;
-                case "record_finding":
-                    await ports.RecordFinding.ExecuteAsync(
-                        new(
-                            id,
-                            expectedVersion,
-                            actionActor,
-                            operationKey,
-                            reason,
-                            roadworthiness,
-                            assessment,
-                            null)
-                        {
-                            EditLeaseToken = editLeaseToken
-                        },
-                        cancellationToken);
-                    break;
-                case "supersede_finding":
-                    await ports.SupersedeFinding.ExecuteAsync(
-                        new(
-                            id,
-                            expectedVersion,
-                            actionActor,
-                            operationKey,
-                            reason,
-                            roadworthiness,
-                            assessment,
-                            supersedesFindingId)
-                        {
-                            EditLeaseToken = editLeaseToken
-                        },
-                        cancellationToken);
-                    break;
-                case "link_response":
-                {
-                    var candidate = ParseTriageResponseCandidate(responseCandidate);
-                    await ports.LinkResponseEvidence.ExecuteAsync(
-                        new(
-                            id,
-                            candidate.PollOutcomeId,
-                            candidate.SentEvidenceId,
-                            expectedVersion,
-                            actionActor,
-                            operationKey,
-                            reason)
-                        {
-                            EditLeaseToken = editLeaseToken
-                        },
-                        cancellationToken);
-                    break;
-                }
-                case "unlink_response":
-                    await ports.UnlinkResponseEvidence.ExecuteAsync(
-                        new(
-                            id,
-                            sentEvidenceId ?? Guid.Empty,
-                            expectedVersion,
-                            actionActor,
-                            operationKey,
-                            reason)
-                        {
-                            EditLeaseToken = editLeaseToken
-                        },
-                        cancellationToken);
-                    break;
-                case "complete":
-                    await ports.Complete.ExecuteAsync(mutation, cancellationToken);
-                    break;
-                case "cancel":
-                    await ports.Cancel.ExecuteAsync(mutation, cancellationToken);
-                    break;
-                case "reopen":
-                    await ports.Reopen.ExecuteAsync(mutation, cancellationToken);
-                    break;
-                case "link_case":
-                    return await ExecuteTriageCaseAssociationAsync(
-                        linking: true,
-                        id,
-                        caseId ?? Guid.Empty,
-                        expectedVersion,
-                        actionActor,
-                        operationKey,
-                        reason,
-                        editLeaseToken,
-                        ports,
-                        cancellationToken);
-                case "unlink_case":
-                    return await ExecuteTriageCaseAssociationAsync(
-                        linking: false,
-                        id,
-                        caseId ?? Guid.Empty,
-                        expectedVersion,
-                        actionActor,
-                        operationKey,
-                        reason,
-                        editLeaseToken,
-                        ports,
-                        cancellationToken);
-                default:
-                    throw new ArgumentException("The requested Triage action is not supported.");
-            }
-
-            message = "Triage workflow updated.";
+                token => ExecuteTriageActionAsync(
+                    actionName,
+                    id,
+                    expectedVersion,
+                    actionActor,
+                    operationKey,
+                    token,
+                    reason ?? string.Empty,
+                    roadworthiness,
+                    assessment,
+                    supersedesFindingId,
+                    responseCandidate,
+                    sentEvidenceId,
+                    assignee,
+                    note,
+                    ports,
+                    cancellationToken),
+                cancellationToken);
+            applied = true;
             nextOperationKey = NewOperationKey();
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
         }
         catch (EditScopeConflictException)
         {
             message = await DescribeTriageHeldAsync(id, actionActor, ports, cancellationToken);
         }
-        catch (EditScopeExpiredException)
-        {
-            message = "Editing expired before this change was saved. Reload and try again.";
-        }
         catch (EditScopeVersionConflictException)
         {
-            await ReleaseRefusedTriageEditAsync(id, actionActor, editLeaseToken, ports, cancellationToken);
-            message = "This Triage record changed while you were working. Reload and try again.";
+            message = Labels.Changed;
         }
         catch (Exception exception) when (IsExpectedTriageRefusal(exception))
         {
-            await ReleaseRefusedTriageEditAsync(id, actionActor, editLeaseToken, ports, cancellationToken);
             message = exception.Message;
         }
 
@@ -500,142 +354,117 @@ public sealed partial class DetailsModel
 
         TriageCase!.Message = message;
         TriageCase.OperationKey = nextOperationKey;
+        TriageCase.NoticeOffersReply = applied && actionName == "complete" && TriageCase.CanSendReply;
         return Page();
     }
 
-    public async Task<IActionResult> OnPostTriageEditAsync(
+    /// <summary>Runs the named action with the scope token and returns its notice.</summary>
+    private static async Task<string> ExecuteTriageActionAsync(
+        string actionName,
         Guid id,
         long expectedVersion,
-        bool takeOver,
-        [FromServices] TriageCasePorts ports,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(ports);
-        if (!TryGetTriageActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        EditScopeLease? editLease = null;
-        var canTakeOver = false;
-        try
-        {
-            editLease = await ports.EditScopes.ClaimAsync(
-                new(EditScopeKind.Triage, id, expectedVersion, actor, $"triage-edit:{Guid.NewGuid():N}")
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken);
-        }
-        catch (EditScopeConflictException)
-        {
-            canTakeOver = true;
-            ModelState.AddModelError(string.Empty,
-                await DescribeTriageHeldAsync(id, actor, ports, cancellationToken));
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty,
-                "This Triage record changed while you were working. Reload and try again.");
-        }
-
-        if (!await LoadTriageCaseAsync(id, actor, ports, cancellationToken))
-        {
-            return NotFound();
-        }
-
-        TriageCase!.EditLease = editLease;
-        TriageCase.CanTakeOverEdit = canTakeOver;
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostTriageCancelEditAsync(
-        Guid id,
+        ActionActor actor,
+        string operationKey,
         string editLeaseToken,
-        [FromServices] TriageCasePorts ports,
+        string reason,
+        RoadworthinessFinding? roadworthiness,
+        AssessmentFinding? assessment,
+        Guid? supersedesFindingId,
+        string? responseCandidate,
+        Guid? sentEvidenceId,
+        CaseEngineerChoice? assignee,
+        string? note,
+        TriageCasePorts ports,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(ports);
-        if (!TryGetTriageActor(out var actor))
+        var mutation = new TriageMutationRequest(id, expectedVersion, actor, operationKey, reason)
         {
-            return Forbid();
-        }
-
-        try
+            EditLeaseToken = editLeaseToken
+        };
+        var transition = new TriageTransitionRequest(id, expectedVersion, actor, operationKey)
         {
-            await ports.EditScopes.ReleaseAsync(
-                new(EditScopeKind.Triage, id, actor, $"triage-edit-release:{Guid.NewGuid():N}", editLeaseToken),
-                cancellationToken);
-        }
-        catch (EditScopeExpiredException)
+            EditLeaseToken = editLeaseToken
+        };
+        switch (actionName)
         {
-            // The already-expired scope protects no mutation and is treated as cancelled.
-        }
-        return RedirectToPage(new { id });
-    }
-
-    public async Task<IActionResult> OnPostTriageHeartbeatEditAsync(
-        Guid id,
-        string editLeaseToken,
-        [FromServices] TriageCasePorts ports,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(ports);
-        if (!TryGetTriageActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await ports.EditScopes.HeartbeatAsync(
-                new(EditScopeKind.Triage, id, actor, editLeaseToken), cancellationToken);
-            return new OkResult();
-        }
-        catch (EditScopeExpiredException)
-        {
-            return new ConflictObjectResult("Editing this Triage record has ended. Reload it before making further changes.");
+            case "assign":
+                await ports.Assign.ExecuteAsync(
+                    new(id, expectedVersion, assignee!.StaffId, actor, operationKey, string.Empty)
+                    {
+                        EditLeaseToken = editLeaseToken
+                    },
+                    cancellationToken);
+                return Labels.AssignedTo(assignee.DisplayName);
+            case "unassign":
+                await ports.Unassign.ExecuteAsync(
+                    mutation with { Reason = UnassignTriage.Reason },
+                    cancellationToken);
+                return Labels.Unassigned;
+            case "note":
+                await ports.AddNote.ExecuteAsync(
+                    new(id, expectedVersion, actor, operationKey, note ?? string.Empty)
+                    {
+                        EditLeaseToken = editLeaseToken
+                    },
+                    cancellationToken);
+                return Labels.NoteAdded;
+            case "await_information":
+                await ports.AwaitInformation.ExecuteAsync(transition, cancellationToken);
+                return Labels.AwaitingInformation;
+            case "record_finding":
+                await ports.RecordFinding.ExecuteAsync(
+                    new(id, expectedVersion, actor, operationKey, reason, roadworthiness, assessment, null)
+                    {
+                        EditLeaseToken = editLeaseToken
+                    },
+                    cancellationToken);
+                return Labels.FindingRecorded;
+            case "supersede_finding":
+                await ports.SupersedeFinding.ExecuteAsync(
+                    new(id, expectedVersion, actor, operationKey, reason, roadworthiness, assessment, supersedesFindingId)
+                    {
+                        EditLeaseToken = editLeaseToken
+                    },
+                    cancellationToken);
+                return Labels.FindingRecorded;
+            case "link_response":
+            {
+                var candidate = ParseTriageResponseCandidate(responseCandidate);
+                await ports.LinkResponseEvidence.ExecuteAsync(
+                    new(id, candidate.PollOutcomeId, candidate.SentEvidenceId, expectedVersion, actor, operationKey, reason)
+                    {
+                        EditLeaseToken = editLeaseToken
+                    },
+                    cancellationToken);
+                return Labels.ResponseLinked;
+            }
+            case "unlink_response":
+                await ports.UnlinkResponseEvidence.ExecuteAsync(
+                    new(id, sentEvidenceId ?? Guid.Empty, expectedVersion, actor, operationKey, reason)
+                    {
+                        EditLeaseToken = editLeaseToken
+                    },
+                    cancellationToken);
+                return Labels.ResponseUnlinked;
+            case "complete":
+                await ports.Complete.ExecuteAsync(transition, cancellationToken);
+                return Labels.Completed;
+            case "cancel":
+                await ports.Cancel.ExecuteAsync(mutation, cancellationToken);
+                return Labels.Cancelled;
+            case "reopen":
+                await ports.Reopen.ExecuteAsync(mutation, cancellationToken);
+                return Labels.Reopened;
+            default:
+                throw new ArgumentException("The requested Triage action is not supported.");
         }
     }
 
     /// <summary>
-    /// The release a leaving page beacons. It is not an operator action: it
-    /// answers 204 whether or not a scope was still there to release, so a
-    /// duplicate beacon and a beacon that lost a race with Cancel are both
-    /// ordinary outcomes. Antiforgery is validated as it is for every post.
+    /// The one reply form: the chaser until the outcome is recorded, Reply with
+    /// outcome once Completed. The purpose is the state's, never the form's.
     /// </summary>
-    public async Task<IActionResult> OnPostTriageReleaseScopeBeaconAsync(
-        Guid id,
-        string? editLeaseToken,
-        [FromServices] TriageCasePorts ports,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(ports);
-        if (!TryGetTriageActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (id == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            return new NoContentResult();
-        }
-
-        try
-        {
-            await ports.EditScopes.ReleaseAsync(
-                new(EditScopeKind.Triage, id, actor, $"triage-edit-beacon:{Guid.NewGuid():N}", editLeaseToken),
-                cancellationToken);
-        }
-        catch (Exception exception)
-            when (exception is EditScopeExpiredException or EditScopeConflictException)
-        {
-            // The scope has already gone or has already been re-claimed by a
-            // newer window of this operator's own session.
-        }
-        return new NoContentResult();
-    }
-
-    public async Task<IActionResult> OnPostTriageSendChaserAsync(
+    public async Task<IActionResult> OnPostTriageSendReplyAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
@@ -674,11 +503,17 @@ public sealed partial class DetailsModel
             return NotFound();
         }
 
-        // A chaser replies to the mailbox request a Triage Case was opened from.
+        // A reply answers the mailbox request a Triage Case was opened from.
         if (triage.Record.Origin is not { } origin
             || origin.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
         {
-            ModelState.AddModelError(string.Empty, "A chaser reply can only be sent for mailbox intake.");
+            ModelState.AddModelError(string.Empty, Labels.ReplyNeedsEmail);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken);
+        }
+
+        if (TriageLifecycleRules.ReplyPurpose(triage.Record.State) is not { } purpose)
+        {
+            ModelState.AddModelError(string.Empty, Labels.NoReplyWhenCancelled);
             return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken);
         }
 
@@ -771,7 +606,7 @@ public sealed partial class DetailsModel
             Actor: actionActor,
             ApprovedMailboxId: mailbox.Id,
             ExpectedMailboxGeneration: mailbox.Generation,
-            Purpose: StaffMailPurpose.TriageChaser,
+            Purpose: purpose,
             ContextId: triage.Record.CaseId,
             ExpectedContextVersion: triage.Record.Version,
             ComposeMode: StaffMailComposeMode.Reply,
@@ -786,14 +621,9 @@ public sealed partial class DetailsModel
         try
         {
             var operation = await ports.StaffMailSend.SendAsync(command, cancellationToken);
-            if (operation.State == StaffMailState.Sent)
-            {
-                TempData["TriageStatus"] = "Triage chaser sent.";
-            }
-            else
-            {
-                TempData["TriageStatus"] = $"Triage chaser status: {OperatorLabels.StaffMail.State(operation.State)}.";
-            }
+            TempData["TriageStatus"] = operation.State == StaffMailState.Sent
+                ? Labels.Sent(purpose)
+                : Labels.SendStatus(purpose, operation.State);
         }
         catch (StaffAuthorizationException)
         {
@@ -823,7 +653,7 @@ public sealed partial class DetailsModel
         return RedirectToPage(new { id });
     }
 
-    public async Task<IActionResult> OnPostTriageReconcileChaserAsync(
+    public async Task<IActionResult> OnPostTriageReconcileReplyAsync(
         Guid id,
         Guid operationId,
         long expectedOperationVersion,
@@ -880,7 +710,7 @@ public sealed partial class DetailsModel
             return NotFound();
         }
 
-        if (operation.Purpose != StaffMailPurpose.TriageChaser
+        if (operation.Purpose is not (StaffMailPurpose.TriageChaser or StaffMailPurpose.TriageOutcomeReply)
             || operation.ContextId != triage.Record.CaseId
             || operation.OriginalRetainedMessageId is null
             || operation.OriginalRetainedMessageId != detail.Summary.Id)
@@ -983,12 +813,16 @@ public sealed partial class DetailsModel
                 receipt.SourceIdentity.Channel,
                 receipt.MediaType) == UnidentifiedMediaKind.Email
             : origin?.SourceIdentity.Channel == IntakeSourceChannel.Mailbox;
+
+        // One roster read serves the assignee's name and the Assign dialog,
+        // with the signed-in account first.
+        _ = Guid.TryParse(actor.SubjectId, out var viewerStaffId);
         var roster = await ports.EngineerChoices.GetAsync(actor, cancellationToken);
+        view.ViewerStaffId = viewerStaffId;
+        view.EngineerChoices = [.. roster.OrderBy(choice => choice.StaffId == viewerStaffId ? 0 : 1)];
         view.AssigneeName = triage.Record.AssigneeId is { } assigneeId
             ? roster.FirstOrDefault(choice => choice.StaffId == assigneeId)?.DisplayName ?? "Assigned"
             : null;
-        view.CanAssignToMe = TriageLifecycleRules.CanAssignToSelf(triage.Record)
-            && NeedsAttentionPolicy.CanTake(NeedsAttentionKind.Triage, actor);
 
         view.ActiveFindings = triage.Findings
             .Where(candidate => !triage.Findings.Any(
@@ -1005,14 +839,18 @@ public sealed partial class DetailsModel
                     "The linked case is unavailable. Case association is read-only.";
                 view.CaseAssociationUnavailableCaseId = linkedCaseId;
             }
-            else if (linkedCase.ActiveEditLease is { } activeLease)
+            else
             {
-                view.CaseAssociationUnavailableReason = await DescribeTriageCaseHeldAsync(
-                    activeLease,
-                    actor,
-                    ports,
-                    cancellationToken);
-                view.CaseAssociationUnavailableCaseId = linkedCaseId;
+                view.LinkedCaseReference = linkedCase.Summary.Reference;
+                if (linkedCase.ActiveEditLease is { } activeLease)
+                {
+                    view.CaseAssociationUnavailableReason = await DescribeTriageCaseHeldAsync(
+                        activeLease,
+                        actor,
+                        ports,
+                        cancellationToken);
+                    view.CaseAssociationUnavailableCaseId = linkedCaseId;
+                }
             }
         }
 
@@ -1032,29 +870,40 @@ public sealed partial class DetailsModel
                     view.AvailableAttachments = await ports.AttachmentResolver.ListIntakeAsync(
                         actor, origin.ReceiptId, cancellationToken);
                 }
-                view.ChaserOperation = await ports.StaffMailSend.GetLatestForOriginalAsync(
+                view.ReplyOperation = await ports.StaffMailSend.GetLatestForOriginalAsync(
                     actor,
                     retainedMail.Summary.Id,
                     cancellationToken);
-                view.ChaserOperationBlocked = IsActiveTriageMailOperation(view.ChaserOperation);
-                view.ChaserOperationKey = NewRetainedTriageOperationKey(retainedMail.Summary.Id);
+                view.ReplyOperationBlocked = IsActiveTriageMailOperation(view.ReplyOperation);
+                view.ReplyOperationKey = NewRetainedTriageOperationKey(retainedMail.Summary.Id);
 
                 var mailboxes = await ports.ApprovedMailboxes.ListAsync(cancellationToken);
-                view.ChaserMailbox = mailboxes.SingleOrDefault(item =>
+                view.ReplyMailbox = mailboxes.SingleOrDefault(item =>
                     item.Id == retainedMail.Summary.MailboxId
                     && item.State == ApprovedMailboxState.Approved
                     && item.RouteScopes.Contains(ApprovedMailboxRouteScope.StaffSend)
                     && item.Generation > 0);
 
                 var replyRecipients = TriageReplyRecipients(retainedMail);
-                view.ChaserTo = string.Join("; ", replyRecipients.Select(r => r.Address));
-                view.ChaserSubject = TriageReplySubject(retainedMail.Summary.Subject);
+                view.ReplyTo = string.Join("; ", replyRecipients.Select(r => r.Address));
+                view.ReplySubject = TriageReplySubject(retainedMail.Summary.Subject);
+                if (view.IsOutcomeReply)
+                {
+                    view.ReplyBody = TriageOutcomeReply.Render(
+                        triage.Record.NormalizedVehicleRegistration,
+                        view.CurrentFinding);
+                }
             }
         }
 
         return true;
     }
 
+    /// <summary>
+    /// Link case and Unlink case: the Triage edit scope for this save and the
+    /// instruction Case's edit lease, both claimed here and both checked by
+    /// Core; neither stands in for the other.
+    /// </summary>
     private async Task<IActionResult> ExecuteTriageCaseAssociationAsync(
         bool linking,
         Guid triageCaseId,
@@ -1063,21 +912,17 @@ public sealed partial class DetailsModel
         ActionActor actor,
         string operationKey,
         string reason,
-        string editLeaseToken,
         TriageCasePorts ports,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty
             || !Guid.TryParseExact(operationKey, "N", out var operationId))
         {
-            await ReleaseRefusedTriageEditAsync(triageCaseId, actor, editLeaseToken, ports, cancellationToken);
             TempData["TriageStatus"] =
                 "A valid case and operation identity are required.";
             return RedirectToPage(new { id = triageCaseId });
         }
 
-        CaseEditLease? lease = null;
-        var leaseConsumed = false;
         try
         {
             var targetCase = await ports.GetCase.ExecuteAsync(
@@ -1086,7 +931,6 @@ public sealed partial class DetailsModel
                 ?? throw new KeyNotFoundException($"Case '{caseId}' was not found.");
             if (targetCase.ActiveEditLease is { } activeLease)
             {
-                await ReleaseRefusedTriageEditAsync(triageCaseId, actor, editLeaseToken, ports, cancellationToken);
                 var unavailableReason = await DescribeTriageCaseHeldAsync(
                     activeLease,
                     actor,
@@ -1098,73 +942,93 @@ public sealed partial class DetailsModel
                 return RedirectToPage(new { id = triageCaseId });
             }
 
-            lease = await ports.CaseLeases.ClaimAsync(
-                new(
-                    caseId,
-                    targetCase.Workflow.Version,
-                    actor,
-                    $"triage-association-claim:{operationId:N}"),
-                cancellationToken);
-            var request = new TriageCaseLinkRequest(
+            await TriageWriteAuthority.ExecuteAsync(
+                ports.EditScopes,
                 triageCaseId,
-                caseId,
                 expectedTriageVersion,
-                lease.Version,
                 actor,
-                operationId.ToString("N"),
-                reason,
-                lease.Token)
-            {
-                EditLeaseToken = editLeaseToken
-            };
-            if (linking)
-            {
-                await ports.LinkCase.ExecuteAsync(request, cancellationToken);
-            }
-            else
-            {
-                await ports.UnlinkCase.ExecuteAsync(request, cancellationToken);
-            }
+                operationKey,
+                async token =>
+                {
+                    CaseEditLease? lease = null;
+                    var leaseConsumed = false;
+                    try
+                    {
+                        lease = await ports.CaseLeases.ClaimAsync(
+                            new(
+                                caseId,
+                                targetCase.Workflow.Version,
+                                actor,
+                                $"triage-association-claim:{operationId:N}"),
+                            cancellationToken);
+                        var request = new TriageCaseLinkRequest(
+                            triageCaseId,
+                            caseId,
+                            expectedTriageVersion,
+                            lease.Version,
+                            actor,
+                            operationId.ToString("N"),
+                            reason,
+                            lease.Token)
+                        {
+                            EditLeaseToken = token
+                        };
+                        if (linking)
+                        {
+                            await ports.LinkCase.ExecuteAsync(request, cancellationToken);
+                        }
+                        else
+                        {
+                            await ports.UnlinkCase.ExecuteAsync(request, cancellationToken);
+                        }
 
-            leaseConsumed = true;
-            TempData["TriageStatus"] = linking
-                ? "The Triage record was linked to the case."
-                : "The Triage case association was removed.";
+                        leaseConsumed = true;
+                    }
+                    finally
+                    {
+                        if (lease is not null && !leaseConsumed)
+                        {
+                            try
+                            {
+                                await ports.CaseLeases.ReleaseAsync(
+                                    new(
+                                        lease.CaseId,
+                                        actor,
+                                        $"triage-association-release:{operationId:N}",
+                                        lease.Token),
+                                    CancellationToken.None);
+                            }
+                            catch (Exception exception) when (IsExpectedTriageRefusal(exception))
+                            {
+                                TempData["TriageStatus"] =
+                                    "The case association was not changed and its temporary edit authority could not be released immediately.";
+                            }
+                        }
+                    }
+                },
+                cancellationToken);
+            TempData["TriageStatus"] = linking ? Labels.CaseLinked : Labels.CaseUnlinked;
         }
         catch (StaffAuthorizationException)
         {
             return Forbid();
         }
+        catch (EditScopeConflictException)
+        {
+            TempData["TriageStatus"] = await DescribeTriageHeldAsync(triageCaseId, actor, ports, cancellationToken);
+        }
+        catch (EditScopeVersionConflictException)
+        {
+            TempData["TriageStatus"] = Labels.Changed;
+        }
         catch (Exception exception) when (IsExpectedTriageRefusal(exception))
         {
-            await ReleaseRefusedTriageEditAsync(triageCaseId, actor, editLeaseToken, ports, cancellationToken);
             var unavailableReason = TriageRefusalMessage(exception);
             TempData["TriageStatus"] = unavailableReason;
             if (exception is CaseEditLeaseConflictException)
             {
                 TempData["TriageUnavailableCase"] =
                     $"{caseId:D}|{unavailableReason}";
-            }
-        }
-        finally
-        {
-            if (lease is not null && !leaseConsumed)
-            {
-                try
-                {
-                    await ports.CaseLeases.ReleaseAsync(
-                        new(
-                            lease.CaseId,
-                            actor,
-                            $"triage-association-release:{operationId:N}",
-                            lease.Token),
-                        CancellationToken.None);
-                }
-                catch (Exception exception) when (IsExpectedTriageRefusal(exception))
-                {
-                    TempData["TriageStatus"] =
-                        "The case association was not changed and its temporary edit authority could not be released immediately.";
-                }
             }
         }
 
@@ -1228,6 +1092,10 @@ public sealed partial class DetailsModel
         return EditModeDisplay.CaseHeldBy(holder, isSelf);
     }
 
+    /// <summary>
+    /// Who holds the Triage record while this save could not: an Automation
+    /// session, or a colleague's save in flight.
+    /// </summary>
     private static async Task<string> DescribeTriageHeldAsync(
         Guid triageCaseId,
         ActionActor actor,
@@ -1250,31 +1118,6 @@ public sealed partial class DetailsModel
                 actor,
                 cancellationToken);
         return EditModeDisplay.HeldBy(TriageCaseView.RecordName, holder, isSelf);
-    }
-
-    private static async Task ReleaseRefusedTriageEditAsync(
-        Guid triageCaseId,
-        ActionActor actor,
-        string? editLeaseToken,
-        TriageCasePorts ports,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            return;
-        }
-
-        try
-        {
-            await ports.EditScopes.ReleaseAsync(
-                new(EditScopeKind.Triage, triageCaseId, actor,
-                    $"triage-refused-edit-release:{Guid.NewGuid():N}", editLeaseToken),
-                cancellationToken);
-        }
-        catch (EditScopeExpiredException)
-        {
-            // A refused action has no record mutation left to protect.
-        }
     }
 
     /// <summary>
@@ -1332,7 +1175,7 @@ public sealed partial class DetailsModel
         System.Net.Mail.MailAddress.TryCreate(value, out var parsed)
         && string.Equals(parsed.Address, value, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The chaser is a reply, so its subject is the original's with one "Re:".</summary>
+    /// <summary>The reply keeps the original's subject with one "Re:".</summary>
     private static string TriageReplySubject(string? subject)
     {
         var value = subject?.Trim() ?? string.Empty;
