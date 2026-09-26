@@ -469,9 +469,9 @@ public sealed record AssessmentReportSnapshot(
                 "Unrelated damage was selected for the report but none is recorded.");
         }
         if (Outcome == AssessmentReportOutcome.TotalLoss &&
-            (string.IsNullOrWhiteSpace(SalvageCategory) || SalvageValue is null or < 0))
+            (!IsRecordedSalvageCategory(SalvageCategory) || SalvageValue is null or < 0))
         {
-            throw new ReportRenderRejectedException("The total-loss report requires a salvage category and salvage value.");
+            throw new ReportRenderRejectedException("The total-loss report requires a recorded salvage category and salvage value.");
         }
         if (LegalStatus.Equals("unroadworthy", StringComparison.OrdinalIgnoreCase) &&
             string.IsNullOrWhiteSpace(UnroadworthyReason))
@@ -547,6 +547,16 @@ public sealed record AssessmentReportSnapshot(
 
     private static string Money(decimal value) =>
         value.ToString("£#,##0.00", CultureInfo.GetCultureInfo("en-GB"));
+
+    /// <summary>
+    /// One of the assessment vocabulary's own salvage category codes, exactly
+    /// as recorded. Anything else is unknown outcome data and stops rendering
+    /// (FRD-11) rather than printing a badge with no matching wording.
+    /// </summary>
+    private static bool IsRecordedSalvageCategory(string? category) =>
+        category is not null
+        && AssessmentVocabulary.Definitions[AssessmentVocabulary.SalvageCategory].Codes is { } codes
+        && codes.Contains(category, StringComparer.Ordinal);
 }
 
 public sealed record RenderedReportArtifact(

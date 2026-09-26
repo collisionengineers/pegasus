@@ -1140,6 +1140,54 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(2, (await harness.ReadyEventsAsync()).Count);
     }
 
+    /// <summary>
+    /// Issue #834: a missing printed fact, here a total loss with no salvage
+    /// category, is named before the freeze writes anything. The confirmed
+    /// current generation stays current and nothing supersedes it.
+    /// </summary>
+    [Fact]
+    public async Task AMissingSalvageCategoryIsNamedBeforeAnyGenerationIsWritten()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var first = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var current = Assert.IsType<CaseReportGenerationRecord>(first.Generation);
+        Assert.Equal(CaseReportGenerationState.Confirmed, current.State);
+        var artifactsBefore = await harness.ArtifactRowsAsync();
+
+        var recordedAt = new DateTimeOffset(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
+        AssessmentFieldValue Recorded(string path, string value) => new(
+            path, value, ActorKind.Staff, "engineer-1", recordedAt);
+        harness.ReviseAssessment(assessment => assessment with
+        {
+            Fields =
+            [
+                .. assessment.Fields.Where(field =>
+                    field.Path != AssessmentVocabulary.Outcome
+                    && field.Path != AssessmentVocabulary.SalvageCategory),
+                Recorded(AssessmentVocabulary.Outcome, "total_loss"),
+                Recorded(AssessmentVocabulary.SalvageValue, "500.00"),
+            ],
+        });
+        var renderer = new RecordingRenderer(harness);
+        var refused = await harness.Generate(new RecordingCustody(harness), renderer)
+            .ExecuteAsync(harness.Request(operationKey: "case-report-no-category"), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.NotReady, refused.Outcome);
+        Assert.Null(refused.Generation);
+        var reason = Assert.Single(refused.Reasons);
+        Assert.Equal("Salvage category", reason.Requirement);
+        Assert.Equal(AssessmentVocabulary.SalvageCategory, reason.Field);
+        Assert.Empty(renderer.Kinds);
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(current.Id, generation.Id);
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        Assert.Null(generation.SupersededById);
+        Assert.Equal(
+            artifactsBefore.Select(row => row.Id),
+            (await harness.ArtifactRowsAsync()).Select(row => row.Id));
+    }
+
     [Fact]
     public async Task ReopeningAGeneratedArtifactReturnsTheConfirmedImmutableBytes()
     {
