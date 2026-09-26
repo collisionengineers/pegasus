@@ -296,14 +296,11 @@ public sealed class ReportRequirementOwnershipTests
         var complete = Complete();
         yield return NothingElseRecorded(complete with { Fields = [], CaseOwned = NothingRecordedCaseOwned });
 
-        foreach (var category in AssessmentVocabulary.Definitions[AssessmentVocabulary.SalvageCategory].Codes!
-            .Where(code => !AssessmentReportContract.PrintsSalvageCategory(code)))
-        {
-            yield return NothingElseRecorded(With(
-                complete,
-                (AssessmentVocabulary.Outcome, "total_loss"),
-                (AssessmentVocabulary.SalvageCategory, category)));
-        }
+        yield return NothingElseRecorded(With(
+            complete,
+            (AssessmentVocabulary.Outcome, "total_loss"),
+            (AssessmentVocabulary.SalvageCategory, null),
+            (AssessmentVocabulary.SalvageValue, null)));
 
         yield return NothingElseRecorded(With(
             complete,
@@ -381,7 +378,6 @@ public sealed class ReportRequirementOwnershipTests
     {
         AssessmentVocabulary.Outcome => "repairable",
         AssessmentVocabulary.LegalStatus => "roadworthy",
-        AssessmentVocabulary.SalvageCategory => AssessmentReportContract.PrintableSalvageCategory,
         _ => definition.Type switch
         {
             AssessmentFieldType.Text => "value",

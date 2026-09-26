@@ -269,30 +269,6 @@ public sealed class CaseReportGenerationTests
     }
 
     /// <summary>
-    /// A total loss prints only Category S, so any other category is refused
-    /// before the freeze rather than at render.
-    /// </summary>
-    [Fact]
-    public void ANonPrintableSalvageCategoryBlocksGeneration()
-    {
-        var input = ReadyInput();
-        AssessmentFieldValue[] fields =
-        [
-            .. input.Assessment.Fields.Select(field => field.Path == AssessmentVocabulary.Outcome
-                ? field with { Value = "total_loss" }
-                : field),
-            Field(AssessmentVocabulary.SalvageCategory, "B"),
-            Field(AssessmentVocabulary.SalvageValue, "500.00"),
-        ];
-
-        var result = CaseReportReadiness.Evaluate(
-            input with { Assessment = input.Assessment with { Fields = fields } });
-
-        var reason = AssertBlocked(result, "Salvage category");
-        Assert.Equal(AssessmentVocabulary.SalvageCategory, reason.Field);
-    }
-
-    /// <summary>
     /// A report-level blocker about one recorded fact names that fact, so the
     /// Case page can send the operator to the section that records it; one
     /// about other material (the sign-off account, the Current repair spec,

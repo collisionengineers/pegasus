@@ -66,16 +66,12 @@ public static class AssessmentReportContract
     }
 
     /// <summary>
-    /// The one salvage category a total-loss report prints: the active
-    /// total-loss template has accepted wording for Category S only (operator,
-    /// 24 September 2026). Readiness names any other category before a report
-    /// is projected.
+    /// The category recorded when a total loss has no salvage category
+    /// (operator, 26 September 2026): the badge reads TOTAL LOSS with no
+    /// category and no salvage paragraph prints. Every other recorded
+    /// category prints its accepted wording.
     /// </summary>
-    public const string PrintableSalvageCategory = "S";
-
-    /// <summary>Whether the active total-loss template has accepted wording for <paramref name="category"/>.</summary>
-    public static bool PrintsSalvageCategory(string? category) =>
-        string.Equals(category, PrintableSalvageCategory, StringComparison.Ordinal);
+    public const string NoSalvageCategory = "N/A";
 }
 
 public enum AssessmentReportOutcome
@@ -473,9 +469,9 @@ public sealed record AssessmentReportSnapshot(
                 "Unrelated damage was selected for the report but none is recorded.");
         }
         if (Outcome == AssessmentReportOutcome.TotalLoss &&
-            (!AssessmentReportContract.PrintsSalvageCategory(SalvageCategory) || SalvageValue is null or < 0))
+            (string.IsNullOrWhiteSpace(SalvageCategory) || SalvageValue is null or < 0))
         {
-            throw new ReportRenderRejectedException("The active total-loss report requires accepted Category S wording and salvage value.");
+            throw new ReportRenderRejectedException("The total-loss report requires a salvage category and salvage value.");
         }
         if (LegalStatus.Equals("unroadworthy", StringComparison.OrdinalIgnoreCase) &&
             string.IsNullOrWhiteSpace(UnroadworthyReason))
@@ -515,7 +511,9 @@ public sealed record AssessmentReportSnapshot(
     {
         AssessmentReportOutcome.TotalLoss => new(
             "TOTAL LOSS REPORT",
-            $"TOTAL LOSS — CATEGORY {SalvageCategory}",
+            SalvageCategory == AssessmentReportContract.NoSalvageCategory
+                ? "TOTAL LOSS"
+                : $"TOTAL LOSS — CATEGORY {SalvageCategory}",
             "Settlement",
             "Recommended equitable settlement (pre-accident value less salvage)",
             $"We consider that an equitable settlement would be {Money(EngineerValue - SalvageValue!.Value)}, which represents the pre-accident engineer value of the vehicle of {Money(EngineerValue)} less the value of the salvage of {Money(SalvageValue.Value)}.",
