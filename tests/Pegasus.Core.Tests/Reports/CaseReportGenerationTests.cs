@@ -128,6 +128,20 @@ public sealed class CaseReportGenerationTests
     }
 
     [Fact]
+    public void ACurrentEstimateWithNoLinesBlocksGeneration()
+    {
+        // Putting a spec in use no longer needs lines; readiness names the gap.
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with
+        {
+            CurrentEstimate = Estimate() with { Lines = [] },
+        });
+
+        var reason = AssertBlocked(result, CaseReportReadiness.CurrentEstimateRequirement);
+        Assert.Equal(CaseReportReadiness.CurrentEstimateEmpty, reason);
+        Assert.Equal("The Current repair spec has no lines.", reason.WhyOutstanding);
+    }
+
+    [Fact]
     public void ACurrentEstimateWithoutARateBlocksGeneration()
     {
         var estimate = Estimate();

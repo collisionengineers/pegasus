@@ -172,8 +172,8 @@ public sealed partial class EstimateDocumentRendererTests
         params CaseEstimateLineRecord[] lines) => new(
         Guid.NewGuid(), Guid.NewGuid(), 1, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
-        lines, null, "engineer", new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero),
-        null, null, null, null, details);
+        lines, "engineer", new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero),
+        details);
 
     private static CaseEstimateLineRecord[] EvaEstimateLines(string timedOperationType) =>
     [
@@ -207,7 +207,7 @@ public sealed partial class EstimateDocumentRendererTests
 
     private static CaseEstimateLineRecord Line(int position, string description) => new(
         Guid.NewGuid(), position, "repair", null, description, 0.1m, null, false,
-        null, null, null, null, null, ActorKind.Staff, "engineer",
+        null, null, null, null, ActorKind.Staff, "engineer",
         new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero));
 
     private static string[] PageTexts(byte[] pdf)

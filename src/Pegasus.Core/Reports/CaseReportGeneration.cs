@@ -523,7 +523,12 @@ public static class CaseReportReadiness
     internal static readonly AssessmentReadinessItem CurrentEstimateMissing = new(
         CurrentEstimateRequirement, "Estimates",
         "No repair spec is Current on the Case.",
-        "Make one repair spec Current with Use repair spec on the Repair Spec section.");
+        "Import an estimate, bring one back from Glass's or add a new repair spec on the Repair Spec section; Use repair spec switches to an existing one.");
+
+    internal static readonly AssessmentReadinessItem CurrentEstimateEmpty = new(
+        CurrentEstimateRequirement, "Estimates",
+        "The Current repair spec has no lines.",
+        "Add the repair lines to the Current repair spec on the Repair Spec section.");
 
     internal static readonly AssessmentReadinessItem LabourRateMissing = new(
         LabourRateRequirement, "Estimates",
@@ -552,6 +557,7 @@ public static class CaseReportReadiness
         Require(signatory is not null && IsComplete(signatory), SignatoryMissing);
 
         Require(input.CurrentEstimate is not null, CurrentEstimateMissing);
+        Require(input.CurrentEstimate is null || input.CurrentEstimate.Lines.Count > 0, CurrentEstimateEmpty);
         Require(
             input.CurrentEstimate is null || input.CurrentEstimate.Details.HourlyRate > 0m,
             LabourRateMissing);

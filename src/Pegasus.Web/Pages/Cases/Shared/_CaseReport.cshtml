@@ -98,7 +98,7 @@
             (CaseReportArtifactKind.ImagePack, ReportLabels.AttachImages),
         }.Where(item => generation.Artifacts.Any(artifact =>
             artifact.Kind == item.Item1 && artifact.Status == CaseReportArtifactStatus.Confirmed)).ToArray();
-    var specificationId = Model.AcceptedSpecification?.SpecificationId;
+    var specificationId = Model.CurrentSpecification?.SpecificationId;
     var imagePackHref = Url.Page("/Cases/Details", "PreviewImagePack", new { id = caseId })!;
     var reportDate = Model.AssessmentEditorValue(AssessmentVocabulary.ReportDate);
     var reportDateText = DateOnly.TryParseExact(Model.Assessment?.Field(AssessmentVocabulary.ReportDate)?.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDateValue)

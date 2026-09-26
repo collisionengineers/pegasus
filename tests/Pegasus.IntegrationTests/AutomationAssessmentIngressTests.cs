@@ -276,8 +276,13 @@ public sealed class AutomationAssessmentIngressTests
                 reason = "Attempt a generic estimate write.",
                 estimateLines = new[] { new { description = "Repair" } }
             }));
-        using var estimateDocument = await ReadJsonRpcAsync(estimateResponse);
-        Assert.Contains("named estimate command", estimateDocument.RootElement.ToString(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, estimateResponse.StatusCode);
+        // The generic command takes fields only: estimate lines change through
+        // the named estimate commands, so nothing is written here.
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseEstimateLines WHERE WorkId = '{caseId:D}'"));
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseRepairSpecifications WHERE WorkId = '{caseId:D}'"));
 
         using var rateResponse = await PostMcpAsync(client, token, ToolCallPayload(43,
             "pegasus_assessment_update", new
@@ -1167,7 +1172,7 @@ public sealed class AutomationAssessmentIngressTests
             Assert.Equal(RepairerVatStatus.Unknown, saved.Details.VatPolicy.RepairerStatus);
             Assert.True(saved.Details.VatPolicy.TreatmentPending);
             // v28 P10: the unknown VAT status is no refusal, and the AI lines
-            // are the Draft's own; Use estimate is the Engineer's acceptance.
+            // are the Draft's own; Use repair spec is a staff member's choice.
             EstimatePolicy.ValidateSetCurrent(
                 saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]));
         }

@@ -287,12 +287,12 @@ public sealed class RepairSpecificationActTests
         EstimateDetails details, params CaseEstimateLineRecord[] lines) => new(
         Guid.NewGuid(), CaseId, 1, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
-        lines, null, Engineer.SubjectId, Now, null, null, null, null, details);
+        lines, Engineer.SubjectId, Now, details);
 
     private static CaseEstimateLineRecord Line(
         string type, decimal? workUnits = null, decimal? paintWorkUnits = null,
         decimal? price = null, int? quantity = null, decimal? materials = null) => new(
-        Guid.NewGuid(), 1, type, null, "Line", workUnits, price, false, null, null, null, null, null,
+        Guid.NewGuid(), 1, type, null, "Line", workUnits, price, false, null, null, null, null,
         ActorKind.Staff, Engineer.SubjectId, Now,
         paintWorkUnits, quantity, materials);
 
@@ -317,7 +317,7 @@ public sealed class RepairSpecificationActTests
                 Details = request.Details,
                 Lines = [.. request.Lines.Select((line, index) => new CaseEstimateLineRecord(
                     Guid.NewGuid(), index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits,
-                    line.Price, line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel,
+                    line.Price, line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel,
                     line.Justification, ActorKind.Staff, Engineer.SubjectId, Now,
                     line.PaintWorkUnits, line.Quantity, line.Materials))],
             });
@@ -356,9 +356,7 @@ public sealed class RepairSpecificationActTests
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> SaveImportedEstimateAsync(SaveEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(Guid caseId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-        public Task<RepairSpecificationVersion?> GetCurrentDraftAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<RepairSpecificationVersion?> GetCurrentAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> DuplicateEstimateAsync(DuplicateEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

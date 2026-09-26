@@ -631,28 +631,20 @@ public sealed partial class AssessmentReportDraftWebTests
     /// The Current estimate the ready fixture prices from: 50 parts, five
     /// panel hours at 30, 20 materials and 5 specialist, at 20 per cent VAT.
     /// </summary>
-    internal static RepairSpecificationVersion CurrentEstimate()
-    {
-        var draft = new RepairSpecificationVersion(
+    internal static RepairSpecificationVersion CurrentEstimate() => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
             EstimateLine(1, "repair", "Nearside door", 5m, null),
             EstimateLine(2, "new_part", "Door skin", null, 50m) with { Materials = 20m },
         ],
-        null, "engineer-1", ReportFixtureAtUtc, "engineer-1", ReportFixtureAtUtc, null, null,
+        "engineer-1", ReportFixtureAtUtc,
         new EstimateDetails("Repairer", 30m, 5m, 20m), IsCurrent: true);
-        return draft with
-        {
-            State = RepairSpecificationState.Accepted,
-            RecordedTotals = EstimateTotals.Compute(draft),
-        };
-    }
 
     private static CaseEstimateLineRecord EstimateLine(
         int position, string type, string description, decimal? workUnits, decimal? price) => new(
             Guid.NewGuid(), position, type, null, description, workUnits, price, false, null, null,
-            "confirmed", "case", "Test evidence",
+            "case", "Test evidence",
             ActorKind.Staff, "engineer-1", ReportFixtureAtUtc,
             Quantity: 1);
 

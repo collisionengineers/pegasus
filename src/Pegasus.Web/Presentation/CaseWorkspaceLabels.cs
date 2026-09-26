@@ -469,8 +469,20 @@ public static class CaseWorkspaceLabels
             RepairSpecificationSourceRoute.AudatexPdf => SourceImported + " \u00b7 AX",
             RepairSpecificationSourceRoute.Glasses => SourceImported + " \u00b7 GL",
             RepairSpecificationSourceRoute.Json => SourceImported + " \u00b7 JSON",
-            RepairSpecificationSourceRoute.ApprovedAiProposal or RepairSpecificationSourceRoute.AiDraft => SourceImported + " \u00b7 AI",
-            _ => SourceImported
+            RepairSpecificationSourceRoute.AiDraft => SourceImported + " \u00b7 AI",
+            RepairSpecificationSourceRoute.Manual => SourceImported,
+            _ => throw new ArgumentOutOfRangeException(nameof(route), route, null)
+        };
+
+        /// <summary>The short route tag a version row and the Compare table show.</summary>
+        public static string RouteTag(RepairSpecificationSourceRoute route) => route switch
+        {
+            RepairSpecificationSourceRoute.Manual => RouteManual,
+            RepairSpecificationSourceRoute.Glasses => RouteGlasses,
+            RepairSpecificationSourceRoute.AudatexPdf => RouteAudatex,
+            RepairSpecificationSourceRoute.Json => RouteJson,
+            RepairSpecificationSourceRoute.AiDraft => RouteAi,
+            _ => throw new ArgumentOutOfRangeException(nameof(route), route, null)
         };
         public const string Blend = "Blend";
         public const string LabourRateCard = "Labour-rate card";
@@ -498,7 +510,6 @@ public static class CaseWorkspaceLabels
         public const string RouteAudatex = "Audatex PDF";
         public const string RouteJson = "JSON";
         public const string RouteAi = "AI";
-        public const string RouteUnknown = "Recorded";
         public const string HeldFromAnotherCase = "Your account is held from another Case";
         public const string Started = "started";
         public const string AvailableWhileEditing = "Available while editing";
@@ -513,7 +524,7 @@ public static class CaseWorkspaceLabels
     {
         public const string FileLabel = "Estimate file";
         public const string DropEstimate = "Drop estimate to import";
-        public const string DropHint = "One PDF, XML or JSON file, up to 10 MB.";
+        public const string DropHint = "One PDF, XML or JSON file, up to 32 MiB.";
         public const string Importing = "Importing estimate…";
         public const string ExactlyOneFile = "Choose exactly one estimate file.";
         public const string NonEmptyFile = "Choose a non-empty estimate file.";
@@ -522,7 +533,13 @@ public static class CaseWorkspaceLabels
         public const string UnsavedEstimate = "Save or cancel the estimate changes before importing another estimate.";
         public const string ActionInProgress = "Wait for the current Case action to finish before importing an estimate.";
         public const string StorageFailed = "The estimate source could not be retained.";
-        public const string Imported = "Estimate imported as a Draft.";
+        public const string Imported = "Estimate imported. It is the repair spec in use.";
+
+        /// <summary>
+        /// A file already imported replays the spec it made and leaves the
+        /// spec in use as it was (FRD-25); Use repair spec switches to it.
+        /// </summary>
+        public const string AlreadyImported = "This file was already imported. Its repair spec is shown; the repair spec in use is unchanged.";
     }
 
     /// <summary>
@@ -727,8 +744,7 @@ public static class CaseWorkspaceLabels
 
     /// <summary>
     /// The estimate header's VAT surface (B08): the repairer's status, the
-    /// categories the estimate's percentage is charged on, and the condition
-    /// that gates Use estimate while neither has been recorded. The category
+    /// categories the estimate's percentage is charged on. The category
     /// names are the totals block's own, so the screen never labels the same
     /// money two ways.
     /// </summary>
@@ -936,11 +952,17 @@ public static class CaseWorkspaceLabels
         public const string State = "State";
         public const string OpenOn = "Open on";
 
-        /// <summary>The outcomes a launch, a return or a resume reports.</summary>
-        public const string ImportedWithChanges = "The Glass's estimate was recorded as a Draft. Your unsaved changes are still here. Save or cancel them to view it.";
+        /// <summary>
+        /// The outcomes a launch, a return or a resume reports. A recorded
+        /// estimate is named as recorded, not as the spec in use: the outcome
+        /// stays on the section for as long as the session is the newest one,
+        /// and a same-file replay or a later Use repair spec may leave another
+        /// spec in use.
+        /// </summary>
+        public const string ImportedWithChanges = "The Glass's estimate was recorded as a repair spec, and your unsaved changes are still here. Save or cancel them to view it.";
         public const string ReturnedWithChanges = "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.";
 
-        public const string Imported = "The Glass's estimate was recorded as a draft.";
+        public const string Imported = "The Glass's estimate was recorded as a repair spec.";
 
         public const string AwaitingImport = "The Glass's estimate is held. Not yet recorded.";
 

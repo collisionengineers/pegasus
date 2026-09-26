@@ -186,7 +186,7 @@ exclusion.
 | EXT-06 | Replace EVA estimating without moving repair-specification authority out of Pegasus Core | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
 | EXT-07 | Dated valuation source evidence with explicit human staff selection | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
 | EXT-08 | Deterministic report generation from accepted Core data | [Initial renderer activation](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation) |
-| EXT-09 | Versioned repair-estimate lines, source versions, and approvals | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
+| EXT-09 | Versioned repair-estimate lines and source versions | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
 | EXT-10 | Versioned vehicle-valuation evidence, explicit human staff acceptance/adjustments/rationale, and revaluation history | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
 | EXT-11 | Versioned fee/invoice and Engineer cost/payment inputs, accounting status, and staff-role-neutral visibility | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | EXT-12 | Glass's and Audatex PDF estimate ingestion with retained source and variant proof | [Retained PDF estimates](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#retained-pdf-estimate-import) |

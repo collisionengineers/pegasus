@@ -130,30 +130,6 @@ public sealed class EfCaseAssessmentStore(
         CaseDataSourceKind? mileageProvenance = mileageField is null
             ? null
             : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind);
-        var specification = await EfRepairSpecificationStore.DraftQuery(context, workId)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (specification is null && request.EstimateLines is not null)
-        {
-            var acceptedExists = await EfRepairSpecificationStore.AcceptedQuery(context, workId)
-                .AnyAsync(cancellationToken);
-            if (acceptedExists)
-            {
-                throw new InvalidOperationException(
-                    "An accepted repair specification is immutable; start a reasoned correction draft before editing its lines.");
-            }
-            var version = await EfRepairSpecificationStore.NextVersionAsync(
-                context, workId, cancellationToken);
-            specification = EfRepairSpecificationStore.NewLegacyDraft(
-                workId, version, request.Actor.SubjectId, request.OperationKey, now);
-            context.CaseRepairSpecifications.Add(specification);
-        }
-        var specificationId = specification?.Id;
-        var lines = await context.CaseEstimateLines
-            .Where(item => item.WorkId == workId
-                && item.RepairSpecificationId == specificationId)
-            .OrderBy(item => item.Position)
-            .ToListAsync(cancellationToken);
-
         var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields, request.Actor.Kind);
         AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
@@ -163,20 +139,6 @@ public sealed class EfCaseAssessmentStore(
             fieldsToWrite,
             request.Actor,
             now);
-
-        object? beforeLines = null;
-        object? afterLines = null;
-        if (request.EstimateLines is { } replacementLines)
-        {
-            (beforeLines, afterLines) = EstimateLineWriter.Replace(
-                context,
-                workId,
-                specification,
-                lines,
-                replacementLines,
-                request.Actor,
-                now);
-        }
 
         var beforeVersion = workflow.Version;
         workflow.Version++;
@@ -192,13 +154,12 @@ public sealed class EfCaseAssessmentStore(
             beforeVersion,
             workflow.Version,
             JsonSerializer.Serialize(
-                new { Fields = beforeFields, EstimateLines = beforeLines },
+                new { Fields = beforeFields },
                 JsonOptions),
             JsonSerializer.Serialize(
                 new
                 {
                     Fields = afterFields,
-                    EstimateLines = afterLines,
                     request.AiWorkRequestId
                 },
                 JsonOptions),
@@ -316,7 +277,6 @@ public sealed class EfCaseAssessmentStore(
                 item.Unpriced,
                 item.PartNumber,
                 item.Betterment,
-                item.Status,
                 item.EvidenceLabel,
                 item.Justification,
                 ParseActorKind(item.RecordedByKind),
@@ -328,23 +288,13 @@ public sealed class EfCaseAssessmentStore(
         MapCaseOwned(workflow.Case, caseDataFields, fields, originReceivedAtUtc));
 
     /// <summary>
-    /// The current specification for report/read purposes is the accepted
-    /// one, or the open draft when nothing is accepted yet. <see
-    /// cref="IRepairSpecificationStore"/> is the single owner of both
-    /// queries; this store only resolves which one wins.
+    /// The assessment reads the Current specification's lines; <see
+    /// cref="IRepairSpecificationStore"/> owns which one that is.
     /// </summary>
     private async Task<Guid?> CurrentSpecificationIdAsync(
         Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        var accepted = await repairSpecifications.GetCurrentAcceptedAsync(caseId, cancellationToken);
-        if (accepted is not null)
-        {
-            return accepted.SpecificationId;
-        }
-        var draft = await repairSpecifications.GetCurrentDraftAsync(caseId, cancellationToken);
-        return draft?.SpecificationId;
-    }
+        CancellationToken cancellationToken) =>
+        (await repairSpecifications.GetCurrentAsync(caseId, cancellationToken))?.SpecificationId;
 
     private static AssessmentCaseOwnedData MapCaseOwned(
         CaseEntity caseEntity,
@@ -443,7 +393,6 @@ public sealed class EfCaseAssessmentStore(
             request.Reason,
             request.EditLeaseToken,
             Fields = request.Fields.OrderBy(pair => pair.Key, StringComparer.Ordinal),
-            request.EstimateLines,
             request.AiWorkRequestId
         }, JsonOptions);
         return CaseOperationReplay.Hash(material);

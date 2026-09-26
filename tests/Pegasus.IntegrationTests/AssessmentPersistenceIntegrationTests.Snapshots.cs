@@ -27,8 +27,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var snapshots = new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock);
         var lines = new EstimateLineInput[]
         {
-            new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "confirmed", "official", null, Quantity: 1),
-            new("repair", null, "Repair door", 4m, null, false, null, null, "confirmed", "judgement", null),
+            new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "official", null, Quantity: 1),
+            new("repair", null, "Repair door", 4m, null, false, null, null, "judgement", null),
         };
 
         var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "spec-snapshot-lease-1");
@@ -87,47 +87,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task AcceptedSnapshotUsesItsRecordedPrintedGross()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var caseId = (await harness.AcceptAsync("spec-accepted-totals-case")).Identity.CaseId;
-        var engineer = harness.EngineerActor;
-        var save = new SaveEstimate(harness.RepairSpecifications,
-            new EfAiJobStore(harness.Factory, harness.Clock), harness.Clock);
-        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "spec-totals-lease");
-        var specification = await save.ExecuteAsync(
-            new(caseId, lease.Version, engineer, "spec-totals-save", "Recorded repair estimate",
-                lease.Token, null,
-                new("Repairer", 80m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-                [new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "confirmed", "official", null, Quantity: 1)],
-                new(RepairSpecificationSourceRoute.Manual, null, null, null)),
-            CancellationToken.None);
-        var calculated = EstimateTotals.Compute(specification);
-        var recordedGross = calculated.Printed.Gross + 7m;
-        var accepted = specification with
-        {
-            State = RepairSpecificationState.Accepted,
-            RecordedTotals = calculated with
-            {
-                Printed = calculated.Printed with { Gross = recordedGross },
-            },
-        };
-
-        await using (var db = await harness.Factory.CreateDbContextAsync())
-        {
-            EfRepairSpecificationSnapshotStore.Freeze(
-                db, accepted.CaseId, accepted, engineer, RepairSpecificationSnapshotKind.Imported,
-                "Accepted calculation", harness.Clock.GetUtcNow());
-            await db.SaveChangesAsync();
-        }
-
-        var versions = await new EfRepairSpecificationSnapshotStore(harness.Factory, harness.Clock)
-            .ListAsync(caseId, specification.SpecificationId, CancellationToken.None);
-        Assert.Equal(recordedGross, Assert.Single(versions).Gross);
-        Assert.NotEqual(calculated.Printed.Gross, Assert.Single(versions).Gross);
-    }
-
-    [Fact]
     public async Task RestoreIsAtomicAndRecordsTheBeforeAndRestoredVersions()
     {
         await using var harness = await Harness.CreateAsync();
@@ -147,7 +106,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 lease.Token,
                 null,
                 new("Repairer", 80m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-                [new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "confirmed", "official", null, Quantity: 1)],
+                [new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "official", null, Quantity: 1)],
                 new(RepairSpecificationSourceRoute.Manual, null, null, null)),
             CancellationToken.None);
         var version = await snapshots.FreezeAsync(
@@ -221,8 +180,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 lease.Token, null,
                 new("Repairer", 80m, null, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
                 [
-                    new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "confirmed", "official", null, Quantity: 1),
-                    new("repair", null, "Repair door", 4m, null, false, null, null, "confirmed", "judgement", null),
+                    new("new_part", null, "Door skin", null, 500m, false, "P-1", null, "official", null, Quantity: 1),
+                    new("repair", null, "Repair door", 4m, null, false, null, null, "judgement", null),
                 ],
                 new(RepairSpecificationSourceRoute.Manual, null, null, null))
             {

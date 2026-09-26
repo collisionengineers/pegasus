@@ -294,9 +294,9 @@ internal static class EstimateDocumentLayout
         RepairSpecificationSourceRoute.Manual => "Manual",
         RepairSpecificationSourceRoute.Glasses => "Glass's",
         RepairSpecificationSourceRoute.AudatexPdf => "Audatex",
-        RepairSpecificationSourceRoute.ApprovedAiProposal or RepairSpecificationSourceRoute.AiDraft => "AI",
+        RepairSpecificationSourceRoute.AiDraft => "AI",
         RepairSpecificationSourceRoute.Json => "JSON",
-        _ => "Unresolved",
+        _ => throw new ReportRenderRejectedException("The estimate document has an unsupported source route."),
     };
 
     private static string VatStatus(EstimateVatPolicy policy) => policy.RepairerStatus switch

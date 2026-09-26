@@ -27,7 +27,6 @@ internal sealed record EstimateLineToolItem(
     bool Unpriced,
     string? PartNumber,
     string? Betterment,
-    string? Status,
     string? EvidenceLabel,
     string? Justification,
     string RecordedByKind,
@@ -43,7 +42,6 @@ internal sealed record EstimateLineToolInput(
     bool Unpriced = false,
     string? PartNumber = null,
     string? Betterment = null,
-    string? Status = null,
     string? EvidenceLabel = null,
     string? Justification = null,
     decimal? PaintWorkUnits = null,
@@ -97,8 +95,7 @@ internal sealed record EstimateListToolItem(
     string State,
     string Source,
     string Name,
-    bool IsCurrent,
-    string? CalculationBasis);
+    bool IsCurrent);
 
 internal sealed record EstimateListToolResult(
     Guid CaseId,
@@ -190,7 +187,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, edit lease, parser route and replay rules as the Case UI apply.")]
+    [Description("Imports one already-retained exact estimate document through Pegasus's canonical named raw-estimate import. The same Case version, edit lease, parser route and replay rules as the Case UI apply. An automation import lands as a Draft; a staff member puts it in use with Use repair spec.")]
     public async Task<EstimateImportToolResult> ImportEstimateAsync(
         Guid caseId,
         long expectedVersion,
@@ -235,7 +232,7 @@ internal sealed class AssessmentMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Saves an AI-draft estimate on a case (FRD-10 § AI job and estimate tools): creates a named Draft, or replaces the header and lines of an existing AI-draft estimate when estimateId is supplied. Requires the edit lease and expected case version like every case mutation, and must cite the Estimate job this client currently holds (aiJobId); the estimate always lands as Draft and never becomes Current here — an Engineer does that with Use estimate. Rates are per hour in pounds; vatPercent is free per estimate and defaults to 20. Line types follow the estimate-line vocabulary (new_part, repair, rnr, paint_*, check_labour, specialist_*); workUnits are labour hours, paintWorkUnits paint hours, price is per unit and multiplied by quantity (default 1).")]
+    [Description("Saves an AI-draft estimate on a case (FRD-10 § AI job and estimate tools): creates a named Draft, or replaces the header and lines of an existing AI-draft estimate when estimateId is supplied. Requires the edit lease and expected case version like every case mutation, and must cite the Estimate job this client currently holds (aiJobId); the estimate always lands as Draft and never becomes Current here — a staff member does that with Use repair spec. Rates are per hour in pounds; vatPercent is free per estimate and defaults to 20. Line types follow the estimate-line vocabulary (new_part, repair, rnr, paint_*, check_labour, specialist_*); workUnits are labour hours, paintWorkUnits paint hours, price is per unit and multiplied by quantity (default 1).")]
     public async Task<EstimateSaveToolResult> SaveEstimateAsync(
         [Description("The durable Pegasus case identifier.")] Guid caseId,
         [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
@@ -400,7 +397,6 @@ internal sealed class AssessmentMcpTools(
         [Description("Caller idempotency key prefixed 'mcp:'; replaying the same key returns the same result.")] string operationKey,
         [Description("Why these values are being recorded (case history reason, at most 500 characters).")] string reason,
         [Description("Scalar assessment values keyed by field path, limited to fields staff can record on the Case; a null value clears the field.")] Dictionary<string, string?>? fields = null,
-        [Description("Unsupported on this generic command; use a named estimate command.")] IReadOnlyList<EstimateLineToolInput>? estimateLines = null,
         [Description("Optional Send to AI work-request identifier for round-trip correlation.")] string? workRequestId = null,
         CancellationToken cancellationToken = default)
     {
@@ -421,11 +417,6 @@ internal sealed class AssessmentMcpTools(
                 {
                     throw new McpException("An active edit lease token is required.");
                 }
-                if (estimateLines is not null)
-                {
-                    throw new McpException(
-                        "Estimate lines must be changed through a named estimate command.");
-                }
                 foreach (var path in fields?.Keys ?? Enumerable.Empty<string>())
                 {
                     RequireGenericWrite(path);
@@ -440,7 +431,6 @@ internal sealed class AssessmentMcpTools(
                         reason,
                         editLeaseToken,
                         fields ?? new Dictionary<string, string?>(StringComparer.Ordinal),
-                        estimateLines?.Select(MapLineInput).ToArray(),
                         binding),
                     cancellationToken);
                 return new AssessmentUpdateToolResult(
@@ -605,7 +595,6 @@ internal sealed class AssessmentMcpTools(
         line.Unpriced,
         line.PartNumber,
         line.Betterment,
-        line.Status,
         line.EvidenceLabel,
         line.Justification,
         line.RecordedByKind.ToString(),
@@ -621,7 +610,6 @@ internal sealed class AssessmentMcpTools(
         line.Unpriced,
         line.PartNumber,
         line.Betterment,
-        line.Status,
         line.EvidenceLabel,
         line.Justification,
         line.PaintWorkUnits,
@@ -630,7 +618,7 @@ internal sealed class AssessmentMcpTools(
 
     private static EstimateToolItem MapEstimate(RepairSpecificationVersion estimate)
     {
-        var totals = EstimateTotals.ForProjection(estimate);
+        var totals = EstimateTotals.Compute(estimate);
         var details = estimate.Details;
         return new(
             estimate.SpecificationId,
@@ -665,8 +653,7 @@ internal sealed class AssessmentMcpTools(
         estimate.State.ToString(),
         estimate.Source.Route.ToString(),
         estimate.Name,
-        estimate.IsCurrent,
-        estimate.CalculationBasis?.ToString());
+        estimate.IsCurrent);
 
     private static AssessmentCaseOwnedToolData MapCaseOwned(AssessmentCaseOwnedData data) => new(
         data.Registration,
