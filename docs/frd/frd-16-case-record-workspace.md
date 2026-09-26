@@ -430,7 +430,12 @@ recorded time and custody-state chip, with Preview, Save as and, while
 editing, delete. When an Audit lists **Original report missing**, each
 non-image row also offers **Mark as original report** while editing. That
 action assigns the Audit report role, clears the requirement and fills the
-[Original report](#original-report) cells from that document.
+[Original report](#original-report) cells from that document. While the
+Engineer sections are editable, a confirmed row that exactly one estimate
+format recognises — an Audatex that arrived by email, say — also offers
+**Import as repair spec** (operator, 25 September 2026). It imports that
+file through the same import as the Repair Spec section, with no second copy
+([Assessment](#assessment)).
 
 **Images** is one grid of every image occurrence: the Case's own image
 documents plus, for each vehicle-images record associated with the Case, its
@@ -578,7 +583,9 @@ opens the native file picker; dropping a file over Repair Spec uses
 the same upload path and shows a temporary drop overlay. Exactly one supported
 PDF, XML or JSON file is accepted. From read mode, the server acquires the Case
 edit lease against the submitted Case version before storing the file through
-the normal Case document upload flow.
+the normal Case document upload flow. A dropped file whose bytes are already
+confirmed in Case Files, and a Documents row's **Import as repair spec**,
+import that stored file instead of storing another copy.
 
 After the source is confirmed in Case Files, its registered provider parser
 runs immediately. A successful import records the new named spec as the
