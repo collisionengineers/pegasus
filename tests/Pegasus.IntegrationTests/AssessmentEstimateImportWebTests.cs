@@ -162,6 +162,64 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Null(store.OtherEstimate);
     }
 
+    /// <summary>
+    /// Import A, import B, then drop A's file again: the replay returns A and
+    /// leaves B in use (FRD-25; switching back is Use repair spec), and the
+    /// page says the file was already imported rather than that A is in use.
+    /// </summary>
+    [Fact]
+    public async Task ReplayingAnEarlierFileShowsItsSpecAndLeavesTheSpecInUseUnchanged()
+    {
+        var caseId = Guid.NewGuid();
+        var first = AudatexEstimateFixture.Build();
+        var second = Encoding.UTF8.GetBytes(
+            "{\"schema\":\"pegasus-estimate/1\",\"sourceVersion\":\"second\"," +
+            "\"lines\":[{\"operation\":\"Replace\",\"description\":\"Front bumper\",\"price\":120.00}]}");
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+
+        using var importedFirst = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), first));
+        Assert.Equal(HttpStatusCode.Redirect, importedFirst.StatusCode);
+        var firstId = store.LastCreatedEstimateId;
+        html = await GetHtmlAsync(client, importedFirst.Headers.Location!.OriginalString);
+
+        using var importedSecond = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), second,
+                editLeaseToken: InputValue(html, "editLeaseToken"),
+                expectedVersion: long.Parse(InputValue(html, "expectedVersion"), CultureInfo.InvariantCulture),
+                fileName: "estimate.json", mediaType: "application/json"));
+        Assert.Equal(HttpStatusCode.Redirect, importedSecond.StatusCode);
+        var secondId = store.LastCreatedEstimateId;
+        Assert.NotEqual(firstId, secondId);
+        Assert.Equal(secondId, store.InUse!.SpecificationId);
+        html = await GetHtmlAsync(client, importedSecond.Headers.Location!.OriginalString);
+        Assert.Contains(CaseWorkspaceLabels.EstimateImport.Imported, html, StringComparison.Ordinal);
+
+        using var replay = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), first,
+                editLeaseToken: InputValue(html, "editLeaseToken"),
+                expectedVersion: long.Parse(InputValue(html, "expectedVersion"), CultureInfo.InvariantCulture)));
+
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        Assert.Contains(firstId.ToString("D"), replay.Headers.Location!.OriginalString, StringComparison.Ordinal);
+        Assert.Equal(2, store.SavedEstimates.Count);
+        Assert.Equal(firstId, Assert.Single(store.SourceReplayBindings).EstimateId);
+        Assert.Equal(secondId, store.InUse!.SpecificationId);
+        Assert.Equal(firstId, store.OtherEstimate!.SpecificationId);
+        Assert.False(store.OtherEstimate.IsCurrent);
+
+        var reloaded = await GetHtmlAsync(client, replay.Headers.Location.OriginalString);
+        Assert.Contains(CaseWorkspaceLabels.EstimateImport.AlreadyImported, reloaded, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.EstimateImport.Imported, reloaded, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AnImportedEstimatePreservesItsLineEvidenceWhenEditedAndSaved()
     {

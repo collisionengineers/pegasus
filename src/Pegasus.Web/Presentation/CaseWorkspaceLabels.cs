@@ -535,6 +535,12 @@ public static class CaseWorkspaceLabels
         public const string StorageFailed = "The estimate source could not be retained.";
         public const string Imported = "Estimate imported. It is the repair spec in use.";
         public const string NotAnEstimateFile = "That file cannot be imported as a repair spec.";
+
+        /// <summary>
+        /// A file already imported replays the spec it made and leaves the
+        /// spec in use as it was (FRD-25); Use repair spec switches to it.
+        /// </summary>
+        public const string AlreadyImported = "This file was already imported. Its repair spec is shown; the repair spec in use is unchanged.";
     }
 
     /// <summary>
@@ -947,11 +953,17 @@ public static class CaseWorkspaceLabels
         public const string State = "State";
         public const string OpenOn = "Open on";
 
-        /// <summary>The outcomes a launch, a return or a resume reports.</summary>
-        public const string ImportedWithChanges = "The Glass's estimate was recorded and is the repair spec in use. Your unsaved changes are still here. Save or cancel them to view it.";
+        /// <summary>
+        /// The outcomes a launch, a return or a resume reports. A recorded
+        /// estimate is named as recorded, not as the spec in use: the outcome
+        /// stays on the section for as long as the session is the newest one,
+        /// and a same-file replay or a later Use repair spec may leave another
+        /// spec in use.
+        /// </summary>
+        public const string ImportedWithChanges = "The Glass's estimate was recorded as a repair spec. Your unsaved changes are still here. Save or cancel them to view it.";
         public const string ReturnedWithChanges = "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.";
 
-        public const string Imported = "The Glass's estimate was recorded. It is the repair spec in use.";
+        public const string Imported = "The Glass's estimate was recorded as a repair spec.";
 
         public const string AwaitingImport = "The Glass's estimate is held. Not yet recorded.";
 
