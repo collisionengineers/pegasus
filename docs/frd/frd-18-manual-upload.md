@@ -60,8 +60,8 @@ upload rather than chosen after it:
 - The picker shows the declared Case above the files (reference,
   registration · claimant, Principal, stage). The same card states a
   destination wherever one is stated. No Case is offered to pick. Any Case
-  or Triage Case in any state may be declared; an archived or unknown Case is refused on the page and
-  the picker falls back to an ordinary upload.
+  or Triage Case in any state may be declared; an archived or unknown Case
+  is refused on the page and the picker falls back to an ordinary upload.
 - The declaration travels with every file of the submission and is read
   again at post. The same upload receipt presented for a different Case is
   refused, like different bytes under one identity.
