@@ -427,7 +427,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260925120000_RetireInstructionDate",
                 "20260925150000_RemovePerFieldConfirmation",
                 "20260925190000_EditLeaseTakeoverHistoryEvents",
-                "20260926090000_RepairSpecInUseOnCreate"
+                "20260926090000_RepairSpecInUseOnCreate",
+                "20260926150000_DeclaredUploadDestination"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

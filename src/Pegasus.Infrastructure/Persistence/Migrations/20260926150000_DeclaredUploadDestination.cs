@@ -15,7 +15,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// the intake wipe keeps its existing order.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
-[Migration("20260926090000_DeclaredUploadDestination")]
+[Migration("20260926150000_DeclaredUploadDestination")]
 public partial class DeclaredUploadDestination : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
