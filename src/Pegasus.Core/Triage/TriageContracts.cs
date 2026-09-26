@@ -109,6 +109,20 @@ public sealed record TriageMutationRequest(
     public string EditLeaseToken { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// A Triage transition that asks for no reason: Complete and Await
+/// information record the fact, its actor and its time, and the command
+/// writes its own fixed history text.
+/// </summary>
+public sealed record TriageTransitionRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
+
 public sealed record AssignTriageRequest(
     Guid CaseId,
     long ExpectedVersion,
@@ -282,13 +296,13 @@ public interface IUnlinkTriageResponseEvidence
 }
 public interface IAwaitTriageInformation
 {
-    Task<TriageRecord> ExecuteAsync(TriageMutationRequest request, CancellationToken cancellationToken);
+    Task<TriageRecord> ExecuteAsync(TriageTransitionRequest request, CancellationToken cancellationToken);
 }
 
 
 public interface ICompleteTriage
 {
-    Task<TriageRecord> ExecuteAsync(TriageMutationRequest request, CancellationToken cancellationToken);
+    Task<TriageRecord> ExecuteAsync(TriageTransitionRequest request, CancellationToken cancellationToken);
 }
 
 public interface ICancelTriage
