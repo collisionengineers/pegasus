@@ -1266,10 +1266,51 @@ internal static partial class CaseWebTestSupport
         }
     }
 
+    /// <summary>
+    /// The Case as an Engineer (or <paramref name="role"/>) reads it, holding
+    /// no edit lease: for an action that claims its own lease, or to enter
+    /// edit mode from.
+    /// </summary>
+    internal static async Task<LeasedWorkspace> OpenEngineerWorkspaceAsync(
+        RecordingCaseDetailsStore store,
+        Action<IServiceCollection> substitutePorts,
+        StaffRole role = StaffRole.Engineer)
+    {
+        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role);
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        return new(baseFactory, factory, client, store, AntiforgeryValue(initial));
+    }
+
     internal static async Task<LeasedWorkspace> EnterEngineerEditModeAsync(
         RecordingCaseDetailsStore store,
         Action<IServiceCollection> substitutePorts,
         StaffRole role = StaffRole.Engineer)
+    {
+        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role);
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var claim = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initial),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initial, "operationKey"))));
+        AssertPrg(claim, store.CaseId);
+        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
+        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+    }
+
+    /// <summary>
+    /// A signed-in staff client in <paramref name="role"/> over the recording
+    /// store, with the Engineer sections open and <paramref name="substitutePorts"/>
+    /// replacing further ports after the store's.
+    /// </summary>
+    private static (IntakeWebApplicationFactory BaseFactory, WebApplicationFactory<Program> Factory, HttpClient Client)
+        EngineerClient(
+            RecordingCaseDetailsStore store,
+            Action<IServiceCollection> substitutePorts,
+            StaffRole role)
     {
         var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -1293,18 +1334,6 @@ internal static partial class CaseWebTestSupport
             BaseAddress = new Uri("https://localhost")
         });
         client.DefaultRequestHeaders.Add("X-Test-Roles", role.ToString());
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        using var claim = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
-            Form(
-                AntiforgeryValue(initial),
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", InputValue(initial, "operationKey"))));
-        AssertPrg(claim, store.CaseId);
-        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
-        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+        return (baseFactory, factory, client);
     }
-
 }

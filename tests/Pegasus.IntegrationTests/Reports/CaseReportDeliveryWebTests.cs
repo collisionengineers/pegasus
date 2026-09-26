@@ -23,7 +23,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var caseId = Guid.NewGuid();
         var operationKey = Guid.NewGuid().ToString("N");
         var targetGenerationId = Guid.NewGuid();
-        var recorder = new RecordingGenerateReport();
+        var recorder = new CaseWebTestSupport.RecordingGenerateReport();
         using var factory = Compose(
             baseFactory,
             new FakeGetCase(caseId),
@@ -70,7 +70,7 @@ public sealed partial class AssessmentReportDraftWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
-        var recorder = new RecordingGenerateReport();
+        var recorder = new CaseWebTestSupport.RecordingGenerateReport();
         using var factory = Compose(
             baseFactory,
             new FakeGetCase(caseId),
@@ -886,20 +886,6 @@ public sealed partial class AssessmentReportDraftWebTests
             confirmed ? "application/pdf" : null,
             null, null, null,
             value == CaseReportArtifactStatus.Failed ? "transient_failure" : null));
-    }
-
-    private sealed class RecordingGenerateReport : IGenerateCaseReport
-    {
-        public List<GenerateCaseReportRequest> Requests { get; } = [];
-
-        public Task<CaseReportGenerationResult> ExecuteAsync(
-            GenerateCaseReportRequest request,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(request);
-            return Task.FromResult(new CaseReportGenerationResult(
-                CaseReportGenerationOutcome.Pending, null, []));
-        }
     }
 
     private sealed class UnavailableSnapshotSource(AssessmentReportProjectionInput input)
