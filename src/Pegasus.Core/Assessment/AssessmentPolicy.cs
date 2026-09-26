@@ -504,24 +504,13 @@ public static class AssessmentPolicy
         if (fields.TryGetValue(AssessmentVocabulary.Outcome, out var outcome)
             && string.Equals(outcome, "total_loss", StringComparison.Ordinal))
         {
-            if (!fields.TryGetValue(AssessmentVocabulary.SalvageCategory, out var category))
+            if (!fields.ContainsKey(AssessmentVocabulary.SalvageCategory))
             {
                 items.Add(new(
                     "Salvage category",
                     "Assessment record",
                     "The outcome is Total loss without a salvage category.",
                     "Record it on the Decisions section.",
-                    Field: AssessmentVocabulary.SalvageCategory));
-            }
-            else if (!AssessmentReportContract.PrintsSalvageCategory(category))
-            {
-                items.Add(new(
-                    "Salvage category",
-                    "Assessment record",
-                    $"The report prints only Category {AssessmentReportContract.PrintableSalvageCategory}; "
-                        + $"this total loss is recorded as Category {category}.",
-                    $"Record Category {AssessmentReportContract.PrintableSalvageCategory} on the Decisions section, "
-                        + "or record a different outcome.",
                     Field: AssessmentVocabulary.SalvageCategory));
             }
             if (!fields.ContainsKey(AssessmentVocabulary.SalvageValue))
