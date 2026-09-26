@@ -959,7 +959,7 @@ public static class CaseWorkspaceLabels
         /// and a same-file replay or a later Use repair spec may leave another
         /// spec in use.
         /// </summary>
-        public const string ImportedWithChanges = "The Glass's estimate was recorded as a repair spec. Your unsaved changes are still here. Save or cancel them to view it.";
+        public const string ImportedWithChanges = "The Glass's estimate was recorded as a repair spec, and your unsaved changes are still here. Save or cancel them to view it.";
         public const string ReturnedWithChanges = "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.";
 
         public const string Imported = "The Glass's estimate was recorded as a repair spec.";
