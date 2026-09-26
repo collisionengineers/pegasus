@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
@@ -322,7 +323,7 @@ internal static partial class IntakeWebDriver
             sample.MediaType,
             sample.Bytes,
             externalReceiptToken,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
     public static async Task<UploadResult> UploadAsync(
         HttpClient client,
@@ -330,6 +331,7 @@ internal static partial class IntakeWebDriver
         string mediaType,
         byte[] bytes,
         string? externalReceiptToken = null,
+        Guid? declaredCaseId = null,
         CancellationToken cancellationToken = default)
     {
         var form = await GetUploadFormTokensAsync(client, cancellationToken);
@@ -340,6 +342,7 @@ internal static partial class IntakeWebDriver
             mediaType,
             bytes,
             externalReceiptToken ?? form.ExternalReceiptToken,
+            declaredCaseId,
             cancellationToken);
     }
 
@@ -373,7 +376,7 @@ internal static partial class IntakeWebDriver
             mediaType,
             bytes,
             externalReceiptToken,
-            cancellationToken);
+            cancellationToken: cancellationToken);
         return await ProcessQueuedAsync(factory, upload, cancellationToken);
     }
 
@@ -434,7 +437,11 @@ internal static partial class IntakeWebDriver
         }
 
         var landing = Landing(upload);
+        // An upload with a declared Case lands on that Case, not on a status
+        // page; its staged receipt is still exactly the token it was posted
+        // under, so it is drained by that identity.
         var stagedReceiptId = landing.StagedReceiptId
+            ?? await TryResolveStagedByTokenAsync(services, upload.ExternalReceiptToken, cancellationToken)
             ?? throw new InvalidOperationException(
                 $"The upload landed on '{upload.Location}', which names nothing that can be processed.");
         var evaluation = await DrainStagedAsync(services, stagedReceiptId, cancellationToken);
@@ -484,6 +491,25 @@ internal static partial class IntakeWebDriver
             new(IntakeSourceChannel.ManualUpload, token),
             cancellationToken);
         return receipt?.Id;
+    }
+
+    private static async Task<Guid?> TryResolveStagedByTokenAsync(
+        IServiceProvider services,
+        string? externalReceiptToken,
+        CancellationToken cancellationToken)
+    {
+        if (externalReceiptToken is null)
+        {
+            return null;
+        }
+
+        var token = Guid.TryParseExact(externalReceiptToken, "N", out var parsed)
+            ? parsed.ToString("N")
+            : externalReceiptToken;
+        var staged = await services.GetRequiredService<IIntakeWorkStore>().FindBySourceIdentityAsync(
+            new(IntakeSourceChannel.ManualUpload, token),
+            cancellationToken);
+        return staged?.Id;
     }
 
     private static bool IsDuplicateLanding(UploadResult upload) =>
@@ -578,6 +604,7 @@ internal static partial class IntakeWebDriver
         string mediaType,
         byte[]? bytes,
         string? externalReceiptToken = null,
+        Guid? declaredCaseId = null,
         CancellationToken cancellationToken = default)
     {
 
@@ -590,6 +617,12 @@ internal static partial class IntakeWebDriver
         if (externalReceiptToken is not null)
         {
             multipart.Add(new StringContent(externalReceiptToken), "ExternalReceiptToken");
+        }
+
+        // The Case declared before the upload (Add evidence on a Case page).
+        if (declaredCaseId is { } declared)
+        {
+            multipart.Add(new StringContent(declared.ToString("D")), "DeclaredCaseId");
         }
 
         if (uploadName is not null && bytes is not null)
@@ -823,6 +856,71 @@ internal static class IntakeTestEvidence
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
         builder.AddPage(PageSize.A4).AddText(text, 10, new PdfPoint(36, 780), font);
         return builder.Build();
+    }
+
+    /// <summary>
+    /// A PDF of vehicle photographs and nothing else — no text, no plate to
+    /// read: the operator's own case (26 September 2026). Each photograph is
+    /// a distinct 200×240 RGB image well above the retention threshold, so
+    /// the reader keeps every one as an embedded image asset.
+    /// </summary>
+    public static byte[] CreatePhotographPdf(int photographCount, int seed = 1)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(photographCount);
+        var objectBodies = new List<byte[]>
+        {
+            Encoding.ASCII.GetBytes("<< /Type /Catalog /Pages 2 0 R >>"),
+            Encoding.ASCII.GetBytes("<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+        };
+        const int firstImageObject = 4;
+        var contentObject = firstImageObject + photographCount;
+        var resources = string.Join(
+            " ",
+            Enumerable.Range(0, photographCount).Select(index => $"/Im{index + 1} {firstImageObject + index} 0 R"));
+        objectBodies.Add(Encoding.ASCII.GetBytes(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            + $"/Resources << /XObject << {resources} >> >> /Contents {contentObject} 0 R >>"));
+        for (var index = 0; index < photographCount; index++)
+        {
+            var pixels = new byte[200 * 240 * 3];
+            new Random(seed + index).NextBytes(pixels);
+            using var imageObject = new MemoryStream();
+            imageObject.Write(Encoding.ASCII.GetBytes(
+                "<< /Type /XObject /Subtype /Image /Width 200 /Height 240 "
+                + $"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Length {pixels.Length} >>\nstream\n"));
+            imageObject.Write(pixels);
+            imageObject.Write(Encoding.ASCII.GetBytes("\nendstream"));
+            objectBodies.Add(imageObject.ToArray());
+        }
+
+        var operators = string.Concat(
+            Enumerable.Range(0, photographCount).Select(index =>
+                $"q\n250 0 0 300 {20 + index * 20} {400 - index * 20} cm\n/Im{index + 1} Do\nQ\n"));
+        var operatorBytes = Encoding.ASCII.GetBytes(operators);
+        objectBodies.Add(
+            [.. Encoding.ASCII.GetBytes($"<< /Length {operatorBytes.Length} >>\nstream\n"), .. operatorBytes, .. Encoding.ASCII.GetBytes("endstream")]);
+
+        using var output = new MemoryStream();
+        output.Write(Encoding.ASCII.GetBytes("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n"));
+        var offsets = new List<long>();
+        for (var index = 0; index < objectBodies.Count; index++)
+        {
+            offsets.Add(output.Position);
+            output.Write(Encoding.ASCII.GetBytes($"{index + 1} 0 obj\n"));
+            output.Write(objectBodies[index]);
+            output.Write(Encoding.ASCII.GetBytes("\nendobj\n"));
+        }
+
+        var xref = output.Position;
+        output.Write(Encoding.ASCII.GetBytes($"xref\n0 {objectBodies.Count + 1}\n0000000000 65535 f \n"));
+        foreach (var offset in offsets)
+        {
+            output.Write(Encoding.ASCII.GetBytes($"{offset:0000000000} 00000 n \n"));
+        }
+
+        output.Write(Encoding.ASCII.GetBytes(
+            $"trailer\n<< /Size {objectBodies.Count + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n"));
+        return output.ToArray();
     }
 
     /// <summary>

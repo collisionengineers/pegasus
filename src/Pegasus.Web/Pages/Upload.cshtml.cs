@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
+using Labels = Pegasus.Web.Presentation.OperatorLabels.Upload;
 
 namespace Pegasus.Web.Pages;
 
@@ -21,6 +22,12 @@ namespace Pegasus.Web.Pages;
 ///
 /// A successful request ends after the source bytes and Pending work item are
 /// durable. Worker owns every later processing transition.
+///
+/// Opened from a Case page (Add evidence, <c>?caseId=</c>), the surface
+/// carries that Case as the upload's declared destination (FRD-18): the
+/// member of staff has already decided where the files go, so processing
+/// links them there and runs no identification, and the operator returns to
+/// the Case's Files panel.
 /// </remarks>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -32,6 +39,7 @@ namespace Pegasus.Web.Pages;
     MemoryBufferThreshold = 64 * 1024)]
 public sealed partial class UploadModel(
     IGroupedIntakeSubmission groupedSubmission,
+    IIntakeAssociationDestinationQueries destinations,
     TimeProvider timeProvider,
     ILogger<UploadModel> logger) : StaffPageModel
 {
@@ -51,13 +59,50 @@ public sealed partial class UploadModel(
     [BindProperty]
     public string ExternalReceiptToken { get; set; } = string.Empty;
 
-    public void OnGet()
+    /// <summary>The Case declared before the upload, when Add evidence on a Case page opened this surface.</summary>
+    [BindProperty]
+    public Guid? DeclaredCaseId { get; set; }
+
+    /// <summary>The declared destination's facts, drawn above the picker; null for an ordinary upload.</summary>
+    public UploadReviewDestination? Destination { get; private set; }
+
+    /// <summary>A Case was asked for but is unknown or archived: the picker still works, for an upload whose destination is chosen after.</summary>
+    public bool DestinationUnavailable { get; private set; }
+
+    public async Task<IActionResult> OnGetAsync(Guid? caseId, CancellationToken cancellationToken)
     {
         ExternalReceiptToken = Guid.NewGuid().ToString("N");
+        if (caseId is { } declared)
+        {
+            if (!TryGetActor(out var actor))
+            {
+                return Forbid();
+            }
+
+            await LoadDestinationAsync(declared, actor, cancellationToken);
+        }
+
+        return Page();
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        // The declared Case is read again at post: the form's id is a claim,
+        // the current Case row is the authority.
+        if (DeclaredCaseId is { } declared)
+        {
+            await LoadDestinationAsync(declared, actor, cancellationToken);
+            if (Destination is null)
+            {
+                ModelState.AddModelError(string.Empty, Labels.DestinationUnavailable);
+            }
+        }
+
         // The upload receipt is the replay key. A malformed one means the form
         // state cannot be trusted, so the post is refused rather than quietly
         // given a fresh key — which would turn a replay into a second receipt.
@@ -110,11 +155,7 @@ public sealed partial class UploadModel(
             return Page();
         }
 
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
+        var uploader = IntakeActorIdentity.Staff(actor.SubjectId);
         try
         {
             var files = new List<StreamedGroupedIntakeFile>(Upload.Length);
@@ -143,7 +184,7 @@ public sealed partial class UploadModel(
                         file.Length,
                         _ => ValueTask.FromResult<Stream>(file.OpenReadStream()),
                         timeProvider.GetUtcNow(),
-                        $"staff:{actor.SubjectId}",
+                        uploader,
                         new(IntakeSourceChannel.ManualUpload, ExternalReceiptToken))));
             }
 
@@ -155,11 +196,24 @@ public sealed partial class UploadModel(
             var result = await groupedSubmission.ExecuteStreamedAsync(
                 new StreamedGroupedIntakeSubmissionRequest(
                     ExternalReceiptToken,
-                    $"staff:{actor.SubjectId}",
+                    uploader,
                     timeProvider.GetUtcNow(),
                     files,
-                    IntakeSourceChannel.ManualUpload),
+                    IntakeSourceChannel.ManualUpload,
+                    DeclaredCaseId: DeclaredCaseId),
                 cancellationToken);
+
+            // A declared destination needs no review: the decision was made on
+            // the Case, so the operator goes back to it (FRD-18).
+            if (DeclaredCaseId is { } declaredCaseId && Destination is { } destination)
+            {
+                TempData["CaseStatus"] = result.Members.All(member => member.IsDuplicate)
+                    ? Labels.AlreadyReceivedForCase(destination.Reference)
+                    : Labels.ReceivedForCase(result.Members.Count, destination.Reference);
+                return RedirectToPage(
+                    "/Cases/Details",
+                    new { id = declaredCaseId, section = "files" });
+            }
 
             // A one-member group is the existing single-file upload flow: it
             // keeps its own status page and replay notice rather than sending
@@ -204,6 +258,27 @@ public sealed partial class UploadModel(
         }
 
         return Page();
+    }
+
+    private async Task LoadDestinationAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+    {
+        var destination = await destinations.GetAsync(caseId, actor, cancellationToken);
+        if (destination is null)
+        {
+            Destination = null;
+            DestinationUnavailable = true;
+            DeclaredCaseId = null;
+            return;
+        }
+
+        DeclaredCaseId = destination.CaseId;
+        Destination = new UploadReviewDestination(
+            destination.Reference,
+            destination.Registration,
+            destination.Claimant,
+            destination.Principal,
+            OperatorLabels.AssociationDestinationState(destination),
+            $"/Cases/{destination.CaseId:D}");
     }
 
     [LoggerMessage(

@@ -234,8 +234,9 @@ keeps the Triage layout, headed by its `t.` Case/PO: the determinations
 images, the exact response evidence, the chaser correspondence, and `Notes`,
 which merges durable events with append-only attributable notes in time
 order. Before Notes it carries the Case's **Files** panel: the Box case
-folder's state chip, **Add evidence** (which opens Upload), and the documents
-with view and download, or the empty state. It shows none of the Case
+folder's state chip, **Add evidence** (which opens Upload for this Case,
+[FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)), and the
+documents with view and download, or the empty state. It shows none of the Case
 record's sections, and has no Set principal.
 
 A correction is a new note. There is no note edit and no note delete. Its

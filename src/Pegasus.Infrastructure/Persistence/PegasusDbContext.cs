@@ -289,6 +289,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.SourceHash);
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => new { item.SourceChannel, item.ProcessedAtUtc, item.Id }).IsDescending(false, true, false);
+            entity.HasIndex(item => item.DeclaredCaseId);
         });
 
         builder.Entity<IntakeAssetEntity>(entity =>
@@ -379,6 +380,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.StorageKey).HasMaxLength(200).IsRequired();
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => item.SourceHash);
+            entity.HasIndex(item => item.DeclaredCaseId);
         });
 
         builder.Entity<IntakeSubmissionGroupEntity>(entity =>
@@ -1585,6 +1587,9 @@ internal sealed class IntakeReceiptEntity
     public string? FailureCode { get; set; }
     public string? FailureReason { get; set; }
     public required string OcrCandidatesJson { get; set; }
+
+    /// <summary>The Case the uploading member of staff declared before the upload (Add evidence on a Case page), copied from the staged receipt.</summary>
+    public Guid? DeclaredCaseId { get; set; }
     public InstructionDraftEntity? InstructionDraft { get; set; }
     public IntakeMailRouteDecisionEntity? MailRouteDecision { get; set; }
     public IntakeMailClassificationDecisionEntity? MailClassificationDecision { get; set; }
@@ -1700,6 +1705,9 @@ internal sealed class IntakeStagedReceiptEntity
     public required string Actor { get; set; }
     public required string StorageKey { get; set; }
     public DateTimeOffset StagedAtUtc { get; set; }
+
+    /// <summary>The Case the uploading member of staff declared before the upload (Add evidence on a Case page); null when the destination is still to be chosen.</summary>
+    public Guid? DeclaredCaseId { get; set; }
     public IntakeWorkItemEntity? WorkItem { get; set; }
 }
 

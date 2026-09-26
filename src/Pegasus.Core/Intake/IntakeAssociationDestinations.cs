@@ -52,6 +52,17 @@ public interface IIntakeAssociationDestinationQueries
         Guid caseId,
         ActionActor actor,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// A Case or Triage Case as a destination before anything has been
+    /// uploaded to it: what Add evidence on a Case page declares (FRD-18).
+    /// Null when the Case is unknown or archived.
+    /// </summary>
+    Task<IntakeAssociationDestination?> GetAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IntakeAssociationDestination?>(null);
 }
 
 /// <summary>Shared read/write eligibility facts for manual association.</summary>

@@ -47,7 +47,10 @@
             <span class="status @(auditState == CaseCustodyState.Failed ? "status--red" : "status--amber") status--plain" data-audit-custody-chip>@OperatorLabels.AuditCustodyFolderState(auditState)</span>
         }
         <div class="panel-actions">
-            <a class="btn btn--small btn--primary" asp-page="/Upload" data-add-evidence>
+            @* Add evidence opens Upload for this Case: the destination is
+               declared before the upload and the files come straight back
+               here (FRD-18). *@
+            <a class="btn btn--small btn--primary" asp-page="/Upload" asp-route-caseId="@Model.CurrentWorkflow!.CaseId" data-add-evidence>
                 <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                 <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
             </a>

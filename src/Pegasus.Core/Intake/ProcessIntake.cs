@@ -41,6 +41,16 @@ public sealed class ProcessIntake(
         IntakeSource source,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(source);
+        if (source.DeclaredCaseId is not null)
+        {
+            // Only the queued Worker pass links a declared destination; this
+            // direct path files nowhere and would leave the declaration idle.
+            throw new ArgumentException(
+                "A declared upload destination is processed only by queued intake.",
+                nameof(source));
+        }
+
         // No retry orchestration wraps this direct/manual-upload path, so a
         // reader fault here has no later attempt to defer to: treat it as final.
         var receipt = await ExecuteCoreAsync(
@@ -203,11 +213,17 @@ public sealed class ProcessIntake(
         }
 
         var processedAtUtc = timeProvider.GetUtcNow();
-        var assessment = await AssessAsync(
-            readResult,
-            safeSource.SourceIdentity,
-            safeSource.ReceivedAtUtc,
-            cancellationToken);
+        // A file whose Case the uploading member of staff chose first has
+        // nothing left to identify: it is read and its photographs kept like
+        // any other upload, and the queued caller links it where they said.
+        var assessment = safeSource.DeclaredCaseId is null
+            ? await AssessAsync(
+                readResult,
+                safeSource.SourceIdentity,
+                safeSource.ReceivedAtUtc,
+                cancellationToken)
+            : DeclaredDestinationAssessment(readResult);
+        activity?.SetTag("intake.declared_destination", safeSource.DeclaredCaseId is not null);
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
         activity?.SetTag("intake.policy_version", assessment.ExtractionPolicyVersion);
         activity?.SetTag(
@@ -259,13 +275,16 @@ public sealed class ProcessIntake(
             assessment.ExtractionPolicyKey,
             assessment.ExtractionPolicyVersion,
             assets,
-            readResult.ScannedPdfPages,
+            // A declared destination needs no OCR: scanned pages are for
+            // identification, which does not run for it.
+            safeSource.DeclaredCaseId is null ? readResult.ScannedPdfPages : [],
             assessment.MailRouteDecision,
             assessment.MailClassificationDecision,
             assessment.CaseMatchDecision,
             safeSource.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
                 ? IntakeSearchProjection.Create(readResult, assessment.MailRouteDecision)
-                : []);
+                : [],
+            safeSource.DeclaredCaseId);
 
         IntakeReceipt receipt;
         try
@@ -635,9 +654,13 @@ public sealed class ProcessIntake(
     /// would have to be added in both places and nothing would catch a miss.
     /// </summary>
     internal static bool IsDeferredForAutomation(IntakeReceipt receipt) =>
-        receipt.Decision == IntakeDecision.NeedsSorting
-        && (ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt)
-            || IsTriageRequest(receipt));
+        // A declared destination is linked by the queued caller before any
+        // registration question arises; a linked receipt is never registered
+        // and an unlinkable one (its Case gone) is registered there instead.
+        receipt.HasDeclaredDestination
+        || (receipt.Decision == IntakeDecision.NeedsSorting
+            && (ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt)
+                || IsTriageRequest(receipt)));
 
     /// <summary>
     /// Whether this receipt is a Triage request. One reading, so no surface
@@ -764,14 +787,42 @@ public sealed class ProcessIntake(
             : null;
     }
 
-    private async Task<IntakeAssessment> AssessAsync(
-        IntakeSourceReadResult readResult,
-        IntakeSourceIdentity sourceIdentity,
-        DateTimeOffset receivedAtUtc,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// The assessment of a file whose Case a member of staff chose before
+    /// uploading it (Add evidence on a Case page, FRD-18): its bytes are read
+    /// and its photographs kept like any other upload, but no principal,
+    /// route, match or OCR work runs, because nothing is left to identify. A
+    /// file that cannot be read keeps that honest decision; its original still
+    /// files on the Case.
+    /// </summary>
+    private static IntakeAssessment DeclaredDestinationAssessment(IntakeSourceReadResult readResult)
     {
-        var sourceChannel = sourceIdentity.Channel;
-        var readerEvidence = readResult.Issues
+        var readerEvidence = ReaderEvidence(readResult);
+        return ReaderFailureAssessment(readResult, readerEvidence)
+            ?? new(
+                IntakeDecision.NeedsSorting,
+                ProcessQueuedIntake.DeclaredDestinationReason,
+                [
+                    .. readerEvidence,
+                    new IntakeEvidence(
+                        IntakeEvidenceSource.SystemDefault,
+                        IntakeEvidenceStrength.Strong,
+                        IntakeEvidenceFinding.Information,
+                        IntakeEvidenceSignals.DeclaredDestination,
+                        "The destination Case was declared by staff on upload; no identification ran.")
+                ],
+                [],
+                null,
+                [],
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    private static IntakeEvidence[] ReaderEvidence(IntakeSourceReadResult readResult) =>
+        readResult.Issues
             .Select(issue => new IntakeEvidence(
                 issue.Source,
                 IntakeEvidenceStrength.Strong,
@@ -780,6 +831,11 @@ public sealed class ProcessIntake(
                 issue.Reason))
             .ToArray();
 
+    /// <summary>The honest decision for bytes the reader could not read, whatever the route; null when it could.</summary>
+    private static IntakeAssessment? ReaderFailureAssessment(
+        IntakeSourceReadResult readResult,
+        IReadOnlyList<IntakeEvidence> readerEvidence)
+    {
         if (readResult.Status == IntakeSourceReadStatus.Unsupported)
         {
             return IntakeAssessment.Failure(
@@ -798,6 +854,22 @@ public sealed class ProcessIntake(
                 readResult.FailureCode ?? "technical_failure",
                 readResult.FailureReason ?? "The source could not be processed at this time.",
                 readerEvidence);
+        }
+
+        return null;
+    }
+
+    private async Task<IntakeAssessment> AssessAsync(
+        IntakeSourceReadResult readResult,
+        IntakeSourceIdentity sourceIdentity,
+        DateTimeOffset receivedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var sourceChannel = sourceIdentity.Channel;
+        var readerEvidence = ReaderEvidence(readResult);
+        if (ReaderFailureAssessment(readResult, readerEvidence) is { } unreadable)
+        {
+            return unreadable;
         }
 
         if (readResult.IsIncomplete)
