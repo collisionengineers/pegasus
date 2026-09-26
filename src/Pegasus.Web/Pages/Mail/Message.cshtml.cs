@@ -2105,16 +2105,19 @@ public sealed class MessageModel(
         OperatorLabels.MailClassification(category);
 
     /// <summary>
-    /// The one label for a message's Case association when it has no Case:
-    /// the preview pane, its JSON projection and the message page must all
-    /// say the same word, because two copies of this label drifted apart
-    /// once before.
+    /// The one label for a message's Case cell when it has no Case: the
+    /// preview pane, its JSON projection and the message page must all say
+    /// the same word, because two copies of this label drifted apart once
+    /// before.
     /// </summary>
     public static string AssociationLabel(string? caseReference) =>
-        caseReference ?? "No case";
+        caseReference ?? OperatorLabels.Inbox.NoCase;
 
     public static string OutcomeLabel(RetainedMailSummary summary) => summary switch
     {
+        // The Triage Case the message opened is its Case, but the chip
+        // names what happened: a Triage, not an instruction Case created.
+        { IsTriageCase: true } => "Triage",
         { CaseId: not null } => "Case created",
         { AllocationState.Status: IntakeAllocationProjectionStatus.Pending } => "Creating case",
         { AllocationState.Status: IntakeAllocationProjectionStatus.FailedRecoverable

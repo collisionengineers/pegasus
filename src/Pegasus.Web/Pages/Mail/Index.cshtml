@@ -395,9 +395,6 @@
     @if (selectedDetail is { } detail)
     {
         var summary = detail.Summary;
-        var folderValue = summary.CurrentFolderType is { } currentFolderType
-            ? Pegasus.Core.Intake.MailLogicalFolders.Definition(currentFolderType).Label
-            : Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(detail.Folder);
         var matchValue = summary.Matches.Count > 0
             ? string.Join("; ", summary.Matches.Select(Pegasus.Web.Pages.Mail.IndexModel.MatchLabel))
             : null;
@@ -417,30 +414,18 @@
                                     <div class="mail-route">
                                         From <span data-mail-preview-sender>@Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary)</span> ·
                                         <time data-mail-preview-received datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(summary.ReceivedAtUtc) @OperatorLabels.OfficeClock(summary.ReceivedAtUtc)</time> ·
-                                        @summary.MailboxAddress
+                                        <span data-mail-preview-mailbox>@summary.MailboxAddress</span>
                                     </div>
                                 </div>
-                                <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)" />
+                                <span data-mail-preview-state><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)" /></span>
                             </div>
                         </div>
+                        @* The sender's text with its line breaks; the first lines, then an ellipsis. *@
                         <div class="mail-body">
-                            <p data-mail-preview-excerpt>@(summary.BodyExcerpt ?? "No excerpt available")</p>
+                            <p class="mail-excerpt" data-mail-preview-excerpt>@(summary.BodyExcerpt ?? "No excerpt available")</p>
                         </div>
-                        <div class="section-gap">
-                            <ul class="accepted-list" data-mail-preview-attachments>
-                                @if (detail.Attachments.Count > 0)
-                                {
-                                    @foreach (var attachment in detail.Attachments)
-                                    {
-                                        <li>@attachment.FileName</li>
-                                    }
-                                }
-                                else
-                                {
-                                    <li>No attachments</li>
-                                }
-                            </ul>
-                        </div>
+                        @* A count by kind. The names are on the full message. *@
+                        <p class="muted" data-mail-preview-attachments>@OperatorLabels.Inbox.Attachments(detail.Attachments)</p>
                         <div class="section-gap fact-grid">
                             <dl class="fact">
                                 <dt>Classification</dt>
@@ -449,17 +434,21 @@
                                     : Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(detail.ClassificationOutcome))</dd>
                             </dl>
                             <dl class="fact">
-                                <dt>Case association</dt>
+                                <dt>@OperatorLabels.Inbox.Case</dt>
                                 <dd data-mail-preview-association>@Pegasus.Web.Pages.Mail.MessageModel.AssociationLabel(summary.CaseReference)</dd>
                             </dl>
                             <dl class="fact">
                                 <dt>Folder</dt>
-                                <dd>@folderValue</dd>
+                                <dd data-mail-preview-folder>@Pegasus.Web.Pages.Mail.IndexModel.FolderValue(detail)</dd>
                             </dl>
-                            <dl class="fact">
-                                <dt>Search match</dt>
-                                <dd>@(matchValue ?? "—")</dd>
-                            </dl>
+                            @* Only while a search term is typed: where it matched. *@
+                            @if (matchValue is not null)
+                            {
+                                <dl class="fact" data-mail-preview-matched>
+                                    <dt>@OperatorLabels.Inbox.Matched</dt>
+                                    <dd>@matchValue</dd>
+                                </dl>
+                            }
                         </div>
                         <div class="button-row section-gap" data-mail-preview-actions>
                             <a class="btn btn--dark"
@@ -478,7 +467,7 @@
                             {
                                 <a class="btn" asp-page="/Cases/Details" asp-route-id="@linkedCaseId">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
-                                    <span>Open linked Case</span>
+                                    <span>@(summary.IsTriageCase ? OperatorLabels.Inbox.OpenTriage : OperatorLabels.Inbox.OpenCase)</span>
                                 </a>
                             }
                         </div>
