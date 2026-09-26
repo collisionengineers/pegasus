@@ -71,9 +71,14 @@
 
 /* Choosing files: one centred column until a file is chosen. upload.js sets
    has-files when it shows the roster; the picker then sits left of the
-   selected files (FRD-18). Below 900px both states stack, further down. */
-.up-workspace.is-choosing { display: block; max-width: 760px; margin: auto; }
-.up-workspace.has-files { display: grid; grid-template-columns: minmax(320px, 1.25fr) minmax(0, .88fr); max-width: none; }
+   selected files (FRD-18). The workspace stays full width because it is the
+   drop target; only the picker narrows. Below 900px both states stack at
+   full width, further down, so adding a file moves nothing there. */
+.up-workspace.is-choosing { display: block; }
+.up-workspace.has-files { display: grid; grid-template-columns: minmax(320px, 1.25fr) minmax(0, .88fr); }
+@media (min-width: 901px) {
+    .up-workspace.is-choosing:not(.has-files) > .up-select { max-width: 760px; margin-inline: auto; }
+}
 .up-select { grid-column: 1; grid-row: 1; padding: 30px; min-width: 0; }
 .up-select-title { margin-bottom: 18px; }
 .up-declared { margin-bottom: 18px; }

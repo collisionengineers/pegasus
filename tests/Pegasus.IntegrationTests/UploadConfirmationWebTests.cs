@@ -194,13 +194,14 @@ public sealed class UploadConfirmationWebTests
         }
 
         // The declared card still carries the reference, registration ·
-        // claimant and stage; nothing is said beneath it.
+        // claimant, Principal and stage; nothing is said beneath it.
         var declared = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload?caseId={caseId:D}");
         Assert.Contains("data-upload-declared", declared, StringComparison.Ordinal);
         Assert.Contains("data-upload-destination", declared, StringComparison.Ordinal);
         Assert.Contains(caseReference, declared, StringComparison.Ordinal);
         Assert.Contains("AB12", declared, StringComparison.Ordinal);
         Assert.Contains("Fixture Claimant", declared, StringComparison.Ordinal);
+        Assert.Contains($"<p>{QdosPrincipal.Code}</p>", declared, StringComparison.Ordinal);
         Assert.Contains("class=\"status status--navy\">Review</span>", declared, StringComparison.Ordinal);
         Assert.DoesNotContain("go straight to this Case", declared, StringComparison.Ordinal);
     }

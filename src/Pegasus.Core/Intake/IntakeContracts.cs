@@ -12,10 +12,10 @@ public static class IntakeEnvelopeLimits
     /// </summary>
     /// <remarks>
     /// Exactly 100 MB (100,000,000 bytes), the single per-file cap the manual
-    /// intake channel uses: a decimal megabyte, the unit the operator reads
-    /// (operator, 26 September 2026; C07 item 5 had set 100 MiB). This class
-    /// is the one owner of that figure: host and ingress limits may tighten
-    /// it and may never raise it.
+    /// and Automation intake channels use: a decimal megabyte, the unit the
+    /// operator reads (operator, 26 September 2026; C07 item 5 had set
+    /// 100 MiB). This class is the one owner of that figure: host and ingress
+    /// limits may tighten it and may never raise it.
     ///
     /// The Provider API does not follow this cap. Its files arrive inline as
     /// base64 in one request body, so they are bounded by
