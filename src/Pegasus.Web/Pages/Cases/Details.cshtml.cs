@@ -3982,7 +3982,7 @@ public sealed partial class DetailsModel(
                 {
                     RecordEditorCommit(editor, operationKey, expectedVersion, expectedVersion);
                 }
-                TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
+                TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
                 return (null, RedirectToEstimate(id, replay.EstimateId.ToString("D")));
             }
         }
@@ -4022,7 +4022,7 @@ public sealed partial class DetailsModel(
             {
                 RecordEditorCommit("case-estimate-import-form", request.OperationKey, originalVersion, finalVersion);
             }
-            TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
+            TempData["CaseStatus"] = await ImportedMessageAsync(request.CaseId, result.EstimateId, cancellationToken);
             return RedirectToEstimate(request.CaseId, result.EstimateId.ToString("D"));
         }
         catch (EstimateParseRejectedException exception)
@@ -4030,6 +4030,20 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = exception.Message;
         }
         return RedirectToEstimate(request.CaseId);
+    }
+
+    /// <summary>
+    /// What an import reports about the spec it returned. A staff import makes
+    /// the spec it creates the one in use; a same-file replay returns the spec
+    /// that file already made and leaves the spec in use as it was (FRD-25), so
+    /// the message states which of the two happened rather than claiming use.
+    /// </summary>
+    private async Task<string> ImportedMessageAsync(Guid caseId, Guid estimateId, CancellationToken cancellationToken)
+    {
+        var estimates = await listEstimates.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
+        return estimates.Any(estimate => estimate.SpecificationId == estimateId && estimate.IsCurrent)
+            ? Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported
+            : Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.AlreadyImported;
     }
 
     private static string MutationRefusalMessage(Exception exception, string fallback) =>

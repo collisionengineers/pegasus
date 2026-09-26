@@ -164,8 +164,8 @@ try {
     result = await evaluate('result()'); assert.equal(result.sessionVersion, '7'); assert.equal(result.value, 'XY99ZZZ'); assert.equal(result.version, '1'); assert.equal(result.scroll, 450); assert.equal(result.notice, '');
     record('Handoff refreshes controls while preserving dirty Case and scroll', result);
     await evaluate("state.status='Completed'; state.caseVersion=2; window.pegasusGlassReturn('/case');"); await delay(100);
-    result = await evaluate('result()'); assert.equal(result.version, '1'); assert.equal(result.value, 'XY99ZZZ'); assert.match(result.notice, /recorded as a Draft/);
-    record('Dirty callback announces Draft without replacing Case authority', result);
+    result = await evaluate('result()'); assert.equal(result.version, '1'); assert.equal(result.value, 'XY99ZZZ'); assert.match(result.notice, /recorded as a repair spec/);
+    record('Dirty callback announces the recorded estimate without replacing Case authority', result);
 
     await reset(); await evaluate("state.status='Completed'; state.caseVersion=2; window.pegasusGlassReturn('/case');"); await delay(100);
     result = await evaluate('result()'); assert.equal(result.version, '2'); assert.equal(result.dirty, false);
