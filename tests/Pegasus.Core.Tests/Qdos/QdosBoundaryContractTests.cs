@@ -50,7 +50,7 @@ public sealed class QdosBoundaryContractTests
 
     /// <summary>
     /// The Provider API per-file bound at the limit and one byte past it. The
-    /// manual channel's 100 MiB cap does not reach this channel: a file that
+    /// manual channel's 100 MB cap does not reach this channel: a file that
     /// the staff form would accept is refused here (C07 item 5).
     /// </summary>
     [Fact]

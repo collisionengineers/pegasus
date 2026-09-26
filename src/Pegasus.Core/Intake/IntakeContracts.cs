@@ -11,16 +11,17 @@ public static class IntakeEnvelopeLimits
     /// bounded multipart HTTP request.
     /// </summary>
     /// <remarks>
-    /// Exactly 100 MiB, set by C07 item 5 (residual INTK-052) as the single
-    /// per-file cap the manual intake channel uses. This class is the one
-    /// owner of that figure: host and ingress limits may tighten it and may
-    /// never raise it.
+    /// Exactly 100 MB (100,000,000 bytes), the single per-file cap the manual
+    /// intake channel uses: a decimal megabyte, the unit the operator reads
+    /// (operator, 26 September 2026; C07 item 5 had set 100 MiB). This class
+    /// is the one owner of that figure: host and ingress limits may tighten
+    /// it and may never raise it.
     ///
     /// The Provider API does not follow this cap. Its files arrive inline as
     /// base64 in one request body, so they are bounded by
     /// <see cref="MaximumProviderApiFileLength"/> instead.
     /// </remarks>
-    public const int MaximumContentLength = 100 * 1024 * 1024;
+    public const int MaximumContentLength = 100_000_000;
 
     /// <summary>
     /// One received mailbox message, envelope and every attachment together.
@@ -89,10 +90,11 @@ public static class IntakeEnvelopeLimits
     /// multipart boundaries and non-file form fields.
     /// </summary>
     /// <remarks>
-    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB. Every file
-    /// may be at its individual cap; the batch as a whole may not.
+    /// Pinned at exactly 200 MB (200,000,000 bytes; operator, 26 September
+    /// 2026, where C07 item 5 had set 200 MiB). Every file may be at its
+    /// individual cap; the batch as a whole may not.
     /// </remarks>
-    public const long MaximumBatchFileContentLength = 200L * 1024 * 1024;
+    public const long MaximumBatchFileContentLength = 200_000_000L;
 
     /// <summary>
     /// The multipart request body budget for one whole Upload submission.
