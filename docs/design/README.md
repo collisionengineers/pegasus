@@ -290,7 +290,8 @@ shared `.dismiss` × so it can be put away before it expires.
   visible word in a small `src-tag` pill in the cell's label line, the same in
   read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
   Provider API. Lookup reads blue, AI navy, every other source neutral. A value
-  staff typed or corrected carries no tag. There is no provenance icon or
+  staff typed or corrected carries no tag; a value staff left untouched keeps
+  its tag across a Save (operator, 25 September 2026). There is no provenance icon or
   hover tooltip (operator, 23 September 2026: one tag system, the Lookup
   chip's). Source labels, policy keys and provenance sentences do not appear
   in markup.
@@ -773,8 +774,9 @@ Repair Spec and the valuation calculator carry no Save or Apply of their own.
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
-repair-estimate launch; a connected Glass's valuation provider
-supersedes the earlier rule that Pegasus "records no Glass's valuation". Glass's and Audatex file
+repair-estimate launch. A Glass's valuation is a card the Engineer fills in;
+no guide provider is connected
+([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
 temporary section-scoped drop overlay; Cazana remains the disabled seam.
 

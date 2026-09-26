@@ -37,7 +37,6 @@ public sealed class OriginalReportPrefillAcceptanceTests
         Assert.Equal("repairable", outcome.Value);
         Assert.Equal(nameof(ActorKind.Automation), outcome.RecordedByKind);
         Assert.Equal(OriginalReportPrefillPolicy.RecorderId, outcome.RecordedBy);
-        Assert.Null(outcome.ConfirmedBy);
     }
 
     [Fact]

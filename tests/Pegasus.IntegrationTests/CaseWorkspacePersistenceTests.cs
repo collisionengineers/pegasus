@@ -21,7 +21,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// One Case edit is one transaction. These tests prove that it either records
 /// the whole authorized snapshot or none of it: a stale version, a lease that
-/// is missing, foreign or expired, an accepted estimate, a terminal case and a
+/// is missing, foreign or expired, a discarded estimate, a terminal case and a
 /// replayed operation key with a different payload each leave the record
 /// exactly as it was.
 /// </summary>
@@ -907,7 +907,7 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal("120.00", saved.Assessment.Field(AssessmentVocabulary.AgreedFee)?.Value);
         Assert.Equal("2031-05-20", saved.Assessment.Field(AssessmentVocabulary.ReportDate)?.Value);
         Assert.Equal("false", saved.Assessment.Field(AssessmentVocabulary.ReportDateOverride)?.Value);
-        Assert.All(saved.Assessment.Fields, field => Assert.True(field.IsConfirmed));
+        Assert.All(saved.Assessment.Fields, field => Assert.Equal(ActorKind.Staff, field.RecordedByKind));
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
             var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == harness.CaseId);
@@ -1025,6 +1025,53 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(initial.Inspection.Address.Confirmed, corrected.Data.Inspection.Address.Confirmed);
     }
 
+    /// <summary>
+    /// #837: the one Save posts every control, so the values the intake
+    /// extracted (Facts with no staff row) come back unchanged. The save reads
+    /// both sides of its diff by the accepted-value rule, so its note names no
+    /// field, and an untouched Fact is neither rewritten nor confirmed.
+    /// </summary>
+    [Fact]
+    public async Task RepostingTheShownValuesUnchangedWritesANoteThatNamesNoField()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        Assert.NotNull(initial.Claimant.Name.Fact);
+        Assert.Null(initial.Claimant.Name.Confirmed);
+        CaseWorkspaceOverview overview;
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
+                .SingleAsync(item => item.WorkId == harness.CaseId);
+            var shown = CaseDataFieldWriter.ReadEditable(snapshot);
+            var dueWork = await context.CaseDueWork.SingleOrDefaultAsync(item => item.CaseId == harness.CaseId);
+            overview = new(
+                shown.ClaimantName, shown.ClaimantContactNumber, shown.ClaimantAddress, shown.ClaimNumber,
+                shown.ContactName, shown.ContactEmailAddress, shown.ContactPhoneNumber, shown.IncidentDate,
+                shown.AccidentCircumstances, shown.VatStatus, shown.RepairerAddress, null,
+                PrincipalNotes: shown.PrincipalNotes, ClaimSourceNotes: shown.ClaimSourceNotes,
+                ClientNotes: shown.ClientNotes,
+                DueBy: CaseDuePolicy.Resolve(dueWork?.DueBy, snapshot.Work.Case.AcceptedInspectionDeadline));
+        }
+        Assert.Equal(initial.Claimant.Name.Fact.Value, overview.ClaimantName);
+
+        var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "lease-837");
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-837") with { Overview = overview },
+            CancellationToken.None);
+
+        Assert.Equal(initial.Claimant.Name.Fact, saved.Data.Claimant.Name.Fact);
+        Assert.Null(saved.Data.Claimant.Name.Confirmed);
+        Assert.Equal(initial.Claim.Number.Fact, saved.Data.Claim.Number.Fact);
+        Assert.Null(saved.Data.Claim.Number.Confirmed);
+        await using var verification = await harness.Factory.CreateDbContextAsync();
+        var line = await verification.CaseHistory.AsNoTracking()
+            .Where(item => item.CaseId == harness.CaseId && item.OperationKey == "workspace-837")
+            .Select(item => item.Reason)
+            .SingleAsync();
+        Assert.StartsWith("No field changed", line, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task MissingWrongHolderWrongTokenAndExpiredLeasesNeverWriteTheWorkspace()
     {
@@ -1117,7 +1164,7 @@ public sealed class CaseWorkspacePersistenceTests
             engineer,
             "lease-partial");
         var historyBefore = await harness.HistoryCountAsync();
-        var accepted = await AcceptAnEstimateAsync(harness);
+        var discarded = await DiscardAnEstimateAsync(harness);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             harness.WorkspaceStore.SaveAsync(
@@ -1142,9 +1189,9 @@ public sealed class CaseWorkspacePersistenceTests
                         [AssessmentVocabulary.EngineersComments] = "Never written",
                         [AssessmentVocabulary.AgreedFee] = "120.00"
                     }, null, new DateOnly(2031, 5, 20)),
-                    // An accepted spec is not an editor's Draft: the refusal
-                    // comes after the Case facts were written.
-                    Estimate = new(accepted, new("Accepted estimate", null, null, 20m), [])
+                    // A discarded spec cannot be changed: the refusal comes
+                    // after the Case facts were written.
+                    Estimate = new(discarded, new("Discarded estimate", null, null, 20m), [])
                 },
                 CancellationToken.None));
 
@@ -1156,25 +1203,25 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     [Fact]
-    public async Task AnAcceptedEstimateAndAClosedCaseRefuseTheWorkspaceSave()
+    public async Task ADiscardedEstimateAndAClosedCaseRefuseTheWorkspaceSave()
     {
         await using var harness = await Harness.CreateAsync();
         var initial = await harness.GetRequiredDataAsync();
-        var accepted = await AcceptAnEstimateAsync(harness);
+        var discarded = await DiscardAnEstimateAsync(harness);
         var engineer = Engineer(harness);
         var lease = await harness.AcquireLeaseAsync(
             initial.Version,
             engineer,
-            "lease-accepted");
+            "lease-discarded");
 
         var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             harness.WorkspaceStore.SaveAsync(
-                Request(harness, initial.Version, lease.Token, "workspace-accepted", engineer) with
+                Request(harness, initial.Version, lease.Token, "workspace-discarded", engineer) with
                 {
-                    Estimate = new(accepted, new("Accepted estimate", null, null, 20m), [])
+                    Estimate = new(discarded, new("Discarded estimate", null, null, 20m), [])
                 },
                 CancellationToken.None));
-        Assert.Contains("Only a draft estimate can be changed", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("A discarded estimate cannot be changed", refusal.Message, StringComparison.Ordinal);
 
         await MarkTerminalAsync(harness);
         await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
@@ -1215,19 +1262,20 @@ public sealed class CaseWorkspacePersistenceTests
                         null,
                         null,
                         null,
-                        null,
                         1)])
             },
             CancellationToken.None);
 
         Assert.NotNull(result.Estimate);
         Assert.Equal(RepairSpecificationState.Draft, result.Estimate!.State);
+        // A staff member's new spec is the one the Case uses at once.
+        Assert.True(result.Estimate.IsCurrent);
         Assert.Equal("Estimate 1", result.Estimate.Details.Name);
         Assert.Equal(45m, result.Estimate.Details.LabourRate);
         var line = Assert.Single(result.Estimate.Lines);
         Assert.Equal("Front bumper", line.Description);
         Assert.Equal(1, line.Position);
-        Assert.Equal(engineer.SubjectId, line.ConfirmedBy);
+        Assert.Equal(engineer.SubjectId, line.RecordedBy);
         Assert.Equal(initial.Version + 1, result.Version);
         Assert.Equal(1, await WorkflowEventCountAsync(harness, "case_workspace_saved"));
     }
@@ -1250,7 +1298,7 @@ public sealed class CaseWorkspacePersistenceTests
                 Estimate = new(
                     null,
                     new("Estimate 1", 45m, 0m, 20m),
-                    [new("new_part", null, "Front bumper", 1.5m, 240m, false, "BP-1", null, null, null, null, null, 1)])
+                    [new("new_part", null, "Front bumper", 1.5m, 240m, false, "BP-1", null, null, null, null, 1)])
             },
             CancellationToken.None);
         var spec = Assert.IsType<RepairSpecificationVersion>(first.Estimate);
@@ -1344,8 +1392,6 @@ public sealed class CaseWorkspacePersistenceTests
             Assert.Equal(value, field.Value);
             Assert.Equal(nameof(ActorKind.Staff), field.RecordedByKind);
             Assert.Equal(engineer.SubjectId, field.RecordedBy);
-            Assert.Equal(engineer.SubjectId, field.ConfirmedBy);
-            Assert.NotNull(field.ConfirmedAtUtc);
         }
     }
 
@@ -1585,60 +1631,6 @@ public sealed class CaseWorkspacePersistenceTests
                 CancellationToken.None));
 
         Assert.Equal(demoted.Version, (await harness.GetRequiredDataAsync()).Version);
-    }
-
-    /// <summary>
-    /// Phase 5b: an Automation value on a decision field is recorded as an
-    /// Awaiting proposal in the same save; the staff save that records the
-    /// field resolves it — the same value Accepted, another value Corrected —
-    /// and a field nobody proposed carries no proposal.
-    /// </summary>
-    [Fact]
-    public async Task AnAutomationProposalIsAcceptedOrCorrectedByTheStaffSaveThatRecordsTheField()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var engineer = Engineer(harness, StaffRole.User);
-        await using (var context = await harness.Factory.CreateDbContextAsync())
-        {
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportPreparation)}, AssignedEngineerId = {Guid.Parse(engineer.SubjectId)} WHERE CaseId = {harness.CaseId}");
-        }
-        var automation = ActionActor.Automation("pegasus-automation");
-        var initial = await harness.GetRequiredDataAsync();
-        var aiLease = await harness.AcquireLeaseAsync(initial.Version, automation, "proposal-ai-lease");
-        await harness.WorkspaceStore.SaveAsync(Request(harness, initial.Version, aiLease.Token, "proposal-ai-save", automation) with
-        {
-            Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
-            {
-                [AssessmentVocabulary.Outcome] = "repairable",
-                [AssessmentVocabulary.LegalStatus] = "roadworthy"
-            })
-        }, default);
-
-        var queries = new EfCaseFieldProposalQueries(harness.Factory);
-        Assert.All(
-            await queries.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, default),
-            proposal => Assert.Equal(CaseFieldProposalStatus.Awaiting, proposal.Status));
-
-        var afterAi = await harness.GetRequiredDataAsync();
-        var staffLease = await harness.AcquireLeaseAsync(afterAi.Version, engineer, "proposal-staff-lease");
-        await harness.WorkspaceStore.SaveAsync(Request(harness, afterAi.Version, staffLease.Token, "proposal-staff-save", engineer) with
-        {
-            Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
-            {
-                [AssessmentVocabulary.Outcome] = "repairable",
-                [AssessmentVocabulary.LegalStatus] = "unroadworthy",
-                [AssessmentVocabulary.UnroadworthyReason] = "Brake line severed",
-                [AssessmentVocabulary.SettlementExcess] = "250.00"
-            })
-        }, default);
-
-        var proposals = (await queries.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, default)).ToDictionary(item => item.FieldPath);
-        Assert.Equal(2, proposals.Count);
-        Assert.Equal(CaseFieldProposalStatus.Accepted, proposals[AssessmentVocabulary.Outcome].Status);
-        Assert.Equal(CaseFieldProposalStatus.Corrected, proposals[AssessmentVocabulary.LegalStatus].Status);
-        Assert.Equal("roadworthy", proposals[AssessmentVocabulary.LegalStatus].ProposedValue);
-        Assert.Equal(engineer.SubjectId, proposals[AssessmentVocabulary.LegalStatus].ResolvedBy);
     }
 
     /// <summary>
@@ -1918,7 +1910,7 @@ public sealed class CaseWorkspacePersistenceTests
         Guid.Parse(harness.StaffActor.SubjectId),
         [role]);
 
-    private static async Task<Guid> AcceptAnEstimateAsync(Harness harness)
+    private static async Task<Guid> DiscardAnEstimateAsync(Harness harness)
     {
         var id = Guid.NewGuid();
         await using var context = await harness.Factory.CreateDbContextAsync();
@@ -1926,12 +1918,13 @@ public sealed class CaseWorkspacePersistenceTests
             $"""
             INSERT INTO CaseRepairSpecifications
                 (Id, WorkId, Version, State, SourceRoute, CreatedBy, CreationOperationKey,
-                 CreatedAtUtc, Name, VatPercent, RepairerVatStatus, IsCurrent, AcceptedBy, AcceptedAtUtc)
+                 CreatedAtUtc, Name, VatPercent, RepairerVatStatus, IsCurrent,
+                 DiscardedBy, DiscardedAtUtc, DiscardReason)
             VALUES
-                ({id}, {harness.CaseId}, {1}, {"Accepted"}, {"LegacyUnresolved"},
-                 {harness.StaffActor.SubjectId}, {"accepted-estimate"},
-                 {DateTimeOffset.UtcNow}, {"Accepted estimate"}, {20m}, {"Unknown"}, {true},
-                 {harness.StaffActor.SubjectId}, {DateTimeOffset.UtcNow})
+                ({id}, {harness.CaseId}, {1}, {"Discarded"}, {"Manual"},
+                 {harness.StaffActor.SubjectId}, {"discarded-estimate"},
+                 {DateTimeOffset.UtcNow}, {"Discarded estimate"}, {20m}, {"Unknown"}, {false},
+                 {harness.StaffActor.SubjectId}, {DateTimeOffset.UtcNow}, {"Entered in error"})
             """);
         return id;
     }

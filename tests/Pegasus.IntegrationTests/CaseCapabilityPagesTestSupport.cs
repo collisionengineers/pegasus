@@ -88,6 +88,9 @@ internal static partial class CaseWebTestSupport
         string route,
         HttpContent form)
     {
+        // The editor is in edit mode, holding the lease, when the command is refused. Earlier
+        // commits in the same test consumed the lease they carried, as the store does.
+        workspace.Store.HoldLease(workspace.Claimant);
         workspace.Store.NextFailure = new InvalidOperationException("The case refused the command.");
         using var refused = await workspace.PostAsync(route, form);
         AssertPrg(refused, workspace.Store.CaseId);
@@ -105,6 +108,8 @@ internal static partial class CaseWebTestSupport
         string route,
         HttpContent form)
     {
+        // The lease really has lapsed on the server, so there is nothing for the page to resume.
+        workspace.Store.LeaseHolder = null;
         workspace.Store.NextFailure =
             new CaseEditLeaseExpiredException(workspace.Store.CaseId, workspace.Store.CaseVersion);
         using var refused = await workspace.PostAsync(route, form);
@@ -678,6 +683,7 @@ internal static partial class CaseWebTestSupport
         Substitute<IGetCaseNotesSection>(services, store);
         Substitute<IGetCaseFilesSection>(services, store);
         Substitute<IGetAssessmentWorkspace>(services, store);
+        Substitute<IResumeCaseEditLease>(services, store);
     }
 
     /// <summary>
@@ -767,6 +773,7 @@ internal static partial class CaseWebTestSupport
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
         IAcquireCaseEditLease,
+        IResumeCaseEditLease,
         IRecordManualCaseChase,
         IHoldCase,
         IReleaseCase,
@@ -1128,6 +1135,27 @@ internal static partial class CaseWebTestSupport
         }
 
 
+        public List<ResumeCaseEditLeaseRequest> Resumes { get; } = [];
+
+        /// <summary>The holder's own live lease, as the store resumes it for any page they open.</summary>
+        Task<CaseEditLease?> IResumeCaseEditLease.ExecuteAsync(
+            ResumeCaseEditLeaseRequest request,
+            CancellationToken cancellationToken)
+        {
+            Resumes.Add(request);
+            return Task.FromResult<CaseEditLease?>(
+                request.CaseId == CaseId
+                && _leaseHolder is not null
+                && CaseEditAuthority.IsHolder(_leaseHolderKind, _leaseHolder, request.Actor)
+                    ? new CaseEditLease(
+                        request.CaseId,
+                        LeaseToken,
+                        _leaseHolder,
+                        CaseVersion,
+                        _now.AddMinutes(5))
+                    : null);
+        }
+
         Task<SaveCaseWorkspaceResult> ISaveCaseWorkspace.ExecuteAsync(
             SaveCaseWorkspaceRequest request,
             CancellationToken cancellationToken)
@@ -1138,6 +1166,7 @@ internal static partial class CaseWebTestSupport
             if (AcceptWorkspaceSaves)
             {
                 CaseVersion++;
+                ConsumeLease();
                 return Task.FromResult(new SaveCaseWorkspaceResult(CreateData(), EngineeringAssessment(), null, false));
             }
             throw new CaseVersionConflictException(CaseId, request.ExpectedVersion, CaseVersion + 1);
@@ -1150,6 +1179,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Holds.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Held });
         }
 
@@ -1160,6 +1190,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Releases.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Review });
         }
 
@@ -1170,6 +1201,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Transitions.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with
             {
                 State = request.Destination == CaseTransitionDestination.ReportPreparation
@@ -1210,9 +1242,27 @@ internal static partial class CaseWebTestSupport
                 MostRecentNote = request.Note,
                 Version = _dueWork.Version + 1
             };
+            ConsumeLease();
+            return Task.FromResult(_dueWork);
+        }
+
+        /// <summary>
+        /// A committed Case mutation clears the edit lease it carried, exactly as the store's
+        /// <c>CaseMutationGuard.Complete</c> does, so a page opened afterwards has no lease to
+        /// resume until edit mode is claimed again.
+        /// </summary>
+        private void ConsumeLease()
+        {
             _leaseHolder = null;
             _leaseOperationKey = null;
-            return Task.FromResult(_dueWork);
+        }
+
+        /// <summary>The actor holds the live lease, as a scenario that needs it held states.</summary>
+        public void HoldLease(ActionActor actor)
+        {
+            _leaseHolder = actor.SubjectId;
+            _leaseHolderKind = actor.Kind;
+            _leaseOperationKey = Guid.NewGuid().ToString("N");
         }
     }
 

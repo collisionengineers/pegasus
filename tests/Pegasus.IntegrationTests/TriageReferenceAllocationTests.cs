@@ -233,6 +233,47 @@ public sealed class TriageReferenceAllocationTests
     }
 
     /// <summary>
+    /// A one-off claim is refused while the holder's own scope is live, so it never rotates their
+    /// open window. The record page's Edit replaces their own scope explicitly: the earlier
+    /// window's token is rotated out, and no takeover of themselves is recorded.
+    /// </summary>
+    [Fact]
+    public async Task TheHoldersOwnScopeIsReplacedExplicitlyWithoutATakeover()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var created = await OpenTriageAsync(services, "AB12CDE", "TRIAGE-OWN-RECLAIM");
+        var leases = services.GetRequiredService<IEditScopeLeases>();
+        var holder = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var held = await leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, holder, "triage-own-first"),
+            CancellationToken.None);
+
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.ClaimAsync(
+            new(EditScopeKind.Triage, created.CaseId, created.Version, holder, "triage-own-one-off"),
+            CancellationToken.None));
+        var again = await leases.ClaimAsync(
+            new ClaimEditScopeRequest(
+                EditScopeKind.Triage, created.CaseId, created.Version, holder, "triage-own-second")
+            {
+                TakeOver = true
+            },
+            CancellationToken.None);
+
+        Assert.NotEqual(held.Token, again.Token);
+        Assert.Equal(holder.SubjectId, again.Holder);
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => leases.HeartbeatAsync(
+            new(EditScopeKind.Triage, created.CaseId, holder, held.Token), CancellationToken.None));
+        var detail = Assert.IsType<TriageDetail>(
+            await services.GetRequiredService<ITriageQueries>()
+                .GetAsync(created.CaseId, CancellationToken.None));
+        Assert.DoesNotContain(detail.History,
+            entry => entry.EventType == "edit_lease_taken_over");
+    }
+
+    /// <summary>
     /// One receipt with its retained accepted-match evidence and its
     /// evaluation revision — everything Triage creation requires, and nothing
     /// that races.

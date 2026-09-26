@@ -1331,13 +1331,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("nvarchar(60)");
 
-                    b.Property<DateTimeOffset?>("ConfirmedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ConfirmedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<DateTimeOffset>("RecordedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -1362,8 +1355,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CaseAssessmentFields", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CaseAssessmentFields_Confirmation", "([ConfirmedBy] IS NULL AND [ConfirmedAtUtc] IS NULL) OR ([ConfirmedBy] IS NOT NULL AND [ConfirmedAtUtc] IS NOT NULL)");
-
                             t.HasCheckConstraint("CK_CaseAssessmentFields_FieldPath", "[FieldPath] <> '' AND LEN([FieldPath]) <= 60");
 
                             t.HasCheckConstraint("CK_CaseAssessmentFields_RecordedByKind", "[RecordedByKind] IN ('Staff', 'Automation')");
@@ -1880,16 +1871,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<DateTimeOffset?>("ConfirmedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ConfirmedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("CurrentValuesJson")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Description")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
@@ -1972,10 +1953,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("Status")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.Property<bool>("Unpriced")
                         .HasColumnType("bit");
 
@@ -2004,50 +1981,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CaseEstimateLines_Quantity", "[Quantity] IS NULL OR [Quantity] > 0");
 
-                            t.HasCheckConstraint("CK_CaseEstimateLines_Status", "[Status] IS NULL OR [Status] IN ('confirmed', 'estimated', 'provisional')");
-
                             t.HasCheckConstraint("CK_CaseEstimateLines_Unpriced", "[Unpriced] = 0 OR [Price] IS NULL");
-                        });
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseFieldProposalEntity", b =>
-                {
-                    b.Property<Guid>("WorkId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("FieldPath")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTimeOffset>("ProposedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ProposedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("ProposedValue")
-                        .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("Resolution")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTimeOffset?>("ResolvedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ResolvedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.HasKey("WorkId", "FieldPath");
-
-                    b.ToTable("CaseFieldProposals", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_CaseFieldProposals_Resolution", "[Resolution] IS NULL OR [Resolution] IN ('Accepted', 'Corrected')");
                         });
                 });
 
@@ -2286,46 +2220,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTimeOffset?>("AcceptedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("AcceptedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<Guid?>("AiJobId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CalculationBreakdownJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal?>("CalculationLabour")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("CalculationPaintMaterials")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("CalculationParts")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("CalculationPolicyVersion")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<decimal?>("CalculationSpecialistOther")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("CalculationTotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal?>("CalculationVat")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
@@ -2401,9 +2297,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("RegionalUplift")
                         .HasColumnType("bit");
 
-                    b.Property<bool?>("RepairerVatRegistered")
-                        .HasColumnType("bit");
-
                     b.Property<string>("RepairerVatStatus")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -2439,13 +2332,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<Guid?>("SupersedesSpecificationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("SupersessionReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
                     b.Property<bool>("SupplementaryExplainOnReport")
                         .HasColumnType("bit");
 
@@ -2459,10 +2345,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("SupplementaryStatement")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("VatOverrideReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<decimal>("VatPercent")
                         .HasPrecision(5, 2)
@@ -2490,13 +2372,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CaseRepairSpecifications", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CaseRepairSpecifications_Acceptance", "([State] IN ('Accepted', 'Superseded') AND [AcceptedBy] IS NOT NULL AND [AcceptedAtUtc] IS NOT NULL) OR ([State] = 'Draft' AND [AcceptedBy] IS NULL AND [AcceptedAtUtc] IS NULL) OR ([State] = 'Discarded' AND [DiscardedBy] IS NOT NULL AND [DiscardedAtUtc] IS NOT NULL AND [DiscardReason] IS NOT NULL)");
+                            t.HasCheckConstraint("CK_CaseRepairSpecifications_Current", "[IsCurrent] = 0 OR [State] = 'Draft'");
 
-                            t.HasCheckConstraint("CK_CaseRepairSpecifications_Current", "[IsCurrent] = 0 OR [State] = 'Accepted'");
+                            t.HasCheckConstraint("CK_CaseRepairSpecifications_Discard", "([State] = 'Draft' AND [DiscardedBy] IS NULL AND [DiscardedAtUtc] IS NULL AND [DiscardReason] IS NULL) OR ([State] = 'Discarded' AND [DiscardedBy] IS NOT NULL AND [DiscardedAtUtc] IS NOT NULL AND [DiscardReason] IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_CaseRepairSpecifications_SourceRoute", "[SourceRoute] IN ('LegacyUnresolved', 'Manual', 'Glasses', 'AudatexPdf', 'ApprovedAiProposal', 'Json', 'AiDraft')");
+                            t.HasCheckConstraint("CK_CaseRepairSpecifications_SourceRoute", "[SourceRoute] IN ('Manual', 'Glasses', 'AudatexPdf', 'Json', 'AiDraft')");
 
-                            t.HasCheckConstraint("CK_CaseRepairSpecifications_State", "[State] IN ('Draft', 'Accepted', 'Superseded', 'Discarded')");
+                            t.HasCheckConstraint("CK_CaseRepairSpecifications_State", "[State] IN ('Draft', 'Discarded')");
 
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_VatPercent", "[VatPercent] BETWEEN 0 AND 100");
 
@@ -3263,7 +3145,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CaseId", "AfterVersion")
                         .IsUnique()
-                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded' AND [EventType] <> 'case_estimate_document_previewed'");
+                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded' AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over'");
 
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
@@ -8635,15 +8517,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("RepairSpecification");
 
                     b.Navigation("Work");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseFieldProposalEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseWorkEntity", null)
-                        .WithMany()
-                        .HasForeignKey("WorkId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseHistoryEntity", b =>

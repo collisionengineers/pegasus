@@ -24,7 +24,6 @@
 @using Pegasus.Web.Presentation
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
-@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
 @using TotalsLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateTotals
 @using VatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat
 @using DiscountLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateDiscount
@@ -50,11 +49,6 @@
     var targetBase = engineerValue is null
         ? string.Empty
         : engineerValue.Value.ToString("0.##", CultureInfo.InvariantCulture);
-    var glassSession = Model.GlassSession;
-    var glassOccupies = glassSession is not null
-        && GlassRepairEstimateSessionPolicy.OccupiesAccount(glassSession.State);
-    var showGlassLine = Model.GlassSessionElsewhere is not null
-        || (glassSession is not null && (glassOccupies || glassSession.State == GlassRepairEstimateSessionState.Failed));
     var culture = CultureInfo.GetCultureInfo("en-GB");
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "estimate");
     var rateCard = details?.Rate is { RateCardId: { } rateCardId, RateCardVersion: { } rateCardVersion }
@@ -101,16 +95,6 @@
     string VersionOrigin(RepairSpecificationVersion version) =>
         $"Populated {OperatorLabels.OfficeTime(version.CreatedAtUtc)} by {version.CreatedBy}, {RepairSpecificationRouteWords.Of(version.Source.Route)} · {EstimateLabels.LinesCount(version.Lines.Count)} · {EngineerLabels.LabourRate.ToLowerInvariant()} {Money(version.Details.HourlyRate)}/h";
 
-    string RouteTag(RepairSpecificationSourceRoute route) => route switch
-    {
-        RepairSpecificationSourceRoute.Manual => EstimateLabels.RouteManual,
-        RepairSpecificationSourceRoute.Glasses => EstimateLabels.RouteGlasses,
-        RepairSpecificationSourceRoute.AudatexPdf => EstimateLabels.RouteAudatex,
-        RepairSpecificationSourceRoute.Json => EstimateLabels.RouteJson,
-        RepairSpecificationSourceRoute.ApprovedAiProposal or RepairSpecificationSourceRoute.AiDraft => EstimateLabels.RouteAi,
-        _ => EstimateLabels.RouteUnknown
-    };
-
     string StateTone(RepairSpecificationState state, bool isCurrent) =>
         isCurrent ? "status--green"
         : state == RepairSpecificationState.Draft ? "status--amber"
@@ -121,39 +105,7 @@
 
     var meta = estimate is null
         ? null
-        : $"{OperatorLabels.RepairSpecificationRoute(estimate.Source.Route)} · {OperatorLabels.OfficeTime(estimate.CreatedAtUtc)} · {estimate.Lines.Count} {(estimate.Lines.Count == 1 ? "line" : "lines")}";
-
-    // The Glass's outcome notice at the top of the section, one sentence per
-    // settled state; absent while a session is simply open.
-    string? glassNoticeTone = null;
-    string? glassNoticeText = null;
-    if (glassSession is not null)
-    {
-        switch (glassSession.State)
-        {
-            case GlassRepairEstimateSessionState.Completed:
-                glassNoticeTone = "notice--success";
-                glassNoticeText = GlassLabels.OutcomeMessage(glassSession.State);
-                break;
-            case GlassRepairEstimateSessionState.AwaitingImport:
-            case GlassRepairEstimateSessionState.Unknown:
-            case GlassRepairEstimateSessionState.Failed:
-                glassNoticeTone = "notice--warning";
-                glassNoticeText = GlassLabels.OutcomeMessage(glassSession.State);
-                break;
-            case GlassRepairEstimateSessionState.Cancelled:
-                glassNoticeTone = "";
-                glassNoticeText = GlassLabels.Closed;
-                break;
-        }
-    }
-
-    string GlassChipTone(GlassRepairEstimateSessionState state) => state switch
-    {
-        GlassRepairEstimateSessionState.Failed => "status--red",
-        GlassRepairEstimateSessionState.Unknown or GlassRepairEstimateSessionState.AwaitingImport => "status--amber",
-        _ => "status--blue"
-    };
+        : $"{RepairSpecificationRouteWords.Of(estimate.Source.Route)} · {OperatorLabels.OfficeTime(estimate.CreatedAtUtc)} · {estimate.Lines.Count} {(estimate.Lines.Count == 1 ? "line" : "lines")}";
 
     var editLineAction = Url.Page("/Cases/Details", "EditLine", new { id = caseId, section = "estimate" });
     var lineOrigins = estimate?.Lines.ToDictionary(line => line.Id, line => line) ?? new Dictionary<Guid, CaseEstimateLineRecord>();
@@ -628,40 +580,7 @@
                     </div>
                 </form>
             }
-            @* The one Glass's slot (v26 G) — Glass's while the
-               account is free, Resume while this staff member's session holds it;
-               absent without an enabled account, and absent while the account
-               is held from another Case. The estimator opens in its own
-               window (case-workspace.js names it; target is the no-script
-               path) and this record keeps its edit session. *@
-            @if (editing && Model.CanResumeGlass && glassSession is not null)
-            {
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="ResumeGlass"
-                      asp-route-id="@caseId" asp-route-section="estimate"
-                      target="_blank" data-glass-window data-glass-slot="resume">
-                    <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                    <input type="hidden" name="sessionId" value="@glassSession.Id" />
-                    <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
-                    <button type="submit" class="btn btn--small">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
-                        <span>@GlassLabels.Resume</span>
-                    </button>
-                </form>
-            }
-            else if (editing && Model.CanLaunchGlass)
-            {
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
-                      asp-route-id="@caseId" asp-route-section="estimate"
-                      target="_blank" data-glass-window data-glass-slot="launch">
-                    <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                    <button type="submit" class="btn btn--small">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
-                        <span>@GlassLabels.Launch</span>
-                    </button>
-                </form>
-            }
+            <partial name="/Pages/Cases/Shared/_GlassLaunchControl.cshtml" model="Model" />
             @if (editing && Model.SendToClaudeCondition is null)
             {
                 <a class="btn btn--small btn--primary" asp-page="/Cases/Details" asp-route-id="@caseId"
@@ -739,14 +658,7 @@
         </div>
     </div>
     <div class="panel-body stack">
-        @if (glassNoticeText is not null)
-        {
-            <div class="notice @glassNoticeTone" role="status" data-estimate-notice>
-                <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
-                <span>@glassNoticeText</span>
-                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
-            </div>
-        }
+        <partial name="/Pages/Cases/Shared/_GlassOutcomeControl.cshtml" model="Model" />
 
         @if (Model.Estimates.Count > 0 || Model.EditingNewEstimate)
         {
@@ -760,7 +672,7 @@
                        aria-selected="@(isSelected ? "true" : "false")"
                        data-estimate-tab="@version.SpecificationId">
                         <span data-estimate-tab-label>@version.Details.Name</span>
-                        <span class="src-tag">@RouteTag(version.Source.Route)</span>
+                        <span class="src-tag">@EstimateLabels.RouteTag(version.Source.Route)</span>
                         <span class="status status--plain @StateTone(version.State, version.IsCurrent)">@StateWord(version)</span>
                     </a>
                 }
@@ -784,60 +696,7 @@
             <div class="empty estimate-empty" data-estimate-empty>@EngineerLabels.NoEstimatesRecorded</div>
         }
 
-        @* The Glass's session line: only while this staff member's session holds
-           the account or has failed, or while the account is held from
-           another Case (v26 § Glass's). *@
-        @if (Model.GlassSessionElsewhere is { } elsewhere)
-        {
-            <div class="glass-session" data-glass-session="elsewhere" data-glass-elsewhere="@elsewhere.Session.CaseId">
-                <span class="status status--blue">@GlassLabels.Launch session · @GlassLabels.StateLabel(elsewhere.Session.State)</span>
-                <span class="muted grow">@EstimateLabels.HeldFromAnotherCase</span>
-                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@elsewhere.Session.CaseId" asp-route-section="estimate">
-                    <span>@GlassLabels.OpenOn @elsewhere.CaseReference</span>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                </a>
-            </div>
-        }
-        else if (showGlassLine && glassSession is not null)
-        {
-            <div class="glass-session" data-glass-session="@glassSession.State.ToString().ToLowerInvariant()">
-                <span class="status @GlassChipTone(glassSession.State)">@GlassLabels.Launch session · @GlassLabels.StateLabel(glassSession.State)</span>
-                <span class="muted grow">@EstimateLabels.Started @OperatorLabels.OfficeClock(glassSession.CreatedAtUtc)</span>
-                @if (glassSession.FailureCode is { Length: > 0 } glassFailure)
-                {
-                    <span class="glass-fail" data-glass-failure>@glassFailure</span>
-                }
-                @if (glassSession.State == GlassRepairEstimateSessionState.AwaitingImport)
-                {
-                    <span class="gated"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>@EstimateLabels.AvailableWhileEditing</span></span>
-                }
-                @if (Model.CanCloseGlass)
-                {
-                    @* The guarded close (FRD-25): a reason, the confirmation
-                       that Glass's is closed, one consequence, red Close. Never
-                       offered mid-import (Recording). *@
-                    <details class="glass-close" data-glass-close>
-                        <summary><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>@GlassLabels.Close</summary>
-                        <form method="post" asp-page="/Cases/Details" asp-page-handler="CloseGlass"
-                              asp-route-id="@caseId" asp-route-section="estimate" class="glass-close-form">
-                            <input type="hidden" name="sessionId" value="@glassSession.Id" />
-                            <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
-                            <div class="fc">
-                                <label for="glass-close-reason">@GlassLabels.CloseReason</label>
-                                <input id="glass-close-reason" class="fi" name="reason" maxlength="2000" required aria-required="true" />
-                            </div>
-                            <label class="choice" for="glass-external-closed">
-                                <input id="glass-external-closed" type="checkbox" name="externalSessionClosed"
-                                       value="true" required aria-required="true" />
-                                <span>@GlassLabels.ExternalClosedConfirmation</span>
-                            </label>
-                            <p class="consequence">@GlassLabels.CloseConsequence</p>
-                            <button type="submit" class="btn btn--danger">@GlassLabels.Close</button>
-                        </form>
-                    </details>
-                }
-            </div>
-        }
+        <partial name="/Pages/Cases/Shared/_GlassSessionControl.cshtml" model="Model" />
 
         @if (editing && estimate is not null && !Model.EditingNewEstimate)
         {
@@ -965,9 +824,9 @@
                         <tbody>
                             @foreach (var compared in Model.Estimates)
                             {
-                                var comparedTotals = EstimateTotals.ForProjection(compared).Printed;
+                                var comparedTotals = EstimateTotals.Compute(compared).Printed;
                                 <tr>
-                                    <td>@compared.Details.Name<br /><small class="muted">@RouteTag(compared.Source.Route) · @OperatorLabels.OfficeTime(compared.CreatedAtUtc)</small></td>
+                                    <td>@compared.Details.Name<br /><small class="muted">@EstimateLabels.RouteTag(compared.Source.Route) · @OperatorLabels.OfficeTime(compared.CreatedAtUtc)</small></td>
                                     <td><span class="status status--plain @StateTone(compared.State, compared.IsCurrent)">@StateWord(compared)</span></td>
                                     <td class="num mono">@Money(comparedTotals.Net)</td>
                                     <td class="num mono">@Money(comparedTotals.Vat)</td>

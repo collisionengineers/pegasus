@@ -88,6 +88,14 @@ _Avoid_: Delete, reopen
 The settled outcome for an Image intake whose evidence has been linked to one eligible pre-report instructed Case; it becomes final at report delivery. Before report delivery, authorised staff may reasonedly reverse the association; the intake reference, Case identity, source evidence, and relationship history remain permanent.
 _Avoid_: Merged, delete, erase
 
+**Repair spec**:
+One named repair specification on a Case: its lines, labour rate, VAT and
+totals. A spec a staff member types in, imports or brings back from Glass's
+is the Current one at once; **Use repair spec** switches to another live spec.
+The Current spec feeds the report and stays editable while the Case is
+writable. "Estimate" names a repairer's or provider's source document.
+_Avoid_: accepted estimate, Use estimate
+
 **AI Proposal**:
 An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until an authorised human staff member explicitly accepts or applies it.
 _Avoid_: AI assessment, automatic repair specification
@@ -103,7 +111,7 @@ A named non-human principal that performs one explicitly authorised Pegasus acti
 _Avoid_: Service account, staff impersonation, background task
 
 **Send to AI**:
-The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed unconfirmed working-data writes through Core. It never confirms professional findings or sends outward correspondence. AiWork push and AiJobs pull remain distinct accepted transports.
+The stable staff-triggered work handoff governed by FRD-10. It may return proposals and perform explicitly permitted, attributed writes through Core, each the Case's value shown with its AI source tag. It never records professional findings or sends outward correspondence. AiWork push and AiJobs pull remain distinct accepted transports.
 _Avoid_: Send to Claude, AI assessment, automatic report
 
 **First sent to Engineer**:

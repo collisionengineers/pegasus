@@ -1,0 +1,50 @@
+@using Pegasus.Core.Assessment
+@using Pegasus.Web.Presentation
+@using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession
+@using EstimateLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var caseId = Model.Case!.Workflow.CaseId;
+    var glassSession = Model.GlassSession;
+    var editing = Model.SectionIsEditable("estimate");
+}
+<div data-glass-controls="launch" data-glass-id="@glassSession?.Id" data-glass-version="@glassSession?.Version"
+     data-glass-controls-url="@Url.Page("/Cases/Details", "GlassSession", new { id = caseId, view = Model.ViewRoute })"
+     hidden="@(!editing || (!Model.CanResumeGlass && !Model.CanLaunchGlass))">
+    @* The one Glass's slot (v26 G) — Glass's while the
+       account is free, Resume while this staff member's session holds it;
+       absent without an enabled account, and absent while the account
+       is held from another Case. The estimator opens in its own
+       window (case-workspace.js names it; target is the no-script
+       path) and this record keeps its edit session. *@
+    @if (editing && Model.CanResumeGlass && glassSession is not null)
+    {
+        <form method="post" asp-page="/Cases/Details" asp-page-handler="ResumeGlass"
+              asp-route-id="@caseId" asp-route-section="estimate"
+              target="_blank" data-glass-window data-glass-slot="resume">
+            <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
+            <input type="hidden" name="expectedCaseVersion" value="@Model.Case.Workflow.Version" />
+            <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
+            <input type="hidden" name="sessionId" value="@glassSession.Id" />
+            <input type="hidden" name="expectedSessionVersion" value="@glassSession.Version" />
+            <button type="submit" class="btn btn--small">
+                <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+                <span>@GlassLabels.Resume</span>
+            </button>
+        </form>
+    }
+    else if (editing && Model.CanLaunchGlass)
+    {
+        <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
+              asp-route-id="@caseId" asp-route-section="estimate"
+              target="_blank" data-glass-window data-glass-slot="launch">
+            <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
+            <input type="hidden" name="expectedCaseVersion" value="@Model.Case.Workflow.Version" />
+            <input type="hidden" name="editLeaseToken" value="@Model.RenderLeaseToken" />
+            <button type="submit" class="btn btn--small">
+                <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                <span>@GlassLabels.Launch</span>
+            </button>
+        </form>
+    }
+</div>

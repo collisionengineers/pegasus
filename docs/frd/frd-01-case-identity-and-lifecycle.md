@@ -93,7 +93,7 @@ an edit session) adds the Audit to the same Case
 - is part of the same Case: one Cases record, one Case/PO, one state, one
   Files and one Notes, with the same Principal and Engineers;
 - starts as a copy of the Inspection's values: Case data and fields
-  (confirmed values stay confirmed), assessment fields including the fee,
+  (each with its provenance), assessment fields including the fee,
   damage and decisions, every live estimate with its lines, guide valuations
   and the applied Engineer's Value, and report wording. Open AI proposals,
   discarded estimates and estimate revision snapshots are not copied; files

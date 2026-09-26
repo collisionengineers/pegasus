@@ -78,6 +78,7 @@ public sealed partial class DetailsModel(
     IAcquireCaseEditLease acquireLease,
     IRenewCaseEditLease renewLease,
     IHeartbeatCaseEditLease heartbeatLease,
+    IResumeCaseEditLease resumeLease,
     IReleaseCaseEditLease releaseLease,
     ISaveCaseWorkspace saveCaseWorkspace,
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
@@ -99,7 +100,6 @@ public sealed partial class DetailsModel(
     IListValuationPresets listValuationPresets,
     IPreviewValuationCalculation previewValuation,
     IListAppliedValuations listAppliedValuations,
-    ICaseFieldProposalQueries fieldProposals,
     ILogger<DetailsModel> logger,
     IGetCaseKind getCaseKind,
     IValidateCaseRenderLease? validateCaseRenderLease = null,
@@ -144,12 +144,6 @@ public sealed partial class DetailsModel(
     /// without another request.
     /// </summary>
     public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
-
-    /// <summary>
-    /// The recorded AI proposals on the Settlement decision fields, one per
-    /// field, with their derived Awaiting / Accepted / Corrected status.
-    /// </summary>
-    public IReadOnlyList<CaseFieldProposal> Proposals { get; private set; } = [];
 
     /// <summary>
     /// "is-collapsed" when this browser folded the panel <paramref name="collapseKey"/>
@@ -380,7 +374,7 @@ public sealed partial class DetailsModel(
 
     public CaseAssessmentProjection? Assessment { get; private set; }
 
-    public RepairSpecificationVersion? AcceptedSpecification { get; private set; }
+    public RepairSpecificationVersion? CurrentSpecification { get; private set; }
 
     public IReadOnlyList<RepairSpecificationVersion> Estimates { get; private set; } = [];
 
@@ -411,9 +405,7 @@ public sealed partial class DetailsModel(
     public bool SelectedEstimateCanBeCurrent =>
         !AssessmentIsReadOnly
         && AssessmentCanOpen
-        && SelectedEstimate is { IsCurrent: false }
-        && (SelectedEstimate.State == RepairSpecificationState.Draft
-            || SelectedEstimate.State == RepairSpecificationState.Accepted);
+        && SelectedEstimate is { IsCurrent: false, State: RepairSpecificationState.Draft };
 
     public EstimateTotals EditorTotals
     {
@@ -446,24 +438,16 @@ public sealed partial class DetailsModel(
                     null,
                     null,
                     null,
-                    null,
                     ActorKind.Staff,
                     SelectedEstimate?.CreatedBy ?? string.Empty,
                     DateTimeOffset.UtcNow,
-                    null,
-                    null,
                     ParseNumber(line.PaintHours),
                     string.IsNullOrWhiteSpace(line.Quantity)
                         ? null
                         : (int?)ParseNumber(line.Quantity),
                     ParseNumber(line.Materials)))],
-                null,
                 SelectedEstimate?.CreatedBy ?? string.Empty,
                 SelectedEstimate?.CreatedAtUtc ?? DateTimeOffset.UtcNow,
-                null,
-                null,
-                null,
-                null,
                 details,
                 SelectedEstimate?.IsCurrent ?? false,
                 SelectedEstimate?.AiJobId,
@@ -499,7 +483,7 @@ public sealed partial class DetailsModel(
     }
 
     public decimal? EngineerValue =>
-        Assessment?.Field(AssessmentVocabulary.ValueEngineer) is { IsConfirmed: true } engineerValue
+        Assessment?.Field(AssessmentVocabulary.ValueEngineer) is { } engineerValue
             && decimal.TryParse(
                 engineerValue.Value,
                 NumberStyles.Number,
@@ -529,7 +513,7 @@ public sealed partial class DetailsModel(
     public string? AssessmentEditorValue(string path) => ShownAssessment(path)?.Value;
 
     public ReportSettlement? Settlement => Assessment is null ? null
-        : AssessmentReportProjection.BuildSettlement(Assessment, AcceptedSpecification);
+        : AssessmentReportProjection.BuildSettlement(Assessment, CurrentSpecification);
 
     public IReadOnlyList<SignOffEngineerProfile> EligibleSignOffEngineers { get; private set; } = [];
 
@@ -875,7 +859,7 @@ public sealed partial class DetailsModel(
             AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
             // The lease decides how much of the record is rendered now, so it is
             // restored before deciding which section bodies render directly.
-            RestoreLeaseState(id, actor, Case.ActiveEditLease);
+            await RestoreLeaseStateAsync(id, actor, Case.ActiveEditLease, resumeLease, cancellationToken);
             if (LeaseToken is not null)
             {
                 // Only this page renders a manual renew control, so only it needs that key.
@@ -900,10 +884,6 @@ public sealed partial class DetailsModel(
                 {
                     ClaimSourceChoices = await contactDirectory.ListByRoleAsync(
                         actor, ContactRole.ClaimSource, cancellationToken);
-                }
-                if (!SectionIsDeferred("settlement"))
-                {
-                    Proposals = await fieldProposals.ListForCaseAsync(id, WorkSelector, cancellationToken);
                 }
                 if (!SectionIsDeferred("inspection"))
                 {
@@ -961,7 +941,7 @@ public sealed partial class DetailsModel(
         }
 
         Assessment = workspace.Assessment;
-        AcceptedSpecification = workspace.AcceptedSpecification;
+        CurrentSpecification = workspace.CurrentSpecification;
         Estimates = await listEstimates.ExecuteAsync(id, WorkSelector, cancellationToken);
         LabourRateCards = await labourRateCards.ListAsync(actor, cancellationToken);
         ApplyEstimateSelection(estimate);
@@ -1099,11 +1079,14 @@ public sealed partial class DetailsModel(
         if (string.Equals(estimate, "new", StringComparison.OrdinalIgnoreCase))
         {
             EditingNewEstimate = true;
+            // A new spec starts on the one enabled labour-rate card (FRD-25).
+            var card = LabourRateCardAdministration.ForNewSpecification(LabourRateCards);
             EditorDetails = new EstimateDetails(
                 Name: Labels.CaseWorkspace.EngineerSections.NewEstimate,
-                LabourRate: null,
+                LabourRate: card?.HourlyRate,
                 OtherCosts: null,
-                VatPercent: EstimatePolicy.DefaultVatPercent);
+                VatPercent: EstimatePolicy.DefaultVatPercent,
+                Rate: card is null ? null : new EstimateRateSnapshot(card.Id, card.Version, card.HourlyRate));
             EditorLines = [new EstimateEditorLine("", null, null, null, null, null, null, null)];
             return;
         }
@@ -1150,7 +1133,7 @@ public sealed partial class DetailsModel(
         }
         else if (EngineerValue is null)
         {
-            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.ConfirmedEngineerValueRequired;
+            SendToClaudeCondition = Labels.CaseWorkspace.EngineerSections.EngineerValueRequired;
         }
 
         ReportDraftCondition = !AssessmentCanOpen || ReportDraftPreparation is null
@@ -1364,6 +1347,7 @@ public sealed partial class DetailsModel(
         CancellationToken cancellationToken) =>
         ClaimLeaseAsync(
             acquireLease,
+            resumeLease,
             id,
             expectedVersion,
             operationKey,
@@ -1453,6 +1437,44 @@ public sealed partial class DetailsModel(
             editLeaseToken,
             () => RedirectToSection(id, section),
             cancellationToken);
+
+    /// <summary>
+    /// The release a page sends as its operator leaves the Case by a link (FRD-14). It is not an
+    /// operator action and has no page to return to: it answers 204 whether or not a lease was
+    /// still there to release, and it reads and writes no TempData, because the page the operator
+    /// is heading to is loading at the same moment and owns that cookie. Antiforgery is validated
+    /// as it is for every post.
+    /// </summary>
+    public async Task<IActionResult> OnPostReleaseLeaseBeaconAsync(
+        Guid id,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (id == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return new NoContentResult();
+        }
+
+        try
+        {
+            await releaseLease.ExecuteAsync(
+                new(id, actor, NewOperationKey(), editLeaseToken),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IsLeaseLoss(exception))
+        {
+            // The lease had already lapsed or moved to a colleague.
+        }
+        return new NoContentResult();
+    }
 
     public async Task<IActionResult> OnPostSaveAsync(
         Guid id,
@@ -1623,8 +1645,7 @@ public sealed partial class DetailsModel(
                 }
                 var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
                 var assessment = workspace?.Assessment;
-                string? Recorded(string path) => assessment?.Field(path) is { IsConfirmed: true } field
-                    ? field.Value : null;
+                string? Recorded(string path) => assessment?.Field(path)?.Value;
                 decimal? Money(string path) => decimal.TryParse(Recorded(path), NumberStyles.Number,
                     CultureInfo.InvariantCulture, out var value) ? value : null;
                 var persisted = data.Workspace;
@@ -1652,15 +1673,9 @@ public sealed partial class DetailsModel(
                 originalUnit = mileageValue is null ? null : originalUnit ?? CaseOdometerUnit.Miles;
                 var reportFields = assessmentFields.Where(field => EditorLabels.Report.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
-                // A decision's AI proposal awaiting review leaves its control
-                // empty (it shows in the Proposed column, ShownAssessment), so
-                // posting that empty control is "not decided yet", never a
-                // clear of the proposal. Every other control opens holding its
-                // value, so emptying it clears it.
+                // Every control opens holding its value, so emptying it clears it.
                 var settlementFields = assessmentFields
-                    .Where(field => (EditorLabels.Settlement.ContainsKey(field.Key) || EditorLabels.OriginalReport.ContainsKey(field.Key))
-                        && !(string.IsNullOrWhiteSpace(field.Value)
-                            && assessment?.Field(field.Key) is { } recorded && AwaitsReview(recorded)))
+                    .Where(field => EditorLabels.Settlement.ContainsKey(field.Key) || EditorLabels.OriginalReport.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 AssessmentPolicy.RequireOriginalReportScope(
                     settlementFields.Keys,
@@ -2779,10 +2794,10 @@ public sealed partial class DetailsModel(
             existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
             [.. lines.Select((line, index) => new CaseEstimateLineRecord(
                 Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
-                line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel, line.Justification,
-                ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow, null, null,
+                line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
+                ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow,
                 line.PaintWorkUnits, line.Quantity, line.Materials))],
-            null, string.Empty, DateTimeOffset.UtcNow, null, null, null, null, details);
+            string.Empty, DateTimeOffset.UtcNow, details);
         var diff = RepairSpecificationComparison.Compare(baseSpecification, provisional);
         var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
         return new(baseId, reason, explain, RepairSpecificationComparison.SupplementaryStatement(diff, reason));
@@ -3054,6 +3069,29 @@ public sealed partial class DetailsModel(
         }
     }
 
+    /// <summary>Read the owning staff member's Glass's controls without changing Case or lease state.</summary>
+    public async Task<IActionResult> OnGetGlassSessionAsync(
+        Guid id, [FromHeader(Name = "X-Pegasus-Edit-Lease")] string? renderLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        if (!TryGetActor(out var actor)) { return Forbid(); }
+        Case = await getCasePageFrame.ExecuteAsync(new(id, actor, Work: WorkSelector), cancellationToken);
+        if (Case is null) { return NotFound(); }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access?.CanOpen != true) { return NotFound(); }
+        AssessmentCanOpen = true;
+        AssessmentIsReadOnly = access.IsReadOnly;
+        // Like lazy section reads, this GET never restores or writes TempData.
+        if (!string.IsNullOrWhiteSpace(renderLeaseToken) && validateCaseRenderLease is not null
+            && await validateCaseRenderLease.ExecuteAsync(new(id, actor, renderLeaseToken), cancellationToken))
+        {
+            fragmentLeaseToken = renderLeaseToken;
+        }
+        await LoadGlassSessionAsync(id, actor, cancellationToken);
+        return Partial("/Pages/Cases/Shared/_GlassControls.cshtml", this);
+    }
+
     /// <summary>
     /// Starts a Glass's Repair Estimate for this Case and sends the staff
     /// member's own browser to the provider's estimator.
@@ -3073,6 +3111,7 @@ public sealed partial class DetailsModel(
     /// </remarks>
     public async Task<IActionResult> OnPostLaunchGlassAsync(
         Guid id,
+        long expectedCaseVersion,
         string operationKey,
         string? editLeaseToken,
         [FromServices] IGlassRepairEstimateGateway glassEstimates,
@@ -3096,9 +3135,7 @@ public sealed partial class DetailsModel(
                 new GlassRepairEstimateLaunchRequest(
                     actor,
                     id,
-                    // The version the guard read, as the other Estimate
-                    // commands present it; the gateway refuses a stale one.
-                    currentCaseVersion,
+                    expectedCaseVersion,
                     editLeaseToken!,
                     operationKey),
                 cancellationToken);
@@ -3123,15 +3160,13 @@ public sealed partial class DetailsModel(
     /// Case's edit authority has been regained.
     /// </summary>
     /// <remarks>
-    /// The held result is the reason this resume carries the Case's version and
-    /// lease: finishing it writes the Draft, and the shared contract's resume
-    /// has nowhere to put the authority that write stands on, so the
-    /// Infrastructure request that does is used. The session named by the form
-    /// must be the one this staff member holds for this Case — the gateway proves
-    /// the owner, and this proves the Case.
+    /// Every resume carries the presented Case version and lease. The gateway
+    /// proves current authority and unchanged vehicle facts before provider work.
+    /// The form must name this staff member's session on this Case.
     /// </remarks>
     public async Task<IActionResult> OnPostResumeGlassAsync(
         Guid id,
+        long expectedCaseVersion,
         string operationKey,
         string? editLeaseToken,
         Guid sessionId,
@@ -3158,14 +3193,13 @@ public sealed partial class DetailsModel(
 
         try
         {
-            // Finishing a held result needs the Case authority this staff member
-            // has just regained; a live session needs only itself.
+            // Every resume proves current authority and unchanged vehicle facts.
             var session = await glassEstimates.ResumeAsync(
                 new GlassRepairEstimateResumeRequest(
                     actor,
                     sessionId,
                     expectedSessionVersion,
-                    currentCaseVersion,
+                    expectedCaseVersion,
                     editLeaseToken!),
                 cancellationToken);
             return await OpenEstimatorAsync(
@@ -3203,7 +3237,8 @@ public sealed partial class DetailsModel(
         {
             // The edit authority is deliberately kept: the operator is inside
             // the provider now and the result lands back on this Case.
-            return Redirect(estimator.AbsoluteUri);
+            Response.Headers.CacheControl = "no-store";
+            return Partial("_GlassLaunch", estimator.AbsoluteUri);
         }
 
         return ReportGlassSession(id, session, refusal);
@@ -3218,6 +3253,7 @@ public sealed partial class DetailsModel(
     public static PartialViewResult GlassReturn(PageModel page, Guid caseId)
     {
         ArgumentNullException.ThrowIfNull(page);
+        page.Response.Headers.CacheControl = "no-store";
         return page.Partial(
             "_GlassReturn",
             page.Url.Page("/Cases/Details", new { id = caseId, section = "estimate" })!);
@@ -3281,6 +3317,11 @@ public sealed partial class DetailsModel(
             await glassEstimates.CloseAsync(new(actor, sessionId, expectedSessionVersion,
                 externalSessionClosed, reason ?? string.Empty), cancellationToken);
             TempData["CaseStatus"] = GlassLabels.Closed;
+        }
+        catch (GlassRepairEstimateSessionConflictException conflict)
+            when (conflict.Conflict == GlassRepairEstimateSessionConflict.Version)
+        {
+            TempData["CaseError"] = GlassLabels.CloseChanged;
         }
         catch (Exception exception) when (IsGlassRefusal(exception) || exception is StaffAuthorizationException)
         {
@@ -3574,7 +3615,6 @@ public sealed partial class DetailsModel(
                 null,
                 null,
                 null,
-                null,
                 paintWorkUnits,
                 parsedQuantity,
                 materials));
@@ -3634,30 +3674,11 @@ public sealed partial class DetailsModel(
         IFormFile? estimateFile,
         CancellationToken cancellationToken)
     {
-        if (!TryGetActor(out var actor))
+        var (actor, details, refusal) = await StartEstimateImportAsync(
+            id, expectedVersion, operationKey, cancellationToken);
+        if (refusal is not null)
         {
-            ClearLeaseState();
-            return Forbid();
-        }
-        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
-        if (access?.CanOpen != true) return NotFound();
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null) return NotFound();
-        if (access.IsReadOnly || details.Workflow.Archive is not null
-            || CaseLifecycleRules.IsTerminal(details.Workflow.State))
-        {
-            TempData["CaseError"] = "The Case is read-only and cannot accept estimate imports.";
-            return RedirectToEstimate(id);
-        }
-        if (!IsOperationKeyValid(operationKey))
-        {
-            TempData["CaseError"] = "The form has expired. Retry the operation.";
-            return RedirectToEstimate(id);
-        }
-        if (details.Workflow.Version != expectedVersion)
-        {
-            TempData["CaseError"] = "The Case changed before the estimate was imported. Reload and try again.";
-            return RedirectToEstimate(id);
+            return refusal;
         }
         if (!Request.HasFormContentType || Request.Form.Files.Count != 1
             || !string.Equals(Request.Form.Files[0].Name, "estimateFile", StringComparison.Ordinal)
@@ -3668,11 +3689,8 @@ public sealed partial class DetailsModel(
         }
         estimateFile = Request.Form.Files[0];
         var fileName = Path.GetFileName(estimateFile.FileName);
-        var extension = Path.GetExtension(fileName);
         if (estimateFile.Length is <= 0 or > ImportRawEstimate.MaximumDocumentBytes
-            || estimateParsers.Count(parser =>
-                parser.FileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)
-                && parser.CanParse(fileName, estimateFile.ContentType)) != 1)
+            || EstimateFormatCount(fileName, estimateFile.ContentType) != 1)
         {
             TempData["CaseError"] = "Choose a non-empty supported estimate file of 32 MiB or less.";
             return RedirectToEstimate(id);
@@ -3700,63 +3718,23 @@ public sealed partial class DetailsModel(
 
         var fileBytes = buffer.ToArray();
         var uploadedSha256 = Convert.ToHexStringLower(SHA256.HashData(fileBytes));
-        var activeLeaseToken = editLeaseToken;
-        if (string.IsNullOrWhiteSpace(activeLeaseToken))
+        var (activeLeaseToken, claimResult) = await ClaimEstimateImportAsync(
+            actor!, id, expectedVersion, operationKey, editLeaseToken, uploadedSha256,
+            "case-estimate-import-form", cancellationToken);
+        if (claimResult is not null)
         {
-            try
-            {
-                var lease = await acquireLease.ExecuteAsync(
-                    new(id, expectedVersion, actor, NewOperationKey()), cancellationToken);
-                activeLeaseToken = lease.Token;
-                StoreLeaseAuthority(id, lease.Token);
-            }
-            catch (StaffAuthorizationException) { return Forbid(); }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                HandleLeaseFailure(id, null, exception);
-                TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
-                return RedirectToEstimate(id);
-            }
+            return claimResult;
         }
 
-        try
-        {
-            await repairSpecifications.RequireImportAuthorityAsync(
-                new(actor, id, expectedVersion, activeLeaseToken!, Guid.Empty, Guid.Empty,
-                    uploadedSha256, operationKey, string.Empty), cancellationToken);
-        }
-        catch (StaffAuthorizationException) { return Forbid(); }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            HandleLeaseFailure(id, activeLeaseToken, exception);
-            TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
-            return RedirectToEstimate(id);
-        }
-
-        try
-        {
-            if (await repairSpecifications.ProbeSourceHashReplayAsync(
-                    id, operationKey, uploadedSha256, cancellationToken)
-                is { } replay)
-            {
-                RecordEditorCommit("case-estimate-import-form", operationKey, expectedVersion, expectedVersion);
-                TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
-                return RedirectToEstimate(id, replay.EstimateId.ToString("D"));
-            }
-        }
-        catch (StaffAuthorizationException) { return Forbid(); }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
-            return RedirectToEstimate(id);
-        }
-
+        // The same bytes already confirmed in Case Files — a retry, or a file
+        // that arrived by email — are imported from there, not stored again,
+        // when that stored file is itself importable: the import reads its
+        // stored name and type, not the dropped file's.
         var sourceIdentity = $"estimate-import:{operationKey}";
-        var reusable = CaseFiles.Live(details.Documents)
-            .Where(file => file.Occurrence.SourceOccurrenceIdentity.StartsWith("estimate-import:", StringComparison.Ordinal)
-                && file.Version.ContentLength == fileBytes.LongLength
-                && string.Equals(file.Version.Sha256, uploadedSha256, StringComparison.OrdinalIgnoreCase))
+        var reusable = CaseFiles.Live(details!.Documents)
+            .Where(file => file.Version.ContentLength == fileBytes.LongLength
+                && string.Equals(file.Version.Sha256, uploadedSha256, StringComparison.OrdinalIgnoreCase)
+                && IsImportableEstimate(file))
             .OrderBy(file => file.Occurrence.Ordinal)
             .FirstOrDefault();
 
@@ -3765,8 +3743,6 @@ public sealed partial class DetailsModel(
         if (reusable is not null
             && !string.Equals(reusable.Occurrence.SourceOccurrenceIdentity, sourceIdentity, StringComparison.Ordinal))
         {
-            // A retry with the same bytes but a new operation key reuses the
-            // confirmed Case file instead of creating another Box document.
             source = reusable;
         }
         else
@@ -3777,7 +3753,7 @@ public sealed partial class DetailsModel(
                 retained = await addCaseDocument.ExecuteAsync(
                     new(id, fileName, estimateFile.ContentType, fileBytes,
                         DocumentSemanticRole.Other, DocumentSource.StaffUpload, sourceIdentity,
-                        actor, $"{operationKey}-document", expectedVersion, activeLeaseToken),
+                        actor!, $"{operationKey}-document", expectedVersion, activeLeaseToken!),
                     cancellationToken);
             }
             catch (StaffAuthorizationException) { return Forbid(); }
@@ -3793,7 +3769,7 @@ public sealed partial class DetailsModel(
         }
 
         var importVersion = expectedVersion;
-        var importLeaseToken = activeLeaseToken;
+        var importLeaseToken = activeLeaseToken!;
         try
         {
             if (newDocumentStored)
@@ -3802,7 +3778,7 @@ public sealed partial class DetailsModel(
                 // exactly that version before the importer performs its mutation.
                 importVersion = checked(expectedVersion + 1);
                 var lease = await acquireLease.ExecuteAsync(
-                    new(id, importVersion, actor, NewOperationKey()), cancellationToken);
+                    new(id, importVersion, actor!, NewOperationKey()), cancellationToken);
                 importLeaseToken = lease.Token;
                 StoreLeaseAuthority(id, lease.Token);
             }
@@ -3814,10 +3790,11 @@ public sealed partial class DetailsModel(
             }
 
             var importedBefore = (await listEstimates.ExecuteAsync(id, CaseWorkSelector.Current, cancellationToken))
-                .Any(estimate => string.Equals(
-                    estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
+                .Any(estimate => estimate.State != RepairSpecificationState.Discarded
+                    && string.Equals(
+                        estimate.Source.Sha256, source.Version.Sha256, StringComparison.OrdinalIgnoreCase));
             var resultingVersion = checked(importVersion + (importedBefore ? 0 : 1));
-            return await ImportRetainedEstimateAsync(new(actor, id, importVersion, importLeaseToken,
+            return await ImportRetainedEstimateAsync(new(actor!, id, importVersion, importLeaseToken,
                 source.Occurrence.Id, source.Version.Id, source.Version.Sha256, operationKey, string.Empty),
                 cancellationToken, expectedVersion, resultingVersion);
         }
@@ -3828,6 +3805,195 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = MutationRefusalMessage(exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
             return RedirectToEstimate(id);
         }
+    }
+
+    /// <summary>
+    /// Imports an estimate the Case already holds in Case Files — one that
+    /// arrived by email, say — through the same import as a drop, so no second
+    /// copy is stored (operator, 25 September 2026).
+    /// </summary>
+    public async Task<IActionResult> OnPostImportCaseFileEstimateAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? editLeaseToken,
+        Guid occurrenceId,
+        Guid versionId,
+        CancellationToken cancellationToken)
+    {
+        var (actor, details, refusal) = await StartEstimateImportAsync(
+            id, expectedVersion, operationKey, cancellationToken);
+        if (refusal is not null)
+        {
+            return refusal;
+        }
+        var source = CaseFiles.Live(details!.Documents)
+            .FirstOrDefault(file => file.Occurrence.Id == occurrenceId && file.Version.Id == versionId);
+        if (source is null || !IsImportableEstimate(source))
+        {
+            TempData["CaseError"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.NotAnEstimateFile;
+            return RedirectToEstimate(id);
+        }
+
+        var (leaseToken, claimResult) = await ClaimEstimateImportAsync(
+            actor!, id, expectedVersion, operationKey, editLeaseToken, source.Version.Sha256,
+            editor: null, cancellationToken);
+        if (claimResult is not null)
+        {
+            return claimResult;
+        }
+        try
+        {
+            return await ImportRetainedEstimateAsync(
+                new(actor!, id, expectedVersion, leaseToken!, source.Occurrence.Id, source.Version.Id,
+                    source.Version.Sha256, operationKey, string.Empty),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException) { return Forbid(); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleLeaseFailure(id, PeekLeaseToken(), exception);
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The estimate could not be imported. Retry the import.");
+            return RedirectToEstimate(id);
+        }
+    }
+
+    /// <summary>
+    /// Whether a Case file can be imported as a repair spec from its Files row:
+    /// the Engineer sections are editable and <see cref="IsImportableEstimate"/>
+    /// holds. Importing a file already imported replays to the spec it made.
+    /// </summary>
+    public bool CanImportEstimate(CaseFile file) => CanEditEngineering && IsImportableEstimate(file);
+
+    /// <summary>
+    /// A confirmed file Pegasus did not generate, within the import's size
+    /// bound, that exactly one estimate format recognises by name and type.
+    /// </summary>
+    private bool IsImportableEstimate(CaseFile file) =>
+        file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed
+        && file.Occurrence.Source != DocumentSource.Generated
+        && file.Version.ContentLength is > 0 and <= ImportRawEstimate.MaximumDocumentBytes
+        && EstimateFormatCount(file.Version.FileName, file.Version.MediaType) == 1;
+
+    private int EstimateFormatCount(string fileName, string mediaType)
+    {
+        var extension = Path.GetExtension(fileName);
+        return estimateParsers.Count(parser =>
+            parser.FileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)
+            && parser.CanParse(fileName, mediaType));
+    }
+
+    /// <summary>
+    /// The checks every estimate import makes before it reads or retains a
+    /// source: the staff member, assessment access, a writable Case, a live
+    /// form and the Case version the form was rendered at.
+    /// </summary>
+    private async Task<(ActionActor? Actor, CaseDetails? Details, IActionResult? Refusal)> StartEstimateImportAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            ClearLeaseState();
+            return (null, null, Forbid());
+        }
+        var access = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
+        if (access?.CanOpen != true) return (null, null, NotFound());
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null) return (null, null, NotFound());
+        if (access.IsReadOnly || details.Workflow.Archive is not null
+            || CaseLifecycleRules.IsTerminal(details.Workflow.State))
+        {
+            TempData["CaseError"] = "The Case is read-only and cannot accept estimate imports.";
+            return (null, null, RedirectToEstimate(id));
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return (null, null, RedirectToEstimate(id));
+        }
+        if (details.Workflow.Version != expectedVersion)
+        {
+            TempData["CaseError"] = "The Case changed before the estimate was imported. Reload and try again.";
+            return (null, null, RedirectToEstimate(id));
+        }
+        return (actor, details, null);
+    }
+
+    /// <summary>
+    /// Takes the edit lease when the import starts from read mode, proves the
+    /// import authority and answers a replay of the same operation and source.
+    /// A result means the import ends here; otherwise the lease token is the
+    /// one to import under. <paramref name="editor"/> names the client form
+    /// whose commit a replay records, when there is one.
+    /// </summary>
+    private async Task<(string? LeaseToken, IActionResult? Result)> ClaimEstimateImportAsync(
+        ActionActor actor,
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string? editLeaseToken,
+        string sha256,
+        string? editor,
+        CancellationToken cancellationToken)
+    {
+        var activeLeaseToken = editLeaseToken;
+        if (string.IsNullOrWhiteSpace(activeLeaseToken))
+        {
+            try
+            {
+                var lease = await acquireLease.ExecuteAsync(
+                    new(id, expectedVersion, actor, NewOperationKey()), cancellationToken);
+                activeLeaseToken = lease.Token;
+                StoreLeaseAuthority(id, lease.Token);
+            }
+            catch (StaffAuthorizationException) { return (null, Forbid()); }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                HandleLeaseFailure(id, null, exception);
+                TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
+                return (null, RedirectToEstimate(id));
+            }
+        }
+
+        try
+        {
+            await repairSpecifications.RequireImportAuthorityAsync(
+                new(actor, id, expectedVersion, activeLeaseToken!, Guid.Empty, Guid.Empty,
+                    sha256, operationKey, string.Empty), cancellationToken);
+        }
+        catch (StaffAuthorizationException) { return (null, Forbid()); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            HandleLeaseFailure(id, activeLeaseToken, exception);
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The Case cannot be edited right now.");
+            return (null, RedirectToEstimate(id));
+        }
+
+        try
+        {
+            if (await repairSpecifications.ProbeSourceHashReplayAsync(
+                    id, operationKey, sha256, cancellationToken)
+                is { } replay)
+            {
+                if (editor is not null)
+                {
+                    RecordEditorCommit(editor, operationKey, expectedVersion, expectedVersion);
+                }
+                TempData["CaseStatus"] = await ImportedMessageAsync(id, replay.EstimateId, cancellationToken);
+                return (null, RedirectToEstimate(id, replay.EstimateId.ToString("D")));
+            }
+        }
+        catch (StaffAuthorizationException) { return (null, Forbid()); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The source was retained, but the import could not be confirmed. Retry the same file.");
+            return (null, RedirectToEstimate(id));
+        }
+        return (activeLeaseToken, null);
     }
 
     private async Task<IActionResult> ImportRetainedEstimateAsync(
@@ -3856,7 +4022,7 @@ public sealed partial class DetailsModel(
             {
                 RecordEditorCommit("case-estimate-import-form", request.OperationKey, originalVersion, finalVersion);
             }
-            TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
+            TempData["CaseStatus"] = await ImportedMessageAsync(request.CaseId, result.EstimateId, cancellationToken);
             return RedirectToEstimate(request.CaseId, result.EstimateId.ToString("D"));
         }
         catch (EstimateParseRejectedException exception)
@@ -3864,6 +4030,20 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = exception.Message;
         }
         return RedirectToEstimate(request.CaseId);
+    }
+
+    /// <summary>
+    /// What an import reports about the spec it returned. A staff import makes
+    /// the spec it creates the one in use; a same-file replay returns the spec
+    /// that file already made and leaves the spec in use as it was (FRD-25), so
+    /// the message states which of the two happened rather than claiming use.
+    /// </summary>
+    private async Task<string> ImportedMessageAsync(Guid caseId, Guid estimateId, CancellationToken cancellationToken)
+    {
+        var estimates = await listEstimates.ExecuteAsync(caseId, CaseWorkSelector.Current, cancellationToken);
+        return estimates.Any(estimate => estimate.SpecificationId == estimateId && estimate.IsCurrent)
+            ? Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported
+            : Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.AlreadyImported;
     }
 
     private static string MutationRefusalMessage(Exception exception, string fallback) =>

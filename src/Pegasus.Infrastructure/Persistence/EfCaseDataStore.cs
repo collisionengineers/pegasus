@@ -110,7 +110,7 @@ public sealed class EfCaseDataStore(
             snapshot.Work.Case.ImagesComplete);
         if (before == data)
         {
-            throw new InvalidOperationException("SaveCase requires at least one changed confirmed value.");
+            throw new InvalidOperationException("SaveCase requires at least one changed value.");
         }
 
         var now = UtcNow();
@@ -638,60 +638,64 @@ internal static class CaseDataFieldWriter
         return facts;
     }
 
+    /// <summary>
+    /// The editable Case data as the Case shows it: each field's accepted
+    /// value (<see cref="Accepted"/>).
+    /// </summary>
     public static CaseEditableData ReadEditable(CaseDataSnapshotEntity snapshot) => new(
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantName),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimNumber),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleRegistration),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleMake),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleModel),
-        ConfirmedLong(snapshot, CaseDataFieldNames.VehicleMileage),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleMileageUnit),
-        ConfirmedText(snapshot, CaseDataFieldNames.AccidentCircumstances),
-        ConfirmedDate(snapshot, CaseDataFieldNames.IncidentDate),
-        ConfirmedText(snapshot, CaseDataFieldNames.ContactName),
-        ConfirmedText(snapshot, CaseDataFieldNames.ContactEmailAddress),
-        ConfirmedText(snapshot, CaseDataFieldNames.ContactPhoneNumber),
-        ConfirmedText(snapshot, CaseDataFieldNames.VatStatus),
-        ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDate),
-        ConfirmedDate(snapshot, CaseDataFieldNames.InspectionDeadline),
-        ConfirmedText(snapshot, CaseDataFieldNames.InspectionAddress),
-        ConfirmedInspectionMode(snapshot, CaseDataFieldNames.InspectionMode),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantContactNumber),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimantAddress),
-        ConfirmedText(snapshot, CaseDataFieldNames.StorageLocation),
-        ConfirmedText(snapshot, CaseDataFieldNames.RepairerAddress),
-        ConfirmedGuid(snapshot, CaseDataFieldNames.ClaimSourceId),
-        ConfirmedLong(snapshot, CaseDataFieldNames.ClaimSourceVersion),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceName),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceContactName),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceContactTelephone),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceContactEmailAddress),
-        ConfirmedGuid(snapshot, CaseDataFieldNames.StorageBusinessId),
-        ConfirmedLong(snapshot, CaseDataFieldNames.StorageBusinessVersion),
-        ConfirmedText(snapshot, CaseDataFieldNames.StorageBusinessName),
-        ConfirmedText(snapshot, CaseDataFieldNames.StorageBusinessContactName),
-        ConfirmedText(snapshot, CaseDataFieldNames.StorageBusinessContactTelephone),
-        ConfirmedText(snapshot, CaseDataFieldNames.StorageBusinessContactEmailAddress),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleMileageDisplayUnit),
-        ConfirmedEnum<CaseReportAddressTreatment>(snapshot, CaseDataFieldNames.InspectionAddressTreatment),
-        ConfirmedEnum<InspectionAddressChoiceKind>(snapshot, CaseDataFieldNames.InspectionLocationChoice),
-        ConfirmedEnum<InspectionLocationSourceKind>(snapshot, CaseDataFieldNames.InspectionLocationSourceKind),
-        ConfirmedGuid(snapshot, CaseDataFieldNames.InspectionLocationSourceId),
-        ConfirmedLong(snapshot, CaseDataFieldNames.InspectionLocationSourceVersion),
-        ConfirmedText(snapshot, CaseDataFieldNames.InspectionLocationSourceLabel),
-        ConfirmedFlag(snapshot, CaseDataFieldNames.InspectionVehiclePresent),
-        ConfirmedText(snapshot, CaseDataFieldNames.InspectionCondition),
-        ConfirmedText(snapshot, CaseDataFieldNames.InspectionContactName),
-        ConfirmedText(snapshot, CaseDataFieldNames.InspectionContactTelephone),
-        ConfirmedText(snapshot, CaseDataFieldNames.InspectionContactEmailAddress),
-        ConfirmedText(snapshot, CaseDataFieldNames.InspectionNotes),
-        ConfirmedText(snapshot, CaseDataFieldNames.RepairerName),
-        ConfirmedGuid(snapshot, CaseDataFieldNames.RepairerId),
-        ConfirmedLong(snapshot, CaseDataFieldNames.RepairerVersion),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleYear),
-        ConfirmedText(snapshot, CaseDataFieldNames.PrincipalNotes),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceNotes),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClientNotes),
+        AcceptedText(snapshot, CaseDataFieldNames.ClaimantName),
+        AcceptedText(snapshot, CaseDataFieldNames.ClaimNumber),
+        AcceptedText(snapshot, CaseDataFieldNames.VehicleRegistration),
+        AcceptedText(snapshot, CaseDataFieldNames.VehicleMake),
+        AcceptedText(snapshot, CaseDataFieldNames.VehicleModel),
+        AcceptedLong(snapshot, CaseDataFieldNames.VehicleMileage),
+        AcceptedText(snapshot, CaseDataFieldNames.VehicleMileageUnit),
+        AcceptedText(snapshot, CaseDataFieldNames.AccidentCircumstances),
+        AcceptedDate(snapshot, CaseDataFieldNames.IncidentDate),
+        AcceptedText(snapshot, CaseDataFieldNames.ContactName),
+        AcceptedText(snapshot, CaseDataFieldNames.ContactEmailAddress),
+        AcceptedText(snapshot, CaseDataFieldNames.ContactPhoneNumber),
+        AcceptedText(snapshot, CaseDataFieldNames.VatStatus),
+        AcceptedDate(snapshot, CaseDataFieldNames.InspectionDate),
+        AcceptedDate(snapshot, CaseDataFieldNames.InspectionDeadline),
+        AcceptedText(snapshot, CaseDataFieldNames.InspectionAddress),
+        AcceptedInspectionMode(snapshot, CaseDataFieldNames.InspectionMode),
+        AcceptedText(snapshot, CaseDataFieldNames.ClaimantContactNumber),
+        AcceptedText(snapshot, CaseDataFieldNames.ClaimantAddress),
+        AcceptedText(snapshot, CaseDataFieldNames.StorageLocation),
+        AcceptedText(snapshot, CaseDataFieldNames.RepairerAddress),
+        AcceptedGuid(snapshot, CaseDataFieldNames.ClaimSourceId),
+        AcceptedLong(snapshot, CaseDataFieldNames.ClaimSourceVersion),
+        AcceptedText(snapshot, CaseDataFieldNames.ClaimSourceName),
+        AcceptedText(snapshot, CaseDataFieldNames.ClaimSourceContactName),
+        AcceptedText(snapshot, CaseDataFieldNames.ClaimSourceContactTelephone),
+        AcceptedText(snapshot, CaseDataFieldNames.ClaimSourceContactEmailAddress),
+        AcceptedGuid(snapshot, CaseDataFieldNames.StorageBusinessId),
+        AcceptedLong(snapshot, CaseDataFieldNames.StorageBusinessVersion),
+        AcceptedText(snapshot, CaseDataFieldNames.StorageBusinessName),
+        AcceptedText(snapshot, CaseDataFieldNames.StorageBusinessContactName),
+        AcceptedText(snapshot, CaseDataFieldNames.StorageBusinessContactTelephone),
+        AcceptedText(snapshot, CaseDataFieldNames.StorageBusinessContactEmailAddress),
+        AcceptedText(snapshot, CaseDataFieldNames.VehicleMileageDisplayUnit),
+        AcceptedEnum<CaseReportAddressTreatment>(snapshot, CaseDataFieldNames.InspectionAddressTreatment),
+        AcceptedEnum<InspectionAddressChoiceKind>(snapshot, CaseDataFieldNames.InspectionLocationChoice),
+        AcceptedEnum<InspectionLocationSourceKind>(snapshot, CaseDataFieldNames.InspectionLocationSourceKind),
+        AcceptedGuid(snapshot, CaseDataFieldNames.InspectionLocationSourceId),
+        AcceptedLong(snapshot, CaseDataFieldNames.InspectionLocationSourceVersion),
+        AcceptedText(snapshot, CaseDataFieldNames.InspectionLocationSourceLabel),
+        AcceptedFlag(snapshot, CaseDataFieldNames.InspectionVehiclePresent),
+        AcceptedText(snapshot, CaseDataFieldNames.InspectionCondition),
+        AcceptedText(snapshot, CaseDataFieldNames.InspectionContactName),
+        AcceptedText(snapshot, CaseDataFieldNames.InspectionContactTelephone),
+        AcceptedText(snapshot, CaseDataFieldNames.InspectionContactEmailAddress),
+        AcceptedText(snapshot, CaseDataFieldNames.InspectionNotes),
+        AcceptedText(snapshot, CaseDataFieldNames.RepairerName),
+        AcceptedGuid(snapshot, CaseDataFieldNames.RepairerId),
+        AcceptedLong(snapshot, CaseDataFieldNames.RepairerVersion),
+        AcceptedText(snapshot, CaseDataFieldNames.VehicleYear),
+        AcceptedText(snapshot, CaseDataFieldNames.PrincipalNotes),
+        AcceptedText(snapshot, CaseDataFieldNames.ClaimSourceNotes),
+        AcceptedText(snapshot, CaseDataFieldNames.ClientNotes),
         DueBy: null,
         ClaimSourceOverrideContactName: snapshot.ClaimSourceOverrideContactName,
         ClaimSourceOverrideContactTelephone: snapshot.ClaimSourceOverrideContactTelephone,
@@ -720,8 +724,7 @@ internal static class CaseDataFieldWriter
 
         // A section save also carries unedited accepted values. Keeping one
         // must not manufacture a confirmation or rewrite its attribution.
-        var accepted = existing ?? snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Fact);
+        var accepted = CaseDataFieldValues.AcceptedField(snapshot.Fields, fieldName);
         if (accepted is not null && accepted.ValueType == valueType
             && string.Equals(accepted.Value, value, StringComparison.Ordinal))
         {
@@ -767,26 +770,26 @@ internal static class CaseDataFieldWriter
         existing.PolicyVersion = underlying?.PolicyVersion ?? CaseDataPolicy.EditPolicyVersion;
     }
 
-    private static string? ConfirmedText(CaseDataSnapshotEntity snapshot, string name) =>
-        Confirmed(snapshot, name)?.Value;
+    private static string? AcceptedText(CaseDataSnapshotEntity snapshot, string name) =>
+        Accepted(snapshot, name)?.Value;
 
-    private static long? ConfirmedLong(CaseDataSnapshotEntity snapshot, string name) =>
-        Confirmed(snapshot, name) is { } field
+    private static long? AcceptedLong(CaseDataSnapshotEntity snapshot, string name) =>
+        Accepted(snapshot, name) is { } field
             ? long.Parse(field.Value, NumberStyles.None, CultureInfo.InvariantCulture)
             : null;
 
-    private static DateOnly? ConfirmedDate(CaseDataSnapshotEntity snapshot, string name) =>
-        Confirmed(snapshot, name) is { } field
+    private static DateOnly? AcceptedDate(CaseDataSnapshotEntity snapshot, string name) =>
+        Accepted(snapshot, name) is { } field
             ? DateOnly.ParseExact(field.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture)
             : null;
 
-    private static Guid? ConfirmedGuid(CaseDataSnapshotEntity snapshot, string name) =>
-        Confirmed(snapshot, name) is { } field
+    private static Guid? AcceptedGuid(CaseDataSnapshotEntity snapshot, string name) =>
+        Accepted(snapshot, name) is { } field
             ? Guid.ParseExact(field.Value, "D")
             : null;
 
-    private static bool? ConfirmedFlag(CaseDataSnapshotEntity snapshot, string name) =>
-        Confirmed(snapshot, name) is { } field
+    private static bool? AcceptedFlag(CaseDataSnapshotEntity snapshot, string name) =>
+        Accepted(snapshot, name) is { } field
             ? field.Value switch
             {
                 "true" => true,
@@ -796,25 +799,29 @@ internal static class CaseDataFieldWriter
             }
             : null;
 
-    private static T? ConfirmedEnum<T>(CaseDataSnapshotEntity snapshot, string name)
+    private static T? AcceptedEnum<T>(CaseDataSnapshotEntity snapshot, string name)
         where T : struct, Enum =>
-        Confirmed(snapshot, name) is { } field
+        Accepted(snapshot, name) is { } field
             ? Enum.TryParse<T>(field.Value, ignoreCase: false, out var parsed) && Enum.IsDefined(parsed)
                 ? parsed
                 : throw new InvalidDataException(
                     $"Unknown persisted case-data value '{field.Value}' for '{name}'.")
             : null;
 
-    private static CaseInspectionMode? ConfirmedInspectionMode(
+    private static CaseInspectionMode? AcceptedInspectionMode(
         CaseDataSnapshotEntity snapshot,
         string name) =>
-        Confirmed(snapshot, name) is { } field
+        Accepted(snapshot, name) is { } field
             ? ParseInspectionMode(field.Value)
             : null;
 
-    private static CaseDataFieldEntity? Confirmed(CaseDataSnapshotEntity snapshot, string name) =>
-        snapshot.Fields.SingleOrDefault(
-            item => item.FieldName == name && item.ValueKind == CaseDataCodes.Confirmed);
+    /// <summary>
+    /// The accepted row (<see cref="CaseDataFieldValues.AcceptedField"/>):
+    /// reading the same rule on both sides of a save means an untouched fact
+    /// reads equal and is neither rewritten nor named as changed (#837).
+    /// </summary>
+    private static CaseDataFieldEntity? Accepted(CaseDataSnapshotEntity snapshot, string name) =>
+        CaseDataFieldValues.AcceptedField(snapshot.Fields, name);
 
     private static string? Integer(long? value) =>
         value?.ToString(CultureInfo.InvariantCulture);

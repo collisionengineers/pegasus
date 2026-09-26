@@ -105,19 +105,6 @@
                 </div>
             </div>
         </form>
-        <aside class="up-empty-aside" data-select-aside>
-            @{
-                var declared = Model.Destination is not null;
-            }
-            <h3>@(declared ? Labels.DeclaredAsideTitle : Labels.AsideTitle)</h3>
-            <p>@(declared ? Labels.DeclaredAsideSentence : Labels.AsideSentence)</p>
-            <ol>
-                @foreach (var (title, detail) in declared ? Labels.DeclaredAsideSteps : Labels.AsideSteps)
-                {
-                    <li><div><strong>@title</strong><small>@detail</small></div></li>
-                }
-            </ol>
-        </aside>
         <section class="up-evidence" aria-labelledby="up-selected-title" hidden data-select-files>
             <header class="up-section-head">
                 <h2 id="up-selected-title">@Labels.SelectedFiles</h2>

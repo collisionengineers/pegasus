@@ -255,6 +255,11 @@ public sealed class AssignCaseEngineerTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<CaseEditLease?> ResumeAsync(
+            ResumeCaseEditLeaseRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task ReleaseAsync(
             ReleaseCaseEditLeaseRequest request,
             CancellationToken cancellationToken) =>

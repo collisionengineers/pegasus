@@ -52,7 +52,7 @@ with sync_playwright() as p:
     # --- Choosing files -------------------------------------------------------
     page.goto(URL + "/Upload")
     check("select: picker enhanced", page.locator("[data-upload-select].is-enhanced").count() == 1)
-    check("select: aside shown, files hidden", page.locator("[data-select-aside]").is_visible() and not page.locator("[data-select-files]").is_visible())
+    check("select: no aside, files hidden", page.locator("[data-select-aside], .up-empty-aside").count() == 0 and not page.locator("[data-select-files]").is_visible())
     check("select: actions hidden until files", not page.locator("[data-select-actions]").is_visible())
     shoot_all(page, "upload-select")
     files = [{"name": f"WhatsApp Image 2026-09-17 at 12.57.4{i} PM.png", "mimeType": "image/png", "buffer": TINY_PNG} for i in range(3)]
@@ -74,7 +74,7 @@ with sync_playwright() as p:
     check("chosen: remove one", page.locator("[data-select-list] .up-file").count() == 3 and not page.locator("[data-select-errors]").is_visible())
     page.click("button[type=reset]")
     page.wait_for_timeout(200)
-    check("chosen: clear empties", page.locator("[data-select-list] .up-file").count() == 0 and page.locator("[data-select-aside]").is_visible())
+    check("chosen: clear empties", page.locator("[data-select-list] .up-file").count() == 0 and not page.locator("[data-select-files]").is_visible())
     page.set_input_files("input[type=file]", files[:2])
     page.wait_for_timeout(200)
     page.click("[data-select-submit]")

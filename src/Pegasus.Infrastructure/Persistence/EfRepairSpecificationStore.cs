@@ -1,5 +1,4 @@
 ﻿using System.Data;
-using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
@@ -12,9 +11,8 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// Repair specifications and named estimates share one table and one
-/// aggregate. The estimate methods are the named-estimate path, where a case
-/// holds several Drafts and Accepted estimates and exactly one is Current;
-/// each writes the Case history and replays by operation key.
+/// aggregate. A case holds several live estimates and at most one is Current;
+/// each method writes the Case history and replays by operation key.
 /// </summary>
 public sealed class EfRepairSpecificationStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -160,7 +158,7 @@ public sealed class EfRepairSpecificationStore(
         ArgumentNullException.ThrowIfNull(request);
         if (request.EngineerValue is not { } engineerValue || engineerValue <= 0m)
         {
-            throw new InvalidOperationException("A confirmed Engineer's Value is required before scaling.");
+            throw new InvalidOperationException("An Engineer's Value is required before scaling.");
         }
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -204,7 +202,6 @@ public sealed class EfRepairSpecificationStore(
         entity.Lines.Clear();
         ApplyDetails(entity, result.Details);
         AddLines(context, entity, result.Lines, request.Actor, now);
-        RecordBreakdown(entity);
         var scaled = Map(entity);
         EfRepairSpecificationSnapshotStore.Freeze(
             context, workId, scaled, request.Actor, RepairSpecificationSnapshotKind.Scaled,
@@ -287,7 +284,6 @@ public sealed class EfRepairSpecificationStore(
             request.Actor,
             now);
         entity.LastOperationKey = request.OperationKey;
-        RecordBreakdown(entity);
         var restored = Map(entity);
         EfRepairSpecificationSnapshotStore.Freeze(
             context, workId,
@@ -374,7 +370,6 @@ public sealed class EfRepairSpecificationStore(
             request.Actor,
             now);
         entity.LastOperationKey = request.OperationKey;
-        RecordBreakdown(entity);
         var restored = Map(entity);
         EfRepairSpecificationSnapshotStore.Freeze(
             context, workId,
@@ -423,12 +418,15 @@ public sealed class EfRepairSpecificationStore(
         var workId = await CaseWorkScope.CurrentIdAsync(context, request.CaseId, cancellationToken);
         if (importedDocument)
         {
+            var discarded = RepairSpecificationState.Discarded.ToString();
             CaseMutationGuard.Require(workflow, request.Actor, request.ExpectedVersion, request.EditLeaseToken, now);
             RequireAssessmentEditable(workflow);
             // The workflow lock and source census share this transaction: two
-            // concurrent completions cannot create two Drafts for one Case/hash.
+            // concurrent completions cannot create two estimates for one
+            // Case/hash. A discarded import no longer holds its source.
             var existingImport = await context.CaseRepairSpecifications.Include(item => item.Lines)
                 .FirstOrDefaultAsync(item => item.WorkId == workId
+                    && item.State != discarded
                     && item.SourceSha256 == request.Source.Sha256, cancellationToken);
             if (existingImport is not null)
             {
@@ -447,54 +445,54 @@ public sealed class EfRepairSpecificationStore(
         request = edit.Evidenced;
         if (importedDocument)
         {
-            // Retaining/reading a source is not confirmation of its technical
-            // lines, even when an Engineer initiated the import.
-            foreach (var line in entity.Lines)
-            {
-                line.ConfirmedBy = null;
-                line.ConfirmedAtUtc = null;
-            }
-        }
-        if (importedDocument)
-        {
             // v1 of an imported specification is the import itself (v28 P43).
             EfRepairSpecificationSnapshotStore.Freeze(
                 context, workId, Map(entity), request.Actor, RepairSpecificationSnapshotKind.Imported,
                 "Imported " + Pegasus.Core.Assessment.RepairSpecificationRouteWords.Of(request.Source.Route), now);
         }
-        if (edit.EditingCurrent)
+        if (edit.ChangesCurrent)
         {
-            // Editing the current estimate changes the breakdown a frozen
-            // report pinned; a Draft-only save never stales a generation.
+            // A new Current estimate, or an edit of the Current one, changes
+            // what a generated report costs from; an edit of another estimate
+            // never stales a generation.
             await EfCaseReportGenerationStore.MarkStaleAsync(
                 context, request.CaseId, "current_estimate_saved", now, cancellationToken);
         }
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
-            request.EventType ?? edit.EventType, requestHash, new { entity.Id, entity.Version, entity.Name, Lines = request.Lines.Count }, now);
+            request.EventType ?? edit.EventType, requestHash,
+            new { entity.Id, entity.Version, entity.Name, Lines = request.Lines.Count, Previous = edit.ReplacedCurrent }, now);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
     }
 
-    /// <summary>What one editor save did to a specification, inside its caller's transaction.</summary>
+    /// <summary>
+    /// What one editor save did to a specification, inside its caller's
+    /// transaction. <see cref="ChangesCurrent"/> is true when the save edited
+    /// the Current estimate or created one that became Current, replacing
+    /// <see cref="ReplacedCurrent"/>.
+    /// </summary>
     internal sealed record EstimateEdit(
         CaseRepairSpecificationEntity Entity,
         string EventType,
-        bool EditingCurrent,
+        bool ChangesCurrent,
         bool Changed,
         SaveEstimateRequest Evidenced,
         object? BeforeLines,
-        object? AfterLines);
+        object? AfterLines,
+        IReadOnlyList<Guid> ReplacedCurrent);
 
     /// <summary>
     /// The one routine that writes a specification from an editor save, inside
     /// the caller's transaction and under the caller's guard: it creates the
-    /// Draft or replaces an editable one's header, lines and supplementary
-    /// statement, carries each line's evidence, resolves a newly chosen
-    /// labour-rate card and records the breakdown. The estimate command and
-    /// the Case save both write through it, so the two cannot record different
-    /// things for the same edit. With <paramref name="leaveUnchanged"/> an edit
-    /// that is the specification exactly as recorded writes nothing.
+    /// estimate or replaces a live one's header, lines and supplementary
+    /// statement, carries each line's evidence and resolves a newly chosen
+    /// labour-rate card. A staff member's new estimate becomes Current
+    /// (<see cref="RepairSpecificationPolicy.BecomesCurrentWhenCreated"/>).
+    /// The estimate command and the Case save both write through it, so the
+    /// two cannot record different things for the same edit. With
+    /// <paramref name="leaveUnchanged"/> an edit that is the specification
+    /// exactly as recorded writes nothing.
     /// </summary>
     internal static async Task<EstimateEdit> ApplyEditAsync(
         PegasusDbContext context,
@@ -552,7 +550,7 @@ public sealed class EfRepairSpecificationStore(
             throw new ArgumentException("Select a labour-rate card for the specified version.");
         if (leaveUnchanged && EstimatePolicy.IsUnchanged(request, existing))
         {
-            return new(entity, eventType, editingCurrent, Changed: false, request, null, null);
+            return new(entity, eventType, editingCurrent, Changed: false, request, null, null, []);
         }
 
         if (existing is null)
@@ -574,9 +572,15 @@ public sealed class EfRepairSpecificationStore(
         ApplyDetails(entity, request.Details);
         ApplySupplementary(entity, request.Supplementary);
         AddLines(context, entity, request.Lines, request.Actor, now);
-        RecordBreakdown(entity);
+        IReadOnlyList<Guid> replacedCurrent = [];
+        if (existing is null && RepairSpecificationPolicy.BecomesCurrentWhenCreated(request.Actor))
+        {
+            replacedCurrent = await MakeCurrentAsync(context, workId, entity, cancellationToken);
+        }
         var afterLines = entity.Lines.OrderBy(line => line.Position).Select(EstimateLineWriter.Evidence).ToArray();
-        return new(entity, eventType, editingCurrent, Changed: true, request, beforeLines, afterLines);
+        return new(
+            entity, eventType, editingCurrent || entity.IsCurrent, Changed: true, request,
+            beforeLines, afterLines, replacedCurrent);
     }
 
     public async Task<RepairSpecificationVersion> DuplicateEstimateAsync(
@@ -629,7 +633,6 @@ public sealed class EfRepairSpecificationStore(
             context.CaseEstimateLines.Add(
                 CloneLine(line, entity, request.Actor, now));
         }
-        RecordBreakdown(entity);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_duplicated", requestHash,
             new { entity.Id, entity.Version, entity.Name, SourceEstimateId = original.Id }, now);
@@ -702,42 +705,9 @@ public sealed class EfRepairSpecificationStore(
             cancellationToken);
         var entity = await RequiredEstimateAsync(context, workId, request.EstimateId, cancellationToken);
 
-        // "Use estimate" is the Engineer's acceptance of a Draft: their act
-        // confirms every line it carries, and the calculation basis is the
-        // one totals owner's figures at this moment.
-        if (entity.State == RepairSpecificationState.Draft.ToString())
-        {
-            foreach (var line in entity.Lines)
-            {
-                line.ConfirmedBy = request.Actor.SubjectId;
-                line.ConfirmedAtUtc = now;
-            }
-        }
-        var candidate = Map(entity);
-        EstimatePolicy.ValidateSetCurrent(candidate, request.Actor);
-        if (candidate.State == RepairSpecificationState.Draft)
-        {
-            // One calculation: the accepted basis and the frozen breakdown
-            // are the same run of the one totals owner, never two.
-            var totals = EstimateTotals.Compute(candidate);
-            Accept(entity, EstimatePolicy.BasisFor(totals), request.Actor, now);
-            RecordBreakdown(entity, totals);
-        }
-
-        // The previous Current is cleared in the same transaction; the
-        // filtered unique index refuses two Current rows on one case.
-        var previous = await context.CaseRepairSpecifications
-            .Where(item => item.WorkId == workId && item.IsCurrent && item.Id != entity.Id)
-            .ToListAsync(cancellationToken);
-        foreach (var item in previous)
-        {
-            item.IsCurrent = false;
-        }
-        if (previous.Count > 0)
-        {
-            await context.SaveChangesAsync(cancellationToken);
-        }
-        entity.IsCurrent = true;
+        // Use repair spec switches which live estimate the Case uses.
+        EstimatePolicy.ValidateSetCurrent(Map(entity), request.Actor);
+        var previous = await MakeCurrentAsync(context, workId, entity, cancellationToken);
         entity.LastOperationKey = request.OperationKey;
         await MarkEstimateStaleIfNeededAsync(
             context,
@@ -748,7 +718,7 @@ public sealed class EfRepairSpecificationStore(
             cancellationToken);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_set_current", requestHash,
-            new { entity.Id, entity.Version, entity.Name, Previous = previous.Select(item => item.Id).ToArray() }, now);
+            new { entity.Id, entity.Version, entity.Name, Previous = previous }, now);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -812,45 +782,56 @@ public sealed class EfRepairSpecificationStore(
         return entity is null ? null : Map(entity);
     }
 
-    public async Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(
+    public async Task<RepairSpecificationVersion?> GetCurrentAsync(
         Guid caseId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
-        var entity = await AcceptedQuery(context, workId).AsNoTracking().Include(item => item.Lines)
-            .SingleOrDefaultAsync(cancellationToken);
-        return entity is null ? null : Map(entity);
-    }
-
-    public async Task<RepairSpecificationVersion?> GetCurrentDraftAsync(
-        Guid caseId, CancellationToken cancellationToken)
-    {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workId = await CaseWorkScope.CurrentIdAsync(context, caseId, cancellationToken);
-        var entity = await DraftQuery(context, workId).AsNoTracking().Include(item => item.Lines)
+        var entity = await CurrentQuery(context, workId).AsNoTracking().Include(item => item.Lines)
             .SingleOrDefaultAsync(cancellationToken);
         return entity is null ? null : Map(entity);
     }
 
     /// <summary>
-    /// The current-draft and current-accepted predicates are the single
-    /// owner of "what row is the current specification for a case", shared
-    /// with <see cref="EfCaseAssessmentStore"/>'s legacy implicit-draft path
-    /// so the two stores never diverge on what "current" means. With named
-    /// estimates a case may hold several drafts; the current draft is the
-    /// latest one, and the current accepted specification is the estimate
-    /// marked Current.
+    /// The single owner of "which row is the Case work's current
+    /// specification", shared by every reader so none diverges on it.
     /// </summary>
-    internal static IQueryable<CaseRepairSpecificationEntity> DraftQuery(
-        PegasusDbContext context, Guid workId) => context.CaseRepairSpecifications
-        .Where(item => item.WorkId == workId
-            && item.State == RepairSpecificationState.Draft.ToString())
-        .OrderByDescending(item => item.Version)
-        .Take(1);
-
-    internal static IQueryable<CaseRepairSpecificationEntity> AcceptedQuery(
+    internal static IQueryable<CaseRepairSpecificationEntity> CurrentQuery(
         PegasusDbContext context, Guid workId) => context.CaseRepairSpecifications
         .Where(item => item.WorkId == workId && item.IsCurrent);
+
+    /// <summary>
+    /// Makes <paramref name="entity"/> the work's Current estimate inside the
+    /// caller's transaction and returns the estimates it replaced. The
+    /// previous Current is cleared in SQL first: the filtered unique index
+    /// refuses two Current rows, and a flag change is not a key change EF
+    /// would order before the new row. Nothing else the caller has pending
+    /// is written early.
+    /// </summary>
+    internal static async Task<IReadOnlyList<Guid>> MakeCurrentAsync(
+        PegasusDbContext context,
+        Guid workId,
+        CaseRepairSpecificationEntity entity,
+        CancellationToken cancellationToken)
+    {
+        var previous = await context.CaseRepairSpecifications
+            .Where(item => item.WorkId == workId && item.IsCurrent && item.Id != entity.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync(cancellationToken);
+        if (previous.Length > 0)
+        {
+            await context.CaseRepairSpecifications
+                .Where(item => previous.Contains(item.Id))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.IsCurrent, false), cancellationToken);
+            foreach (var tracked in context.CaseRepairSpecifications.Local.Where(item => previous.Contains(item.Id)))
+            {
+                tracked.IsCurrent = false;
+                context.Entry(tracked).Property(item => item.IsCurrent).IsModified = false;
+            }
+        }
+        entity.IsCurrent = true;
+        return previous;
+    }
 
     internal static async Task<int> NextVersionAsync(
         PegasusDbContext context, Guid workId, CancellationToken cancellationToken) =>
@@ -859,30 +840,7 @@ public sealed class EfRepairSpecificationStore(
             .MaxAsync(item => (int?)item.Version, cancellationToken) ?? 0) + 1;
 
     /// <summary>
-    /// The one shape a repair specification takes when a legacy assessment
-    /// save implicitly opens it (no explicit source evidence yet, actor
-    /// authority already checked by the caller).
-    /// </summary>
-    internal static CaseRepairSpecificationEntity NewLegacyDraft(
-        Guid workId, int version, string createdBy, string operationKey, DateTimeOffset now) => new()
-    {
-        Id = Guid.NewGuid(),
-        WorkId = workId,
-        Version = version,
-        State = RepairSpecificationState.Draft.ToString(),
-        SourceRoute = RepairSpecificationSourceRoute.LegacyUnresolved.ToString(),
-        CreatedBy = createdBy,
-        CreationOperationKey = operationKey,
-        CreatedAtUtc = now,
-        Name = DefaultName(version),
-        VatPercent = EstimatePolicy.DefaultVatPercent,
-    };
-
-    private static string DefaultName(int version) =>
-        string.Create(CultureInfo.InvariantCulture, $"Estimate {version}");
-
-    /// <summary>
-    /// The one place a Draft estimate header takes its edited values. The Case
+    /// The one place an estimate header takes its edited values. The Case
     /// workspace save applies the same header inside its own transaction, so a
     /// header saved through the workspace and one saved through the estimate
     /// command cannot end up meaning different things.
@@ -892,10 +850,6 @@ public sealed class EfRepairSpecificationStore(
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(details);
         entity.Name = details.Name;
-        // A header change invalidates the breakdown the row last recorded.
-        // Every path that has the lines to recompute it calls RecordBreakdown
-        // straight after; one that does not leaves no stale figures behind.
-        entity.CalculationBreakdownJson = null;
         // One rate column. The rate snapshot's hourly rate is the estimate's
         // labour rate — EstimateDetails.HourlyRate reads it that way — so the
         // snapshot adds only the rate card it was taken from, never a second
@@ -992,46 +946,6 @@ public sealed class EfRepairSpecificationStore(
         applicable == true ? category : EstimateVatCategories.None;
 
     private static decimal Fraction(decimal? percent) => percent is { } value ? value / 100m : 0m;
-
-    /// <summary>
-    /// Freezes the one totals owner's own output on the row: the raw and
-    /// printed breakdowns and the calculation policy version it stamped. The
-    /// off-pattern values it retained are written on the lines that carry
-    /// them, so neither fact is stored twice.
-    /// </summary>
-    private static void RecordBreakdown(CaseRepairSpecificationEntity entity) =>
-        RecordBreakdown(entity, EstimateTotals.Compute(Map(entity)));
-
-    private static void RecordBreakdown(CaseRepairSpecificationEntity entity, EstimateTotals totals)
-    {
-        entity.CalculationBreakdownJson = JsonSerializer.Serialize(
-            new EstimateCalculationBreakdown(
-                totals.CalculationPolicyVersion, totals.VatPercent, totals.Raw, totals.Printed),
-            JsonOptions);
-        var anomalies = totals.OffPattern.ToLookup(anomaly => anomaly.Position);
-        foreach (var line in entity.Lines)
-        {
-            line.CurrentValuesJson = anomalies.Contains(line.Position)
-                ? JsonSerializer.Serialize(anomalies[line.Position].ToArray(), JsonOptions)
-                : null;
-        }
-    }
-
-    private static void Accept(
-        CaseRepairSpecificationEntity entity, RepairCalculationBasis basis, ActionActor actor, DateTimeOffset now)
-    {
-        entity.CalculationLabour = basis.Labour;
-        entity.CalculationParts = basis.Parts;
-        entity.CalculationPaintMaterials = basis.PaintMaterials;
-        entity.CalculationSpecialistOther = basis.SpecialistOther;
-        entity.RepairerVatRegistered = basis.RepairerVatRegistered;
-        entity.CalculationVat = basis.Vat;
-        entity.CalculationTotal = basis.Total;
-        entity.CalculationPolicyVersion = basis.PolicyVersion;
-        entity.State = RepairSpecificationState.Accepted.ToString();
-        entity.AcceptedBy = actor.SubjectId;
-        entity.AcceptedAtUtc = now;
-    }
 
     private static void AddLines(
         PegasusDbContext context, CaseRepairSpecificationEntity target,
@@ -1253,7 +1167,7 @@ public sealed class EfRepairSpecificationStore(
         DateTimeOffset now) =>
         NewLine(new(
             line.LineType, line.GuideCode, line.Description, line.WorkUnits, line.Price,
-            line.Unpriced, line.PartNumber, line.Betterment, line.Status,
+            line.Unpriced, line.PartNumber, line.Betterment,
             line.EvidenceLabel, line.Justification, line.PaintWorkUnits, line.Quantity,
             line.Materials,
             null, null, null, null, null, null, null),
@@ -1272,7 +1186,6 @@ public sealed class EfRepairSpecificationStore(
     internal static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity)
     {
         var details = ReadDetails(entity);
-        var breakdown = ReadBreakdown(entity);
         return new(
             entity.Id, entity.Work.CaseId, entity.Version,
             Enum.Parse<RepairSpecificationState>(entity.State),
@@ -1281,52 +1194,20 @@ public sealed class EfRepairSpecificationStore(
             entity.Lines.OrderBy(line => line.Position).Select(line => new CaseEstimateLineRecord(
                 line.Id, line.Position, line.LineType, line.GuideCode, line.Description,
                 line.WorkUnits, line.Price, line.Unpriced, line.PartNumber, line.Betterment,
-                line.Status, line.EvidenceLabel, line.Justification,
+                line.EvidenceLabel, line.Justification,
                 Enum.Parse<ActorKind>(line.RecordedByKind), line.RecordedBy, line.RecordedAtUtc,
-                line.ConfirmedBy, line.ConfirmedAtUtc, line.PaintWorkUnits, line.Quantity,
+                line.PaintWorkUnits, line.Quantity,
                 line.Materials, ReadOrigin(line), line.SourceDocumentIdentity,
                 line.SourceDocumentVersionId, line.SourceDocumentSha256, line.SourceRowIdentity,
                 line.AmendedBy, line.AmendedAtUtc)).ToArray(),
-            MapBasis(entity, details),
-            entity.CreatedBy, entity.CreatedAtUtc, entity.AcceptedBy, entity.AcceptedAtUtc,
-            entity.SupersedesSpecificationId, entity.SupersessionReason,
+            entity.CreatedBy, entity.CreatedAtUtc,
             details,
             entity.IsCurrent, entity.AiJobId, entity.DiscardReason,
-            breakdown is null
-                ? null
-                : new(
-                    breakdown.Raw,
-                    breakdown.Printed,
-                    details.VatPolicy,
-                    breakdown.VatPercent,
-                    breakdown.CalculationPolicyVersion,
-                    []),
             entity.SupplementaryOfSpecificationId is { } supplementaryOf
                 ? new(supplementaryOf, entity.SupplementaryReason ?? string.Empty,
                     entity.SupplementaryExplainOnReport, entity.SupplementaryStatement ?? string.Empty)
                 : null);
     }
-
-    /// <summary>
-    /// The accepted calculation basis as the row froze it: the four typed
-    /// component columns, and — when the acceptance recorded one — the
-    /// printed breakdown and the VAT categories that produced them.
-    /// </summary>
-    private static RepairCalculationBasis? MapBasis(
-        CaseRepairSpecificationEntity entity, EstimateDetails details) =>
-        entity.CalculationLabour is { } labour
-            ? new(labour, entity.CalculationParts!.Value, entity.CalculationPaintMaterials!.Value,
-                entity.CalculationSpecialistOther!.Value, entity.RepairerVatRegistered!.Value,
-                entity.CalculationVat!.Value, entity.CalculationTotal!.Value,
-                entity.CalculationPolicyVersion!,
-                details.VatPolicy,
-                ReadBreakdown(entity)?.Printed)
-            : null;
-
-    private static EstimateCalculationBreakdown? ReadBreakdown(CaseRepairSpecificationEntity entity) =>
-        entity.CalculationBreakdownJson is { Length: > 0 } json
-            ? JsonSerializer.Deserialize<EstimateCalculationBreakdown>(json, JsonOptions)
-            : null;
 
     /// <summary>
     /// The bounded <see cref="CaseEstimatePageItem"/> sibling of <see
@@ -1339,8 +1220,7 @@ public sealed class EfRepairSpecificationStore(
         new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
             entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),
         entity.Name,
-        entity.IsCurrent,
-        MapBasis(entity, ReadDetails(entity)));
+        entity.IsCurrent);
 
     private static void AddHistory(
         PegasusDbContext context, CaseWorkflowEntity workflow, ActionActor actor,
@@ -1363,25 +1243,12 @@ public sealed class EfRepairSpecificationStore(
 }
 
 /// <summary>
-/// The persisted form of one run of <see cref="EstimateTotals.Compute"/>:
-/// the unrounded arithmetic, its printed projection, and the calculation
-/// policy version that produced them. Nothing here is re-derived on read —
-/// the row states what the one totals owner computed when the estimate was
-/// saved or accepted.
-/// </summary>
-internal sealed record EstimateCalculationBreakdown(
-    int CalculationPolicyVersion,
-    decimal VatPercent,
-    EstimateRawTotals Raw,
-    EstimatePrintedTotals Printed);
-
-/// <summary>
-/// The one owner of an estimate's line rows. Replacing the lines of a Draft is
-/// a whole-list operation — positions are contiguous and start at one — and a
-/// staff line is confirmed by the act of saving it while an Automation line
-/// stays unconfirmed working data until an Engineer accepts it. The estimate
-/// commands and the Case workspace save write lines through here, so the two
-/// routes cannot record different provenance for the same edit.
+/// The one owner of an estimate's line rows. Replacing an estimate's lines is
+/// a whole-list operation — positions are contiguous and start at one — and
+/// every line carries the provenance of the actor that saved it.
+/// The estimate commands and the Case workspace save write lines through
+/// here, so the two routes cannot record different provenance for the same
+/// edit.
 /// </summary>
 internal static class EstimateLineWriter
 {
@@ -1395,7 +1262,6 @@ internal static class EstimateLineWriter
     {
         ArgumentNullException.ThrowIfNull(line);
         ArgumentNullException.ThrowIfNull(actor);
-        var confirmedBy = actor.Kind == ActorKind.Staff ? actor.SubjectId : null;
         return new()
         {
             Id = Guid.NewGuid(),
@@ -1413,7 +1279,6 @@ internal static class EstimateLineWriter
             Unpriced = line.Unpriced,
             PartNumber = line.PartNumber,
             Betterment = line.Betterment,
-            Status = line.Status,
             EvidenceLabel = line.EvidenceLabel,
             Justification = line.Justification,
             Materials = line.Materials,
@@ -1433,42 +1298,8 @@ internal static class EstimateLineWriter
             AmendedAtUtc = line.AmendedAtUtc,
             RecordedByKind = actor.Kind.ToString(),
             RecordedBy = actor.SubjectId,
-            RecordedAtUtc = now,
-            ConfirmedBy = confirmedBy,
-            ConfirmedAtUtc = confirmedBy is null ? null : now
+            RecordedAtUtc = now
         };
-    }
-
-    /// <summary>
-    /// Replaces every line of one estimate and returns the before/after
-    /// evidence the history record carries. <paramref name="tracked"/> is
-    /// updated in place so the caller's projection sees the new rows.
-    /// </summary>
-    public static (object Before, object After) Replace(
-        PegasusDbContext context,
-        Guid workId,
-        CaseRepairSpecificationEntity? specification,
-        List<CaseEstimateLineEntity> tracked,
-        IReadOnlyList<EstimateLineInput> replacement,
-        ActionActor actor,
-        DateTimeOffset now)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        ArgumentNullException.ThrowIfNull(tracked);
-        ArgumentNullException.ThrowIfNull(replacement);
-        var before = tracked.Select(Evidence).ToArray();
-        context.CaseEstimateLines.RemoveRange(tracked);
-        tracked.Clear();
-        var position = 0;
-        foreach (var line in replacement)
-        {
-            position++;
-            var entity = NewLine(line, position, workId, specification, actor, now);
-            context.CaseEstimateLines.Add(entity);
-            tracked.Add(entity);
-        }
-
-        return (before, tracked.Select(Evidence).ToArray());
     }
 
     public static object Evidence(CaseEstimateLineEntity line)
@@ -1487,10 +1318,8 @@ internal static class EstimateLineWriter
             line.Unpriced,
             line.PartNumber,
             line.Betterment,
-            line.Status,
             line.EvidenceLabel,
-            line.Justification,
-            line.ConfirmedBy
+            line.Justification
         };
     }
 }

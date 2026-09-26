@@ -55,15 +55,13 @@ internal static class AssessmentWorkspaceTestData
             data,
             null,
             assessment,
-            null,
             null);
     }
 
     public static AssessmentWorkspace Create(
         CaseDetails details,
         CaseAssessmentProjection assessment,
-        RepairSpecificationVersion? draftSpecification = null,
-        RepairSpecificationVersion? acceptedSpecification = null)
+        RepairSpecificationVersion? currentSpecification = null)
     {
         var fallback = Create(assessment);
         return fallback with
@@ -80,8 +78,7 @@ internal static class AssessmentWorkspaceTestData
                 details.CustodyFolderRemoteId),
             Data = details.Data ?? fallback.Data,
             LatestVehicleObservation = details.VehicleEvidence?.LatestObservation,
-            DraftSpecification = draftSpecification,
-            AcceptedSpecification = acceptedSpecification
+            CurrentSpecification = currentSpecification
         };
     }
 }

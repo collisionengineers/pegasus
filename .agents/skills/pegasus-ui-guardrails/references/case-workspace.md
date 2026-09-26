@@ -93,7 +93,7 @@ Important ownership decisions:
 - Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
 - Decisions owns settlement decisions and settlement-only figures.
 - Report owns generation/preview/finality controls, report wording, report date, commentary, the Fee pane and the report's blocker list, each row linking to the section that owns the fact rather than repeating it.
-- Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces.
+- Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces. A document row may offer **Import as repair spec**, which runs Repair Spec's own import on that file (operator, 25 September 2026).
 - Notes owns the single Case timeline, notes and chase recording.
 
 Case images are not repeated under Damage. A Report image-selection/preview strip may summarize the

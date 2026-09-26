@@ -42,26 +42,16 @@ proposals until an authorised person accepts or rejects them through Core.
 hands a scoped worker a pointer to one Case, never Case content. The worker
 writes back through the same Core commands, edit lease, operation-key replay
 and version guards as a staff save, attributed and recorded like any human
-action. What the automation records is unconfirmed working data that staff
-review; it writes only fields staff can record on the Case, so a staff Save
-of the field's section confirms or clears each value
-([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)).
-Confirming a professional finding is for every enabled human staff role.
+action. What the automation records is the Case's value, attributed to it
+and shown with its AI source tag; it writes only fields staff can record on
+the Case, so staff can change or clear each value on its section
+([FRD-10](frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)),
+and it never writes a professional finding. Recording a professional finding
+is for every enabled human staff role. There is no per-field review
+(operator, 25 September 2026).
 Report approval and sending stay human acts. No model, skill, prompt or
 external source ever issues an accepted Case, engineering, financial, legal
 or report outcome.
-
-**Settlement proposals.** For Outcome, Engineer's Value, Salvage category,
-Salvage value, Roadworthiness and the unroadworthy reason, Pegasus keeps the
-latest Automation value as a proposal with a status. It reads **Awaiting**
-until staff record the field. A matching staff value makes it **Accepted**; a
-different value or a clear makes it **Corrected**, recording who resolved it.
-It stays resolved until the next Automation value. The Settlement section
-shows the Proposed column only when a proposal exists. It offers Accept and
-Accept all only while a proposal is Awaiting and the Case is being edited.
-The Engineer's Value row offers Set in Valuation instead, because that
-value is adopted only by a Save whose valuation calculation changed. A Save that leaves
-an Awaiting field untouched leaves it Awaiting.
 
 Durable Send to AI work has stable request, hand-off, reply and disposition
 identities. Stale work cannot overwrite a newer Case or evidence version.
@@ -87,7 +77,7 @@ and in the table below).
 
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
-| Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An enabled human staff member accepts the draft (`Use estimate`), which makes it the Current estimate |
+| Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An enabled human staff member uses the draft (**Use repair spec**), which makes it the Current repair spec |
 | Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool; Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item examined | As Unidentified resolution, per item |

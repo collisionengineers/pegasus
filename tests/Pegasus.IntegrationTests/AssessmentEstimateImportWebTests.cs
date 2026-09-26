@@ -45,10 +45,14 @@ public sealed partial class AssessmentEstimateImportWebTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task AnImportedEstimateIsRetainedAndLandsAsADraftWithProvenance()
+    public async Task AnImportedEstimateIsRetainedAndLandsInUseOnTheRateCardWithProvenance()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
+        // Production's one enabled card; a retired one is never chosen.
+        var card = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 3);
+        store.RateCards.Add(card);
+        store.RateCards.Add(new LabourRateCard(Guid.NewGuid(), "Retired", 55m, false, 1));
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory, StaffRole.User);
@@ -99,17 +103,24 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.NotNull(estimate.Lines);
         Assert.Equal(6, estimate.Lines!.Count);
         Assert.Equal(620.20m, estimate.Lines.Single(line => line.Description == "FRONT BUMPER" && line.Type == "new_part").Price);
+        // Edit Case, drop an Audatex, done: the import is the repair spec in
+        // use, priced on the one enabled card, never on the document's rate.
+        Assert.Equal(card.Id, estimate.SelectedRateCardId);
+        Assert.Equal(card.Version, estimate.SelectedRateCardVersion);
+        var landed = Assert.IsType<RepairSpecificationVersion>(store.InUse);
+        Assert.Equal(store.LastCreatedEstimateId, landed.SpecificationId);
+        Assert.Equal(80m, landed.Details.HourlyRate);
+        Assert.Empty(store.SetCurrentRequests);
 
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={store.LastCreatedEstimateId:D}");
         Assert.Contains(CaseWorkspaceLabels.EstimateImport.Imported, afterHtml, StringComparison.Ordinal);
-        Assert.All(store.CurrentDraft!.Lines, line => Assert.Null(line.ConfirmedBy));
         Assert.NotNull(store.ActiveLease);
         Assert.Contains("value=\"lease-3\"", afterHtml, StringComparison.Ordinal);
         Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task SelectingTheSameEstimateAgainReusesTheStoredSourceAndDraft()
+    public async Task SelectingTheSameEstimateAgainReusesTheStoredSourceAndSpec()
     {
         var caseId = Guid.NewGuid();
         var fixture = AudatexEstimateFixture.Build();
@@ -146,8 +157,67 @@ public sealed partial class AssessmentEstimateImportWebTests
         var reloaded = await GetHtmlAsync(client, replay.Headers.Location.OriginalString);
         Assert.Contains("value=\"lease-3\"", reloaded, StringComparison.Ordinal);
         Assert.DoesNotContain("Recover editing", reloaded, StringComparison.Ordinal);
-        Assert.Equal(estimateId, store.CurrentDraft!.SpecificationId);
-        Assert.Null(store.CurrentAccepted);
+        Assert.Equal(estimateId, store.WorkingEstimate!.SpecificationId);
+        Assert.True(store.WorkingEstimate.IsCurrent);
+        Assert.Null(store.OtherEstimate);
+    }
+
+    /// <summary>
+    /// Import A, import B, then drop A's file again: the replay returns A and
+    /// leaves B in use (FRD-25; switching back is Use repair spec), and the
+    /// page says the file was already imported rather than that A is in use.
+    /// </summary>
+    [Fact]
+    public async Task ReplayingAnEarlierFileShowsItsSpecAndLeavesTheSpecInUseUnchanged()
+    {
+        var caseId = Guid.NewGuid();
+        var first = AudatexEstimateFixture.Build();
+        var second = Encoding.UTF8.GetBytes(
+            "{\"schema\":\"pegasus-estimate/1\",\"sourceVersion\":\"second\"," +
+            "\"lines\":[{\"operation\":\"Replace\",\"description\":\"Front bumper\",\"price\":120.00}]}");
+        var store = new RecordingStores(caseId);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+
+        using var importedFirst = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), first));
+        Assert.Equal(HttpStatusCode.Redirect, importedFirst.StatusCode);
+        var firstId = store.LastCreatedEstimateId;
+        html = await GetHtmlAsync(client, importedFirst.Headers.Location!.OriginalString);
+
+        using var importedSecond = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), second,
+                editLeaseToken: InputValue(html, "editLeaseToken"),
+                expectedVersion: long.Parse(InputValue(html, "expectedVersion"), CultureInfo.InvariantCulture),
+                fileName: "estimate.json", mediaType: "application/json"));
+        Assert.Equal(HttpStatusCode.Redirect, importedSecond.StatusCode);
+        var secondId = store.LastCreatedEstimateId;
+        Assert.NotEqual(firstId, secondId);
+        Assert.Equal(secondId, store.InUse!.SpecificationId);
+        html = await GetHtmlAsync(client, importedSecond.Headers.Location!.OriginalString);
+        Assert.Contains(CaseWorkspaceLabels.EstimateImport.Imported, html, StringComparison.Ordinal);
+
+        using var replay = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), first,
+                editLeaseToken: InputValue(html, "editLeaseToken"),
+                expectedVersion: long.Parse(InputValue(html, "expectedVersion"), CultureInfo.InvariantCulture)));
+
+        Assert.Equal(HttpStatusCode.Redirect, replay.StatusCode);
+        Assert.Contains(firstId.ToString("D"), replay.Headers.Location!.OriginalString, StringComparison.Ordinal);
+        Assert.Equal(2, store.SavedEstimates.Count);
+        Assert.Equal(firstId, Assert.Single(store.SourceReplayBindings).EstimateId);
+        Assert.Equal(secondId, store.InUse!.SpecificationId);
+        Assert.Equal(firstId, store.OtherEstimate!.SpecificationId);
+        Assert.False(store.OtherEstimate.IsCurrent);
+
+        var reloaded = await GetHtmlAsync(client, replay.Headers.Location.OriginalString);
+        Assert.Contains(CaseWorkspaceLabels.EstimateImport.AlreadyImported, reloaded, StringComparison.Ordinal);
+        Assert.DoesNotContain(CaseWorkspaceLabels.EstimateImport.Imported, reloaded, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -170,7 +240,7 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         Assert.Equal(HttpStatusCode.Redirect, importResponse.StatusCode);
         var imported = Assert.Single(store.SavedEstimates);
-        var draft = Assert.IsType<RepairSpecificationVersion>(store.CurrentDraft);
+        var draft = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
         // The import consumed the session; the editor renders inside a new one (v26).
         var editorHtml = await EnterEditModeAsync(
             client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
@@ -216,7 +286,6 @@ public sealed partial class AssessmentEstimateImportWebTests
             Assert.Equal(before.GuideCode, after.GuideCode);
             Assert.Equal(before.Unpriced, after.Unpriced);
             Assert.Equal(before.Betterment, after.Betterment);
-            Assert.Equal(before.Status, after.Status);
             Assert.Equal(before.EvidenceLabel, after.EvidenceLabel);
             Assert.Equal(before.Justification, after.Justification);
         }
@@ -258,7 +327,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 AudatexEstimateFixture.Build()));
         Assert.Equal(HttpStatusCode.Redirect, importResponse.StatusCode);
 
-        var draft = Assert.IsType<RepairSpecificationVersion>(store.CurrentDraft);
+        var draft = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
         var unpricedBefore = Assert.Single(draft.Lines, line => line.Description == "GRILLE BADGE");
         Assert.True(unpricedBefore.Unpriced);
         Assert.Null(unpricedBefore.Price);
@@ -313,7 +382,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     [Fact]
-    public async Task ImportFromReadModeAcquiresTheCaseLeaseAndCreatesTheDraftImmediately()
+    public async Task ImportFromReadModeAcquiresTheCaseLeaseAndCreatesTheSpecInUseImmediately()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
@@ -336,6 +405,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(RecordingStores.CaseVersion + 2, store.LeaseClaims[2].ExpectedVersion);
         Assert.Equal("lease-1", store.AddedDocuments[0].EditLeaseToken);
         Assert.Equal("lease-2", store.SavedEstimates[0].EditLeaseToken);
+        Assert.Equal(store.LastCreatedEstimateId, store.InUse!.SpecificationId);
 
         var afterHtml = await GetHtmlAsync(client, response.Headers.Location!.OriginalString);
         Assert.Contains(CaseWorkspaceLabels.EstimateImport.Imported, afterHtml, StringComparison.Ordinal);
@@ -498,6 +568,18 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(content.Length, Assert.Single(store.AddedDocuments).Content.Length);
         Assert.Equal(RepairSpecificationSourceRoute.Json, Assert.Single(store.SavedEstimates).Source.Route);
+    }
+
+    /// <summary>The drop zone states the limit the import enforces, not a figure of its own.</summary>
+    [Fact]
+    public void TheDropHintStatesTheImportsOwnSizeLimit()
+    {
+        var limit = $"{ImportRawEstimate.MaximumDocumentBytes / (1024 * 1024)} MiB";
+
+        Assert.Equal(32 * 1024 * 1024, ImportRawEstimate.MaximumDocumentBytes);
+        Assert.Contains(limit, CaseWorkspaceLabels.EstimateImport.DropHint, StringComparison.Ordinal);
+        Assert.Contains(limit, CaseWorkspaceLabels.EstimateImport.FileTooLarge, StringComparison.Ordinal);
+        Assert.DoesNotContain("10 MB", CaseWorkspaceLabels.EstimateImport.DropHint, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -805,6 +887,203 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.True(Assert.Single(store.SavedEstimates).Actor.IsInRole(StaffRole.User));
     }
 
+    /// <summary>
+    /// An estimate the Case already holds — an Audatex report that arrived by
+    /// email — imports from its Case Files row through the same import as a
+    /// drop: it is the repair spec in use on the one enabled card, and no
+    /// second copy of the file is stored (operator, 25 September 2026).
+    /// </summary>
+    [Fact]
+    public async Task AnEstimateAlreadyInCaseFilesImportsFromItsRowWithoutASecondCopy()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        var card = new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 3);
+        store.RateCards.Add(card);
+        var emailed = store.SeedCaseFile("Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build());
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory, StaffRole.User);
+
+        var html = await EnterEditModeAsync(client, caseId, "?section=files");
+        var form = CaseFileImportForm(html, emailed.Occurrence.Id);
+        Assert.NotNull(form);
+        Assert.Contains("handler=ImportCaseFileEstimate", form, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Files.ImportEstimate, form, StringComparison.Ordinal);
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportCaseFileEstimate",
+            CaseFileImportPost(html, form));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("section=estimate", response.Headers.Location?.OriginalString, StringComparison.Ordinal);
+        // The file already in Case Files is the source: nothing is stored again.
+        Assert.Empty(store.DocumentCalls);
+        Assert.Empty(store.AddedDocuments);
+        Assert.Single(store.RetainedDocuments);
+        var imported = Assert.Single(store.SavedEstimates);
+        Assert.Null(imported.EstimateId);
+        Assert.Equal(RepairSpecificationSourceRoute.AudatexPdf, imported.Source.Route);
+        Assert.Equal($"estimate-import:{emailed.Occurrence.Id:D}", imported.Source.ArtifactReference);
+        Assert.Equal(emailed.Version.Sha256, imported.Source.Sha256);
+        Assert.Equal(RecordingStores.CaseVersion, imported.ExpectedVersion);
+        Assert.Equal(RecordingStores.HeldLeaseToken, imported.EditLeaseToken);
+        Assert.Equal(card.Id, imported.SelectedRateCardId);
+        Assert.Equal(card.Version, imported.SelectedRateCardVersion);
+        Assert.True(imported.Actor.IsInRole(StaffRole.User));
+        var inUse = Assert.IsType<RepairSpecificationVersion>(store.InUse);
+        Assert.Equal(store.LastCreatedEstimateId, inUse.SpecificationId);
+        Assert.Equal(80m, inUse.Details.HourlyRate);
+        Assert.Empty(store.SetCurrentRequests);
+
+        var afterHtml = await GetHtmlAsync(client, response.Headers.Location!.OriginalString);
+        Assert.Contains(CaseWorkspaceLabels.EstimateImport.Imported, afterHtml, StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Only a confirmed file Pegasus did not generate, that one estimate
+    /// format recognises, imports from Case Files. A generated report, an
+    /// unrecognised file and an occurrence the Case does not hold are each
+    /// refused before any authority is taken or anything is stored.
+    /// </summary>
+    [Fact]
+    public async Task AFileThatIsNotAnImportableEstimateIsRefusedAndStoresNothing()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        store.RateCards.Add(new LabourRateCard(Guid.NewGuid(), "80", 80m, true, 1));
+        var generated = store.SeedCaseFile(
+            "QDOS-2026-00042 report.pdf", "application/pdf", AudatexEstimateFixture.Build(),
+            DocumentSource.Generated, DocumentSemanticRole.EngineerReport);
+        var text = store.SeedCaseFile(
+            "repair notes.txt", "text/plain", "Front bumper and wing."u8.ToArray(), DocumentSource.StaffUpload);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await EnterEditModeAsync(client, caseId, "?section=files");
+        Assert.Null(CaseFileImportForm(html, generated.Occurrence.Id));
+        Assert.Null(CaseFileImportForm(html, text.Occurrence.Id));
+
+        foreach (var (occurrenceId, versionId) in new[]
+        {
+            (generated.Occurrence.Id, generated.Version.Id),
+            (text.Occurrence.Id, text.Version.Id),
+            (Guid.NewGuid(), Guid.NewGuid()),
+        })
+        {
+            var page = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+            using var response = await client.PostAsync(
+                $"/Cases/{caseId:D}?handler=ImportCaseFileEstimate",
+                Form(
+                    AntiforgeryValue(page),
+                    ("id", caseId.ToString("D")),
+                    ("expectedVersion", store.WorkflowVersion.ToString(CultureInfo.InvariantCulture)),
+                    ("operationKey", NewOperationKey()),
+                    ("editLeaseToken", RecordingStores.HeldLeaseToken),
+                    ("occurrenceId", occurrenceId.ToString("D")),
+                    ("versionId", versionId.ToString("D"))));
+
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            var refused = await GetHtmlAsync(client, response.Headers.Location!.OriginalString);
+            Assert.Contains(CaseWorkspaceLabels.EstimateImport.NotAnEstimateFile, refused, StringComparison.Ordinal);
+            Assert.DoesNotContain(CaseWorkspaceLabels.EstimateImport.Imported, refused, StringComparison.Ordinal);
+        }
+
+        Assert.Empty(store.DocumentCalls);
+        Assert.Empty(store.AddedDocuments);
+        Assert.Empty(store.SubmittedEstimates);
+        Assert.Empty(store.SavedEstimates);
+        Assert.Null(store.InUse);
+        // Only entering edit mode claimed authority; no refusal took any.
+        Assert.Single(store.LeaseClaims);
+        Assert.Equal(RecordingStores.CaseVersion, store.WorkflowVersion);
+    }
+
+    /// <summary>
+    /// The Files Documents row offers Import as repair spec only for a
+    /// confirmed file one estimate format recognises, and only while the
+    /// staff member is editing: never for a generated report, an unrecognised
+    /// file, a file still being stored or an image, and never in read mode.
+    /// </summary>
+    [Fact]
+    public async Task OnlyARecognisedConfirmedFileOffersImportAndOnlyWhileEditing()
+    {
+        var caseId = Guid.NewGuid();
+        var store = new RecordingStores(caseId);
+        var importable = store.SeedCaseFile("Audatex report.pdf", "application/pdf", AudatexEstimateFixture.Build());
+        var generated = store.SeedCaseFile(
+            "QDOS-2026-00042 report.pdf", "application/pdf", "%PDF-1.4 generated report"u8.ToArray(),
+            DocumentSource.Generated, DocumentSemanticRole.EngineerReport);
+        var text = store.SeedCaseFile(
+            "repair notes.txt", "text/plain", "Front bumper and wing."u8.ToArray(), DocumentSource.StaffUpload);
+        var storing = store.SeedCaseFile(
+            "Second estimate.pdf", "application/pdf", "%PDF-1.4 still storing"u8.ToArray(),
+            custody: DocumentCustodyStatus.Pending);
+        var image = store.SeedCaseFile(
+            "front.jpg", "image/jpeg", [0xFF, 0xD8, 0xFF, 0xE0], DocumentSource.StaffUpload, DocumentSemanticRole.Image);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var readHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+        Assert.Contains($"data-document-row=\"{importable.Occurrence.Id:D}\"", readHtml, StringComparison.Ordinal);
+        Assert.Empty(CaseFileImportForms(readHtml));
+        Assert.DoesNotContain(CaseWorkspaceLabels.Files.ImportEstimate, readHtml, StringComparison.Ordinal);
+
+        var html = await EnterEditModeAsync(client, caseId, "?section=files");
+        foreach (var listed in new[] { importable, generated, text, storing })
+        {
+            Assert.Contains($"data-document-row=\"{listed.Occurrence.Id:D}\"", html, StringComparison.Ordinal);
+        }
+        var form = Assert.Single(CaseFileImportForms(html));
+        Assert.Contains($"value=\"{importable.Occurrence.Id:D}\"", form, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{importable.Version.Id:D}\"", form, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{RecordingStores.HeldLeaseToken}\"", form, StringComparison.Ordinal);
+        foreach (var refused in new[] { generated, text, storing, image })
+        {
+            Assert.Null(CaseFileImportForm(html, refused.Occurrence.Id));
+        }
+    }
+
+    /// <summary>
+    /// A dropped estimate whose bytes the Case already holds in Case Files —
+    /// here as an emailed report, not an earlier import's own copy — is
+    /// imported from that file rather than stored a second time.
+    /// </summary>
+    [Fact]
+    public async Task ADroppedEstimateAlreadyInCaseFilesIsImportedFromThereNotStoredAgain()
+    {
+        var caseId = Guid.NewGuid();
+        var fixture = AudatexEstimateFixture.Build();
+        var store = new RecordingStores(caseId);
+        var emailed = store.SeedCaseFile("Audatex report.pdf", "application/pdf", fixture);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = Compose(baseFactory, store);
+        using var client = CreateEngineerClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), fixture));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Empty(store.DocumentCalls);
+        Assert.Empty(store.AddedDocuments);
+        Assert.Single(store.RetainedDocuments);
+        var imported = Assert.Single(store.SavedEstimates);
+        Assert.Equal($"estimate-import:{emailed.Occurrence.Id:D}", imported.Source.ArtifactReference);
+        Assert.Equal(emailed.Version.Sha256, imported.Source.Sha256);
+        // No new document consumed a version, so the import lands at the
+        // version the drop was made at.
+        Assert.Equal(RecordingStores.CaseVersion, imported.ExpectedVersion);
+        Assert.Equal(store.LastCreatedEstimateId, store.InUse!.SpecificationId);
+
+        var afterHtml = await GetHtmlAsync(client, response.Headers.Location!.OriginalString);
+        Assert.Contains(CaseWorkspaceLabels.EstimateImport.Imported, afterHtml, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task ImportFormIsAvailableInReadAndEditModeWithAccessibleNativeFallback()
     {
@@ -837,12 +1116,17 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.DoesNotContain("value=\"\"", editForm.Value, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Use repair spec switches the Case to another estimate on it: here an
+    /// older one, while a later spec is in use.
+    /// </summary>
     [Fact]
-    public async Task UseEstimateRecordsTheUsersAcceptance()
+    public async Task UseRepairSpecSwitchesTheCaseToAnotherEstimate()
     {
         var caseId = Guid.NewGuid();
         var draft = DraftSpecification(caseId);
-        var store = new RecordingStores(caseId) { CurrentDraft = draft };
+        var inUse = DraftSpecification(caseId) with { SpecificationId = Guid.NewGuid(), Version = 2, IsCurrent = true };
+        var store = new RecordingStores(caseId) { WorkingEstimate = draft, OtherEstimate = inUse };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory, StaffRole.User);
@@ -868,9 +1152,11 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(RecordingStores.CaseVersion, use.ExpectedVersion);
         Assert.Equal(RecordingStores.HeldLeaseToken, use.EditLeaseToken);
         // v25 decision F: an immediate post keeps the session — the page's own
-        // entry claim, then the reclaim after the acceptance consumed it.
+        // entry claim, then the reclaim after the switch consumed it.
         Assert.Equal(2, store.LeaseClaims.Count);
         Assert.NotNull(store.ActiveLease);
+        Assert.Equal(draft.SpecificationId, store.InUse!.SpecificationId);
+        Assert.False(store.OtherEstimate!.IsCurrent);
 
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}");
         Assert.Contains(
@@ -886,7 +1172,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
         var existing = DraftSpecification(caseId);
-        store.CurrentDraft = existing;
+        store.WorkingEstimate = existing;
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
@@ -1059,14 +1345,14 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// B08: an Unknown repairer status charges VAT on nothing and blocks Use
-    /// estimate, so the Engineer who selects the categories by hand is making
-    /// the override that unblocks it. The screen records that override without
-    /// a control of its own — the checked set differing from the status's own
-    /// default is what the override means.
+    /// B08: an Unknown repairer status charges VAT on nothing, so the Engineer
+    /// who selects the categories by hand is making an override. The screen
+    /// records that override without a control of its own — the checked set
+    /// differing from the status's own default is what the override means.
+    /// The new spec is the one in use, so it offers no Use repair spec.
     /// </summary>
     [Fact]
-    public async Task PostingUnknownWithCategoriesRecordsTheOverrideThatUnblocksUseEstimate()
+    public async Task PostingUnknownWithCategoriesRecordsTheOverrideOnTheSpecInUse()
     {
         var caseId = Guid.NewGuid();
         var store = new RecordingStores(caseId);
@@ -1117,9 +1403,10 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.False(saved.Details.Vat.TreatmentPending);
         Assert.Equal(EstimateDiscounts.None, saved.Details.Discounts);
 
-        var reloaded = await GetHtmlAsync(
-            client, $"/Cases/{caseId:D}?section=estimate&estimate={store.LastCreatedEstimateId:D}");
-        Assert.Contains("handler=SetCurrentEstimate", reloaded, StringComparison.Ordinal);
+        Assert.Equal(store.LastCreatedEstimateId, store.InUse!.SpecificationId);
+        var reloaded = await EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={store.LastCreatedEstimateId:D}");
+        Assert.DoesNotContain("data-estimate-use", reloaded, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1132,7 +1419,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var caseId = Guid.NewGuid();
         var seeded = DraftSpecification(caseId);
         var draft = seeded with { Details = seeded.Details with { Vat = null } };
-        var store = new RecordingStores(caseId) { CurrentDraft = draft };
+        var store = new RecordingStores(caseId) { WorkingEstimate = draft };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
@@ -1159,20 +1446,14 @@ public sealed partial class AssessmentEstimateImportWebTests
         {
             SpecificationId = Guid.NewGuid(),
             Version = 2,
-            State = RepairSpecificationState.Accepted,
             Lines = [currentBase.Lines.Single() with { Price = 100.01m }],
             Details = currentBase.Details with { Name = "Engineer current" },
             IsCurrent = true,
         };
-        current = current with
-        {
-            RecordedTotals = EstimateTotals.Compute(current),
-            Lines = [current.Lines.Single() with { Price = 999m }],
-        };
         var store = new RecordingStores(caseId)
         {
-            CurrentDraft = draft,
-            CurrentAccepted = current,
+            WorkingEstimate = draft,
+            OtherEstimate = current,
         };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
@@ -1190,7 +1471,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Contains("<h2 id=\"compare-estimates-dialog-title\" tabindex=\"-1\">Compare repair specs</h2>", dialog, StringComparison.Ordinal);
         Assert.Contains("Repairer draft", dialog, StringComparison.Ordinal);
         Assert.Contains("Engineer current", dialog, StringComparison.Ordinal);
-        // The state reads as a chip: Current for the accepted current estimate.
+        // The state reads as a chip: Current for the estimate in use.
         Assert.Contains(">Draft</span>", dialog, StringComparison.Ordinal);
         Assert.Contains(">Current</span>", dialog, StringComparison.Ordinal);
         Assert.Contains("&#xA3;620.20", dialog, StringComparison.Ordinal);
@@ -1208,7 +1489,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var draft = DraftSpecification(caseId);
-        var store = new RecordingStores(caseId) { CurrentDraft = draft };
+        var store = new RecordingStores(caseId) { WorkingEstimate = draft };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
@@ -1228,7 +1509,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var draft = DraftSpecification(caseId);
-        var store = new RecordingStores(caseId) { CurrentDraft = draft };
+        var store = new RecordingStores(caseId) { WorkingEstimate = draft };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
@@ -1275,7 +1556,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     {
         var caseId = Guid.NewGuid();
         var seeded = ProvenancedDraft(caseId);
-        var store = new RecordingStores(caseId) { CurrentDraft = seeded };
+        var store = new RecordingStores(caseId) { WorkingEstimate = seeded };
         using var baseFactory = new IntakeWebApplicationFactory(
             "Development",
             true,
@@ -1337,7 +1618,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             reloadedHtml,
             StringComparison.Ordinal);
 
-        var reloaded = Assert.IsType<RepairSpecificationVersion>(store.CurrentDraft);
+        var reloaded = Assert.IsType<RepairSpecificationVersion>(store.WorkingEstimate);
         var amended = Assert.Single(reloaded.Lines, line => line.Description == "FRONT BUMPER");
         Assert.Equal(AmendedAmount, amended.Price);
         Assert.Equal(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), amended.AmendedBy);
@@ -1380,8 +1661,8 @@ public sealed partial class AssessmentEstimateImportWebTests
             [
                 new(
                     Guid.NewGuid(), 1, "new_part", "283", "FRONT BUMPER", null, 620.20m, false,
-                    "51 11 8 067", "0%", "confirmed", "official", null,
-                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc, null, null,
+                    "51 11 8 067", "0%", "official", null,
+                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc,
                     PaintWorkUnits: null,
                     Quantity: 1,
                     Materials: 12.50m,
@@ -1394,8 +1675,8 @@ public sealed partial class AssessmentEstimateImportWebTests
                     AmendedAtUtc: SeededAmendedAtUtc),
                 new(
                     Guid.NewGuid(), 2, "repair", null, "REPAIR NEARSIDE DOOR", 2.5m, null, false,
-                    null, null, "confirmed", "judgement", null,
-                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc, null, null,
+                    null, null, "judgement", null,
+                    ActorKind.Staff, "engineer-recorded", SeededAmendedAtUtc,
                     PaintWorkUnits: 1.5m,
                     Quantity: null,
                     Materials: null,
@@ -1407,13 +1688,8 @@ public sealed partial class AssessmentEstimateImportWebTests
                     AmendedBy: SeededAmendedBy,
                     AmendedAtUtc: SeededAmendedAtUtc),
             ],
-            null,
             "engineer-1",
             SeededAmendedAtUtc,
-            null,
-            null,
-            null,
-            null,
             new("Imported estimate", 52.50m, 110m, 20m,
                 new EstimateDiscounts(0.125m, 0.05m, 0.1m, 0.025m),
                 new EstimateVatPolicy(
@@ -1437,16 +1713,11 @@ public sealed partial class AssessmentEstimateImportWebTests
         [
             new(
                 Guid.NewGuid(), 1, "new_part", "283", "FRONT BUMPER", null, 620.20m, false,
-                "51 11 8 067", "0%", "provisional", "case", null,
-                ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow),
+                "51 11 8 067", "0%", "case", null,
+                ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow),
         ],
-        null,
         "engineer-1",
         DateTimeOffset.UtcNow,
-        null,
-        null,
-        null,
-        null,
         new("Estimate 1", null, null, 20m,
             Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)));
 
@@ -1475,6 +1746,8 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.RemoveAll<IDuplicateEstimate>();
                 services.RemoveAll<IDiscardEstimate>();
                 services.RemoveAll<ISetCurrentEstimate>();
+                services.RemoveAll<ILabourRateCardStore>();
+                services.RemoveAll<IGetCaseFilesSection>();
                 services.AddSingleton<IGetCase>(store);
                 services.AddSingleton<IGetCasePageFrame>(store);
                 services.AddSingleton<IGetCaseVehicleSection>(store);
@@ -1503,6 +1776,8 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.AddSingleton<IDuplicateEstimate>(store);
                 services.AddSingleton<IDiscardEstimate>(store);
                 services.AddSingleton<ISetCurrentEstimate>(store);
+                services.AddSingleton<ILabourRateCardStore>(store);
+                services.AddSingleton<IGetCaseFilesSection>(store);
             }));
 
     internal static HttpClient CreateEngineerClient(
@@ -1553,6 +1828,30 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         return form;
     }
+
+    /// <summary>Every Files row form that imports its file as a repair spec.</summary>
+    private static IReadOnlyList<string> CaseFileImportForms(string html) =>
+    [
+        .. Regex.Matches(
+                html,
+                "<form[^>]*data-import-case-file-estimate[^>]*>.*?</form>",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant)
+            .Select(match => match.Value),
+    ];
+
+    /// <summary>The Import as repair spec form one Files row offers, or null when it offers none.</summary>
+    private static string? CaseFileImportForm(string html, Guid occurrenceId) =>
+        CaseFileImportForms(html).SingleOrDefault(form =>
+            form.Contains($"value=\"{occurrenceId:D}\"", StringComparison.Ordinal));
+
+    /// <summary>A Files row's import form as the browser posts it.</summary>
+    private static FormUrlEncodedContent CaseFileImportPost(string html, string form) => Form(
+        AntiforgeryValue(html),
+        ("occurrenceId", InputValue(form, "occurrenceId")),
+        ("versionId", InputValue(form, "versionId")),
+        ("expectedVersion", InputValue(form, "expectedVersion")),
+        ("operationKey", InputValue(form, "operationKey")),
+        ("editLeaseToken", InputValue(form, "editLeaseToken")));
 
     internal static FormUrlEncodedContent Form(
         string antiforgeryToken, params (string Name, string Value)[] values)
@@ -1673,7 +1972,8 @@ public sealed partial class AssessmentEstimateImportWebTests
           IGetCaseDocumentMetadata, IReadLogicalDocumentVersion,
           IAcquireCaseEditLease, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
           IDiscardEstimate, ISetCurrentEstimate, IScaleRepairSpecification,
-          IRepairSpecificationSnapshotStore, ISaveCaseWorkspace
+          IRepairSpecificationSnapshotStore, ISaveCaseWorkspace, ILabourRateCardStore,
+          IGetCaseFilesSection
     {
         public const long CaseVersion = 7;
 
@@ -1713,9 +2013,18 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         public TimeProvider Clock { get; set; } = TimeProvider.System;
 
-        public RepairSpecificationVersion? CurrentDraft { get; set; }
+        /// <summary>The estimate the page last wrote or was seeded with; Current when a staff member created it.</summary>
+        public RepairSpecificationVersion? WorkingEstimate { get; set; }
 
-        public RepairSpecificationVersion? CurrentAccepted { get; set; }
+        /// <summary>A second estimate on the Case: the one a new estimate replaced as Current, or an older one.</summary>
+        public RepairSpecificationVersion? OtherEstimate { get; set; }
+
+        /// <summary>The estimate the Case uses, as the real store's one Current row.</summary>
+        public RepairSpecificationVersion? InUse =>
+            new[] { WorkingEstimate, OtherEstimate }.FirstOrDefault(item => item is { IsCurrent: true });
+
+        /// <summary>The labour-rate cards the import and the editor read.</summary>
+        public List<LabourRateCard> RateCards { get; } = [];
 
         public CaseDataProjection? DataOverride { get; set; }
         public List<AddCaseDocumentCommand> DocumentCalls { get; } = [];
@@ -1828,6 +2137,42 @@ public sealed partial class AssessmentEstimateImportWebTests
             return details is null ? null : new(CreateFrame(details), details.History);
         }
 
+        async Task<CaseFilesSection?> IGetCaseFilesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null
+                ? null
+                : new(CreateFrame(details), details.Documents, null, CaseCustodyState.Pending, []);
+        }
+
+        /// <summary>
+        /// A file the Case already held before the test began — an email
+        /// attachment, a generated report — as the Case read returns it, with
+        /// its bytes readable through the import. It moves no Case version.
+        /// </summary>
+        public CaseFile SeedCaseFile(
+            string fileName,
+            string mediaType,
+            byte[] content,
+            DocumentSource source = DocumentSource.Intake,
+            DocumentSemanticRole role = DocumentSemanticRole.Other,
+            DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed)
+        {
+            var version = new DocumentVersion(
+                Guid.NewGuid(), Guid.NewGuid(), 1, fileName, mediaType, content.Length,
+                Convert.ToHexStringLower(SHA256.HashData(content)), custody,
+                DateTimeOffset.UtcNow, "seeded", true, false, null);
+            var occurrence = new DocumentOccurrence(
+                Guid.NewGuid(), caseId, version.DocumentId, version.Id, role, source,
+                $"seeded:{version.Id:N}", DateTimeOffset.UtcNow, [], RetainedDocuments.Count + 1);
+            var file = new CaseFile(occurrence, version);
+            RetainedDocuments.Add(file);
+            retainedBytes[version.Id] = content;
+            return file;
+        }
+
         public async Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
             CancellationToken cancellationToken = default)
@@ -1838,7 +2183,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 return null;
             }
             return AssessmentWorkspaceTestData.Create(
-                details, CreateAssessment(details), CurrentDraft, CurrentAccepted);
+                details, CreateAssessment(details), InUse);
         }
 
         private CaseAssessmentProjection CreateAssessment(CaseDetails details)
@@ -1851,8 +2196,6 @@ public sealed partial class AssessmentEstimateImportWebTests
                     value.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
                     "engineer-1",
-                    DateTimeOffset.UtcNow,
-                    "engineer-1",
                     DateTimeOffset.UtcNow));
             }
             if (ContractSum is { } sum)
@@ -1862,15 +2205,11 @@ public sealed partial class AssessmentEstimateImportWebTests
                     "contract_repair",
                     ActorKind.Staff,
                     "engineer-1",
-                    DateTimeOffset.UtcNow,
-                    "engineer-1",
                     DateTimeOffset.UtcNow));
                 fields.Add(new(
                     AssessmentVocabulary.SettlementContractSum,
                     sum.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
-                    "engineer-1",
-                    DateTimeOffset.UtcNow,
                     "engineer-1",
                     DateTimeOffset.UtcNow));
             }
@@ -1903,16 +2242,19 @@ public sealed partial class AssessmentEstimateImportWebTests
         public Task<RepairSpecificationVersion?> GetVersionAsync(
             Guid ownerCaseId, Guid specificationId, CancellationToken cancellationToken) =>
             Task.FromResult(
-                new[] { CurrentDraft, CurrentAccepted }
+                new[] { WorkingEstimate, OtherEstimate }
                     .FirstOrDefault(item => item?.SpecificationId == specificationId));
 
-        public Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(
+        public Task<RepairSpecificationVersion?> GetCurrentAsync(
             Guid ownerCaseId, CancellationToken cancellationToken) =>
-            Task.FromResult(CurrentAccepted);
+            Task.FromResult(InUse);
 
-        public Task<RepairSpecificationVersion?> GetCurrentDraftAsync(
-            Guid ownerCaseId, CancellationToken cancellationToken) =>
-            Task.FromResult(CurrentDraft);
+        Task<IReadOnlyList<LabourRateCard>> ILabourRateCardStore.ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<LabourRateCard>>(RateCards);
+
+        Task<LabourRateCard> ILabourRateCardStore.SaveAsync(
+            SaveLabourRateCardRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         // The named-estimate use cases are the page's only estimate-mutation seam.
         public Task RequireImportAuthorityAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
@@ -2010,7 +2352,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 ?? throw new InvalidOperationException("No confirmed Engineer's Value is available.");
             request = request with { EngineerValue = engineerValue };
             ScaleRequests.Add(request);
-            var edited = CurrentDraft ?? throw new InvalidOperationException("No draft is selected.");
+            var edited = WorkingEstimate ?? throw new InvalidOperationException("No draft is selected.");
             var result = RepairSpecificationScaling.Scale(
                 edited,
                 engineerValue * request.TargetPercentOfValue / 100m,
@@ -2022,7 +2364,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                     caseId, request.ExpectedVersion, request.Actor, request.OperationKey, "Repair spec scaled",
                     request.EditLeaseToken, edited.SpecificationId, result.Details, result.Lines, edited.Source)),
             };
-            CurrentDraft = scaled;
+            WorkingEstimate = scaled;
             Snapshots.Add(new(
                 Guid.NewGuid(), caseId, scaled.SpecificationId, Snapshots.Count + 1,
                 RepairSpecificationSnapshotKind.BeforeScaling, "Before scaling", request.Actor.SubjectId,
@@ -2094,12 +2436,12 @@ public sealed partial class AssessmentEstimateImportWebTests
                 .Where(item => item.CaseId == request.CaseId && item.SpecificationId == request.SpecificationId && item.Kind == RepairSpecificationSnapshotKind.BeforeScaling)
                 .OrderByDescending(item => item.Number)
                 .First();
-            var restored = (CurrentDraft ?? throw new InvalidOperationException("No draft is selected.")) with
+            var restored = (WorkingEstimate ?? throw new InvalidOperationException("No draft is selected.")) with
             {
                 Details = beforeScaling.Details,
                 Lines = beforeScaling.Lines,
             };
-            CurrentDraft = restored;
+            WorkingEstimate = restored;
             Snapshots.Add(new(
                 Guid.NewGuid(), request.CaseId, request.SpecificationId, Snapshots.Count + 1,
                 RepairSpecificationSnapshotKind.ScalingRemoved, "Scaling removed", request.Actor.SubjectId,
@@ -2127,7 +2469,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(
             Guid ownerCaseId, CaseWorkSelector work, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<RepairSpecificationVersion>>(
-                new[] { CurrentAccepted, CurrentDraft }.Where(item => item is not null).ToArray()!);
+                new[] { OtherEstimate, WorkingEstimate }.Where(item => item is not null).ToArray()!);
 
         public Task<IReadOnlyList<CaseEstimatePageItem>> ListByCursorAsync(
             Guid ownerCaseId, int? afterVersion, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>
@@ -2147,30 +2489,52 @@ public sealed partial class AssessmentEstimateImportWebTests
                 throw new CaseVersionConflictException(caseId, request.ExpectedVersion, WorkflowVersion);
             }
             request = EstimatePolicy.ApplyEditorEvidence(
-                EstimatePolicy.ValidateSave(request), request.EstimateId is null ? null : CurrentDraft, Clock.GetUtcNow());
+                EstimatePolicy.ValidateSave(request), request.EstimateId is null ? null : WorkingEstimate, Clock.GetUtcNow());
+            // A chosen card prices the estimate, as the real store resolves it
+            // inside its transaction.
+            if (request.SelectedRateCardId is { } cardId
+                && RateCards.SingleOrDefault(card => card.Id == cardId) is { Enabled: true } card
+                && card.Version == request.SelectedRateCardVersion)
+            {
+                request = request with
+                {
+                    Details = request.Details with
+                    {
+                        LabourRate = card.HourlyRate,
+                        Rate = new EstimateRateSnapshot(card.Id, card.Version, card.HourlyRate),
+                    },
+                };
+            }
             SavedEstimates.Add(request);
             // A save replaces the estimate's whole header and line collection,
             // the way the real store does, so reading the estimate back after
             // one shows exactly what the page mapped and nothing else.
             if (request.EstimateId is not null)
             {
-                var replaced = (CurrentDraft ?? DraftSpecification(caseId)) with
+                var edited = (WorkingEstimate ?? DraftSpecification(caseId)) with
                 {
                     Details = request.Details,
                     Lines = Recorded(request),
                 };
-                CurrentDraft = replaced;
-                return Task.FromResult(replaced);
+                WorkingEstimate = edited;
+                return Task.FromResult(edited);
             }
 
+            // A staff member's new estimate is the one the Case uses at once;
+            // the one it replaces stays on the Case as another estimate.
             var created = DraftSpecification(caseId) with
             {
                 Details = request.Details,
                 Source = request.Source,
                 Lines = Recorded(request),
+                IsCurrent = RepairSpecificationPolicy.BecomesCurrentWhenCreated(request.Actor),
             };
+            if (created.IsCurrent && InUse is { } replaced)
+            {
+                OtherEstimate = replaced with { IsCurrent = false };
+            }
             LastCreatedEstimateId = created.SpecificationId;
-            CurrentDraft = created;
+            WorkingEstimate = created;
             return Task.FromResult(created);
         }
 
@@ -2191,14 +2555,11 @@ public sealed partial class AssessmentEstimateImportWebTests
                 line.Unpriced,
                 line.PartNumber,
                 line.Betterment,
-                line.Status,
                 line.EvidenceLabel,
                 line.Justification,
                 ActorKind.Staff,
                 request.Actor.SubjectId,
                 DateTimeOffset.UtcNow,
-                null,
-                null,
                 line.PaintWorkUnits,
                 line.Quantity,
                 line.Materials,
@@ -2215,13 +2576,13 @@ public sealed partial class AssessmentEstimateImportWebTests
             CancellationToken cancellationToken = default)
         {
             DuplicatedEstimates.Add(request);
-            var copy = (CurrentDraft ?? CurrentAccepted ?? DraftSpecification(caseId)) with
+            var copy = (WorkingEstimate ?? OtherEstimate ?? DraftSpecification(caseId)) with
             {
                 SpecificationId = Guid.NewGuid(),
                 State = RepairSpecificationState.Draft,
                 IsCurrent = false,
             };
-            CurrentDraft = copy;
+            WorkingEstimate = copy;
             return Task.FromResult(copy);
         }
 
@@ -2230,11 +2591,11 @@ public sealed partial class AssessmentEstimateImportWebTests
             CancellationToken cancellationToken = default)
         {
             DiscardedEstimates.Add(request);
-            var discarded = (CurrentDraft ?? DraftSpecification(caseId)) with
+            var discarded = (WorkingEstimate ?? DraftSpecification(caseId)) with
             {
                 State = RepairSpecificationState.Discarded,
             };
-            CurrentDraft = null;
+            WorkingEstimate = null;
             return Task.FromResult(discarded);
         }
 
@@ -2242,24 +2603,22 @@ public sealed partial class AssessmentEstimateImportWebTests
             SetCurrentEstimateRequest request,
             CancellationToken cancellationToken = default)
         {
+            // Use repair spec switches which estimate the Case uses.
             SetCurrentRequests.Add(request);
-            var candidate = CurrentDraft ?? CurrentAccepted ?? DraftSpecification(caseId);
-            if (candidate.State == RepairSpecificationState.Draft)
+            var candidate = new[] { WorkingEstimate, OtherEstimate }
+                    .FirstOrDefault(item => item?.SpecificationId == request.EstimateId)
+                ?? WorkingEstimate ?? OtherEstimate ?? DraftSpecification(caseId);
+            EstimatePolicy.ValidateSetCurrent(candidate, request.Actor);
+            var madeCurrent = candidate with { IsCurrent = true };
+            if (OtherEstimate?.SpecificationId == candidate.SpecificationId)
             {
-                var totals = EstimateTotals.Compute(candidate);
-                candidate = candidate with
-                {
-                    CalculationBasis = EstimatePolicy.BasisFor(totals),
-                    RecordedTotals = totals,
-                };
+                OtherEstimate = WorkingEstimate is null ? null : WorkingEstimate with { IsCurrent = false };
             }
-            var madeCurrent = candidate with
+            else if (OtherEstimate is not null)
             {
-                State = RepairSpecificationState.Accepted,
-                IsCurrent = true,
-            };
-            CurrentDraft = null;
-            CurrentAccepted = madeCurrent;
+                OtherEstimate = OtherEstimate with { IsCurrent = false };
+            }
+            WorkingEstimate = madeCurrent;
             return Task.FromResult(madeCurrent);
         }
 

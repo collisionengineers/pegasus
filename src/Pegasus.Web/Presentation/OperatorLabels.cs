@@ -814,22 +814,6 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// Where a repair specification's lines came from. The
-    /// unresolved legacy route is the fallback: rows recorded before the
-    /// product tracked a source at all.
-    /// </summary>
-    public static string RepairSpecificationRoute(RepairSpecificationSourceRoute route) => route switch
-    {
-        RepairSpecificationSourceRoute.Manual => "entered by hand",
-        RepairSpecificationSourceRoute.Glasses => "imported from Glass's",
-        RepairSpecificationSourceRoute.AudatexPdf => "imported from Audatex",
-        RepairSpecificationSourceRoute.ApprovedAiProposal => "from an approved AI proposal",
-        RepairSpecificationSourceRoute.Json => "imported from a JSON estimate",
-        RepairSpecificationSourceRoute.AiDraft => "drafted by AI",
-        _ => "recorded before source tracking"
-    };
-
-    /// <summary>
     /// An estimate line's operation type, in the same words the line-type
     /// choices offer. An unlisted code prints verbatim rather than being
     /// humanised, because the persisted vocabulary is closed
@@ -2003,8 +1987,6 @@ public static class OperatorLabels
             public static string EstimateState(RepairSpecificationState state) => state switch
             {
                 RepairSpecificationState.Draft => "Draft",
-                RepairSpecificationState.Accepted => "Accepted",
-                RepairSpecificationState.Superseded => "Superseded",
                 RepairSpecificationState.Discarded => "Discarded",
                 _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
             };
@@ -2026,7 +2008,7 @@ public static class OperatorLabels
 
             public const string ReadOnlyOnceComplete = "Read-only once Complete";
             public const string SendingToAiDisabled = "Sending to AI is disabled by an Administrator";
-            public const string ConfirmedEngineerValueRequired = "A confirmed Engineer's Value is required";
+            public const string EngineerValueRequired = "An Engineer's Value is required";
             public const string NotAvailableForCase = "Not available for this case";
             public const string NotReady = "Not ready";
 
@@ -2065,29 +2047,11 @@ public static class OperatorLabels
         public const string CheckFiles = "Check the selected files";
         public const string Remove = "Remove";
 
-        // The empty aside beside an empty picker.
-        public const string AsideTitle = "One upload. One decision.";
-        public const string AsideSentence = "Add related files together, then choose the Case they belong to.";
-        public static readonly IReadOnlyList<(string Title, string Detail)> AsideSteps =
-        [
-            ("Choose files", "Check your selection before uploading."),
-            ("Review the result", "See the outcome for every file."),
-            ("Confirm the Case", "Check the exact destination before adding.")
-        ];
-
         // A destination declared before the upload: Add evidence on a Case
         // page opened Upload for that Case (FRD-18).
         public const string AddingTo = "Adding to";
         public const string DestinationSentence = "The files in this upload go straight to this Case. Nothing is matched or sorted.";
         public const string DestinationUnavailable = "This Case is not available for evidence. Files you upload here will need a destination after upload.";
-        public const string DeclaredAsideTitle = "One upload. One Case.";
-        public const string DeclaredAsideSentence = "Add the files for this Case together. They appear under its Files once processed.";
-        public static readonly IReadOnlyList<(string Title, string Detail)> DeclaredAsideSteps =
-        [
-            ("Choose files", "Check your selection before uploading."),
-            ("Upload", "Every file is stored and processed."),
-            ("Back to the Case", "Find the files under Files once processed.")
-        ];
 
         // The decision panel.
         public const string PendingEyebrow = "Files received";

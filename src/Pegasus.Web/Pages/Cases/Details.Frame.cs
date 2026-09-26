@@ -93,14 +93,17 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// Whether a section head offers Edit: outside an edit session, on a Case
-    /// this viewer could edit, for a section that has controls at all. The
-    /// Files and Notes sections act through their own immediate posts. The
-    /// Inspection view offers no Edit anywhere (v29 P3).
+    /// Whether a section head offers Edit: outside an edit session, while no
+    /// one holds the Case's lease, on a Case this viewer could edit, for a
+    /// section that has controls at all. A held lease is taken over from the
+    /// ribbon only; a lazily loaded section does not resolve the holder, so it
+    /// asks whether any lease is live rather than whose it is. The Files and
+    /// Notes sections act through their own immediate posts. The Inspection
+    /// view offers no Edit anywhere (v29 P3).
     /// </summary>
     public bool SectionOffersEdit(string key) =>
         !IsEditing
-        && !ColleagueIsEditing
+        && CurrentEditLease is null
         && !IsPostReportReadOnly
         && CurrentWorkflow?.Archive is null
         && !IsInspectionView
@@ -211,7 +214,7 @@ public sealed partial class DetailsModel
 
     /// <summary>The Figures aside's repair cost inc VAT from the current estimate.</summary>
     public decimal? RepairCostIncVat =>
-        AcceptedSpecification is { } estimate
+        CurrentSpecification is { } estimate
             ? Pegasus.Core.Reports.ReportRepairCosts.For(estimate).Total
             : null;
 

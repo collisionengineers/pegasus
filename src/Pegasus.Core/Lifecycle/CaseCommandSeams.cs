@@ -45,6 +45,20 @@ public sealed class HeartbeatCaseEditLease(ILeaseCaseForEdit leases) : IHeartbea
     }
 }
 
+public sealed class ResumeCaseEditLease(ILeaseCaseForEdit leases) : IResumeCaseEditLease
+{
+    private readonly ILeaseCaseForEdit _leases =
+        leases ?? throw new ArgumentNullException(nameof(leases));
+
+    public Task<CaseEditLease?> ExecuteAsync(
+        ResumeCaseEditLeaseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var normalizedRequest = CaseCommandSeamRules.ValidateResume(request);
+        return _leases.ResumeAsync(normalizedRequest, cancellationToken);
+    }
+}
+
 public sealed class ReleaseCaseEditLease(ILeaseCaseForEdit leases) : IReleaseCaseEditLease
 {
     private readonly ILeaseCaseForEdit _leases =
@@ -237,6 +251,17 @@ internal static class CaseCommandSeamRules
             "An active edit lease token is required.",
             CaseEditAuthority.LeaseTokenLength,
             nameof(request));
+        return request;
+    }
+
+    public static ResumeCaseEditLeaseRequest ValidateResume(ResumeCaseEditLeaseRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(request));
+        }
+        ValidateActor(request.Actor);
         return request;
     }
 

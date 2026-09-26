@@ -203,11 +203,10 @@ public sealed class CaseEngineerSectionsWebTests
                 Data = workspace.Data
             };
             estimate = Estimate(CaseId);
-            estimate = estimate with { RecordedTotals = EstimateTotals.Compute(estimate) };
             workspace = workspace with
             {
                 Header = workspace.Header with { State = state },
-                AcceptedSpecification = estimate
+                CurrentSpecification = estimate
             };
         }
 
@@ -261,8 +260,6 @@ public sealed class CaseEngineerSectionsWebTests
                 value,
                 ActorKind.Staff,
                 "engineer-1",
-                DateTimeOffset.UtcNow,
-                "engineer-1",
                 DateTimeOffset.UtcNow);
             return
             [
@@ -285,21 +282,16 @@ public sealed class CaseEngineerSectionsWebTests
             Guid.NewGuid(),
             caseId,
             1,
-            RepairSpecificationState.Accepted,
+            RepairSpecificationState.Draft,
             new(RepairSpecificationSourceRoute.Manual, null, null, null),
             [
                 new(
                     Guid.NewGuid(), 1, "new_part", null, "FRONT BUMPER", null, 620.20m, false,
-                    "51 11 8 067", null, null, null, null,
-                    ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow, "engineer-1", DateTimeOffset.UtcNow),
+                    "51 11 8 067", null, null, null,
+                    ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow),
             ],
-            null,
             "engineer-1",
             DateTimeOffset.UtcNow,
-            "engineer-1",
-            DateTimeOffset.UtcNow,
-            null,
-            null,
             new("Estimate 1", 50m, 25m, 20m),
             true);
     }

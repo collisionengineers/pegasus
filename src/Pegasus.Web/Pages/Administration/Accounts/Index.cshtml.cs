@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Mcp;
@@ -8,9 +9,22 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.Administration.Accounts;
 
 /// <summary>The compact staff-account administration area.</summary>
+/// <remarks>
+/// Each account's Glass's repair-estimate credential is managed in a dialog on
+/// this page, deep-linked with <c>?glassStaffId=</c> exactly as the settings
+/// dialog is with <c>?editStaffId=</c>, so the credential never owns a page of
+/// its own whose only content is a modal. The secret is write-only: no handler,
+/// TempData entry or rendered field ever carries a password back to the
+/// browser, and the submitted password is dropped from ModelState as soon as it
+/// has been read so a refused post cannot redisplay it. Both the staff account
+/// and the credential retain independent expected-version checks. Each dialog
+/// resolves its account on its own, not from the list page behind it, so a deep
+/// link or a post reaches an account beyond the first page of the list.
+/// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
     IListStaffAccounts listStaffAccounts,
+    IGetStaffAccount getStaffAccount,
     ICreateStaffAccount createStaffAccount,
     IUpdateStaffAccountSettings updateStaffAccountSettings,
     IDisableStaffAccount disableStaffAccount,
@@ -20,6 +34,9 @@ public sealed class IndexModel(
     IDeleteStaffAccount deleteStaffAccount,
     IPerUserExternalCredentialAdministration externalCredentials) : AdministrationPageModel
 {
+    private const ExternalCredentialProvider GlassProvider =
+        ExternalCredentialProvider.GlassRepairEstimate;
+
     public IReadOnlyList<StaffAccountRow> Rows { get; private set; } = [];
     public bool HasMoreAccounts { get; private set; }
     public bool AutomationComposed { get; private set; }
@@ -27,6 +44,9 @@ public sealed class IndexModel(
     public string CreateOperationKey { get; private set; } = NewOperationKey();
     public bool CreatePostSubmitted { get; private set; }
     public Guid SettingsPostStaffId { get; private set; }
+
+    /// <summary>The account whose settings dialog is open, resolved on its own.</summary>
+    public StaffAccountRow? SettingsRow { get; private set; }
     public StaffRole SettingsPostRole { get; private set; } = StaffRole.User;
     public bool SettingsPostIsSignOffEngineer { get; private set; }
     public string SettingsPostPrintedName { get; private set; } = string.Empty;
@@ -35,23 +55,50 @@ public sealed class IndexModel(
     public long SettingsPostVersion { get; private set; }
     public string? ResetTemporaryPassword { get; private set; }
 
+    /// <summary>The staff account whose Glass's credential the dialog administers.</summary>
+    public StaffAccountSummary? GlassAccount { get; private set; }
+
+    /// <summary>What the store holds for that Engineer. Never the secret.</summary>
+    public PerUserExternalCredentialStatus? GlassStatus { get; private set; }
+
+    /// <summary>The external account name, kept over a failed post.</summary>
+    public string GlassUsername { get; private set; } = string.Empty;
+
+    /// <summary>The chip's word for the stored credential's state.</summary>
+    public string GlassStateName => GlassStatus is not { Configured: true }
+        ? CaseWorkspaceLabels.GlassCredential.NotConfigured
+        : GlassStatus.Enabled
+            ? CaseWorkspaceLabels.GlassCredential.Enabled
+            : CaseWorkspaceLabels.GlassCredential.DisabledState;
+
+    public long GlassExpectedVersion { get; private set; }
+
+    public long GlassExpectedStaffAccountVersion { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(
         Guid? editStaffId,
         long? expectedVersion,
+        Guid? glassStaffId,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
         await LoadAsync(actor, cancellationToken);
+        if (glassStaffId is { } glassId)
+        {
+            return await LoadGlassAsync(actor, glassId, cancellationToken) ? Page() : NotFound();
+        }
         if (editStaffId is not { } staffId) return Page();
 
-        var account = Rows.SingleOrDefault(item => item.Account.Id == staffId)?.Account;
-        if (account is null) return NotFound();
+        var row = await ResolveRowAsync(actor, staffId, cancellationToken);
+        if (row is null) return NotFound();
+        var account = row.Account;
         if (expectedVersion != account.Version)
         {
             ModelState.AddModelError(string.Empty, "The account changed. Reload and try again.");
             return Page();
         }
 
+        SettingsRow = row;
         SettingsPostStaffId = staffId;
         SettingsPostRole = account.Role;
         SettingsPostIsSignOffEngineer = account.SignOff.IsSignOffEngineer;
@@ -60,6 +107,155 @@ public sealed class IndexModel(
         SettingsPostIsDefault = account.SignOff.IsDefault;
         SettingsPostVersion = account.Version;
         return Page();
+    }
+
+    public Task<IActionResult> OnPostSaveGlassAsync(
+        Guid staffId,
+        string? username,
+        string? password,
+        long expectedVersion,
+        long expectedStaffAccountVersion,
+        CancellationToken cancellationToken)
+    {
+        GlassUsername = username?.Trim() ?? string.Empty;
+        // The submitted secret is read once, here, and removed before any
+        // redisplay can reach the model state it would otherwise sit in.
+        ModelState.Remove("password");
+        return RunGlassAsync(
+            staffId,
+            expectedVersion,
+            expectedStaffAccountVersion,
+            async (actor, token) =>
+            {
+                if (!ValidateGlassCredential(username, password))
+                {
+                    return null;
+                }
+
+                await externalCredentials.ReplaceAsync(
+                    actor,
+                    staffId,
+                    GlassProvider,
+                    expectedVersion,
+                    expectedStaffAccountVersion,
+                    GlassUsername,
+                    password!,
+                    enabled: true,
+                    token);
+                return CaseWorkspaceLabels.GlassCredential.Saved;
+            },
+            cancellationToken);
+    }
+
+    public Task<IActionResult> OnPostClearGlassAsync(
+        Guid staffId,
+        long expectedVersion,
+        long expectedStaffAccountVersion,
+        CancellationToken cancellationToken) =>
+        RunGlassAsync(
+            staffId,
+            expectedVersion,
+            expectedStaffAccountVersion,
+            async (actor, token) =>
+            {
+                await externalCredentials.ClearAsync(
+                    actor,
+                    staffId,
+                    GlassProvider,
+                    expectedVersion,
+                    expectedStaffAccountVersion,
+                    token);
+                return CaseWorkspaceLabels.GlassCredential.Cleared;
+            },
+            cancellationToken);
+
+    private async Task<IActionResult> RunGlassAsync(
+        Guid staffId,
+        long submittedCredentialVersion,
+        long submittedAccountVersion,
+        Func<ActionActor, CancellationToken, Task<string?>> operation,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        string? confirmation = null;
+        try
+        {
+            confirmation = await operation(actor, cancellationToken);
+            if (confirmation is not null)
+            {
+                TempData["Confirmation"] = confirmation;
+                return RedirectToPage(new { glassStaffId = staffId });
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                CaseWorkspaceLabels.GlassCredential.NotAccepted);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The staff account or Glass's credential changed. Reload this page before trying again.");
+        }
+
+        await LoadAsync(actor, cancellationToken);
+        if (!await LoadGlassAsync(actor, staffId, cancellationToken)) return NotFound();
+        // The failed form keeps the versions it was submitted with until the
+        // operator reloads the page explicitly.
+        GlassExpectedVersion = submittedCredentialVersion;
+        GlassExpectedStaffAccountVersion = submittedAccountVersion;
+        return Page();
+    }
+
+    private bool ValidateGlassCredential(string? username, string? password)
+    {
+        var valid = true;
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                CaseWorkspaceLabels.GlassCredential.UsernameRequired);
+            valid = false;
+        }
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                CaseWorkspaceLabels.GlassCredential.PasswordRequired);
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    private async Task<bool> LoadGlassAsync(
+        ActionActor actor,
+        Guid staffId,
+        CancellationToken cancellationToken)
+    {
+        var row = await ResolveRowAsync(actor, staffId, cancellationToken);
+        if (row is null)
+        {
+            return false;
+        }
+
+        var account = row.Account;
+        GlassAccount = account;
+        GlassStatus = await externalCredentials.GetAsync(actor, staffId, GlassProvider, cancellationToken);
+        GlassExpectedVersion = GlassStatus.Version;
+        GlassExpectedStaffAccountVersion = account.Version;
+        if (GlassUsername.Length == 0)
+        {
+            GlassUsername = GlassStatus.Username ?? string.Empty;
+        }
+
+        return true;
     }
 
     public Task<IActionResult> OnPostCreateAsync(
@@ -208,6 +404,7 @@ public sealed class IndexModel(
         }
         CreateOperationKey = NewOperationKey();
         await LoadAsync(actor, cancellationToken);
+        SettingsRow = await ResolveRowAsync(actor, SettingsPostStaffId, cancellationToken);
         return Page();
     }
 
@@ -251,11 +448,11 @@ public sealed class IndexModel(
         AutomationComposed = HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         var accounts = await listStaffAccounts.ExecuteAsync(new(actor, PageSize: ListStaffAccounts.MaximumPageSize), cancellationToken);
         HasMoreAccounts = accounts.HasMoreAccounts;
-        var currentOperatorId = Guid.TryParse(actor.SubjectId, out var id) ? id : (Guid?)null;
+        var currentOperatorId = CurrentOperatorId(actor);
         var glassByAccount = await externalCredentials.GetManyAsync(
             actor,
             accounts.Accounts.Select(account => account.Id).ToArray(),
-            ExternalCredentialProvider.GlassRepairEstimate,
+            GlassProvider,
             cancellationToken);
         var rows = new List<StaffAccountRow>(accounts.Accounts.Count);
         foreach (var account in accounts.Accounts)
@@ -269,6 +466,30 @@ public sealed class IndexModel(
         }
         Rows = rows;
     }
+
+    /// <summary>
+    /// One account by id, read directly rather than found in <see cref="Rows"/>:
+    /// the list holds only its first page, and a dialog must open for any
+    /// account. An empty id is no account; so is an unknown one.
+    /// </summary>
+    private async Task<StaffAccountRow?> ResolveRowAsync(
+        ActionActor actor,
+        Guid staffId,
+        CancellationToken cancellationToken)
+    {
+        if (staffId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var result = await getStaffAccount.ExecuteAsync(new(actor, staffId), cancellationToken);
+        return result is null
+            ? null
+            : new StaffAccountRow(result.Account, result.Account.Id == CurrentOperatorId(actor));
+    }
+
+    private static Guid? CurrentOperatorId(ActionActor actor) =>
+        Guid.TryParse(actor.SubjectId, out var id) ? id : null;
 }
 
 public sealed record StaffAccountRow(
