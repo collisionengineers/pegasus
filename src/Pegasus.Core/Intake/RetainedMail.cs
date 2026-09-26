@@ -82,6 +82,13 @@ public sealed record RetainedMailSummary(
 
     /// <summary>True once the receipt's Unidentified item has resolved; the message has left the Inbox Unidentified scope.</summary>
     public bool UnidentifiedResolved { get; init; }
+
+    /// <summary>
+    /// True when <see cref="CaseId"/> is the Triage Case the message opened, so
+    /// <see cref="CaseReference"/> is its <c>t.</c> reference and the workspace
+    /// offers Open Triage rather than Open Case.
+    /// </summary>
+    public bool IsTriageCase { get; init; }
 }
 
 /// <summary>
@@ -116,7 +123,40 @@ public sealed record RetainedMailAttachment(
     string MediaType,
     long ContentLength,
     bool IsSearchable = false,
-    Guid? IntakeAssetId = null);
+    Guid? IntakeAssetId = null)
+{
+    /// <summary>The kind the preview counts this attachment under, from its stored media type.</summary>
+    public RetainedMailAttachmentKind Kind => RetainedMailAttachmentKinds.FromMediaType(MediaType);
+}
+
+/// <summary>The kinds the quick preview counts attachments by, in the order it names them.</summary>
+public enum RetainedMailAttachmentKind
+{
+    Image,
+    Document,
+    Email,
+    Video,
+    Other
+}
+
+public static class RetainedMailAttachmentKinds
+{
+    public static RetainedMailAttachmentKind FromMediaType(string? mediaType)
+    {
+        var type = mediaType?.Trim().ToLowerInvariant() ?? string.Empty;
+        return type switch
+        {
+            _ when type.StartsWith("image/", StringComparison.Ordinal) => RetainedMailAttachmentKind.Image,
+            _ when type.StartsWith("video/", StringComparison.Ordinal) => RetainedMailAttachmentKind.Video,
+            "message/rfc822" or "application/vnd.ms-outlook" => RetainedMailAttachmentKind.Email,
+            "application/pdf" or "application/msword" or "application/vnd.ms-excel" or "text/plain"
+                => RetainedMailAttachmentKind.Document,
+            _ when type.StartsWith("application/vnd.openxmlformats-officedocument.", StringComparison.Ordinal)
+                => RetainedMailAttachmentKind.Document,
+            _ => RetainedMailAttachmentKind.Other
+        };
+    }
+}
 
 public sealed record RetainedMailThreadEntry(
     Guid Id,
