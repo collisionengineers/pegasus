@@ -1999,7 +1999,10 @@
 // The lines are Core's arithmetic: every change posts the selection to the
 // PreviewValuation handler and the returned partial replaces the lines. The
 // calculator's controls and the Basis radios belong to the Case form, so the
-// ribbon Save adopts a changed calculation (one Save, 23 September 2026).
+// ribbon Save records a changed calculation (one Save, 23 September 2026).
+// Choosing a card fills the Retail and Trade boxes in place, and each
+// calculation fills the Engineer's Value box; the operator may overtype any
+// of them (operator, 26 September 2026).
 (function () {
     'use strict';
 
@@ -2060,6 +2063,10 @@
                     return response.text();
                 }).then(function (html) {
                     host.innerHTML = html;
+                    var proposal = host.querySelector('[data-valuation-proposal]');
+                    if (proposal) {
+                        fill(section, '[data-valuation-value="engineer"]', proposal.getAttribute('data-valuation-proposal'));
+                    }
                 }).catch(function () {
                     // The lines keep their last state; a refused calculation
                     // shows on Save, which Core answers.
@@ -2080,6 +2087,21 @@
                 }
             }
 
+            // The chosen card's figures as it shows them: an entry card's own
+            // boxes, any other card as recorded.
+            function shown(card, box, recorded) {
+                var input = card.querySelector(box);
+                return input ? input.value : (card.getAttribute(recorded) || '');
+            }
+            function fillFromCard(radio) {
+                var card = radio.closest('[data-valuation-card]');
+                if (!card) {
+                    return;
+                }
+                fill(section, '[data-valuation-value="retail"]', shown(card, '[data-valuation-retail]', 'data-retail'));
+                fill(section, '[data-valuation-value="trade"]', shown(card, '[data-valuation-trade]', 'data-trade'));
+            }
+
             function paintAdditions() {
                 section.querySelectorAll('[data-valuation-add]').forEach(function (row) {
                     var toggle = row.querySelector('[data-preset-toggle]');
@@ -2094,6 +2116,7 @@
                 }
                 if (control.matches('[data-valuation-basis]') && control.checked) {
                     chooseBasis(control);
+                    fillFromCard(control);
                 }
                 if (control.matches('[data-preset-toggle]')) {
                     paintAdditions();

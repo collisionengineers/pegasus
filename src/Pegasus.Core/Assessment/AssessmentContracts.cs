@@ -316,22 +316,6 @@ public static class AssessmentVocabulary
         string.Equals(legalStatus, "unroadworthy", StringComparison.Ordinal);
 
     /// <summary>
-    /// Findings a generic assessment save never writes or clears, because the
-    /// Case Save's valuation adoption records them together (one Save, 23
-    /// September 2026; operator, 24 September 2026): the accepted Engineer's
-    /// Value and the retail and trade values of the guide card it was
-    /// calculated from. A Web or MCP field save that touched one would rewrite
-    /// a professional finding apart from the calculation that is its evidence.
-    /// </summary>
-    public static IReadOnlySet<string> AdoptedFindingPaths { get; } = new HashSet<string>(
-        StringComparer.Ordinal)
-    {
-        ValueRetail,
-        ValueTrade,
-        ValueEngineer
-    };
-
-    /// <summary>
     /// Paths the assessment surface displays but the accepted case record
     /// owns. Writes through the assessment command fail closed and name the
     /// case-detail edit path instead.

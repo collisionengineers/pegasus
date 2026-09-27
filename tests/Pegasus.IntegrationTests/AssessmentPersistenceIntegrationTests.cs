@@ -1543,9 +1543,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
     /// <summary>
     /// Stream A review (comments 5560764306/5560667174, one staleness root
-    /// cause): adopting an Engineer's Value through the Case save changes
-    /// frozen report inputs — the confirmed Engineer's Value field and the
-    /// applied valuation — so it stales the Case's current generation inside
+    /// cause): recording a valuation calculation through the Case save changes
+    /// a frozen report input — the applied valuation — so it stales the
+    /// Case's current generation inside
     /// the save's own transaction, a replay returns before staling, and a
     /// superseded generation never moves.
     /// </summary>

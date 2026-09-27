@@ -2,7 +2,8 @@
     The valuation calculator's ordered lines (v25 decision 8), rendered from
     Core's own calculation: guide retail, commercial VAT, previous total loss,
     each addition, the condition deduction, the proposal. The PreviewValuation
-    handler returns this for every change the calculator posts; null means the
+    handler returns this for every change the calculator posts, and script
+    fills the Engineer's Value box from the proposal; null means the
     posted selection could not be calculated (no basis card, or deductions
     beyond the value).
 *@
@@ -16,7 +17,7 @@
 <div class="lines" data-valuation-lines>
     @if (Model is null)
     {
-        <div class="ln"><span class="muted">@ValuationLabels.ChooseBasis</span></div>
+        <div class="ln"><span class="muted">@ValuationLabels.NoneYet</span></div>
     }
     else
     {
@@ -37,6 +38,6 @@
         {
             <div class="ln"><span>@ValuationLabels.ConditionDeduction</span><b>− @Money(Model.ConditionDeduction)</b></div>
         }
-        <div class="ln tot"><span>@ValuationLabels.ProposedEngineersValue</span><b data-valuation-proposal>@Money(Model.Proposal)</b></div>
+        <div class="ln tot"><span>@ValuationLabels.ProposedEngineersValue</span><b data-valuation-proposal="@Model.Proposal.ToString("0.00", CultureInfo.InvariantCulture)">@Money(Model.Proposal)</b></div>
     }
 </div>

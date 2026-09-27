@@ -1680,6 +1680,10 @@ public sealed partial class DetailsModel(
                 AssessmentPolicy.RequireOriginalReportScope(
                     settlementFields.Keys,
                     current.Summary.CaseType);
+                // The report's three values are Valuation's own boxes (operator,
+                // 26 September 2026), saved like any field.
+                var valuationFields = assessmentFields.Where(field => EditorLabels.Valuation.ContainsKey(field.Key))
+                    .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 var reportSubmitted = reportFields.Count > 0 || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
                 var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
                     nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
@@ -1777,7 +1781,7 @@ public sealed partial class DetailsModel(
                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : (DateOnly?)null;
                 // The guide source cards have no Save of their own (23 September
                 // 2026): this save records the ones whose boxes were changed, and
-                // adopts the calculation when the operator changed it.
+                // records the calculation when the operator changed it.
                 List<ValuationDetails> guideValuations = guideEntries is { Length: > 0 }
                     ? GuideEntriesToRecord(guideEntries, recordedCards)
                     : [];
@@ -1786,7 +1790,9 @@ public sealed partial class DetailsModel(
                 {
                     workspaceSave = await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
                     {
-                        Valuation = guideValuations.Count == 0 && adoption is null ? null : new(guideValuations, adoption),
+                        Valuation = guideValuations.Count == 0 && adoption is null && valuationFields.Count == 0
+                            ? null
+                            : new(guideValuations, adoption, valuationFields.Count == 0 ? null : valuationFields),
                         Estimate = estimate,
                         Overview = !overviewSubmitted ? null : new(
                             Submitted(nameof(claimantName), claimantName, Accepted(data.Claimant.Name)?.Value),
@@ -1851,7 +1857,7 @@ public sealed partial class DetailsModel(
                 catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
                 {
                     // A refusal names its own reason (a spec line, a valuation
-                    // figure, a value adopted with no Case mileage); a lost lease
+                    // figure, a calculation that cannot be recorded); a lost lease
                     // or a changed Case keeps the shared one.
                     saveError = MutationRefusalMessage(exception, string.Empty);
                     throw;

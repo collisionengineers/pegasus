@@ -178,9 +178,9 @@ sending, receipt, reference allocation or correction custody. A human must
 approve before issue.
 
 **What a generation freezes.** The Case version, signatory account and
-signature digest, Current estimate identity, version and breakdown, accepted
-Engineer value with the retail and trade values its adoption recorded, and
-applied valuation identity, content switches, report date or override, the
+signature digest, Current estimate identity, version and breakdown, the
+Engineer's Value with its retail and trade values, the applied valuation
+identity, content switches, report date or override, the
 Engineer's changes to the report's wording — headings, wording, order and
 what is off the report — fee, source documents with their Box identities,
 and each prepared image's role, order, rotation and crop.
@@ -323,7 +323,7 @@ that records it
 Case page and Generate evaluate the whole list before a generation is
 recorded. The preview refuses on the same printed facts, sign-off Engineer,
 Current repair spec and labour rate before anything is projected; it does not
-wait for the report images, the applied valuation snapshot, or the valuation
+wait for the report images or the valuation
 commentary and unrelated damage the On the report switches ask for. A fact
 Review already checked is named again only when it is missing and the report
 prints it. Missing accepted state is never invented.
@@ -338,7 +338,7 @@ Each fact is recorded in one section of the Case record
 | Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
 | Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
-| The Engineer's Value and, from its basis guide card, the retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
+| The Engineer's Value with its retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
 | A Current repair spec with lines and a labour rate | Repair Spec |
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |
 | Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |

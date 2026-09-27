@@ -508,7 +508,6 @@ public static class CaseReportReadiness
     public const string SignatoryRequirement = "Sign-off Engineer";
     public const string CurrentEstimateRequirement = "Current repair spec";
     public const string LabourRateRequirement = "Repair spec labour rate";
-    public const string EngineerValueRequirement = "Accepted Engineer's Value";
     public const string CloseUpImageRequirement = "Close-up image";
     public const string OverviewImageRequirement = "Overview image";
     public const string ImageSourceRequirement = "Report image sources";
@@ -561,18 +560,6 @@ public static class CaseReportReadiness
         Require(
             input.CurrentEstimate is null || input.CurrentEstimate.Details.HourlyRate > 0m,
             LabourRateMissing);
-
-        // One missing Engineer's Value is one blocker: the post-review item
-        // already names a Case with no adoption at all, so this names only an
-        // adoption whose applied valuation is missing.
-        Require(
-            input.AppliedValuation is { AcceptedEngineerValue: > 0m }
-                || reasons.Any(reason => reason.Field == AssessmentVocabulary.ValueEngineer),
-            new(
-                EngineerValueRequirement, "Valuation",
-                "No Engineer's Value has been adopted from a valuation calculation.",
-                "Save a valuation calculation on the Valuation section to adopt the Engineer's Value.",
-                Field: AssessmentVocabulary.ValueEngineer));
 
         var images = CaseAssetPreparationPolicy.ForReport(input.Preparations);
         Require(

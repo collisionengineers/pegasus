@@ -20,8 +20,9 @@ namespace Pegasus.IntegrationTests;
 /// the Case form so the ribbon Save records a changed card (23 September
 /// 2026) and whose Get valuation fills them in place from the connected
 /// provider; the Valuation month and AI market research start the existing
-/// job for the month, a pending job shows as a Researching card, and Apply as
-/// Engineer's Value posts the calculator's selection to the Core policy shape.
+/// job for the month, a pending job shows as a Researching card, and the Save
+/// posts a changed calculation to the Core policy shape. The Retail, Trade and
+/// Engineer's value boxes open the section (operator, 26 September 2026).
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseValuationV26WebTests
@@ -211,13 +212,13 @@ public sealed class CaseValuationV26WebTests
     /// radios belong to the Case form, beside the calculation the page opened
     /// on; there is no Apply of its own. A Save whose calculation differs from
     /// the opening one carries it to Core as the policy shape (a prior total
-    /// loss of 10 per cent is a fraction of 0.10) for adoption.
+    /// loss of 10 per cent is a fraction of 0.10) to record against its card.
     /// </summary>
     [Theory]
     [InlineData(StaffRole.Administrator)]
     [InlineData(StaffRole.Engineer)]
     [InlineData(StaffRole.User)]
-    public async Task TheCaseSaveAdoptsAChangedCalculationAsThePolicyShape(StaffRole role)
+    public async Task TheCaseSaveRecordsAChangedCalculationAsThePolicyShape(StaffRole role)
     {
         var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
         var valuation = new RecordingValuationSection(store.CaseId);
@@ -275,12 +276,12 @@ public sealed class CaseValuationV26WebTests
     }
 
     /// <summary>
-    /// The Save adopts only a calculation that changed since the page opened
-    /// (operator, 23 September 2026): an untouched calculator adopts nothing,
+    /// The Save records only a calculation that changed since the page opened
+    /// (operator, 23 September 2026): an untouched calculator records nothing,
     /// and a changed figure on the basis card is a changed calculation.
     /// </summary>
     [Fact]
-    public async Task AnUntouchedCalculatorAdoptsNothingAndAChangedBasisFigureAdopts()
+    public async Task AnUntouchedCalculatorRecordsNothingAndAChangedBasisFigureRecords()
     {
         var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
         var valuation = new RecordingValuationSection(store.CaseId);
@@ -294,7 +295,7 @@ public sealed class CaseValuationV26WebTests
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
         var opening = WebUtility.HtmlDecode(InputValue(html, "selection.Opening"));
         // The opening names the basis card's trade as shown, since the
-        // adoption records it (operator, 24 September 2026).
+        // calculation is recorded against the card as shown.
         Assert.Contains("\"trade\":\"10250.00\"", opening, StringComparison.Ordinal);
         (string, string)[] Untouched(params (string, string)[] more) =>
         [
@@ -357,6 +358,59 @@ public sealed class CaseValuationV26WebTests
                     ("guideEntries[0].TradeValue", "10250.00"))));
         AssertPrg(echoedCard, store.CaseId);
         Assert.Null(store.Saves[3].Valuation);
+    }
+
+    /// <summary>
+    /// Choosing a card fills the Retail, Trade and Engineer's Value boxes in
+    /// place (operator, 26 September 2026): the card offers the figures it
+    /// shows, the boxes that open the section carry the hooks the script
+    /// fills, and the calculation answers its proposal as the figure the
+    /// Engineer's Value box takes.
+    /// </summary>
+    [Fact]
+    public async Task ACardChosenAsTheBasisOffersTheFiguresTheThreeBoxesTake()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var glasses = valuation.AddGuide(ValuationSource.Glasses, 12_500m, 10_250m);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<IPreviewValuationCalculation>(services, new CalculatingPreview(12_500m));
+        });
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+
+        var card = EntryCard(html, "glasses");
+        Assert.Contains("data-retail=\"12500.00\"", card, StringComparison.Ordinal);
+        Assert.Contains("data-trade=\"10250.00\"", card, StringComparison.Ordinal);
+        foreach (var (path, hook) in new[]
+        {
+            (AssessmentVocabulary.ValueRetail, "retail"),
+            (AssessmentVocabulary.ValueTrade, "trade"),
+            (AssessmentVocabulary.ValueEngineer, "engineer"),
+        })
+        {
+            var box = InputTag(html, CaseWorkspaceLabels.Editors.FormName(path), $"data-valuation-value=\"{hook}\"");
+            Assert.Contains("form=\"case-edit-form\"", box, StringComparison.Ordinal);
+        }
+        Assert.True(
+            html.IndexOf("data-valuation-values", StringComparison.Ordinal)
+                < html.IndexOf("data-valuation-cards", StringComparison.Ordinal),
+            "The three boxes open the Valuation section.");
+        Assert.DoesNotContain("Choose a basis card", html, StringComparison.Ordinal);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=PreviewValuation",
+            Form(
+                workspace.AntiforgeryToken,
+                ("selection.GuideValuationId", glasses.ValuationId.ToString("D")),
+                ("selection.CommercialVat", "true")));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            "data-valuation-proposal=\"15000.00\"",
+            await response.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -703,6 +757,21 @@ public sealed class CaseValuationV26WebTests
             Requests.Add(request);
             return Task.FromResult(new GuideValuationQuote(retail, trade, request.GuideMonth, request.Mileage));
         }
+    }
+
+    /// <summary>The calculator's arithmetic over one basis retail, as Core computes it.</summary>
+    private sealed class CalculatingPreview(decimal basisRetail) : IPreviewValuationCalculation
+    {
+        public Task<ValuationPreview> ExecuteAsync(PreviewValuationRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult(new ValuationPreview(
+                request.Selection.GuideValuationId,
+                ValuationCalculationPolicy.Calculate(new ValuationCalculationInput(
+                    basisRetail,
+                    request.Selection.CommercialVat,
+                    false,
+                    request.Selection.PriorTotalLossPercentage,
+                    [],
+                    request.Selection.ConditionDeduction))));
     }
 
     private sealed class RecordingValuationSection(Guid caseId) :
