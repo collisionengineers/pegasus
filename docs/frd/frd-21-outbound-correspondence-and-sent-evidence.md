@@ -68,8 +68,9 @@ Triage completion is based on the recorded outcome, under
 [FRD-03](frd-03-triage.md). Its optional Reply with outcome is a staff send
 with purpose `TriageOutcomeReply`: a reply to the Triage's origin message
 that opens with a preset outcome body. Its Sent item links to the Triage
-Case as response evidence, like any exact reply to that message. It is never
-a completion requirement. A manual Triage chaser is a staff send like any
+Case as response evidence, like any exact reply to that message, when the
+Triage has no response evidence yet; a Triage keeps one response link. It is
+never a completion requirement. A manual Triage chaser is a staff send like any
 other, and its exact Sent evidence is recorded the same way; it is never a
 completion requirement either.
 
