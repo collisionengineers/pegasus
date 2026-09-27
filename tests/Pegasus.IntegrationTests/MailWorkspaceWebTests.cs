@@ -1027,7 +1027,7 @@ public sealed class MailWorkspaceWebTests
         await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.NeedsSorting);
         var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
         var triageCaseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, originReceiptId: null, "t.QDOS31008");
-        await LinkReceiptAsync(factory, receiptId, triageCaseId);
+        await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, receiptId, triageCaseId);
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Inbox");
@@ -2654,31 +2654,6 @@ public sealed class MailWorkspaceWebTests
             .Where(item => item.Id == caseId)
             .Select(item => item.Reference)
             .SingleAsync();
-    }
-
-    /// <summary>A staff member's active link from the receipt to a Case, as the Link to Case confirmation writes it.</summary>
-    private static async Task LinkReceiptAsync(
-        IntakeWebApplicationFactory factory,
-        Guid receiptId,
-        Guid caseId)
-    {
-        await using var scope = factory.Services.CreateAsyncScope();
-        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        context.IntakeManualAssociations.Add(new()
-        {
-            IntakeReceiptId = receiptId,
-            CaseId = caseId,
-            IsActive = true,
-            Version = 1,
-            LinkedAtUtc = NowUtc,
-            ActorKind = ActorKind.Staff.ToString(),
-            ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
-            ActorRolesJson = "[\"Administrator\"]",
-            Reason = "Fixture message association.",
-            LastOperationKey = $"fixture-link:{Guid.NewGuid():N}"
-        });
-        await context.SaveChangesAsync();
     }
 
     private static string AntiforgeryToken(string html)

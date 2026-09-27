@@ -1177,6 +1177,31 @@ internal static class MailboxIntakeTestData
         await context.SaveChangesAsync();
         return caseId;
     }
+
+    /// <summary>A staff member's active link from a receipt to a Case, as the Link to Case confirmation writes it.</summary>
+    public static async Task LinkReceiptAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        Guid caseId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        context.IntakeManualAssociations.Add(new()
+        {
+            IntakeReceiptId = receiptId,
+            CaseId = caseId,
+            IsActive = true,
+            Version = 1,
+            LinkedAtUtc = services.GetRequiredService<TimeProvider>().GetUtcNow(),
+            ActorKind = ActorKind.Staff.ToString(),
+            ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+            ActorRolesJson = "[\"Administrator\"]",
+            Reason = "Fixture message association.",
+            LastOperationKey = $"fixture-link:{Guid.NewGuid():N}"
+        });
+        await context.SaveChangesAsync();
+    }
 }
 
 internal sealed record GenuineCorpusSample(string Hash, string UploadName, string MediaType, byte[] Bytes);
