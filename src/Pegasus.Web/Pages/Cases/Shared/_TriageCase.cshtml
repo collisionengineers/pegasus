@@ -95,7 +95,7 @@
 <article class="record triage-record" data-triage-record data-triage-state="@record.State">
     <div class="ribbon triage-ribbon" aria-label="Triage identity">
         <div class="ribbon-facts">
-            <div class="ribbon-item ribbon-ref"><span class="ribbon-label">Triage</span><span class="ribbon-value mono">@reference</span></div>
+            <div class="ribbon-item ribbon-ref"><span class="ribbon-label">@OperatorLabels.TriageReference</span><span class="ribbon-value mono">@reference</span></div>
             <div class="ribbon-item"><span class="ribbon-label">Registration</span><span class="ribbon-value mono">@record.NormalizedVehicleRegistration</span></div>
             <div class="ribbon-item"><span class="ribbon-label">@OperatorLabels.Principal</span><span class="ribbon-value">@(view.Triage.PrincipalCode ?? OperatorLabels.PrincipalNotKnown)</span></div>
             <div class="ribbon-item"><span class="ribbon-label">Source</span><span class="ribbon-value">@view.SourceLabel</span></div>
