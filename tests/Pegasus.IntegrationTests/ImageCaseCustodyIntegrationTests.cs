@@ -3,9 +3,11 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -363,6 +365,26 @@ public sealed class ImageCaseCustodyIntegrationTests
         Assert.Equal(pngBytes, await File.ReadAllBytesAsync(firstImagePath));
         Assert.Equal(pngBytes, await File.ReadAllBytesAsync(secondImagePath));
 
+        // Staff crop and tag the first photograph on the record, before any
+        // Case has it.
+        await services.GetRequiredService<ISavePreCaseImageCrop>().ExecuteAsync(
+            new(
+                sourceAssetIds[0],
+                0,
+                CaseAssetRotation.Clockwise90,
+                new CaseAssetCrop(0.1m, 0.2m, 0.5m, 0.6m),
+                StaffActor(),
+                $"record-crop:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+        await services.GetRequiredService<ITagPreCaseImage>().ExecuteAsync(
+            new(
+                sourceAssetIds[0],
+                ImageTagVocabulary.OverviewId,
+                true,
+                StaffActor(),
+                $"record-tag:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+
         // Merge into a formal case: the transition enqueues the fold and
         // commits regardless of external storage availability. The Case is a
         // standalone Audit, whose folder is named by its own a. Case/PO.
@@ -470,6 +492,90 @@ public sealed class ImageCaseCustodyIntegrationTests
             pngBytes,
             await File.ReadAllBytesAsync(Path.Combine(
                 caseImagesDirectory, $"002-{sourceAssetIds[1]:N}", "content")));
+
+        // The photographs are Case images (operator, 27 September 2026): one
+        // image document each, under the next Case document numbers, stored
+        // and in the report. The replayed fold added nothing.
+        Guid[] occurrenceIds;
+        Guid[] versionIds;
+        await using (var filedContext = await contextFactory.CreateDbContextAsync())
+        {
+            var filed = await (
+                    from occurrence in filedContext.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                    join version in filedContext.Set<DocumentVersionEntity>().AsNoTracking()
+                        on occurrence.VersionId equals version.Id
+                    where occurrence.CaseId == caseId
+                    orderby occurrence.Ordinal
+                    select new { Occurrence = occurrence, Version = version })
+                .ToListAsync();
+            Assert.Equal([2, 3], filed.Select(file => file.Occurrence.Ordinal));
+            Assert.Equal(["overview.png", "close-up.png"], filed.Select(file => file.Version.FileName));
+            Assert.Equal(
+                sourceAssetIds.Select(assetId =>
+                    $"image-case-custody-merge:{record.Id:N}:photograph:{assetId:N}"),
+                filed.Select(file => file.Occurrence.OperationKey));
+            Assert.All(filed, file =>
+            {
+                Assert.Equal(DocumentSemanticRole.Image, file.Occurrence.SemanticRole);
+                Assert.Equal(DocumentSource.Intake, file.Occurrence.Source);
+                Assert.True(file.Occurrence.InReport);
+                Assert.Equal(DocumentCustodyStatus.Confirmed, file.Version.CustodyStatus);
+                Assert.False(string.IsNullOrWhiteSpace(file.Version.BoxFileId));
+                Assert.False(string.IsNullOrWhiteSpace(file.Version.BoxVersionId));
+            });
+
+            // The crop, the rotation and the tag made on the record came with
+            // the first photograph; the second arrived as it was.
+            Assert.Equal(90, filed[0].Occurrence.RotationDegrees);
+            Assert.Equal(0.1m, filed[0].Occurrence.CropLeft);
+            Assert.Equal(0.2m, filed[0].Occurrence.CropTop);
+            Assert.Equal(0.5m, filed[0].Occurrence.CropWidth);
+            Assert.Equal(0.6m, filed[0].Occurrence.CropHeight);
+            Assert.Null(filed[1].Occurrence.CropLeft);
+            occurrenceIds = [.. filed.Select(file => file.Occurrence.Id)];
+            versionIds = [.. filed.Select(file => file.Version.Id)];
+            var tag = Assert.Single(await filedContext.Set<DocumentOccurrenceTagEntity>().AsNoTracking()
+                .Where(item => occurrenceIds.Contains(item.OccurrenceId))
+                .ToListAsync());
+            Assert.Equal(occurrenceIds[0], tag.OccurrenceId);
+            Assert.Equal(ImageTagVocabulary.OverviewId, tag.TagId);
+        }
+
+        // The Case reads each image from where the fold left it.
+        for (var index = 0; index < occurrenceIds.Length; index++)
+        {
+            await using var download = Assert.IsType<DocumentDownload>(
+                await services.GetRequiredService<IDownloadCaseDocument>().ExecuteAsync(
+                    new(caseId, occurrenceIds[index], versionIds[index], StaffActor(), $"read-folded:{Guid.NewGuid():N}"),
+                    CancellationToken.None));
+            using var buffer = new MemoryStream();
+            await download.Content.CopyToAsync(buffer);
+            Assert.Equal(pngBytes, buffer.ToArray());
+        }
+
+        // The Overview came from the record, so only the Close-up is asked
+        // for. Tagging the second photograph clears it.
+        var preparations = services.GetRequiredService<ICaseAssetPreparationQueries>();
+        Assert.Equal(
+            [CaseReportReadiness.CloseUpImageRequirement],
+            DocumentCustodyDurabilityTests.ImageBlockers(
+                await preparations.ListForCaseAsync(caseId, CancellationToken.None)));
+        var tagWorkflow = await workflows.GetAsync(caseId, CancellationToken.None);
+        var tagLease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(caseId, tagWorkflow!.Version, StaffActor(), $"close-up-lease:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+        await services.GetRequiredService<ITagCaseImage>().ExecuteAsync(
+            new(
+                caseId,
+                occurrenceIds[1],
+                ImageTagVocabulary.CloseUpId,
+                StaffActor(),
+                $"close-up-tag:{Guid.NewGuid():N}",
+                tagLease.Version,
+                tagLease.Token),
+            CancellationToken.None);
+        Assert.Empty(DocumentCustodyDurabilityTests.ImageBlockers(
+            await preparations.ListForCaseAsync(caseId, CancellationToken.None)));
     }
 
     [Fact]
