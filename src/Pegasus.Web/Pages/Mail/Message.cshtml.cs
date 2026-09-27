@@ -1350,7 +1350,11 @@ public sealed class MessageModel(
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(CorrespondenceCaseReference))
+        // The message's Case is the default, unless it is a Triage Case: the
+        // composer resolves an instruction Case by its Case/PO, and a Triage's
+        // t. reference never resolves, so staff choose the Case themselves.
+        if (string.IsNullOrWhiteSpace(CorrespondenceCaseReference)
+            && !Detail.Summary.IsTriageCase)
         {
             CorrespondenceCaseReference = Detail.Summary.CaseReference;
         }
