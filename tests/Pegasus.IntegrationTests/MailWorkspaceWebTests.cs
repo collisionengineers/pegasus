@@ -82,7 +82,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal("Not yet processed", preview.GetProperty("state").GetString());
         Assert.Equal("amber", preview.GetProperty("stateTone").GetString());
         Assert.Equal("Please inspect the vehicle at the address supplied.", preview.GetProperty("excerpt").GetString());
-        Assert.Equal("1 attachment · document", preview.GetProperty("attachments").GetString());
+        Assert.Equal("1 attachment · 1 document", preview.GetProperty("attachments").GetString());
         Assert.Equal("Not yet processed", preview.GetProperty("classification").GetString());
         Assert.Equal("None", preview.GetProperty("association").GetString());
         Assert.Equal("Inbox", preview.GetProperty("folder").GetString());
@@ -897,11 +897,13 @@ public sealed class MailWorkspaceWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Inbox");
-        var excerpt = Between(html, "<p class=\"mail-excerpt\" data-mail-preview-excerpt>", "</p>");
+        // The HTML encoder writes each line break and the ellipsis as a
+        // character reference; the browser reads them back for pre-line.
+        var excerpt = WebUtility.HtmlDecode(
+            Between(html, "<p class=\"mail-excerpt\" data-mail-preview-excerpt>", "</p>"));
 
         Assert.Contains("Line 1 of the message.\nLine 2 of the message.", excerpt, StringComparison.Ordinal);
-        // The ellipsis renders through the HTML encoder, as the sort arrow does.
-        Assert.EndsWith("Line 8 of the message.&#x2026;", excerpt, StringComparison.Ordinal);
+        Assert.EndsWith("Line 8 of the message.…", excerpt, StringComparison.Ordinal);
         Assert.DoesNotContain("Line 9", excerpt, StringComparison.Ordinal);
     }
 

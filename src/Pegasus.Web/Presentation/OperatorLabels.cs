@@ -2467,7 +2467,7 @@ public static class OperatorLabels
         public const string OpenTriage = "Open Triage";
         public const string NoAttachments = "No attachments";
 
-        /// <summary>"1 attachment · document", "11 attachments · 10 images, 1 document".</summary>
+        /// <summary>"1 attachment · 1 document", "11 attachments · 10 images, 1 document".</summary>
         public static string Attachments(IReadOnlyList<RetainedMailAttachment> attachments)
         {
             if (attachments.Count == 0)
