@@ -91,6 +91,7 @@ internal sealed class EfQueuedCustodyProcessor(
                         context,
                         RequireImageIntakeId(work),
                         work.OperationKey,
+                        now,
                         cancellationToken),
                     _ => await LoadPayloadAsync(
                         context,
@@ -883,6 +884,7 @@ internal sealed class EfQueuedCustodyProcessor(
         PegasusDbContext context,
         Guid imageIntakeId,
         string operationKey,
+        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var intake = await context.ImageIntakes
@@ -894,6 +896,7 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .AsNoTracking()
             .SingleAsync(value => value.Id == mergedIntoCaseId, cancellationToken);
+        var authority = await CaseMutationAuthority.LoadAsync(context, mergedIntoCaseId, cancellationToken);
         // The case root folder is named for the reference the create path
         // used: the Case/PO of every Case, a standalone Audit's included.
         return new(
@@ -904,6 +907,7 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.Id,
             caseEntity.Reference,
             caseEntity.CustodyRootRemoteId,
+            authority?.SystemWorkYields(now) == true,
             operationKey);
     }
 
@@ -1079,10 +1083,19 @@ internal sealed class EfQueuedCustodyProcessor(
                 "The formal case evidence folder has not been stored yet; the fold retries after it is.");
         }
 
-        var imageRoot = await caseCustody.GetExistingCaseRootAsync(
+        if (payload.CaseIsBeingEdited)
+        {
+            // Nothing has moved yet: the fold waits for the editor (FRD-14).
+            throw new IOException(CaseIsBeingEditedMessage);
+        }
+
+        // The record's folder is known by the identity recorded when it was
+        // stored. A fold that moved the files and then yielded has already
+        // removed it, and custody replays that as a fold already done.
+        var imageRoot = new CaseCustodyRoot(
             payload.ImageIntakeId,
-            payload.ImageReference,
-            cancellationToken);
+            payload.ImageCustodyRootRemoteId,
+            payload.ImageReference);
         var caseRoot = await caseCustody.GetExistingCaseRootAsync(
             payload.CaseId,
             payload.CaseRootReference,
@@ -1163,6 +1176,27 @@ internal sealed class EfQueuedCustodyProcessor(
         var intake = await context.ImageIntakes
             .SingleAsync(value => value.Id == imageIntakeId, cancellationToken);
         var alreadyMerged = string.Equals(intake.CustodyState, ImageCustodyStates.Merged, StringComparison.Ordinal);
+        CaseMutationAuthority? authority = null;
+        if (folded && !alreadyMerged)
+        {
+            // A Triage Case has no workflow: its Triage is the authority, and
+            // the fold leaves its version alone. A staff link reaches a Case in
+            // any lifecycle state (operator, 24 September 2026), so the fold
+            // that completes it does too; the recorded association decides.
+            authority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
+                ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
+            var staffDecision = await context.IntakeManualAssociations.AsNoTracking().AnyAsync(
+                association => association.IntakeReceiptId == intake.OriginReceiptId
+                    && association.ActorKind == nameof(ActorKind.Staff),
+                cancellationToken);
+            authority.RequireMutable(anyLifecycleState: staffDecision);
+            if (authority.SystemWorkYields(now))
+            {
+                // An editor arrived while the files moved. Nothing is written
+                // here, and the retry files them after the editor finishes.
+                throw new IOException(CaseIsBeingEditedMessage);
+            }
+        }
         var moved = new List<IntakeAssetEntity>();
         if (folded && intake.CustodyRootRemoteId is { } imageRoot)
         {
@@ -1183,21 +1217,10 @@ internal sealed class EfQueuedCustodyProcessor(
                 }
             }
         }
-        if (folded && !alreadyMerged)
+        if (authority is not null)
         {
             intake.CustodyState = ImageCustodyStates.Merged;
             intake.CustodyMergedAtUtc ??= now;
-            // A Triage Case has no workflow: its Triage is the authority, and
-            // the fold leaves its version alone. A staff link reaches a Case in
-            // any lifecycle state (operator, 24 September 2026), so the fold
-            // that completes it does too; the recorded association decides.
-            var authority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
-                ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
-            var staffDecision = await context.IntakeManualAssociations.AsNoTracking().AnyAsync(
-                association => association.IntakeReceiptId == intake.OriginReceiptId
-                    && association.ActorKind == nameof(ActorKind.Staff),
-                cancellationToken);
-            authority.RequireMutable(anyLifecycleState: staffDecision);
             var beforeVersion = authority.Version;
             // The photographs are Case images from here (operator, 27
             // September 2026). Filed by this completion, under its version.
@@ -1221,6 +1244,9 @@ internal sealed class EfQueuedCustodyProcessor(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+
+    private const string CaseIsBeingEditedMessage =
+        "A member of staff is editing the Case; the fold retries after they finish.";
 
     /// <summary>
     /// Records each photograph the fold moved as an image document of the
@@ -1358,6 +1384,7 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid CaseId,
         string CaseRootReference,
         string? CaseCustodyRootRemoteId,
+        bool CaseIsBeingEdited,
         string OperationKey) : CustodyWorkPayload;
 
     private sealed record WorkPayload(
