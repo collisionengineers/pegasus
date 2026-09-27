@@ -908,6 +908,31 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
+    /// A long single paragraph: the preview reads enough of the body to cut
+    /// it, so the text stops at a word boundary with an ellipsis rather than
+    /// mid-word where the read ran out.
+    /// </summary>
+    [Fact]
+    public async Task ALongParagraphIsCutAtAWordBoundaryWithAnEllipsis()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        var body = string.Join(' ', Enumerable.Range(1, 300).Select(word => $"word{word:D3}"));
+        await StoreSearchProjectionAsync(factory, FirstMailboxId, FirstMailboxId + "-0", body);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+        var excerpt = WebUtility.HtmlDecode(
+            Between(html, "<p class=\"mail-excerpt\" data-mail-preview-excerpt>", "</p>"));
+
+        Assert.EndsWith("…", excerpt, StringComparison.Ordinal);
+        Assert.True(excerpt.Length <= 600, $"The excerpt is {excerpt.Length} characters.");
+        var kept = excerpt[..^1];
+        Assert.StartsWith(kept, body, StringComparison.Ordinal);
+        Assert.Equal(' ', body[kept.Length]);
+    }
+
+    /// <summary>
     /// The preview's attachments (26 September 2026): one line counting them
     /// by kind, no names. The row keeps its count and the full message still
     /// names every file.
