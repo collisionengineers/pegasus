@@ -427,7 +427,9 @@ internal sealed class EfQueuedCustodyProcessor(
                 FileName = file.FileName,
                 MediaType = file.MediaType,
                 ContentLength = file.ContentLength,
-                Sha256 = file.ContentHash,
+                // A document's hash is recorded in small letters, as every
+                // other writer records it; intake keeps its own in capitals.
+                Sha256 = file.ContentHash.ToLowerInvariant(),
                 BoxFileId = file.BoxFileId,
                 BoxVersionId = file.BoxVersionId,
                 CustodyStatus = DocumentCustodyStatus.Confirmed,
