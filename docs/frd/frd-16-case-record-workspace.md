@@ -450,9 +450,13 @@ format recognises — an Audatex that arrived by email, say — also offers
 file through the same import as the Repair Spec section, with no second copy
 ([Assessment](#assessment)).
 
-**Images** is one grid of every image occurrence: the Case's own image
-documents plus, for each vehicle-images record associated with the Case, its
-photographs labelled by Image reference. Each tile shows:
+**Images** is one grid of the Case's image documents. A vehicle-images
+record that is associated with the Case and not yet merged into it lists its
+photographs below the grid, under its Image reference. When the merge
+completes they are Case images and the record's group goes, so each
+photograph shows once
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). Each
+tile shows:
 
 - a lazy-loaded thumbnail that expands to the full image, with the original
   filename as the accessible name. It is served only by an authorised staff

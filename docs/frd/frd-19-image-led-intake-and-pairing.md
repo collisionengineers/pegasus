@@ -80,6 +80,20 @@ into Instruction-initiated Case. If no instruction ever arrives, staff may
 record a permanent Staff-closed outcome with a reason. No identity, source
 fact, or relationship event is reused, rewritten, or deleted.
 
+The record's photographs become Case images when the merge's fold completes
+(operator, 27 September 2026). The fold moves the record's folder into the
+Case folder
+([FRD-05](frd-05-documents-extraction-and-custody.md#staging-and-custody))
+and files each photograph the record shows as an image document of the Case.
+Each takes the next Case document number. Each is in the report, as any new
+image is. The crop, rotation and tags staff gave a photograph on the record
+come with it, and one tagged Third party or Reflection arrives out of the
+report. A Triage Case takes them the same way. The record keeps its
+reference, its page and its photographs. The fold files them as the system
+worker and holds no staff lease
+([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). A replayed fold
+files nothing twice.
+
 Pairing uses the Case's current accepted registration and Principal, not
 its original instruction draft. A registered image identity needs an exact
 registration match, and a known Principal must agree. The single-image
@@ -277,7 +291,9 @@ images, editable there with the casework right and the image's own version.
 The viewer offers Crop (Apply, Clear, Cancel) and the Tag select; the tile
 shows the cropped region with a Cropped badge and its tag chips; the viewer
 draws the recorded region over the original. When the image becomes a Case
-document, the crop, rotation, and tags travel with it.
+document, the crop, rotation, and tags travel with it. That is when a Case is
+created from its message, when a record merges into a Case, and when a
+linked message's photographs are filed on its Case.
 
 **Screen words.** Screens say "Vehicle images" and "Image reference"; the
 word "intake" appears only on the Administrator's Intake log tab
@@ -303,6 +319,7 @@ word "intake" appears only on the Administrator's Intake log tab
   reason Conflicting identification.
 - Manual upload with one matching Case: still waits for staff.
 - Merge meets a live Case edit lease: yields and retries.
+- The fold is replayed: each photograph is a Case image once.
 - Origin decision changed since a member's completion was authorised: the
   final merge refuses.
 - A sibling with association history is never overwritten or revived.
@@ -312,8 +329,10 @@ word "intake" appears only on the Administrator's Intake log tab
 Acceptance proves, through the real Worker and Web callers: one reference
 per group; the four precedence rows; the group-level fail-closed rule; the
 manual-upload confirmation exception; both arrival orders and replays
-resuming one pairing operation; merge yielding to a live lease; the derived
-chase-due read; and the three named states in search. Deployment and live
+resuming one pairing operation; merge yielding to a live lease; a merged
+record's photographs as Case images with their crop and tags, on a Case and
+on a Triage Case; the derived chase-due read; and the three named states in
+search. Deployment and live
 evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
