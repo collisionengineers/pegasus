@@ -304,6 +304,7 @@ public sealed partial class DetailsModel
         string message;
         var nextOperationKey = operationKey;
         var applied = false;
+        var stale = false;
         Task<string> RunAsync(string editLeaseToken) => ExecuteTriageActionAsync(
             actionName,
             id,
@@ -340,14 +341,27 @@ public sealed partial class DetailsModel
                 // The record has moved past the posted version. A repeat of a
                 // committed post (a double click, a reload that re-posts) is
                 // answered from its operation key before Core checks the hold,
-                // so it gets the first result and its notice. A genuinely
-                // stale post fails the store's version check and is refused
-                // as changed below.
-                message = await RunAsync(string.Empty);
+                // so it gets the first result and its notice. Anything else is
+                // a stale post, whatever Core names as its reason (the state
+                // no longer permits it, or the key was used for another
+                // action): the operator is told the record changed, never
+                // Core's own sentence about a state they did not see.
+                try
+                {
+                    message = await RunAsync(string.Empty);
+                }
+                catch (Exception exception) when (IsExpectedTriageRefusal(exception))
+                {
+                    message = Labels.Changed;
+                    stale = true;
+                }
             }
 
-            applied = true;
-            nextOperationKey = NewOperationKey();
+            if (!stale)
+            {
+                applied = true;
+                nextOperationKey = NewOperationKey();
+            }
         }
         catch (StaffAuthorizationException)
         {

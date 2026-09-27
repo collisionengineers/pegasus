@@ -672,6 +672,16 @@ public sealed partial class TriageCaseWebTests
         Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Changed, stale, StringComparison.Ordinal);
         Assert.Equal(2, (await GetTriageAsync(factory.Services, triage.CaseId)).Record.Version);
         await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
+
+        // A colleague's Complete from a page opened before the first one
+        // landed: Core would say the state does not permit it, a sentence
+        // about a state this operator never saw. They are told it changed.
+        var late = await PostTriageActionAsync(
+            client, triage.CaseId, antiforgery, 1, "complete", Guid.NewGuid().ToString("N"));
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Changed, late, StringComparison.Ordinal);
+        Assert.DoesNotContain("only after a finding is recorded", late, StringComparison.Ordinal);
+        Assert.Equal(2, (await GetTriageAsync(factory.Services, triage.CaseId)).Record.Version);
+        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
     }
 
     /// <summary>
