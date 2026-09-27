@@ -204,7 +204,7 @@
                             }
                             <span class="row-top">
                                 <span class="row-meta">@item.MailboxAddress</span>
-                                <span class="row-meta">@item.Attachments.Count attachment@(item.Attachments.Count == 1 ? string.Empty : "s")</span>
+                                <span class="row-meta">@OperatorLabels.Inbox.AttachmentCount(item.Attachments.Count)</span>
                             </span>
                         </div>
                     }
@@ -293,7 +293,7 @@
                         @{
                             var forwarder = Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(item);
                             var attachments = item.AttachmentCount > 0
-                                ? $"{item.AttachmentCount} attachment{(item.AttachmentCount == 1 ? string.Empty : "s")}"
+                                ? OperatorLabels.Inbox.AttachmentCount(item.AttachmentCount)
                                 : null;
                         }
                         <span class="row-top">
@@ -405,8 +405,8 @@
         <div class="pane">
             <div class="pane-head"><h2>Message preview</h2></div>
             <div class="pane-body pane-scroll" tabindex="0">
-                @* Links only: the preview pane is a viewer, and the row that
-                   selects it is already a link. *@
+                @* Links only: the preview pane is a viewer. Its actions open the
+                   message or its Case; a click on the row selects it. *@
                 <aside id="mail-quick-preview" class="mail-preview" data-mail-preview
                        aria-label="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)">
                     <p data-mail-preview-status aria-live="polite" hidden></p>

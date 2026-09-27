@@ -2119,9 +2119,9 @@ public sealed class MessageModel(
 
     public static string OutcomeLabel(RetainedMailSummary summary) => summary switch
     {
-        // The Triage Case the message opened is its Case, but the chip
-        // names what happened: a Triage, not an instruction Case created.
-        { IsTriageCase: true } => "Triage",
+        // A Triage Case is the message's Case, but the chip names what it
+        // is: a Triage, not an instruction Case created.
+        { IsTriageCase: true } => OperatorLabels.Inbox.Triage,
         { CaseId: not null } => "Case created",
         { AllocationState.Status: IntakeAllocationProjectionStatus.Pending } => "Creating case",
         { AllocationState.Status: IntakeAllocationProjectionStatus.FailedRecoverable
@@ -2130,9 +2130,9 @@ public sealed class MessageModel(
         // material, because both are pre-case, but they are not the same thing
         // and this column must not call one the other: the operator reported
         // this defect from this screen, which labelled a Triage request as
-        // though a case were coming. The word is the destination's own
-        // (OperatorLabels.MailOperationalDestination.Triage), not a new one.
-        { Classification.IsTriageRequest: true } => "Triage",
+        // though a case were coming. The word is the Triage destination's
+        // own (OperatorLabels.Inbox.Triage), not a new one.
+        { Classification.IsTriageRequest: true } => OperatorLabels.Inbox.Triage,
         _ => OutcomeLabel(summary.ProcessingOutcome)
     };
 

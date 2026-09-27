@@ -2486,8 +2486,11 @@ public static class OperatorLabels
                 .GroupBy(attachment => UnidentifiedFileKind.Broad(attachment.MediaType))
                 .OrderBy(group => group.Key)
                 .Select(group => Counted(group.Count(), AttachmentKind(group.Key)));
-            return $"{Counted(attachments.Count, "attachment")} · {string.Join(", ", kinds)}";
+            return $"{AttachmentCount(attachments.Count)} · {string.Join(", ", kinds)}";
         }
+
+        /// <summary>"1 attachment", "3 attachments": a list row's count and the preview line's head.</summary>
+        public static string AttachmentCount(int count) => Counted(count, "attachment");
 
         private static string AttachmentKind(BroadFileKind kind) => kind switch
         {
