@@ -36,10 +36,8 @@ public sealed class MailWorkspaceWebTests
     private const string SecondMailboxId = "reports";
     private const string SecondMailboxAddress = "reports@collisionengineers.co.uk";
 
-    /// <summary>The list pane as a row list; the shell's notification list carries the same hook on every page.</summary>
-    private static readonly Regex ListPaneRowList = new(
-        "<div class=\"pane-body pane-scroll\" tabindex=\"0\"\\s+data-row-list",
-        RegexOptions.CultureInvariant);
+    /// <summary>The Inbox rows as a row list; the shell's notification list carries the same hook on every page.</summary>
+    private const string InboxRowList = "<div data-row-list>";
 
     [Fact]
     public async Task QuickPreviewIsAuthenticatedExactEvidenceAndDoesNotMutateMailState()
@@ -871,7 +869,7 @@ public sealed class MailWorkspaceWebTests
             client,
             $"/Inbox?mailbox={FirstMailboxFilter}&sort=oldest&selected={ids[1]:D}");
 
-        Assert.Matches(ListPaneRowList, html);
+        Assert.Contains(InboxRowList, html, StringComparison.Ordinal);
         var selectedRow = MailRow(html, ids[1]);
         var otherRow = MailRow(html, ids[0]);
         Assert.Contains("aria-current=\"true\"", selectedRow, StringComparison.Ordinal);
@@ -929,11 +927,11 @@ public sealed class MailWorkspaceWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Inbox");
-        var excerpt = WebUtility.HtmlDecode(
-            Between(html, "<p class=\"mail-excerpt\" data-mail-preview-excerpt>", "</p>"));
+        const string excerptStart = "<p class=\"mail-excerpt\" data-mail-preview-excerpt>";
+        var excerpt = WebUtility.HtmlDecode(Between(html, excerptStart, "</p>")[excerptStart.Length..]);
 
         Assert.EndsWith("…", excerpt, StringComparison.Ordinal);
-        Assert.True(excerpt.Length <= 600, $"The excerpt is {excerpt.Length} characters.");
+        Assert.True(excerpt.Length <= 600, $"The excerpt is {excerpt.Length} characters: {excerpt}");
         var kept = excerpt[..^1];
         Assert.StartsWith(kept, body, StringComparison.Ordinal);
         Assert.Equal(' ', body[kept.Length]);
@@ -1293,7 +1291,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("pageNumber=2", firstPage, StringComparison.Ordinal);
         // Deleted Items rows have no link to take focus, so the pane is not a
         // row list: the arrow keys scroll it.
-        Assert.DoesNotMatch(ListPaneRowList, firstPage);
+        Assert.DoesNotContain(InboxRowList, firstPage, StringComparison.Ordinal);
 
         var secondPage = await GetHtmlAsync(
             client,
