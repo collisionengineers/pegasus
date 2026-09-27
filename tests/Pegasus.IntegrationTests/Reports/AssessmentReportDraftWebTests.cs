@@ -377,6 +377,44 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
+    /// Accounts are offered and the Case has none chosen, so staff clear the
+    /// Sign-off Engineer blocker on Case details: the row says so and links
+    /// there, for an Administrator too (operator, 26 September 2026).
+    /// </summary>
+    [Fact]
+    public async Task TheSignOffBlockerLinksCaseDetailsWhenNoOfferedAccountIsChosen()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        var source = new FakeProjectionSource(ReadyInput(caseId));
+        source.Readiness = source.Readiness with
+        {
+            PersistedSignOffEngineerId = null,
+            AssignedEngineerId = null,
+            EligibleSignOffEngineers =
+            [
+                .. source.Readiness.EligibleSignOffEngineers.Select(profile => profile with { IsDefault = false }),
+            ],
+        };
+        var reason = Assert.Single(CaseReportReadiness.Evaluate(source.Readiness).Reasons);
+        Assert.Equal(CaseReportReadiness.SignOffEngineerNotChosen, reason);
+        using var factory = Compose(
+            baseFactory, new FakeGetCase(caseId), FullAssessmentProjection(caseId), source, new FakeRenderer([1]));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var row = BlockerRow(BlockerList(html), CaseReportReadiness.SignatoryRequirement);
+        Assert.Contains("Choose the Sign-off Engineer on Case details.", row, StringComparison.Ordinal);
+        AssertBlockerLinks(row, caseId, "overview");
+        Assert.DoesNotContain("data-blocker-accounts", row, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Issue #834: a fact the report prints but the Case lacks is a named
     /// blocker, not a failure. The Case page loads (it answered 503 while the
     /// report wording projected an unready Case) and links the blocker to the
