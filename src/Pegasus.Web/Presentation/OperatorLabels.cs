@@ -2476,18 +2476,18 @@ public static class OperatorLabels
             }
 
             var kinds = attachments
-                .GroupBy(attachment => attachment.Kind)
+                .GroupBy(attachment => UnidentifiedFileKind.Broad(attachment.MediaType))
                 .OrderBy(group => group.Key)
                 .Select(group => Counted(group.Count(), AttachmentKind(group.Key)));
             return $"{Counted(attachments.Count, "attachment")} · {string.Join(", ", kinds)}";
         }
 
-        private static string AttachmentKind(RetainedMailAttachmentKind kind) => kind switch
+        private static string AttachmentKind(BroadFileKind kind) => kind switch
         {
-            RetainedMailAttachmentKind.Image => "image",
-            RetainedMailAttachmentKind.Document => "document",
-            RetainedMailAttachmentKind.Email => "e-mail",
-            RetainedMailAttachmentKind.Video => "video",
+            BroadFileKind.Image => "image",
+            BroadFileKind.Document => "document",
+            BroadFileKind.Email => "e-mail",
+            BroadFileKind.Video => "video",
             _ => "other file"
         };
 
