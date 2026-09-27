@@ -492,6 +492,113 @@ public sealed class ImageCaseCustodyIntegrationTests
     }
 
     /// <summary>
+    /// The fold holds no staff lease and yields to a member of staff editing
+    /// the Case (FRD-14): it writes nothing, leaves their lease, and files the
+    /// photographs on the retry after they finish. An editor already there
+    /// stops the fold before anything moves; one arriving while the files
+    /// move stops its completion, and the retry files from where they are.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AFoldYieldsToAStaffEditorAndFilesThePhotographsAfterTheyFinish(
+        bool editorArrivesWhileTheFilesMove)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        await processor.ExecuteAsync(
+            await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
+            CancellationToken.None);
+        var (caseId, _) = await SeedCaseWithFolderAsync(services, memberReceiptIds[0], "IMG26003");
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+
+        var leases = services.GetRequiredService<ILeaseCaseForEdit>();
+        CaseEditLease? editor = null;
+        async Task EditorArrivesAsync()
+        {
+            var workflow = await services.GetRequiredService<ICaseWorkflowQueries>()
+                .GetAsync(caseId, CancellationToken.None);
+            editor = await leases.ClaimAsync(
+                new(caseId, workflow!.Version, StaffActor(), $"editor-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+        }
+
+        IProcessQueuedCustody firstAttempt = processor;
+        if (editorArrivesWhileTheFilesMove)
+        {
+            firstAttempt = new EfQueuedCustodyProcessor(
+                contextFactory,
+                services.GetRequiredService<IExternalWorkStore>(),
+                new CustodyWithAnArrivingEditor(services.GetRequiredService<ICaseCustody>(), EditorArrivesAsync),
+                services.GetRequiredService<TimeProvider>());
+        }
+        else
+        {
+            await EditorArrivesAsync();
+        }
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            firstAttempt.ExecuteAsync(mergeWorkId, CancellationToken.None));
+
+        // An editor already there stopped the fold before anything moved.
+        var imageFolder = Path.Combine(
+            factory.ArtifactDirectory, "custody", "cases", record.Id.ToString("N"));
+        Assert.Equal(!editorArrivesWhileTheFilesMove, Directory.Exists(imageFolder));
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            var work = await context.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == mergeWorkId);
+            Assert.Equal("pending", work.State);
+            Assert.Equal("custody_dependency_failure", work.FailureCode);
+            Assert.Equal("confirmed", await ReadImageCustodyStateAsync(context, record.Id));
+            Assert.False(await context.Set<CaseDocumentEntity>().AnyAsync(item => item.CaseId == caseId));
+            Assert.False(await context.CaseHistory.AnyAsync(item =>
+                item.CaseId == caseId && item.EventType == "image_custody_merged"));
+            var workflow = await context.CaseWorkflows.AsNoTracking().SingleAsync(item => item.CaseId == caseId);
+            Assert.Equal(editor!.Version, workflow.Version);
+            Assert.Equal(editor.ExpiresAtUtc, workflow.EditLeaseExpiresAtUtc);
+        }
+        // The editor still holds the lease they claimed.
+        await leases.HeartbeatAsync(new(caseId, StaffActor(), editor!.Token), CancellationToken.None);
+
+        await leases.ReleaseAsync(
+            new(caseId, StaffActor(), $"editor-release:{Guid.NewGuid():N}", editor.Token),
+            CancellationToken.None);
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+
+        Assert.False(Directory.Exists(imageFolder));
+        await using var filed = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(
+            "completed",
+            (await filed.ExternalWorkItems.AsNoTracking().SingleAsync(item => item.Id == mergeWorkId)).State);
+        Assert.Equal("merged", await ReadImageCustodyStateAsync(filed, record.Id));
+        var images = await (
+                from occurrence in filed.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in filed.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == caseId
+                orderby occurrence.Ordinal
+                select new { OccurrenceId = occurrence.Id, VersionId = version.Id })
+            .ToListAsync();
+        Assert.Equal(2, images.Count);
+        foreach (var image in images)
+        {
+            await using var download = Assert.IsType<DocumentDownload>(
+                await services.GetRequiredService<IDownloadCaseDocument>().ExecuteAsync(
+                    new(caseId, image.OccurrenceId, image.VersionId, StaffActor(), $"read-folded:{Guid.NewGuid():N}"),
+                    CancellationToken.None));
+            using var buffer = new MemoryStream();
+            await download.Content.CopyToAsync(buffer);
+            Assert.Equal(PngBytes, buffer.ToArray());
+        }
+    }
+
+    /// <summary>
     /// The fold files exactly the photographs it moved. A photograph the
     /// record shows that its folder never held, here one kept in holding,
     /// has no file in the Case folder and is not filed.
@@ -947,6 +1054,53 @@ public sealed class ImageCaseCustodyIntegrationTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"image-case-custody-test-reader"}, {"1"}, {"image-case-custody-fixture"}, {1}, {reference}, {1}, {instructionComplete && imagesComplete}, {now})");
         return caseId;
+    }
+
+    /// <summary>
+    /// The configured custody, with a member of staff who starts editing the
+    /// Case while the fold's files move.
+    /// </summary>
+    private sealed class CustodyWithAnArrivingEditor(ICaseCustody inner, Func<Task> editorArrives) : ICaseCustody
+    {
+        public Task<CaseCustodyRoot> CreateCaseRootAsync(
+            Guid caseId,
+            string caseReference,
+            string creationOwnerToken,
+            string operationKey,
+            CancellationToken cancellationToken) =>
+            inner.CreateCaseRootAsync(caseId, caseReference, creationOwnerToken, operationKey, cancellationToken);
+
+        public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+            Guid caseId,
+            string caseReference,
+            CancellationToken cancellationToken) =>
+            inner.GetExistingCaseRootAsync(caseId, caseReference, cancellationToken);
+
+        public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+            CaseCustodyRoot root,
+            IntakeSourceCustodyReference source,
+            string operationKey,
+            CancellationToken cancellationToken) =>
+            inner.RetainAcceptedIntakeSourceAsync(root, source, operationKey, cancellationToken);
+
+        public Task<string> CreateAuditReferenceFolderAsync(
+            CaseCustodyRoot root,
+            string auditReference,
+            string creationOwnerToken,
+            string operationKey,
+            CancellationToken cancellationToken) =>
+            inner.CreateAuditReferenceFolderAsync(
+                root, auditReference, creationOwnerToken, operationKey, cancellationToken);
+
+        public async Task MergeImageCaseContentsAsync(
+            CaseCustodyRoot imageRoot,
+            CaseCustodyRoot caseRoot,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            await inner.MergeImageCaseContentsAsync(imageRoot, caseRoot, operationKey, cancellationToken);
+            await editorArrives();
+        }
     }
 
     /// <summary>
