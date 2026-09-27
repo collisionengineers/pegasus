@@ -87,6 +87,8 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal("None", preview.GetProperty("association").GetString());
         Assert.Equal("Inbox", preview.GetProperty("folder").GetString());
         Assert.DoesNotContain("estimate.pdf", json, StringComparison.Ordinal);
+        // No Case, so a pinned row's pane offers no Case action.
+        Assert.True(!preview.TryGetProperty("caseUrl", out var caseUrl) || caseUrl.ValueKind == JsonValueKind.Null);
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -996,6 +998,15 @@ public sealed class MailWorkspaceWebTests
         var row = MailRow(html, messageId);
         Assert.Contains(">Triage</span>", row, StringComparison.Ordinal);
         Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31007</a>", row, StringComparison.Ordinal);
+
+        // A pinned row's pane takes its Case action from the preview JSON.
+        Assert.Contains("data-mail-preview-open", preview, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-case", preview, StringComparison.Ordinal);
+        using var response = await client.GetAsync($"/Inbox?handler=Preview&id={messageId:D}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal($"/Cases/{triageCaseId:D}", json.RootElement.GetProperty("caseUrl").GetString());
+        Assert.Equal("Open Triage", json.RootElement.GetProperty("caseAction").GetString());
     }
 
     /// <summary>
