@@ -247,7 +247,9 @@ name ignoring case, with one of six fixed design tints. An occurrence may
 carry any number of tags.
 
 Tags carry meaning for the report (operator, 26 September 2026). A new
-image is in the report. The first image in the report tagged Close-up prints
+image is in the report. An image already on a Case that staff never gave a
+report role is in the report too, unless it is tagged Third party or
+Reflection; one staff set to Not used stays out. The first image in the report tagged Close-up prints
 as the Close-up and the first other one tagged Overview as the Overview; the
 rest print as supporting images. Tagging an image Third party or Reflection
 takes it out of the report; staff may put it back in
