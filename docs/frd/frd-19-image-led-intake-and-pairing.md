@@ -94,6 +94,11 @@ worker and holds no staff lease
 ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). A replayed fold
 files nothing twice.
 
+Filing them completes the Case's images. A Not ready Case with nothing else
+missing then moves to Review
+([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)). A
+Triage Case records no image completeness.
+
 Pairing uses the Case's current accepted registration and Principal, not
 its original instruction draft. A registered image identity needs an exact
 registration match, and a known Principal must agree. The single-image

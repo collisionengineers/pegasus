@@ -448,54 +448,14 @@ internal sealed class EfCaseArtifactCustody(
             return;
         }
 
-        var snapshot = await db.Set<CaseDataSnapshotEntity>()
-            .Include(item => item.Work)
-            .ThenInclude(item => item.Case)
-            .ThenInclude(item => item.Principal)
-            .SingleOrDefaultAsync(item => item.WorkId == caseId, cancellationToken)
-            ?? throw new InvalidDataException("The associated Case has no data snapshot.");
         if (!await IntakePromotionTarget.IsCurrentAsync(
                 db, caseId, receiptId, expectedCaseVersion, nowUtc, cancellationToken))
         {
             return;
         }
 
-        var configuration = await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken);
-        var before = new CaseCompleteness(
-            snapshot.Work.Case.InstructionComplete,
-            snapshot.Work.Case.ImagesComplete);
-        var after = before with { ImagesComplete = true };
-        var evaluation = CaseCompletenessPolicy.Evaluate(after, configuration);
-        snapshot.Work.Case.ImagesComplete = true;
-        snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
-        snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
-        snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
-        var mayRecalculateWorkflow = workflow.AssignedEngineerId is null
-            && workflow.State is nameof(CaseLifecycleState.NotReady)
-                or nameof(CaseLifecycleState.Review);
-        if (mayRecalculateWorkflow && evaluation.SatisfiesPolicy)
-        {
-            var enteringReview = workflow.State != nameof(CaseLifecycleState.Review);
-            workflow.State = nameof(CaseLifecycleState.Review);
-            CaseChaseState.Stop(workflow);
-            if (enteringReview)
-            {
-                workflow.StateEnteredAtUtc = nowUtc;
-                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                    db, workflow, checked(workflow.Version + 1), nowUtc);
-            }
-        }
-        else if (mayRecalculateWorkflow)
-        {
-            if (workflow.State != nameof(CaseLifecycleState.NotReady))
-            {
-                workflow.StateEnteredAtUtc = nowUtc;
-            }
-            workflow.State = nameof(CaseLifecycleState.NotReady);
-            await CaseDueWorkScheduler.ScheduleAsync(
-                db, workflow, snapshot.Work.Case.AcceptedInspectionDeadline, nowUtc, cancellationToken);
-        }
-
+        var (before, after, evaluation) = await CompleteCaseImagesAsync(
+            db, workflow, nowUtc, cancellationToken);
         var beforeVersion = workflow.Version;
         workflow.Version++;
         CaseMutationHistory.Add(
@@ -535,6 +495,67 @@ internal sealed class EfCaseArtifactCustody(
             AfterJson = JsonSerializer.Serialize(after)
         });
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Marks the Case's images complete once its photographs are confirmed in
+    /// Case custody, and re-evaluates readiness from the stored facts
+    /// (FRD-13): a Not ready Case with nothing else missing moves to Review.
+    /// The caller owns the Case version and the history line.
+    /// </summary>
+    internal static async Task<(CaseCompleteness Before, CaseCompleteness After, CaseCompletenessEvaluation Evaluation)>
+        CompleteCaseImagesAsync(
+            PegasusDbContext db,
+            CaseWorkflowEntity workflow,
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken)
+    {
+        var snapshot = await db.Set<CaseDataSnapshotEntity>()
+            .Include(item => item.Work)
+            .ThenInclude(item => item.Case)
+            .ThenInclude(item => item.Principal)
+            .SingleOrDefaultAsync(item => item.WorkId == workflow.CaseId, cancellationToken)
+            ?? throw new InvalidDataException("The associated Case has no data snapshot.");
+        // The chase to stop or reschedule is the Case's stored one.
+        await db.Entry(workflow).Reference(item => item.DueWork).LoadAsync(cancellationToken);
+
+        var configuration = await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken);
+        var before = new CaseCompleteness(
+            snapshot.Work.Case.InstructionComplete,
+            snapshot.Work.Case.ImagesComplete);
+        var after = before with { ImagesComplete = true };
+        var evaluation = CaseCompletenessPolicy.Evaluate(after, configuration);
+        snapshot.Work.Case.ImagesComplete = true;
+        snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
+        snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
+        snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
+        var mayRecalculateWorkflow = workflow.AssignedEngineerId is null
+            && workflow.State is nameof(CaseLifecycleState.NotReady)
+                or nameof(CaseLifecycleState.Review);
+        if (mayRecalculateWorkflow && evaluation.SatisfiesPolicy)
+        {
+            var enteringReview = workflow.State != nameof(CaseLifecycleState.Review);
+            workflow.State = nameof(CaseLifecycleState.Review);
+            CaseChaseState.Stop(workflow);
+            if (enteringReview)
+            {
+                workflow.StateEnteredAtUtc = nowUtc;
+                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                    db, workflow, checked(workflow.Version + 1), nowUtc);
+            }
+        }
+        else if (mayRecalculateWorkflow)
+        {
+            if (workflow.State != nameof(CaseLifecycleState.NotReady))
+            {
+                workflow.StateEnteredAtUtc = nowUtc;
+            }
+            workflow.State = nameof(CaseLifecycleState.NotReady);
+            await CaseDueWorkScheduler.ScheduleAsync(
+                db, workflow, snapshot.Work.Case.AcceptedInspectionDeadline, nowUtc, cancellationToken);
+        }
+
+        return (before, after, evaluation);
     }
 
     /// <summary>
