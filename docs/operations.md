@@ -4,6 +4,27 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 72 — 27 September 2026 (deployment live)
+
+Release 72 deployed [PR 893](https://github.com/collisionengineers/pegasus/pull/893): a report image's hash is compared by value, not letter case.
+
+- No report could be previewed or generated from images that arrived by mail. The mail fold stored each file's hash in capitals. The report's image check compared a small-letter hash exactly.
+- The check now ignores letter case, and the fold stores the hash in small letters.
+- The refusal names the file in staff's words. Generate report shows a render refusal's reason and names the document otherwise. Preview and Generate log the failure.
+
+The route was the normal App Service route with an unchanged migration identity, run from the Windows workstation. Web and Worker are Running on the approved release, and full production smoke passed. No wipe ran.
+
+| Observation | Value |
+| --- | --- |
+| Finding | Read-only SQL at about 21:00Z: `a.QDOS26023` held 15 files, 13 with the hash in capitals (the mail, its three PDFs and all nine images) and 2 in small letters (the Glass's XML and PDF). Image 5 was tagged Close-up and image 13 Overview. One report generation, `8d236f7f-ec26-41d9-96f3-87ef59b4c9bc`, was frozen at 20:10:15Z and read `Pending`. Both halves of the fault date from August; earlier faults had stopped the report before this check. |
+| Source and packages | Version `0.1.0-alpha.1`, application source `eef0714ecad30c31d2729231c087bb9676f81140`. It was promoted atomically to both `dev` and `main` at 21:27:25Z, after the build; `main` was `1e3b02117`. Manifest schema 3 SHA-256 `7C422A10B1EE190930AF6535262DB37C53AC2C987985B4148BF764D4C11DCC55`. `web.zip` SHA-256 `DFEAE0C06F471AC7D0EC2A4CE9979A9FFF0154497092BC3C3FE34993674637D8`. `worker.zip` SHA-256 `244E3D59E7AD3DEDB0C04DC0964D8FA120B73F9BCE1A06448C43C2E80A4F2AF7`. Windows `efbundle.exe` SHA-256 `9C06C5AFF3B1B3DF6FCC22A20CB693ED12706BBC983B16B01D50F98E6C6D67ED`, built and not run. |
+| Review and verification | PR 893 had no independent review. The operator ordered the merge knowing that. Its CI run 36348717806 passed 10 jobs at `8103fe31b`, with `infrastructure` skipped as not routed. The merged tree is identical to that head's tree. A focused local run passed first: build 0 warnings and 0 errors, Core 33 and Integration 74 tests. The `main` push run 36351796417 passed 10 jobs at the release SHA at 21:50:04Z, after the release was live, with `infrastructure` skipped. The Local, Artifact, PreDeploy and PreProvision gates passed. No browser walk ran before release. The operator granted merge authority for `eef0714ec` and approved the exact manifest, targets and operations, deploying without waiting for the `main` run (27 September 2026). |
+| Schema and grants | Migration **unchanged**. The deployed head read back as the manifest identity, `20260927004150_ImageInReport`, at 21:28:43Z. No migration and no bootstrap ran. |
+| Web and Worker deployment | Activation was set at 21:28:43Z. `PreProvision` passed (B1 in uksouth limit 3). `azd provision` ran 21:29:03–21:29:14Z and reported no changes to provision. `az webapp deploy` started at 21:29:26Z. OneDeploy `c153991b-5142-44a5-95bb-73dafaecd49a` succeeded at 21:30:08Z onto package `20260927212937.zip`, and the site started after 129 seconds. A public probe every three seconds read `/health/live` as 200 throughout. It read `1e3b0211` until it first read `eef0714e` at 21:32:23Z. No outage was observed at that cadence. Worker `config-zip` deployment `2bd28388-b850-46e0-b6f5-34d8a8ceef3f` ran 21:32:56–21:35:41Z. The Worker was not stopped. |
+| Production smoke | Passed at 21:37:08Z. The Worker activation smoke passed as `approved-live-worker`. Active Web package `20260927212937.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed: last completed poll `2026-09-27T21:35:03Z`; the active Graph subscription expires `2026-10-02T15:15:00Z`. The release ran no signed-in journey check. |
+| Still owed | The live check is with the operator: on `a.QDOS26023`, press Preview, then Generate report. Generation `8d236f7f…` still read `Pending` after the release, and a retry keeps its frozen report date of 27 September. `QDOS26024`, created at 20:22Z with 6 files in capitals, is a second Case for the same check. The steps after the image check (render, file the PDF in Box, confirm) have no production record. The fold's new write is unproven until an instruction arrives after 21:35:41Z: its `DocumentVersions.Sha256` should read in small letters. |
+| Evidence | Exact artifacts retained at ignored `artifacts/releases/release-72-eef0714e`; driver scripts, phase logs, the build log and the public probe log at `artifacts/releases/release-72-driver`. |
+
 ## Release 71 — 27 September 2026 (deployment live)
 
 Release 71 deployed [PR 892](https://github.com/collisionengineers/pegasus/pull/892), which merged PRs 881–891 into `dev` together:
