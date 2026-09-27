@@ -636,9 +636,9 @@ public static class CaseWorkspacePolicy
             };
         }
 
-        // Adopting the Engineer's Value is a professional finding: the same
-        // authority and the same selection rules the calculator's preview
-        // checks.
+        // Recording a calculation against its basis card is a professional
+        // finding: the same authority and the same selection rules the
+        // calculator's preview checks.
         if (validated.Valuation is { Adoption: { } adoption } adopting)
         {
             AssessmentPolicy.RequireFindingAuthority(validated.Actor);
