@@ -2465,6 +2465,13 @@ public static class OperatorLabels
         public const string Matched = "Matched";
         public const string OpenCase = WorkCentre.OpenCase;
         public const string OpenTriage = "Open Triage";
+
+        /// <summary>
+        /// The chip for a message on a Triage Case or asking for one, and the
+        /// message's Case tab heading for the Triage it opened. It is the
+        /// Triage destination's own word, not a new one.
+        /// </summary>
+        public const string Triage = "Triage";
         public const string NoAttachments = "No attachments";
 
         /// <summary>"1 attachment · 1 document", "11 attachments · 10 images, 1 document".</summary>
