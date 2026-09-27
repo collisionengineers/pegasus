@@ -25,6 +25,9 @@ public sealed class CaseReportGenerationTests
     private static readonly ActionActor Engineer =
         ActionActor.Staff(Guid.Parse("55555555-5555-5555-5555-555555555555"), [StaffRole.Engineer]);
 
+    /// <summary>The options a generation's snapshot is frozen and read with.</summary>
+    private static readonly JsonSerializerOptions SnapshotJson = new(JsonSerializerDefaults.Web);
+
     [Fact]
     public void ACompleteCaseIsReady()
     {
@@ -254,14 +257,13 @@ public sealed class CaseReportGenerationTests
             }
             """;
 
-        var image = JsonSerializer.Deserialize<CaseReportSnapshotImage>(
-            frozen, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        var image = JsonSerializer.Deserialize<CaseReportSnapshotImage>(frozen, SnapshotJson)!;
 
         Assert.Equal(role, image.Role);
         Assert.Equal(CaseAssetRotation.Clockwise90, image.Rotation);
         Assert.Contains(
             $"\"role\":{stored}",
-            JsonSerializer.Serialize(image, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            JsonSerializer.Serialize(image, SnapshotJson),
             StringComparison.Ordinal);
     }
 
