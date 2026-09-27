@@ -249,11 +249,11 @@ carry any number of tags.
 Tags carry meaning for the report (operator, 26 September 2026). A new
 image is in the report. An image already on a Case that staff never gave a
 report role is in the report too, unless it is tagged Third party or
-Reflection; one staff set to Not used stays out. The first image in the report tagged Close-up prints
-as the Close-up and the first other one tagged Overview as the Overview; the
-rest print as supporting images. Tagging an image Third party or Reflection
-takes it out of the report; staff may put it back in
-([FRD-06](frd-06-vehicle-and-engineering-evidence.md)).
+Reflection; one staff set to Not used stays out. The first image in the
+report tagged Close-up prints as the Close-up and the first other one tagged
+Overview as the Overview; the rest print as supporting images. Tagging an
+image Third party or Reflection takes it out of the report; staff may put it
+back in ([FRD-06](frd-06-vehicle-and-engineering-evidence.md)).
 
 Applying or removing a tag on a Case image has the same guards as any other
 Case change: the current Case edit lease, the expected Case version and an
