@@ -302,12 +302,40 @@ public sealed class AssessmentReportRenderingTests
     {
         var renderer = new FakeRenderer();
         var valid = Snapshot(AssessmentReportOutcome.Repairable);
-        var photo = valid.Photos.Single() with { Content = [1, 2, 3] };
+        var photo = valid.Photos.Single() with
+        {
+            CustodyReference = "page-1-image-2.jpg",
+            Content = [1, 2, 3],
+        };
 
-        await Assert.ThrowsAsync<ReportRenderRejectedException>(
+        var refusal = await Assert.ThrowsAsync<ReportRenderRejectedException>(
             () => new GenerateAssessmentReportDraft(renderer)
                 .ExecuteAsync(valid with { Photos = [photo] }, CaseReportArtifactKind.AssessmentReport));
+
+        // Staff read this refusal, so it names the file in their words.
+        Assert.Equal(
+            "The stored version of page-1-image-2.jpg has changed. "
+            + "Open the Files section to see the image as it is stored now.",
+            refusal.Message);
         Assert.Null(renderer.Received);
+    }
+
+    /// <summary>
+    /// Intake records a file's hash in capitals and a staff upload records it
+    /// in small letters. Both name the same bytes, so the report prints both.
+    /// </summary>
+    [Fact]
+    public async Task APhotoWhoseHashIsRecordedInCapitalsIsPrinted()
+    {
+        var renderer = new FakeRenderer();
+        var valid = Snapshot(AssessmentReportOutcome.Repairable);
+        var photo = valid.Photos.Single();
+        var recordedByIntake = photo with { Sha256 = photo.Sha256.ToUpperInvariant() };
+
+        await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(valid with { Photos = [recordedByIntake] }, CaseReportArtifactKind.AssessmentReport);
+
+        Assert.Equal(recordedByIntake, Assert.Single(renderer.Received!.Photos));
     }
 
     [Fact]

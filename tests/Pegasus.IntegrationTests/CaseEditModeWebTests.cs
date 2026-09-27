@@ -1256,6 +1256,44 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
+    /// A generation that fails says so in staff's words. A render refusal
+    /// shows its own reason, as the preview does; any other failure names the
+    /// document that was not generated and keeps the fault's own text back.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AFailedGenerationShowsTheRefusalsReasonOrNamesTheDocument(bool renderRefusal)
+    {
+        const string Reason = "The stored version of page-1-image-2.jpg has changed.";
+        const string Fault = "The connection was reset.";
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var generator = new RecordingGenerateReport
+        {
+            Failure = renderRefusal ? new ReportRenderRejectedException(Reason) : new IOException(Fault)
+        };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+            ReadyReportPorts(services, store, generator));
+        var form = GenerateReportForm(await ReportSectionAsync(workspace));
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=GenerateReport&section=report",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+
+        AssertPrg(response, store.CaseId, "section=report");
+        var after = await workspace.GetWorkspaceAsync();
+        Assert.Contains(
+            renderRefusal ? Reason : CaseWorkspaceLabels.ReportDelivery.ReportNotGenerated,
+            after,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(Fault, after, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// In edit mode Generate report is a save-first action: its form carries
     /// the session's lease and <c>data-case-save-first</c>, so the script
     /// saves the Case's unsaved changes, keeps editing, and then posts the

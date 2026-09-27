@@ -2059,6 +2059,7 @@ public sealed partial class DetailsModel(
         }
         catch (ReportRenderRejectedException exception)
         {
+            LogCaseCommandFailed(logger, id, "preview_report", exception);
             // An image pack of a Case whose report uses no image is refused
             // rather than rendered empty.
             return Request.Headers.ContainsKey("X-Pegasus-Document-Preview")
@@ -2340,9 +2341,11 @@ public sealed partial class DetailsModel(
             or TimeoutException
             or ReportRenderRejectedException)
         {
-            TempData["CaseError"] = MutationRefusalMessage(
-                exception,
-                "The artifact could not be generated. Retry the operation.");
+            LogCaseCommandFailed(logger, id, "generate_report", exception);
+            // A render refusal says what stopped it, as the preview does.
+            TempData["CaseError"] = exception is ReportRenderRejectedException
+                ? exception.Message
+                : MutationRefusalMessage(exception, NotGenerated(kind));
             return RedirectToReport(id);
         }
 
@@ -2361,8 +2364,7 @@ public sealed partial class DetailsModel(
                 TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.GenerationPending;
                 return RedirectToReport(id);
             case CaseReportGenerationOutcome.Failed:
-                TempData["CaseError"] =
-                    "The artifact could not be generated. Retry the operation.";
+                TempData["CaseError"] = NotGenerated(kind);
                 return RedirectToReport(id);
             default:
                 ClearLeaseState();
@@ -2379,6 +2381,18 @@ public sealed partial class DetailsModel(
                 return RedirectToReport(id);
         }
     }
+
+    /// <summary>The document that was not generated, named as staff know it.</summary>
+    private static string NotGenerated(CaseReportArtifactKind kind) => kind switch
+    {
+        CaseReportArtifactKind.AssessmentReport =>
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportNotGenerated,
+        CaseReportArtifactKind.FeeNote =>
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FeeNoteNotGenerated,
+        CaseReportArtifactKind.RepairSpecification =>
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RepairSpecNotGenerated,
+        _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ImagesNotGenerated,
+    };
 
     /// <summary>
     /// Reopens a confirmed artifact's immutable bytes — never a regeneration

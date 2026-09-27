@@ -215,10 +215,14 @@ public sealed record ReportImageEvidence(
             throw new ReportRenderRejectedException(
                 $"Report image '{CustodyReference}' carries an unrecognized rotation.");
         }
+        // A hash is compared by value: intake records it in capitals and
+        // staff uploads in small letters, and both name the same bytes.
         var actual = Convert.ToHexStringLower(SHA256.HashData(Content));
-        if (!actual.Equals(Sha256, StringComparison.Ordinal))
+        if (!actual.Equals(Sha256, StringComparison.OrdinalIgnoreCase))
         {
-            throw new ReportRenderRejectedException("A report image did not match its custody hash.");
+            throw new ReportRenderRejectedException(
+                $"The stored version of {CustodyReference} has changed. "
+                + "Open the Files section to see the image as it is stored now.");
         }
     }
 }

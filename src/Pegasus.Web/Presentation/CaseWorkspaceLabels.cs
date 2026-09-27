@@ -888,6 +888,8 @@ public static class CaseWorkspaceLabels
         public const string GenerateFeeNote = "Generate fee note";
         public const string ReportGenerated = "The report was generated.";
         public const string FeeNoteGenerated = "The fee note was generated.";
+        public const string ReportNotGenerated = "The report could not be generated.";
+        public const string FeeNoteNotGenerated = "The fee note could not be generated.";
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
@@ -920,6 +922,8 @@ public static class CaseWorkspaceLabels
         public const string GenerateImages = "Generate images";
         public const string RepairSpecGenerated = "The Repair Spec was generated.";
         public const string ImagesGenerated = "The images were generated.";
+        public const string RepairSpecNotGenerated = "The Repair Spec could not be generated.";
+        public const string ImagesNotGenerated = "The images could not be generated.";
         public const string DownloadRepairSpec = "Repair Spec";
         public const string DownloadImages = "Images";
         public const string PreviewRepairSpec = "Preview Repair Spec";
