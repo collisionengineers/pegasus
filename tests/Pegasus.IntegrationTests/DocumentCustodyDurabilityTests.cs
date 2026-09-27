@@ -1187,11 +1187,14 @@ public sealed class DocumentCustodyDurabilityTests
         var documentId = Guid.NewGuid();
         var versionId = Guid.NewGuid();
         var occurrenceId = Guid.NewGuid();
+        // Each seeded image is the Case's next document.
+        var ordinal = await context.Set<CaseDocumentEntity>().CountAsync(document => document.CaseId == caseId);
         context.AddRange(
             new CaseDocumentEntity
             {
                 Id = documentId,
                 CaseId = caseId,
+                Ordinal = ordinal,
                 SourceOccurrenceIdentity = $"test-image:{occurrenceId:N}"
             },
             new DocumentVersionEntity

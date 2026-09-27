@@ -342,7 +342,13 @@ public sealed partial class AssessmentReportDraftWebTests
             }
         }
 
-        using var engineer = factory.CreateClient(new WebApplicationFactoryClientOptions
+        // The development identity above is the Administrator; the Engineer's
+        // view needs the header-authenticated factory, which reads the role
+        // from the request.
+        using var engineerBase = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var engineerFactory = Compose(
+            engineerBase, new FakeGetCase(caseId), full, source, new FakeRenderer([1]));
+        using var engineer = engineerFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
@@ -352,7 +358,9 @@ public sealed partial class AssessmentReportDraftWebTests
             BlockerList(WebUtility.HtmlDecode(await GetHtmlAsync(engineer, $"/Cases/{caseId:D}?section=report"))),
             CaseReportReadiness.SignatoryRequirement);
         Assert.Contains("in Accounts", engineerRow, StringComparison.Ordinal);
-        Assert.DoesNotContain("blocker-actions", engineerRow, StringComparison.Ordinal);
+        Assert.False(
+            engineerRow.Contains("blocker-actions", StringComparison.Ordinal),
+            $"An Engineer's Sign-off blocker links nowhere: {engineerRow}");
 
         var nextAction = NextActionRegex().Match(html);
         Assert.True(nextAction.Success, "The Case aside must state its Next action.");
