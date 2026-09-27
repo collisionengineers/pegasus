@@ -137,10 +137,15 @@ try {
     assert.equal(await evaluate('typeof window.pegasusDirtyEditForm'), 'function', 'The Case page runs the workspace script');
     assertIdle(await state(), 'Case opened');
     for (const press of [1, 2]) {
+        // A marker on the window survives only an in-place swap, never a
+        // navigation, so the step proves the Case re-queried where it stood.
+        await evaluate(`window.__pegasusRefreshStayed = ${press}`);
         const pressed = await evaluate(`${PRESS}; ${STATE}`);
         assert.equal(pressed.label, 'Refreshing', `Case press ${press}: the press was taken`);
         assert.equal(pressed.disabled, true, `Case press ${press}: the button is busy while the Case re-queries`);
-        record(`Case press ${press} returns to idle after the in-place swap`, await waitIdle(`Case press ${press}`));
+        const settled = await waitIdle(`Case press ${press}`);
+        assert.equal(await evaluate('window.__pegasusRefreshStayed'), press, `Case press ${press}: the Case refreshed in place, not by navigating`);
+        record(`Case press ${press} returns to idle after the in-place swap`, settled);
     }
 
     // Edit the Case, mark it dirty with its own values, and press Refresh over
