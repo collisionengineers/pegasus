@@ -2201,6 +2201,13 @@
                         fill(card, '[data-valuation-retail]', answer.retail);
                         fill(card, '[data-valuation-trade]', answer.trade);
                         fill(card, '[data-valuation-entry-month]', answer.guideMonth);
+                        // When this card is already the basis, its new figures
+                        // are the basis figures: re-choosing it runs the same
+                        // fill of the Retail and Trade boxes a card choice does.
+                        var basis = card.querySelector('[data-valuation-basis]');
+                        if (basis && basis.checked) {
+                            basis.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
                         return;
                     }
                     showNotice(notice, true, answer && answer.status === 'refused' ? answer.message : null);
