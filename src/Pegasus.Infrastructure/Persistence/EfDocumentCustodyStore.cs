@@ -1304,6 +1304,22 @@ internal sealed class EfDocumentCustodyStore(
         value.IsLogicallyRemoved,
         value.RemovalReason);
 
+    /// <summary>
+    /// The number the Case's next document takes: one past its highest, and
+    /// never 1, which is the source the Case was created from.
+    /// </summary>
+    internal static async Task<int> NextDocumentOrdinalAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var lastOrdinal = await context.Set<CaseDocumentEntity>()
+            .Where(value => value.CaseId == caseId)
+            .Select(value => (int?)value.Ordinal)
+            .MaxAsync(cancellationToken) ?? 1;
+        return checked(lastOrdinal + 1);
+    }
+
     internal static async Task<PendingDocumentAdd> PrepareAddAsync(
         PegasusDbContext context,
         IDocumentContentStore contentStore,
@@ -1320,15 +1336,11 @@ internal sealed class EfDocumentCustodyStore(
                 cancellationToken);
         if (document is null)
         {
-            var lastOrdinal = await context.Set<CaseDocumentEntity>()
-                .Where(value => value.CaseId == command.CaseId)
-                .Select(value => (int?)value.Ordinal)
-                .MaxAsync(cancellationToken) ?? 1;
             document = new()
             {
                 Id = Guid.NewGuid(),
                 CaseId = command.CaseId,
-                Ordinal = checked(lastOrdinal + 1),
+                Ordinal = await NextDocumentOrdinalAsync(context, command.CaseId, cancellationToken),
                 SourceOccurrenceIdentity = command.SourceOccurrenceIdentity
             };
             context.Add(document);

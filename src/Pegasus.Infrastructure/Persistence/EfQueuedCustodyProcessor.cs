@@ -372,11 +372,10 @@ internal sealed class EfQueuedCustodyProcessor(
     /// Records the files intake put in the case folder as case documents, so
     /// the case can list and open them.
     ///
-    /// The files are already in Box, uploaded by the custody route above, so
-    /// this writes records only — it never sends the content a second time.
-    /// The occurrence ordinal is the ordinal the upload used, and the flat
-    /// Box name is derived from that ordinal at both ends, so a download
-    /// resolves exactly the file that was uploaded.
+    /// The files are already in Box, uploaded by the custody route above or
+    /// moved in by a Vehicle images fold, so this writes records only — it
+    /// never sends the content a second time. A read resolves the file by the
+    /// file and version identity recorded here.
     ///
     /// Idempotent by operation key: custody work can be retried, and a
     /// replay must not produce a second copy of a document that is already
@@ -476,8 +475,9 @@ internal sealed class EfQueuedCustodyProcessor(
 
     /// <summary>
     /// One file this case's intake put in the case folder, and the record it
-    /// needs so the case can show it. The ordinal is the one the upload used,
-    /// because the flat file name is built from it at both ends.
+    /// needs so the case can show it. The ordinal is the Case document's
+    /// number: the one the upload used, or the next free one for a file a
+    /// fold moved in.
     /// </summary>
     private sealed record RetainedCaseFile(
         int Ordinal,
@@ -1188,6 +1188,10 @@ internal sealed class EfQueuedCustodyProcessor(
                 cancellationToken);
             authority.RequireMutable(anyLifecycleState: staffDecision);
             var beforeVersion = authority.Version;
+            // The photographs are Case images from here (operator, 27
+            // September 2026). Filed by this completion, under its version.
+            await RecordFoldedPhotographsAsync(
+                context, intake, authority.Case, work.OperationKey, now, cancellationToken);
             authority.CompleteSystemMutation();
             context.CaseHistory.Add(new()
             {
@@ -1205,6 +1209,63 @@ internal sealed class EfQueuedCustodyProcessor(
         CompleteWork(work, now, intake.CustodyRootRemoteId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Records each photograph the merged record shows as an image document of
+    /// the Case (FRD-19). The fold left each file in the Case folder under the
+    /// file and version identity its asset already carries, so this writes
+    /// records only. Each takes the next Case document number, and its own
+    /// operation key under the fold's, so a replay adds nothing.
+    /// </summary>
+    private static async Task RecordFoldedPhotographsAsync(
+        PegasusDbContext context,
+        ImageIntakeEntity intake,
+        CaseEntity caseEntity,
+        string foldOperationKey,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var photographs = await EfImageIntakeStore.ListPhotographsAsync(
+            context, intake.OriginReceiptId, intake.SubmissionGroupId, cancellationToken);
+        var photographIds = photographs.Select(photograph => photograph.Asset.Id).ToArray();
+        // Only a file the record's folder held was folded, so only that has
+        // a file to record.
+        var stored = await context.IntakeAssets
+            .Where(asset => photographIds.Contains(asset.Id) && asset.BoxFileId != null)
+            .Select(asset => new { asset.Id, asset.BoxFileId, asset.BoxVersionId })
+            .ToDictionaryAsync(asset => asset.Id, cancellationToken);
+        var ordinal = await EfDocumentCustodyStore.NextDocumentOrdinalAsync(
+            context, caseEntity.Id, cancellationToken);
+        var files = new List<RetainedCaseFile>(photographs.Count);
+        foreach (var (_, photograph) in photographs)
+        {
+            if (!stored.TryGetValue(photograph.Id, out var file))
+            {
+                continue;
+            }
+
+            files.Add(new(
+                ordinal++,
+                photograph.FileName,
+                photograph.MediaType,
+                photograph.ContentLength,
+                photograph.ContentHash,
+                DocumentSemanticRole.Image,
+                $"{foldOperationKey}:photograph:{photograph.Id:N}",
+                file.BoxFileId!,
+                file.BoxVersionId,
+                photograph.Id));
+        }
+
+        await RecordRetainedCaseFilesAsync(
+            context,
+            caseEntity.Id,
+            caseEntity.CustodyRootRemoteId
+                ?? throw new InvalidDataException("The Case the record merged into has no evidence folder."),
+            files,
+            now,
+            cancellationToken);
     }
 
     /// <summary>

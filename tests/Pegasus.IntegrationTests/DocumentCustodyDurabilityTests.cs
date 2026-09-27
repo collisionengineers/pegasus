@@ -851,7 +851,7 @@ public sealed class DocumentCustodyDurabilityTests
     }
 
     /// <summary>The Close-up and Overview blockers report readiness names over these preparations.</summary>
-    private static IReadOnlyList<string> ImageBlockers(IReadOnlyList<CaseAssetPreparation> preparations) =>
+    internal static IReadOnlyList<string> ImageBlockers(IReadOnlyList<CaseAssetPreparation> preparations) =>
     [
         .. CaseReportReadiness.Evaluate(new CaseReportReadinessInput(
                 new CaseAssessmentProjection(

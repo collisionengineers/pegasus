@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -911,6 +912,22 @@ public sealed class ImageIntakePersistenceTests
             .Select(item => item.Version)
             .SingleAsync());
         Assert.False(await context.CaseWorkflows.AnyAsync(item => item.CaseId == triage.CaseId));
+
+        // A Triage Case takes the photograph as a Case image the same way
+        // (operator, 27 September 2026), and its Triage version stays put.
+        var filed = Assert.Single(await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == triage.CaseId
+                    && occurrence.SemanticRole == DocumentSemanticRole.Image
+                select new { occurrence.InReport, version.FileName, version.CustodyStatus })
+            .ToListAsync());
+        Assert.Equal("vehicle.png", filed.FileName);
+        Assert.Equal(DocumentCustodyStatus.Confirmed, filed.CustodyStatus);
+        Assert.True(filed.InReport);
+        var forTriage = Assert.Single(await queries.ListForCaseAsync(triage.CaseId, CancellationToken.None));
+        Assert.True(forTriage.PhotographsAreCaseImages);
     }
 
     [Fact]
