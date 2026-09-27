@@ -1,6 +1,6 @@
 # FRD-17: Administration workspace
 
-> Owner capabilities: MI-01 to MI-03, UI-11 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MI-01 to MI-03, UI-11, MAIL-24 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -105,7 +105,7 @@ names the setting and allowed range when a value is refused. There are no
 staff instruction-review or image-review settings. Save submits the workflow
 settings or one card with its rendered expected version; a stale save is
 refused and asks the Administrator to reload. Labour-rate cards stay inside
-this area; there is no tenth area.
+this area; they are not an area of their own.
 
 ### E-mail templates
 
