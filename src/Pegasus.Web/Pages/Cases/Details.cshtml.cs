@@ -2214,22 +2214,8 @@ public sealed partial class DetailsModel(
         }
         finally
         {
-            await ReleaseLeaseQuietlyAsync(id, actor, lease.Token);
-        }
-    }
-
-    /// <summary>Releases the lease this handler claimed for itself; a failed release is logged, never shown.</summary>
-    private async Task ReleaseLeaseQuietlyAsync(Guid id, ActionActor actor, string leaseToken)
-    {
-        try
-        {
-            await releaseLease.ExecuteAsync(
-                new ReleaseCaseEditLeaseRequest(id, actor, NewOperationKey(), leaseToken),
-                CancellationToken.None);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "release_lease", exception);
+            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
+                releaseLease, logger, id, actor, lease);
         }
     }
 

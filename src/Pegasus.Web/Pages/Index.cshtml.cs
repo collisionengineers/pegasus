@@ -677,36 +677,19 @@ public partial class IndexModel(
         }
         catch (StaffAuthorizationException)
         {
-            await ReleaseQuietlyAsync(caseId, actor, lease);
+            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
+                releaseLease, logger, caseId, actor, lease);
             return Forbid();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             LogCommandFailed(logger, commandName, caseId, exception);
-            await ReleaseQuietlyAsync(caseId, actor, lease);
+            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
+                releaseLease, logger, caseId, actor, lease);
             ErrorMessage = Labels.AssignRefused;
         }
 
         return LocalRedirect(SafeReturnUrl(returnUrl));
-    }
-
-    private async Task ReleaseQuietlyAsync(Guid caseId, ActionActor actor, CaseEditLease? lease)
-    {
-        if (lease is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await releaseLease.ExecuteAsync(
-                new ReleaseCaseEditLeaseRequest(caseId, actor, NewOperationKey(), lease.Token),
-                CancellationToken.None);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCommandFailed(logger, "release_lease", caseId, exception);
-        }
     }
 
     private string SafeReturnUrl(string? returnUrl) =>
