@@ -9,7 +9,7 @@
   destination is declared before the upload: nothing is matched or sorted,
   no Unidentified item is made, and the files go straight to the Case's
   Box folder. The operator returns to the Case's Files panel.
-- Limits: 100 MiB per file, 20 files and 200 MiB per request.
+- Limits: 100 MB per file, 20 files and 200 MB per upload.
 - An upload is one submission with one decision. Each file still reports
   its own outcome.
 - A manual upload never creates a Case or attaches to one by itself. Staff
@@ -34,11 +34,13 @@ The authenticated `/Upload` route exists only where durable production
 intake and Case custody exist. A production-local-only store is not accepted
 custody. Without durable custody the route is absent, not offered.
 
-The page is one surface (v30 Upload E, 25 September 2026): the picker on the
-left, with the drop target, **Choose files** and the three limits under it,
-and beside it the selected files, one row each with a thumbnail for an
-image, its name, size and kind, and a remove control. Files chosen or
-dropped in several steps accumulate into one upload; **Clear** empties it.
+The page is one surface (v30 Upload E, 25 September 2026): the picker,
+centred until a file is chosen, then the picker on the left and beside it
+the selected files. The picker holds the drop target, **Choose files** and
+the three limits under it. The selected files are one row each with a
+thumbnail for an image, its name, size and kind, and a remove control. Files
+chosen or dropped in several steps accumulate into one upload; **Clear**
+empties it.
 Before posting, the selection is checked against the same limits the server
 enforces: file count, per-file size, total size, an empty file and an
 unsupported type are each named. **Upload N files** posts the whole
@@ -56,11 +58,10 @@ decided where the files go, so the destination is declared before the
 upload rather than chosen after it:
 
 - The picker shows the declared Case above the files (reference,
-  registration · claimant, Principal, stage) and states that the files go
-  straight to it. The same card states a destination wherever one is
-  stated. No Case is offered to pick. Any Case or Triage Case in any state
-  may be declared; an archived or unknown Case is refused on the page and
-  the picker falls back to an ordinary upload.
+  registration · claimant, Principal, stage). The same card states a
+  destination wherever one is stated. No Case is offered to pick. Any Case
+  or Triage Case in any state may be declared; an archived or unknown Case
+  is refused on the page and the picker falls back to an ordinary upload.
 - The declaration travels with every file of the submission and is read
   again at post. The same upload receipt presented for a different Case is
   refused, like different bytes under one identity.
@@ -89,9 +90,9 @@ link is recorded.
 
 | Setting | Accepted source value |
 | --- | --- |
-| Aggregate file bytes | 209 715 200 (200 MiB) |
-| Multipart request | 200 MiB plus 64 KiB fixed overhead |
-| Per-file bytes | 104 857 600 (100 MiB) |
+| Aggregate file bytes | 200 000 000 (200 MB) |
+| Multipart request | 200 MB plus 64 KiB fixed overhead |
+| Per-file bytes | 100 000 000 (100 MB) |
 | File count | 20 |
 | Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook`, `video/mp4`, `video/quicktime` |
 
