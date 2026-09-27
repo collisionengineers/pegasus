@@ -227,6 +227,16 @@ internal sealed class EfCaseArtifactCustody(
         if (existing is null)
         {
             db.AddRange(document, version, occurrence);
+            if (request.IsAutomaticIntakeEvidencePromotion
+                && request.SemanticRole == DocumentSemanticRole.Image
+                && Guid.TryParseExact(request.OccurrenceIdentity.Trim(), "N", out var intakeAssetId))
+            {
+                // Crop, rotation and tags made on the image before it had a Case
+                // travel with it, and a Third party or Reflection image arrives
+                // out of the report.
+                await EfPreCaseImagePreparationStore.CopyToOccurrenceAsync(
+                    db, intakeAssetId, occurrence, cancellationToken);
+            }
             await db.SaveChangesAsync(cancellationToken);
         }
         else
