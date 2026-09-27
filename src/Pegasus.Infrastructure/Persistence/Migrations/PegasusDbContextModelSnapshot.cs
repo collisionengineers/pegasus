@@ -3286,6 +3286,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("DocumentId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("InReport")
+                        .HasColumnType("bit");
+
                     b.Property<string>("OperationKey")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -3296,10 +3299,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("PreparationFullPage")
                         .HasColumnType("bit");
-
-                    b.Property<string>("PreparationRole")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<long>("PreparationVersion")
                         .HasColumnType("bigint");

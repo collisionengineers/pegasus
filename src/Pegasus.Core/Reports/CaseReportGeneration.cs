@@ -567,19 +567,21 @@ public static class CaseReportReadiness
             input.CurrentEstimate is null || input.CurrentEstimate.Details.HourlyRate > 0m,
             LabourRateMissing);
 
+        // The image tag decides how an image in the report prints (operator,
+        // 26 September 2026), so each blocker asks for a tag.
         var images = CaseAssetPreparationPolicy.ForReport(input.Preparations);
         Require(
-            images.Count(image => image.Role == CaseAssetReportRole.CloseUp) == 1,
+            images.Any(image => image.Role == CaseAssetReportRole.CloseUp),
             new(
                 CloseUpImageRequirement, "Case files",
-                "The report requires exactly one Close-up image.",
-                "Mark one confirmed Case image as the Close-up on the Files section."));
+                "The report prints one Close-up image and no image in the report is tagged Close-up.",
+                "Tag one Case image Close-up on the Files section."));
         Require(
-            images.Count(image => image.Role == CaseAssetReportRole.Overview) == 1,
+            images.Any(image => image.Role == CaseAssetReportRole.Overview),
             new(
                 OverviewImageRequirement, "Case files",
-                "The report requires exactly one Overview image.",
-                "Mark one confirmed Case image as the Overview on the Files section."));
+                "The report prints one Overview image and no image in the report is tagged Overview.",
+                "Tag one Case image Overview on the Files section."));
         Require(
             images.All(image => MatchesConfirmedSource(image, input.ConfirmedImageSources)),
             new(

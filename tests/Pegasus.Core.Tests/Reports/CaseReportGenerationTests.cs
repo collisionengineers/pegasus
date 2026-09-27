@@ -187,7 +187,28 @@ public sealed class CaseReportGenerationTests
             Preparations = [Preparation(CloseUpOccurrence, CaseAssetReportRole.CloseUp)],
         });
 
-        AssertBlocked(result, CaseReportReadiness.OverviewImageRequirement);
+        var reason = AssertBlocked(result, CaseReportReadiness.OverviewImageRequirement);
+        Assert.Equal("Tag one Case image Overview on the Files section.", reason.HowToResolve);
+    }
+
+    /// <summary>
+    /// An image out of the report never prints, so its Overview tag clears
+    /// nothing until it is put back in (operator, 26 September 2026).
+    /// </summary>
+    [Fact]
+    public void AnOverviewTaggedImageOutOfTheReportLeavesTheBlocker()
+    {
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with
+        {
+            Preparations =
+            [
+                Preparation(CloseUpOccurrence, CaseAssetReportRole.CloseUp),
+                Preparation(OverviewOccurrence, CaseAssetReportRole.Overview) with { InReport = false },
+            ],
+        });
+
+        var reason = AssertBlocked(result, CaseReportReadiness.OverviewImageRequirement);
+        Assert.Contains("tagged Overview", reason.WhyOutstanding, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -820,10 +841,14 @@ public sealed class CaseReportGenerationTests
     private static RepairSpecificationVersion Estimate() =>
         AssessmentReportProjectionTests.ReadyCurrentEstimate();
 
+    /// <summary>An image in the report wearing the tag that prints it as <paramref name="role"/>.</summary>
     private static CaseAssetPreparation Preparation(Guid occurrenceId, CaseAssetReportRole role) => new(
         CaseId, occurrenceId, DocumentIdOf(occurrenceId), VersionIdOf(occurrenceId), 1,
-        Sha256Of([(byte)role]), "image/png", role, null, CaseAssetRotation.None,
-        CaseAssetCrop.Full, 1, "engineer-1", RecordedAtUtc);
+        Sha256Of([(byte)role]), "image/png", true, null, CaseAssetRotation.None,
+        CaseAssetCrop.Full, 1, "engineer-1", RecordedAtUtc)
+    {
+        TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId]
+    };
 
     private static DocumentVersion Version(Guid occurrenceId) => new(
         VersionIdOf(occurrenceId), DocumentIdOf(occurrenceId), 1, "photo.png", "image/png", 8,

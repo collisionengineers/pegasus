@@ -2496,17 +2496,26 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     SourceOccurrenceIdentity = $"photo:{ordinal}",
                     RecordedAtUtc = StartUtc,
                     OperationKey = $"seed-photo:{ordinal}",
-                    PreparationRole = ordinal switch
-                    {
-                        1 => nameof(CaseAssetReportRole.CloseUp),
-                        2 => nameof(CaseAssetReportRole.Overview),
-                        _ => nameof(CaseAssetReportRole.Supporting)
-                    },
-                    SupportingOrder = ordinal > 2 ? ordinal - 2 : null,
+                    InReport = true,
+                    SupportingOrder = ordinal,
                     PreparationVersion = 1,
                     PreparedBy = "Staff:test",
                     PreparedAtUtc = StartUtc
                 });
+            // The tag decides how an image prints: the first is the Close-up,
+            // the second the Overview, the rest Supporting.
+            if (ordinal <= 2)
+            {
+                context.Add(new DocumentOccurrenceTagEntity
+                {
+                    OccurrenceId = occurrenceId,
+                    TagId = ordinal == 1 ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId,
+                    AppliedByKind = nameof(ActorKind.Staff),
+                    AppliedBySubjectId = "test",
+                    AppliedAtUtc = StartUtc,
+                    OperationKey = $"seed-photo-tag:{ordinal}"
+                });
+            }
         }
         await context.SaveChangesAsync();
     }

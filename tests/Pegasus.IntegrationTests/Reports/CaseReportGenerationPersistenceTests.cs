@@ -1912,7 +1912,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     SourceOccurrenceIdentity = $"report-fixture:{occurrenceId:N}",
                     RecordedAtUtc = StartUtc,
                     OperationKey = $"seed:{occurrenceId:N}",
-                    PreparationRole = nameof(CaseAssetReportRole.NotUsed)
+                    InReport = false
                 });
             await context.SaveChangesAsync();
             return new(documentId, versionId, sha256, content) { OccurrenceId = occurrenceId };
@@ -2151,8 +2151,11 @@ public sealed class CaseReportGenerationPersistenceTests
         private CaseAssetPreparation Preparation(
             Harness.SeededDocument document, CaseAssetReportRole role) => new(
                 caseId, document.OccurrenceId, document.DocumentId, document.VersionId, 1,
-                document.Sha256, "image/png", role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
-                1, "engineer-1", RecordedAtUtc, role == CaseAssetReportRole.CloseUp);
+                document.Sha256, "image/png", true, null, CaseAssetRotation.None, CaseAssetCrop.Full,
+                1, "engineer-1", RecordedAtUtc, role == CaseAssetReportRole.CloseUp)
+            {
+                TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId]
+            };
 
     }
 

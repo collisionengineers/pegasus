@@ -16,47 +16,43 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseAssetPreparationPersistenceTests
 {
+    /// <summary>
+    /// A new image is in the report (operator, 26 September 2026); the Case
+    /// save records its order, rotation and crop without touching its bytes.
+    /// </summary>
     [Fact]
-    public async Task SavingAssignsRolesOrderRotationAndCropWithoutTouchingBytes()
+    public async Task SavingRecordsOrderRotationAndCropWithoutTouchingBytes()
     {
         await using var harness = await Harness.CreateAsync();
-        var closeUp = await harness.SeedImageAsync(new string('a', 64));
-        var overview = await harness.SeedImageAsync(new string('b', 64));
-        var supporting = await harness.SeedImageAsync(new string('c', 64));
+        var first = await harness.SeedImageAsync(new string('a', 64));
+        var second = await harness.SeedImageAsync(new string('b', 64));
+        var third = await harness.SeedImageAsync(new string('c', 64));
         var lease = await harness.AcquireLeaseAsync();
 
         await harness.SavePreparationAsync(
             lease,
             "save-1",
             [
-                new(closeUp.OccurrenceId, 0, CaseAssetReportRole.CloseUp, null, CaseAssetRotation.None, CaseAssetCrop.Full),
-                new(overview.OccurrenceId, 0, CaseAssetReportRole.Overview, null, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full),
-                new(
-                    supporting.OccurrenceId,
-                    0,
-                    CaseAssetReportRole.Supporting,
-                    1,
-                    CaseAssetRotation.None,
-                    new(0.1m, 0.1m, 0.5m, 0.5m))
+                new(first.OccurrenceId, 0, 1, CaseAssetRotation.None, CaseAssetCrop.Full),
+                new(second.OccurrenceId, 0, 2, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full),
+                new(third.OccurrenceId, 0, 3, CaseAssetRotation.None, new(0.1m, 0.1m, 0.5m, 0.5m))
             ]);
 
         var result = await harness.Store.ListForCaseAsync(harness.CaseId, CancellationToken.None);
         Assert.Equal(3, result.Count);
-        Assert.Equal(CaseAssetReportRole.CloseUp, result.Single(item => item.OccurrenceId == closeUp.OccurrenceId).Role);
-        var overviewResult = result.Single(item => item.OccurrenceId == overview.OccurrenceId);
-        Assert.Equal(CaseAssetReportRole.Overview, overviewResult.Role);
-        Assert.Equal(CaseAssetRotation.Clockwise90, overviewResult.Rotation);
-        var supportingResult = result.Single(item => item.OccurrenceId == supporting.OccurrenceId);
-        Assert.Equal(CaseAssetReportRole.Supporting, supportingResult.Role);
-        Assert.Equal(1, supportingResult.Order);
-        Assert.Equal(new CaseAssetCrop(0.1m, 0.1m, 0.5m, 0.5m), supportingResult.Crop);
+        Assert.All(result, item => Assert.True(item.InReport));
+        Assert.Equal(
+            [first.OccurrenceId, second.OccurrenceId, third.OccurrenceId],
+            result.OrderBy(item => item.Order).Select(item => item.OccurrenceId).ToArray());
+        Assert.Equal(CaseAssetRotation.Clockwise90, result.Single(item => item.OccurrenceId == second.OccurrenceId).Rotation);
+        Assert.Equal(new CaseAssetCrop(0.1m, 0.1m, 0.5m, 0.5m), result.Single(item => item.OccurrenceId == third.OccurrenceId).Crop);
 
         Assert.Equal(harness.CaseVersion + 1, await harness.CurrentCaseVersionAsync());
 
         // Bytes/hash are never touched by preparation.
-        Assert.Equal(new string('a', 64), await harness.SourceSha256Async(closeUp.VersionId));
-        Assert.Equal(new string('b', 64), await harness.SourceSha256Async(overview.VersionId));
-        Assert.Equal(new string('c', 64), await harness.SourceSha256Async(supporting.VersionId));
+        Assert.Equal(new string('a', 64), await harness.SourceSha256Async(first.VersionId));
+        Assert.Equal(new string('b', 64), await harness.SourceSha256Async(second.VersionId));
+        Assert.Equal(new string('c', 64), await harness.SourceSha256Async(third.VersionId));
 
         Assert.Equal(1, await harness.WorkflowEventCountAsync("case_workspace_saved"));
         Assert.Equal(1, await harness.ActionHistoryCountAsync("case_workspace_saved"));
@@ -79,7 +75,6 @@ public sealed class CaseAssetPreparationPersistenceTests
             [new(
                 wanted.OccurrenceId,
                 0,
-                CaseAssetReportRole.Overview,
                 null,
                 CaseAssetRotation.Clockwise90,
                 crop)]);
@@ -112,7 +107,7 @@ public sealed class CaseAssetPreparationPersistenceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => harness.SavePreparationAsync(
             lease,
             "save-cross-case",
-            [new(foreignAsset.OccurrenceId, 0, CaseAssetReportRole.CloseUp, null, CaseAssetRotation.None, CaseAssetCrop.Full)]));
+            [new(foreignAsset.OccurrenceId, 0, null, CaseAssetRotation.None, CaseAssetCrop.Full)]));
 
         Assert.Equal(harness.CaseVersion, await harness.CurrentCaseVersionAsync());
     }
@@ -128,10 +123,10 @@ public sealed class CaseAssetPreparationPersistenceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => harness.SavePreparationAsync(
             lease,
             "save-stale-source",
-            [new(asset.OccurrenceId, 0, CaseAssetReportRole.Overview, null, CaseAssetRotation.None, CaseAssetCrop.Full)]));
+            [new(asset.OccurrenceId, 0, null, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full)]));
 
         Assert.Equal(harness.CaseVersion, await harness.CurrentCaseVersionAsync());
-        Assert.Equal(CaseAssetReportRole.NotUsed, (await harness.OccurrenceRowAsync(asset.OccurrenceId)).Role);
+        Assert.Equal(0, (await harness.OccurrenceRowAsync(asset.OccurrenceId)).PreparationVersion);
         // The superseded version's own bytes/hash are untouched by the rejection.
         Assert.Equal(new string('k', 64), await harness.SourceSha256Async(asset.VersionId));
     }
@@ -149,7 +144,7 @@ public sealed class CaseAssetPreparationPersistenceTests
         await harness.SavePreparationAsync(
             initialLease,
             "save-setup",
-            [new(first.OccurrenceId, 0, CaseAssetReportRole.Supporting, 1, CaseAssetRotation.None, CaseAssetCrop.Full)]);
+            [new(first.OccurrenceId, 0, 1, CaseAssetRotation.None, CaseAssetCrop.Full)]);
         var caseVersionAfterSetup = await harness.CurrentCaseVersionAsync();
         var preparedFirstRow = await harness.OccurrenceRowAsync(first.OccurrenceId);
         Assert.Equal(1, preparedFirstRow.PreparationVersion);
@@ -164,15 +159,15 @@ public sealed class CaseAssetPreparationPersistenceTests
             lease,
             "save-partial-failure",
             [
-                new(first.OccurrenceId, 1, CaseAssetReportRole.Supporting, 2, CaseAssetRotation.None, CaseAssetCrop.Full),
-                new(second.OccurrenceId, 99, CaseAssetReportRole.CloseUp, null, CaseAssetRotation.None, CaseAssetCrop.Full)
+                new(first.OccurrenceId, 1, 2, CaseAssetRotation.None, CaseAssetCrop.Full),
+                new(second.OccurrenceId, 99, 1, CaseAssetRotation.Half, CaseAssetCrop.Full)
             ]));
 
         Assert.Equal(caseVersionAfterSetup, await harness.CurrentCaseVersionAsync());
         var unchangedFirstRow = await harness.OccurrenceRowAsync(first.OccurrenceId);
         Assert.Equal(1, unchangedFirstRow.PreparationVersion);
         Assert.Equal(1, unchangedFirstRow.Order);
-        Assert.Equal(CaseAssetReportRole.NotUsed, (await harness.OccurrenceRowAsync(second.OccurrenceId)).Role);
+        Assert.Equal(0, (await harness.OccurrenceRowAsync(second.OccurrenceId)).PreparationVersion);
     }
 
     [Theory]
@@ -191,14 +186,13 @@ public sealed class CaseAssetPreparationPersistenceTests
             [new(
                 asset.OccurrenceId,
                 0,
-                CaseAssetReportRole.Overview,
                 null,
                 CaseAssetRotation.Half,
                 preparedCrop)]);
         var caseVersionAfterPreparation = await harness.CurrentCaseVersionAsync();
         var initiallyPrepared = Assert.Single(
             await harness.Store.ListForCaseAsync(harness.CaseId, CancellationToken.None));
-        Assert.Equal(CaseAssetReportRole.Overview, initiallyPrepared.Role);
+        Assert.True(initiallyPrepared.InReport);
         Assert.Equal(CaseAssetRotation.Half, initiallyPrepared.Rotation);
         Assert.Equal(preparedCrop, initiallyPrepared.Crop);
 
@@ -217,7 +211,6 @@ public sealed class CaseAssetPreparationPersistenceTests
             [new(
                 asset.OccurrenceId,
                 initiallyPrepared.PreparationVersion,
-                CaseAssetReportRole.CloseUp,
                 null,
                 CaseAssetRotation.Clockwise90,
                 CaseAssetCrop.Full)]));
@@ -226,7 +219,6 @@ public sealed class CaseAssetPreparationPersistenceTests
         Assert.Equal(caseVersionAfterPreparation, await harness.CurrentCaseVersionAsync());
         var stillPrepared = Assert.Single(
             await harness.Store.ListForCaseAsync(harness.CaseId, CancellationToken.None));
-        Assert.Equal(CaseAssetReportRole.Overview, stillPrepared.Role);
         Assert.Equal(CaseAssetRotation.Half, stillPrepared.Rotation);
         Assert.Equal(preparedCrop, stillPrepared.Crop);
         Assert.Equal(initiallyPrepared.PreparationVersion, stillPrepared.PreparationVersion);
@@ -264,7 +256,7 @@ public sealed class CaseAssetPreparationPersistenceTests
 
     private sealed record ImageSeed(Guid OccurrenceId, Guid DocumentId, Guid VersionId);
 
-    private sealed record OccurrenceRow(CaseAssetReportRole Role, int? Order, long PreparationVersion);
+    private sealed record OccurrenceRow(bool InReport, int? Order, long PreparationVersion);
 
     /// <summary>
     /// An accepted Case with its typed data snapshot, which the workspace save
@@ -383,8 +375,7 @@ public sealed class CaseAssetPreparationPersistenceTests
                     Source = DocumentSource.StaffUpload,
                     SourceOccurrenceIdentity = $"test-image:{occurrenceId:N}",
                     RecordedAtUtc = StartUtc,
-                    OperationKey = $"seed-image:{occurrenceId:N}",
-                    PreparationRole = nameof(CaseAssetReportRole.NotUsed)
+                    OperationKey = $"seed-image:{occurrenceId:N}"
                 });
             await context.SaveChangesAsync();
             return new(occurrenceId, documentId, versionId);
@@ -440,10 +431,7 @@ public sealed class CaseAssetPreparationPersistenceTests
             await using var context = await Factory.CreateDbContextAsync();
             var occurrence = await context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 .SingleAsync(item => item.Id == occurrenceId);
-            var role = occurrence.PreparationRole is null
-                ? CaseAssetReportRole.NotUsed
-                : Enum.Parse<CaseAssetReportRole>(occurrence.PreparationRole);
-            return new(role, occurrence.SupportingOrder, occurrence.PreparationVersion);
+            return new(occurrence.InReport, occurrence.SupportingOrder, occurrence.PreparationVersion);
         }
 
         public async Task<int> WorkflowEventCountAsync(string eventType)

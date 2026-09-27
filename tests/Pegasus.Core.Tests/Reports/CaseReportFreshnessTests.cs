@@ -363,7 +363,7 @@ public sealed class CaseReportFreshnessTests
             1,
             new string('a', 64),
             "image/jpeg",
-            CaseAssetReportRole.CloseUp,
+            true,
             null,
             rotation,
             CaseAssetCrop.Full,
