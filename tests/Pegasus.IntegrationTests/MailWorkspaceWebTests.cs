@@ -1286,6 +1286,9 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Attachment content: proof.pdf (attachment 1)", firstPage, StringComparison.Ordinal);
         Assert.Contains("checked the 100 newest Deleted Items", firstPage, StringComparison.Ordinal);
         Assert.Contains("pageNumber=2", firstPage, StringComparison.Ordinal);
+        // Deleted Items rows have no link to take focus, so the pane is not a
+        // row list: the arrow keys scroll it.
+        Assert.DoesNotContain("data-row-list", firstPage, StringComparison.Ordinal);
 
         var secondPage = await GetHtmlAsync(
             client,
