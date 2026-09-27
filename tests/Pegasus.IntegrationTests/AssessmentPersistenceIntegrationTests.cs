@@ -98,6 +98,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(1, contentStore.BatchReadCount);
         Assert.Equal(0, contentStore.SingleReadCount);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
+        // Box reads an exact file and version, so the preview's read names
+        // both: without them no image in the report can be read from Box.
+        Assert.All(contentStore.Reads, read =>
+        {
+            Assert.StartsWith("box-file-", read.Address.BoxFileId, StringComparison.Ordinal);
+            Assert.StartsWith("box-version-", read.Address.BoxVersionId, StringComparison.Ordinal);
+        });
         var projected = AssessmentReportProjection.Project(
             input with { ReportDate = new DateOnly(2026, 8, 19) });
         Assert.False(projected.IsReady);
@@ -2480,6 +2487,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     Sha256 = Convert.ToHexStringLower(
                         SHA256.HashData([(byte)ordinal])),
                     CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    BoxFileId = $"box-file-{ordinal}",
+                    BoxVersionId = $"box-version-{ordinal}",
                     CreatedAtUtc = StartUtc,
                     CreatedBy = "Staff:test",
                     IsCurrent = true
