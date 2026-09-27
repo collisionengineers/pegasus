@@ -163,19 +163,19 @@ public sealed class AddTriageNote(ITriageStore store) : IAddTriageNote
 
 public sealed class UnassignTriage(ITriageStore store) : IUnassignTriage
 {
-    /// <summary>Removing the assignee needs no reason; the history line is fixed.</summary>
+    /// <summary>The fixed history text: removing the assignee needs no reason.</summary>
     public const string Reason = "Unassigned.";
 
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
     public async Task<TriageRecord> ExecuteAsync(
-        TriageMutationRequest request,
+        TriageTransitionRequest request,
         CancellationToken cancellationToken)
     {
-        TriageLifecycleRules.ValidateMutation(request);
+        var mutation = TriageLifecycleRules.ToMutation(request, Reason);
         var current = await TriageLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
         TriageLifecycleRules.RequireMutable(current.Record, "unassign");
-        return await _store.UnassignAsync(request, cancellationToken);
+        return await _store.UnassignAsync(mutation, cancellationToken);
     }
 }
 
@@ -455,8 +455,8 @@ public static class TriageLifecycleRules
     }
 
     /// <summary>
-    /// A reasonless transition as the store records it: the same mutation
-    /// every state change writes, with the command's fixed history text.
+    /// A reasonless change as the store records it: the same mutation every
+    /// state change writes, with the command's fixed history text.
     /// </summary>
     public static TriageMutationRequest ToMutation(TriageTransitionRequest request, string reason)
     {
