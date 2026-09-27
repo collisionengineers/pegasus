@@ -494,21 +494,22 @@ public sealed class AssessmentReportProjectionTests
     }
 
     /// <summary>
-    /// The active total-loss template has accepted wording for Category S
-    /// only, so another category is named before projection instead of being
-    /// refused at render after a generation is written.
+    /// The report prints the recorded category's accepted wording (operator,
+    /// 26 September 2026), so a total loss projects whichever category is
+    /// recorded, N/A included.
     /// </summary>
-    [Fact]
-    public void AnUnprintableSalvageCategoryIsNotReady()
+    [Theory]
+    [InlineData("A")]
+    [InlineData("B")]
+    [InlineData("S")]
+    [InlineData("N")]
+    [InlineData("N/A")]
+    public void ATotalLossProjectsItsRecordedCategory(string category)
     {
-        var reason = AssertNotReady(
-            AssessmentReportProjection.Project(TotalLossInput("N")),
-            "Salvage category");
-        Assert.Equal(AssessmentVocabulary.SalvageCategory, reason.Field);
+        var result = AssessmentReportProjection.Project(TotalLossInput(category));
 
-        var printable = AssessmentReportProjection.Project(TotalLossInput("S"));
-        Assert.True(printable.IsReady);
-        Assert.Equal("S", printable.Snapshot!.SalvageCategory);
+        Assert.True(result.IsReady);
+        Assert.Equal(category, result.Snapshot!.SalvageCategory);
     }
 
     [Fact]

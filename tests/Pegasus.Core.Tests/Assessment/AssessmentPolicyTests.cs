@@ -968,27 +968,26 @@ public sealed class AssessmentPolicyTests
     }
 
     /// <summary>
-    /// The active total-loss template has accepted wording for Category S
-    /// only (operator, 24 September 2026), so any other category is named
-    /// before a report is projected rather than refused at render.
+    /// The report prints the recorded category's accepted wording (operator,
+    /// 26 September 2026), so readiness names the salvage category only when
+    /// a total loss has none recorded.
     /// </summary>
     [Theory]
     [InlineData("A")]
     [InlineData("B")]
+    [InlineData("S")]
     [InlineData("N")]
     [InlineData("N/A")]
-    public void ATotalLossPrintsOnlyCategoryS(string category)
+    public void ARecordedSalvageCategoryIsNotNamed(string category)
     {
-        var readiness = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(TotalLoss(category)));
-
-        var salvage = Assert.Single(readiness, item => item.Requirement == "Salvage category");
-        Assert.Contains("Category S", salvage.WhyOutstanding, StringComparison.Ordinal);
-        Assert.Contains($"Category {category}", salvage.WhyOutstanding, StringComparison.Ordinal);
-        Assert.Equal(AssessmentVocabulary.SalvageCategory, salvage.Field);
-
         Assert.DoesNotContain(
-            AssessmentPolicy.EvaluatePostReviewReadiness(Projection(TotalLoss("S"))),
+            AssessmentPolicy.EvaluatePostReviewReadiness(Projection(TotalLoss(category))),
             item => item.Requirement == "Salvage category");
+
+        var unrecorded = AssessmentPolicy.EvaluatePostReviewReadiness(
+            Projection([Field(AssessmentVocabulary.Outcome, "total_loss")]));
+        var salvage = Assert.Single(unrecorded, item => item.Requirement == "Salvage category");
+        Assert.Equal(AssessmentVocabulary.SalvageCategory, salvage.Field);
     }
 
     [Fact]
