@@ -1212,7 +1212,7 @@ public sealed class CaseEditModeWebTests
         var release = Assert.Single(store.LeaseReleases);
         Assert.Equal(store.LeaseToken, release.LeaseToken);
         Assert.Null(store.LeaseHolder);
-        Assert.DoesNotContain("name=\"editLeaseToken\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-editing=\"true\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
 
     /// <summary>
