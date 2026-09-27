@@ -609,7 +609,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// transient fault have different recovery paths and the latter supplies no evidence of a
     /// competing staff member.
     /// </summary>
-    private static string ClaimLeaseFailureMessage(Exception exception) => exception switch
+    protected static string ClaimLeaseFailureMessage(Exception exception) => exception switch
     {
         CaseEditLeaseConflictException =>
             "Someone else is editing this case. Reload to see who is editing it.",
