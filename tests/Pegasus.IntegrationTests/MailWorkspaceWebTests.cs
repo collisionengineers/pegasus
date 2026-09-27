@@ -1025,6 +1025,31 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains(">Triage</span>", MailRow(html, messageId), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The full message agrees with itself: a message that opened a Triage and
+    /// is linked to no Case shows that Triage on its Case tab, with its t.
+    /// reference and Open Triage, and Link to Case stays available because
+    /// linking to an instruction Case is a separate act.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseTabShowsTheTriageTheMessageOpened()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.NeedsSorting);
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var triageCaseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, receiptId, "t.QDOS31010");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var caseTab = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=case");
+
+        Assert.Contains("<h2 class=\"decision-head\">Triage</h2>", caseTab, StringComparison.Ordinal);
+        Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31010</a>", caseTab, StringComparison.Ordinal);
+        Assert.Contains("<span>Open Triage</span>", caseTab, StringComparison.Ordinal);
+        Assert.DoesNotContain("Linked case", caseTab, StringComparison.Ordinal);
+        Assert.Contains("association-case-query", caseTab, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task CompoundOutcomeLabelsStayExactAndGreenInRowsAndSelectedPreview()
     {

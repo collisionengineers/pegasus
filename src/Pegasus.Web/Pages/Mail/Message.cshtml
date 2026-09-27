@@ -623,7 +623,7 @@
                             <div class="button-row section-gap">
                                 <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@currentDestination.CaseId">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
-                                    <span>Open Case</span>
+                                    <span>@(currentDestination.IsTriageCase ? OperatorLabels.Inbox.OpenTriage : OperatorLabels.Inbox.OpenCase)</span>
                                 </a>
                                 @if (Model.AssociationLeaseCaseId == currentDestination.CaseId
                                     && Model.AssociationLeaseMessageId == summary.Id
@@ -722,6 +722,25 @@
                 }
                 else
                 {
+                    @* The Triage the message opened is its Case until staff link it
+                       to an instruction Case, which stays a separate act below. *@
+                    if (summary.IsTriageCase && summary.CaseId is { } openedTriageId)
+                    {
+                        <section class="decision-card">
+                            <h2 class="decision-head">@OperatorLabels.Inbox.Triage</h2>
+                            <div class="decision-body">
+                                <div class="definition-list">
+                                    <dl class="definition"><dt>Case/PO</dt><dd><a asp-page="/Cases/Details" asp-route-id="@openedTriageId">@summary.CaseReference</a></dd></dl>
+                                </div>
+                                <div class="button-row section-gap">
+                                    <a class="btn" asp-page="/Cases/Details" asp-route-id="@openedTriageId">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
+                                        <span>@OperatorLabels.Inbox.OpenTriage</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </section>
+                    }
                     <form method="get" class="filter-bar">
                         <input type="hidden" name="id" value="@summary.Id" />
                         <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />

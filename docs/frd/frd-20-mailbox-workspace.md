@@ -81,7 +81,9 @@ classification, association, read state, Case state or custody.
 Opening a message keeps the list's filter and position. The record shows the
 full retained message, its attachments and a chronological thread, and
 states the current classification, queue, processing outcome and Case
-association before any action is offered.
+association before any action is offered. When a message opened a Triage
+and is linked to no Case, its Case tab shows that Triage and still offers
+Link to Case.
 
 The thread shows only retained messages in the same approved mailbox and
 folder scope. A matching thread identity never fetches or reveals other
