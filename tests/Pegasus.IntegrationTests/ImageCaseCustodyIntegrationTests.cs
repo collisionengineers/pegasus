@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -731,6 +732,89 @@ public sealed class ImageCaseCustodyIntegrationTests
         Assert.Equal(caseRootRemoteId, assets[photographIds[0]].BoxParentFolderId);
         Assert.Equal("holding-folder", assets[photographIds[1]].BoxParentFolderId);
         Assert.Equal("holding-file", assets[photographIds[1]].BoxFileId);
+    }
+
+    /// <summary>
+    /// On the fold path a photograph tagged Third party on the record arrives
+    /// out of the report, the Case's current report is marked stale, and the
+    /// report preview reads the photograph that is in the report from where
+    /// the fold left it.
+    /// </summary>
+    [Fact]
+    public async Task AFoldedPhotographKeepsItsTagStalesTheReportAndIsReadByThePreview()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var photographIds = await PhotographIdsAsync(services, memberReceiptIds);
+        await processor.ExecuteAsync(
+            await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
+            CancellationToken.None);
+        await services.GetRequiredService<ITagPreCaseImage>().ExecuteAsync(
+            new(
+                photographIds[0],
+                ImageTagVocabulary.ThirdPartyId,
+                true,
+                StaffActor(),
+                $"record-third-party:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+
+        var (caseId, _) = await SeedCaseWithFolderAsync(services, memberReceiptIds[0], "IMG26006");
+        var generationId = Guid.NewGuid();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            context.Set<CaseReportGenerationEntity>().Add(new()
+            {
+                Id = generationId,
+                CaseId = caseId,
+                WorkId = caseId,
+                CaseVersion = 0,
+                SnapshotHash = new string('6', 64),
+                SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "fold-stales-the-report"),
+                TemplateVersion = "assessment-report/v1",
+                RendererVersion = "renderer/v1",
+                State = nameof(CaseReportGenerationState.Confirmed),
+                GeneratedAtUtc = services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                Version = 1,
+            });
+            await context.SaveChangesAsync();
+        }
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+
+        Guid inReportOccurrenceId;
+        await using (var after = await contextFactory.CreateDbContextAsync())
+        {
+            var images = await after.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                .Where(item => item.CaseId == caseId)
+                .OrderBy(item => item.Ordinal)
+                .ToListAsync();
+            Assert.Equal(2, images.Count);
+            Assert.False(images[0].InReport);
+            Assert.True(images[1].InReport);
+            inReportOccurrenceId = images[1].Id;
+            var imageIds = images.Select(image => image.Id).ToArray();
+            var tag = Assert.Single(await after.Set<DocumentOccurrenceTagEntity>().AsNoTracking()
+                .Where(item => imageIds.Contains(item.OccurrenceId))
+                .ToListAsync());
+            Assert.Equal(images[0].Id, tag.OccurrenceId);
+            Assert.Equal(ImageTagVocabulary.ThirdPartyId, tag.TagId);
+            Assert.Equal(
+                nameof(CaseReportGenerationState.Stale),
+                (await after.Set<CaseReportGenerationEntity>().AsNoTracking()
+                    .SingleAsync(item => item.Id == generationId)).State);
+        }
+
+        var preview = await services.GetRequiredService<IAssessmentReportProjectionSource>()
+            .GetAsync(caseId, StaffActor(), CaseWorkSelector.Current);
+        var photograph = Assert.Single(preview!.Photos);
+        Assert.Equal(inReportOccurrenceId, photograph.OccurrenceId);
+        Assert.Equal(PngBytes, photograph.Content);
     }
 
     /// <summary>
