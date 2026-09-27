@@ -25,6 +25,8 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class ImageCaseCustodyIntegrationTests
 {
+    private static readonly byte[] PngBytes = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+
     private static ActionActor StaffActor() => ActionActor.Staff(
         DevelopmentOfflineIdentity.AdministratorId,
         [StaffRole.Administrator]);
@@ -576,6 +578,53 @@ public sealed class ImageCaseCustodyIntegrationTests
             CancellationToken.None);
         Assert.Empty(DocumentCustodyDurabilityTests.ImageBlockers(
             await preparations.ListForCaseAsync(caseId, CancellationToken.None)));
+    }
+
+    /// <summary>
+    /// Two filings can take the same next Case document number. The one that
+    /// loses has already moved its files, so its failure is one the image
+    /// custody retry policy re-arms. Any other duplicate stays unclassified.
+    /// </summary>
+    [Fact]
+    public async Task ADocumentNumberTakenByAnotherFilingIsRetried()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receiptId = IntakeWebDriver.ReceiptId(await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, "vehicle.png", "image/png", PngBytes, Guid.NewGuid().ToString("N")));
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var caseId = await SeedCaseAsync(services, receiptId, "IMG26007");
+
+        var numberTaken = await Assert.ThrowsAsync<DbUpdateException>(
+            () => AddDocumentsAsync(("first", 2), ("second", 2)));
+        var code = EfQueuedCustodyProcessor.GetFailureCode(numberTaken);
+        Assert.Equal("custody_dependency_failure", code);
+        Assert.NotNull(ImageCustodyRetryPolicy.NextAttemptDelay(1, code));
+
+        var otherDuplicate = await Assert.ThrowsAsync<DbUpdateException>(
+            () => AddDocumentsAsync(("same", 3), ("same", 4)));
+        Assert.Equal(
+            "custody_unexpected_failure:DbUpdateException",
+            EfQueuedCustodyProcessor.GetFailureCode(otherDuplicate));
+
+        async Task AddDocumentsAsync(params (string Identity, int Ordinal)[] documents)
+        {
+            await using var context = await contextFactory.CreateDbContextAsync();
+            foreach (var (identity, ordinal) in documents)
+            {
+                context.Add(new CaseDocumentEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = caseId,
+                    Ordinal = ordinal,
+                    SourceOccurrenceIdentity = identity
+                });
+            }
+            await context.SaveChangesAsync();
+        }
     }
 
     [Fact]
