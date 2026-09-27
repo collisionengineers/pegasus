@@ -84,17 +84,12 @@ public sealed class ReportRequirementOwnershipTests
             {
                 writers.Add("the damage derivation");
             }
-            // The Case Save's valuation adoption records these.
-            if (AssessmentVocabulary.AdoptedFindingPaths.Contains(path))
-            {
-                writers.Add("the valuation adoption");
-            }
             // The DVLA/DVSA lookup records these.
             if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
             {
                 writers.Add("the vehicle lookup");
             }
-            // None is the #834 defect; two means an adopted or derived path
+            // None is the #834 defect; two means a derived or lookup path
             // leaked into an editor.
             if (writers.Count != 1)
             {
@@ -256,7 +251,6 @@ public sealed class ReportRequirementOwnershipTests
         {
             Assert.Contains(path, AssessmentVocabulary.Definitions);
             Assert.DoesNotContain(path, AssessmentVocabulary.DerivedPaths);
-            Assert.DoesNotContain(path, AssessmentVocabulary.AdoptedFindingPaths);
             Assert.DoesNotContain(path, AssessmentVocabulary.CaseOwnedPaths);
             Assert.False(CaseWorkspaceLabels.Editors.HasStaffEditor(path));
             // MCP lets the path through, so Core's field save names the refusal.
@@ -344,7 +338,7 @@ public sealed class ReportRequirementOwnershipTests
 
     /// <summary>
     /// Report readiness over <paramref name="assessment"/> with nothing else
-    /// recorded: no sign-off account, Current repair spec, adopted valuation
+    /// recorded: no sign-off account, Current repair spec, applied valuation
     /// or report image.
     /// </summary>
     private static CaseReportReadinessInput NothingElseRecorded(CaseAssessmentProjection assessment) => new(

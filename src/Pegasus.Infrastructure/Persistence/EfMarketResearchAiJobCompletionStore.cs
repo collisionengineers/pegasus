@@ -125,7 +125,6 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
                 completionHash,
                 valuation,
                 before,
-                engineersValue: null,
                 now);
 
             // The findings file is evidence in Files wearing the built-in Market

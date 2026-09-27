@@ -82,26 +82,22 @@ public sealed class CaseWorkspaceTests
     [InlineData(AssessmentVocabulary.ValueEngineer)]
     [InlineData(AssessmentVocabulary.ValueRetail)]
     [InlineData(AssessmentVocabulary.ValueTrade)]
-    public void TheWorkspaceRefusesTheAdoptedValuationPaths(string path)
+    public void TheCaseSaveRecordsAndClearsTheThreeValuesAsValuationFields(string path)
     {
-        // The Engineer's Value and the retail and trade of its basis card are
-        // recorded only by the adoption, which records them with the
-        // calculation (one Save, 23 September 2026; operator, 24 September
-        // 2026). As free fields a Case save can neither record nor clear them.
-        var clear = Assert.Throws<InvalidOperationException>(() =>
-            CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
+        // Retail, Trade and Engineer's value are Valuation's own boxes
+        // (operator, 26 September 2026): typed or filled from a card, and
+        // recorded or cleared like any field.
+        foreach (var value in new string?[] { "4500.00", null })
+        {
+            var normalized = CaseWorkspacePolicy.ValidateAndNormalize(Request(request => request with
             {
-                Report = new(
-                    new Dictionary<string, string?>(StringComparer.Ordinal)
-                    {
-                        [path] = null
-                    },
-                    null,
-                    null)
-            })));
-        Assert.Contains("adopts an Engineer's Value", clear.Message, StringComparison.Ordinal);
+                Valuation = new(
+                    [],
+                    AssessmentFields: new Dictionary<string, string?>(StringComparer.Ordinal) { [path] = value })
+            }));
+            Assert.Equal(value, CaseWorkspacePolicy.AssessmentFields(normalized)[path]);
+        }
     }
-
     /// <summary>
     /// The guide source cards have no Save of their own (23 September 2026):
     /// the Case save carries them, each checked by the valuation policy, and

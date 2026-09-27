@@ -1,7 +1,11 @@
 @*
     Valuation (v26, one route since 15 September; one look and one Save since
-    23 September 2026): the guide cards, the calculator on the Core policy
-    shape (v25 decision 8) and the applied-history row. Read and edit show the
+    23 September 2026): the report's Retail, Trade and Engineer's value boxes
+    first (operator, 26 September 2026), then the guide cards, the calculator
+    on the Core policy shape (v25 decision 8) and the applied-history row. The
+    three boxes are ordinary fields of the Case form: typed, or filled in
+    place by script when a card is chosen as the basis or the calculation
+    changes, and saved by the ribbon Save. Read and edit show the
     same cards and the same calculator: Glass's, Brego, Super CAP, CAP and
     Cazana are each one card holding that source's latest recorded retail,
     trade and guide month, as greyed boxes while reading and as inputs while
@@ -12,12 +16,11 @@
     provider by script and fills the boxes, or shows the card's notice. The
     Valuation month and AI market research above the cards start the existing
     research job. The calculator's controls and the Basis radios belong to
-    the same form (one Save, 23 September 2026): the ribbon Save adopts the
-    calculation as the Engineer's Value when it differs from the one the page
-    opened on (selection.Opening), and leaves the value alone otherwise. The
-    preview lines are Core's own arithmetic, fetched by script from the
-    PreviewValuation handler; without script the applied calculation is
-    shown after the Save.
+    the same form (one Save, 23 September 2026): the ribbon Save records the
+    calculation against its basis card when it differs from the one the page
+    opened on (selection.Opening). The preview lines are Core's own
+    arithmetic, fetched by script from the PreviewValuation handler; without
+    script the applied calculation is shown after the Save.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -103,6 +106,12 @@
         </div>
     </div>
     <div class="panel-body stack">
+        @* The three values the report prints side by side. *@
+        <div class="fg g3" data-valuation-values>
+            @{ ValueCell(AssessmentVocabulary.ValueRetail, "retail");
+                ValueCell(AssessmentVocabulary.ValueTrade, "trade");
+                ValueCell(AssessmentVocabulary.ValueEngineer, "engineer"); }
+        </div>
         @if (editable)
         {
             @* The research form carries the month, the lease, the version and
@@ -417,7 +426,7 @@
                         @* The lines partial takes a calculation; with none the
                            empty state is stated here rather than a null model. *@
                         <div class="lines" data-valuation-lines>
-                            <div class="ln"><span class="muted">@(editable ? ValuationLabels.ChooseBasis : ValuationLabels.NoneYet)</span></div>
+                            <div class="ln"><span class="muted">@ValuationLabels.NoneYet</span></div>
                         </div>
                     }
                     else
@@ -446,6 +455,33 @@
 </section>
 
 @functions {
+    // One of the report's three values: a money box of the Case form while
+    // editing, the same cell greyed while reading. The hook names it for the
+    // script that fills it from a card.
+    private void ValueCell(string path, string hook)
+    {
+        var editable = Model.SectionIsEditable("valuation") && Model.CanEditAssessmentField(path);
+        var label = CaseWorkspaceLabels.Editors.Valuation[path];
+        var tag = Model.AssessmentSourceTag(path);
+        var id = "f-valuation-value-" + hook;
+        <div class="fc @(editable ? null : "ro")" data-field="@path">
+            @if (editable)
+            {
+                <label for="@id">@label@(tag?.Render())</label>
+            }
+            else
+            {
+                <span class="lbl">@label@(tag?.Render())</span>
+            }
+            <div class="fv mono @(Model.AssessmentIsAbsent(path) ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
+            @if (editable)
+            {
+                <input id="@id" class="fi mono" type="number" min="0" step="0.01" name="@CaseWorkspaceLabels.Editors.FormName(path)"
+                       form="case-edit-form" value="@Model.AssessmentEditorValue(path)" data-valuation-value="@hook" />
+            }
+        </div>
+    }
+
     // The cell's label: a real <label> for the control while editing, the
     // same words as a plain caption while reading.
     private void CardLabel(bool editable, string id, string text)
