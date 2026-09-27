@@ -520,10 +520,12 @@ public static class CaseReportReadiness
     public const string ValuationCommentaryRequirement = "Valuation commentary";
     public const string UnrelatedDamageRequirement = "Unrelated damage";
 
+    // Staff cannot clear this on the Case: the name and signature are the
+    // account's (operator, 26 September 2026).
     internal static readonly AssessmentReadinessItem SignatoryMissing = new(
         SignatoryRequirement, "Case sign-off account",
         "The Case has no eligible sign-off Engineer with a complete signature on file.",
-        "Select a Sign-off Engineer with a signature on file on the Case details section.");
+        "An Administrator sets a name and signature on the account in Accounts.");
 
     internal static readonly AssessmentReadinessItem CurrentEstimateMissing = new(
         CurrentEstimateRequirement, "Estimates",

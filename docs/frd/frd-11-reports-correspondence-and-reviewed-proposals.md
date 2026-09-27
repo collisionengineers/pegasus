@@ -334,7 +334,8 @@ Each fact is recorded in one section of the Case record
 | Fact | Recorded in |
 | --- | --- |
 | Claimant name | Claim |
-| Claim reference, incident date, a Sign-off Engineer with a signature on file | Case details |
+| Claim reference, incident date | Case details |
+| A Sign-off Engineer with a name and signature on file | Accounts |
 | Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
 | Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
@@ -342,7 +343,12 @@ Each fact is recorded in one section of the Case record
 | A Current repair spec with lines and a labour rate | Repair Spec |
 | Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |
 | Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
-| One Close-up and one Overview image matching their confirmed sources | Files |
+| An image in the report tagged Close-up and one tagged Overview, matching their confirmed sources | Files |
+
+The Sign-off Engineer blocker says an Administrator sets a name and
+signature on the account in Accounts. It links to Accounts for an
+Administrator and to nothing for anyone else, since no Case section clears
+it (operator, 26 September 2026).
 
 The date the report says instructions were received is the Case's Received
 date (operator, 24 September 2026); every Case has one, so it is never a

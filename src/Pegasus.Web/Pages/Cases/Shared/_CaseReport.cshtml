@@ -274,6 +274,12 @@
                                        data-section-jump="@blockerSection">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == blockerSection).Label</a>
                                 </div>
                             }
+                            else if (Model.BlockerOpensAccounts(reason))
+                            {
+                                <div class="blocker-actions">
+                                    <a class="btn btn--small" asp-page="/Administration/Accounts/Index" data-blocker-accounts>@OperatorLabels.Admin.Accounts</a>
+                                </div>
+                            }
                         </li>
                     }
                 </ul>
