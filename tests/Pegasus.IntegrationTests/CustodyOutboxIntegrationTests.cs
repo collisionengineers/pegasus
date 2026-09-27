@@ -2267,20 +2267,28 @@ public sealed class CustodyOutboxIntegrationTests
         await using var context = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
-        var roles = await (
+        var filed = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 join version in context.Set<DocumentVersionEntity>().AsNoTracking()
                     on occurrence.VersionId equals version.Id
                 where occurrence.CaseId == outcome.Identity.CaseId
-                select new { version.FileName, occurrence.SemanticRole })
-            .ToDictionaryAsync(item => item.FileName, item => item.SemanticRole);
+                select new { version.FileName, occurrence.SemanticRole, version.Sha256 })
+            .ToDictionaryAsync(item => item.FileName);
 
         Assert.Equal(
             DocumentSemanticRole.Image,
-            roles["1_CLVoffside-V1.jpg"]);
+            filed["1_CLVoffside-V1.jpg"].SemanticRole);
         Assert.Equal(
             DocumentSemanticRole.Instruction,
-            roles["53364_1_LtrtoEngineerIn.pdf"]);
+            filed["53364_1_LtrtoEngineerIn.pdf"].SemanticRole);
+        // A document's hash is recorded in small letters, whoever filed it:
+        // the report reads the photograph's hash exactly as it is stored.
+        Assert.Equal(
+            Convert.ToHexStringLower(SHA256.HashData(photograph)),
+            filed["1_CLVoffside-V1.jpg"].Sha256);
+        Assert.Equal(
+            Convert.ToHexStringLower(SHA256.HashData(letter)),
+            filed["53364_1_LtrtoEngineerIn.pdf"].Sha256);
     }
 
     /// <summary>
