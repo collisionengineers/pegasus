@@ -397,7 +397,8 @@ Financial ratio lines are permitted. The field meanings are owned by
 
 ### Report
 
-Image role, order, rotation and crop live on the image tile in Files. The
+Whether the report uses an image, its order, rotation and crop live on the
+image tile in Files. The
 Report section shows the readiness list — one row per blocker with the
 requirement, its source, why it is outstanding, what clears it and a link to
 the section that clears it
@@ -460,6 +461,9 @@ photographs labelled by Image reference. Each tile shows:
   ([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)), and for
   a Case image a Tag picker naming every vocabulary entry plus New tag with
   a colour;
+- while the Case edit lease is held, **In report**, on or off, posted at
+  once like a tag, so readiness reads it with no Case save (operator, 26
+  September 2026);
 - Preview and, while the Case edit lease is held, Crop.
 
 The Crop lease gate is the record's whole edit mode
@@ -467,7 +471,8 @@ The Crop lease gate is the record's whole edit mode
 once the Case reaches Completed or Query, and never on an archived Case. It
 is not tied to With Engineer, so a Review-state Case shows Crop. Images open
 in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, In
-report while editing, and a filmstrip). Crop happens on the viewer stage. A
+report while editing, which is the tile's own In report, and a filmstrip).
+Crop happens on the viewer stage. A
 crop is a stored rectangle: the tile and the report show the cropped region
 and Download returns the original.
 
@@ -508,18 +513,19 @@ chaser are on the Triage Case page
 
 The Engineer workbench is the Damage, Valuation, Repair Spec, Decisions and
 Report sections of the Case record. The sections can always be read and are
-read-only in Completed. An image has one place (v28 P50): its report
-role, its order and the tools that change them are on its tile under Files —
-a distinct `Close-up` first, `Overview` second, optional supporting images in
-explicit order, and non-destructive crops that leave the retained source and
-its hash untouched. Beneath the grid a line counts what the report uses. The
-tile also carries Rotate, **Full page** and Remove (v28 P41): Full page is a
-flag on an image the report uses, so the image prints on a page of its own;
-Remove sets the role to Not used and the file stays on the Case, with Undo
-for eight seconds; the grip drags a tile above the one it lands on and the
-order the tiles then stand in is the report's supporting order. While the
-Case edits, clicking the image itself toggles whether the report uses it
-(v28 P27). The Report section carries no image surface.
+read-only in Completed. An image has one place (v28 P50): whether the report
+uses it, its order and the tools that change them are on its tile under
+Files, and non-destructive crops leave the retained source and its hash
+untouched. A new image is in the report. The tile has no report role: its
+tag decides how it prints, the first tagged `Close-up` first and the first
+other one tagged `Overview` second, the rest as supporting images in order
+(operator, 26 September 2026). Beneath the grid a line counts what the
+report uses. The tile also carries Rotate and **Full page** (v28 P41): Full
+page is a flag on an image the report uses, so the image prints on a page of
+its own; the grip drags a tile above the one it lands on and the order the
+tiles then stand in is the report's order. While the Case edits, clicking the
+image itself presses its In report (v28 P27). The Report section carries no
+image surface.
 
 The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
 repairer's document) carries the repair specification set (`EXT-09`): named

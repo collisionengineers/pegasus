@@ -183,7 +183,7 @@ Engineer's Value with its retail and trade values, the applied valuation
 identity when one exists, content switches, report date or override, the
 Engineer's changes to the report's wording — headings, wording, order and
 what is off the report — fee, source documents with their Box identities,
-and each prepared image's role, order, rotation and crop.
+and how each image in the report prints, its order, rotation and crop.
 
 ### Companion documents and what a delivery attaches
 
