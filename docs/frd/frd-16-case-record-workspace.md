@@ -523,7 +523,9 @@ or Reflection; one staff set to Not used stays out. The tile has no report role:
 tag decides how it prints, the first tagged `Close-up` first and the first
 other one tagged `Overview` second, the rest as supporting images in order
 (operator, 26 September 2026). Beneath the grid a line counts what the
-report uses. The tile also carries Rotate and **Full page** (v28 P41): Full
+report uses, out of the images that can print
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis));
+an image still being stored is in neither number. The tile also carries Rotate and **Full page** (v28 P41): Full
 page is a flag on an image the report uses, so the image prints on a page of
 its own; the grip drags a tile above the one it lands on and the order the
 tiles then stand in is the report's order. While the Case edits, clicking the

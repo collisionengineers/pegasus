@@ -370,5 +370,10 @@ public sealed class CaseReportFreshnessTests
             1,
             "Staff:test",
             DateTimeOffset.UnixEpoch,
-            false);
+            false)
+        {
+            SourceFileName = "image.jpg",
+            RecordedAtUtc = DateTimeOffset.UnixEpoch,
+            CanPrint = true
+        };
 }

@@ -2154,7 +2154,10 @@ public sealed class CaseReportGenerationPersistenceTests
                 document.Sha256, "image/png", true, null, CaseAssetRotation.None, CaseAssetCrop.Full,
                 1, "engineer-1", RecordedAtUtc, role == CaseAssetReportRole.CloseUp)
             {
-                TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId]
+                TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId],
+                SourceFileName = $"{document.OccurrenceId:D}.png",
+                RecordedAtUtc = RecordedAtUtc,
+                CanPrint = true
             };
 
     }

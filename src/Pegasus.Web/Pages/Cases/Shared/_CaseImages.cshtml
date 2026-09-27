@@ -21,9 +21,10 @@
     // v28 P50: whether the report uses an image and its order live on its
     // tile, with the count of what the report uses under the grid. The tag
     // decides how an image in the report prints (operator, 26 September
-    // 2026), so the tile has no role of its own.
-    var preparations = Model.AssetPreparations;
-    var includedCount = preparations.Count(item => item.InReport);
+    // 2026), so the tile has no role of its own. Only an image that can
+    // print is counted: one still being stored joins when it confirms.
+    var printableCount = Model.AssetPreparations.Count(item => item.CanPrint);
+    var includedCount = CaseAssetPreparationPolicy.ForReport(Model.AssetPreparations).Count;
 
     // The tile is the image's preparation card (v26 § Crop and tag): the crop
     // taken on the viewer stage, the Report section's card and this tile all
@@ -209,7 +210,7 @@ else
             </li>
         }
     </ul>
-    <p class="muted image-grid-count"><b data-image-report-count>@ReportImageLabels.InReportCount(includedCount, images.Count)</b></p>
+    <p class="muted image-grid-count"><b data-image-report-count>@ReportImageLabels.InReportCount(includedCount, printableCount)</b></p>
 
     @* The associated Image-initiated Cases' photographs, each naming the
        intake it arrived on. They are receipts, not case documents, so they

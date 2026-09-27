@@ -23,7 +23,10 @@ public sealed class CaseAssetPreparationTests
         string contentType = "image/jpeg",
         int sourceVersion = 1,
         long preparationVersion = 0,
-        bool fullPage = false) =>
+        bool fullPage = false,
+        DateTimeOffset? recordedAtUtc = null,
+        string fileName = "image.jpg",
+        bool canPrint = true) =>
         new(
             caseId ?? CaseId,
             occurrenceId ?? Guid.NewGuid(),
@@ -41,8 +44,12 @@ public sealed class CaseAssetPreparationTests
             null,
             fullPage)
         {
-            TagIds = tags ?? []
+            TagIds = tags ?? [],
+            SourceFileName = fileName,
+            RecordedAtUtc = recordedAtUtc ?? Now,
+            CanPrint = canPrint
         };
+
     private static DocumentVersion Confirmed(
         CaseAssetPreparation item,
         string? sha256 = null,
@@ -319,6 +326,74 @@ public sealed class CaseAssetPreparationTests
             ],
             report.Select(item => (item.OccurrenceId, item.Role, item.Order)).ToArray());
         Assert.True(report[0].FullPage);
+    }
+
+    /// <summary>
+    /// Only an image that can print counts (operator, 26 September 2026): one
+    /// still being stored, superseded or removed is not one of the report's
+    /// images, whatever it is tagged, and the next one tagged the same prints.
+    /// </summary>
+    [Fact]
+    public void AnImageThatCannotPrintIsNotOneOfTheReportsImages()
+    {
+        var arriving = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], order: 1, canPrint: false);
+        var overview = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], order: 2);
+        var supporting = Item(inReport: true, order: 3);
+
+        var report = CaseAssetPreparationPolicy.ForReport([arriving, overview, supporting]);
+
+        Assert.Equal(
+            [
+                (overview.OccurrenceId, CaseAssetReportRole.Overview, (int?)null),
+                (supporting.OccurrenceId, CaseAssetReportRole.Supporting, (int?)1),
+            ],
+            report.Select(item => (item.OccurrenceId, item.Role, item.Order)).ToArray());
+    }
+
+    /// <summary>
+    /// Images nobody has ordered follow the order they arrived, then their
+    /// file names, never their identifiers: the gallery, the supporting
+    /// images and the first image tagged Overview all read this order.
+    /// </summary>
+    [Fact]
+    public void ImagesWithNoOrderFollowArrivalThenFileName()
+    {
+        // Identifiers run against arrival, so an identifier order would fail.
+        var firstIn = Item(
+            occurrenceId: Guid.Parse("f0000000-0000-0000-0000-000000000000"),
+            inReport: true, tags: [ImageTagVocabulary.OverviewId], recordedAtUtc: Now, fileName: "b.jpg");
+        var sameMomentEarlierName = Item(
+            occurrenceId: Guid.Parse("e0000000-0000-0000-0000-000000000000"),
+            inReport: true, recordedAtUtc: Now.AddMinutes(1), fileName: "img_0001.jpg");
+        var sameMomentLaterName = Item(
+            occurrenceId: Guid.Parse("d0000000-0000-0000-0000-000000000000"),
+            inReport: true, tags: [ImageTagVocabulary.OverviewId], recordedAtUtc: Now.AddMinutes(1), fileName: "IMG_0002.jpg");
+        var lastIn = Item(
+            occurrenceId: Guid.Parse("a0000000-0000-0000-0000-000000000000"),
+            inReport: true, recordedAtUtc: Now.AddMinutes(2), fileName: "a.jpg");
+        var ordered = Item(inReport: true, order: 1, recordedAtUtc: Now.AddMinutes(3), fileName: "z.jpg");
+
+        var report = CaseAssetPreparationPolicy.ForReport(
+            [lastIn, sameMomentLaterName, ordered, sameMomentEarlierName, firstIn]);
+
+        Assert.Equal(
+            [
+                (firstIn.OccurrenceId, CaseAssetReportRole.Overview),
+                (ordered.OccurrenceId, CaseAssetReportRole.Supporting),
+                (sameMomentEarlierName.OccurrenceId, CaseAssetReportRole.Supporting),
+                (sameMomentLaterName.OccurrenceId, CaseAssetReportRole.Supporting),
+                (lastIn.OccurrenceId, CaseAssetReportRole.Supporting),
+            ],
+            report.Select(item => (item.OccurrenceId, item.Role)).ToArray());
+
+        var saved = CaseAssetPreparationPolicy.ValidateSet(
+            CaseId, [lastIn, sameMomentLaterName, ordered, sameMomentEarlierName, firstIn], NoConfirmedSources);
+        Assert.Equal(
+            [
+                ordered.OccurrenceId, firstIn.OccurrenceId, sameMomentEarlierName.OccurrenceId,
+                sameMomentLaterName.OccurrenceId, lastIn.OccurrenceId,
+            ],
+            saved.OrderBy(item => item.Order).Select(item => item.OccurrenceId).ToArray());
     }
 
     /// <summary>One image tagged both Close-up and Overview prints once, as the Close-up.</summary>

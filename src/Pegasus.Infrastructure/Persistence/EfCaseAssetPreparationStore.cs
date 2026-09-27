@@ -260,7 +260,12 @@ public sealed class EfCaseAssetPreparationStore(
             occurrence.PreparedAtUtc,
             occurrence.PreparationFullPage)
         {
-            TagIds = [.. tags[occurrence.Id]]
+            TagIds = [.. tags[occurrence.Id]],
+            SourceFileName = pinnedVersion.FileName,
+            RecordedAtUtc = occurrence.RecordedAtUtc,
+            CanPrint = pinnedVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && pinnedVersion.IsCurrent
+                && !pinnedVersion.IsLogicallyRemoved
         };
 
     private static DocumentVersion ToDocumentVersion(DocumentVersionEntity value) =>
@@ -278,7 +283,6 @@ public sealed class EfCaseAssetPreparationStore(
             value.IsCurrent,
             value.IsLogicallyRemoved,
             value.RemovalReason);
-
 
     private static CaseAssetCrop ToCrop(DocumentOccurrenceEntity occurrence) =>
         occurrence.CropLeft is null

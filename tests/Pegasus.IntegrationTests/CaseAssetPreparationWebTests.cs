@@ -467,21 +467,39 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Contains("data-image-report-count>4 of 5 in report<", files, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Only an image that can print counts (operator, 26 September 2026): one
+    /// still being stored draws its placeholder tile and is left out of both
+    /// numbers, though it is in the report and joins when it confirms.
+    /// </summary>
     [Fact]
-    public async Task TheImageCountIncludesCaseImagesWithoutPreparationCards()
+    public async Task TheImageCountLeavesOutAnImageStillBeingStored()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
+        var pendingOccurrenceId = Guid.NewGuid();
         store.CaseDocuments =
         [
             .. store.CaseDocuments,
             Document(
-                Guid.NewGuid(),
+                pendingOccurrenceId,
                 Guid.NewGuid(),
                 "pending.jpg",
                 "image/jpeg",
                 DocumentSemanticRole.Image,
                 custody: DocumentCustodyStatus.Pending)
+        ];
+        store.Preparations =
+        [
+            .. store.Preparations,
+            store.Preparations[0] with
+            {
+                OccurrenceId = pendingOccurrenceId,
+                TagIds = [],
+                Order = null,
+                SourceFileName = "pending.jpg",
+                CanPrint = false
+            }
         ];
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
@@ -491,8 +509,9 @@ public sealed class CaseAssetPreparationWebTests
         var html = await workspace.GetWorkspaceAsync();
         var files = await GetFilesFragmentAsync(workspace, html);
 
-        Assert.Contains("data-image-tile", files, StringComparison.Ordinal);
-        Assert.Contains("data-image-report-count>4 of 6 in report<", files, StringComparison.Ordinal);
+        Assert.Contains("data-gallery-placeholder", files, StringComparison.Ordinal);
+        Assert.Contains("pending.jpg", files, StringComparison.Ordinal);
+        Assert.Contains("data-image-report-count>4 of 5 in report<", files, StringComparison.Ordinal);
     }
 
     [Fact]

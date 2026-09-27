@@ -194,7 +194,11 @@ normalised output beside the source. A report needs two distinct images in
 the report, one tagged `Close-up`, printed first, and one tagged `Overview`,
 printed second (operator, 26 September 2026). Where more than one carries a
 tag, the first in the order the operator set prints as it and the rest as
-supporting images, which follow in that order. Crop and order data are a normalised,
+supporting images, which follow in that order. Images nobody has ordered
+follow the order they arrived, then their file names. Only an image that can
+print counts: its stored version is confirmed, current and not removed. Any
+other image is not one of the report's images and raises no blocker. It joins
+the report when its storage confirms. Crop and order data are a normalised,
 versioned, attributed record under the same expected-version and edit-lease
 rules as other Case changes. An issued report keeps the exact curation
 snapshot and source hashes it used, so later changes never alter it.

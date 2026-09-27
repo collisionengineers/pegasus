@@ -106,6 +106,13 @@ public sealed record CaseAssetCrop(decimal Left, decimal Top, decimal Width, dec
 /// September 2026). <see cref="TagIds"/> are the image's tags, which decide
 /// how it prints. Keyed on <see cref="OccurrenceId"/>.
 /// </summary>
+/// <remarks>
+/// Only an image that can print counts (operator, 26 September 2026):
+/// <see cref="CanPrint"/> says the version this occurrence names is
+/// custody-confirmed, current and not removed. An image that cannot print is
+/// never one of the report's images and never raises a blocker; it joins the
+/// report when its storage confirms.
+/// </remarks>
 public sealed record CaseAssetPreparation(
     Guid CaseId,
     Guid OccurrenceId,
@@ -124,6 +131,18 @@ public sealed record CaseAssetPreparation(
     bool FullPage = false)
 {
     public IReadOnlyList<Guid> TagIds { get; init; } = [];
+
+    /// <summary>The file name of the version this occurrence names.</summary>
+    public required string SourceFileName { get; init; }
+
+    /// <summary>When the image arrived on the Case.</summary>
+    public required DateTimeOffset RecordedAtUtc { get; init; }
+
+    /// <summary>
+    /// Whether the version this occurrence names is custody-confirmed,
+    /// current and not removed, so the report can print it.
+    /// </summary>
+    public required bool CanPrint { get; init; }
 }
 
 /// <summary>
@@ -312,12 +331,13 @@ public static class CaseAssetPreparationPolicy
     /// images in the report, in their order, the first tagged Close-up prints
     /// as the Close-up, the first other one tagged Overview as the Overview,
     /// and the rest as Supporting in that order. The Close-up comes first and
-    /// the Overview second. An image out of the report is left out.
+    /// the Overview second. An image out of the report is left out, and so is
+    /// one that cannot print.
     /// </summary>
     public static IReadOnlyList<PreparedReportImage> ForReport(IReadOnlyList<CaseAssetPreparation> current)
     {
         ArgumentNullException.ThrowIfNull(current);
-        var ordered = InReportOrder(current.Where(item => item.InReport));
+        var ordered = InReportOrder(current.Where(item => item.InReport && item.CanPrint));
         var closeUp = ordered.FirstOrDefault(item => item.TagIds.Contains(ImageTagVocabulary.CloseUpId));
         var overview = ordered.FirstOrDefault(item =>
             item.OccurrenceId != closeUp?.OccurrenceId
@@ -336,10 +356,17 @@ public static class CaseAssetPreparationPolicy
 
     /// <summary>
     /// The images in the report in the order staff set, which is the order
-    /// the gallery shows; one not yet ordered follows the ordered ones.
+    /// the gallery shows. Those not yet ordered follow the ordered ones in
+    /// the order they arrived, then by file name.
     /// </summary>
     private static List<CaseAssetPreparation> InReportOrder(IEnumerable<CaseAssetPreparation> inReport) =>
-        [.. inReport.OrderBy(item => item.Order ?? int.MaxValue).ThenBy(item => item.OccurrenceId)];
+    [
+        .. inReport
+            .OrderBy(item => item.Order ?? int.MaxValue)
+            .ThenBy(item => item.RecordedAtUtc)
+            .ThenBy(item => item.SourceFileName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.OccurrenceId)
+    ];
 
     private static PreparedReportImage Prepared(CaseAssetPreparation item, CaseAssetReportRole role, int? order) =>
         new(

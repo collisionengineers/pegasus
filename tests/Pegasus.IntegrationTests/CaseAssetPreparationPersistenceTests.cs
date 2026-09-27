@@ -224,6 +224,79 @@ public sealed class CaseAssetPreparationPersistenceTests
         Assert.Equal(initiallyPrepared.PreparationVersion, stillPrepared.PreparationVersion);
     }
 
+    /// <summary>
+    /// Only an image that can print counts (operator, 26 September 2026). A
+    /// new image is in the report whatever its storage has reached, so the
+    /// store says which can print: one still being stored, one whose storage
+    /// failed, a superseded one and a removed one are not the report's images.
+    /// </summary>
+    [Fact]
+    public async Task OnlyAConfirmedCurrentUnremovedImageCanPrint()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var printable = await harness.SeedImageAsync(new string('a', 64));
+        var arriving = await harness.SeedImageAsync(new string('b', 64), custody: DocumentCustodyStatus.Pending);
+        var failed = await harness.SeedImageAsync(new string('c', 64), custody: DocumentCustodyStatus.Failed);
+        var superseded = await harness.SeedImageAsync(new string('d', 64));
+        await harness.SupersedeImageAsync(superseded.DocumentId, new string('e', 64));
+        var removed = await harness.SeedImageAsync(new string('f', 64));
+        await harness.ExecuteSqlAsync(
+            $"UPDATE DocumentVersions SET IsLogicallyRemoved = 1 WHERE Id = '{removed.VersionId:D}'");
+
+        var preparations = await harness.Store.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+
+        Assert.All(preparations, item => Assert.True(item.InReport));
+        Assert.Equal(
+            [printable.OccurrenceId],
+            preparations.Where(item => item.CanPrint).Select(item => item.OccurrenceId).ToArray());
+        Assert.Equal(
+            [printable.OccurrenceId],
+            CaseAssetPreparationPolicy.ForReport(preparations).Select(item => item.OccurrenceId).ToArray());
+        Assert.False((await harness.Store.GetForOccurrenceAsync(
+            harness.CaseId, arriving.OccurrenceId, CancellationToken.None))!.CanPrint);
+        Assert.Contains(preparations, item => item.OccurrenceId == failed.OccurrenceId && !item.CanPrint);
+    }
+
+    /// <summary>
+    /// Images nobody has ordered print in the order they arrived, then by
+    /// file name: the store hands the policy each image's recorded time and
+    /// file name, and the Case save numbers them in that order.
+    /// </summary>
+    [Fact]
+    public async Task ImagesNobodyOrderedFollowArrivalThenFileName()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var last = await harness.SeedImageAsync(
+            new string('a', 64), fileName: "a.jpg", recordedAtUtc: Harness.StartUtc.AddMinutes(2));
+        var laterName = await harness.SeedImageAsync(
+            new string('b', 64), fileName: "IMG_0002.jpg", recordedAtUtc: Harness.StartUtc.AddMinutes(1));
+        var earlierName = await harness.SeedImageAsync(
+            new string('c', 64), fileName: "img_0001.jpg", recordedAtUtc: Harness.StartUtc.AddMinutes(1));
+        var first = await harness.SeedImageAsync(
+            new string('d', 64), fileName: "z.jpg", recordedAtUtc: Harness.StartUtc);
+        Guid[] arrival = [first.OccurrenceId, earlierName.OccurrenceId, laterName.OccurrenceId, last.OccurrenceId];
+
+        var preparations = await harness.Store.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+
+        Assert.Equal("z.jpg", preparations.Single(item => item.OccurrenceId == first.OccurrenceId).SourceFileName);
+        Assert.Equal(
+            Harness.StartUtc.AddMinutes(2),
+            preparations.Single(item => item.OccurrenceId == last.OccurrenceId).RecordedAtUtc);
+        Assert.Equal(
+            arrival,
+            CaseAssetPreparationPolicy.ForReport(preparations).Select(item => item.OccurrenceId).ToArray());
+
+        var lease = await harness.AcquireLeaseAsync();
+        await harness.SavePreparationAsync(
+            lease,
+            "save-arrival-order",
+            [new(last.OccurrenceId, 0, null, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full)]);
+
+        var saved = await harness.Store.ListForCaseAsync(harness.CaseId, CancellationToken.None);
+        Assert.Equal(arrival, saved.OrderBy(item => item.Order).Select(item => item.OccurrenceId).ToArray());
+        Assert.Equal([1, 2, 3, 4], saved.Select(item => item.Order!.Value).Order().ToArray());
+    }
+
     [Fact]
     public async Task TheDatabaseRejectsAnOutOfRangeCropIndependentlyOfApplicationValidation()
     {
@@ -264,7 +337,7 @@ public sealed class CaseAssetPreparationPersistenceTests
     /// </summary>
     private sealed class Harness : IAsyncDisposable
     {
-        private static readonly DateTimeOffset StartUtc = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+        public static readonly DateTimeOffset StartUtc = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private readonly CaseDataHarness caseData;
 
         private Harness(CaseDataHarness caseData, long caseVersion)
@@ -332,7 +405,12 @@ public sealed class CaseAssetPreparationPersistenceTests
             await context.SaveChangesAsync();
         }
 
-        public async Task<ImageSeed> SeedImageAsync(string sha256, Guid? caseId = null)
+        public async Task<ImageSeed> SeedImageAsync(
+            string sha256,
+            Guid? caseId = null,
+            DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed,
+            string fileName = "asset.jpg",
+            DateTimeOffset? recordedAtUtc = null)
         {
             await using var context = await Factory.CreateDbContextAsync();
             var owningCaseId = caseId ?? CaseId;
@@ -356,11 +434,11 @@ public sealed class CaseAssetPreparationPersistenceTests
                     Id = versionId,
                     DocumentId = documentId,
                     Version = 1,
-                    FileName = "asset.jpg",
+                    FileName = fileName,
                     MediaType = "image/jpeg",
                     ContentLength = 1,
                     Sha256 = sha256,
-                    CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    CustodyStatus = custody,
                     CreatedAtUtc = StartUtc,
                     CreatedBy = "Staff:test",
                     IsCurrent = true
@@ -374,7 +452,7 @@ public sealed class CaseAssetPreparationPersistenceTests
                     SemanticRole = DocumentSemanticRole.Image,
                     Source = DocumentSource.StaffUpload,
                     SourceOccurrenceIdentity = $"test-image:{occurrenceId:N}",
-                    RecordedAtUtc = StartUtc,
+                    RecordedAtUtc = recordedAtUtc ?? StartUtc,
                     OperationKey = $"seed-image:{occurrenceId:N}"
                 });
             await context.SaveChangesAsync();

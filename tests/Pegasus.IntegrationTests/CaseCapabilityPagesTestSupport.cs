@@ -494,7 +494,10 @@ internal static partial class CaseWebTestSupport
                 preparationVersion == 0 ? null : "staff",
                 preparationVersion == 0 ? null : new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero))
             {
-                TagIds = tagId is { } tag ? [tag] : []
+                TagIds = tagId is { } tag ? [tag] : [],
+                SourceFileName = $"{occurrenceId:N}.jpg",
+                RecordedAtUtc = new DateTimeOffset(2031, 5, 6, 8, 0, 0, TimeSpan.Zero),
+                CanPrint = true
             };
     }
 
