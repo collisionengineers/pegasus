@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,7 +27,7 @@ namespace Pegasus.IntegrationTests;
 /// Web host.
 /// </summary>
 [Trait("Category", "SqlServer")]
-public sealed class TriageCaseWebTests
+public sealed partial class TriageCaseWebTests
 {
     private static readonly string[] CaseWorkflowSubRoutes =
     [
@@ -159,12 +160,12 @@ public sealed class TriageCaseWebTests
         Assert.Equal(HttpStatusCode.NotFound, sectionOnTriage.StatusCode);
 
         using var triageHandlerOnCase = await client.PostAsync(
-            $"/Cases/{inspection.CaseId:D}?handler=TriageEdit",
+            $"/Cases/{inspection.CaseId:D}?handler=TriageAction",
             ExpectedVersionForm(antiforgeryToken, 0));
         Assert.Equal(HttpStatusCode.NotFound, triageHandlerOnCase.StatusCode);
 
         using var triageHandlerOnNothing = await client.PostAsync(
-            $"/Cases/{Guid.NewGuid():D}?handler=TriageEdit",
+            $"/Cases/{Guid.NewGuid():D}?handler=TriageAction",
             ExpectedVersionForm(antiforgeryToken, 0));
         Assert.Equal(HttpStatusCode.NotFound, triageHandlerOnNothing.StatusCode);
     }
@@ -230,9 +231,9 @@ public sealed class TriageCaseWebTests
 
     /// <summary>
     /// A Triage Case keeps standard Case custody, so its failed custody is
-    /// retried on the Custody page like any Case's. The version and token the
-    /// Triage page renders in its edit session are the authority; the retry
-    /// re-arms the job, and the Triage page shows the outcome.
+    /// retried on the Custody page like any Case's. The Triage version the page
+    /// renders is posted and the retry claims the Triage hold for its one
+    /// save; it re-arms the job, and the Triage page shows the outcome.
     /// </summary>
     [Fact]
     public async Task AFailedTriageCaseCustodyIsRetriedOnTheCustodyPage()
@@ -243,18 +244,12 @@ public sealed class TriageCaseWebTests
         var workId = await PoisonCustodyAsync(factory.Services, triage.CaseId);
 
         var record = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
-        using var edit = await client.PostAsync(
-            $"/Cases/{triage.CaseId:D}?handler=TriageEdit",
-            ExpectedVersionForm(AntiforgeryValue(record), 0));
-        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
-        var editing = await edit.Content.ReadAsStringAsync();
 
         using var retried = await client.PostAsync(
             $"/Cases/{triage.CaseId:D}/Custody?handler=RetryCustody",
             Form(
-                AntiforgeryValue(editing),
-                ("expectedVersion", InputValue(editing, "expectedVersion")),
-                ("editLeaseToken", InputValue(editing, "editLeaseToken")),
+                AntiforgeryValue(record),
+                ("expectedVersion", InputValue(record, "expectedVersion")),
                 ("operationKey", "custody-page-triage-retry"),
                 ("reason", "Box is available again"),
                 ("targetKind", nameof(CustodyTargetKind.CaseSource))));
@@ -272,7 +267,7 @@ public sealed class TriageCaseWebTests
                 .Select(item => item.State)
                 .SingleAsync());
         // A staff write through the Triage authority: the Triage version moves
-        // and its edit scope ends, as every Triage mutation's does.
+        // and the hold it claimed ends, as every Triage mutation's does.
         Assert.Equal(
             1,
             await context.Triage
@@ -280,6 +275,7 @@ public sealed class TriageCaseWebTests
                 .Select(item => item.Version)
                 .SingleAsync());
         Assert.False(await context.CaseWorkflows.AnyAsync(item => item.CaseId == triage.CaseId));
+        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
     }
 
     /// <summary>
@@ -438,6 +434,203 @@ public sealed class TriageCaseWebTests
                 .GetAsync(inspection.CaseId, CancellationToken.None)).State);
     }
 
+    /// <summary>
+    /// A Triage Case has no Edit step (plan 01): no Edit Triage, Take over or
+    /// edit-session Cancel in any state, no heartbeat and no leaving beacon.
+    /// The ribbon carries the Principal and the Case, and there is no Source
+    /// panel.
+    /// </summary>
+    [Theory]
+    [InlineData(TriageState.Open)]
+    [InlineData(TriageState.AwaitingInformation)]
+    [InlineData(TriageState.FindingRecorded)]
+    [InlineData(TriageState.Completed)]
+    [InlineData(TriageState.Cancelled)]
+    public async Task TheTriagePageHasNoEditStepInAnyState(TriageState state)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, $"no-edit-step-{state}");
+        await SetTriageStateAsync(factory.Services, triage.CaseId, state);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
+
+        Assert.DoesNotContain("Edit Triage", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Take over", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=TriageEdit", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=TriageCancelEdit", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-edit-heartbeat", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-edit-scope-release", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
+
+        var ribbon = TriageRibbon(html);
+        Assert.Contains(
+            $"<span class=\"ribbon-label\">{Pegasus.Web.Presentation.OperatorLabels.Principal}</span><span class=\"ribbon-value\">QDOS</span>",
+            ribbon,
+            StringComparison.Ordinal);
+        Assert.Contains("<span class=\"ribbon-label\">Case</span>", ribbon, StringComparison.Ordinal);
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.NoCase, ribbon, StringComparison.Ordinal);
+        Assert.DoesNotContain("triage-source-title", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Source</h2>", html, StringComparison.Ordinal);
+        Assert.Contains($">{Pegasus.Web.Presentation.OperatorLabels.Triage.Determinations}</h2>", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Complete and Await information post once each, with no reason and no
+    /// prior claim; Complete needs no response evidence. Each writes its fixed
+    /// history text and shows its own notice.
+    /// </summary>
+    [Fact]
+    public async Task CompleteAndAwaitInformationEachPostOnceWithNoReason()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var completing = await CreateManualTriageAsync(factory.Services, "one-post-complete");
+        var awaiting = await CreateManualTriageAsync(factory.Services, "one-post-await");
+        var antiforgery = AntiforgeryValue(await GetHtmlAsync(client, $"/Cases/{completing.CaseId:D}"));
+
+        var recorded = await PostTriageActionAsync(
+            client,
+            completing.CaseId,
+            antiforgery,
+            0,
+            "record_finding",
+            ("reason", "Reviewed the request images."),
+            ("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)));
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.FindingRecorded, recorded, StringComparison.Ordinal);
+
+        var completed = await PostTriageActionAsync(client, completing.CaseId, antiforgery, 1, "complete");
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, completed, StringComparison.Ordinal);
+        // A Triage staff created directly came by no e-mail: no reply to offer.
+        Assert.DoesNotContain("data-triage-reply-link", completed, StringComparison.Ordinal);
+        var completedDetail = await GetTriageAsync(factory.Services, completing.CaseId);
+        Assert.Equal(TriageState.Completed, completedDetail.Record.State);
+        Assert.Empty(completedDetail.ResponseEvidence);
+        Assert.Equal("triage_state_completed", completedDetail.History[^1].EventType);
+        Assert.Equal(CompleteTriage.Reason, completedDetail.History[^1].Reason);
+
+        var awaited = await PostTriageActionAsync(client, awaiting.CaseId, antiforgery, 0, "await_information");
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.AwaitingInformation, awaited, StringComparison.Ordinal);
+        var awaitingDetail = await GetTriageAsync(factory.Services, awaiting.CaseId);
+        Assert.Equal(TriageState.AwaitingInformation, awaitingDetail.Record.State);
+        Assert.Equal(AwaitTriageInformation.Reason, awaitingDetail.History[^1].Reason);
+
+        await AssertNoLiveScopeAsync(factory.Services, completing.CaseId);
+        await AssertNoLiveScopeAsync(factory.Services, awaiting.CaseId);
+    }
+
+    /// <summary>
+    /// One Assign control with no prior claim: the roster lists the signed-in
+    /// account first as "(you)" with nothing preselected, and Unassign posts
+    /// from the same dialog with no reason.
+    /// </summary>
+    [Fact]
+    public async Task AssignNeedsNoClaimAndListsTheSignedInAccountFirst()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "assign-roster");
+        // Sorts before the signed-in account by user name, so first place is
+        // the page's ordering, not the roster's.
+        var colleague = await CreateStaffAccountAsync(factory.Services, "aaron-engineer");
+
+        var page = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
+        var ribbon = TriageRibbon(page);
+        Assert.Contains("data-dialog-open=\"triage-assign-dialog\"", ribbon, StringComparison.Ordinal);
+        Assert.Contains(">Assign</button>", ribbon, StringComparison.Ordinal);
+        var options = AssigneeOptions(page);
+        Assert.Equal(string.Empty, options[0].Value);
+        Assert.Equal(DevelopmentOfflineIdentity.AdministratorId.ToString("D"), options[1].Value);
+        Assert.Equal(
+            Pegasus.Web.Presentation.OperatorLabels.Triage.You(DevelopmentOfflineIdentity.UserName),
+            options[1].Text);
+        Assert.Contains(options, option => option.Value == colleague.ToString("D") && option.Text == "aaron-engineer");
+        Assert.DoesNotContain("selected", AssignDialog(page), StringComparison.Ordinal);
+        // Nobody is assigned yet, so there is nothing to unassign.
+        Assert.DoesNotContain("data-triage-unassign", page, StringComparison.Ordinal);
+
+        var antiforgery = AntiforgeryValue(page);
+        var assigned = await PostTriageActionAsync(
+            client, triage.CaseId, antiforgery, 0, "assign", ("assigneeId", colleague.ToString("D")));
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.Triage.AssignedTo("aaron-engineer"),
+            assigned,
+            StringComparison.Ordinal);
+        Assert.Contains(">Reassign</button>", TriageRibbon(assigned), StringComparison.Ordinal);
+        Assert.Contains("data-triage-unassign", assigned, StringComparison.Ordinal);
+        Assert.Equal(colleague, (await GetTriageAsync(factory.Services, triage.CaseId)).Record.AssigneeId);
+
+        var unassigned = await PostTriageActionAsync(client, triage.CaseId, antiforgery, 1, "unassign");
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Unassigned, unassigned, StringComparison.Ordinal);
+        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
+        Assert.Null(detail.Record.AssigneeId);
+        Assert.Equal("triage_unassigned", detail.History[^1].EventType);
+        Assert.Equal(UnassignTriage.Reason, detail.History[^1].Reason);
+        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
+    }
+
+    /// <summary>
+    /// Work Centre Assign to me on a Triage claims the Triage hold for its one
+    /// save, so it assigns (F10).
+    /// </summary>
+    [Fact]
+    public async Task WorkCentreAssignToMeAssignsATriage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "work-centre-assign-to-me");
+        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+
+        using var response = await client.PostAsync(
+            "/?handler=AssignTriageToMe",
+            Form(
+                antiforgery,
+                ("triageId", triage.CaseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("returnUrl", "/")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
+        Assert.Equal(DevelopmentOfflineIdentity.AdministratorId, detail.Record.AssigneeId);
+        Assert.Equal(1, detail.Record.Version);
+        Assert.Equal("triage_assigned", detail.History[^1].EventType);
+        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
+    }
+
+    /// <summary>
+    /// An Automation session holding the Triage record refuses a staff save
+    /// with the "is editing" wording; the page still renders and nothing
+    /// changes.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationSessionHoldingTheRecordRefusesAStaffAssign()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "automation-holds-triage");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+                new(EditScopeKind.Triage, triage.CaseId, 0, ActionActor.Automation("triage-test-client"), "automation-holds-triage-edit"),
+                CancellationToken.None);
+        }
+
+        var antiforgery = AntiforgeryValue(await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}"));
+        var refused = await PostTriageActionAsync(
+            client,
+            triage.CaseId,
+            antiforgery,
+            0,
+            "assign",
+            ("assigneeId", DevelopmentOfflineIdentity.AdministratorId.ToString("D")));
+
+        Assert.Contains("AI is editing this Triage record.", refused, StringComparison.Ordinal);
+        Assert.Contains("class=\"record triage-record\"", refused, StringComparison.Ordinal);
+        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
+        Assert.Null(detail.Record.AssigneeId);
+        Assert.Equal(0, detail.Record.Version);
+    }
+
     private static CreateManualCaseRequest ManualTriageRequest(string operationKey, string registration) => new(
         ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
         operationKey,
@@ -467,8 +660,8 @@ public sealed class TriageCaseWebTests
     }
 
     /// <summary>
-    /// Completion needs a finding and a replied Sent email; the state is what
-    /// the page and the link rule read, so the fixture sets it directly.
+    /// Completion needs a recorded finding; the state is what the page and
+    /// the link rule read, so the fixture sets it directly.
     /// </summary>
     private static async Task SetTriageStateAsync(IServiceProvider services, Guid caseId, TriageState state)
     {
@@ -520,6 +713,94 @@ public sealed class TriageCaseWebTests
             .GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receiptId, CancellationToken.None));
     }
+
+    /// <summary>One Triage page action, posted once as the page posts it.</summary>
+    private static async Task<string> PostTriageActionAsync(
+        HttpClient client,
+        Guid triageCaseId,
+        string antiforgery,
+        long expectedVersion,
+        string actionName,
+        params (string Name, string Value)[] fields)
+    {
+        using var response = await client.PostAsync(
+            $"/Cases/{triageCaseId:D}?handler=TriageAction",
+            Form(
+                antiforgery,
+                [
+                    ("expectedVersion", expectedVersion.ToString(CultureInfo.InvariantCulture)),
+                    ("operationKey", Guid.NewGuid().ToString("N")),
+                    ("actionName", actionName),
+                    .. fields
+                ]));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    private static async Task<TriageDetail> GetTriageAsync(IServiceProvider services, Guid caseId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        return Assert.IsType<TriageDetail>(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+            .GetAsync(caseId, CancellationToken.None));
+    }
+
+    /// <summary>Every save ends its own hold, so nothing is left holding the record.</summary>
+    private static async Task AssertNoLiveScopeAsync(IServiceProvider services, Guid caseId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        Assert.Null(await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().GetActiveAsync(
+            EditScopeKind.Triage,
+            caseId,
+            ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+            CancellationToken.None));
+    }
+
+    private static async Task<Guid> CreateStaffAccountAsync(IServiceProvider services, string userName)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var user = new PegasusIdentityUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = userName,
+            IsEnabled = true,
+            MustChangePassword = false
+        };
+        Assert.True((await users.CreateAsync(user)).Succeeded);
+        Assert.True((await users.AddToRoleAsync(user, StaffRole.Engineer.ToString())).Succeeded);
+        return user.Id;
+    }
+
+    /// <summary>The Triage ribbon, from its facts to its state chip.</summary>
+    private static string TriageRibbon(string html)
+    {
+        var start = html.IndexOf("class=\"ribbon triage-ribbon\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Triage ribbon is not rendered.");
+        var end = html.IndexOf("class=\"ribbon-chips\"", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Triage ribbon has no state chip.");
+        return html[start..end];
+    }
+
+    private static string AssignDialog(string html)
+    {
+        var start = html.IndexOf("data-dialog=\"triage-assign-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Assign dialog is not rendered.");
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        return html[start..end];
+    }
+
+    private static (string Value, string Text)[] AssigneeOptions(string html) =>
+    [
+        .. AssigneeOptionRegex().Matches(AssignDialog(html))
+            .Select(match => (
+                match.Groups["value"].Value,
+                System.Net.WebUtility.HtmlDecode(match.Groups["text"].Value).Trim()))
+    ];
+
+    [System.Text.RegularExpressions.GeneratedRegex(
+        "<option value=\"(?<value>[^\"]*)\"[^>]*>(?<text>[^<]*)</option>",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant)]
+    private static partial System.Text.RegularExpressions.Regex AssigneeOptionRegex();
 
     private static FormUrlEncodedContent ExpectedVersionForm(string antiforgeryToken, long expectedVersion) => new(
     [
