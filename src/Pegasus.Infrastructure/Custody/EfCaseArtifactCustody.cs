@@ -183,15 +183,11 @@ internal sealed class EfCaseArtifactCustody(
             await RequireAutomaticPromotionTargetAsync(db, caseId, request, cancellationToken);
         }
         var caseEntity = authority.Case;
-        var lastOrdinal = await db.Set<CaseDocumentEntity>()
-            .Where(value => value.CaseId == caseId)
-            .Select(value => (int?)value.Ordinal)
-            .MaxAsync(cancellationToken) ?? 0;
         var document = existing is null ? new CaseDocumentEntity
         {
             Id = Guid.NewGuid(),
             CaseId = caseId,
-            Ordinal = checked(lastOrdinal + 1),
+            Ordinal = await EfDocumentCustodyStore.NextDocumentOrdinalAsync(db, caseId, cancellationToken),
             SourceOccurrenceIdentity = request.OccurrenceIdentity,
             CustodyFolder = CaseCustodyFolders.ToCode(request.Folder)
         } : await db.Set<CaseDocumentEntity>().SingleAsync(
