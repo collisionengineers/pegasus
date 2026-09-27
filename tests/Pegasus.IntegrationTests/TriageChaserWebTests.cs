@@ -784,7 +784,12 @@ public sealed partial class QdosTriageIntegrationTests
             KeyValuePair.Create("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)));
         _ = await PostActionAsync(client, fixture.TriageCaseId, antiforgery, fixture.Version + 1, "complete", reason: null);
 
-        using var pageResponse = await client.GetAsync($"/Cases/{fixture.TriageCaseId}");
+        // Read as an Engineer: the saved template is an Administrator's
+        // setting, but every staff member's reply renders it.
+        using var pageRequest = new HttpRequestMessage(HttpMethod.Get, $"/Cases/{fixture.TriageCaseId}");
+        pageRequest.Headers.Add("X-Test-Roles", nameof(StaffRole.Engineer));
+        using var pageResponse = await client.SendAsync(pageRequest);
+        Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
         var page = WebUtility.HtmlDecode(await pageResponse.Content.ReadAsStringAsync())
             .Replace("\r\n", "\n", StringComparison.Ordinal);
 
