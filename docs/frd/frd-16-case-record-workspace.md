@@ -97,7 +97,8 @@ The Repair Spec and the Valuation calculator have no save of their own. A
 refusal refuses the whole save and keeps every proposed value on the page
 with its original authority for review. Ctrl S saves the same way and keeps
 editing open, as does a save the page makes first so an action can carry on
-from it (Apply or Remove scaling, and the unsaved-changes question's Save).
+from it (Apply or Remove scaling, Generate report while editing, and the
+unsaved-changes question's Save).
 Pressing a section's Edit enters edit mode in place: the section stays where
 it was on the screen. Selecting a tab also updates the section that Refresh
 submits; after a refresh its active lazy body loads.
