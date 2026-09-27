@@ -1247,7 +1247,17 @@ internal sealed class EfQueuedCustodyProcessor(
             });
         }
         CompleteWork(work, now, intake.CustodyRootRemoteId);
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException) when (authority is not null)
+        {
+            // The Case changed between the check above and this save: an
+            // editor claimed it, or another writer advanced it. Nothing was
+            // recorded, so the fold retries as it does for an editor it saw.
+            throw new IOException(CaseIsBeingEditedMessage);
+        }
         await transaction.CommitAsync(cancellationToken);
     }
 
