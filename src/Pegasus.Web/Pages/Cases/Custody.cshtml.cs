@@ -11,7 +11,8 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Case workspace's document custody actions: custody retry, logical removal,
-/// and image tags. Every action redirects back to the workspace.
+/// image tags and whether the report uses an image. Every action redirects back
+/// to the workspace.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -22,6 +23,7 @@ public sealed class CustodyModel(
     MarkAsOriginalReport markAsOriginalReport,
     ITagCaseImage tagCaseImage,
     IUntagCaseImage untagCaseImage,
+    ISetCaseImageInReport setCaseImageInReport,
     ICreateImageTag createImageTag,
     IGetCase getCase,
     IAcquireCaseEditLease acquireLease,
@@ -199,6 +201,37 @@ public sealed class CustodyModel(
                     editLeaseToken),
                 cancellationToken),
             CaseWorkspaceLabels.ImageTags.WasRemoved,
+            RedirectToDetailsFilesImages,
+            keepEditing: true);
+
+    /// <summary>
+    /// In report on an image tile or in the viewer (operator, 26 September
+    /// 2026): posted at once, like a tag, so readiness reads it on the next
+    /// view without a Case save; the edit session carries on.
+    /// </summary>
+    public Task<IActionResult> OnPostSetImageInReportAsync(
+        Guid id,
+        Guid occurrenceId,
+        bool inReport,
+        long expectedVersion,
+        string operationKey,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteTransportCommandAsync(
+            id,
+            editLeaseToken,
+            "set_case_image_in_report",
+            actor => setCaseImageInReport.ExecuteAsync(
+                new(
+                    id,
+                    occurrenceId,
+                    inReport,
+                    actor,
+                    operationKey,
+                    expectedVersion,
+                    editLeaseToken),
+                cancellationToken),
+            inReport ? CaseWorkspaceLabels.ReportImages.PutInReport : CaseWorkspaceLabels.ReportImages.TakenOutOfReport,
             RedirectToDetailsFilesImages,
             keepEditing: true);
 

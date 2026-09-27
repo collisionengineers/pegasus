@@ -445,13 +445,15 @@ internal static partial class CaseWebTestSupport
                     Document(UnusedOccurrenceId, VersionOf(UnusedOccurrenceId), UnusedFileName, "image/jpeg", DocumentSemanticRole.Image)
                 ]
             };
+            // Four images in the report, the first tagged Close-up and the
+            // second Overview; the fifth is out of the report.
             store.Preparations =
             [
-                Preparation(store.CaseId, CloseUpOccurrenceId, CaseAssetReportRole.CloseUp, null, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full, 2),
-                Preparation(store.CaseId, OverviewOccurrenceId, CaseAssetReportRole.Overview, null, CaseAssetRotation.None, OverviewCrop, 4),
-                Preparation(store.CaseId, FirstSupportingOccurrenceId, CaseAssetReportRole.Supporting, 1, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
-                Preparation(store.CaseId, SecondSupportingOccurrenceId, CaseAssetReportRole.Supporting, 2, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
-                Preparation(store.CaseId, UnusedOccurrenceId, CaseAssetReportRole.NotUsed, null, CaseAssetRotation.None, CaseAssetCrop.Full, 0)
+                Preparation(store.CaseId, CloseUpOccurrenceId, ImageTagVocabulary.CloseUpId, 1, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full, 2),
+                Preparation(store.CaseId, OverviewOccurrenceId, ImageTagVocabulary.OverviewId, 2, CaseAssetRotation.None, OverviewCrop, 4),
+                Preparation(store.CaseId, FirstSupportingOccurrenceId, null, 3, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
+                Preparation(store.CaseId, SecondSupportingOccurrenceId, null, 4, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
+                Preparation(store.CaseId, UnusedOccurrenceId, null, null, CaseAssetRotation.None, CaseAssetCrop.Full, 0) with { InReport = false }
             ];
             return store;
         }
@@ -471,7 +473,7 @@ internal static partial class CaseWebTestSupport
         private static CaseAssetPreparation Preparation(
             Guid caseId,
             Guid occurrenceId,
-            CaseAssetReportRole role,
+            Guid? tagId,
             int? order,
             CaseAssetRotation rotation,
             CaseAssetCrop crop,
@@ -484,13 +486,16 @@ internal static partial class CaseWebTestSupport
                 1,
                 new string('a', 64),
                 "image/jpeg",
-                role,
+                true,
                 order,
                 rotation,
                 crop,
                 preparationVersion,
                 preparationVersion == 0 ? null : "staff",
-                preparationVersion == 0 ? null : new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero));
+                preparationVersion == 0 ? null : new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero))
+            {
+                TagIds = tagId is { } tag ? [tag] : []
+            };
     }
 
     /// <summary>

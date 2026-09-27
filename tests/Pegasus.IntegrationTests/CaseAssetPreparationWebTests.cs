@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -205,11 +206,13 @@ public sealed class CaseAssetPreparationWebTests
 
         Assert.Contains("data-preparation-crop", grid, StringComparison.Ordinal);
         Assert.Contains("<noscript>", grid, StringComparison.Ordinal);
-        Assert.Contains("name=\"preparationEdits[0].Role\"", grid, StringComparison.Ordinal);
+        // The image tag decides how an image prints: there is no role to post
+        // (operator, 26 September 2026), and In report is its own form.
+        Assert.DoesNotContain("preparationEdits[0].Role", grid, StringComparison.Ordinal);
         Assert.Contains("name=\"preparationEdits[0].Order\"", grid, StringComparison.Ordinal);
         Assert.Contains("name=\"preparationEdits[0].Rotation\"", grid, StringComparison.Ordinal);
         Assert.Contains("name=\"preparationEdits[0].FullPage\"", grid, StringComparison.Ordinal);
-        Assert.Contains("Remove from report", grid, StringComparison.Ordinal);
+        Assert.Contains("handler=SetImageInReport", grid, StringComparison.Ordinal);
         Assert.Contains(
             $"data-preparation-occurrence=\"{fixture.OverviewOccurrenceId:D}\"",
             grid,
@@ -257,7 +260,6 @@ public sealed class CaseAssetPreparationWebTests
                 "Prepared report image.",
                 ("preparationEdits[0].occurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
                 ("preparationEdits[0].expectedPreparationVersion", "4"),
-                ("preparationEdits[0].role", nameof(CaseAssetReportRole.Supporting)),
                 ("preparationEdits[0].order", "3"),
                 ("preparationEdits[0].rotation", "180"),
                 ("preparationEdits[0].cropLeft", "0.05"),
@@ -275,7 +277,6 @@ public sealed class CaseAssetPreparationWebTests
             new CaseAssetPreparationEdit(
                 fixture.OverviewOccurrenceId,
                 4,
-                CaseAssetReportRole.Supporting,
                 3,
                 CaseAssetRotation.Half,
                 new(0.05m, 0.1m, 0.5m, 0.6m),
@@ -284,45 +285,47 @@ public sealed class CaseAssetPreparationWebTests
     }
 
     /// <summary>
-    /// D4/FRD-12: an image preparation is not an engineering field. Crop is
-    /// offered wherever the Case edit lease is held, so the Save that carries
-    /// one is accepted in Review along with the editable Engineer sections.
+    /// In report posts at once through the custody handler tags already use
+    /// (operator, 26 September 2026): no Case save, the edit session carries
+    /// on, and the next read shows what readiness now reads.
     /// </summary>
     [Fact]
-    public async Task NativeRemoveFromReportPostsTheSameCasePreparationCommand()
+    public async Task InReportPostsAtOnceThroughTheCustodyHandlerAndKeepsEditing()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store(CaseLifecycleState.ReportPreparation);
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ISetCaseImageInReport>(services, store);
             Substitute<ISaveCaseWorkspace>(services, store);
         });
         var leased = await workspace.GetWorkspaceAsync();
-        var grid = ImageGrid(await GetFilesFragmentAsync(workspace, leased));
-        Assert.Contains("Remove from report", grid, StringComparison.Ordinal);
+        var card = Card(ImageGrid(await GetFilesFragmentAsync(workspace, leased)), fixture.OverviewOccurrenceId);
+        var form = Regex.Match(card, "<form[^>]*handler=SetImageInReport[^>]*>.*?</form>", RegexOptions.Singleline);
+        Assert.True(form.Success, "An image in the report offers In report on its tile.");
+        Assert.Contains("name=\"inReport\" value=\"false\"", form.Value, StringComparison.Ordinal);
+        Assert.Contains("aria-pressed=\"true\"", form.Value, StringComparison.Ordinal);
 
         using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=Save",
-            workspace.MutationForm(
-                "0a0b0c0d0e0f01020304050607080903",
-                "Report images prepared.",
-                ("preparationEdits[0].OccurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
-                ("preparationEdits[0].ExpectedPreparationVersion", "4"),
-                ("preparationEdits[0].Role", nameof(CaseAssetReportRole.NotUsed)),
-                ("preparationEdits[0].Rotation", "0"),
-                ("preparationEdits[0].CropLeft", "0.05"),
-                ("preparationEdits[0].CropTop", "0.1"),
-                ("preparationEdits[0].CropWidth", "0.5"),
-                ("preparationEdits[0].CropHeight", "0.6"),
-                ("preparationEdits[0].FullPage", "false")));
+            $"/Cases/{store.CaseId:D}/Custody?handler=SetImageInReport",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("occurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
+                ("inReport", "false"),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", "0a0b0c0d0e0f01020304050607080903"),
+                ("editLeaseToken", store.LeaseToken)));
 
-        AssertPrg(response, store.CaseId);
-        var edit = Assert.Single(Assert.Single(store.Saves).ImagePreparation!.Edits!);
-        Assert.Equal(CaseAssetReportRole.NotUsed, edit.Role);
-        Assert.False(edit.FullPage);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var command = Assert.Single(store.ImagesSetInReport);
+        Assert.Equal(fixture.OverviewOccurrenceId, command.OccurrenceId);
+        Assert.False(command.InReport);
+        Assert.Equal(store.LeaseToken, command.EditLeaseToken);
+        Assert.Empty(store.Saves);
+        Assert.Contains("data-case-editing=\"true\"", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
-
     [Fact]
     public async Task ACropIsSavedOnAReviewStateCase()
     {
@@ -387,7 +390,6 @@ public sealed class CaseAssetPreparationWebTests
     [
         ("preparationEdits[0].occurrenceId", occurrenceId.ToString("D")),
         ("preparationEdits[0].expectedPreparationVersion", "4"),
-        ("preparationEdits[0].role", nameof(CaseAssetReportRole.Overview)),
         ("preparationEdits[0].rotation", "0"),
         ("preparationEdits[0].cropLeft", "0.05"),
         ("preparationEdits[0].cropTop", "0.1"),
@@ -395,13 +397,14 @@ public sealed class CaseAssetPreparationWebTests
         ("preparationEdits[0].cropHeight", "0.6")
     ];
     /// <summary>
-    /// v28 P50: an image has one place. Its report role, its order and the
-    /// tools that change them are on its tile under Files, with the count of
-    /// what the report uses beneath the grid; the Report section carries no
-    /// image surface at all.
+    /// v28 P50: an image has one place. Whether the report uses it, its order
+    /// and the tools that change them are on its tile under Files, with the
+    /// count of what the report uses beneath the grid; the Report section
+    /// carries no image surface at all. The tile has no role (operator, 26
+    /// September 2026): its tag decides how it prints.
     /// </summary>
     [Fact]
-    public async Task TheImageTileCarriesItsReportRoleAndTheReportSectionCarriesNoImages()
+    public async Task TheImageTileCarriesInReportAndTheReportSectionCarriesNoImages()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
@@ -426,8 +429,8 @@ public sealed class CaseAssetPreparationWebTests
 
         var files = await GetFilesFragmentAsync(workspace, html);
         var tiles = ImageGrid(files);
-        // Every readable image is a tile, including the unused one, with the
-        // role select and the appropriate report controls.
+        // Every readable image is a tile, including the one out of the
+        // report, with In report and the appropriate report controls.
         foreach (var fileName in new[]
         {
             CloseUpFileName, OverviewFileName, FirstSupportingFileName, SecondSupportingFileName, UnusedFileName
@@ -445,9 +448,10 @@ public sealed class CaseAssetPreparationWebTests
         Assert.Equal(
             new[] { CloseUpFileName, OverviewFileName, FirstSupportingFileName, SecondSupportingFileName, UnusedFileName },
             tileOrder);
-        Assert.Equal(5, Regex.Count(tiles, "data-preparation-role-select"));
+        Assert.DoesNotContain("data-preparation-role", tiles, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-image-remove", tiles, StringComparison.Ordinal);
+        Assert.Equal(5, Regex.Count(tiles, "data-image-in-report>"));
         Assert.Equal(5, Regex.Count(tiles, "data-image-full-page"));
-        Assert.Equal(5, Regex.Count(tiles, "data-image-remove"));
         Assert.Equal(5, Regex.Count(tiles, "data-preparation-full-page="));
         foreach (var occurrenceId in new[]
         {
@@ -538,9 +542,8 @@ public sealed class CaseAssetPreparationWebTests
         var tiles = ImageGrid(html);
 
         Assert.Contains("data-image-report-read", tiles, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-preparation-role-select", tiles, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=SetImageInReport", tiles, StringComparison.Ordinal);
         Assert.DoesNotContain("data-image-full-page", tiles, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-image-remove", tiles, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=SaveAssetPreparation", tiles, StringComparison.Ordinal);
 
         var panel = Section(html, "section-report-title");
@@ -606,16 +609,16 @@ public sealed class CaseAssetPreparationWebTests
                     "data-preparation-card",
                     "data-preparation-occurrence=",
                     "data-preparation-version=",
-                    "data-preparation-role=",
+                    "data-preparation-in-report=\"true\"",
                     "data-preparation-rotation=",
                     "data-preparation-crop-left=",
                     "data-preparation-crop-top=",
                     "data-preparation-crop-width=",
                     "data-preparation-crop-height=",
-                    "data-preparation-role-select",
+                    "data-preparation-order",
                     "data-preparation-rotate",
                     "data-image-full-page",
-                    "data-image-remove",
+                    "data-image-in-report",
                     "data-preparation-crop"
                 })
                 {
@@ -680,18 +683,17 @@ public sealed class CaseAssetPreparationWebTests
     private static void AssertImageActionVisibility(string card, bool visible)
     {
         var fullPage = Regex.Match(card, "<button[^>]*data-image-full-page[^>]*>", RegexOptions.CultureInvariant);
-        var remove = Regex.Match(card, "<button[^>]*data-image-remove[^>]*>", RegexOptions.CultureInvariant);
+        var inReport = Regex.Match(card, "<button[^>]*data-image-in-report[^>]*>", RegexOptions.CultureInvariant);
         Assert.True(fullPage.Success, "The Full page action is not rendered.");
-        Assert.True(remove.Success, "The Remove action is not rendered.");
+        Assert.True(inReport.Success, "In report is not rendered.");
+        Assert.Contains($"aria-pressed=\"{(visible ? "true" : "false")}\"", inReport.Value, StringComparison.Ordinal);
         if (visible)
         {
             Assert.DoesNotContain("hidden", fullPage.Value, StringComparison.Ordinal);
-            Assert.DoesNotContain("hidden", remove.Value, StringComparison.Ordinal);
         }
         else
         {
             Assert.Contains("hidden", fullPage.Value, StringComparison.Ordinal);
-            Assert.Contains("hidden", remove.Value, StringComparison.Ordinal);
         }
     }
 
