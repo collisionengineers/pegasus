@@ -104,7 +104,10 @@ public sealed class CaseReportGenerationTests
             ],
         });
 
-        AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        // The name and signature are the account's, so the Case cannot clear it.
+        var reason = AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        Assert.Equal(CaseReportReadiness.SignOffAccountIncomplete, reason);
+        Assert.Equal("An Administrator sets a name and signature on the account in Accounts.", reason.HowToResolve);
     }
 
     [Fact]
@@ -119,7 +122,41 @@ public sealed class CaseReportGenerationTests
             EligibleSignOffEngineers = [Profile() with { IsDefault = false }],
         });
 
-        AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        // An account is offered, so staff choose it on the Case.
+        var reason = AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        Assert.Equal(CaseReportReadiness.SignOffEngineerNotChosen, reason);
+        Assert.Equal("Choose the Sign-off Engineer on Case details.", reason.HowToResolve);
+    }
+
+    /// <summary>
+    /// The preview names the Sign-off Engineer blocker as generation does, in
+    /// each of its three cases.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void ThePreviewNamesTheSameSignOffBlocker(bool resolved, bool accountsOffered)
+    {
+        // A resolved account here has a name and no signature.
+        var profile = Profile() with { Signature = [], IsDefault = false };
+        var generation = CaseReportReadiness.Evaluate(ReadyInput() with
+        {
+            PersistedSignOffEngineerId = resolved ? SignatoryId : null,
+            EligibleSignOffEngineers = accountsOffered ? [profile] : [],
+        });
+        var preview = AssessmentReportProjection.Prepare(
+            AssessmentReportProjectionTests.ReadyAssessment(),
+            Estimate(),
+            resolved
+                ? new ReportSignatory(
+                    profile.PrintedName, profile.Qualifications, profile.Signature, profile.SignatureContentType)
+                : null,
+            accountsOffered);
+
+        Assert.Equal(
+            AssertBlocked(generation, CaseReportReadiness.SignatoryRequirement),
+            Assert.Single(preview.Reasons, reason => reason.Requirement == CaseReportReadiness.SignatoryRequirement));
     }
 
     [Fact]
@@ -225,7 +262,46 @@ public sealed class CaseReportGenerationTests
         var result = CaseReportReadiness.Evaluate(ReadyInput() with { EligibleSignOffEngineers = [] });
 
         var reason = AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        Assert.Equal(CaseReportReadiness.SignOffAccountMissing, reason);
         Assert.Equal("An Administrator sets a name and signature on the account in Accounts.", reason.HowToResolve);
+    }
+
+    /// <summary>
+    /// Only an image that can print counts (operator, 26 September 2026): one
+    /// still being stored is not one of the report's images and raises no
+    /// blocker, though it is in the report and has no confirmed source yet.
+    /// </summary>
+    [Fact]
+    public void AnImageThatCannotPrintRaisesNoBlocker()
+    {
+        var input = ReadyInput();
+        var arriving = Preparation(Guid.NewGuid(), CaseAssetReportRole.Overview) with { CanPrint = false };
+
+        var result = CaseReportReadiness.Evaluate(input with { Preparations = [.. input.Preparations, arriving] });
+
+        Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
+        Assert.DoesNotContain(result.Images, image => image.OccurrenceId == arriving.OccurrenceId);
+    }
+
+    /// <summary>
+    /// A tag on an image that cannot print clears nothing: the blocker asks
+    /// for the tag, and nothing names the image's storage.
+    /// </summary>
+    [Fact]
+    public void AnOverviewTaggedImageThatCannotPrintLeavesOnlyTheOverviewBlocker()
+    {
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with
+        {
+            Preparations =
+            [
+                Preparation(CloseUpOccurrence, CaseAssetReportRole.CloseUp),
+                Preparation(OverviewOccurrence, CaseAssetReportRole.Overview) with { CanPrint = false },
+            ],
+        });
+
+        Assert.Equal(
+            CaseReportReadiness.OverviewImageRequirement,
+            Assert.Single(result.Reasons).Requirement);
     }
 
     /// <summary>

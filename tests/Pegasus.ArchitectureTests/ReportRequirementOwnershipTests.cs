@@ -138,10 +138,11 @@ public sealed class ReportRequirementOwnershipTests
     }
 
     /// <summary>
-    /// Every report blocker links the Case section that clears it, but the
-    /// Sign-off Engineer: its name and signature are the account's, which an
-    /// Administrator sets in Accounts, so it names Accounts and links no Case
-    /// section (operator, 26 September 2026).
+    /// Every report blocker links the Case section that clears it. The
+    /// Sign-off Engineer has two homes (operator, 26 September 2026): staff
+    /// choose one on Case details, and its name and signature are the
+    /// account's, which an Administrator sets in Accounts, so that blocker
+    /// names Accounts and links no Case section.
     /// </summary>
     [Fact]
     public void EveryReportBlockerLinksASectionTheCaseRecordHas()
@@ -152,10 +153,22 @@ public sealed class ReportRequirementOwnershipTests
         Assert.All(
             reasons.Where(item => item.Requirement != CaseReportReadiness.SignatoryRequirement),
             AssertLinks);
+        var signOff = reasons.Where(item => item.Requirement == CaseReportReadiness.SignatoryRequirement).ToArray();
+        Assert.Contains(CaseReportReadiness.SignOffEngineerNotChosen, signOff);
         Assert.All(
-            reasons.Where(item => item.Requirement == CaseReportReadiness.SignatoryRequirement),
+            signOff,
             item =>
             {
+                if (item == CaseReportReadiness.SignOffEngineerNotChosen)
+                {
+                    Assert.Equal("overview", CaseWorkspaceLabels.Report.BlockerSection(item));
+                    Assert.Equal("Choose the Sign-off Engineer on Case details.", item.HowToResolve);
+                    Assert.Equal(
+                        "Case details",
+                        OperatorLabels.CaseWorkspace.Sections.Single(section => section.Key == "overview").Label);
+                    return;
+                }
+
                 Assert.Null(CaseWorkspaceLabels.Report.BlockerSection(item));
                 Assert.Contains("in Accounts", item.HowToResolve, StringComparison.Ordinal);
             });
@@ -336,6 +349,14 @@ public sealed class ReportRequirementOwnershipTests
             (AssessmentVocabulary.ReportValuationCommentaryText, null),
             (AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),
             (AssessmentVocabulary.DamageUnrelated, null)));
+        // An account is offered and the Case has none chosen.
+        yield return NothingElseRecorded(complete) with
+        {
+            EligibleSignOffEngineers =
+            [
+                new SignOffEngineerProfile(Guid.NewGuid(), "Ed Mawdsley", null, [1, 2, 3], "image/png", IsDefault: false),
+            ],
+        };
         yield return NothingElseRecorded(complete) with
         {
             CurrentEstimate = new RepairSpecificationVersion(

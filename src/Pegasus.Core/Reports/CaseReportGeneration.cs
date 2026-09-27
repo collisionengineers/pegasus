@@ -520,12 +520,29 @@ public static class CaseReportReadiness
     public const string ValuationCommentaryRequirement = "Valuation commentary";
     public const string UnrelatedDamageRequirement = "Unrelated damage";
 
-    // Staff cannot clear this on the Case: the name and signature are the
-    // account's (operator, 26 September 2026).
-    internal static readonly AssessmentReadinessItem SignatoryMissing = new(
+    // Staff cannot clear these two on the Case: the name and signature are
+    // the account's (operator, 26 September 2026).
+    private const string AccountResolution =
+        "An Administrator sets a name and signature on the account in Accounts.";
+
+    internal static readonly AssessmentReadinessItem SignOffAccountMissing = new(
         SignatoryRequirement, "Case sign-off account",
-        "The Case has no eligible sign-off Engineer with a complete signature on file.",
-        "An Administrator sets a name and signature on the account in Accounts.");
+        "No staff account is a Sign-off Engineer with a signature on file.",
+        AccountResolution);
+
+    internal static readonly AssessmentReadinessItem SignOffAccountIncomplete = new(
+        SignatoryRequirement, "Case sign-off account",
+        "The Sign-off Engineer's account has no name or signature the report can print.",
+        AccountResolution);
+
+    /// <summary>
+    /// Accounts are offered and the Case resolves to none of them, so staff
+    /// clear this one on the Case.
+    /// </summary>
+    public static readonly AssessmentReadinessItem SignOffEngineerNotChosen = new(
+        SignatoryRequirement, "Case record",
+        "The Case has no Sign-off Engineer.",
+        "Choose the Sign-off Engineer on Case details.");
 
     internal static readonly AssessmentReadinessItem CurrentEstimateMissing = new(
         CurrentEstimateRequirement, "Estimates",
@@ -561,7 +578,12 @@ public static class CaseReportReadiness
             input.PersistedSignOffEngineerId,
             input.AssignedEngineerId,
             input.EligibleSignOffEngineers);
-        Require(signatory is not null && IsComplete(signatory), SignatoryMissing);
+        if (SignOffBlocker(
+                signatory is null ? null : IsComplete(signatory),
+                input.EligibleSignOffEngineers.Count > 0) is { } signOff)
+        {
+            reasons.Add(signOff);
+        }
 
         Require(input.CurrentEstimate is not null, CurrentEstimateMissing);
         Require(input.CurrentEstimate is null || input.CurrentEstimate.Lines.Count > 0, CurrentEstimateEmpty);
@@ -620,6 +642,19 @@ public static class CaseReportReadiness
 
         return new(reasons, signatory, images, content, recordedDate, overridden);
     }
+
+    /// <summary>
+    /// The Sign-off Engineer blocker, or none when the Case's Sign-off
+    /// Engineer can sign the report. <paramref name="resolvedIsComplete"/> is
+    /// null when the Case resolves to no account.
+    /// </summary>
+    internal static AssessmentReadinessItem? SignOffBlocker(bool? resolvedIsComplete, bool accountsOffered) =>
+        resolvedIsComplete switch
+        {
+            true => null,
+            false => SignOffAccountIncomplete,
+            null => accountsOffered ? SignOffEngineerNotChosen : SignOffAccountMissing,
+        };
 
     /// <summary>
     /// The report content switches as persisted. Absent means off.

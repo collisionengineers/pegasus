@@ -335,7 +335,8 @@ Each fact is recorded in one section of the Case record
 | --- | --- |
 | Claimant name | Claim |
 | Claim reference, incident date | Case details |
-| A Sign-off Engineer with a name and signature on file | Accounts |
+| A Sign-off Engineer chosen for the Case | Case details |
+| The Sign-off Engineer's name and signature on file | Accounts |
 | Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
 | Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
@@ -345,10 +346,13 @@ Each fact is recorded in one section of the Case record
 | Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
 | An image in the report tagged Close-up and one tagged Overview, matching their confirmed sources | Files |
 
-The Sign-off Engineer blocker says an Administrator sets a name and
-signature on the account in Accounts. It links to Accounts for an
-Administrator and to nothing for anyone else, since no Case section clears
-it (operator, 26 September 2026).
+The Sign-off Engineer blocker has three cases (operator, 26 September
+2026). Where accounts are offered and the Case has none chosen, it says
+"Choose the Sign-off Engineer on Case details" and links there. Where no
+account is eligible, or the chosen account has no name or signature, it says
+an Administrator sets a name and signature on the account in Accounts. That
+one links to Accounts for an Administrator and to nothing for anyone else,
+since no Case section clears it.
 
 The date the report says instructions were received is the Case's Received
 date (operator, 24 September 2026); every Case has one, so it is never a
