@@ -32,7 +32,8 @@ internal sealed record MailToolSummary(
     string? ProcessingOutcome,
     Guid? IntakeReceiptId,
     Guid? CaseId,
-    string? CaseReference);
+    string? CaseReference,
+    bool IsTriageCase);
 
 internal sealed record MailToolPage(
     IReadOnlyList<MailToolSummary> Items,
@@ -131,7 +132,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists the retained mail workspace, newest first: one page of messages with the mailboxes that hold retained mail and how fresh the workspace is. Defaults to every mailbox and the inbox scope. Reads the retained record only; nothing is marked read in any mailbox.")]
+    [Description("Lists the retained mail workspace, newest first: one page of messages with the mailboxes that hold retained mail and how fresh the workspace is. Each message names its Case by caseId and caseReference; isTriageCase is true when that Case is a Triage Case, whose reference starts t. and which is not an instruction Case. Defaults to every mailbox and the inbox scope. Reads the retained record only; nothing is marked read in any mailbox.")]
     public async Task<MailToolPage> ListAsync(
         [Description("Optional exact mailbox identity from the mailboxes list. Omit for every mailbox.")] string? mailbox = null,
         [Description("Optional folder scope: inbox, sent, or deleted. Defaults to inbox.")] string? folder = null,
@@ -314,7 +315,8 @@ internal sealed class MailMcpTools(
         summary.ProcessingOutcome?.ToString(),
         summary.IntakeReceiptId,
         summary.CaseId,
-        summary.CaseReference);
+        summary.CaseReference,
+        summary.IsTriageCase);
 
     private static MailToolClassification Map(MailClassificationDossier dossier) => new(
         dossier.Version,
