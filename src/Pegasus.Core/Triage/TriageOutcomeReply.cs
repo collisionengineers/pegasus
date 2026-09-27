@@ -20,9 +20,6 @@ public static partial class TriageOutcomeReply
     public const string RepairOutcome = "repair outcome";
     public const string Reason = "reason";
 
-    public static readonly IReadOnlyList<string> Placeholders =
-        [Registration, Roadworthiness, RepairOutcome, Reason];
-
     public const string DefaultBody =
         "Thank you for your triage request for {registration}.\n"
         + "\n"
