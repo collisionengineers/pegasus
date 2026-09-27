@@ -384,6 +384,20 @@ public interface ICaseReportGenerationStore
 }
 
 /// <summary>
+/// Records a generated report file as stored once custody has filed it. A
+/// request can end while its file is still on its way to Box; the file is
+/// filed afterwards and the report's own record would otherwise stay Pending
+/// until someone pressed Generate report again. Each pass confirms at most
+/// <c>maximumItems</c> such files and returns how many it confirmed. It
+/// leaves alone a report frozen, or a file recorded, in the last three
+/// minutes, so it never competes with the request still producing it.
+/// </summary>
+public interface ISettleFiledCaseReportArtifacts
+{
+    Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// Reopens a confirmed generated artifact's immutable bytes. It never
 /// regenerates and never returns a Pending, Failed or Unknown artifact.
 /// </summary>
