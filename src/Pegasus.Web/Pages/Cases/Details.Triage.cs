@@ -332,7 +332,7 @@ public sealed partial class DetailsModel
                     actionActor,
                     operationKey,
                     logger,
-                    RunAsync,
+                    token => RunAsync(token),
                     cancellationToken);
             }
             catch (EditScopeVersionConflictException)
