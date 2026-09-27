@@ -399,7 +399,8 @@ public static class CaseWorkspaceLabels
         public static string? BlockerSection(AssessmentReadinessItem item) => item switch
         {
             { Field: { } field } => Editors.SectionOf(field),
-            { Requirement: CaseReportReadiness.SignatoryRequirement } => "overview",
+            // The Sign-off Engineer's name and signature are the account's, set
+            // in Accounts; no Case section clears it (operator, 26 September 2026).
             { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
             {
                 Requirement: CaseReportReadiness.CloseUpImageRequirement

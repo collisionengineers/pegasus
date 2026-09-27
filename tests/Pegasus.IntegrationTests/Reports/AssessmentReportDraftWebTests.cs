@@ -290,12 +290,16 @@ public sealed partial class AssessmentReportDraftWebTests
             Preparations = [],
         };
         var readiness = CaseReportReadiness.Evaluate(source.Readiness);
-        var expected = new Dictionary<string, string>(StringComparer.Ordinal)
+        var expected = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Pre-incident condition"] = "vehicle",
             ["Retail value"] = "valuation",
             ["Assessment outcome"] = "settlement",
-            [CaseReportReadiness.SignatoryRequirement] = "overview",
+            // No Case section clears the Sign-off Engineer: an Administrator
+            // sets the name and signature in Accounts (operator, 26 September
+            // 2026), so the row sends an Administrator there and nobody else
+            // anywhere.
+            [CaseReportReadiness.SignatoryRequirement] = null,
             [CaseReportReadiness.CurrentEstimateRequirement] = "estimate",
             [CaseReportReadiness.CloseUpImageRequirement] = "files",
             [CaseReportReadiness.OverviewImageRequirement] = "files",
@@ -322,8 +326,33 @@ public sealed partial class AssessmentReportDraftWebTests
         {
             var key = expected[reason.Requirement];
             Assert.Equal(key, CaseWorkspaceLabels.Report.BlockerSection(reason));
-            AssertBlockerLinks(BlockerRow(list, reason.Requirement), caseId, key);
+            var row = BlockerRow(list, reason.Requirement);
+            if (key is null)
+            {
+                Assert.DoesNotContain("data-section-jump", row, StringComparison.Ordinal);
+                Assert.Contains("in Accounts", row, StringComparison.Ordinal);
+                var accounts = AccountsLinkRegex().Match(row);
+                Assert.True(accounts.Success, "An Administrator's Sign-off blocker links to Accounts.");
+                Assert.Contains("href=\"/Administration/Accounts\"", accounts.Value, StringComparison.Ordinal);
+                Assert.Equal(OperatorLabels.Admin.Accounts, accounts.Groups["label"].Value);
+            }
+            else
+            {
+                AssertBlockerLinks(row, caseId, key);
+            }
         }
+
+        using var engineer = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        engineer.DefaultRequestHeaders.Add("X-Test-Roles", StaffRoleNames.Engineer);
+        var engineerRow = BlockerRow(
+            BlockerList(WebUtility.HtmlDecode(await GetHtmlAsync(engineer, $"/Cases/{caseId:D}?section=report"))),
+            CaseReportReadiness.SignatoryRequirement);
+        Assert.Contains("in Accounts", engineerRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("blocker-actions", engineerRow, StringComparison.Ordinal);
 
         var nextAction = NextActionRegex().Match(html);
         Assert.True(nextAction.Success, "The Case aside must state its Next action.");
@@ -770,6 +799,9 @@ public sealed partial class AssessmentReportDraftWebTests
 
     [GeneratedRegex("<div[^>]*data-report-not-ready[^>]*>.*?</ul>\\s*</div>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex BlockerListRegex();
+
+    [GeneratedRegex("<a[^>]*data-blocker-accounts[^>]*>(?<label>[^<]*)</a>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
+    private static partial Regex AccountsLinkRegex();
 
     [GeneratedRegex("<section[^>]*data-next-action[^>]*>.*?</section>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex NextActionRegex();

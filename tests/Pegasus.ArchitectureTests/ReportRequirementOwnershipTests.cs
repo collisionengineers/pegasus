@@ -137,12 +137,28 @@ public sealed class ReportRequirementOwnershipTests
         }
     }
 
+    /// <summary>
+    /// Every report blocker links the Case section that clears it, but the
+    /// Sign-off Engineer: its name and signature are the account's, which an
+    /// Administrator sets in Accounts, so it names Accounts and links no Case
+    /// section (operator, 26 September 2026).
+    /// </summary>
     [Fact]
     public void EveryReportBlockerLinksASectionTheCaseRecordHas()
     {
+        var reasons = ReportBlockerTriggers()
+            .SelectMany(input => CaseReportReadiness.Evaluate(input).Reasons)
+            .ToArray();
         Assert.All(
-            ReportBlockerTriggers().SelectMany(input => CaseReportReadiness.Evaluate(input).Reasons),
+            reasons.Where(item => item.Requirement != CaseReportReadiness.SignatoryRequirement),
             AssertLinks);
+        Assert.All(
+            reasons.Where(item => item.Requirement == CaseReportReadiness.SignatoryRequirement),
+            item =>
+            {
+                Assert.Null(CaseWorkspaceLabels.Report.BlockerSection(item));
+                Assert.Contains("in Accounts", item.HowToResolve, StringComparison.Ordinal);
+            });
     }
 
     [Fact]

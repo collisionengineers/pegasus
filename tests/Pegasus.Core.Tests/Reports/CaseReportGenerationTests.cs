@@ -211,6 +211,19 @@ public sealed class CaseReportGenerationTests
         Assert.Contains("tagged Overview", reason.WhyOutstanding, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Staff cannot clear the Sign-off Engineer on the Case: the name and
+    /// signature are the account's, set in Accounts (operator, 26 September 2026).
+    /// </summary>
+    [Fact]
+    public void TheSignOffBlockerNamesAccounts()
+    {
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with { EligibleSignOffEngineers = [] });
+
+        var reason = AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        Assert.Equal("An Administrator sets a name and signature on the account in Accounts.", reason.HowToResolve);
+    }
+
     [Fact]
     public void AnImageWhoseConfirmedSourceMovedBlocksGeneration()
     {
@@ -369,7 +382,7 @@ public sealed class CaseReportGenerationTests
             Assert.Single(reasons, reason => reason.Requirement == requirement).HowToResolve;
 
         Assert.Contains(
-            "the Case details section",
+            "in Accounts",
             HowToResolve(CaseReportReadiness.SignatoryRequirement),
             StringComparison.Ordinal);
         Assert.Contains(
