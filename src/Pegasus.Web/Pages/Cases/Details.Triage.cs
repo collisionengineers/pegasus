@@ -425,9 +425,7 @@ public sealed partial class DetailsModel
                     cancellationToken);
                 return Labels.AssignedTo(assignee.DisplayName);
             case "unassign":
-                await ports.Unassign.ExecuteAsync(
-                    mutation with { Reason = UnassignTriage.Reason },
-                    cancellationToken);
+                await ports.Unassign.ExecuteAsync(transition, cancellationToken);
                 return Labels.Unassigned;
             case "note":
                 await ports.AddNote.ExecuteAsync(

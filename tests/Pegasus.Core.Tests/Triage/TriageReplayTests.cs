@@ -167,6 +167,30 @@ public sealed class TriageReplayTests
         Assert.Equal(1, store.MutationCount);
     }
 
+    /// <summary>
+    /// Unassign asks for no reason either: Core writes its fixed history
+    /// text into the one mutation the store records.
+    /// </summary>
+    [Fact]
+    public async Task UnassignWritesItsFixedHistoryText()
+    {
+        var store = new ReplayStore
+        {
+            Current = CreateDetail(TriageState.Open),
+            AcceptsUnassign = true
+        };
+
+        await new UnassignTriage(store).ExecuteAsync(
+            new TriageTransitionRequest(TriageCaseId, 3, Actor, "triage-replay-unassign"),
+            CancellationToken.None);
+
+        var unassigned = Assert.IsType<TriageMutationRequest>(store.Unassigned);
+        Assert.Equal(UnassignTriage.Reason, unassigned.Reason);
+        Assert.Equal("triage-replay-unassign", unassigned.OperationKey);
+        Assert.Equal(3, unassigned.ExpectedVersion);
+        Assert.Equal(1, store.MutationCount);
+    }
+
     [Theory]
     [InlineData(TriageState.Open)]
     [InlineData(TriageState.AwaitingInformation)]
@@ -358,6 +382,11 @@ public sealed class TriageReplayTests
 
         public TriageMutationRequest? StateChange { get; private set; }
 
+        /// <summary>An unassignment is recorded and answered rather than refused.</summary>
+        public bool AcceptsUnassign { get; init; }
+
+        public TriageMutationRequest? Unassigned { get; private set; }
+
         public TriageState? TargetState { get; private set; }
 
         public Task<TriageOperationReplay?> ProbeRecordFindingReplayAsync(
@@ -429,7 +458,17 @@ public sealed class TriageReplayTests
 
         public Task<TriageRecord> UnassignAsync(
             TriageMutationRequest request,
-            CancellationToken cancellationToken) => UnexpectedMutation<TriageRecord>();
+            CancellationToken cancellationToken)
+        {
+            if (!AcceptsUnassign)
+            {
+                return UnexpectedMutation<TriageRecord>();
+            }
+
+            MutationCount++;
+            Unassigned = request;
+            return Task.FromResult(CreateRecord(TriageState.Open, request.ExpectedVersion + 1));
+        }
 
         public Task<TriageRecord> RecordFindingAsync(
             RecordTriageFindingRequest request,
