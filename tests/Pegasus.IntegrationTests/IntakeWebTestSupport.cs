@@ -1114,6 +1114,94 @@ internal static class MailboxIntakeTestData
                     externalReceiptToken ?? Guid.NewGuid().ToString("N"))),
             $"mailbox-submit:{Guid.NewGuid():N}");
     }
+
+    /// <summary>
+    /// A Triage Case as intake or staff write it: a Case row of the seeded
+    /// QDOS Principal with a t. reference, and its open Triage row. With an
+    /// origin receipt it is the Triage that receipt opened, carrying the
+    /// receipt's source identity; without one it is a Triage staff created
+    /// directly. Neither writes a CaseIntakeLinks row: a Triage is not a link.
+    /// </summary>
+    public static async Task<Guid> SeedTriageCaseAsync(
+        IServiceProvider services,
+        Guid? originReceiptId,
+        string reference)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var principal = await SeededPrincipals.QdosAsync(context);
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var sequence = 1 + (await context.Cases
+            .Where(item => item.SequenceLineageId == principal.SequenceLineageId && item.Year == now.Year)
+            .MaxAsync(item => (int?)item.Sequence) ?? 0);
+        var origin = originReceiptId is { } receiptId
+            ? await context.IntakeReceipts
+                .Where(item => item.Id == receiptId)
+                .Select(item => new { item.SourceChannel, item.ExternalReceiptToken, item.SourceHash })
+                .SingleAsync()
+            : null;
+        var caseId = Guid.NewGuid();
+        context.AddRange(
+            new CaseEntity
+            {
+                Id = caseId,
+                PrincipalId = principal.Id,
+                SequenceLineageId = principal.SequenceLineageId,
+                Year = now.Year,
+                Sequence = sequence,
+                Reference = reference,
+                Type = CaseTypeCodes.Triage,
+                InitialState = null,
+                CustodyState = "pending",
+                OriginIntakeReceiptId = originReceiptId,
+                CreatedAtUtc = now,
+                Version = 0,
+                ConcurrencyToken = Guid.NewGuid()
+            },
+            new TriageEntity
+            {
+                CaseId = caseId,
+                OriginReceiptId = originReceiptId,
+                SourceChannel = origin?.SourceChannel,
+                ExternalReceiptToken = origin?.ExternalReceiptToken,
+                SourceHash = origin?.SourceHash,
+                EvaluationRevisionId = origin is null ? null : Guid.NewGuid(),
+                NormalizedVehicleRegistration = "AB12CDE",
+                State = "open",
+                CreatedAtUtc = now,
+                CreationOperationKey = $"triage:{reference}",
+                Version = 0,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+        await context.SaveChangesAsync();
+        return caseId;
+    }
+
+    /// <summary>A staff member's active link from a receipt to a Case, as the Link to Case confirmation writes it.</summary>
+    public static async Task LinkReceiptAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        Guid caseId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        context.IntakeManualAssociations.Add(new()
+        {
+            IntakeReceiptId = receiptId,
+            CaseId = caseId,
+            IsActive = true,
+            Version = 1,
+            LinkedAtUtc = services.GetRequiredService<TimeProvider>().GetUtcNow(),
+            ActorKind = ActorKind.Staff.ToString(),
+            ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+            ActorRolesJson = "[\"Administrator\"]",
+            Reason = "Fixture message association.",
+            LastOperationKey = $"fixture-link:{Guid.NewGuid():N}"
+        });
+        await context.SaveChangesAsync();
+    }
 }
 
 internal sealed record GenuineCorpusSample(string Hash, string UploadName, string MediaType, byte[] Bytes);

@@ -82,6 +82,14 @@ public sealed record RetainedMailSummary(
 
     /// <summary>True once the receipt's Unidentified item has resolved; the message has left the Inbox Unidentified scope.</summary>
     public bool UnidentifiedResolved { get; init; }
+
+    /// <summary>
+    /// True when <see cref="CaseId"/> is a Triage Case by its own type, whether
+    /// the message opened it or staff linked the message to it. Then
+    /// <see cref="CaseReference"/> is its <c>t.</c> reference and the workspace
+    /// offers Open Triage rather than Open Case.
+    /// </summary>
+    public bool IsTriageCase { get; init; }
 }
 
 /// <summary>

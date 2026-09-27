@@ -72,6 +72,9 @@ public sealed class AutomationMailIngressTests
             Assert.Equal(
                 MailboxAddress,
                 items[0].GetProperty("mailboxAddress").GetString());
+            // Beside caseId and caseReference, a client can tell a Triage
+            // Case from an instruction Case.
+            Assert.False(items[0].GetProperty("isTriageCase").GetBoolean());
             var mailboxes = structured.GetProperty("mailboxes").EnumerateArray().ToArray();
             Assert.Contains(
                 mailboxes,

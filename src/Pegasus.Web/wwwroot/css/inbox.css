@@ -11,6 +11,8 @@
 }
 .inbox-row { position: relative; padding-right: 44px; }
 .inbox-row.unread .row-title { font-weight: 700; }
+/* The preview's excerpt keeps the sender's line breaks. */
+.mail-excerpt { white-space: pre-line; }
 .inbox-row-action {
   position: absolute;
   top: 50%;

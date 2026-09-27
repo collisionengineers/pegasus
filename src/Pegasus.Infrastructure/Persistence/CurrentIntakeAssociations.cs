@@ -2,7 +2,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
 
-internal sealed record CurrentIntakeAssociation(Guid CaseId, string Reference);
+/// <summary>
+/// The Case a receipt stands linked to. <see cref="IsTriage"/> is read from
+/// the Case's own type, so a link to a Triage Case says so whichever route
+/// made it.
+/// </summary>
+internal sealed record CurrentIntakeAssociation(Guid CaseId, string Reference, bool IsTriage);
 
 /// <summary>
 /// A receipt's association as it stands now and, just as importantly,
@@ -47,7 +52,8 @@ internal static class CurrentIntakeAssociations
                 item.IntakeReceiptId,
                 item.IsActive,
                 item.CaseId,
-                item.Case.Reference
+                item.Case.Reference,
+                IsTriage = item.Case.Type == CaseTypeCodes.Triage
             })
             .ToListAsync(cancellationToken);
         var manualReceiptIds = manual.Select(item => item.IntakeReceiptId).ToHashSet();
@@ -55,7 +61,7 @@ internal static class CurrentIntakeAssociations
             .Where(item => item.IsActive)
             .ToDictionary(
                 item => item.IntakeReceiptId,
-                item => new CurrentIntakeAssociation(item.CaseId, item.Reference));
+                item => new CurrentIntakeAssociation(item.CaseId, item.Reference, item.IsTriage));
 
         var accepted = await context.CaseIntakeLinks
             .AsNoTracking()
@@ -65,12 +71,13 @@ internal static class CurrentIntakeAssociations
             {
                 item.IntakeReceiptId,
                 item.CaseId,
-                item.Case.Reference
+                item.Case.Reference,
+                IsTriage = item.Case.Type == CaseTypeCodes.Triage
             })
             .ToListAsync(cancellationToken);
         foreach (var item in accepted)
         {
-            current[item.IntakeReceiptId] = new(item.CaseId, item.Reference);
+            current[item.IntakeReceiptId] = new(item.CaseId, item.Reference, item.IsTriage);
         }
 
         var reversed = manual

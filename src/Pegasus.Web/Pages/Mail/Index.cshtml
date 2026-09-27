@@ -200,7 +200,7 @@
                             }
                             <span class="row-top">
                                 <span class="row-meta">@item.MailboxAddress</span>
-                                <span class="row-meta">@item.Attachments.Count attachment@(item.Attachments.Count == 1 ? string.Empty : "s")</span>
+                                <span class="row-meta">@OperatorLabels.Inbox.AttachmentCount(item.Attachments.Count)</span>
                             </span>
                         </div>
                     }
@@ -241,12 +241,18 @@
             }
             else
             {
+                @* Up and Down move through the rows (docs/design/README.md).
+                   Only these rows have a link to take focus; Deleted Items
+                   rows have none, so there the arrow keys scroll the pane. *@
+                <div data-row-list>
                 @foreach (var item in Model.Results.Items)
                 {
                     var isSelected = selectedSummary?.Id == item.Id;
-                    @* The row is a container, not a widget: selection state
-                       lives on the row's link, where aria-current is legal. *@
-                    <div class="row-button inbox-row @(item.IsRead ? null : "unread")" data-mail-preview-row data-mail-row="@item.Id">
+                    @* The selection mark sits on the row, where the shared
+                       highlight rule reads it; the subject opens the message. *@
+                    <div class="row-button inbox-row @(item.IsRead ? null : "unread")"
+                         data-mail-preview-row data-mail-row="@item.Id"
+                         aria-current="@(isSelected ? "true" : null)">
                         <span class="row-top">
                             <span class="row-title">
                                 @if (!item.IsRead)
@@ -265,20 +271,18 @@
                             </span>
                         </span>
                         <a class="row-title"
-                           asp-page="/Mail/Index"
+                           asp-page="/Mail/Message"
+                           asp-route-id="@item.Id"
                            asp-route-mailbox="@Model.MailboxFilter"
                            asp-route-folder="@Model.FolderRouteValue"
                            asp-route-search="@Model.SearchTerm"
                            asp-route-queue="@Model.QueueFilter"
                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                            asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
-                           asp-route-selected="@item.Id"
                            data-mail-preview-trigger
                            data-mail-preview-url="@Url.Page("/Mail/Index", "Preview", new { id = item.Id })"
                            aria-controls="mail-quick-preview"
-                           aria-expanded="@(isSelected ? "true" : "false")"
-                           aria-current="@(isSelected ? "true" : null)"
-                           title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
+                           aria-expanded="@(isSelected ? "true" : "false")">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
                         @* The excerpt sits beneath the subject: it is what lets an
                            operator sort the morning's post without opening every
                            message. *@
@@ -289,7 +293,7 @@
                         @{
                             var forwarder = Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(item);
                             var attachments = item.AttachmentCount > 0
-                                ? $"{item.AttachmentCount} attachment{(item.AttachmentCount == 1 ? string.Empty : "s")}"
+                                ? OperatorLabels.Inbox.AttachmentCount(item.AttachmentCount)
                                 : null;
                         }
                         <span class="row-top">
@@ -354,6 +358,7 @@
                         }
                     </div>
                 }
+                </div>
             }
         </div>
         @* Accessible pagination, never infinite scrolling, and never a Next
@@ -395,17 +400,14 @@
     @if (selectedDetail is { } detail)
     {
         var summary = detail.Summary;
-        var folderValue = summary.CurrentFolderType is { } currentFolderType
-            ? Pegasus.Core.Intake.MailLogicalFolders.Definition(currentFolderType).Label
-            : Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(detail.Folder);
         var matchValue = summary.Matches.Count > 0
             ? string.Join("; ", summary.Matches.Select(Pegasus.Web.Pages.Mail.IndexModel.MatchLabel))
             : null;
         <div class="pane">
             <div class="pane-head"><h2>Message preview</h2></div>
             <div class="pane-body pane-scroll" tabindex="0">
-                @* Links only: the preview pane is a viewer, and the row that
-                   selects it is already a link. *@
+                @* Links only: the preview pane is a viewer. Its actions open the
+                   message or its Case; a click on the row selects it. *@
                 <aside id="mail-quick-preview" class="mail-preview" data-mail-preview
                        aria-label="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)">
                     <p data-mail-preview-status aria-live="polite" hidden></p>
@@ -417,30 +419,18 @@
                                     <div class="mail-route">
                                         From <span data-mail-preview-sender>@Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary)</span> ·
                                         <time data-mail-preview-received datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(summary.ReceivedAtUtc) @OperatorLabels.OfficeClock(summary.ReceivedAtUtc)</time> ·
-                                        @summary.MailboxAddress
+                                        <span data-mail-preview-mailbox>@summary.MailboxAddress</span>
                                     </div>
                                 </div>
-                                <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)" />
+                                <span data-mail-preview-state><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)" /></span>
                             </div>
                         </div>
+                        @* The sender's text with its line breaks; the first lines, then an ellipsis. *@
                         <div class="mail-body">
-                            <p data-mail-preview-excerpt>@(summary.BodyExcerpt ?? "No excerpt available")</p>
+                            <p class="mail-excerpt" data-mail-preview-excerpt>@(summary.BodyExcerpt ?? "No excerpt available")</p>
                         </div>
-                        <div class="section-gap">
-                            <ul class="accepted-list" data-mail-preview-attachments>
-                                @if (detail.Attachments.Count > 0)
-                                {
-                                    @foreach (var attachment in detail.Attachments)
-                                    {
-                                        <li>@attachment.FileName</li>
-                                    }
-                                }
-                                else
-                                {
-                                    <li>No attachments</li>
-                                }
-                            </ul>
-                        </div>
+                        @* A count by kind. The names are on the full message. *@
+                        <p class="muted" data-mail-preview-attachments>@OperatorLabels.Inbox.Attachments(detail.Attachments)</p>
                         <div class="section-gap fact-grid">
                             <dl class="fact">
                                 <dt>Classification</dt>
@@ -449,20 +439,24 @@
                                     : Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(detail.ClassificationOutcome))</dd>
                             </dl>
                             <dl class="fact">
-                                <dt>Case association</dt>
+                                <dt>@OperatorLabels.Inbox.Case</dt>
                                 <dd data-mail-preview-association>@Pegasus.Web.Pages.Mail.MessageModel.AssociationLabel(summary.CaseReference)</dd>
                             </dl>
                             <dl class="fact">
                                 <dt>Folder</dt>
-                                <dd>@folderValue</dd>
+                                <dd data-mail-preview-folder>@Pegasus.Web.Pages.Mail.IndexModel.FolderValue(detail)</dd>
                             </dl>
-                            <dl class="fact">
-                                <dt>Search match</dt>
-                                <dd>@(matchValue ?? "—")</dd>
-                            </dl>
+                            @* Only while a search term is typed: where it matched. *@
+                            @if (matchValue is not null)
+                            {
+                                <dl class="fact" data-mail-preview-matched>
+                                    <dt>@OperatorLabels.Inbox.Matched</dt>
+                                    <dd>@matchValue</dd>
+                                </dl>
+                            }
                         </div>
                         <div class="button-row section-gap" data-mail-preview-actions>
-                            <a class="btn btn--dark"
+                            <a class="btn btn--dark" data-mail-preview-open
                                asp-page="/Mail/Message"
                                asp-route-id="@summary.Id"
                                asp-route-mailbox="@Model.MailboxFilter"
@@ -476,9 +470,9 @@
                             </a>
                             @if (summary.CaseId is { } linkedCaseId)
                             {
-                                <a class="btn" asp-page="/Cases/Details" asp-route-id="@linkedCaseId">
+                                <a class="btn" data-mail-preview-case asp-page="/Cases/Details" asp-route-id="@linkedCaseId">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
-                                    <span>Open linked Case</span>
+                                    <span>@(summary.IsTriageCase ? OperatorLabels.Inbox.OpenTriage : OperatorLabels.Inbox.OpenCase)</span>
                                 </a>
                             }
                         </div>
