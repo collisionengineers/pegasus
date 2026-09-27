@@ -72,7 +72,7 @@ public sealed partial class QdosTriageIntegrationTests
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -86,7 +86,7 @@ public sealed partial class QdosTriageIntegrationTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("A chaser reply can only be sent for mailbox intake.", html, StringComparison.Ordinal);
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyNeedsEmail, html, StringComparison.Ordinal);
         Assert.Equal(0, send.SendCalls);
     }
 
@@ -102,7 +102,7 @@ public sealed partial class QdosTriageIntegrationTests
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
         request.Headers.Add("X-Test-Roleless", "1");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -134,7 +134,7 @@ public sealed partial class QdosTriageIntegrationTests
         var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -181,7 +181,7 @@ public sealed partial class QdosTriageIntegrationTests
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -211,7 +211,7 @@ public sealed partial class QdosTriageIntegrationTests
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -246,7 +246,7 @@ public sealed partial class QdosTriageIntegrationTests
         // First send establishes an active (Submitted) operation
         send.NextState = StaffMailState.Submitted;
         using (var firstRequest = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendChaser"))
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply"))
         {
             firstRequest.Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -268,7 +268,7 @@ public sealed partial class QdosTriageIntegrationTests
         // Second send with a fresh operation key for the same retained message must observe the send conflict
         var freshKey = $"retained:{fixture.RetainedMessageId:N}:{Guid.NewGuid():N}";
         using (var secondRequest = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendChaser"))
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply"))
         {
             secondRequest.Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -322,7 +322,7 @@ public sealed partial class QdosTriageIntegrationTests
         var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -377,7 +377,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -404,7 +404,7 @@ public sealed partial class QdosTriageIntegrationTests
         var operationId = Guid.NewGuid();
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{missingTriageId}?handler=TriageReconcileChaser");
+            HttpMethod.Post, $"/Cases/{missingTriageId}?handler=TriageReconcileReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -450,7 +450,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -496,7 +496,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -542,7 +542,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -588,7 +588,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -634,7 +634,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileReply");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -649,9 +649,191 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(0, send.ReconcileCalls);
     }
 
+    /// <summary>
+    /// Reply with outcome (plan 01): once Completed, the one reply form keeps
+    /// the same To and the "Re:" subject and opens with the outcome template
+    /// rendered from the recorded finding. The purpose is the state's, decided
+    /// on the server, and the completion notice links to the panel.
+    /// </summary>
+    [Fact]
+    public async Task ACompletedTriageRepliesWithOutcomeFromTheTemplate()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        _ = await PostActionAsync(
+            client,
+            fixture.TriageCaseId,
+            antiforgery,
+            fixture.Version,
+            "record_finding",
+            "Reviewed the request images",
+            KeyValuePair.Create("roadworthiness", nameof(RoadworthinessFinding.Unroadworthy)),
+            KeyValuePair.Create("assessment", nameof(AssessmentFinding.TotalLoss)));
+        var completed = await PostActionAsync(
+            client,
+            fixture.TriageCaseId,
+            antiforgery,
+            fixture.Version + 1,
+            "complete",
+            reason: null);
+
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, completed, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<a href=\"#triage-correspondence\" data-triage-reply-link>{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithOutcome}</a>",
+            completed,
+            StringComparison.Ordinal);
+
+        using var pageResponse = await client.GetAsync($"/Cases/{fixture.TriageCaseId}");
+        var page = await pageResponse.Content.ReadAsStringAsync();
+        Assert.Contains("data-triage-correspondence=\"TriageOutcomeReply\"", page, StringComparison.Ordinal);
+        Assert.Contains(
+            $">{Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithOutcome}</h2>",
+            page,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Chaser correspondence", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"reply@example.invalid\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"Re: Originating triage subject\"", page, StringComparison.Ordinal);
+        var expectedBody = TriageOutcomeReply.Render(
+            "AB12CDE",
+            new TriageFinding(
+                Guid.Empty,
+                fixture.TriageCaseId,
+                RoadworthinessFinding.Unroadworthy,
+                AssessmentFinding.TotalLoss,
+                null,
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                DateTimeOffset.UnixEpoch));
+        Assert.Contains(expectedBody, WebUtility.HtmlDecode(page).Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.Contains("Roadworthiness: Unroadworthy", expectedBody, StringComparison.Ordinal);
+
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = (fixture.Version + 2).ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = operationKey,
+            ["to"] = "reply@example.invalid",
+            ["subject"] = "Re: Originating triage subject",
+            ["body"] = expectedBody
+        });
+        using var response = await client.SendAsync(request);
+        var responseHtml = await response.Content.ReadAsStringAsync();
+        Assert.True(
+            response.StatusCode == HttpStatusCode.Redirect,
+            $"Expected redirect, received {(int)response.StatusCode}; validation: {ValidationFailure(responseHtml)}");
+
+        var command = Assert.Single(send.Commands);
+        Assert.Equal(StaffMailPurpose.TriageOutcomeReply, command.Purpose);
+        Assert.Equal(StaffMailComposeMode.Reply, command.ComposeMode);
+        Assert.Equal(fixture.TriageCaseId, command.ContextId);
+        Assert.Equal(fixture.Version + 2, command.ExpectedContextVersion);
+        Assert.Equal(expectedBody, command.Body);
+    }
+
+    /// <summary>
+    /// Without a send-capable mailbox a Completed Triage offers no reply: no
+    /// panel and no link on the completion notice.
+    /// </summary>
+    [Fact]
+    public async Task WithoutASendCapableMailboxACompletedTriageOffersNoReply()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send, mailboxCanSend: false);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        _ = await PostActionAsync(
+            client,
+            fixture.TriageCaseId,
+            antiforgery,
+            fixture.Version,
+            "record_finding",
+            "Reviewed the request images",
+            KeyValuePair.Create("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)));
+        var completed = await PostActionAsync(
+            client,
+            fixture.TriageCaseId,
+            antiforgery,
+            fixture.Version + 1,
+            "complete",
+            reason: null);
+
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, completed, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-triage-reply-link", completed, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"triage-correspondence\"", completed, StringComparison.Ordinal);
+        Assert.DoesNotContain(Pegasus.Web.Presentation.OperatorLabels.Triage.ReplyWithOutcome, completed, StringComparison.Ordinal);
+        Assert.Equal(0, send.SendCalls);
+    }
+
+    [Fact]
+    public async Task ReconcileAcceptsAnOutcomeReplyOperation()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        var operationId = Guid.NewGuid();
+        send.SeedOperation(new StaffMailOperation(
+            operationId,
+            StaffMailState.Unknown,
+            StaffMailAttemptStage.Send,
+            Version: 1,
+            ChaserNowUtc,
+            ChaserNowUtc,
+            null,
+            null,
+            Guid.NewGuid(),
+            1,
+            "test_hash",
+            null,
+            null,
+            Purpose: StaffMailPurpose.TriageOutcomeReply,
+            ContextId: fixture.TriageCaseId,
+            ExpectedContextVersion: fixture.Version,
+            OriginalRetainedMessageId: fixture.RetainedMessageId));
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageReconcileReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["operationId"] = operationId.ToString("D"),
+            ["expectedOperationVersion"] = "1"
+        });
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/Cases/{fixture.TriageCaseId:D}", response.Headers.Location?.OriginalString);
+        Assert.Equal(1, send.ReconcileCalls);
+    }
+
     private static WebApplicationFactory<Program> ConfigureStaffSend(
         IntakeWebApplicationFactory baseFactory,
-        RecordingStaffMailSend send) =>
+        RecordingStaffMailSend send,
+        bool mailboxCanSend = true) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -661,7 +843,8 @@ public sealed partial class QdosTriageIntegrationTests
                 services.AddScoped<IApprovedMailboxStore>(provider =>
                     new StaffSendCapableMailboxStore(
                         provider.GetRequiredService<EfApprovedMailboxStore>(),
-                        null));
+                        null,
+                        mailboxCanSend));
             }));
 
     private static async Task<(string OperationKey, string AntiforgeryToken)> TriageChaserTokensAsync(
@@ -887,13 +1070,28 @@ public sealed partial class QdosTriageIntegrationTests
         return mailbox.Id;
     }
 
+    /// <summary>
+    /// The approved mailboxes as a send-capable estate sees them, or, with
+    /// <paramref name="canSend"/> false, as one where no mailbox may send.
+    /// </summary>
     private sealed class StaffSendCapableMailboxStore(
         IApprovedMailboxStore inner,
-        MailboxCapability? mailboxCapability) : IApprovedMailboxStore
+        MailboxCapability? mailboxCapability,
+        bool canSend = true) : IApprovedMailboxStore
     {
         public async Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
         {
             var mailboxes = await inner.ListAsync(cancellationToken);
+            if (!canSend)
+            {
+                return mailboxes
+                    .Select(mailbox => mailbox with
+                    {
+                        RouteScopes = [.. mailbox.RouteScopes.Where(scope => scope != ApprovedMailboxRouteScope.StaffSend)]
+                    })
+                    .ToArray();
+            }
+
             return mailboxes
                 .Select(mailbox => mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.SentEvidence)
                     ? mailbox with

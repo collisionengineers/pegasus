@@ -181,12 +181,11 @@ public sealed class TriageReferenceAllocationTests
                 $"alloc-immutable-await-edit:{Guid.NewGuid():N}"),
             CancellationToken.None);
         var awaited = await services.GetRequiredService<IAwaitTriageInformation>().ExecuteAsync(
-            new TriageMutationRequest(
+            new TriageTransitionRequest(
                 created.CaseId,
                 created.Version,
                 actor,
-                $"alloc-immutable-await:{Guid.NewGuid():N}",
-                "Further retained information is required")
+                $"alloc-immutable-await:{Guid.NewGuid():N}")
             {
                 EditLeaseToken = lease.Token
             },
