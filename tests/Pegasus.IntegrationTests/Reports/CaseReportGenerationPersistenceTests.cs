@@ -2401,15 +2401,16 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public string? LastOperationKey { get; private set; }
 
-        public CaseArtifactCustodyResult Result { get; init; } = new(
-            CaseArtifactCustodyDisposition.Unknown, null, null, null, null, null, null, null, null, null, null);
+        /// <summary>What custody holds under the operation key; nothing on a first request.</summary>
+        public CaseArtifactCustodyResult? Result { get; init; }
 
         public Task<CaseArtifactCustodyResult> GetAsync(
             ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
             CancellationToken cancellationToken)
         {
             LastQuery = (caseId, documentId, versionId, occurrenceId);
-            return Task.FromResult(Result);
+            return Task.FromResult(Result
+                ?? throw new FileNotFoundException("Custody holds nothing under these identities."));
         }
 
         /// <summary>
@@ -2421,7 +2422,7 @@ public sealed class CaseReportGenerationPersistenceTests
             CancellationToken cancellationToken)
         {
             LastOperationKey = operationKey;
-            return Task.FromResult<CaseArtifactCustodyResult?>(Result);
+            return Task.FromResult(Result);
         }
     }
 
