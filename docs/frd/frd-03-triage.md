@@ -141,8 +141,10 @@ outcome can complete the Triage without sending another message.
 **Completion.** Completion records the outcome, actor and time. It asks no
 reason. Marking a Triage Awaiting information asks no reason either.
 **Reply with outcome** is optional. The completion notice offers it when the
-Triage came by e-mail and its mailbox may send. It opens the reply with a
-preset outcome template the user can edit. A sent reply is linked to the
+Triage came by e-mail and its mailbox may send. It opens the reply with the
+Triage outcome template from Administration
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which the
+user can edit. A sent reply is linked to the
 Triage through the normal email evidence rules, but neither composing nor
 sending is a gate.
 `Cancelled` closes a Triage without a finding. Neither outcome turns a Triage
