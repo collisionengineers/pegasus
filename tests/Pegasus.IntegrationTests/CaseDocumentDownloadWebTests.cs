@@ -434,13 +434,18 @@ public sealed class CaseDocumentDownloadWebTests
             1,
             Sha256,
             MediaType,
-            CaseAssetReportRole.NotUsed,
+            false,
             null,
             rotation,
             crop,
             preparationVersion,
             "staff",
-            new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero));
+            new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero))
+        {
+            SourceFileName = "image.jpg",
+            RecordedAtUtc = new DateTimeOffset(2031, 5, 6, 8, 0, 0, TimeSpan.Zero),
+            CanPrint = true
+        };
 
     private static WebApplicationFactory<Program> CreateFactory(
         IntakeWebApplicationFactory baseFactory,

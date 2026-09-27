@@ -399,7 +399,10 @@ public static class CaseWorkspaceLabels
         public static string? BlockerSection(AssessmentReadinessItem item) => item switch
         {
             { Field: { } field } => Editors.SectionOf(field),
-            { Requirement: CaseReportReadiness.SignatoryRequirement } => "overview",
+            // Staff choose the Sign-off Engineer on Case details. Its name and
+            // signature are the account's, set in Accounts, so no Case section
+            // clears those blockers (operator, 26 September 2026).
+            _ when item == CaseReportReadiness.SignOffEngineerNotChosen => "overview",
             { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
             {
                 Requirement: CaseReportReadiness.CloseUpImageRequirement
@@ -854,18 +857,16 @@ public static class CaseWorkspaceLabels
     {
         public const string FullPage = "Full page";
         public const string PrintOnItsOwnPage = "Print on its own page";
-        public const string Remove = "Remove image";
         public const string Rotate = "Rotate";
         public const string DragToReorder = "Drag to reorder";
         public const string InReport = "In report";
         public const string NotInReport = "Not in report";
-        public const string Undo = "Undo";
-        public const string ImageRemoved = "Image removed";
+        public const string PutInReport = "The image is in the report.";
+        public const string TakenOutOfReport = "The image is out of the report.";
 
         /// <summary>The count line under the image grid: how many of the Case's images the report uses.</summary>
         public static string InReportCount(int included, int total) => $"{included} of {total} in report";
 
-        public const string Role = "Role";
         public const string Order = "Order";
         public const string Rotation = "Rotation";
         public const string Crop = "Crop";
@@ -873,15 +874,6 @@ public static class CaseWorkspaceLabels
         public const string RotateLeft = "Rotate left";
         public const string RotateRight = "Rotate right";
         public const string FullFrame = "Full frame";
-
-        public static string RoleLabel(CaseAssetReportRole role) => role switch
-        {
-            CaseAssetReportRole.NotUsed => "Not used",
-            CaseAssetReportRole.CloseUp => "Close-up",
-            CaseAssetReportRole.Overview => "Overview",
-            CaseAssetReportRole.Supporting => "Supporting",
-            _ => role.ToString(),
-        };
     }
 
     /// <summary>

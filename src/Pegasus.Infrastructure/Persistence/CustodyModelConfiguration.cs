@@ -58,7 +58,6 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.SourceOccurrenceIdentity).HasMaxLength(512).IsRequired();
             entity.Property(value => value.OperationKey).HasMaxLength(256).IsRequired();
             entity.Property(value => value.Ordinal).IsRequired();
-            entity.Property(value => value.PreparationRole).HasMaxLength(20);
             entity.Property(value => value.CropLeft).HasPrecision(8, 7);
             entity.Property(value => value.CropTop).HasPrecision(8, 7);
             entity.Property(value => value.CropWidth).HasPrecision(8, 7);

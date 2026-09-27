@@ -18,23 +18,20 @@
     // placeholder tile.
     var images = Model.ReportOrderedCaseImageFiles;
     var vocabulary = Model.TagVocabulary;
-    // v28 P50: an image's report role and order live on its tile, with the
-    // count of what the report uses under the grid. The Report section no
-    // longer carries an image surface of its own.
-    var reportRoles = new[]
-    {
-        CaseAssetReportRole.NotUsed, CaseAssetReportRole.CloseUp,
-        CaseAssetReportRole.Overview, CaseAssetReportRole.Supporting,
-    };
-    var preparations = Model.AssetPreparations;
-    var includedCount = preparations.Count(item => item.Role != CaseAssetReportRole.NotUsed);
+    // v28 P50: whether the report uses an image and its order live on its
+    // tile, with the count of what the report uses under the grid. The tag
+    // decides how an image in the report prints (operator, 26 September
+    // 2026), so the tile has no role of its own. Only an image that can
+    // print is counted: one still being stored joins when it confirms.
+    var printableCount = Model.AssetPreparations.Count(item => item.CanPrint);
+    var includedCount = CaseAssetPreparationPolicy.ForReport(Model.AssetPreparations).Count;
 
     // The tile is the image's preparation card (v26 § Crop and tag): the crop
     // taken on the viewer stage, the Report section's card and this tile all
     // stage into the same one Case form, so a crop taken anywhere is the crop
     // the report shows.
     IHtmlContent? PreparationMetadata(CaseAssetPreparation? item, string previewHref) =>
-        item is null || !mayPrepareImages ? null : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-role="{item.Role}" data-preparation-order="{item.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}" data-preparation-full-page="{(item.FullPage ? "true" : "false")}" data-preparation-preview="{previewHref}""" + "\"");
+        item is null || !mayPrepareImages ? null : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-in-report="{(item.InReport ? "true" : "false")}" data-preparation-order="{item.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}" data-preparation-full-page="{(item.FullPage ? "true" : "false")}" data-preparation-preview="{previewHref}""" + "\"");
 }
 
 @if (images.Count == 0 && Model.ImageIntakes.Count == 0)
@@ -106,38 +103,27 @@ else
                         }
                     </span>
                 }
-                @* P50: the report role and its order, staged into the one Case
+                @* P50: the image's order in the report, staged into the one Case
                    form by the same contract the preparation card used. P41 adds
-                   the tools beside them. *@
+                   the tools beside it. Whether the report uses the image is the
+                   In report button beside the tag picker, posted at once. *@
                 <div class="image-tile-report" data-image-report hidden="@(mayPrepareImages && preparation is not null ? "hidden" : null)">
                     @if (mayPrepareImages && preparation is not null)
                     {
-                        <label class="fc">
-                            <span class="lbl">@ReportImageLabels.InReport</span>
-                            <select class="fi" data-preparation-role-select aria-label="@ReportImageLabels.Role">
-                                @foreach (var role in reportRoles)
-                                {
-                                    <option value="@role" selected="@(preparation.Role == role ? "selected" : null)">@(role == CaseAssetReportRole.NotUsed ? ReportImageLabels.NotInReport : ReportImageLabels.RoleLabel(role))</option>
-                                }
-                            </select>
-                        </label>
-                        <label class="fc" data-image-order-cell hidden="@(preparation.Role == CaseAssetReportRole.Supporting ? null : "hidden")">
+                        <label class="fc" data-image-order-cell hidden="@(preparation.InReport ? null : "hidden")">
                             <span class="lbl">@ReportImageLabels.Order</span>
                             <input class="fi num" type="number" min="1" step="1" value="@preparation.Order" data-preparation-order aria-label="@ReportImageLabels.Order" />
                         </label>
                         <div class="image-tile-tools" data-image-tools>
                             <span class="grip" draggable="true" title="@ReportImageLabels.DragToReorder" aria-hidden="true"><svg class="icon"><use href="#icon-grip-vertical" /></svg></span>
                             <button type="button" class="icon-button" data-preparation-rotate="90" title="@ReportImageLabels.Rotate" aria-label="@ReportImageLabels.Rotate"><svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg></button>
-                            <button type="button" class="icon-button" data-image-full-page hidden="@(preparation.Role == CaseAssetReportRole.NotUsed ? "hidden" : null)" aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.FullPage"><svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg></button>
-                            <button type="button" class="icon-button" data-image-remove data-undo-title="@ReportImageLabels.ImageRemoved" data-undo-label="@ReportImageLabels.Undo" hidden="@(preparation.Role == CaseAssetReportRole.NotUsed ? "hidden" : null)" title="@ReportImageLabels.Remove" aria-label="@ReportImageLabels.Remove"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+                            <button type="button" class="icon-button" data-image-full-page hidden="@(preparation.InReport ? null : "hidden")" aria-pressed="@(preparation.FullPage ? "true" : "false")" title="@ReportImageLabels.PrintOnItsOwnPage" aria-label="@ReportImageLabels.FullPage"><svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg></button>
                         </div>
                         <span class="status status--plain status--navy" data-image-full-chip hidden="@(preparation.FullPage ? null : "hidden")">@ReportImageLabels.FullPage</span>
                     }
                     else
                     {
-                        <span class="@(preparation is { Role: not CaseAssetReportRole.NotUsed } ? "status status--plain status--navy" : "muted")" data-image-report-read>@(preparation is { Role: not CaseAssetReportRole.NotUsed } included
-                            ? ReportImageLabels.RoleLabel(included.Role) + (included.Role == CaseAssetReportRole.Supporting && included.Order is { } order ? " " + order.ToString(CultureInfo.InvariantCulture) : string.Empty)
-                            : ReportImageLabels.NotInReport)</span>
+                        <span class="@(preparation is { InReport: true } ? "status status--plain status--navy" : "muted")" data-image-report-read>@(preparation is { InReport: true } ? ReportImageLabels.InReport : ReportImageLabels.NotInReport)</span>
                         @if (preparation is { FullPage: true })
                         {
                             <span class="status status--plain status--navy" data-image-full-chip>@ReportImageLabels.FullPage</span>
@@ -158,17 +144,12 @@ else
                             <input type="hidden" name="preparationEdits[0].CropTop" value="@preparation.Crop.Top.ToString(CultureInfo.InvariantCulture)" />
                             <input type="hidden" name="preparationEdits[0].CropWidth" value="@preparation.Crop.Width.ToString(CultureInfo.InvariantCulture)" />
                             <input type="hidden" name="preparationEdits[0].CropHeight" value="@preparation.Crop.Height.ToString(CultureInfo.InvariantCulture)" />
-                            <label>@ReportImageLabels.Role
-                                <select name="preparationEdits[0].Role">
-                                    @foreach (var role in reportRoles)
-                                    {
-                                        <option value="@role" selected="@(preparation.Role == role)">@ReportImageLabels.RoleLabel(role)</option>
-                                    }
-                                </select>
-                            </label>
-                            <label>@ReportImageLabels.Order
-                                <input name="preparationEdits[0].Order" type="number" min="1" step="1" value="@preparation.Order" />
-                            </label>
+                            @if (preparation.InReport)
+                            {
+                                <label>@ReportImageLabels.Order
+                                    <input name="preparationEdits[0].Order" type="number" min="1" step="1" value="@preparation.Order" />
+                                </label>
+                            }
                             <label>@ReportImageLabels.Rotation
                                 <select name="preparationEdits[0].Rotation">
                                     @foreach (var rotation in new[] { CaseAssetRotation.None, CaseAssetRotation.Clockwise90, CaseAssetRotation.Half, CaseAssetRotation.Clockwise270 })
@@ -185,25 +166,6 @@ else
                             </label>
                             <button type="submit" class="btn btn--small">Save image preparation</button>
                         </form>
-                        @if (preparation.Role != CaseAssetReportRole.NotUsed)
-                        {
-                            <form method="post" asp-page-handler="Save" asp-route-id="@workflow.CaseId">
-                                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                                <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
-                                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                                <input type="hidden" name="section" value="files" />
-                                <input type="hidden" name="preparationEdits[0].OccurrenceId" value="@occurrence.Id" />
-                                <input type="hidden" name="preparationEdits[0].ExpectedPreparationVersion" value="@preparation.PreparationVersion" />
-                                <input type="hidden" name="preparationEdits[0].Role" value="NotUsed" />
-                                <input type="hidden" name="preparationEdits[0].Rotation" value="@((int)preparation.Rotation)" />
-                                <input type="hidden" name="preparationEdits[0].CropLeft" value="@preparation.Crop.Left.ToString(CultureInfo.InvariantCulture)" />
-                                <input type="hidden" name="preparationEdits[0].CropTop" value="@preparation.Crop.Top.ToString(CultureInfo.InvariantCulture)" />
-                                <input type="hidden" name="preparationEdits[0].CropWidth" value="@preparation.Crop.Width.ToString(CultureInfo.InvariantCulture)" />
-                                <input type="hidden" name="preparationEdits[0].CropHeight" value="@preparation.Crop.Height.ToString(CultureInfo.InvariantCulture)" />
-                                <input type="hidden" name="preparationEdits[0].FullPage" value="false" />
-                                <button type="submit" class="btn btn--small">Remove from report</button>
-                            </form>
-                        }
                     </noscript>
                 }
                 @if (mayEdit)
@@ -217,6 +179,28 @@ else
                                      leaseToken,
                                      vocabulary,
                                      occurrence.Tags))" />
+                        @if (preparation is not null)
+                        {
+                            @* In report, posted at once like a tag (operator, 26
+                               September 2026). The viewer's In report box and a
+                               click on the image while editing press this. *@
+                            <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId"
+                                  asp-page-handler="SetImageInReport" data-image-in-report-form="@occurrence.Id">
+                                <input type="hidden" name="id" value="@workflow.CaseId" />
+                                <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
+                                <input type="hidden" name="inReport" value="@(preparation.InReport ? "false" : "true")" />
+                                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                                <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                                <button type="submit" class="btn btn--small" aria-pressed="@(preparation.InReport ? "true" : "false")" data-image-in-report>
+                                    @if (preparation.InReport)
+                                    {
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                                    }
+                                    <span>@ReportImageLabels.InReport</span>
+                                </button>
+                            </form>
+                        }
                         @if (mayCrop)
                         {
                             <button type="button" class="btn btn--small" data-preparation-crop data-preparation-crop-occurrence="@occurrence.Id">@TagLabels.Crop</button>
@@ -226,7 +210,7 @@ else
             </li>
         }
     </ul>
-    <p class="muted image-grid-count"><b data-image-report-count>@ReportImageLabels.InReportCount(includedCount, images.Count)</b></p>
+    <p class="muted image-grid-count"><b data-image-report-count>@ReportImageLabels.InReportCount(includedCount, printableCount)</b></p>
 
     @* The associated Image-initiated Cases' photographs, each naming the
        intake it arrived on. They are receipts, not case documents, so they

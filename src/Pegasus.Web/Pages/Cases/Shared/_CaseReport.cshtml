@@ -69,8 +69,7 @@
     // P50 moved the image surface to Files, so what the report uses is
     // counted from the preparations that grid reads. The Preview images
     // offer still depends on there being at least one.
-    var inReport = Model.AssetPreparations.Count(
-        item => item.Role != Pegasus.Core.Documents.CaseAssetReportRole.NotUsed);
+    var inReport = Pegasus.Core.Documents.CaseAssetPreparationPolicy.ForReport(Model.AssetPreparations).Count;
 
     // A delivery may attach a subset of the generation's documents (v28 P22),
     // so what it needs is a confirmed report, not every artifact confirmed.
@@ -272,6 +271,12 @@
                                     <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@caseId"
                                        asp-route-section="@blockerSection" asp-fragment="section-@blockerSection"
                                        data-section-jump="@blockerSection">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == blockerSection).Label</a>
+                                </div>
+                            }
+                            else if (Model.BlockerOpensAccounts(reason))
+                            {
+                                <div class="blocker-actions">
+                                    <a class="btn btn--small" asp-page="/Administration/Accounts/Index" data-blocker-accounts>@OperatorLabels.Admin.Accounts</a>
                                 </div>
                             }
                         </li>
@@ -545,7 +550,7 @@
             </div>
         }
 
-        @* P50: an image has one place. Its report role, its order and the
+        @* P50: an image has one place. Whether the report uses it, its order and the
            tools that change it are on its tile under Files; the Report
            section no longer repeats the strip or the preparation cards. *@
         </div>

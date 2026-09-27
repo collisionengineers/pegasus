@@ -246,6 +246,13 @@ may add a custom tag of up to 40 characters, unique against every existing
 name ignoring case, with one of six fixed design tints. An occurrence may
 carry any number of tags.
 
+Tags carry meaning for the report (operator, 26 September 2026). A new
+image is in the report. The first image in the
+report tagged Close-up prints as the Close-up and the first other one tagged
+Overview as the Overview; the rest print as supporting images. Tagging an
+image Third party or Reflection takes it out of the report; staff may put it
+back in ([FRD-06](frd-06-vehicle-and-engineering-evidence.md)).
+
 Applying or removing a tag on a Case image has the same guards as any other
 Case change: the current Case edit lease, the expected Case version and an
 operation key for replay. It bumps the Case version, so the tag is on the

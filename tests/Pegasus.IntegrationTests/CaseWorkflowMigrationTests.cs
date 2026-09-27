@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Pegasus.Core.Assessment;
@@ -429,7 +429,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260925190000_EditLeaseTakeoverHistoryEvents",
                 "20260926090000_RepairSpecInUseOnCreate",
                 "20260926150000_DeclaredUploadDestination",
-                "20260927002303_EmailTemplates"
+                "20260927002303_EmailTemplates",
+                "20260927004150_ImageInReport"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

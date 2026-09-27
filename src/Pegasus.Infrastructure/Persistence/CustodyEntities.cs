@@ -46,7 +46,11 @@ internal sealed class DocumentOccurrenceEntity
     public string SourceOccurrenceIdentity { get; set; } = string.Empty;
     public DateTimeOffset RecordedAtUtc { get; set; }
     public string OperationKey { get; set; } = string.Empty;
-    public string? PreparationRole { get; set; }
+
+    /// <summary>Whether the report uses this image; a new image is in it (operator, 26 September 2026).</summary>
+    public bool InReport { get; set; } = true;
+
+    /// <summary>The image's place among the images in the report.</summary>
     public int? SupportingOrder { get; set; }
     public short RotationDegrees { get; set; }
     public decimal? CropLeft { get; set; }

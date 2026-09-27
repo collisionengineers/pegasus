@@ -5,10 +5,10 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// Reads case asset report preparation from
-/// <see cref="DocumentOccurrenceEntity"/>'s preparation columns, and applies a
-/// preparation edit inside the Case workspace save's own transaction with a
-/// per-row <c>PreparationVersion</c> optimistic check. Original bytes and
-/// <c>DocumentVersion.Sha256</c> are never touched.
+/// <see cref="DocumentOccurrenceEntity"/>'s preparation columns and the
+/// image's tags, and applies a preparation edit inside the Case workspace
+/// save's own transaction with a per-row <c>PreparationVersion</c> optimistic
+/// check. Original bytes and <c>DocumentVersion.Sha256</c> are never touched.
 /// </summary>
 public sealed class EfCaseAssetPreparationStore(
     IDbContextFactory<PegasusDbContext> contextFactory) : ICaseAssetPreparationQueries
@@ -38,7 +38,13 @@ public sealed class EfCaseAssetPreparationStore(
             select new { Occurrence = occurrence, Version = version })
             .SingleOrDefaultAsync(cancellationToken);
 
-        return snapshot is null ? null : ToPreparation(snapshot.Occurrence, snapshot.Version);
+        if (snapshot is null)
+        {
+            return null;
+        }
+
+        var tags = await TagsAsync(context, [snapshot.Occurrence.Id], cancellationToken);
+        return ToPreparation(snapshot.Occurrence, snapshot.Version, tags);
     }
 
     public async Task<IReadOnlyList<CaseAssetPreparation>> ListForCaseAsync(
@@ -125,18 +131,19 @@ public sealed class EfCaseAssetPreparationStore(
             }
         }
 
+        var tags = await TagsAsync(context, [.. occurrences.Select(item => item.Id)], cancellationToken);
         var proposedByOccurrence = occurrences.ToDictionary(
             occurrence => occurrence.Id,
-            occurrence => ToPreparation(occurrence, pinnedVersionsById[occurrence.VersionId]));
+            occurrence => ToPreparation(occurrence, pinnedVersionsById[occurrence.VersionId], tags));
         foreach (var (occurrenceId, edit) in editsByOccurrence)
         {
             var existing = proposedByOccurrence[occurrenceId];
             proposedByOccurrence[occurrenceId] = existing with
             {
-                Role = edit.Role,
                 Order = edit.Order,
                 Rotation = edit.Rotation,
-                Crop = edit.Crop
+                Crop = edit.Crop,
+                FullPage = edit.FullPage
             };
         }
 
@@ -148,7 +155,7 @@ public sealed class EfCaseAssetPreparationStore(
         foreach (var occurrence in occurrences)
         {
             var final = validatedByOccurrence[occurrence.Id];
-            // Renormalizing a Supporting sequence can shift an unedited
+            // Renumbering the images in the report can shift an unedited
             // neighbour's number even though nobody edited that row; persist
             // its new order so the database matches what this call returns.
             occurrence.SupportingOrder = final.Order;
@@ -157,9 +164,7 @@ public sealed class EfCaseAssetPreparationStore(
                 continue;
             }
 
-            occurrence.PreparationRole = final.Role.ToString();
-            occurrence.PreparationFullPage = final.Role != CaseAssetReportRole.NotUsed
-                && editsByOccurrence[occurrence.Id].FullPage;
+            occurrence.PreparationFullPage = final.FullPage;
             occurrence.RotationDegrees = (short)final.Rotation;
             WriteCrop(occurrence, final.Crop);
             occurrence.PreparationVersion = checked(occurrence.PreparationVersion + 1);
@@ -173,7 +178,7 @@ public sealed class EfCaseAssetPreparationStore(
         // returning `validated` directly would hand the caller a stale
         // PreparationVersion for every occurrence it just edited.
         return occurrences
-            .Select(occurrence => ToPreparation(occurrence, pinnedVersionsById[occurrence.VersionId]))
+            .Select(occurrence => ToPreparation(occurrence, pinnedVersionsById[occurrence.VersionId], tags))
             .ToArray();
     }
 
@@ -213,17 +218,31 @@ public sealed class EfCaseAssetPreparationStore(
             .AsNoTracking()
             .Where(version => versionIds.Contains(version.Id))
             .ToDictionaryAsync(version => version.Id, cancellationToken);
+        var tags = await TagsAsync(context, [.. occurrences.Select(item => item.Id)], cancellationToken);
 
         return occurrences
-            .Select(occurrence => ToPreparation(occurrence, versionsById[occurrence.VersionId]))
-            .OrderBy(item => item.Role)
+            .Select(occurrence => ToPreparation(occurrence, versionsById[occurrence.VersionId], tags))
+            .OrderBy(item => item.InReport ? 0 : 1)
             .ThenBy(item => item.Order ?? int.MaxValue)
             .ToArray();
     }
 
+    /// <summary>The tags each of <paramref name="occurrenceIds"/> wears, which decide how it prints.</summary>
+    private static async Task<ILookup<Guid, Guid>> TagsAsync(
+        PegasusDbContext context,
+        IReadOnlyList<Guid> occurrenceIds,
+        CancellationToken cancellationToken) =>
+        (await context.Set<DocumentOccurrenceTagEntity>()
+            .AsNoTracking()
+            .Where(item => occurrenceIds.Contains(item.OccurrenceId))
+            .Select(item => new { item.OccurrenceId, item.TagId })
+            .ToArrayAsync(cancellationToken))
+        .ToLookup(item => item.OccurrenceId, item => item.TagId);
+
     private static CaseAssetPreparation ToPreparation(
         DocumentOccurrenceEntity occurrence,
-        DocumentVersionEntity pinnedVersion) =>
+        DocumentVersionEntity pinnedVersion,
+        ILookup<Guid, Guid> tags) =>
         new(
             occurrence.CaseId,
             occurrence.Id,
@@ -232,14 +251,22 @@ public sealed class EfCaseAssetPreparationStore(
             pinnedVersion.Version,
             pinnedVersion.Sha256,
             pinnedVersion.MediaType,
-            ParseRole(occurrence.PreparationRole),
+            occurrence.InReport,
             occurrence.SupportingOrder,
             (CaseAssetRotation)occurrence.RotationDegrees,
             ToCrop(occurrence),
             occurrence.PreparationVersion,
             occurrence.PreparedBy,
             occurrence.PreparedAtUtc,
-            occurrence.PreparationFullPage);
+            occurrence.PreparationFullPage)
+        {
+            TagIds = [.. tags[occurrence.Id]],
+            SourceFileName = pinnedVersion.FileName,
+            RecordedAtUtc = occurrence.RecordedAtUtc,
+            CanPrint = pinnedVersion.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && pinnedVersion.IsCurrent
+                && !pinnedVersion.IsLogicallyRemoved
+        };
 
     private static DocumentVersion ToDocumentVersion(DocumentVersionEntity value) =>
         new(
@@ -256,14 +283,6 @@ public sealed class EfCaseAssetPreparationStore(
             value.IsCurrent,
             value.IsLogicallyRemoved,
             value.RemovalReason);
-
-    private static CaseAssetReportRole ParseRole(string? role) =>
-        role is null
-            ? CaseAssetReportRole.NotUsed
-            : Enum.TryParse<CaseAssetReportRole>(role, out var parsed)
-                ? parsed
-                : throw new InvalidDataException(
-                    $"An unrecognized persisted case asset role '{role}' is retained.");
 
     private static CaseAssetCrop ToCrop(DocumentOccurrenceEntity occurrence) =>
         occurrence.CropLeft is null
