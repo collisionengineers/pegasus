@@ -519,18 +519,18 @@ uses it, its order and the tools that change them are on its tile under
 Files, and non-destructive crops leave the retained source and its hash
 untouched. A new image is in the report. An image already on the Case that
 staff never gave a report role is in it too, unless it is tagged Third party
-or Reflection; one staff set to Not used stays out. The tile has no report role: its
-tag decides how it prints, the first tagged `Close-up` first and the first
-other one tagged `Overview` second, the rest as supporting images in order
-(operator, 26 September 2026). Beneath the grid a line counts what the
-report uses, out of the images that can print
+or Reflection; one staff set to Not used stays out. The tile has no report
+role: its tag decides how it prints, the first tagged `Close-up` first and
+the first other one tagged `Overview` second, the rest as supporting images
+in order (operator, 26 September 2026). Beneath the grid a line counts what
+the report uses, out of the images that can print
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis));
-an image still being stored is in neither number. The tile also carries Rotate and **Full page** (v28 P41): Full
-page is a flag on an image the report uses, so the image prints on a page of
-its own; the grip drags a tile above the one it lands on and the order the
-tiles then stand in is the report's order. While the Case edits, clicking the
-image itself presses its In report (v28 P27). The Report section carries no
-image surface.
+an image still being stored is in neither number. The tile also carries
+Rotate and **Full page** (v28 P41): Full page is a flag on an image the
+report uses, so the image prints on a page of its own; the grip drags a tile
+above the one it lands on and the order the tiles then stand in is the
+report's order. While the Case edits, clicking the image itself presses its
+In report (v28 P27). The Report section carries no image surface.
 
 The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
 repairer's document) carries the repair specification set (`EXT-09`): named
