@@ -61,7 +61,8 @@ public sealed record AssessmentReportProjectionInput(
     ReportGuideSources? Guides = null,
     string? ValuationCommentary = null,
     bool IncludeFeeNote = false,
-    IReadOnlyList<CaseReportWording>? Wording = null);
+    IReadOnlyList<CaseReportWording>? Wording = null,
+    bool SignOffEngineersOffered = false);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -92,7 +93,8 @@ public static class AssessmentReportProjection
     public static AssessmentReportDraftPreparation Prepare(
         CaseAssessmentProjection assessment,
         RepairSpecificationVersion? currentEstimate = null,
-        ReportSignatory? signatory = null)
+        ReportSignatory? signatory = null,
+        bool signOffEngineersOffered = false)
     {
         ArgumentNullException.ThrowIfNull(assessment);
         var reasons = new List<AssessmentReadinessItem>(
@@ -102,9 +104,9 @@ public static class AssessmentReportProjection
         // generation name them identically. The report's repair cost is the
         // Current repair spec's canonical total (EXT-09, FRD-11 § Estimate VAT
         // on the rendered report); there is no hand-typed cost path.
-        if (signatory?.IsComplete != true)
+        if (CaseReportReadiness.SignOffBlocker(signatory?.IsComplete, signOffEngineersOffered) is { } signOff)
         {
-            reasons.Add(CaseReportReadiness.SignatoryMissing);
+            reasons.Add(signOff);
         }
         if (currentEstimate is null)
         {
@@ -129,7 +131,8 @@ public static class AssessmentReportProjection
     {
         ArgumentNullException.ThrowIfNull(input);
         var assessment = input.Assessment;
-        var preparation = Prepare(assessment, input.CurrentEstimate, input.Signatory);
+        var preparation = Prepare(
+            assessment, input.CurrentEstimate, input.Signatory, input.SignOffEngineersOffered);
         if (!preparation.CanGenerate)
         {
             return new(null, preparation.Reasons);

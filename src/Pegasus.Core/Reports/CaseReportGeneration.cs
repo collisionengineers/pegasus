@@ -520,10 +520,29 @@ public static class CaseReportReadiness
     public const string ValuationCommentaryRequirement = "Valuation commentary";
     public const string UnrelatedDamageRequirement = "Unrelated damage";
 
-    internal static readonly AssessmentReadinessItem SignatoryMissing = new(
+    // Staff cannot clear these two on the Case: the name and signature are
+    // the account's (operator, 26 September 2026).
+    private const string AccountResolution =
+        "An Administrator sets a name and signature on the account in Accounts.";
+
+    internal static readonly AssessmentReadinessItem SignOffAccountMissing = new(
         SignatoryRequirement, "Case sign-off account",
-        "The Case has no eligible sign-off Engineer with a complete signature on file.",
-        "Select a Sign-off Engineer with a signature on file on the Case details section.");
+        "No staff account is a Sign-off Engineer with a signature on file.",
+        AccountResolution);
+
+    internal static readonly AssessmentReadinessItem SignOffAccountIncomplete = new(
+        SignatoryRequirement, "Case sign-off account",
+        "The Sign-off Engineer's account has no name or signature the report can print.",
+        AccountResolution);
+
+    /// <summary>
+    /// Accounts are offered and the Case resolves to none of them, so staff
+    /// clear this one on the Case.
+    /// </summary>
+    public static readonly AssessmentReadinessItem SignOffEngineerNotChosen = new(
+        SignatoryRequirement, "Case record",
+        "The Case has no Sign-off Engineer.",
+        "Choose the Sign-off Engineer on Case details.");
 
     internal static readonly AssessmentReadinessItem CurrentEstimateMissing = new(
         CurrentEstimateRequirement, "Estimates",
@@ -559,7 +578,12 @@ public static class CaseReportReadiness
             input.PersistedSignOffEngineerId,
             input.AssignedEngineerId,
             input.EligibleSignOffEngineers);
-        Require(signatory is not null && IsComplete(signatory), SignatoryMissing);
+        if (SignOffBlocker(
+                signatory is null ? null : IsComplete(signatory),
+                input.EligibleSignOffEngineers.Count > 0) is { } signOff)
+        {
+            reasons.Add(signOff);
+        }
 
         Require(input.CurrentEstimate is not null, CurrentEstimateMissing);
         Require(input.CurrentEstimate is null || input.CurrentEstimate.Lines.Count > 0, CurrentEstimateEmpty);
@@ -567,25 +591,34 @@ public static class CaseReportReadiness
             input.CurrentEstimate is null || input.CurrentEstimate.Details.HourlyRate > 0m,
             LabourRateMissing);
 
+        // The image tag decides how an image in the report prints (operator,
+        // 26 September 2026), so each blocker asks for a tag.
         var images = CaseAssetPreparationPolicy.ForReport(input.Preparations);
         Require(
-            images.Count(image => image.Role == CaseAssetReportRole.CloseUp) == 1,
+            images.Any(image => image.Role == CaseAssetReportRole.CloseUp),
             new(
                 CloseUpImageRequirement, "Case files",
-                "The report requires exactly one Close-up image.",
-                "Mark one confirmed Case image as the Close-up on the Files section."));
+                "The report prints one Close-up image and no image in the report is tagged Close-up.",
+                "Tag one Case image Close-up on the Files section."));
         Require(
-            images.Count(image => image.Role == CaseAssetReportRole.Overview) == 1,
+            images.Any(image => image.Role == CaseAssetReportRole.Overview),
             new(
                 OverviewImageRequirement, "Case files",
-                "The report requires exactly one Overview image.",
-                "Mark one confirmed Case image as the Overview on the Files section."));
+                "The report prints one Overview image and no image in the report is tagged Overview.",
+                "Tag one Case image Overview on the Files section."));
+        // Only an image that can print is one of these (operator, 26
+        // September 2026), so this names one whose stored version changed
+        // between the two reads.
+        var changed = images
+            .Where(image => !MatchesConfirmedSource(image, input.ConfirmedImageSources))
+            .Select(image => input.Preparations.First(item => item.OccurrenceId == image.OccurrenceId).SourceFileName)
+            .ToArray();
         Require(
-            images.All(image => MatchesConfirmedSource(image, input.ConfirmedImageSources)),
+            changed.Length == 0,
             new(
                 ImageSourceRequirement, "Case files",
-                "A selected report image no longer matches its custody-confirmed source version.",
-                "Re-select the affected image on the Files section once its custody version settles."));
+                $"The stored version of {string.Join(", ", changed)} has changed.",
+                "Open the Files section to see the image as it is stored now."));
 
         var content = ContentOf(assessment);
         var overridden = Flag(assessment, AssessmentVocabulary.ReportDateOverride);
@@ -609,6 +642,19 @@ public static class CaseReportReadiness
 
         return new(reasons, signatory, images, content, recordedDate, overridden);
     }
+
+    /// <summary>
+    /// The Sign-off Engineer blocker, or none when the Case's Sign-off
+    /// Engineer can sign the report. <paramref name="resolvedIsComplete"/> is
+    /// null when the Case resolves to no account.
+    /// </summary>
+    internal static AssessmentReadinessItem? SignOffBlocker(bool? resolvedIsComplete, bool accountsOffered) =>
+        resolvedIsComplete switch
+        {
+            true => null,
+            false => SignOffAccountIncomplete,
+            null => accountsOffered ? SignOffEngineerNotChosen : SignOffAccountMissing,
+        };
 
     /// <summary>
     /// The report content switches as persisted. Absent means off.

@@ -2769,8 +2769,9 @@
 })();
 
 // --- images: the grid's own acts (v28 P41 drag, P27 click to include) --------
-// Both write through the role and order controls the preparation binder
-// already owns, so the tile, the viewer and the Case Save cannot disagree.
+// Drag writes through the order controls the preparation binder already owns,
+// so the tile, the viewer and the Case Save cannot disagree; a click on the
+// image presses the tile's own In report button, posted at once.
 (function () {
     'use strict';
 
@@ -2788,9 +2789,8 @@
             function renumber() {
                 var at = 0;
                 grid.querySelectorAll('[data-image-tile][data-preparation-card]').forEach(function (tile) {
-                    var role = tile.querySelector('[data-preparation-role-select]');
                     var order = tile.querySelector('[data-preparation-order]');
-                    if (!role || !order || role.value !== 'Supporting') { return; }
+                    if (!order || tile.getAttribute('data-preparation-in-report') !== 'true') { return; }
                     at += 1;
                     if (order.value !== String(at)) {
                         order.value = String(at);
@@ -2837,13 +2837,12 @@
                 if (event.target.closest('[data-image-report], .image-tile-actions')) { return; }
                 var link = event.target.closest('a[data-evidence-item]');
                 var tile = tileOf(link);
-                var role = tile ? tile.querySelector('[data-preparation-role-select]') : null;
-                if (!link || !role) { return; }
+                if (!link || !tile || !tile.querySelector('[data-image-in-report]')) { return; }
                 event.preventDefault();
                 event.stopPropagation();
                 window.pegasusCasePreparation.toggleInReport(
                     tile.getAttribute('data-preparation-occurrence'),
-                    role.value === 'NotUsed');
+                    tile.getAttribute('data-preparation-in-report') !== 'true');
             }, true);
         });
     }
@@ -3376,9 +3375,6 @@
         function fmt(v) { return String(Math.round(v * 100) / 100); }
     }
     function rotationLabel(r) { return r ? r + '°' : 'None'; }
-    function roleLabel(role) {
-        return { NotUsed: 'Not used', CloseUp: 'Close-up', Overview: 'Overview', Supporting: 'Supporting' }[role] || role;
-    }
 
     // Lays an <img> out so the crop region (in the rotated source's
     // fractions) fills the box; the image is expected to sit centred at its
@@ -3534,12 +3530,12 @@
                 width: number(card.getAttribute('data-preparation-crop-width'), 1),
                 height: number(card.getAttribute('data-preparation-crop-height'), 1)
             };
-            var role = card.getAttribute('data-preparation-role') || 'NotUsed';
             store[id] = {
                 id: id,
                 version: number(card.getAttribute('data-preparation-version'), 0),
-                role: role,
-                previousRole: role === 'NotUsed' ? 'Supporting' : role,
+                // Whether the report uses the image is the server's, posted at
+                // once (operator, 26 September 2026): read here, never staged.
+                inReport: card.getAttribute('data-preparation-in-report') === 'true',
                 order: card.getAttribute('data-preparation-order') ? number(card.getAttribute('data-preparation-order'), null) : null,
                 rotation: normalRotation(number(card.getAttribute('data-preparation-rotation'), 0)),
                 fullPage: card.getAttribute('data-preparation-full-page') === 'true',
@@ -3568,8 +3564,8 @@
             var value = store[id];
             if (!value.changed) { return; }
             [
-                ['OccurrenceId', value.id], ['ExpectedPreparationVersion', value.version], ['Role', value.role],
-                ['Order', value.role === 'Supporting' && value.order !== null ? value.order : ''], ['Rotation', value.rotation],
+                ['OccurrenceId', value.id], ['ExpectedPreparationVersion', value.version],
+                ['Order', value.inReport && value.order !== null ? value.order : ''], ['Rotation', value.rotation],
                 ['CropLeft', round7(value.crop.left)], ['CropTop', round7(value.crop.top)],
                 ['CropWidth', round7(value.crop.width)], ['CropHeight', round7(value.crop.height)],
                 ['FullPage', value.fullPage ? 'true' : 'false']
@@ -3597,28 +3593,21 @@
         var value = get(id);
         if (!value) { return; }
         cardsFor(id).forEach(function (card) {
-            var role = card.querySelector('[data-preparation-role-select]');
             var order = card.querySelector('[data-preparation-order]');
-            var roleLabelElement = card.querySelector('[data-preparation-role-label]');
             var rotationLabelElement = card.querySelector('[data-preparation-rotation-label]');
             var cropLabelElement = card.querySelector('[data-preparation-crop-label]');
-            if (role) { role.value = value.role; }
-            if (order) { order.value = value.order === null ? '' : value.order; order.disabled = value.role !== 'Supporting'; }
+            if (order) { order.value = value.order === null ? '' : value.order; order.disabled = !value.inReport; }
             // v28 P41 and P50: the tile's Full page flag and its order cell
-            // follow the same staged state as the role.
+            // are an image in the report's.
             var orderCell = card.querySelector('[data-image-order-cell]');
-            if (orderCell) { orderCell.hidden = value.role !== 'Supporting'; }
-            var reportActionsAvailable = value.role !== 'NotUsed';
+            if (orderCell) { orderCell.hidden = !value.inReport; }
             var fullButton = card.querySelector('[data-image-full-page]');
             if (fullButton) {
-                fullButton.hidden = !reportActionsAvailable;
+                fullButton.hidden = !value.inReport;
                 fullButton.setAttribute('aria-pressed', value.fullPage ? 'true' : 'false');
             }
-            var removeButton = card.querySelector('[data-image-remove]');
-            if (removeButton) { removeButton.hidden = !reportActionsAvailable; }
             var fullChip = card.querySelector('[data-image-full-chip]');
             if (fullChip) { fullChip.hidden = !value.fullPage; }
-            if (roleLabelElement) { roleLabelElement.textContent = roleLabel(value.role); }
             if (rotationLabelElement) { rotationLabelElement.textContent = rotationLabel(value.rotation); }
             if (cropLabelElement) { cropLabelElement.textContent = cropLabel(value.crop); }
             var box = card.querySelector('[data-preparation-preview-box]');
@@ -3633,11 +3622,6 @@
                 badge.textContent = value.rotation ? value.rotation + '°' : '';
                 badge.hidden = !value.rotation;
             }
-        });
-        all(document, '[data-report-image-toggle="' + id + '"]').forEach(function (tile) {
-            tile.classList.toggle('off', value.role === 'NotUsed');
-            var mark = tile.querySelector('.inc');
-            if (mark) { mark.textContent = value.role === 'NotUsed' ? '–' : '✓'; }
         });
         if (viewer && viewer.open && viewer.current() && viewer.current().occurrence === id) {
             viewer.render();
@@ -3669,15 +3653,10 @@
     function set(id, patch) {
         var value = get(id);
         if (!value) { return null; }
-        if (patch.role !== undefined) {
-            if (value.role !== 'NotUsed') { value.previousRole = value.role; }
-            value.role = patch.role;
-            if (value.role !== 'Supporting') { value.order = null; }
-        }
         if (patch.order !== undefined) { value.order = patch.order === null ? null : Math.max(1, Math.floor(number(patch.order, 1))); }
         // An image the report does not use never claims a page of its own.
         if (patch.fullPage !== undefined) { value.fullPage = !!patch.fullPage; }
-        if (value.role === 'NotUsed') { value.fullPage = false; }
+        if (!value.inReport) { value.fullPage = false; }
         if (patch.rotation !== undefined) { value.rotation = normalRotation(patch.rotation); }
         if (patch.crop !== undefined) {
             value.crop = {
@@ -3690,11 +3669,14 @@
         writeHidden();
         return value;
     }
+    // In report is posted at once through the tile's own form (operator, 26
+    // September 2026), so the tile, the viewer and a click on the image all
+    // press the same button.
     function toggleInReport(id, on) {
         var value = get(id);
-        if (!value) { return; }
-        set(id, { role: on ? (value.previousRole || 'Supporting') : 'NotUsed' });
-        countImagesInReport();
+        var form = document.querySelector('[data-image-in-report-form="' + id + '"]');
+        if (!value || !form || value.inReport === on) { return; }
+        form.requestSubmit();
     }
     window.pegasusCasePreparation = {
         get: get,
@@ -3702,20 +3684,6 @@
         openCrop: function (id) { if (viewer) { viewer.openCrop(id); } },
         toggleInReport: toggleInReport
     };
-
-    // v28 P50: how many of the Case's images the report uses, under the grid.
-    function countImagesInReport() {
-        var line = document.querySelector('[data-image-report-count]');
-        var grid = document.querySelector('[data-image-grid]');
-        if (!line || !grid) { return; }
-        var tiles = all(grid, '[data-image-tile]');
-        var included = tiles.filter(function (tile) {
-            if (!tile.hasAttribute('data-preparation-card')) { return false; }
-            var staged = get(tile.getAttribute('data-preparation-occurrence'));
-            return staged ? staged.role !== 'NotUsed' : tile.getAttribute('data-preparation-role') !== 'NotUsed';
-        }).length;
-        line.textContent = included + ' of ' + tiles.length + ' in report';
-    }
 
     function bindPreparationCards(root) {
         all(root, '[data-preparation-card]').forEach(function (card) {
@@ -3726,9 +3694,7 @@
             var enhanced = card.querySelector('[data-image-report]');
             if (enhanced) { enhanced.hidden = false; }
             sync(value.id);
-            var role = card.querySelector('[data-preparation-role-select]');
             var order = card.querySelector('[data-preparation-order]');
-            if (role) { role.addEventListener('change', function () { set(value.id, { role: role.value }); countImagesInReport(); }); }
             if (order) { order.addEventListener('change', function () { set(value.id, { order: order.value === '' ? null : order.value }); }); }
             all(card, '[data-preparation-rotate]').forEach(function (button) {
                 button.addEventListener('click', function () {
@@ -3736,41 +3702,15 @@
                     set(value.id, { rotation: current.rotation + number(button.getAttribute('data-preparation-rotate'), 0) });
                 });
             });
-            // v28 P41: Full page is a flag on an image the report uses;
-            // Remove sets the role to Not used and the file stays on the Case,
-            // so Undo simply puts the role back.
+            // v28 P41: Full page is a flag on an image the report uses.
             var fullPage = card.querySelector('[data-image-full-page]');
             if (fullPage) {
                 fullPage.addEventListener('click', function (event) {
                     event.preventDefault();
                     event.stopPropagation();
                     var current = get(value.id);
-                    if (!current || current.role === 'NotUsed') { return; }
+                    if (!current || !current.inReport) { return; }
                     set(value.id, { fullPage: !current.fullPage });
-                    countImagesInReport();
-                });
-            }
-            var removeImage = card.querySelector('[data-image-remove]');
-            if (removeImage) {
-                removeImage.addEventListener('click', function (event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    var current = get(value.id);
-                    if (!current || current.role === 'NotUsed') { return; }
-                    var was = current.role;
-                    var wasOrder = current.order;
-                    var wasFullPage = current.fullPage;
-                    set(value.id, { role: 'NotUsed', fullPage: false });
-                    countImagesInReport();
-                    if (window.pegasusUndoToast) {
-                        window.pegasusUndoToast(
-                            removeImage.getAttribute('data-undo-title') || 'Image removed',
-                            function () {
-                                set(value.id, { role: was, order: wasOrder, fullPage: wasFullPage });
-                                countImagesInReport();
-                            },
-                            removeImage.getAttribute('data-undo-label'));
-                    }
                 });
             }
         });
@@ -3783,20 +3723,6 @@
                     || (owner ? owner.getAttribute('data-preparation-occurrence') : null);
                 if (id) { window.pegasusCasePreparation.openCrop(id); }
             });
-        });
-        // A report-strip tile toggles inclusion while editing (v26 § Image
-        // viewer); the small view glyph opens the viewer instead.
-        all(root, '[data-report-image-toggle]').forEach(function (tile) {
-            if (tile.dataset.toggleBound === 'true') { return; }
-            tile.dataset.toggleBound = 'true';
-            var id = tile.getAttribute('data-report-image-toggle');
-            tile.addEventListener('click', function (event) {
-                if (event.target.closest('[data-tile-view], .th-view')) { return; }
-                if (!get(id)) { return; }
-                event.preventDefault();
-                event.stopPropagation();
-                toggleInReport(id, tile.classList.contains('off'));
-            }, true);
         });
         all(root, '[data-tile-view], .th-view').forEach(function (button) {
             if (button.dataset.viewBound === 'true') { return; }
@@ -3948,7 +3874,7 @@
             if (zoomLabel) { zoomLabel.textContent = state.zoom ? 'Fit' : 'Zoom'; }
             cropButton.hidden = kind !== 'image' || !value;
             inReportWrap.hidden = kind !== 'image' || !value;
-            if (value) { inReport.checked = value.role !== 'NotUsed'; }
+            if (value) { inReport.checked = value.inReport; }
             viewTools.hidden = !!state.crop;
             cropTools.hidden = !state.crop;
             host.querySelector('[data-viewer-prev]').disabled = state.items.length < 2;
@@ -3964,7 +3890,7 @@
                 var button = document.createElement('button');
                 button.type = 'button';
                 var value = preparable(item) ? get(item.occurrence) : null;
-                var excluded = value ? value.role === 'NotUsed' : item.excluded;
+                var excluded = value ? !value.inReport : item.excluded;
                 button.className = (at === state.index ? 'on' : '') + (excluded ? ' off' : '');
                 button.setAttribute('aria-label', item.name);
                 button.title = item.name;
@@ -4259,7 +4185,13 @@
         });
         inReport.addEventListener('change', function () {
             var item = current();
-            if (item && preparable(item)) { toggleInReport(item.occurrence, inReport.checked); }
+            var value = item && preparable(item) ? get(item.occurrence) : null;
+            if (!value) { return; }
+            var wanted = inReport.checked;
+            // The box shows what is stored. The post redraws it; Keep editing
+            // on the unsaved-changes question, or a refusal, posts nothing.
+            inReport.checked = value.inReport;
+            toggleInReport(item.occurrence, wanted);
         });
         if (aspect) { aspect.addEventListener('change', function () { cropAspect(aspect.value); }); }
         all(host, '[data-viewer-crop-rotate]').forEach(function (button) {
@@ -4293,7 +4225,7 @@
                 if (!card || !value) { return; }
                 state.items = [{
                     href: value.preview, downloadHref: value.preview, mediaType: 'image/jpeg', kind: 'image',
-                    name: (card.querySelector('h3') || {}).textContent || '', thumb: '', tag: '', occurrence: id, excluded: value.role === 'NotUsed',
+                    name: (card.querySelector('h3') || {}).textContent || '', thumb: '', tag: '', occurrence: id, excluded: !value.inReport,
                     downloadLabel: downloadDefault, element: null
                 }];
                 state.invoker = document.activeElement;

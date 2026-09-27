@@ -87,8 +87,7 @@ public sealed class CaseWorkspacePersistenceTests
                     Source = DocumentSource.StaffUpload,
                     SourceOccurrenceIdentity = "focused-page-file",
                     RecordedAtUtc = harness.TimeProvider.GetUtcNow(),
-                    OperationKey = "focused-page-file",
-                    PreparationRole = nameof(CaseAssetReportRole.NotUsed)
+                    OperationKey = "focused-page-file"
                 });
             await context.SaveChangesAsync();
         }
@@ -228,7 +227,7 @@ public sealed class CaseWorkspacePersistenceTests
             context.AddRange(
                 new CaseDocumentEntity { Id = documentId, CaseId = harness.CaseId, Ordinal = 99, SourceOccurrenceIdentity = "workspace-crop-fixture" },
                 new DocumentVersionEntity { Id = versionId, DocumentId = documentId, Version = 1, FileName = "damage.jpg", MediaType = "image/jpeg", ContentLength = 1, Sha256 = hash, CustodyStatus = DocumentCustodyStatus.Confirmed, CreatedAtUtc = harness.TimeProvider.GetUtcNow(), CreatedBy = "Staff:fixture", IsCurrent = true },
-                new DocumentOccurrenceEntity { Id = occurrenceId, CaseId = harness.CaseId, DocumentId = documentId, VersionId = versionId, SemanticRole = DocumentSemanticRole.Image, Source = DocumentSource.StaffUpload, SourceOccurrenceIdentity = "workspace-crop-fixture", RecordedAtUtc = harness.TimeProvider.GetUtcNow(), OperationKey = "seed-workspace-crop", PreparationRole = nameof(CaseAssetReportRole.NotUsed) });
+                new DocumentOccurrenceEntity { Id = occurrenceId, CaseId = harness.CaseId, DocumentId = documentId, VersionId = versionId, SemanticRole = DocumentSemanticRole.Image, Source = DocumentSource.StaffUpload, SourceOccurrenceIdentity = "workspace-crop-fixture", RecordedAtUtc = harness.TimeProvider.GetUtcNow(), OperationKey = "seed-workspace-crop" });
             await context.SaveChangesAsync();
         }
         var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-workspace-crop");
@@ -236,14 +235,14 @@ public sealed class CaseWorkspacePersistenceTests
         var request = Request(harness, initial.Version, lease.Token, "save-workspace-crop") with
         {
             Damage = new([new(["left_front"], "light", "Scuffed")], null),
-            ImagePreparation = new([new(occurrenceId, 99, CaseAssetReportRole.Overview, null, CaseAssetRotation.Clockwise90, crop)])
+            ImagePreparation = new([new(occurrenceId, 99, null, CaseAssetRotation.Clockwise90, crop)])
         };
         await Assert.ThrowsAsync<CaseAssetPreparationVersionConflictException>(() => harness.WorkspaceStore.SaveAsync(request, default));
         Assert.Equal(initial.Version, (await harness.GetRequiredDataAsync()).Version);
         Assert.Equal(0, await AssessmentFieldCountAsync(harness));
         var saved = await harness.WorkspaceStore.SaveAsync(request with
         {
-            ImagePreparation = new([new(occurrenceId, 0, CaseAssetReportRole.Overview, null, CaseAssetRotation.Clockwise90, crop)])
+            ImagePreparation = new([new(occurrenceId, 0, null, CaseAssetRotation.Clockwise90, crop)])
         }, default);
         Assert.Equal(initial.Version + 1, saved.Version);
         Assert.Equal("left_front", saved.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value);

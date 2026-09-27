@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.Json;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -197,7 +197,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260925190000_EditLeaseTakeoverHistoryEvents",
                 "20260926090000_RepairSpecInUseOnCreate",
                 "20260926150000_DeclaredUploadDestination",
-                "20260927002303_EmailTemplates"
+                "20260927002303_EmailTemplates",
+                "20260927004150_ImageInReport"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

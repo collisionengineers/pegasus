@@ -192,7 +192,8 @@ internal sealed class EfAssessmentReportProjectionSource(
             Guides: guides,
             ValuationCommentary: AssessmentReportProjection.ValuationCommentaryOf(
                 workspace.Assessment, latestApplied?.Reason),
-            Wording: wording);
+            Wording: wording,
+            SignOffEngineersOffered: profiles.Count > 0);
 
         var readiness = new CaseReportReadinessInput(
             workspace.Assessment,

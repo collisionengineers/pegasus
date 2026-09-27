@@ -363,12 +363,17 @@ public sealed class CaseReportFreshnessTests
             1,
             new string('a', 64),
             "image/jpeg",
-            CaseAssetReportRole.CloseUp,
+            true,
             null,
             rotation,
             CaseAssetCrop.Full,
             1,
             "Staff:test",
             DateTimeOffset.UnixEpoch,
-            false);
+            false)
+        {
+            SourceFileName = "image.jpg",
+            RecordedAtUtc = DateTimeOffset.UnixEpoch,
+            CanPrint = true
+        };
 }

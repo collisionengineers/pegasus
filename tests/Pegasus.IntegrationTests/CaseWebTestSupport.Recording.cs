@@ -47,7 +47,7 @@ internal static partial class CaseWebTestSupport
         private IReadOnlyList<CaseAssetPreparation> Current() =>
         [
             .. Preparations
-                .OrderBy(item => item.Role)
+                .OrderBy(item => item.InReport ? 0 : 1)
                 .ThenBy(item => item.Order ?? int.MaxValue)
         ];
     }
@@ -110,6 +110,7 @@ internal static partial class CaseWebTestSupport
         ILogicallyRemoveDocument,
         ITagCaseImage,
         IUntagCaseImage,
+        ISetCaseImageInReport,
         ICreateImageTag,
         IMarkAsOriginalReportStore
     {
@@ -121,6 +122,7 @@ internal static partial class CaseWebTestSupport
         public List<LogicallyRemoveDocumentCommand> DocumentRemovals { get; } = [];
         public List<TagCaseImageCommand> ImageTagsApplied { get; } = [];
         public List<UntagCaseImageCommand> ImageTagsRemoved { get; } = [];
+        public List<SetCaseImageInReportCommand> ImagesSetInReport { get; } = [];
         public List<CreateImageTagCommand> ImageTagsCreated { get; } = [];
         public List<MarkAsOriginalReportCommand> OriginalReportMarks { get; } = [];
 
@@ -200,6 +202,16 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             ImageTagsRemoved.Add(command);
+            ConsumeLease();
+            return Task.CompletedTask;
+        }
+
+        Task ISetCaseImageInReport.ExecuteAsync(
+            SetCaseImageInReportCommand command,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            ImagesSetInReport.Add(command);
             ConsumeLease();
             return Task.CompletedTask;
         }
@@ -529,7 +541,9 @@ internal static partial class CaseWebTestSupport
     /// <summary>
     /// Generate report as the page calls it: each request is recorded, and
     /// <see cref="During"/> lets a test observe the Case while the generation
-    /// runs. The artifact is left Pending, so nothing is confirmed.
+    /// runs. By default the artifact is left Pending, so nothing is
+    /// confirmed; <see cref="Outcome"/> answers otherwise and
+    /// <see cref="Failure"/> throws instead of answering.
     /// </summary>
     internal sealed class RecordingGenerateReport : IGenerateCaseReport
     {
@@ -537,14 +551,21 @@ internal static partial class CaseWebTestSupport
 
         public Action? During { get; init; }
 
+        public CaseReportGenerationOutcome Outcome { get; init; } = CaseReportGenerationOutcome.Pending;
+
+        public Exception? Failure { get; init; }
+
         public Task<CaseReportGenerationResult> ExecuteAsync(
             GenerateCaseReportRequest request,
             CancellationToken cancellationToken)
         {
             Requests.Add(request);
             During?.Invoke();
-            return Task.FromResult(new CaseReportGenerationResult(
-                CaseReportGenerationOutcome.Pending, null, []));
+            if (Failure is not null)
+            {
+                throw Failure;
+            }
+            return Task.FromResult(new CaseReportGenerationResult(Outcome, null, []));
         }
     }
 }
