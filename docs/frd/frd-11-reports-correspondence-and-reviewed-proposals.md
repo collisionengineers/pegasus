@@ -267,10 +267,13 @@ displayed times use Europe/London.
 ### Report generation entry point
 
 The Report section of the Case record offers **Generate report** to every
-enabled human staff role under the existing state, version and lease gates. It
-uses the accepted saved facts and the snapshot above, and retains versioned
-report and fee-note files, their custody outcome and history. A generated
-file is not approval, sending or receipt.
+enabled human staff role whenever the Case is writable and nothing blocks,
+in or out of edit mode (operator, 26 September 2026). Outside edit mode the
+handler claims the Case's edit lease for the one generation and releases it;
+a colleague's live lease refuses it. In edit mode Generate saves the Case
+first. It uses the accepted saved facts and the snapshot above, and retains
+versioned report and fee-note files, their custody outcome and history. A
+generated file is not approval, sending or receipt.
 
 A fee-note preview shows the recorded fee and description without saving
 anything. Native Hand to Engineer opens engineering work without an EVA

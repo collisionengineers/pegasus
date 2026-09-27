@@ -2147,10 +2147,85 @@ public sealed partial class DetailsModel(
         long expectedCaseVersion,
         bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        GenerateArtifactAsync(
-            id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.AssessmentReport, includeFeeNote,
-            targetGenerationId: null, cancellationToken);
+        string.IsNullOrWhiteSpace(editLeaseToken)
+            ? GenerateReportWithOneOffLeaseAsync(
+                id, operationKey, expectedCaseVersion, includeFeeNote, cancellationToken)
+            : GenerateArtifactAsync(
+                id, operationKey, editLeaseToken, expectedCaseVersion,
+                CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+                targetGenerationId: null, cancellationToken);
+
+    /// <summary>
+    /// Generate report outside edit mode (operator, 26 September 2026): the
+    /// handler claims the Case's edit lease for this one generation and
+    /// releases it after, the way Work Centre actions do. A colleague's live
+    /// lease refuses the claim with the claim's own wording. A generation
+    /// never consumes the lease, so the release runs whatever the outcome.
+    /// </summary>
+    private async Task<IActionResult> GenerateReportWithOneOffLeaseAsync(
+        Guid id,
+        string operationKey,
+        long expectedCaseVersion,
+        bool includeFeeNote,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardSectionCommandAsync(
+            id, operationKey, editLeaseToken: null, () => RedirectToReport(id), cancellationToken,
+            requireLease: false);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        CaseEditLease lease;
+        try
+        {
+            lease = await acquireLease.ExecuteAsync(
+                new ClaimCaseEditLeaseRequest(id, expectedCaseVersion, actor, NewOperationKey()),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "claim_lease", exception);
+            TempData["CaseError"] = ClaimLeaseFailureMessage(exception);
+            return RedirectToReport(id);
+        }
+
+        try
+        {
+            return await GenerateAsync(
+                actor, id, operationKey, lease.Token, expectedCaseVersion,
+                CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+                targetGenerationId: null, cancellationToken);
+        }
+        finally
+        {
+            await ReleaseLeaseQuietlyAsync(id, actor, lease.Token);
+        }
+    }
+
+    /// <summary>Releases the lease this handler claimed for itself; a failed release is logged, never shown.</summary>
+    private async Task ReleaseLeaseQuietlyAsync(Guid id, ActionActor actor, string leaseToken)
+    {
+        try
+        {
+            await releaseLease.ExecuteAsync(
+                new ReleaseCaseEditLeaseRequest(id, actor, NewOperationKey(), leaseToken),
+                CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "release_lease", exception);
+        }
+    }
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
         Guid id,
@@ -2213,7 +2288,23 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
+        return await GenerateAsync(
+            actor, id, operationKey, editLeaseToken!, expectedCaseVersion,
+            kind, includeFeeNote, targetGenerationId, cancellationToken);
+    }
 
+    /// <summary>The generation itself, once guarded: the request, and how each outcome reads back.</summary>
+    private async Task<IActionResult> GenerateAsync(
+        ActionActor actor,
+        Guid id,
+        string operationKey,
+        string editLeaseToken,
+        long expectedCaseVersion,
+        CaseReportArtifactKind kind,
+        bool includeFeeNote,
+        Guid? targetGenerationId,
+        CancellationToken cancellationToken)
+    {
         CaseReportGenerationResult result;
         try
         {
@@ -2224,7 +2315,7 @@ public sealed partial class DetailsModel(
                     actor,
                     id,
                     expectedCaseVersion,
-                    editLeaseToken!,
+                    editLeaseToken,
                     operationKey,
                     kind,
                     kind switch
@@ -2476,16 +2567,18 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// What every section command on the record requires before it touches
     /// the case: an authorized actor, an assessment this command may open, a
-    /// case that is not read-only, a live form, and an edit lease. Only the
-    /// section the refusal lands on differs between the Report, Valuation and
-    /// Files commands, so the checks themselves are written once.
+    /// case that is not read-only, a live form, and an edit lease unless the
+    /// command claims one for itself. Only the section the refusal lands on
+    /// differs between the Report, Valuation and Files commands, so the
+    /// checks themselves are written once.
     /// </summary>
     private async Task<IActionResult?> GuardSectionCommandAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
         Func<IActionResult> redirect,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireLease = true)
     {
         if (!TryGetActor(out var actor))
         {
@@ -2507,7 +2600,7 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = "The form has expired. Retry the operation.";
             return redirect();
         }
-        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        if (requireLease && string.IsNullOrWhiteSpace(editLeaseToken))
         {
             TempData["CaseError"] = NotInEditMode;
             return redirect();

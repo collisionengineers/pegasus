@@ -399,6 +399,9 @@ the section that clears it
 — wording blocks, Generate / Preview report draft, and a separate Fee pane
 for the agreed fee, description lines and fee note preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+**Generate report** is offered in and out of edit mode when nothing blocks;
+in edit mode it saves the Case first. The **Report not ready** label and the
+blocker list show in both modes (operator, 26 September 2026).
 The content switches are under **On the report** in Valuation. The report
 renders the sign-off Engineer tuple and the marked damage diagram. The
 **Statement of truth** cell shows the accepted statement the report prints,
