@@ -2280,7 +2280,12 @@ public static class OperatorLabels
         public static string FileSize(long bytes) =>
             string.Create(CultureInfo.InvariantCulture, $"{bytes / 1048576d:0.00} MiB");
 
-        /// <summary>The file's kind in the operator's words, from its media type.</summary>
+        /// <summary>
+        /// The file's kind in the operator's words, from its media type. This
+        /// stays its own table because the upload review names formats ("JPEG
+        /// image", "PDF document", "Email") where Core's one file-kind table
+        /// gives the broad kind and the Unidentified wording.
+        /// </summary>
         public static string Kind(string? mediaType, string fileName) => (mediaType ?? string.Empty).ToLowerInvariant() switch
         {
             "image/jpeg" => "JPEG image",
