@@ -181,7 +181,53 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
         CancellationToken cancellationToken)
     {
         ValidateIdentifiers(caseId, caseReference, versionId);
-        var path = Resolve(caseReference, versionId);
+        return await OpenVerifiedAsync(
+            Resolve(caseReference, versionId), expectedSha256, expectedLength, cancellationToken);
+    }
+
+    /// <summary>
+    /// A photograph that a Vehicle images fold moved into the Case folder has
+    /// no managed copy. It is read where the fold left it: under the Case
+    /// root's images, by the name its recorded file identity ends with.
+    /// </summary>
+    public async Task<Stream> OpenReadVersionAsync(
+        ManagedDocumentContentAddress address,
+        string expectedSha256,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        ValidateIdentifiers(address.CaseId, address.CaseReference, address.VersionId);
+        return await OpenVerifiedAsync(
+            FoldedImagePath(address) ?? Resolve(address.CaseReference, address.VersionId),
+            expectedSha256,
+            expectedLength,
+            cancellationToken);
+    }
+
+    private string? FoldedImagePath(ManagedDocumentContentAddress address)
+    {
+        if (string.IsNullOrWhiteSpace(address.BoxFileId)
+            || string.IsNullOrWhiteSpace(address.CaseRootRemoteId))
+        {
+            return null;
+        }
+
+        var path = RequireInsideRoot(Path.Combine(
+            rootPath,
+            address.CaseRootRemoteId.Replace('/', Path.DirectorySeparatorChar),
+            "images",
+            Path.GetFileName(address.BoxFileId.Replace('/', Path.DirectorySeparatorChar)),
+            "content"));
+        return File.Exists(path) ? path : null;
+    }
+
+    private static async Task<Stream> OpenVerifiedAsync(
+        string path,
+        string expectedSha256,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
         if (!File.Exists(path))
         {
             throw new FileNotFoundException("The document content is unavailable.");
@@ -223,15 +269,18 @@ public sealed class LocalDocumentContentStore(string rootPath) : IDocumentConten
         }
     }
 
-    private string Resolve(string caseReference, Guid versionId)
-    {
-        var path = Path.GetFullPath(Path.Combine(
+    private string Resolve(string caseReference, Guid versionId) =>
+        RequireInsideRoot(Path.Combine(
             rootPath,
             "cases",
             SafeCaseFolderName(caseReference),
             "managed",
             versionId.ToString("N"),
             "content"));
+
+    private string RequireInsideRoot(string candidate)
+    {
+        var path = Path.GetFullPath(candidate);
         var rootPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
             + Path.DirectorySeparatorChar;
         if (!path.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))

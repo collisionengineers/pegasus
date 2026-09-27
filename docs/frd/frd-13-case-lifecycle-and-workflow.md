@@ -86,7 +86,10 @@ claim of readiness sent from a screen is not accepted as fact.
 **Photographs that arrive later.** When follow-up photographs are matched to
 a Case automatically, images count as complete only after the selected
 photographs and any required source files are confirmed in Case custody.
-Filing that is pending or failed does not clear the Images blocker. This
+Filing that is pending or failed does not clear the Images blocker.
+Photographs from a merged Vehicle images record count the same way: they
+complete the Case's images when the fold files them as Case images
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). This
 completion is recorded once, with its actor; running it again does not
 override a later staff change. It does not clear other blockers, assign an
 Engineer, or skip Review.
