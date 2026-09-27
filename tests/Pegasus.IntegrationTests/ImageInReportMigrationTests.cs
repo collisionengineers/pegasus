@@ -1,14 +1,17 @@
 using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Documents;
 
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// 20260927004150_ImageInReport: whether the report uses an image is a flag
-/// (operator, 26 September 2026). Every existing image keeps whether the
-/// report used it: a Close-up, Overview or Supporting role is in, Not used or
-/// no role is out.
+/// (operator, 26 September 2026). An existing image keeps a choice staff
+/// made: a stored Close-up, Overview or Supporting role is in and a stored
+/// Not used is out, whatever it is tagged. An image with no stored role was
+/// never touched, so it is in the report like a new image, unless it is
+/// tagged Third party or Reflection.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class ImageInReportMigrationTests
@@ -18,17 +21,22 @@ public sealed class ImageInReportMigrationTests
     private const string CaseId = "a7000000-0000-0000-0000-000000000001";
     private const string Recorded = "2031-05-06T10:30:00+00:00";
 
-    private static readonly (int Ordinal, string? Role, bool InReport)[] Images =
+    private static readonly (int Ordinal, string? Role, Guid? Tag, bool InReport)[] Images =
     [
-        (1, "CloseUp", true),
-        (2, "Overview", true),
-        (3, "Supporting", true),
-        (4, "NotUsed", false),
-        (5, null, false),
+        (1, "CloseUp", null, true),
+        (2, "Overview", null, true),
+        (3, "Supporting", null, true),
+        (4, "NotUsed", null, false),
+        (5, null, null, true),
+        (6, null, ImageTagVocabulary.ThirdPartyId, false),
+        (7, null, ImageTagVocabulary.ReflectionId, false),
+        (8, null, ImageTagVocabulary.OverviewId, true),
+        (9, "Supporting", ImageTagVocabulary.ThirdPartyId, true),
+        (10, "NotUsed", ImageTagVocabulary.CloseUpId, false),
     ];
 
     [Fact]
-    public async Task EveryImageKeepsWhetherTheReportUsedIt()
+    public async Task AnUntouchedImageJoinsTheReportAndAStaffChoiceIsKept()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         await using var context = await database.CreateContextAsync();
@@ -40,10 +48,13 @@ public sealed class ImageInReportMigrationTests
         await context.Database.MigrateAsync();
 
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
-        foreach (var (ordinal, _, inReport) in Images)
+        foreach (var (ordinal, role, tag, inReport) in Images)
         {
-            Assert.Equal(inReport ? 1 : 0, await database.ScalarAsync<int>(
-                $"SELECT CONVERT(int, InReport) FROM DocumentOccurrences WHERE CaseId = '{CaseId}' AND Ordinal = {ordinal}"));
+            var stored = await database.ScalarAsync<int>(
+                $"SELECT CONVERT(int, InReport) FROM DocumentOccurrences WHERE CaseId = '{CaseId}' AND Ordinal = {ordinal}");
+            Assert.True(
+                (inReport ? 1 : 0) == stored,
+                $"Image {ordinal} (role {role ?? "none"}, tag {tag?.ToString() ?? "none"}) migrated to InReport = {stored}.");
         }
     }
 
@@ -69,11 +80,14 @@ public sealed class ImageInReportMigrationTests
              2031, 1, N'IIRM31001', N'inspection', N'review', N'pending', 1, 1, '{Recorded}', 0, NEWID());
         """;
 
-    /// <summary>One image per role the retired column held, each its own document and version.</summary>
+    /// <summary>
+    /// One image per stored role and tag the rule tells apart, each its own
+    /// document and version.
+    /// </summary>
     private static string ImagesSql()
     {
         var sql = new StringBuilder();
-        foreach (var (ordinal, role, _) in Images)
+        foreach (var (ordinal, role, tag, _) in Images)
         {
             var documentId = $"a7000000-0000-0000-0001-{ordinal:D12}";
             var versionId = $"a7000000-0000-0000-0002-{ordinal:D12}";
@@ -98,6 +112,16 @@ public sealed class ImageInReportMigrationTests
                     ('{occurrenceId}', '{CaseId}', '{documentId}', '{versionId}', {ordinal}, N'Image', N'StaffUpload',
                      N'image:{ordinal}', '{Recorded}', N'seed-image:{ordinal}', {preparationRole}, 0, 0, 0);
                 """);
+            if (tag is { } tagId)
+            {
+                sql.AppendLine(CultureInfo.InvariantCulture,
+                    $"""
+                    INSERT INTO DocumentOccurrenceTags
+                        (OccurrenceId, TagId, AppliedByKind, AppliedBySubjectId, AppliedAtUtc, OperationKey)
+                    VALUES
+                        ('{occurrenceId}', '{tagId:D}', N'Staff', N'test', '{Recorded}', N'seed-tag:{ordinal}');
+                    """);
+            }
         }
         return sql.ToString();
     }

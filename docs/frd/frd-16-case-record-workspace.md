@@ -517,7 +517,9 @@ Report sections of the Case record. The sections can always be read and are
 read-only in Completed. An image has one place (v28 P50): whether the report
 uses it, its order and the tools that change them are on its tile under
 Files, and non-destructive crops leave the retained source and its hash
-untouched. A new image is in the report. The tile has no report role: its
+untouched. A new image is in the report. An image already on the Case that
+staff never gave a report role is in it too, unless it is tagged Third party
+or Reflection; one staff set to Not used stays out. The tile has no report role: its
 tag decides how it prints, the first tagged `Close-up` first and the first
 other one tagged `Overview` second, the rest as supporting images in order
 (operator, 26 September 2026). Beneath the grid a line counts what the
