@@ -40,7 +40,7 @@ fee note.
 
 | Outcome | Title and badge | Headline figures | Settlement meaning |
 | --- | --- | --- | --- |
-| `total_loss` | `TOTAL LOSS REPORT`; `TOTAL LOSS — CATEGORY x` | Pre-accident value, repair cost including VAT, salvage value, recommended settlement | Recommended settlement is the accepted Engineer value less the accepted salvage value. The accepted category and its approved salvage treatment are required. The active template prints Category S only; any other recorded category is a named readiness item (operator, 24 September 2026). |
+| `total_loss` | `TOTAL LOSS REPORT`; `TOTAL LOSS — CATEGORY x`, or `TOTAL LOSS` for Category N/A | Pre-accident value, repair cost including VAT, salvage value, recommended settlement | Recommended settlement is the accepted Engineer value less the accepted salvage value. The accepted category and salvage value are required. The report prints the recorded category's accepted wording (operator, 26 September 2026). Category N/A prints no category and no salvage paragraph. |
 | `repairable` | `REPAIRABLE REPORT`; `REPAIRABLE` | Pre-accident value, labour hours, repair cost including VAT | Recommended settlement is the calculated repair cost for the Engineer's repairable finding. |
 | `cash_in_lieu` | `CASH IN LIEU REPORT`; `CASH IN LIEU` | Pre-accident value, labour hours, cash-in-lieu settlement | The recommended cash-in-lieu settlement is the calculated repair cost. |
 | `contract_repair` | `CONTRACT REPAIR REPORT`; `CONTRACT REPAIR` | Pre-accident value, labour hours, repair cost including VAT | The agreed contract sum the Engineer recorded (v28 P35) is the contract-repair cap and cannot increase; the report prints it beside the Core-computed VAT-inclusive repair total. |
@@ -178,12 +178,12 @@ sending, receipt, reference allocation or correction custody. A human must
 approve before issue.
 
 **What a generation freezes.** The Case version, signatory account and
-signature digest, Current estimate identity, version and breakdown, accepted
-Engineer value with the retail and trade values its adoption recorded, and
-applied valuation identity, content switches, report date or override, the
+signature digest, Current estimate identity, version and breakdown, the
+Engineer's Value with its retail and trade values, the applied valuation
+identity when one exists, content switches, report date or override, the
 Engineer's changes to the report's wording — headings, wording, order and
 what is off the report — fee, source documents with their Box identities,
-and each prepared image's role, order, rotation and crop.
+and how each image in the report prints, its order, rotation and crop.
 
 ### Companion documents and what a delivery attaches
 
@@ -267,10 +267,13 @@ displayed times use Europe/London.
 ### Report generation entry point
 
 The Report section of the Case record offers **Generate report** to every
-enabled human staff role under the existing state, version and lease gates. It
-uses the accepted saved facts and the snapshot above, and retains versioned
-report and fee-note files, their custody outcome and history. A generated
-file is not approval, sending or receipt.
+enabled human staff role whenever the Case is writable and nothing blocks,
+in or out of edit mode (operator, 26 September 2026). Outside edit mode the
+handler claims the Case's edit lease for the one generation and releases it;
+a colleague's live lease refuses it. In edit mode Generate saves the Case
+first. It uses the accepted saved facts and the snapshot above, and retains
+versioned report and fee-note files, their custody outcome and history. A
+generated file is not approval, sending or receipt.
 
 A fee-note preview shows the recorded fee and description without saving
 anything. Native Hand to Engineer opens engineering work without an EVA
@@ -320,7 +323,7 @@ that records it
 Case page and Generate evaluate the whole list before a generation is
 recorded. The preview refuses on the same printed facts, sign-off Engineer,
 Current repair spec and labour rate before anything is projected; it does not
-wait for the report images, the applied valuation snapshot, or the valuation
+wait for the report images or the valuation
 commentary and unrelated damage the On the report switches ask for. A fact
 Review already checked is named again only when it is missing and the report
 prints it. Missing accepted state is never invented.
@@ -331,15 +334,25 @@ Each fact is recorded in one section of the Case record
 | Fact | Recorded in |
 | --- | --- |
 | Claimant name | Claim |
-| Claim reference, incident date, a Sign-off Engineer with a signature on file | Case details |
+| Claim reference, incident date | Case details |
+| A Sign-off Engineer chosen for the Case | Case details |
+| The Sign-off Engineer's name and signature on file | Accounts |
 | Registration, vehicle type, pre-incident condition, vehicle history check | Vehicle |
 | Inspection type; the inspection address for a physical location; the Inspection date, printed as the date the damage was assessed | Inspection details |
 | Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
-| The Engineer's Value and, from its basis guide card, the retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
+| The Engineer's Value with its retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
 | A Current repair spec with lines and a labour rate | Repair Spec |
-| Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage value and a category the template prints (Category S only); on a contract repair the agreed contract sum | Decisions |
+| Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |
 | Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
-| One Close-up and one Overview image matching their confirmed sources | Files |
+| An image in the report tagged Close-up and one tagged Overview, matching their confirmed sources | Files |
+
+The Sign-off Engineer blocker has three cases (operator, 26 September
+2026). Where accounts are offered and the Case has none chosen, it says
+"Choose the Sign-off Engineer on Case details" and links there. Where no
+account is eligible, or the chosen account has no name or signature, it says
+an Administrator sets a name and signature on the account in Accounts. That
+one links to Accounts for an Administrator and to nothing for anyone else,
+since no Case section clears it.
 
 The date the report says instructions were received is the Case's Received
 date (operator, 24 September 2026); every Case has one, so it is never a
@@ -434,9 +447,9 @@ The Case's own states are in
 - A stale version in the browser is refused, never replaced.
 - A stale generation cannot be prepared or sent.
 - A fee-note request against a report that already contains one is refused.
-- A missing printed fact or a total-loss category other than S is a named
-  readiness item: preview and Generate refuse before any generation is
-  recorded, never at render.
+- A missing printed fact, such as a total loss with no salvage category, is
+  a named readiness item: preview and Generate refuse before any generation
+  is recorded, never at render.
 - No generated file, preview, draft or export counts as Report sent.
 
 ## Acceptance evidence

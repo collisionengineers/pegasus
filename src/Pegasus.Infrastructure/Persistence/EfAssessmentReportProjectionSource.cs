@@ -133,7 +133,9 @@ internal sealed class EfAssessmentReportProjectionSource(
                     pair.Row.Version,
                     pair.Row.SemanticRole,
                     pair.Row.FileName,
-                    pair.Row.MediaType),
+                    pair.Row.MediaType,
+                    pair.Row.BoxFileId,
+                    pair.Row.BoxVersionId),
                 pair.Row.Sha256,
                 pair.Row.ContentLength))
             .ToArray();
@@ -190,7 +192,8 @@ internal sealed class EfAssessmentReportProjectionSource(
             Guides: guides,
             ValuationCommentary: AssessmentReportProjection.ValuationCommentaryOf(
                 workspace.Assessment, latestApplied?.Reason),
-            Wording: wording);
+            Wording: wording,
+            SignOffEngineersOffered: profiles.Count > 0);
 
         var readiness = new CaseReportReadinessInput(
             workspace.Assessment,

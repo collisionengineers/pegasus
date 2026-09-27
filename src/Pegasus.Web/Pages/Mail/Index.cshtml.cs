@@ -315,6 +315,7 @@ public sealed class IndexModel(
             }
 
             var summary = detail.Summary;
+            var state = MessageModel.OutcomeLabel(summary);
             return new JsonResult(new
             {
                 id = summary.Id,
@@ -322,12 +323,21 @@ public sealed class IndexModel(
                 subject = SubjectLine(summary),
                 receivedAtUtc = summary.ReceivedAtUtc,
                 received = $"{OperatorLabels.OfficeDate(summary.ReceivedAtUtc)} {OperatorLabels.OfficeClock(summary.ReceivedAtUtc)}",
+                mailbox = summary.MailboxAddress,
+                state,
+                stateTone = OperatorLabels.StatusTone(state),
                 excerpt = summary.BodyExcerpt ?? "No excerpt available",
+                attachments = OperatorLabels.Inbox.Attachments(detail.Attachments),
                 classification = detail.Classification is { } dossier
                     ? MessageModel.DecisionLabel(dossier.Current)
                     : MessageModel.ClassificationLabel(detail.ClassificationOutcome),
                 association = MessageModel.AssociationLabel(summary.CaseReference),
-                attachments = detail.Attachments.Select(attachment => attachment.FileName).ToArray()
+                folder = FolderValue(detail),
+                // A pinned row's pane offers its own Open Case or Open Triage.
+                caseUrl = summary.CaseId is { } caseId ? Url.Page("/Cases/Details", new { id = caseId }) : null,
+                caseAction = summary.CaseId is null
+                    ? null
+                    : summary.IsTriageCase ? OperatorLabels.Inbox.OpenTriage : OperatorLabels.Inbox.OpenCase
             });
         }
         catch (StaffAuthorizationException)
@@ -453,6 +463,12 @@ public sealed class IndexModel(
         MailFolderScope.Upload => "Uploaded",
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
     };
+
+    /// <summary>The preview's Folder cell: the folder a confirmed move put the message in, else the scope it was read from.</summary>
+    public static string FolderValue(RetainedMailDetail detail) =>
+        detail.Summary.CurrentFolderType is { } currentFolderType
+            ? MailLogicalFolders.Definition(currentFolderType).Label
+            : FolderLabel(detail.Folder);
 
     public static string FreshnessStatus(MailFreshnessState state) => state switch
     {

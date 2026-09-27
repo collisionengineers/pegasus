@@ -31,7 +31,8 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
         }
 
         // A registered Image intake's photographs reach the Case through its
-        // merge, which moves the Vehicle images folder itself (FRD-05); filing
+        // merge: the fold moves the Vehicle images folder into the Case folder
+        // and files each photograph as a Case image (FRD-05, FRD-19). Filing
         // them here as well would place them on the Case twice.
         if (receipt.Decision == IntakeDecision.ImageIntakeRegistered)
         {

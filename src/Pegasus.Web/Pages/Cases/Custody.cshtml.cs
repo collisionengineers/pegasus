@@ -11,7 +11,8 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Case workspace's document custody actions: custody retry, logical removal,
-/// and image tags. Every action redirects back to the workspace.
+/// image tags and whether the report uses an image. Every action redirects back
+/// to the workspace.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -22,10 +23,12 @@ public sealed class CustodyModel(
     MarkAsOriginalReport markAsOriginalReport,
     ITagCaseImage tagCaseImage,
     IUntagCaseImage untagCaseImage,
+    ISetCaseImageInReport setCaseImageInReport,
     ICreateImageTag createImageTag,
     IGetCase getCase,
     IAcquireCaseEditLease acquireLease,
     IGetCaseKind getCaseKind,
+    IEditScopeLeases editScopes,
     ILogger<CustodyModel> logger) : CaseMutationPageModel(logger)
 {
     /// <summary>
@@ -44,7 +47,7 @@ public sealed class CustodyModel(
         long expectedVersion,
         string operationKey,
         string reason,
-        string editLeaseToken,
+        string? editLeaseToken,
         CustodyTargetKind targetKind,
         CancellationToken cancellationToken)
     {
@@ -54,16 +57,32 @@ public sealed class CustodyModel(
         }
 
         // A Triage Case keeps standard Case custody, so its failed custody is
-        // retried here too. Its expected version and token are its Triage
-        // version and Triage edit scope, which the store checks. It holds no
-        // Case edit lease for this page to keep, and its page shows the
-        // outcome as its Triage status.
+        // retried here too. Its expected version is its Triage version, and
+        // its authority is the Triage edit scope, claimed for this one save
+        // (a Triage Case has no Edit step). The retry answers a replay, a
+        // conflict, a refusal and not-found as results, and only a Pending
+        // retry consumes the scope; every other outcome releases it here. It
+        // holds no Case edit lease for this page to keep, and its page shows
+        // the outcome as its Triage status.
         var triageCase = await getCaseKind.ExecuteAsync(id, cancellationToken) == CaseType.Triage;
         try
         {
-            var result = await retryCaseCustody.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken, targetKind),
-                cancellationToken);
+            var result = triageCase
+                ? await TriageWriteAuthority.ExecuteAsync(
+                    editScopes,
+                    id,
+                    expectedVersion,
+                    actor,
+                    operationKey,
+                    logger,
+                    token => retryCaseCustody.ExecuteAsync(
+                        new(id, expectedVersion, actor, operationKey, reason, token, targetKind),
+                        cancellationToken),
+                    cancellationToken,
+                    consumesScope: retry => retry.Outcome == RetryCaseCustodyOutcome.Pending)
+                : await retryCaseCustody.ExecuteAsync(
+                    new(id, expectedVersion, actor, operationKey, reason, editLeaseToken ?? string.Empty, targetKind),
+                    cancellationToken);
             if (triageCase)
             {
                 TempData["TriageStatus"] = result.Message;
@@ -199,6 +218,37 @@ public sealed class CustodyModel(
                     editLeaseToken),
                 cancellationToken),
             CaseWorkspaceLabels.ImageTags.WasRemoved,
+            RedirectToDetailsFilesImages,
+            keepEditing: true);
+
+    /// <summary>
+    /// In report on an image tile or in the viewer (operator, 26 September
+    /// 2026): posted at once, like a tag, so readiness reads it on the next
+    /// view without a Case save; the edit session carries on.
+    /// </summary>
+    public Task<IActionResult> OnPostSetImageInReportAsync(
+        Guid id,
+        Guid occurrenceId,
+        bool inReport,
+        long expectedVersion,
+        string operationKey,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteTransportCommandAsync(
+            id,
+            editLeaseToken,
+            "set_case_image_in_report",
+            actor => setCaseImageInReport.ExecuteAsync(
+                new(
+                    id,
+                    occurrenceId,
+                    inReport,
+                    actor,
+                    operationKey,
+                    expectedVersion,
+                    editLeaseToken),
+                cancellationToken),
+            inReport ? CaseWorkspaceLabels.ReportImages.PutInReport : CaseWorkspaceLabels.ReportImages.TakenOutOfReport,
             RedirectToDetailsFilesImages,
             keepEditing: true);
 

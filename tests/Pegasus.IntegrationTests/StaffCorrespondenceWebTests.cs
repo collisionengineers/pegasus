@@ -939,6 +939,36 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal(selectedCaseId, Assert.Single(send.Commands).ContextId);
     }
 
+    /// <summary>
+    /// A message on a Triage Case: Reply, Reply all and Forward leave the
+    /// composer's Case empty rather than defaulting the Triage's t. reference,
+    /// which never resolves to an instruction Case and would fail the send.
+    /// </summary>
+    [Theory]
+    [InlineData("reply")]
+    [InlineData("reply-all")]
+    [InlineData("forward")]
+    public async Task ATriageMessageLeavesTheComposersCaseForStaffToChoose(string mode)
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var seeded = await SeedRetainedCorrespondenceAsync(baseFactory, caseId: null);
+        await MailboxIntakeTestData.SeedTriageCaseAsync(baseFactory.Services, seeded.ReceiptId, "t.QDOS31009");
+        using var factory = Configure(
+            baseFactory,
+            send,
+            new(seeded.MailboxId, seeded.MailboxGeneration));
+        using var client = CreateClient(factory);
+
+        using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose={mode}");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var html = await get.Content.ReadAsStringAsync();
+
+        Assert.Contains("t.QDOS31009", html, StringComparison.Ordinal);
+        Assert.Equal(string.Empty, InputValue(html, "CorrespondenceCaseReference"));
+        Assert.Equal(0, send.SendCalls);
+    }
+
     [Fact]
     public async Task UnknownRetainedReplyReplaysAndReconcilesWithoutResending()
     {
@@ -1689,7 +1719,8 @@ public sealed class StaffCorrespondenceWebTests
         long MailboxGeneration,
         string ImmutableMessageId,
         string InternetMessageId,
-        string ConversationId);
+        string ConversationId,
+        Guid ReceiptId);
 
     private static async Task<SeededCorrespondence> SeedRetainedCorrespondenceAsync(
         IntakeWebApplicationFactory factory,
@@ -1813,7 +1844,8 @@ public sealed class StaffCorrespondenceWebTests
             mailboxGeneration,
             immutableMessageId,
             internetMessageId,
-            conversationId);
+            conversationId,
+            receiptId);
     }
 
     /// <summary>

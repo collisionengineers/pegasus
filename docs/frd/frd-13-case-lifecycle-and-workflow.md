@@ -86,7 +86,10 @@ claim of readiness sent from a screen is not accepted as fact.
 **Photographs that arrive later.** When follow-up photographs are matched to
 a Case automatically, images count as complete only after the selected
 photographs and any required source files are confirmed in Case custody.
-Filing that is pending or failed does not clear the Images blocker. This
+Filing that is pending or failed does not clear the Images blocker.
+Photographs from a merged Vehicle images record count the same way: they
+complete the Case's images when the fold files them as Case images
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). This
 completion is recorded once, with its actor; running it again does not
 override a later staff change. It does not clear other blockers, assign an
 Engineer, or skip Review.
@@ -123,7 +126,7 @@ received or assigned anything.
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
   viewed. Staff with `PerformCasework` may edit them in Not ready, Review and
   With Engineer under the normal edit authority. They are read-only in Held
-  and Completed. Adopting the Engineer's Value is an explicit human staff act.
+  and Completed. Only staff record the Engineer's Value.
 - **Report approval** names one immutable report file and the staff member
   who approved it.
 - **Mark report sent** needs exact retained Sent evidence

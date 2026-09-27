@@ -4,9 +4,9 @@
 
 ## Short version
 
-- To change a Case, a Triage Case or an Image Intake record, staff press
-  **Edit** and get a lease. Everyone else sees who is editing and can only
-  read.
+- To change a Case or an Image Intake record, staff press **Edit** and get a
+  lease. Everyone else sees who is editing and can only read.
+- A Triage Case has no Edit. Each change holds the record for its one save.
 - A lease lasts five minutes. The browser renews it every minute while the
   editing screen is open, so editing lasts as long as the session. Leaving a
   Case by a link ends edit mode; any other exit lets the lease expire by
@@ -88,18 +88,22 @@ only.
 
 ### Record edit scopes
 
-An existing Triage Case or Image Intake record opens read-only. Its Edit
-action claims a scope for that one record, with the same five-minute lease
-and one-minute heartbeat as a Case. The scope covers the record only, not its
-queue or a linked Case. A Triage Case has no Case edit lease: its Triage edit
-scope and Triage version are its edit authority wherever a Case needs one,
+An existing Image Intake record opens read-only. Its Edit action claims a
+scope for that one record, with the same five-minute lease and one-minute
+heartbeat as a Case. A Triage Case shows no Edit. Each change claims its
+Triage edit scope for that one save and releases it in the same save; a
+refused change releases it at once. A scope held by someone else, such as an
+Automation session, refuses the change. The scope covers the record only,
+not its queue or a linked Case. A Triage Case has no Case edit lease: its
+Triage edit scope and Triage version are its edit authority wherever a Case
+needs one,
 including Case custody and upload association, and a custody completion by
 the system never invalidates it.
 
 - Save checks the holder token and the expected version inside the change
   transaction, applies the change, and releases the scope in the same
   transaction.
-- Cancel releases the scope and changes nothing.
+- On an Image Intake record, Cancel releases the scope and changes nothing.
 - A new record that has not been saved has no scope.
 - The holder is shown by staff account name, never by an internal identifier.
 - A command that touches both a Triage Case and an instruction Case checks
@@ -115,11 +119,11 @@ the system never invalidates it.
 ### Take over
 
 **Your own lease.** A staff member never takes over their own lease. A Case
-they hold resumes as described under Coming back. A Triage Case or Image
-Intake record still opens read-only; its **Edit** replaces their own scope
-with a new token, so another window of theirs on the same record has its
-next heartbeat refused. Neither writes history. A one-off change made from
-elsewhere is refused while their scope is live.
+they hold resumes as described under Coming back. An Image Intake record
+still opens read-only; its **Edit** replaces their own scope with a new
+token, so another window of theirs on the same record has its next heartbeat
+refused. Neither writes history. A one-off change made from elsewhere is
+refused while their scope is live.
 
 **A colleague's lease.** Any staff member with edit rights for that record
 may press **Take over** on a lease a colleague holds. No reason is asked for.
@@ -129,7 +133,8 @@ advances the record's version. The previous holder's next heartbeat or save
 is refused. They keep their unsaved values on screen so they can copy them,
 and must reload to edit again. There is no Administrator-only path; the rule
 is the same for everyone with edit rights. A lease held by automatic
-processing cannot be taken over.
+processing cannot be taken over. Take over applies to a Case and an Image
+Intake record only: a Triage Case's scope lasts one save.
 
 ### Refusals and recovery
 
@@ -144,8 +149,8 @@ The following do not exist: an Administrator bypass, collaborative merge,
 bulk Case edits, editing lifecycle from a queue row, a provider Case-edit
 route, or a direct edit through an external system or adapter.
 
-**Lost release.** Leaving a Triage Case or Image Intake page releases its
-scope through a `pagehide` beacon; leaving a Case by a link releases its
+**Lost release.** Leaving an Image Intake page releases its scope through a
+`pagehide` beacon; leaving a Case by a link releases its
 lease through a beacon sent as the link is followed. A lost beacon costs
 nothing: the holder's own claim takes the lease back, and a colleague waits
 at most five minutes or takes it over. A hidden browser tab keeps

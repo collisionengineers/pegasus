@@ -156,6 +156,27 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(new DateOnly(2026, 9, 7), result.Generation.Snapshot.Report.ReportDate);
     }
 
+    [Fact]
+    public async Task TypedValuesGenerateWithoutAnAppliedValuationAndTheReportPrintsThem()
+    {
+        await using var harness = await Harness.CreateAsync();
+        harness.TypeValues(retail: 6_100m, trade: 4_900m, engineer: 5_700m);
+        var renderer = new RecordingRenderer(harness);
+
+        var result = await harness.Generate(new RecordingCustody(harness), renderer)
+            .ExecuteAsync(harness.Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.Empty(result.Reasons);
+        var rendered = Assert.IsType<AssessmentReportSnapshot>(renderer.Rendered);
+        Assert.Equal(6_100m, rendered.RetailValue);
+        Assert.Equal(4_900m, rendered.TradeValue);
+        Assert.Equal(5_700m, rendered.EngineerValue);
+        var frozen = result.Generation!.Snapshot;
+        Assert.Equal(5_700m, frozen.EngineerValue);
+        Assert.Null(frozen.AppliedValuationId);
+    }
+
     [Theory]
     [InlineData("add")]
     [InlineData("remove")]
@@ -1116,7 +1137,7 @@ public sealed class CaseReportGenerationPersistenceTests
 
         Assert.NotEqual(first.Generation.Id, second.Generation!.Id);
         Assert.NotEqual(first.Generation.SnapshotHash, second.Generation.SnapshotHash);
-        Assert.Equal(5_250m, second.Generation.Snapshot.AcceptedEngineerValue);
+        Assert.Equal(5_250m, second.Generation.Snapshot.EngineerValue);
         Assert.Equal(CaseReportGenerationState.Confirmed, second.Generation.State);
 
         // The prior generation keeps its bytes, its confirmed artifact and its
@@ -1125,7 +1146,7 @@ public sealed class CaseReportGenerationPersistenceTests
             harness.StaffActor, harness.CaseId, first.Generation.Id, CancellationToken.None);
         Assert.Equal(CaseReportGenerationState.Stale, prior!.State);
         Assert.Equal(second.Generation.Id, prior.SupersededById);
-        Assert.Equal(5_000m, prior.Snapshot.AcceptedEngineerValue);
+        Assert.Equal(5_000m, prior.Snapshot.EngineerValue);
         var priorArtifact = Assert.Single(prior.Artifacts);
         Assert.Equal(firstArtifact.Id, priorArtifact.Id);
         Assert.Equal(firstArtifact.VersionId, priorArtifact.VersionId);
@@ -1141,12 +1162,12 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     /// <summary>
-    /// Issue #834: the report prints only Category S, so a total loss of any
-    /// other category is named before the freeze writes anything. The
-    /// confirmed current generation stays current and nothing supersedes it.
+    /// Issue #834: a missing printed fact, here a total loss with no salvage
+    /// category, is named before the freeze writes anything. The confirmed
+    /// current generation stays current and nothing supersedes it.
     /// </summary>
     [Fact]
-    public async Task ANonPrintableSalvageCategoryIsNamedBeforeAnyGenerationIsWritten()
+    public async Task AMissingSalvageCategoryIsNamedBeforeAnyGenerationIsWritten()
     {
         await using var harness = await Harness.CreateAsync();
         var first = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
@@ -1162,15 +1183,16 @@ public sealed class CaseReportGenerationPersistenceTests
         {
             Fields =
             [
-                .. assessment.Fields.Where(field => field.Path != AssessmentVocabulary.Outcome),
+                .. assessment.Fields.Where(field =>
+                    field.Path != AssessmentVocabulary.Outcome
+                    && field.Path != AssessmentVocabulary.SalvageCategory),
                 Recorded(AssessmentVocabulary.Outcome, "total_loss"),
-                Recorded(AssessmentVocabulary.SalvageCategory, "B"),
                 Recorded(AssessmentVocabulary.SalvageValue, "500.00"),
             ],
         });
         var renderer = new RecordingRenderer(harness);
         var refused = await harness.Generate(new RecordingCustody(harness), renderer)
-            .ExecuteAsync(harness.Request(operationKey: "case-report-category-b"), CancellationToken.None);
+            .ExecuteAsync(harness.Request(operationKey: "case-report-no-category"), CancellationToken.None);
 
         Assert.Equal(CaseReportGenerationOutcome.NotReady, refused.Outcome);
         Assert.Null(refused.Generation);
@@ -1715,6 +1737,10 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Accepts a different Engineer's Value, a material change.</summary>
         public void AcceptEngineerValue(decimal value) => snapshotSource.AcceptEngineerValue(value);
 
+        /// <summary>Types the three boxes with no basis card, so no applied valuation row exists.</summary>
+        public void TypeValues(decimal retail, decimal trade, decimal engineer) =>
+            snapshotSource.TypeValues(retail, trade, engineer);
+
         /// <summary>Records a revised assessment, which every later freeze reads.</summary>
         public void ReviseAssessment(Func<CaseAssessmentProjection, CaseAssessmentProjection> revise) =>
             snapshotSource.TransformAssessment(revise);
@@ -1934,7 +1960,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     SourceOccurrenceIdentity = $"report-fixture:{occurrenceId:N}",
                     RecordedAtUtc = StartUtc,
                     OperationKey = $"seed:{occurrenceId:N}",
-                    PreparationRole = nameof(CaseAssetReportRole.NotUsed)
+                    InReport = false
                 });
             await context.SaveChangesAsync();
             return new(documentId, versionId, sha256, content) { OccurrenceId = occurrenceId };
@@ -2055,6 +2081,7 @@ public sealed class CaseReportGenerationPersistenceTests
         private readonly Guid valuationId = Guid.NewGuid();
         private readonly Guid guideValuationId = Guid.NewGuid();
         private decimal engineerValue = 5_000m;
+        private bool fromCard = true;
         private Func<CaseAssessmentProjection, CaseAssessmentProjection>? transform;
 
         public FakeSnapshotSource(
@@ -2083,7 +2110,26 @@ public sealed class CaseReportGenerationPersistenceTests
             };
         }
 
-        public void AcceptEngineerValue(decimal value) => engineerValue = value;
+        /// <summary>
+        /// A calculation fills the Engineer's Value box with <paramref name="value"/>
+        /// and the Save records it against its basis card: the field the report
+        /// prints and the applied row move together.
+        /// </summary>
+        public void AcceptEngineerValue(decimal value)
+        {
+            engineerValue = value;
+            transform = current => WithValues(current, engineer: value);
+        }
+
+        /// <summary>
+        /// The three boxes typed by hand: the fields carry the figures and no
+        /// applied valuation row exists (operator, 26 September 2026).
+        /// </summary>
+        public void TypeValues(decimal retail, decimal trade, decimal engineer)
+        {
+            fromCard = false;
+            transform = current => WithValues(current, retail, trade, engineer);
+        }
 
         /// <summary>
         /// Applies <paramref name="revise"/> to the accepted assessment every
@@ -2111,9 +2157,29 @@ public sealed class CaseReportGenerationPersistenceTests
             [new SignOffEngineerProfile(
                 SignatoryId, "Ed Mawdsley", "ATA VDA AQP", SignatureBytes, "image/png", IsDefault: true)],
             estimate,
-            Valuation(),
+            fromCard ? Valuation() : null,
             [Preparation(closeUp, CaseAssetReportRole.CloseUp), Preparation(overview, CaseAssetReportRole.Overview)],
             confirmedSources);
+
+        private static CaseAssessmentProjection WithValues(
+            CaseAssessmentProjection current,
+            decimal? retail = null,
+            decimal? trade = null,
+            decimal? engineer = null) => current with
+            {
+                Fields = current.Fields
+                    .Select(field => field.Path switch
+                    {
+                        AssessmentVocabulary.ValueRetail when retail is { } value => field with { Value = Money(value) },
+                        AssessmentVocabulary.ValueTrade when trade is { } value => field with { Value = Money(value) },
+                        AssessmentVocabulary.ValueEngineer when engineer is { } value => field with { Value = Money(value) },
+                        _ => field,
+                    })
+                    .ToArray(),
+            };
+
+        private static string Money(decimal value) =>
+            value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
 
         private AppliedValuation Valuation() => new(
             valuationId, caseId, 1, guideValuationId, RecordedAtUtc,
@@ -2133,8 +2199,14 @@ public sealed class CaseReportGenerationPersistenceTests
         private CaseAssetPreparation Preparation(
             Harness.SeededDocument document, CaseAssetReportRole role) => new(
                 caseId, document.OccurrenceId, document.DocumentId, document.VersionId, 1,
-                document.Sha256, "image/png", role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
-                1, "engineer-1", RecordedAtUtc, role == CaseAssetReportRole.CloseUp);
+                document.Sha256, "image/png", true, null, CaseAssetRotation.None, CaseAssetCrop.Full,
+                1, "engineer-1", RecordedAtUtc, role == CaseAssetReportRole.CloseUp)
+            {
+                TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId],
+                SourceFileName = $"{document.OccurrenceId:D}.png",
+                RecordedAtUtc = RecordedAtUtc,
+                CanPrint = true
+            };
 
     }
 
@@ -2221,12 +2293,16 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Runs after the freeze committed and before custody.</summary>
         public Func<Task>? Before { get; set; }
 
+        /// <summary>The facts the last render was given.</summary>
+        public AssessmentReportSnapshot? Rendered { get; private set; }
+
         public async Task<RenderedReportArtifact> RenderAsync(
             AssessmentReportSnapshot snapshot,
             CaseReportArtifactKind kind,
             CancellationToken cancellationToken = default)
         {
             Kinds.Add(kind);
+            Rendered = snapshot;
             harness.Sequence.Add("render");
             if (Before is not null)
             {

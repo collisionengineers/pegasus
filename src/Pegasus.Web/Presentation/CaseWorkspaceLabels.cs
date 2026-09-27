@@ -147,6 +147,17 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SettlementSalvageSettled] = "Salvage settled"
         };
 
+        /// <summary>
+        /// The three values the report prints side by side, first in Valuation
+        /// (operator, 26 September 2026): typed, or filled from a guide card.
+        /// </summary>
+        public static IReadOnlyDictionary<string, string> Valuation { get; } = new Dictionary<string, string>
+        {
+            [AssessmentVocabulary.ValueRetail] = "Retail value",
+            [AssessmentVocabulary.ValueTrade] = "Trade value",
+            [AssessmentVocabulary.ValueEngineer] = CaseWorkspaceLabels.Valuation.EngineersValueHead
+        };
+
         /// <summary>An Audit's original report (v28 P51), Case data beside the claim.</summary>
         public static IReadOnlyDictionary<string, string> OriginalReport { get; } = new Dictionary<string, string>
         {
@@ -205,7 +216,7 @@ public static class CaseWorkspaceLabels
         {
             if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
             if (field == FormName(AssessmentVocabulary.VehicleCondition)) return "Pre-incident condition";
-            foreach (var entry in Settlement.Concat(OriginalReport).Concat(Report).Concat(Damage).Concat(Vehicle))
+            foreach (var entry in Settlement.Concat(Valuation).Concat(OriginalReport).Concat(Report).Concat(Damage).Concat(Vehicle))
             {
                 if (field == FormName(entry.Key)) return entry.Value;
             }
@@ -220,7 +231,8 @@ public static class CaseWorkspaceLabels
         }
 
         public static bool IsAssessmentField(string path) =>
-            Settlement.ContainsKey(path) || OriginalReport.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
+            Settlement.ContainsKey(path) || Valuation.ContainsKey(path) || OriginalReport.ContainsKey(path)
+            || Report.ContainsKey(path) || Damage.ContainsKey(path)
             || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck
             || path == AssessmentVocabulary.VehicleCondition;
 
@@ -253,6 +265,7 @@ public static class CaseWorkspaceLabels
             };
             if (shownElsewhere is not null) return shownElsewhere;
             if (Settlement.ContainsKey(field)) return "settlement";
+            if (Valuation.ContainsKey(field)) return "valuation";
             if (OriginalReport.ContainsKey(field)) return "original-report";
             if (Report.ContainsKey(field)) return "report";
             if (Damage.ContainsKey(field)) return "damage";
@@ -266,8 +279,6 @@ public static class CaseWorkspaceLabels
                     or CaseDataFieldNames.VehicleYear or CaseDataFieldNames.VehicleMileage => "vehicle",
                 AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactSeverity
                     or AssessmentVocabulary.ImpactLocation => "damage",
-                AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade
-                    or AssessmentVocabulary.ValueEngineer => "valuation",
                 AssessmentVocabulary.ReportDate => "report",
                 AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge
                     or CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
@@ -388,7 +399,10 @@ public static class CaseWorkspaceLabels
         public static string? BlockerSection(AssessmentReadinessItem item) => item switch
         {
             { Field: { } field } => Editors.SectionOf(field),
-            { Requirement: CaseReportReadiness.SignatoryRequirement } => "overview",
+            // Staff choose the Sign-off Engineer on Case details. Its name and
+            // signature are the account's, set in Accounts, so no Case section
+            // clears those blockers (operator, 26 September 2026).
+            _ when item == CaseReportReadiness.SignOffEngineerNotChosen => "overview",
             { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
             {
                 Requirement: CaseReportReadiness.CloseUpImageRequirement
@@ -695,7 +709,6 @@ public static class CaseWorkspaceLabels
         public const string Applied = "Applied";
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
-        public const string ChooseBasis = "Choose a basis card to calculate.";
         public const string GuideRetail = "Guide retail";
         public const string ProposedEngineersValue = "Proposed Engineer's Value";
 
@@ -844,18 +857,16 @@ public static class CaseWorkspaceLabels
     {
         public const string FullPage = "Full page";
         public const string PrintOnItsOwnPage = "Print on its own page";
-        public const string Remove = "Remove image";
         public const string Rotate = "Rotate";
         public const string DragToReorder = "Drag to reorder";
         public const string InReport = "In report";
         public const string NotInReport = "Not in report";
-        public const string Undo = "Undo";
-        public const string ImageRemoved = "Image removed";
+        public const string PutInReport = "The image is in the report.";
+        public const string TakenOutOfReport = "The image is out of the report.";
 
         /// <summary>The count line under the image grid: how many of the Case's images the report uses.</summary>
         public static string InReportCount(int included, int total) => $"{included} of {total} in report";
 
-        public const string Role = "Role";
         public const string Order = "Order";
         public const string Rotation = "Rotation";
         public const string Crop = "Crop";
@@ -863,15 +874,6 @@ public static class CaseWorkspaceLabels
         public const string RotateLeft = "Rotate left";
         public const string RotateRight = "Rotate right";
         public const string FullFrame = "Full frame";
-
-        public static string RoleLabel(CaseAssetReportRole role) => role switch
-        {
-            CaseAssetReportRole.NotUsed => "Not used",
-            CaseAssetReportRole.CloseUp => "Close-up",
-            CaseAssetReportRole.Overview => "Overview",
-            CaseAssetReportRole.Supporting => "Supporting",
-            _ => role.ToString(),
-        };
     }
 
     /// <summary>

@@ -1092,6 +1092,18 @@ public sealed class EfImageIntakeStore(
         PegasusDbContext context,
         Guid originReceiptId,
         Guid? submissionGroupId,
+        CancellationToken cancellationToken) =>
+        [.. (await ListPhotographsAsync(context, originReceiptId, submissionGroupId, cancellationToken))
+            .Select(photograph => ToImage(photograph.ReceiptId, photograph.Asset))];
+
+    /// <summary>
+    /// The photographs a record shows, in stored order, each with its retained
+    /// asset: what the record's page lists and what its merge files on the Case.
+    /// </summary>
+    internal static async Task<IReadOnlyList<(Guid ReceiptId, IntakeAssetRecord Asset)>> ListPhotographsAsync(
+        PegasusDbContext context,
+        Guid originReceiptId,
+        Guid? submissionGroupId,
         CancellationToken cancellationToken)
     {
         var receiptIds = await ResolveOrderedImageReceiptIdsAsync(
@@ -1113,17 +1125,17 @@ public sealed class EfImageIntakeStore(
                 group => group.Key,
                 group => (IReadOnlyList<IntakeAssetRecord>)group
                     .Select(EfIntakeReceiptStore.MapAsset).ToArray());
-        var images = new List<ImageIntakeImage>(rows.Length);
+        var photographs = new List<(Guid ReceiptId, IntakeAssetRecord Asset)>(rows.Length);
         foreach (var receiptId in receiptIds)
         {
             if (byReceipt.TryGetValue(receiptId, out var assets))
             {
-                images.AddRange(InstructionEvidenceImages
+                photographs.AddRange(InstructionEvidenceImages
                     .Select(assets)
-                    .Select(asset => ToImage(receiptId, asset)));
+                    .Select(asset => (receiptId, asset)));
             }
         }
-        return images;
+        return photographs;
     }
 
     private static bool IsImageAutomationEligible(
@@ -1218,6 +1230,7 @@ public sealed class EfImageIntakeStore(
                 intake.CreatedAtUtc,
                 intake.SourceChannel,
                 intake.CustodyState,
+                intake.MergedIntoCaseId,
                 intake.LifecycleState,
                 intake.ClosureReason,
                 intake.PrincipalId,
@@ -1305,7 +1318,11 @@ public sealed class EfImageIntakeStore(
                     ParseChannel(row.SourceChannel),
                     row.PrincipalCode,
                     row.PrincipalId,
-                    row.GroupExpectedMemberCount);
+                    row.GroupExpectedMemberCount,
+                    // The fold files them on the Case the record merged into,
+                    // which after a reversal may not be the Case it is
+                    // associated with now.
+                    row.CustodyState == ImageCustodyStates.Merged && row.MergedIntoCaseId == caseId);
             })
             .ToArray();
     }

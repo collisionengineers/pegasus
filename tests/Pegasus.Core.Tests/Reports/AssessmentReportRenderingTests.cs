@@ -185,18 +185,50 @@ public sealed class AssessmentReportRenderingTests
     }
 
     /// <summary>
-    /// The renderer's own contract reads the same printable category as
-    /// readiness: a total loss prints only Category S, whose wording the
-    /// active template has.
+    /// The report prints the recorded category's accepted wording (operator,
+    /// 26 September 2026): the badge names the category and the salvage block
+    /// carries that category's sentence.
+    /// </summary>
+    [Theory]
+    [InlineData("A")]
+    [InlineData("B")]
+    [InlineData("S")]
+    [InlineData("N")]
+    public void ATotalLossPrintsItsRecordedCategory(string category)
+    {
+        var snapshot = Snapshot(AssessmentReportOutcome.TotalLoss) with { SalvageCategory = category };
+
+        snapshot.Validate();
+
+        Assert.Equal($"TOTAL LOSS — CATEGORY {category}", snapshot.Presentation().Badge);
+        var salvage = Assert.Single(snapshot.PrintedWording, block => block.Key == ReportWordingComposition.Salvage);
+        Assert.Contains($"Category {category}", salvage.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A total loss recorded as Category N/A prints the badge TOTAL LOSS with
+    /// no category and no salvage paragraph (operator, 26 September 2026).
     /// </summary>
     [Fact]
-    public void ATotalLossSnapshotPrintsOnlyCategoryS()
+    public void ATotalLossWithNoCategoryPrintsTheBadgeAloneAndNoSalvageParagraph()
     {
-        var categoryS = Snapshot(AssessmentReportOutcome.TotalLoss);
-        var categoryN = categoryS with { SalvageCategory = "N" };
+        var snapshot = Snapshot(AssessmentReportOutcome.TotalLoss) with
+        {
+            SalvageCategory = AssessmentReportContract.NoSalvageCategory,
+        };
 
-        categoryS.Validate();
-        Assert.Throws<ReportRenderRejectedException>(categoryN.Validate);
+        snapshot.Validate();
+
+        Assert.Equal("TOTAL LOSS", snapshot.Presentation().Badge);
+        Assert.DoesNotContain(snapshot.PrintedWording, block => block.Key == ReportWordingComposition.Salvage);
+    }
+
+    [Fact]
+    public void ATotalLossWithoutARecordedCategoryIsRefused()
+    {
+        var snapshot = Snapshot(AssessmentReportOutcome.TotalLoss) with { SalvageCategory = null };
+
+        Assert.Throws<ReportRenderRejectedException>(snapshot.Validate);
     }
 
     [Fact]

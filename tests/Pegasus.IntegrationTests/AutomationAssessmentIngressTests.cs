@@ -304,11 +304,11 @@ public sealed class AutomationAssessmentIngressTests
                 expectedVersion = lease.CaseVersion,
                 editLeaseToken = lease.LeaseToken,
                 operationKey = "mcp:generic-finding-rejected",
-                reason = "Attempt an adopted finding write.",
+                reason = "Attempt an Engineer's Value write.",
                 fields = new Dictionary<string, string?> { [AssessmentVocabulary.ValueEngineer] = "12000" }
             }));
         using var findingDocument = await ReadJsonRpcAsync(findingResponse);
-        Assert.Contains("only when a Case Save adopts an Engineer", findingDocument.RootElement.ToString(), StringComparison.Ordinal);
+        Assert.Contains("is a professional finding", findingDocument.RootElement.ToString(), StringComparison.Ordinal);
 
         using var signatoryResponse = await PostMcpAsync(client, token, ToolCallPayload(45,
             "pegasus_assessment_update", new
@@ -345,7 +345,7 @@ public sealed class AutomationAssessmentIngressTests
             (AssessmentVocabulary.VehicleFuel, "Petrol", "filled by the DVLA/DVSA vehicle lookup"),
             ("statement_of_truth", "I believe the facts stated are true.", "not part of the assessment vocabulary"),
             (AssessmentVocabulary.LegalStatus, "roadworthy", "is a professional finding"),
-            (AssessmentVocabulary.ValueTrade, "9000", "only when a Case Save adopts an Engineer"),
+            (AssessmentVocabulary.ValueTrade, "9000", "is a professional finding"),
             ("incident.assessed", "2031-05-06", "case-detail edit path"),
             ("costs.repairer_vat_registered", "true", "not part of the assessment vocabulary")
         };

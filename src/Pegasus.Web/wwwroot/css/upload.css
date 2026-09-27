@@ -69,14 +69,21 @@
 .up-alert > .icon { flex: none; margin-top: 1px; width: 16px; height: 16px; }
 .up-alert--error { background: var(--danger-bg); border-left-color: var(--danger); }
 
-/* Choosing files. */
-.up-workspace.is-choosing { grid-template-columns: minmax(320px, 1.25fr) minmax(0, .88fr); }
+/* Choosing files: one centred column until a file is chosen. upload.js sets
+   has-files when it shows the roster; the picker then sits left of the
+   selected files (FRD-18). The workspace stays full width because it is the
+   drop target; only the picker narrows. Below 900px both states stack at
+   full width, further down, so adding a file moves nothing there. */
+.up-workspace.is-choosing { display: block; }
+.up-workspace.has-files { display: grid; grid-template-columns: minmax(320px, 1.25fr) minmax(0, .88fr); }
+@media (min-width: 901px) {
+    .up-workspace.is-choosing:not(.has-files) > .up-select { max-width: 760px; margin-inline: auto; }
+}
 .up-select { grid-column: 1; grid-row: 1; padding: 30px; min-width: 0; }
 .up-select-title { margin-bottom: 18px; }
 .up-declared { margin-bottom: 18px; }
 .up-declared .up-final-destination { margin: 6px 0 0; padding: 12px 0; border-top: 0; }
 .up-declared .up-final-destination strong { font-size: 18px; }
-.up-declared .up-explainer { margin-top: 8px; }
 .up-drop { border: 1px dashed var(--line-strong); border-radius: 4px; background: var(--surface-2); text-align: center; padding: 42px 24px; display: flex; align-items: center; flex-direction: column; gap: 12px; }
 .up-drop.is-over { background: var(--navy-bg); border-color: var(--navy); }
 .up-drop > .icon { color: var(--muted); height: 29px; width: 29px; margin-bottom: 4px; }

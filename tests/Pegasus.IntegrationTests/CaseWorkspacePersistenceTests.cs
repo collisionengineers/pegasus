@@ -87,8 +87,7 @@ public sealed class CaseWorkspacePersistenceTests
                     Source = DocumentSource.StaffUpload,
                     SourceOccurrenceIdentity = "focused-page-file",
                     RecordedAtUtc = harness.TimeProvider.GetUtcNow(),
-                    OperationKey = "focused-page-file",
-                    PreparationRole = nameof(CaseAssetReportRole.NotUsed)
+                    OperationKey = "focused-page-file"
                 });
             await context.SaveChangesAsync();
         }
@@ -228,7 +227,7 @@ public sealed class CaseWorkspacePersistenceTests
             context.AddRange(
                 new CaseDocumentEntity { Id = documentId, CaseId = harness.CaseId, Ordinal = 99, SourceOccurrenceIdentity = "workspace-crop-fixture" },
                 new DocumentVersionEntity { Id = versionId, DocumentId = documentId, Version = 1, FileName = "damage.jpg", MediaType = "image/jpeg", ContentLength = 1, Sha256 = hash, CustodyStatus = DocumentCustodyStatus.Confirmed, CreatedAtUtc = harness.TimeProvider.GetUtcNow(), CreatedBy = "Staff:fixture", IsCurrent = true },
-                new DocumentOccurrenceEntity { Id = occurrenceId, CaseId = harness.CaseId, DocumentId = documentId, VersionId = versionId, SemanticRole = DocumentSemanticRole.Image, Source = DocumentSource.StaffUpload, SourceOccurrenceIdentity = "workspace-crop-fixture", RecordedAtUtc = harness.TimeProvider.GetUtcNow(), OperationKey = "seed-workspace-crop", PreparationRole = nameof(CaseAssetReportRole.NotUsed) });
+                new DocumentOccurrenceEntity { Id = occurrenceId, CaseId = harness.CaseId, DocumentId = documentId, VersionId = versionId, SemanticRole = DocumentSemanticRole.Image, Source = DocumentSource.StaffUpload, SourceOccurrenceIdentity = "workspace-crop-fixture", RecordedAtUtc = harness.TimeProvider.GetUtcNow(), OperationKey = "seed-workspace-crop" });
             await context.SaveChangesAsync();
         }
         var lease = await harness.AcquireLeaseAsync(initial.Version, harness.StaffActor, "edit-workspace-crop");
@@ -236,14 +235,14 @@ public sealed class CaseWorkspacePersistenceTests
         var request = Request(harness, initial.Version, lease.Token, "save-workspace-crop") with
         {
             Damage = new([new(["left_front"], "light", "Scuffed")], null),
-            ImagePreparation = new([new(occurrenceId, 99, CaseAssetReportRole.Overview, null, CaseAssetRotation.Clockwise90, crop)])
+            ImagePreparation = new([new(occurrenceId, 99, null, CaseAssetRotation.Clockwise90, crop)])
         };
         await Assert.ThrowsAsync<CaseAssetPreparationVersionConflictException>(() => harness.WorkspaceStore.SaveAsync(request, default));
         Assert.Equal(initial.Version, (await harness.GetRequiredDataAsync()).Version);
         Assert.Equal(0, await AssessmentFieldCountAsync(harness));
         var saved = await harness.WorkspaceStore.SaveAsync(request with
         {
-            ImagePreparation = new([new(occurrenceId, 0, CaseAssetReportRole.Overview, null, CaseAssetRotation.Clockwise90, crop)])
+            ImagePreparation = new([new(occurrenceId, 0, null, CaseAssetRotation.Clockwise90, crop)])
         }, default);
         Assert.Equal(initial.Version + 1, saved.Version);
         Assert.Equal("left_front", saved.Assessment.Field(AssessmentVocabulary.ImpactLocation)?.Value);
@@ -1326,12 +1325,15 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
-    /// An adoption in a Save that records a new guide month for the basis
-    /// source is calculated from that new card, the one the page shows (one
-    /// Save, 23 September 2026), and names the Case version the save produced.
+    /// A calculation in a Save that records a new guide month for the basis
+    /// source is recorded against that new card, the one the page shows (one
+    /// Save, 23 September 2026), names the Case version the save produced and
+    /// carries the Case's mileage. The Retail, Trade and Engineer's values are
+    /// the boxes the same save posts, filled from that card (operator, 26
+    /// September 2026), and are the saving Engineer's own.
     /// </summary>
     [Fact]
-    public async Task AnAdoptionCalculatesFromTheBasisCardTheSameSaveRecorded()
+    public async Task ACalculationIsRecordedAgainstTheBasisCardTheSameSaveRecorded()
     {
         await using var harness = await Harness.CreateAsync();
         var april = new DateOnly(2030, 4, 1);
@@ -1362,7 +1364,8 @@ public sealed class CaseWorkspacePersistenceTests
                     new Dictionary<string, string?>(StringComparer.Ordinal)),
                 Valuation = new(
                     [GuideCard(ValuationSource.Glasses, may, 13_000m)],
-                    new ValuationCalculationSelection(aprilCard.ValuationId, false, null, [], 0m))
+                    new ValuationCalculationSelection(aprilCard.ValuationId, false, null, [], 0m),
+                    Values("13000", "12000", "13000"))
             },
             CancellationToken.None);
 
@@ -1377,15 +1380,12 @@ public sealed class CaseWorkspacePersistenceTests
         // guide card's (operator, 24 September 2026): 100,000 km is 62,137 miles.
         var engineersValue = Assert.Single(cards, card => card.Details.Source == ValuationSource.EngineersValue);
         Assert.Equal(62_137, engineersValue.Details.Mileage);
-        // The adoption records the basis card's retail and trade beside the
-        // Engineer's Value as the adopting Engineer's confirmed findings: the
-        // report's Retail value and Trade value (operator, 24 September 2026).
         var fields = await AssessmentFieldsAsync(harness);
-        Assert.Equal("13000.00", fields[AssessmentVocabulary.ValueEngineer].Value);
         foreach (var (path, value) in new[]
         {
             (AssessmentVocabulary.ValueRetail, "13000.00"),
             (AssessmentVocabulary.ValueTrade, "12000.00"),
+            (AssessmentVocabulary.ValueEngineer, "13000.00"),
         })
         {
             var field = fields[path];
@@ -1396,92 +1396,60 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     /// <summary>
-    /// A basis card without a trade figure leaves the report's Trade value
-    /// outstanding (operator, 24 September 2026): the blocker stays until the
-    /// trade is entered on that card and a Save adopts again, which stales the
-    /// current report; removing the trade again removes the recorded one.
+    /// The report's three values are typed boxes (operator, 26 September
+    /// 2026): with no mileage and no guide card they save, clear their three
+    /// blockers and record no calculation, and changing one stales the
+    /// current report.
     /// </summary>
     [Fact]
-    public async Task ABasisCardWithoutTradeKeepsTheTradeValueBlockerUntilTradeIsEnteredAndReadopted()
+    public async Task TypedValuesSaveWithoutAMileageAndClearTheirBlockers()
     {
         await using var harness = await Harness.CreateAsync();
-        var april = new DateOnly(2030, 4, 1);
-        var withoutTrade = GuideCard(ValuationSource.Glasses, april, 12_500m) with { TradeValue = null };
         var initial = await harness.GetRequiredDataAsync();
         var engineer = Engineer(harness);
-        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-no-trade-1");
-        var first = await harness.WorkspaceStore.SaveAsync(
-            Request(harness, initial.Version, lease.Token, "no-trade-save-1", engineer) with
+        var lease = await harness.AcquireLeaseAsync(initial.Version, engineer, "lease-typed-1");
+        var typed = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "typed-save-1", engineer) with
             {
-                Valuation = new([withoutTrade])
-            },
-            CancellationToken.None);
-        var valuations = new EfValuationStore(harness.Factory);
-        var card = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
-        var selection = new ValuationCalculationSelection(card.ValuationId, false, null, [], 0m);
-
-        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
-        var adoptLease = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-no-trade-2");
-        var adopted = await harness.WorkspaceStore.SaveAsync(
-            Request(harness, first.Version, adoptLease.Token, "no-trade-save-2", engineer) with
-            {
-                Vehicle = new(
-                    null,
-                    null,
-                    null,
-                    new(72_850, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
-                    new Dictionary<string, string?>(StringComparer.Ordinal)),
-                Valuation = new([], selection)
+                Valuation = new([], AssessmentFields: Values("12500", "11000", "12750"))
             },
             CancellationToken.None);
 
-        var fields = await AssessmentFieldsAsync(harness);
-        Assert.Equal("12500.00", fields[AssessmentVocabulary.ValueRetail].Value);
-        Assert.False(fields.ContainsKey(AssessmentVocabulary.ValueTrade));
-        var tradeValue = Assert.Single(
-            AssessmentPolicy.EvaluatePostReviewReadiness(adopted.Assessment),
-            item => item.Requirement == "Trade value");
-        Assert.Equal(AssessmentVocabulary.ValueTrade, tradeValue.Field);
-        var generationId = await SeedCurrentGenerationAsync(harness, adopted.Version);
-
-        // The trade entered on the same card, with the calculation the page
-        // then posts because the card it opened on changed.
-        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
-        var tradeLease = await harness.AcquireLeaseAsync(adopted.Version, engineer, "lease-no-trade-3");
-        var readopted = await harness.WorkspaceStore.SaveAsync(
-            Request(harness, adopted.Version, tradeLease.Token, "no-trade-save-3", engineer) with
-            {
-                Valuation = new([withoutTrade with { TradeValue = 11_000m }], selection)
-            },
-            CancellationToken.None);
-
-        fields = await AssessmentFieldsAsync(harness);
-        Assert.Equal("11000.00", fields[AssessmentVocabulary.ValueTrade].Value);
         Assert.DoesNotContain(
-            AssessmentPolicy.EvaluatePostReviewReadiness(readopted.Assessment),
-            item => item.Requirement == "Trade value");
-        Assert.Equal(2, (await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None)).Count);
+            AssessmentPolicy.EvaluatePostReviewReadiness(typed.Assessment),
+            item => item.Field is AssessmentVocabulary.ValueRetail
+                or AssessmentVocabulary.ValueTrade
+                or AssessmentVocabulary.ValueEngineer);
+        Assert.Equal("12750.00", (await AssessmentFieldsAsync(harness))[AssessmentVocabulary.ValueEngineer].Value);
+        var valuations = new EfValuationStore(harness.Factory);
+        Assert.Empty(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        Assert.Empty(await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        var generationId = await SeedCurrentGenerationAsync(harness, typed.Version);
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
+        var again = await harness.AcquireLeaseAsync(typed.Version, engineer, "lease-typed-2");
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, typed.Version, again.Token, "typed-save-2", engineer) with
+            {
+                Valuation = new([], AssessmentFields: Values("12500", "11000", "13000"))
+            },
+            CancellationToken.None);
+
         await AssertGenerationStateAsync(
             harness,
             generationId,
             CaseReportGenerationState.Stale,
             expectedStaleEvents: 1,
-            expectedReason: CaseReportStaleReasons.ValuationChanged);
-
-        harness.TimeProvider.Advance(TimeSpan.FromMinutes(1));
-        var clearLease = await harness.AcquireLeaseAsync(readopted.Version, engineer, "lease-no-trade-4");
-        await harness.WorkspaceStore.SaveAsync(
-            Request(harness, readopted.Version, clearLease.Token, "no-trade-save-4", engineer) with
-            {
-                Valuation = new([withoutTrade], selection)
-            },
-            CancellationToken.None);
-
-        fields = await AssessmentFieldsAsync(harness);
-        Assert.False(fields.ContainsKey(AssessmentVocabulary.ValueTrade));
-        Assert.Equal("12500.00", fields[AssessmentVocabulary.ValueRetail].Value);
+            expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
     }
 
+    private static Dictionary<string, string?> Values(string retail, string trade, string engineer) =>
+        new(StringComparer.Ordinal)
+        {
+            [AssessmentVocabulary.ValueRetail] = retail,
+            [AssessmentVocabulary.ValueTrade] = trade,
+            [AssessmentVocabulary.ValueEngineer] = engineer,
+        };
     /// <summary>
     /// The Inspection date is the date the report says the damage was
     /// assessed (issue #834), so changing it through the workspace stales the
@@ -1546,8 +1514,12 @@ public sealed class CaseWorkspacePersistenceTests
             expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
     }
 
+    /// <summary>
+    /// A calculation records without the Case's mileage (operator, 26
+    /// September 2026): its Engineer's Value row carries none.
+    /// </summary>
     [Fact]
-    public async Task AnAdoptionNeedsTheCaseMileage()
+    public async Task ACalculationRecordsWithoutTheCaseMileage()
     {
         await using var harness = await Harness.CreateAsync();
         var april = new DateOnly(2030, 4, 1);
@@ -1564,19 +1536,20 @@ public sealed class CaseWorkspacePersistenceTests
         var card = Assert.Single(await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
 
         var again = await harness.AcquireLeaseAsync(first.Version, engineer, "lease-no-mileage-2");
-        // The value needs the Case's mileage, as the guide lookup does; with
-        // none recorded the whole save is refused and nothing is written.
-        await Assert.ThrowsAsync<ArgumentException>(() => harness.WorkspaceStore.SaveAsync(
+        var second = await harness.WorkspaceStore.SaveAsync(
             Request(harness, first.Version, again.Token, "no-mileage-save-2", engineer) with
             {
                 Valuation = new([], new ValuationCalculationSelection(card.ValuationId, false, 0.10m, [], 0m))
             },
-            CancellationToken.None));
+            CancellationToken.None);
 
-        Assert.Empty(await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
-        Assert.Equal(first.Version, (await harness.GetRequiredDataAsync()).Version);
+        var applied = Assert.Single(await valuations.ListAppliedAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None));
+        Assert.Equal(second.Version, applied.CaseVersion);
+        var engineersValue = Assert.Single(
+            await valuations.ListForCaseAsync(harness.CaseId, CaseWorkSelector.Current, CancellationToken.None),
+            item => item.Details.Source == ValuationSource.EngineersValue);
+        Assert.Null(engineersValue.Details.Mileage);
     }
-
     [Fact]
     public async Task ReviewGatedTransitionsReadThePersistedFactsNotThePostedOnes()
     {
