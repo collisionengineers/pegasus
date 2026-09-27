@@ -27,7 +27,7 @@
     // The state table (plan 01): Save determinations leads until a finding
     // is recorded, then Complete Triage; on Completed, Reply with outcome.
     var savePrimary = record.State is TriageState.Open or TriageState.AwaitingInformation;
-    var offersReply = record.State == TriageState.Completed && view.CanSendReply;
+    var offersReply = view.OffersReply;
     var canLinkCase = mutable && view.CaseAssociationUnavailableReason is null;
     var canAssign = mutable && view.EngineerChoices.Count > 0;
     var hiddenBase = new Dictionary<string, string?>

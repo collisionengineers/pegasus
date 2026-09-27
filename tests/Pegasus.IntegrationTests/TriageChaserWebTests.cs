@@ -782,6 +782,104 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(0, send.SendCalls);
     }
 
+    /// <summary>
+    /// While a send is in flight, Reply with outcome is not offered: neither
+    /// the Determinations button nor the completion notice link, only the
+    /// in-flight notice in the correspondence panel.
+    /// </summary>
+    [Fact]
+    public async Task ReplyWithOutcomeIsNotOfferedWhileASendIsInFlight()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageCaseId}");
+        send.NextState = StaffMailState.Submitted;
+        using (var chaser = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply"))
+        {
+            chaser.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["expectedVersion"] = fixture.Version.ToString(CultureInfo.InvariantCulture),
+                ["operationKey"] = operationKey,
+                ["to"] = "reply@example.invalid",
+                ["subject"] = "Chaser subject",
+                ["body"] = "Chaser body."
+            });
+            using var sent = await client.SendAsync(chaser);
+            Assert.Equal(HttpStatusCode.Redirect, sent.StatusCode);
+        }
+
+        _ = await PostActionAsync(
+            client,
+            fixture.TriageCaseId,
+            token,
+            fixture.Version,
+            "record_finding",
+            "Reviewed the request images",
+            KeyValuePair.Create("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)));
+        var completed = await PostActionAsync(
+            client,
+            fixture.TriageCaseId,
+            token,
+            fixture.Version + 1,
+            "complete",
+            reason: null);
+
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, completed, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-triage-reply-link", completed, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-triage-reply-form", completed, StringComparison.Ordinal);
+        Assert.Contains("The existing correspondence operation must finish or be resolved before another action.", completed, StringComparison.Ordinal);
+        Assert.Equal(1, send.SendCalls);
+    }
+
+    /// <summary>
+    /// A refused send redisplays what the operator typed — To, Cc, Subject
+    /// and Body — not the template again.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedSendKeepsThePostedText()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient();
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"/Cases/{fixture.TriageCaseId}?handler=TriageSendReply");
+        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["expectedVersion"] = (fixture.Version + 5).ToString(CultureInfo.InvariantCulture),
+            ["operationKey"] = $"retained:{fixture.RetainedMessageId:N}:{Guid.NewGuid():N}",
+            ["to"] = "other@example.invalid",
+            ["cc"] = "copy@example.invalid",
+            ["subject"] = "Chaser subject as typed",
+            ["body"] = "Chaser body as typed."
+        });
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("The triage record changed while this was being prepared.", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"other@example.invalid\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"copy@example.invalid\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"Chaser subject as typed\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Chaser body as typed.</textarea>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"Re: Originating triage subject\"", html, StringComparison.Ordinal);
+        Assert.Equal(0, send.SendCalls);
+    }
+
     [Fact]
     public async Task ReconcileAcceptsAnOutcomeReplyOperation()
     {

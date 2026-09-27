@@ -21,9 +21,6 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 public sealed class TriageCaseView(TriageDetail triage)
 {
-    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
-    internal const string RecordName = "Triage record";
-
     public TriageDetail Triage { get; } = triage ?? throw new ArgumentNullException(nameof(triage));
 
     public TriageRecord Record => Triage.Record;
@@ -68,6 +65,12 @@ public sealed class TriageCaseView(TriageDetail triage)
 
     /// <summary>A reply can be sent: the Triage came by e-mail and its approved mailbox may send.</summary>
     public bool CanSendReply => RetainedMail is not null && ReplyMailbox is not null;
+
+    /// <summary>
+    /// Reply with outcome is offered: the Triage is Completed, a reply can be
+    /// sent and no send is in flight.
+    /// </summary>
+    public bool OffersReply => IsOutcomeReply && CanSendReply && !ReplyOperationBlocked;
 
     /// <summary>The completion notice carries a Reply with outcome link when a reply can be sent.</summary>
     public bool NoticeOffersReply { get; set; }
@@ -301,32 +304,48 @@ public sealed partial class DetailsModel
         string message;
         var nextOperationKey = operationKey;
         var applied = false;
+        Task<string> RunAsync(string editLeaseToken) => ExecuteTriageActionAsync(
+            actionName,
+            id,
+            expectedVersion,
+            actionActor,
+            operationKey,
+            editLeaseToken,
+            reason ?? string.Empty,
+            roadworthiness,
+            assessment,
+            supersedesFindingId,
+            responseCandidate,
+            sentEvidenceId,
+            assignee,
+            note,
+            ports,
+            cancellationToken);
         try
         {
-            message = await TriageWriteAuthority.ExecuteAsync(
-                ports.EditScopes,
-                id,
-                expectedVersion,
-                actionActor,
-                operationKey,
-                token => ExecuteTriageActionAsync(
-                    actionName,
+            try
+            {
+                message = await TriageWriteAuthority.ExecuteAsync(
+                    ports.EditScopes,
                     id,
                     expectedVersion,
                     actionActor,
                     operationKey,
-                    token,
-                    reason ?? string.Empty,
-                    roadworthiness,
-                    assessment,
-                    supersedesFindingId,
-                    responseCandidate,
-                    sentEvidenceId,
-                    assignee,
-                    note,
-                    ports,
-                    cancellationToken),
-                cancellationToken);
+                    logger,
+                    RunAsync,
+                    cancellationToken);
+            }
+            catch (EditScopeVersionConflictException)
+            {
+                // The record has moved past the posted version. A repeat of a
+                // committed post (a double click, a reload that re-posts) is
+                // answered from its operation key before Core checks the hold,
+                // so it gets the first result and its notice. A genuinely
+                // stale post fails the store's version check and is refused
+                // as changed below.
+                message = await RunAsync(string.Empty);
+            }
+
             applied = true;
             nextOperationKey = NewOperationKey();
         }
@@ -336,9 +355,19 @@ public sealed partial class DetailsModel
         }
         catch (EditScopeConflictException)
         {
-            message = await DescribeTriageHeldAsync(id, actionActor, ports, cancellationToken);
+            message = await TriageWriteAuthority.DescribeHeldAsync(
+                ports.EditScopes,
+                ports.DescribeEditAuthorityHolder,
+                id,
+                actionActor,
+                cancellationToken);
         }
-        catch (EditScopeVersionConflictException)
+        catch (EditScopeExpiredException)
+        {
+            message = Labels.Expired;
+        }
+        catch (Exception exception)
+            when (exception is EditScopeVersionConflictException or TriageVersionConflictException)
         {
             message = Labels.Changed;
         }
@@ -354,7 +383,7 @@ public sealed partial class DetailsModel
 
         TriageCase!.Message = message;
         TriageCase.OperationKey = nextOperationKey;
-        TriageCase.NoticeOffersReply = applied && actionName == "complete" && TriageCase.CanSendReply;
+        TriageCase.NoticeOffersReply = applied && actionName == "complete" && TriageCase.OffersReply;
         return Page();
     }
 
@@ -503,18 +532,22 @@ public sealed partial class DetailsModel
             return NotFound();
         }
 
+        // A refused send redisplays what the operator typed, never the
+        // template again.
+        var draft = new TriageReplyDraft(to, cc, subject, body, selectedAttachments ?? []);
+
         // A reply answers the mailbox request a Triage Case was opened from.
         if (triage.Record.Origin is not { } origin
             || origin.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
         {
             ModelState.AddModelError(string.Empty, Labels.ReplyNeedsEmail);
-            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
         if (TriageLifecycleRules.ReplyPurpose(triage.Record.State) is not { } purpose)
         {
             ModelState.AddModelError(string.Empty, Labels.NoReplyWhenCancelled);
-            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
         if (triage.Record.Version != expectedVersion)
@@ -522,7 +555,7 @@ public sealed partial class DetailsModel
             ModelState.AddModelError(
                 string.Empty,
                 "The triage record changed while this was being prepared. Reload the record and try again.");
-            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
         var detail = await ports.RetainedMail.ExecuteByOriginReceiptAsync(
@@ -532,7 +565,7 @@ public sealed partial class DetailsModel
         if (detail is null)
         {
             ModelState.AddModelError(string.Empty, "Originating retained message was not found.");
-            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
         var mailboxes = await ports.ApprovedMailboxes.ListAsync(cancellationToken);
@@ -546,7 +579,7 @@ public sealed partial class DetailsModel
             ModelState.AddModelError(
                 string.Empty,
                 "No approved mailbox with staff send capability is available for this origin.");
-            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
         if (!IsRetainedTriageOperationKey(operationKey, detail.Summary.Id))
@@ -554,7 +587,7 @@ public sealed partial class DetailsModel
             ModelState.AddModelError(
                 nameof(operationKey),
                 "The send operation key is invalid or has expired.");
-            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
         var toRecipients = ParseTriageRecipients(to);
@@ -578,11 +611,10 @@ public sealed partial class DetailsModel
         }
 
         IReadOnlyList<StaffMailAttachment> attachments = [];
-        IReadOnlyList<string> chosenAttachments = selectedAttachments ?? [];
         try
         {
             attachments = await ports.AttachmentResolver.ResolveIntakeAsync(
-                actionActor, origin.ReceiptId, chosenAttachments,
+                actionActor, origin.ReceiptId, draft.Attachments,
                 cancellationToken);
         }
         catch (StaffMailAttachmentSelectionException exception)
@@ -592,7 +624,7 @@ public sealed partial class DetailsModel
 
         if (!ModelState.IsValid)
         {
-            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken, chosenAttachments);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
         var original = new StaffMailOriginalMessage(
@@ -632,7 +664,7 @@ public sealed partial class DetailsModel
         catch (ArgumentException exception)
         {
             ModelState.AddModelError(string.Empty, exception.Message);
-            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken, chosenAttachments);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
         catch (InvalidOperationException)
         {
@@ -647,11 +679,19 @@ public sealed partial class DetailsModel
             ModelState.AddModelError(
                 string.Empty,
                 "The existing correspondence operation must finish or be resolved before another action.");
-            return await ReloadTriageCaseAsync(id, actionActor, ports, cancellationToken, chosenAttachments);
+            return await ReloadTriageCaseAsync(id, actionActor, ports, draft, cancellationToken);
         }
 
         return RedirectToPage(new { id });
     }
+
+    /// <summary>What the operator posted in the reply form, kept on a refused send's redisplay.</summary>
+    private sealed record TriageReplyDraft(
+        string? To,
+        string? Cc,
+        string? Subject,
+        string? Body,
+        IReadOnlyList<string> Attachments);
 
     public async Task<IActionResult> OnPostTriageReconcileReplyAsync(
         Guid id,
@@ -748,23 +788,25 @@ public sealed partial class DetailsModel
         return RedirectToPage(new { id });
     }
 
+    /// <summary>The page again after a refused send, with the reply form holding what was posted.</summary>
     private async Task<IActionResult> ReloadTriageCaseAsync(
         Guid id,
         ActionActor actor,
         TriageCasePorts ports,
-        CancellationToken cancellationToken,
-        IReadOnlyList<string>? selectedAttachments = null)
+        TriageReplyDraft draft,
+        CancellationToken cancellationToken)
     {
         if (!await LoadTriageCaseAsync(id, actor, ports, cancellationToken))
         {
             return NotFound();
         }
 
-        if (selectedAttachments is not null)
-        {
-            TriageCase!.SelectedAttachments = selectedAttachments;
-        }
-
+        var view = TriageCase!;
+        view.ReplyTo = draft.To;
+        view.ReplyCc = draft.Cc;
+        view.ReplySubject = draft.Subject;
+        view.ReplyBody = draft.Body;
+        view.SelectedAttachments = draft.Attachments;
         return Page();
     }
 
@@ -948,6 +990,7 @@ public sealed partial class DetailsModel
                 expectedTriageVersion,
                 actor,
                 operationKey,
+                logger,
                 async token =>
                 {
                     CaseEditLease? lease = null;
@@ -1015,7 +1058,16 @@ public sealed partial class DetailsModel
         }
         catch (EditScopeConflictException)
         {
-            TempData["TriageStatus"] = await DescribeTriageHeldAsync(triageCaseId, actor, ports, cancellationToken);
+            TempData["TriageStatus"] = await TriageWriteAuthority.DescribeHeldAsync(
+                ports.EditScopes,
+                ports.DescribeEditAuthorityHolder,
+                triageCaseId,
+                actor,
+                cancellationToken);
+        }
+        catch (EditScopeExpiredException)
+        {
+            TempData["TriageStatus"] = Labels.Expired;
         }
         catch (EditScopeVersionConflictException)
         {
@@ -1090,34 +1142,6 @@ public sealed partial class DetailsModel
                 actor,
                 cancellationToken);
         return EditModeDisplay.CaseHeldBy(holder, isSelf);
-    }
-
-    /// <summary>
-    /// Who holds the Triage record while this save could not: an Automation
-    /// session, or a colleague's save in flight.
-    /// </summary>
-    private static async Task<string> DescribeTriageHeldAsync(
-        Guid triageCaseId,
-        ActionActor actor,
-        TriageCasePorts ports,
-        CancellationToken cancellationToken)
-    {
-        var active = await ports.EditScopes.GetActiveAsync(
-            EditScopeKind.Triage, triageCaseId, actor, cancellationToken);
-        if (active is null)
-        {
-            return "Another member of staff is editing this Triage record. Reload to try again.";
-        }
-
-        var isSelf = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
-        var holder = isSelf
-            ? CaseEditAuthorityHolder.Unnamed
-            : await ports.DescribeEditAuthorityHolder.ExecuteAsync(
-                active.HolderKind,
-                active.Holder,
-                actor,
-                cancellationToken);
-        return EditModeDisplay.HeldBy(TriageCaseView.RecordName, holder, isSelf);
     }
 
     /// <summary>

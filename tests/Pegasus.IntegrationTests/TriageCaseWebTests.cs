@@ -631,6 +631,113 @@ public sealed partial class TriageCaseWebTests
         Assert.Equal(0, detail.Record.Version);
     }
 
+    /// <summary>
+    /// A repeated post — a double click, or a reload that re-posts — is a
+    /// replay of its operation key, not a refusal: the second post gets the
+    /// completed record and its notice, and nothing is written twice. A
+    /// genuinely stale post is still refused as changed.
+    /// </summary>
+    [Fact]
+    public async Task ARepeatedCompleteIsReplayedNotRefused()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "repeat-complete");
+        var antiforgery = AntiforgeryValue(await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}"));
+        _ = await PostTriageActionAsync(
+            client,
+            triage.CaseId,
+            antiforgery,
+            0,
+            "record_finding",
+            ("reason", "Reviewed the request images."),
+            ("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)));
+        var operationKey = Guid.NewGuid().ToString("N");
+
+        var first = await PostTriageActionAsync(client, triage.CaseId, antiforgery, 1, "complete", operationKey);
+        var second = await PostTriageActionAsync(client, triage.CaseId, antiforgery, 1, "complete", operationKey);
+
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, first, StringComparison.Ordinal);
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, second, StringComparison.Ordinal);
+        Assert.DoesNotContain(Pegasus.Web.Presentation.OperatorLabels.Triage.Changed, second, StringComparison.Ordinal);
+        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
+        Assert.Equal(TriageState.Completed, detail.Record.State);
+        Assert.Equal(2, detail.Record.Version);
+        Assert.Single(detail.History, entry => entry.EventType == "triage_state_completed");
+        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
+
+        // A different post at the old version is not a repeat: the store's
+        // version check refuses it as changed, and nothing is written.
+        var stale = await PostTriageActionAsync(client, triage.CaseId, antiforgery, 1, "reopen", ("reason", "Stale reopen"));
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Changed, stale, StringComparison.Ordinal);
+        Assert.Equal(2, (await GetTriageAsync(factory.Services, triage.CaseId)).Record.Version);
+        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
+    }
+
+    /// <summary>
+    /// A custody retry the store refuses — here, custody work that has not
+    /// failed — answers with a result rather than an exception. The hold the
+    /// retry claimed is released all the same, so the record is free at once.
+    /// </summary>
+    [Fact]
+    public async Task ARefusedTriageCustodyRetryLeavesNoHold()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "custody-refused-triage");
+        var record = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}");
+
+        using var retried = await client.PostAsync(
+            $"/Cases/{triage.CaseId:D}/Custody?handler=RetryCustody",
+            Form(
+                AntiforgeryValue(record),
+                ("expectedVersion", InputValue(record, "expectedVersion")),
+                ("operationKey", "custody-refused-triage-retry"),
+                ("reason", "Retry pressed on custody that has not failed"),
+                ("targetKind", nameof(CustodyTargetKind.CaseSource))));
+
+        AssertPrg(retried, triage.CaseId, "?section=files");
+        var files = await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}?section=files");
+        Assert.Contains("Only failed custody work can be retried.", files, StringComparison.Ordinal);
+        Assert.Equal(0, (await GetTriageAsync(factory.Services, triage.CaseId)).Record.Version);
+        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
+    }
+
+    /// <summary>
+    /// Work Centre Assign to me on a Triage an Automation session holds names
+    /// the holder, as the Triage page does, instead of the catch-all refusal.
+    /// </summary>
+    [Fact]
+    public async Task WorkCentreAssignToMeNamesWhoHoldsTheTriage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "work-centre-automation-holds-triage");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+                new(EditScopeKind.Triage, triage.CaseId, 0, ActionActor.Automation("triage-test-client"), "work-centre-automation-holds-triage-edit"),
+                CancellationToken.None);
+        }
+        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+
+        using var response = await client.PostAsync(
+            "/?handler=AssignTriageToMe",
+            Form(
+                antiforgery,
+                ("triageId", triage.CaseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("returnUrl", "/")));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var workCentre = await GetHtmlAsync(client, "/");
+        Assert.Contains("AI is editing this Triage record.", workCentre, StringComparison.Ordinal);
+        Assert.DoesNotContain(Pegasus.Web.Presentation.OperatorLabels.WorkCentre.TriageAssignRefused, workCentre, StringComparison.Ordinal);
+        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
+        Assert.Null(detail.Record.AssigneeId);
+        Assert.Equal(0, detail.Record.Version);
+    }
+
     private static CreateManualCaseRequest ManualTriageRequest(string operationKey, string registration) => new(
         ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
         operationKey,
@@ -715,12 +822,23 @@ public sealed partial class TriageCaseWebTests
     }
 
     /// <summary>One Triage page action, posted once as the page posts it.</summary>
+    private static Task<string> PostTriageActionAsync(
+        HttpClient client,
+        Guid triageCaseId,
+        string antiforgery,
+        long expectedVersion,
+        string actionName,
+        params (string Name, string Value)[] fields) =>
+        PostTriageActionAsync(client, triageCaseId, antiforgery, expectedVersion, actionName, Guid.NewGuid().ToString("N"), fields);
+
+    /// <summary>The same action under a chosen operation key, so a post can be repeated.</summary>
     private static async Task<string> PostTriageActionAsync(
         HttpClient client,
         Guid triageCaseId,
         string antiforgery,
         long expectedVersion,
         string actionName,
+        string operationKey,
         params (string Name, string Value)[] fields)
     {
         using var response = await client.PostAsync(
@@ -729,7 +847,7 @@ public sealed partial class TriageCaseWebTests
                 antiforgery,
                 [
                     ("expectedVersion", expectedVersion.ToString(CultureInfo.InvariantCulture)),
-                    ("operationKey", Guid.NewGuid().ToString("N")),
+                    ("operationKey", operationKey),
                     ("actionName", actionName),
                     .. fields
                 ]));

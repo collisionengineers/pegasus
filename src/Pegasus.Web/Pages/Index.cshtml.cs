@@ -40,6 +40,7 @@ public partial class IndexModel(
     IAssignCaseToMe assignCaseToMe,
     IAssignTriageToMe assignTriageToMe,
     IEditScopeLeases editScopes,
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IConfirmAiJob confirmAiJob,
     TimeProvider timeProvider,
     ILogger<IndexModel> logger) : StaffPageModel
@@ -302,6 +303,7 @@ public partial class IndexModel(
                 detail.Record.Version,
                 actor,
                 operationKey,
+                logger,
                 token => assignTriageToMe.ExecuteAsync(
                     new AssignTriageToMeRequest(triageId, detail.Record.Version, actor, operationKey)
                     {
@@ -314,6 +316,17 @@ public partial class IndexModel(
         catch (StaffAuthorizationException)
         {
             return Forbid();
+        }
+        catch (EditScopeConflictException)
+        {
+            // Held by an Automation session or a colleague's save: say who,
+            // as the Triage page does.
+            ErrorMessage = await TriageWriteAuthority.DescribeHeldAsync(
+                editScopes,
+                describeEditAuthorityHolder,
+                triageId,
+                actor,
+                cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
