@@ -229,7 +229,7 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(AssessmentVocabulary.VehicleTemporaryRepairsPossible, null, "settlement")]
     [InlineData(AssessmentVocabulary.VehicleTemporaryRepairMethod, null, "settlement")]
     [InlineData(AssessmentVocabulary.VehicleTemporaryRepairCost, null, "settlement")]
-    [InlineData(null, CaseReportReadiness.SignatoryRequirement, "overview")]
+    [InlineData(null, CaseReportReadiness.SignatoryRequirement, null)]
     [InlineData(null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.LabourRateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.CloseUpImageRequirement, "files")]
