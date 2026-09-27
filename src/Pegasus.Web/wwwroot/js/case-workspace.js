@@ -752,7 +752,9 @@
     // expects the navigation to end that. An intercepted refresh never
     // navigates, so every way out of one ends it here.
     function resetRefresh(form) {
-        if (form.hasAttribute('data-refresh-form')) { window.pegasusResetRefresh(form); }
+        if (form.hasAttribute('data-refresh-form') && typeof window.pegasusResetRefresh === 'function') {
+            window.pegasusResetRefresh(form);
+        }
     }
     function submitInPlace(form, submitter) {
         // A section-head Edit keeps its own section where it is on screen.
@@ -1028,7 +1030,9 @@
         event.preventDefault();
         var isImport = form.hasAttribute('data-estimate-import-form');
         if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') {
-            resetRefresh(form);
+            // A Refresh already in flight (F5 bypasses the disabled button)
+            // stays busy until its own response lands.
+            if (form.dataset.inplaceSubmitting !== 'true') { resetRefresh(form); }
             return;
         }
         if (isImport && estimateIsDirty()) {

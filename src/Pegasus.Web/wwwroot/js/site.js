@@ -75,6 +75,10 @@
                 }
                 var label = form.querySelector('[data-refresh-label]');
                 if (label) {
+                    // The idle wording is the partial's; the reset puts it back.
+                    if (!label.dataset.idleLabel) {
+                        label.dataset.idleLabel = label.textContent;
+                    }
                     label.textContent = 'Refreshing';
                 }
                 form.querySelectorAll('button').forEach(function (button) {
@@ -90,8 +94,8 @@
             region.removeAttribute('aria-busy');
         }
         var label = form.querySelector('[data-refresh-label]');
-        if (label) {
-            label.textContent = 'Refresh';
+        if (label && label.dataset.idleLabel) {
+            label.textContent = label.dataset.idleLabel;
         }
         form.querySelectorAll('button').forEach(function (button) {
             button.disabled = false;
