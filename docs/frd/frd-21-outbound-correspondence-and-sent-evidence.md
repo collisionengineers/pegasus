@@ -123,7 +123,11 @@ and cannot send. It never silently picks the first mailbox.
 (read-only). Reply and Forward keep the retained message's reply chain and
 conversation identity. Case defaults to the Case whose correspondence the
 Reply or Forward started from, otherwise to the message's current
-association, and may be changed before sending.
+association, and may be changed before sending. A Triage outcome reply's
+Message opens with the Triage outcome template from Administration, rendered
+from the Triage's registration and finding
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)); staff edit it
+before Send.
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is

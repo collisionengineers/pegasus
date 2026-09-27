@@ -1,12 +1,12 @@
 # FRD-17: Administration workspace
 
-> Owner capabilities: MI-01 to MI-03, UI-11 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MI-01 to MI-03, UI-11, MAIL-24 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
-- `/Administration` has nine areas: Accounts, Contacts, Workflow
-  configuration, Mail settings, Valuation presets, Service health, Logs,
-  Reports and AI jobs. Automation appears only when composed.
+- `/Administration` has ten areas: Accounts, Contacts, Workflow
+  configuration, Mail settings, E-mail templates, Valuation presets, Service
+  health, Logs, Reports and AI jobs. Automation appears only when composed.
 - Administration buttons act on the click. There is no confirmation dialog.
 - Logs has two tabs: Action logs (who did what) and Intake log (what
   happened to each received file).
@@ -29,7 +29,8 @@ estimates by
 ### Administration
 
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
-configuration**, **Mail settings**, **Valuation presets**, **Service
+configuration**, **Mail settings**, **E-mail templates**, **Valuation
+presets**, **Service
 health**, **Logs**, **Reports**, **Release notes**, **Problem reports** and **AI
 jobs**. Automation appears only when
 its capability is composed. Its Automation & AI page carries the Send to AI
@@ -104,7 +105,28 @@ names the setting and allowed range when a value is refused. There are no
 staff instruction-review or image-review settings. Save submits the workflow
 settings or one card with its rendered expected version; a stale save is
 refused and asks the Administrator to reload. Labour-rate cards stay inside
-this area; there is no tenth area.
+this area; they are not an area of their own.
+
+### E-mail templates
+
+**E-mail templates** (`/Administration/EmailTemplates`) holds the text of
+the staff replies an Administrator may change. Only an Administrator may open
+it or save a template. It lists one row per template: its name, who last
+changed it and when, and **Edit**. The first template is the Triage outcome
+reply ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
+
+**Edit** opens a dialog: the body, up to 5000 characters, a row of
+placeholder buttons that insert at the cursor, and Cancel and Save. The
+Triage outcome reply's placeholders are `{registration}`,
+`{roadworthiness}`, `{repair outcome}` and `{reason}`. A body naming any
+other placeholder is refused, and the message names it. Save acts on the
+click with the rendered version. A stale save is refused and asks the
+Administrator to reload.
+
+A placeholder with no value renders nothing. A line whose placeholders are
+all empty is left out. The subject is not templated: a reply keeps
+"Re: {original subject}". Until an Administrator saves a template, its
+built-in body is used. Each save enters the Action logs.
 
 ### Valuation presets
 
@@ -212,7 +234,7 @@ checks the expected version inside its mutation transaction.
 
 ## Acceptance evidence
 
-Acceptance covers the eleven areas and their routes, the on-click actions
+Acceptance covers the twelve areas and their routes, the on-click actions
 without confirmation, the Action logs actor resolution and filter, the Intake
 log columns and actions, the six workflow settings and their ranges, and the
 three MI reports with their CSVs. Authenticated Web tests cover server-owned

@@ -603,8 +603,8 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `sort` (undefined) | `arrow-up-down` | `9F9C9571C4A30B5642E7D6BBA19E58C836CC57F8ECDC5D044EB0819065C534BC` | Sort toggle |
 
 The v26 shell and Case record glyphs below are inlined only by
-`_LucideSprite.cshtml`, which now carries ninety-six symbols: the sixty above
-plus these thirty-six. Each checksum is the SHA-256 of the glyph's UTF-8
+`_LucideSprite.cshtml`, which now carries ninety-seven symbols: the sixty above
+plus these thirty-seven. Each checksum is the SHA-256 of the glyph's UTF-8
 `<symbol id="icon-…">…</symbol>` element in that partial. "No caller" marks a
 glyph the v26 mockups reference that no current page draws.
 
@@ -646,6 +646,7 @@ glyph the v26 mockups reference that no current page draws.
 | — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item |
 | — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | No caller |
 | — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
+| — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
 
 The v26 rail no longer draws the prototype's rail glyphs for three routes:
 Cases uses `list-checks`, Operations `activity` and Administration `settings`

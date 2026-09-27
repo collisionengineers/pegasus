@@ -196,7 +196,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260925150000_RemovePerFieldConfirmation",
                 "20260925190000_EditLeaseTakeoverHistoryEvents",
                 "20260926090000_RepairSpecInUseOnCreate",
-                "20260926150000_DeclaredUploadDestination"
+                "20260926150000_DeclaredUploadDestination",
+                "20260927002303_EmailTemplates"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
