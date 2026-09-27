@@ -761,7 +761,19 @@ internal sealed class EfDocumentCustodyStore(
         });
         if (ImageTagVocabulary.TakesImageOutOfReport(tag.Id) && occurrence.InReport)
         {
+            // The tag took the image out, so the Case history says so, as
+            // it does when staff take one out. The line has a key of its
+            // own: the tag's replay finds its one line by the command's key.
             SetInReport(occurrence, inReport: false, command.Actor, now);
+            context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+                "case_document",
+                command.CaseId.ToString("D"),
+                ImageOutOfReportEventKind,
+                command.Actor,
+                now,
+                $"out-of-report:{CaseOperationReplay.Hash(operationKey)}",
+                afterJson: DocumentActionHistory.Serialize(
+                    new ImageInReportHistoryValue(occurrence.Id, InReport: false))));
         }
         context.ActionHistory.Add(DocumentActionHistory.Succeeded(
             "case_document",
