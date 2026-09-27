@@ -274,8 +274,8 @@ public sealed partial class AssessmentReportDraftWebTests
         var full = FullAssessmentProjection(caseId);
         source.Readiness = source.Readiness with
         {
-            // A missing Vehicle finding, basis retail and outcome, and no
-            // sign-off, repair spec, adoption or images.
+            // A missing Vehicle finding, retail value and outcome, and no
+            // sign-off, repair spec, applied valuation or images.
             Assessment = full with
             {
                 Fields =
@@ -297,7 +297,6 @@ public sealed partial class AssessmentReportDraftWebTests
             ["Assessment outcome"] = "settlement",
             [CaseReportReadiness.SignatoryRequirement] = "overview",
             [CaseReportReadiness.CurrentEstimateRequirement] = "estimate",
-            [CaseReportReadiness.EngineerValueRequirement] = "valuation",
             [CaseReportReadiness.CloseUpImageRequirement] = "files",
             [CaseReportReadiness.OverviewImageRequirement] = "files",
         };

@@ -294,7 +294,6 @@ public sealed class AssessmentPolicyTests
             var dateFields = AssessmentVocabulary.Definitions.Values
                 .Where(definition => definition.Type == AssessmentFieldType.Date
                     && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                    && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)
                     && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path))
                 .ToArray();
             Assert.NotEmpty(dateFields);
@@ -327,7 +326,6 @@ public sealed class AssessmentPolicyTests
     {
         foreach (var definition in AssessmentVocabulary.Definitions.Values
             .Where(definition => !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)
                 && !AssessmentVocabulary.LookupDerivedPaths.Contains(definition.Path)))
         {
             var value = definition.Type switch
@@ -482,37 +480,28 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
-    public void AGenericFieldSaveNeverWritesOrClearsAnAdoptedValuationFinding()
+    public void TheReportsThreeValuesAreFindingsAnyStaffMemberRecordsOrClears()
     {
-        // The Case Save's valuation adoption records the accepted Engineer's
-        // Value together with the retail and trade of the basis card it was
-        // calculated from (operator, 24 September 2026). A Web or MCP field
-        // save that touched one would rewrite a professional finding apart
-        // from the calculation that is its evidence, so both a value and a
-        // clearance fail closed — for an Engineer too.
-        string[] adopted =
-        [
+        // Retail, Trade and Engineer's value are ordinary fields of Valuation
+        // (operator, 26 September 2026): staff type or clear them like any
+        // finding, and automation records none of them.
+        foreach (var path in new[]
+        {
             AssessmentVocabulary.ValueRetail,
             AssessmentVocabulary.ValueTrade,
             AssessmentVocabulary.ValueEngineer
-        ];
-        Assert.Equal(
-            adopted.Order(StringComparer.Ordinal),
-            AssessmentVocabulary.AdoptedFindingPaths.Order(StringComparer.Ordinal));
-
-        foreach (var path in adopted)
+        })
         {
-            foreach (var actor in new[] { Engineer, Automation, PlainStaff })
+            foreach (var actor in new[] { Engineer, PlainStaff })
             {
-                foreach (var value in new string?[] { "4500.00", null })
-                {
-                    var exception = Assert.Throws<InvalidOperationException>(() =>
-                        AssessmentPolicy.ValidateAndNormalize(
-                            Request(new() { [path] = value }, actor)));
-                    Assert.Contains(path, exception.Message, StringComparison.Ordinal);
-                    Assert.Contains("adopts an Engineer's Value", exception.Message, StringComparison.Ordinal);
-                }
+                Assert.Equal(
+                    "4500.00",
+                    AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = "4500.00" }, actor)).Fields[path]);
+                Assert.Null(
+                    AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = null }, actor)).Fields[path]);
             }
+            Assert.Throws<InvalidOperationException>(() =>
+                AssessmentPolicy.ValidateAndNormalize(Request(new() { [path] = "4500.00" }, Automation)));
         }
     }
 
@@ -659,8 +648,7 @@ public sealed class AssessmentPolicyTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
         foreach (var definition in AssessmentVocabulary.Definitions.Values.Where(
             definition => definition.IsFinding
-                && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)
-                && !AssessmentVocabulary.AdoptedFindingPaths.Contains(definition.Path)))
+                && !AssessmentVocabulary.DerivedPaths.Contains(definition.Path)))
         {
             var value = FindingValue(definition);
             var normalized = AssessmentPolicy.ValidateAndNormalize(
@@ -1011,52 +999,31 @@ public sealed class AssessmentPolicyTests
     }
 
     /// <summary>
-    /// The report's retail and trade are the Engineer's Value basis card's,
-    /// recorded by the adoption, so a missing trade is cleared on that card
-    /// and a Case save, never by a field of its own.
+    /// The report prints the retail, trade and Engineer's values side by side,
+    /// so each is named until entered, each on the Valuation section, and an
+    /// entered one clears only its own (operator, 26 September 2026).
     /// </summary>
     [Fact]
-    public void TradeValueBlockerPointsAtTheBasisCard()
+    public void EachOfTheThreeValuesIsNamedUntilEnteredOnValuation()
     {
-        var withoutTrade = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
-        [
-            Field(AssessmentVocabulary.ValueEngineer, "5000.00"),
-            Field(AssessmentVocabulary.ValueRetail, "5000.00")
-        ]));
+        var none = AssessmentPolicy.EvaluatePostReviewReadiness(Projection([]));
+        foreach (var (path, requirement) in new[]
+        {
+            (AssessmentVocabulary.ValueRetail, "Retail value"),
+            (AssessmentVocabulary.ValueTrade, "Trade value"),
+            (AssessmentVocabulary.ValueEngineer, "Engineer's Value"),
+        })
+        {
+            var blocker = Assert.Single(none, item => item.Field == path);
+            Assert.Equal(requirement, blocker.Requirement);
+            Assert.Equal("Enter it on the Valuation section.", blocker.HowToResolve);
+        }
 
-        var trade = Assert.Single(withoutTrade, item => item.Requirement == "Trade value");
-        Assert.Equal("Valuation", trade.Source);
-        Assert.Equal(AssessmentVocabulary.ValueTrade, trade.Field);
-        Assert.Contains("basis card", trade.HowToResolve, StringComparison.Ordinal);
-        Assert.Contains("the Valuation section", trade.HowToResolve, StringComparison.Ordinal);
-        Assert.DoesNotContain(withoutTrade, item => item.Field == AssessmentVocabulary.ValueRetail);
-
-        var adopted = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
-        [
-            Field(AssessmentVocabulary.ValueEngineer, "5000.00"),
-            Field(AssessmentVocabulary.ValueRetail, "5000.00"),
-            Field(AssessmentVocabulary.ValueTrade, "4000.00")
-        ]));
-        Assert.DoesNotContain(
-            adopted,
-            item => item.Field is AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade);
-    }
-
-    /// <summary>
-    /// Before any adoption the Engineer's Value item names the one Save that
-    /// records the value, retail and trade together, so retail and trade are
-    /// not named as blockers of their own.
-    /// </summary>
-    [Fact]
-    public void BeforeAnAdoptionOnlyTheEngineersValueIsNamed()
-    {
-        var readiness = AssessmentPolicy.EvaluatePostReviewReadiness(Projection([]));
-
-        var engineerValue = Assert.Single(readiness, item => item.Field == AssessmentVocabulary.ValueEngineer);
-        Assert.Equal("Engineer's Value", engineerValue.Requirement);
-        Assert.DoesNotContain(
-            readiness,
-            item => item.Field is AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade);
+        var tradeOnly = AssessmentPolicy.EvaluatePostReviewReadiness(Projection(
+            [Field(AssessmentVocabulary.ValueTrade, "4000.00")]));
+        Assert.DoesNotContain(tradeOnly, item => item.Field == AssessmentVocabulary.ValueTrade);
+        Assert.Contains(tradeOnly, item => item.Field == AssessmentVocabulary.ValueRetail);
+        Assert.Contains(tradeOnly, item => item.Field == AssessmentVocabulary.ValueEngineer);
     }
 
     /// <summary>

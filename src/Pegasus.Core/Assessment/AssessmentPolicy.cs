@@ -88,8 +88,7 @@ public static class AssessmentPolicy
     /// The one gate every generic field save passes: the path must be part of
     /// the vocabulary, must not be derived from the damage impacts or recorded
     /// by the vehicle lookup, must not be owned by the accepted case record,
-    /// must not be a finding a named command adopts, and a professional
-    /// finding is written only by staff. The value is then canonicalized
+    /// and a professional finding is written only by staff. The value is then canonicalized
     /// against its own definition. Both the assessment save and the Case
     /// workspace save call it, so an unwritable path fails the same way on
     /// either route.
@@ -113,12 +112,6 @@ public static class AssessmentPolicy
             throw new InvalidOperationException(
                 $"The field '{path}' is owned by the accepted case record; "
                 + "save it through the case-detail edit path instead.");
-        }
-        if (AssessmentVocabulary.AdoptedFindingPaths.Contains(path))
-        {
-            throw new InvalidOperationException(
-                $"The field '{path}' is recorded only when a Case Save adopts an Engineer's Value; "
-                + "a field save can neither record nor clear it.");
         }
         if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition))
         {
@@ -430,32 +423,18 @@ public static class AssessmentPolicy
         RequireField(
             AssessmentVocabulary.ImpactLocation, "Impact location", "Damage",
             "Record a damage on the Damage section; the impact location is derived from it.");
-        // The report's retail and trade are the Engineer's Value basis card's,
-        // recorded by the adoption (operator, 24 September 2026). Before an
-        // adoption the Engineer's Value item names the one Save that records
-        // all three; retail and trade are named only once an adoption has
-        // left one of them unrecorded.
-        var adopted = fields.ContainsKey(AssessmentVocabulary.ValueEngineer);
-        if (adopted && !fields.ContainsKey(AssessmentVocabulary.ValueRetail))
-        {
-            items.Add(new(
-                "Retail value", "Valuation",
-                "The adopted Engineer's Value records no basis retail value.",
-                "Save the valuation calculation again on the Valuation section; the Save records its basis card's retail value.",
-                Field: AssessmentVocabulary.ValueRetail));
-        }
-        if ((adopted || fields.ContainsKey(AssessmentVocabulary.ValueRetail))
-            && !fields.ContainsKey(AssessmentVocabulary.ValueTrade))
-        {
-            items.Add(new(
-                "Trade value", "Valuation",
-                "The adopted Engineer's Value basis card records no trade value.",
-                "Enter the trade value on the basis card on the Valuation section, then save the Case.",
-                Field: AssessmentVocabulary.ValueTrade));
-        }
+        // The report prints the retail, trade and Engineer's values side by
+        // side, so each is named until entered. Each is a box on Valuation,
+        // typed or filled from a guide card (operator, 26 September 2026).
+        RequireField(
+            AssessmentVocabulary.ValueRetail, "Retail value", "Valuation",
+            "Enter it on the Valuation section.");
+        RequireField(
+            AssessmentVocabulary.ValueTrade, "Trade value", "Valuation",
+            "Enter it on the Valuation section.");
         RequireField(
             AssessmentVocabulary.ValueEngineer, "Engineer's Value", "Valuation",
-            "Save a valuation calculation on the Valuation section.");
+            "Enter it on the Valuation section.");
         RequireField(AssessmentVocabulary.Outcome, "Assessment outcome", "Decisions");
         RequireField(AssessmentVocabulary.LegalStatus, "Roadworthiness", "Decisions");
         RequireField(

@@ -147,6 +147,17 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SettlementSalvageSettled] = "Salvage settled"
         };
 
+        /// <summary>
+        /// The three values the report prints side by side, first in Valuation
+        /// (operator, 26 September 2026): typed, or filled from a guide card.
+        /// </summary>
+        public static IReadOnlyDictionary<string, string> Valuation { get; } = new Dictionary<string, string>
+        {
+            [AssessmentVocabulary.ValueRetail] = "Retail value",
+            [AssessmentVocabulary.ValueTrade] = "Trade value",
+            [AssessmentVocabulary.ValueEngineer] = CaseWorkspaceLabels.Valuation.EngineersValueHead
+        };
+
         /// <summary>An Audit's original report (v28 P51), Case data beside the claim.</summary>
         public static IReadOnlyDictionary<string, string> OriginalReport { get; } = new Dictionary<string, string>
         {
@@ -205,7 +216,7 @@ public static class CaseWorkspaceLabels
         {
             if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
             if (field == FormName(AssessmentVocabulary.VehicleCondition)) return "Pre-incident condition";
-            foreach (var entry in Settlement.Concat(OriginalReport).Concat(Report).Concat(Damage).Concat(Vehicle))
+            foreach (var entry in Settlement.Concat(Valuation).Concat(OriginalReport).Concat(Report).Concat(Damage).Concat(Vehicle))
             {
                 if (field == FormName(entry.Key)) return entry.Value;
             }
@@ -220,7 +231,8 @@ public static class CaseWorkspaceLabels
         }
 
         public static bool IsAssessmentField(string path) =>
-            Settlement.ContainsKey(path) || OriginalReport.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
+            Settlement.ContainsKey(path) || Valuation.ContainsKey(path) || OriginalReport.ContainsKey(path)
+            || Report.ContainsKey(path) || Damage.ContainsKey(path)
             || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck
             || path == AssessmentVocabulary.VehicleCondition;
 
@@ -253,6 +265,7 @@ public static class CaseWorkspaceLabels
             };
             if (shownElsewhere is not null) return shownElsewhere;
             if (Settlement.ContainsKey(field)) return "settlement";
+            if (Valuation.ContainsKey(field)) return "valuation";
             if (OriginalReport.ContainsKey(field)) return "original-report";
             if (Report.ContainsKey(field)) return "report";
             if (Damage.ContainsKey(field)) return "damage";
@@ -266,8 +279,6 @@ public static class CaseWorkspaceLabels
                     or CaseDataFieldNames.VehicleYear or CaseDataFieldNames.VehicleMileage => "vehicle",
                 AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactSeverity
                     or AssessmentVocabulary.ImpactLocation => "damage",
-                AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade
-                    or AssessmentVocabulary.ValueEngineer => "valuation",
                 AssessmentVocabulary.ReportDate => "report",
                 AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge
                     or CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
@@ -695,7 +706,6 @@ public static class CaseWorkspaceLabels
         public const string Applied = "Applied";
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
-        public const string ChooseBasis = "Choose a basis card to calculate.";
         public const string GuideRetail = "Guide retail";
         public const string ProposedEngineersValue = "Proposed Engineer's Value";
 

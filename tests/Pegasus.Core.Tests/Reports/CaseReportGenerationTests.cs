@@ -156,12 +156,16 @@ public sealed class CaseReportGenerationTests
         AssertBlocked(result, CaseReportReadiness.LabourRateRequirement);
     }
 
+    /// <summary>
+    /// A typed Engineer's Value is the Case's value: generation needs no
+    /// applied valuation behind it (operator, 26 September 2026).
+    /// </summary>
     [Fact]
-    public void AMissingAcceptedEngineerValueBlocksGeneration()
+    public void ATypedEngineersValueNeedsNoAppliedValuation()
     {
         var result = CaseReportReadiness.Evaluate(ReadyInput() with { AppliedValuation = null });
 
-        AssertBlocked(result, CaseReportReadiness.EngineerValueRequirement);
+        Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
     }
 
     [Fact]
@@ -300,7 +304,6 @@ public sealed class CaseReportGenerationTests
         string? FieldOf(string requirement) =>
             Assert.Single(reasons, reason => reason.Requirement == requirement).Field;
 
-        Assert.Equal(AssessmentVocabulary.ValueEngineer, FieldOf(CaseReportReadiness.EngineerValueRequirement));
         Assert.Equal(
             AssessmentVocabulary.ReportValuationCommentaryText,
             FieldOf(CaseReportReadiness.ValuationCommentaryRequirement));
@@ -351,9 +354,7 @@ public sealed class CaseReportGenerationTests
             "the Repair Spec section",
             HowToResolve(CaseReportReadiness.CurrentEstimateRequirement),
             StringComparison.Ordinal);
-        // With nothing adopted, the post-review Engineer's Value item is the
-        // one blocker for the missing value; the rail does not repeat it.
-        Assert.DoesNotContain(reasons, reason => reason.Requirement == CaseReportReadiness.EngineerValueRequirement);
+        // The post-review Engineer's Value item is the one blocker for the missing value.
         var engineerValue = Assert.Single(reasons, reason => reason.Field == AssessmentVocabulary.ValueEngineer);
         Assert.Contains("the Valuation section", engineerValue.HowToResolve, StringComparison.Ordinal);
         Assert.Contains(

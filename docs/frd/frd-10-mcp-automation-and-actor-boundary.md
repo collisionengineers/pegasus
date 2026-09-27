@@ -78,7 +78,7 @@ so every Automation value is one staff can change or clear on its section
 (operator, 24 September 2026). A value it writes is the Case's value, shown
 with its AI source tag until staff change it; there is no per-field review
 (operator, 25 September 2026). Professional
-findings (including the Engineer's Value and its basis card's retail and
+findings (including the Engineer's Value and its retail and
 trade), Case-owned facts, fields derived from damage entries and the facts
 the DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry)
 are refused. Case facts, including the Inspection date the report prints as

@@ -128,8 +128,8 @@ Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
-in Held and after completion. Adopting the Engineer's Value is a human
-staff act: the Save adopts it when the valuation calculation changed.
+in Held and after completion. The Engineer's Value is a staff finding, typed
+or filled from a guide card on Valuation.
 
 ### Inspection and Audit views
 
@@ -316,6 +316,11 @@ The field set is owned by
 
 ### Valuation
 
+Valuation opens with one row of three boxes: **Retail value**, **Trade
+value** and **Engineer's Value**, the figures the report prints side by side
+(operator, 26 September 2026). They are fields of the Case form, greyed while
+reading, and the ribbon Save records them.
+
 Valuation lists each entry with its source, date, time, retail and trade
 values, and guide month, with the mileage an Engineer's Value or AI market
 research entry carries (`EXT-10`). Sources are Glass's, Brego, Super
@@ -338,13 +343,14 @@ above the cards create a `MarketResearch` job and show a
 "Researching · {month}" card until it completes; a re-run replaces the card
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
 Read and edit list the same value increases, every active preset with a tick
-on each the latest adoption applied, and the calculator opens on that
-applied selection. The calculator has no Apply of its own (operator, 23
-September 2026): the ribbon Save adopts the Engineer's Value it shows when
-the calculation changed since the page opened — a different basis card, the
-basis card's retail or trade, or any of its controls — and an unchanged
-calculation adopts nothing. The adoption records the basis card's retail and
-trade with the Engineer's Value
+on each the latest recorded calculation applied, and the calculator opens on
+that applied selection. Choosing a card as the basis fills Retail value and
+Trade value from it, and the calculation fills Engineer's Value; any box can
+be overtyped. The calculator has no Apply of its own (operator, 23 September
+2026): when the calculation changed since the page opened — a different
+basis card, the basis card's retail or trade, or any of its controls — the
+ribbon Save records it against its basis card; an unchanged calculation
+records nothing
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 The calculator applies presets and custom lines through Core. Valuation
 sources are owned by
