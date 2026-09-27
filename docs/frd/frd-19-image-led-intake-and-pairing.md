@@ -92,8 +92,8 @@ report. A Triage Case takes them the same way. The record keeps its
 reference, its page and its photographs. The fold files them as the system
 worker and holds no staff lease
 ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). It yields to a
-member of staff editing the Case: it writes nothing, leaves their lease, and
-retries after they finish
+member of staff editing the Case: it records nothing, leaves their lease,
+and retries after they finish
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). A replayed fold
 files nothing twice.
 
@@ -327,8 +327,9 @@ word "intake" appears only on the Administrator's Intake log tab
   reason Conflicting identification.
 - Manual upload with one matching Case: still waits for staff.
 - Merge meets a live Case edit lease: yields and retries.
-- The fold meets a live Case edit lease: writes nothing, leaves the lease,
-  and retries after the editor finishes.
+- The fold meets a live Case edit lease: records nothing, leaves the lease,
+  and retries after the editor finishes. Files it had already moved stay in
+  the Case folder.
 - A photograph the record's folder never held: not filed by the fold.
 - The fold is replayed: each photograph is a Case image once.
 - Origin decision changed since a member's completion was authorised: the
