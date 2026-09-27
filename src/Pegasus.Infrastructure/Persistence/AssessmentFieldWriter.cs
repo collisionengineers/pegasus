@@ -11,8 +11,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// the vehicle lookup, the report date a generation records and the
 /// original-report prefill write the values they fill through it, so the row
 /// shape and the provenance stamped on it have exactly one owner. A recorded
-/// value is the Case's value whoever
-/// recorded it (operator, 25 September 2026); there is no confirmation state.
+/// value is the Case's value whoever recorded it (operator, 25 September
+/// 2026); there is no confirmation state.
 /// </summary>
 internal static class AssessmentFieldWriter
 {
