@@ -851,7 +851,7 @@ deleted in wave 5.
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
 | `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
-| `report-image`, `cropper` | Image preparation on the Files tiles: designated Close-up and Overview, supporting images in order, non-destructive crop |
+| `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Close-up and Overview their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker`, `blocker-actions` | Outstanding requirements, and the Report section's blockers; `blocker-actions` holds a blocker's link to the section that clears it |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
