@@ -180,7 +180,7 @@ approve before issue.
 **What a generation freezes.** The Case version, signatory account and
 signature digest, Current estimate identity, version and breakdown, the
 Engineer's Value with its retail and trade values, the applied valuation
-identity, content switches, report date or override, the
+identity when one exists, content switches, report date or override, the
 Engineer's changes to the report's wording — headings, wording, order and
 what is off the report — fee, source documents with their Box identities,
 and each prepared image's role, order, rotation and crop.
