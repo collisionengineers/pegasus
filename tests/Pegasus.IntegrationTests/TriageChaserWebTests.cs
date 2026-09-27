@@ -701,18 +701,21 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.DoesNotContain("Chaser correspondence", page, StringComparison.Ordinal);
         Assert.Contains("value=\"reply@example.invalid\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"Re: Originating triage subject\"", page, StringComparison.Ordinal);
-        var expectedBody = TriageOutcomeReply.Render(
-            "AB12CDE",
-            new TriageFinding(
-                Guid.Empty,
-                fixture.TriageCaseId,
-                RoadworthinessFinding.Unroadworthy,
-                AssessmentFinding.TotalLoss,
-                null,
-                string.Empty,
-                string.Empty,
-                string.Empty,
-                DateTimeOffset.UnixEpoch));
+        // No template has been saved, so the reply opens with the built-in body.
+        var expectedBody = EmailTemplates.Render(
+            EmailTemplates.DefaultBody(EmailTemplatePurpose.TriageOutcomeReply),
+            new TriageOutcomeReply(
+                "AB12CDE",
+                new TriageFinding(
+                    Guid.Empty,
+                    fixture.TriageCaseId,
+                    RoadworthinessFinding.Unroadworthy,
+                    AssessmentFinding.TotalLoss,
+                    null,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    DateTimeOffset.UnixEpoch)).Values());
         Assert.Contains(expectedBody, WebUtility.HtmlDecode(page).Replace("\r\n", "\n", StringComparison.Ordinal), StringComparison.Ordinal);
         Assert.Contains("Roadworthiness: Unroadworthy", expectedBody, StringComparison.Ordinal);
 
@@ -740,6 +743,53 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(fixture.TriageCaseId, command.ContextId);
         Assert.Equal(fixture.Version + 2, command.ExpectedContextVersion);
         Assert.Equal(expectedBody, command.Body);
+    }
+
+    /// <summary>
+    /// Once an Administrator saves the Triage outcome reply template, Reply
+    /// with outcome opens with that text rendered, not the built-in body
+    /// (plan 02).
+    /// </summary>
+    [Fact]
+    public async Task ACompletedTriageRepliesWithTheSavedTemplate()
+    {
+        var send = new RecordingStaffMailSend();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = ConfigureStaffSend(baseFactory, send);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<UpdateEmailTemplate>().ExecuteAsync(
+                new(
+                    EmailTemplatePurpose.TriageOutcomeReply,
+                    "Our finding for {registration}\nRoadworthiness: {roadworthiness}\nRepair outcome: {repair outcome}",
+                    0,
+                    ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                    Guid.NewGuid().ToString("N")),
+                CancellationToken.None);
+        }
+
+        var fixture = await SeedMailboxTriageAsync(factory);
+        var antiforgery = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        _ = await PostActionAsync(
+            client,
+            fixture.TriageCaseId,
+            antiforgery,
+            fixture.Version,
+            "record_finding",
+            "Reviewed the request images",
+            KeyValuePair.Create("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)));
+        _ = await PostActionAsync(client, fixture.TriageCaseId, antiforgery, fixture.Version + 1, "complete", reason: null);
+
+        using var pageResponse = await client.GetAsync($"/Cases/{fixture.TriageCaseId}");
+        var page = WebUtility.HtmlDecode(await pageResponse.Content.ReadAsStringAsync())
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains(">Our finding for AB12CDE\nRoadworthiness: Roadworthy</textarea>", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Thank you for your triage request", page, StringComparison.Ordinal);
     }
 
     /// <summary>
