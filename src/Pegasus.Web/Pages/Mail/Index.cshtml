@@ -452,7 +452,7 @@
                             }
                         </div>
                         <div class="button-row section-gap" data-mail-preview-actions>
-                            <a class="btn btn--dark"
+                            <a class="btn btn--dark" data-mail-preview-open
                                asp-page="/Mail/Message"
                                asp-route-id="@summary.Id"
                                asp-route-mailbox="@Model.MailboxFilter"
@@ -466,7 +466,7 @@
                             </a>
                             @if (summary.CaseId is { } linkedCaseId)
                             {
-                                <a class="btn" asp-page="/Cases/Details" asp-route-id="@linkedCaseId">
+                                <a class="btn" data-mail-preview-case asp-page="/Cases/Details" asp-route-id="@linkedCaseId">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg>
                                     <span>@(summary.IsTriageCase ? OperatorLabels.Inbox.OpenTriage : OperatorLabels.Inbox.OpenCase)</span>
                                 </a>

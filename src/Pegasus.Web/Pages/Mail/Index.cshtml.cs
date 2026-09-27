@@ -332,7 +332,12 @@ public sealed class IndexModel(
                     ? MessageModel.DecisionLabel(dossier.Current)
                     : MessageModel.ClassificationLabel(detail.ClassificationOutcome),
                 association = MessageModel.AssociationLabel(summary.CaseReference),
-                folder = FolderValue(detail)
+                folder = FolderValue(detail),
+                // A pinned row's pane offers its own Open Case or Open Triage.
+                caseUrl = summary.CaseId is { } caseId ? Url.Page("/Cases/Details", new { id = caseId }) : null,
+                caseAction = summary.CaseId is null
+                    ? null
+                    : summary.IsTriageCase ? OperatorLabels.Inbox.OpenTriage : OperatorLabels.Inbox.OpenCase
             });
         }
         catch (StaffAuthorizationException)

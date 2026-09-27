@@ -317,8 +317,9 @@
 // UI-10: evidence-only mail preview. A subject is the message's own link;
 // this enhancement previews its row on pointer/keyboard intent and reads
 // the same authorized exact-message projection without moving focus or state.
-// When that intent moves on, the pane restores the server-selected message
-// instead of hiding: the pane is a fixture of the page, not a tooltip.
+// When that intent moves on, the pane restores the selected message instead
+// of hiding: the pane is a fixture of the page, not a tooltip. Clicking a row
+// anywhere but a link or a button pins it as the selected message.
 (function () {
     document.querySelectorAll('[data-mail-preview-workspace]').forEach(function (workspace) {
         var panel = workspace.querySelector('[data-mail-preview]');
@@ -334,8 +335,9 @@
         var cache = new Map();
 
         // The pane renders only beside a list that has a server-selected row
-        // (the page model resolves one whenever it renders the pane at all),
-        // and that row is the pane's fallback wherever intent goes.
+        // (the page model resolves one whenever it renders the pane at all).
+        // The selected row, which a click may move, is the pane's fallback
+        // wherever intent goes.
         var selectedRow = rows.filter(function (row) {
             return row.getAttribute('aria-current') === 'true';
         })[0] || null;
@@ -344,10 +346,16 @@
         }
         var actions = facts.querySelector('[data-mail-preview-actions]');
         var matched = facts.querySelector('[data-mail-preview-matched]');
+        // Where the search term matched is drawn for the row the page was
+        // drawn with; no other row's preview carries it.
+        var matchedRow = selectedRow;
         activeRow = selectedRow;
 
         var field = function (name) {
             return facts.querySelector('[data-mail-preview-' + name + ']');
+        };
+        var caseLink = function () {
+            return actions && actions.querySelector('[data-mail-preview-case]');
         };
         // The state chip is the _StatusChip partial's span; its tone class is
         // the one the server's tone table gave it, and the JSON carries the
@@ -379,10 +387,52 @@
                 attachments: field('attachments').textContent,
                 classification: field('classification').textContent,
                 association: field('association').textContent,
-                folder: field('folder').textContent
+                folder: field('folder').textContent,
+                caseUrl: caseLink() ? caseLink().getAttribute('href') : null,
+                caseAction: caseLink() ? caseLink().querySelector('span').textContent : null
             });
 
-        var render = function (data) {
+        // The actions are the shown row's own: Open full message is its
+        // subject's link, which carries the list's values, and Open Case or
+        // Open Triage comes with its preview.
+        var renderActions = function (row, data) {
+            if (!actions) {
+                return;
+            }
+            actions.querySelector('[data-mail-preview-open]').setAttribute(
+                'href',
+                row.querySelector('[data-mail-preview-trigger]').getAttribute('href'));
+            var link = caseLink();
+            if (!data.caseUrl) {
+                if (link) {
+                    link.hidden = true;
+                }
+                return;
+            }
+            if (!link) {
+                link = document.createElement('a');
+                link.className = 'btn';
+                link.setAttribute('data-mail-preview-case', '');
+                link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg><span></span>';
+                actions.appendChild(link);
+            }
+            link.setAttribute('href', data.caseUrl);
+            link.querySelector('span').textContent = data.caseAction;
+            link.hidden = false;
+        };
+
+        // The actions belong to the selected message; while a transient
+        // preview shows a different row, they are not its.
+        var showOwnFacts = function (row) {
+            if (actions) {
+                actions.hidden = row !== selectedRow;
+            }
+            if (matched) {
+                matched.hidden = row !== matchedRow;
+            }
+        };
+
+        var render = function (row, data) {
             field('sender').textContent = data.sender;
             field('subject').textContent = data.subject;
             field('received').textContent = data.received;
@@ -395,6 +445,7 @@
             field('classification').textContent = data.classification;
             field('association').textContent = data.association;
             field('folder').textContent = data.folder;
+            renderActions(row, data);
 
             status.hidden = true;
             facts.hidden = false;
@@ -420,16 +471,7 @@
                 }
             });
             activeRow = row;
-            if (actions) {
-                // The pane's actions belong to the selected message; while a
-                // transient preview shows a different row, they are not its.
-                actions.hidden = row !== selectedRow;
-            }
-            if (matched) {
-                // Where the search term matched is known for the selected
-                // message; a hovered row's preview does not carry it.
-                matched.hidden = row !== selectedRow;
-            }
+            showOwnFacts(row);
             panel.hidden = false;
             status.hidden = false;
             status.textContent = 'Loading quick preview…';
@@ -437,7 +479,7 @@
             panel.setAttribute('aria-busy', 'true');
 
             if (cache.has(url)) {
-                render(cache.get(url));
+                render(row, cache.get(url));
                 return;
             }
 
@@ -454,7 +496,7 @@
             }).then(function (data) {
                 cache.set(url, data);
                 if (activeRow === row) {
-                    render(data);
+                    render(row, data);
                 }
             }).catch(function (error) {
                 if (error.name === 'AbortError' || activeRow !== row) {
@@ -472,16 +514,41 @@
         };
 
         // Leaving the rows ends the transient preview, not the pane: it falls
-        // back to the server-selected message, whose actions must stay
-        // reachable. select() no-ops when that row is already active, so
+        // back to the selected message, whose actions must stay reachable. select() no-ops when that row is already active, so
         // leaving the selected row itself leaves the pane untouched.
         var restoreSelection = function () {
             select(selectedRow);
         };
 
+        // Pinning makes a row the selected message: it carries the selection
+        // mark, its preview stays when intent moves on, the pane's actions
+        // are its own, and the address names it, so a reload or a return
+        // from the message lands on it. Without script the row still links.
+        var pin = function (row) {
+            if (row === selectedRow) {
+                return;
+            }
+            selectedRow.removeAttribute('aria-current');
+            row.setAttribute('aria-current', 'true');
+            selectedRow = row;
+            if (activeRow === row) {
+                showOwnFacts(row);
+            } else {
+                select(row);
+            }
+            var address = new URL(window.location.href);
+            address.searchParams.set('selected', row.getAttribute('data-mail-row'));
+            window.history.replaceState(window.history.state, '', address.toString());
+        };
+
         rows.forEach(function (row) {
             var trigger = row.querySelector('[data-mail-preview-trigger]');
             row.addEventListener('pointerenter', function () { select(row); });
+            row.addEventListener('click', function (event) {
+                if (!event.target.closest('a, button, form')) {
+                    pin(row);
+                }
+            });
             row.addEventListener('pointerleave', function (event) {
                 if (activeRow !== row || row.contains(document.activeElement)) {
                     return;
