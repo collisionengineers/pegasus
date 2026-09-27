@@ -165,6 +165,12 @@ public sealed record CaseReportSnapshotSource(
 /// per-image and per-source hashes pin the exact bytes, which
 /// <see cref="ICaseReportContentSource"/> reopens through custody at render
 /// time and re-verifies against those hashes.
+///
+/// <see cref="EngineerValue"/> is the recorded Engineer's Value field, the
+/// figure the report prints, whether typed or filled from a guide card.
+/// <see cref="AppliedValuationId"/> names the calculation row a card-based
+/// value came from and is absent for typed values (operator, 26 September
+/// 2026).
 /// </remarks>
 public sealed record CaseReportGenerationSnapshot(
     Guid CaseId,
@@ -179,8 +185,8 @@ public sealed record CaseReportGenerationSnapshot(
     Guid CurrentEstimateId,
     int CurrentEstimateVersion,
     ReportRepairCosts Costs,
-    decimal AcceptedEngineerValue,
-    Guid AppliedValuationId,
+    decimal EngineerValue,
+    Guid? AppliedValuationId,
     CaseReportContentSwitches Content,
     ReportGuideSources Guides,
     DateOnly ReportDate,
