@@ -17,8 +17,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// The one transaction behind one Case edit — the one Save (23 September
 /// 2026). Case facts, assessment fields, the damage impacts, the repair
-/// specification the editor shows, the guide cards, an adopted Engineer's
-/// Value, the two factual completeness controls and the sign-off Engineer are
+/// specification the editor shows, the guide cards, an applied valuation,
+/// the two factual completeness controls and the sign-off Engineer are
 /// written together inside a single serializable transaction that commits
 /// once, so a Case save either records the whole authorized snapshot or none
 /// of it. It owns that transaction outright: it never calls the case-data,
@@ -232,10 +232,11 @@ public sealed class EfCaseWorkspaceStore(
         var estimate = estimateEdit is { Changed: true } ? estimateEdit.Entity : null;
 
         // The guide source cards are recorded by this save (23 September
-        // 2026), and a calculation the operator changed is adopted from the
-        // basis card as the save leaves it: the valuation store's
+        // 2026), and a calculation the operator changed is recorded against
+        // the basis card as the save leaves it: the valuation store's
         // transaction-local writers, under this transaction's one version,
-        // workflow event and history line.
+        // workflow event and history line. The Retail, Trade and Engineer's
+        // value boxes are ordinary fields, written above with the rest.
         var guideEntries = request.Valuation is { } valuationSection
             ? await EfValuationStore.RecordGuideEntriesAsync(
                 context,
@@ -358,7 +359,7 @@ public sealed class EfCaseWorkspaceStore(
                 ImagePreparation = preparedImages,
                 Guidance = appliedGuidance,
                 Valuations = guideEntries?.Recorded,
-                AppliedValuation = adopted?.Applied
+                AppliedValuation = adopted
             },
             JsonOptions);
         CaseMutationHistory.Add(
@@ -443,7 +444,7 @@ public sealed class EfCaseWorkspaceStore(
                 context,
                 request.CaseId,
                 guideEntries.Before,
-                adopted?.Apply(guideEntries.After) ?? guideEntries.After,
+                adopted is null ? guideEntries.After : EfValuationStore.WithApplied(guideEntries.After, adopted),
                 now,
                 cancellationToken);
         }
@@ -529,9 +530,10 @@ public sealed class EfCaseWorkspaceStore(
     }
 
     /// <summary>
-    /// The Case's accepted mileage in miles, as this save leaves it: an
-    /// adopted Engineer's Value carries the Case's own mileage, never a guide
-    /// card's (operator, 24 September 2026). Null while the Case has none.
+    /// The Case's accepted mileage in miles, as this save leaves it: a
+    /// calculated Engineer's Value records the Case's own mileage, never a
+    /// guide card's (operator, 24 September 2026), and none while the Case has
+    /// none (operator, 26 September 2026).
     /// </summary>
     private static long? CaseMileageInMiles(IReadOnlyList<CaseDataFieldEntity> fields)
     {

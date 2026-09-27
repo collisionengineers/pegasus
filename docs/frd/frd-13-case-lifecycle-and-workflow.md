@@ -123,7 +123,7 @@ received or assigned anything.
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
   viewed. Staff with `PerformCasework` may edit them in Not ready, Review and
   With Engineer under the normal edit authority. They are read-only in Held
-  and Completed. Adopting the Engineer's Value is an explicit human staff act.
+  and Completed. Only staff record the Engineer's Value.
 - **Report approval** names one immutable report file and the staff member
   who approved it.
 - **Mark report sent** needs exact retained Sent evidence

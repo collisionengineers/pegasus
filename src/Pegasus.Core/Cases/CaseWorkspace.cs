@@ -228,18 +228,20 @@ public sealed record CaseWorkspaceImagePreparation(
     IReadOnlyList<CaseAssetPreparationEdit>? Edits);
 
 /// <summary>
-/// The guide source cards the Case save records and the calculation it adopts
-/// (23 September 2026: one Save). A source card has no Save of its own, and
-/// the same source and guide month replaces the earlier card. The
+/// The guide source cards the Case save records, the Retail, Trade and
+/// Engineer's value boxes, and the calculation it records (23 September 2026:
+/// one Save). A source card has no Save of its own, and the same source and
+/// guide month replaces the earlier card. The boxes are ordinary fields,
+/// typed or filled from a guide card (operator, 26 September 2026). The
 /// <see cref="Adoption"/> is present only when the operator changed the
-/// calculation since the page opened; the save then adopts its result as the
-/// Engineer's Value, calculated from the basis card as this save leaves it,
-/// and records that card's retail and trade as the report's Retail value and
-/// Trade value.
+/// calculation since the page opened; the save then records the calculated
+/// value against the basis card as this save leaves it, so the Case keeps
+/// where the figures came from. Typed values need no calculation.
 /// </summary>
 public sealed record CaseWorkspaceValuation(
     IReadOnlyList<ValuationDetails>? GuideEntries,
-    ValuationCalculationSelection? Adoption = null);
+    ValuationCalculationSelection? Adoption = null,
+    IReadOnlyDictionary<string, string?>? AssessmentFields = null);
 
 /// <summary>
 /// The repair specification the editor shows, whole: its header, its lines
@@ -634,9 +636,9 @@ public static class CaseWorkspacePolicy
             };
         }
 
-        // Adopting the Engineer's Value is a professional finding: the same
-        // authority and the same selection rules the calculator's preview
-        // checks.
+        // Recording a calculation against its basis card is a professional
+        // finding: the same authority and the same selection rules the
+        // calculator's preview checks.
         if (validated.Valuation is { Adoption: { } adoption } adopting)
         {
             AssessmentPolicy.RequireFindingAuthority(validated.Actor);
@@ -744,6 +746,7 @@ public static class CaseWorkspacePolicy
 
         AddAll(request.Vehicle?.AssessmentFields, "Vehicle");
         AddAll(request.Damage?.AssessmentFields, "Damage");
+        AddAll(request.Valuation?.AssessmentFields, "Valuation");
         AddAll(request.Settlement?.AssessmentFields, "Settlement");
         AddAll(request.Report?.AssessmentFields, "Report");
 
