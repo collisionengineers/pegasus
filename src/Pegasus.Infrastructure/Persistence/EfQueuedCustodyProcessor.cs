@@ -815,10 +815,19 @@ internal sealed class EfQueuedCustodyProcessor(
         CustodyProcessingLeaseLostException => "custody_lease_lost",
         OperationCanceledException => "custody_cancelled",
         HttpRequestException or IOException => "custody_dependency_failure",
+        // Another filing took the Case document number first. The files are
+        // already in the Case folder, so the work retries and takes the next.
+        DbUpdateException collision when IsDocumentOrdinalCollision(collision) =>
+            "custody_dependency_failure",
         _ => Truncate($"{UnexpectedFailureCode}:{exception.GetType().Name}")
     };
 
     private const string UnexpectedFailureCode = "custody_unexpected_failure";
+
+    private static bool IsDocumentOrdinalCollision(DbUpdateException exception) =>
+        exception.InnerException?.Message.Contains(
+            "IX_CaseDocuments_CaseId_Ordinal",
+            StringComparison.Ordinal) == true;
 
     /// <summary>The column holds 100 characters; a long type name must not fail the write it is describing.</summary>
     private static string Truncate(string value) =>
