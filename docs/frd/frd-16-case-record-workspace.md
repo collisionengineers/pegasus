@@ -322,8 +322,8 @@ value** and **Engineer's Value**, the figures the report prints side by side
 reading, and the ribbon Save records them.
 
 Valuation lists each entry with its source, date, time, retail and trade
-values, and guide month, with the mileage an Engineer's Value or AI market
-research entry carries (`EXT-10`). Sources are Glass's, Brego, Super
+values, and guide month (`EXT-10`). A calculated Engineer's Value entry
+carries a mileage when the Case has one. Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
 (automation only). Read and edit show the same cards: each guide source is
 one card with month, retail and trade boxes holding that source's
