@@ -46,13 +46,15 @@
                 <span>@(Model.IsDismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss)</span>
             </button>
         </form>
+        @* Back pins the message it leaves, so the list returns to it. *@
         <a class="btn" asp-page="/Mail/Index"
            asp-route-mailbox="@Model.MailboxFilter"
            asp-route-folder="@Model.FolderRouteValue"
            asp-route-search="@Model.SearchTerm"
            asp-route-queue="@Model.QueueFilter"
            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
-           asp-route-pageNumber="@Model.PageRouteValue">
+           asp-route-pageNumber="@Model.PageRouteValue"
+           asp-route-selected="@summary.Id">
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to Inbox</span>
         </a>
