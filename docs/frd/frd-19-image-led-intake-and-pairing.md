@@ -84,14 +84,17 @@ The record's photographs become Case images when the merge's fold completes
 (operator, 27 September 2026). The fold moves the record's folder into the
 Case folder
 ([FRD-05](frd-05-documents-extraction-and-custody.md#staging-and-custody))
-and files each photograph the record shows as an image document of the Case.
+and files each photograph it moved as an image document of the Case.
 Each takes the next Case document number. Each is in the report, as any new
 image is. The crop, rotation and tags staff gave a photograph on the record
 come with it, and one tagged Third party or Reflection arrives out of the
 report. A Triage Case takes them the same way. The record keeps its
 reference, its page and its photographs. The fold files them as the system
 worker and holds no staff lease
-([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). A replayed fold
+([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). It yields to a
+member of staff editing the Case: it writes nothing, leaves their lease, and
+retries after they finish
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). A replayed fold
 files nothing twice.
 
 Filing them completes the Case's images. A Not ready Case with nothing else
@@ -324,6 +327,9 @@ word "intake" appears only on the Administrator's Intake log tab
   reason Conflicting identification.
 - Manual upload with one matching Case: still waits for staff.
 - Merge meets a live Case edit lease: yields and retries.
+- The fold meets a live Case edit lease: writes nothing, leaves the lease,
+  and retries after the editor finishes.
+- A photograph the record's folder never held: not filed by the fold.
 - The fold is replayed: each photograph is a Case image once.
 - Origin decision changed since a member's completion was authorised: the
   final merge refuses.
@@ -334,9 +340,10 @@ word "intake" appears only on the Administrator's Intake log tab
 Acceptance proves, through the real Worker and Web callers: one reference
 per group; the four precedence rows; the group-level fail-closed rule; the
 manual-upload confirmation exception; both arrival orders and replays
-resuming one pairing operation; merge yielding to a live lease; a merged
-record's photographs as Case images with their crop and tags, on a Case and
-on a Triage Case; the derived chase-due read; and the three named states in
+resuming one pairing operation; merge and the fold each yielding to a live
+lease; a merged record's photographs as Case images with their crop and
+tags, on a Case and on a Triage Case; those photographs completing the
+Case's images; the derived chase-due read; and the three named states in
 search. Deployment and live
 evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
