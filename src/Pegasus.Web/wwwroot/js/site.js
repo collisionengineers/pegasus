@@ -55,6 +55,12 @@
     // decoration on top of it, so the feedback still reads correctly under
     // reduced motion or with no CSS at all. Bound per region so a Work
     // Centre fragment adopted by its background refresh keeps the feedback.
+    // The feedback ends with the navigation it announces; a page that
+    // refreshes in place instead (the Case record) ends it itself with
+    // pegasusResetRefresh, kept beside the busy step so the two cannot drift.
+    function refreshRegion(form) {
+        return form.closest('[data-refresh-region]') || form.parentElement;
+    }
     function bindRefreshFeedback(root) {
         root.querySelectorAll('[data-refresh-form]').forEach(function (form) {
             if (form.dataset.refreshBound === 'true') {
@@ -62,13 +68,17 @@
             }
             form.dataset.refreshBound = 'true';
             form.addEventListener('submit', function () {
-                var region = form.closest('[data-refresh-region]') || form.parentElement;
+                var region = refreshRegion(form);
                 if (region) {
                     region.classList.add('is-refreshing');
                     region.setAttribute('aria-busy', 'true');
                 }
                 var label = form.querySelector('[data-refresh-label]');
                 if (label) {
+                    // The idle wording is the partial's; the reset puts it back.
+                    if (!label.dataset.idleLabel) {
+                        label.dataset.idleLabel = label.textContent;
+                    }
                     label.textContent = 'Refreshing';
                 }
                 form.querySelectorAll('button').forEach(function (button) {
@@ -77,8 +87,23 @@
             });
         });
     }
+    function resetRefresh(form) {
+        var region = refreshRegion(form);
+        if (region) {
+            region.classList.remove('is-refreshing');
+            region.removeAttribute('aria-busy');
+        }
+        var label = form.querySelector('[data-refresh-label]');
+        if (label && label.dataset.idleLabel) {
+            label.textContent = label.dataset.idleLabel;
+        }
+        form.querySelectorAll('button').forEach(function (button) {
+            button.disabled = false;
+        });
+    }
     bindRefreshFeedback(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindRefreshFeedback);
+    window.pegasusResetRefresh = resetRefresh;
 
     // Copy a support reference. Without script the value is still selectable
     // text, which is why the button is rendered hidden and revealed here rather
