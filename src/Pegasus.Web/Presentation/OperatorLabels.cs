@@ -249,6 +249,42 @@ public static class OperatorLabels
     }
 
     /// <summary>
+    /// Administration › E-mail templates: the area, its list and its dialog
+    /// (26 September 2026).
+    /// </summary>
+    public static class EmailTemplates
+    {
+        public const string Area = "E-mail templates";
+        public const string Card = "Edit the wording of staff replies.";
+        public const string ActionLogArea = "E-mail template";
+        public const string Template = "Template";
+        public const string LastChanged = "Last changed";
+        public const string Actions = "Actions";
+        public const string Edit = "Edit";
+        public const string Body = "Body";
+        public const string Placeholders = "Placeholders";
+        public const string Cancel = "Cancel";
+        public const string Save = "Save";
+        public const string Saved = "E-mail template saved.";
+        public const string Stale = "The template changed after this page was loaded. Reload it and try again.";
+        public const string OperationConflict = "The form was already used for a different change. Retry from the current page.";
+        public const string Expired = "The form has expired. Retry the operation.";
+        public const string BodyRequired = "Enter the template body.";
+
+        public static string TooLong =>
+            $"The template body can be at most {Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength} characters.";
+
+        public static string UnknownPlaceholder(string placeholder) =>
+            $"{{{placeholder}}} is not a placeholder for this template.";
+
+        public static string Name(EmailTemplatePurpose purpose) => purpose switch
+        {
+            EmailTemplatePurpose.TriageOutcomeReply => "Triage outcome reply",
+            _ => throw new InvalidOperationException($"Unknown e-mail template purpose '{(int)purpose}'.")
+        };
+    }
+
+    /// <summary>
     /// The state a staff "Link to case" destination shows: a Case's stage, or
     /// a Triage Case's Triage state.
     /// </summary>
@@ -1296,6 +1332,7 @@ public static class OperatorLabels
     {
         "ai_job" => "AI job",
         "automation_mcp" => "Automation",
+        "email_template" => EmailTemplates.ActionLogArea,
         "staff_account" => "Staff account",
         "Security" => "Security",
         "Case" => "Case",
