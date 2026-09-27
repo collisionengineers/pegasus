@@ -3606,11 +3606,6 @@
                 badge.hidden = !value.rotation;
             }
         });
-        all(document, '[data-report-image-toggle="' + id + '"]').forEach(function (tile) {
-            tile.classList.toggle('off', !value.inReport);
-            var mark = tile.querySelector('.inc');
-            if (mark) { mark.textContent = value.inReport ? '✓' : '–'; }
-        });
         if (viewer && viewer.open && viewer.current() && viewer.current().occurrence === id) {
             viewer.render();
         }
@@ -3673,18 +3668,6 @@
         toggleInReport: toggleInReport
     };
 
-    // v28 P50: how many of the Case's images the report uses, under the grid.
-    function countImagesInReport() {
-        var line = document.querySelector('[data-image-report-count]');
-        var grid = document.querySelector('[data-image-grid]');
-        if (!line || !grid) { return; }
-        var tiles = all(grid, '[data-image-tile]');
-        var included = tiles.filter(function (tile) {
-            return tile.getAttribute('data-preparation-in-report') === 'true';
-        }).length;
-        line.textContent = included + ' of ' + tiles.length + ' in report';
-    }
-
     function bindPreparationCards(root) {
         all(root, '[data-preparation-card]').forEach(function (card) {
             if (card.dataset.preparationBound === 'true') { sync(card.getAttribute('data-preparation-occurrence')); return; }
@@ -3723,20 +3706,6 @@
                     || (owner ? owner.getAttribute('data-preparation-occurrence') : null);
                 if (id) { window.pegasusCasePreparation.openCrop(id); }
             });
-        });
-        // A report-strip tile toggles inclusion while editing (v26 § Image
-        // viewer); the small view glyph opens the viewer instead.
-        all(root, '[data-report-image-toggle]').forEach(function (tile) {
-            if (tile.dataset.toggleBound === 'true') { return; }
-            tile.dataset.toggleBound = 'true';
-            var id = tile.getAttribute('data-report-image-toggle');
-            tile.addEventListener('click', function (event) {
-                if (event.target.closest('[data-tile-view], .th-view')) { return; }
-                if (!get(id)) { return; }
-                event.preventDefault();
-                event.stopPropagation();
-                toggleInReport(id, tile.classList.contains('off'));
-            }, true);
         });
         all(root, '[data-tile-view], .th-view').forEach(function (button) {
             if (button.dataset.viewBound === 'true') { return; }
@@ -4199,7 +4168,13 @@
         });
         inReport.addEventListener('change', function () {
             var item = current();
-            if (item && preparable(item)) { toggleInReport(item.occurrence, inReport.checked); }
+            var value = item && preparable(item) ? get(item.occurrence) : null;
+            if (!value) { return; }
+            var wanted = inReport.checked;
+            // The box shows what is stored. The post redraws it; Keep editing
+            // on the unsaved-changes question, or a refusal, posts nothing.
+            inReport.checked = value.inReport;
+            toggleInReport(item.occurrence, wanted);
         });
         if (aspect) { aspect.addEventListener('change', function () { cropAspect(aspect.value); }); }
         all(host, '[data-viewer-crop-rotate]').forEach(function (button) {
