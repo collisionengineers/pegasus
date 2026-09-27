@@ -40,7 +40,7 @@ fee note.
 
 | Outcome | Title and badge | Headline figures | Settlement meaning |
 | --- | --- | --- | --- |
-| `total_loss` | `TOTAL LOSS REPORT`; `TOTAL LOSS — CATEGORY x` | Pre-accident value, repair cost including VAT, salvage value, recommended settlement | Recommended settlement is the accepted Engineer value less the accepted salvage value. The accepted category and its approved salvage treatment are required. The active template prints Category S only; any other recorded category is a named readiness item (operator, 24 September 2026). |
+| `total_loss` | `TOTAL LOSS REPORT`; `TOTAL LOSS — CATEGORY x`, or `TOTAL LOSS` for Category N/A | Pre-accident value, repair cost including VAT, salvage value, recommended settlement | Recommended settlement is the accepted Engineer value less the accepted salvage value. The accepted category and salvage value are required. The report prints the recorded category's accepted wording (operator, 26 September 2026). Category N/A prints no category and no salvage paragraph. |
 | `repairable` | `REPAIRABLE REPORT`; `REPAIRABLE` | Pre-accident value, labour hours, repair cost including VAT | Recommended settlement is the calculated repair cost for the Engineer's repairable finding. |
 | `cash_in_lieu` | `CASH IN LIEU REPORT`; `CASH IN LIEU` | Pre-accident value, labour hours, cash-in-lieu settlement | The recommended cash-in-lieu settlement is the calculated repair cost. |
 | `contract_repair` | `CONTRACT REPAIR REPORT`; `CONTRACT REPAIR` | Pre-accident value, labour hours, repair cost including VAT | The agreed contract sum the Engineer recorded (v28 P35) is the contract-repair cap and cannot increase; the report prints it beside the Core-computed VAT-inclusive repair total. |
@@ -337,7 +337,7 @@ Each fact is recorded in one section of the Case record
 | Impact location and severity derived from the damage record ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record)); unrelated damage when its switch is on | Damage |
 | The Engineer's Value and, from its basis guide card, the retail and trade values ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)) | Valuation |
 | A Current repair spec with lines and a labour rate | Repair Spec |
-| Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage value and a category the template prints (Category S only); on a contract repair the agreed contract sum | Decisions |
+| Outcome and roadworthiness; the unroadworthy reason; on a total loss the salvage category and salvage value; on a contract repair the agreed contract sum | Decisions |
 | Agreed fee; the report date when overridden; valuation commentary when its switch is on | Report |
 | One Close-up and one Overview image matching their confirmed sources | Files |
 
@@ -434,9 +434,9 @@ The Case's own states are in
 - A stale version in the browser is refused, never replaced.
 - A stale generation cannot be prepared or sent.
 - A fee-note request against a report that already contains one is refused.
-- A missing printed fact or a total-loss category other than S is a named
-  readiness item: preview and Generate refuse before any generation is
-  recorded, never at render.
+- A missing printed fact, such as a total loss with no salvage category, is
+  a named readiness item: preview and Generate refuse before any generation
+  is recorded, never at render.
 - No generated file, preview, draft or export counts as Report sent.
 
 ## Acceptance evidence

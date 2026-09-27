@@ -1141,12 +1141,12 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     /// <summary>
-    /// Issue #834: the report prints only Category S, so a total loss of any
-    /// other category is named before the freeze writes anything. The
-    /// confirmed current generation stays current and nothing supersedes it.
+    /// Issue #834: a missing printed fact, here a total loss with no salvage
+    /// category, is named before the freeze writes anything. The confirmed
+    /// current generation stays current and nothing supersedes it.
     /// </summary>
     [Fact]
-    public async Task ANonPrintableSalvageCategoryIsNamedBeforeAnyGenerationIsWritten()
+    public async Task AMissingSalvageCategoryIsNamedBeforeAnyGenerationIsWritten()
     {
         await using var harness = await Harness.CreateAsync();
         var first = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
@@ -1162,15 +1162,16 @@ public sealed class CaseReportGenerationPersistenceTests
         {
             Fields =
             [
-                .. assessment.Fields.Where(field => field.Path != AssessmentVocabulary.Outcome),
+                .. assessment.Fields.Where(field =>
+                    field.Path != AssessmentVocabulary.Outcome
+                    && field.Path != AssessmentVocabulary.SalvageCategory),
                 Recorded(AssessmentVocabulary.Outcome, "total_loss"),
-                Recorded(AssessmentVocabulary.SalvageCategory, "B"),
                 Recorded(AssessmentVocabulary.SalvageValue, "500.00"),
             ],
         });
         var renderer = new RecordingRenderer(harness);
         var refused = await harness.Generate(new RecordingCustody(harness), renderer)
-            .ExecuteAsync(harness.Request(operationKey: "case-report-category-b"), CancellationToken.None);
+            .ExecuteAsync(harness.Request(operationKey: "case-report-no-category"), CancellationToken.None);
 
         Assert.Equal(CaseReportGenerationOutcome.NotReady, refused.Outcome);
         Assert.Null(refused.Generation);
