@@ -49,8 +49,8 @@ classification record and Case association. Mail views link to the same
 Unidentified item; they never create a second queue row.
 
 Each row shows sender, subject and a short excerpt of the body. The subject
-opens the message. The selected row is marked. Up and Down move through the
-rows. Rows show retained read and unread state, but this workspace never
+opens the message. Clicking elsewhere on a row selects it. The selected row
+is marked. Up and Down move through the rows. Rows show retained read and unread state, but this workspace never
 changes that state.
 Lists use accessible pagination, not infinite scrolling. Active mailbox,
 folder, queue and search filters stay visible and are kept when the operator
