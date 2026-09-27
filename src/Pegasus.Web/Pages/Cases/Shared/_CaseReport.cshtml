@@ -69,8 +69,7 @@
     // P50 moved the image surface to Files, so what the report uses is
     // counted from the preparations that grid reads. The Preview images
     // offer still depends on there being at least one.
-    var inReport = Model.AssetPreparations.Count(
-        item => item.InReport);
+    var inReport = Pegasus.Core.Documents.CaseAssetPreparationPolicy.ForReport(Model.AssetPreparations).Count;
 
     // A delivery may attach a subset of the generation's documents (v28 P22),
     // so what it needs is a confirmed report, not every artifact confirmed.

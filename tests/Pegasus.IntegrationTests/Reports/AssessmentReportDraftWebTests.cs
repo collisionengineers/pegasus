@@ -983,7 +983,10 @@ public sealed partial class AssessmentReportDraftWebTests
                     1, photo.Sha256, photo.ContentType, true, null, CaseAssetRotation.None,
                     CaseAssetCrop.Full, 1, "engineer-1", ReportFixtureAtUtc)
                 {
-                    TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId]
+                    TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId],
+                    SourceFileName = photo.CustodyReference,
+                    RecordedAtUtc = ReportFixtureAtUtc,
+                    CanPrint = true
                 });
                 sources.Add(occurrenceId, new(versionId, documentId, 1, photo.CustodyReference,
                     photo.ContentType, photo.Content.Length, photo.Sha256, DocumentCustodyStatus.Confirmed,

@@ -584,12 +584,19 @@ public static class CaseReportReadiness
                 OverviewImageRequirement, "Case files",
                 "The report prints one Overview image and no image in the report is tagged Overview.",
                 "Tag one Case image Overview on the Files section."));
+        // Only an image that can print is one of these (operator, 26
+        // September 2026), so this names one whose stored version changed
+        // between the two reads.
+        var changed = images
+            .Where(image => !MatchesConfirmedSource(image, input.ConfirmedImageSources))
+            .Select(image => input.Preparations.First(item => item.OccurrenceId == image.OccurrenceId).SourceFileName)
+            .ToArray();
         Require(
-            images.All(image => MatchesConfirmedSource(image, input.ConfirmedImageSources)),
+            changed.Length == 0,
             new(
                 ImageSourceRequirement, "Case files",
-                "A selected report image no longer matches its custody-confirmed source version.",
-                "Re-select the affected image on the Files section once its custody version settles."));
+                $"The stored version of {string.Join(", ", changed)} has changed.",
+                "Open the Files section to see the image as it is stored now."));
 
         var content = ContentOf(assessment);
         var overridden = Flag(assessment, AssessmentVocabulary.ReportDateOverride);

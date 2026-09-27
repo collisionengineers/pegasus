@@ -279,7 +279,10 @@ public sealed class CaseReportGenerationTests
 
         var result = CaseReportReadiness.Evaluate(input with { ConfirmedImageSources = moved });
 
-        AssertBlocked(result, CaseReportReadiness.ImageSourceRequirement);
+        // Staff cannot switch the image: the blocker names it and sends them to Files.
+        var reason = AssertBlocked(result, CaseReportReadiness.ImageSourceRequirement);
+        Assert.Equal("The stored version of close-up.png has changed.", reason.WhyOutstanding);
+        Assert.Equal("Open the Files section to see the image as it is stored now.", reason.HowToResolve);
     }
 
     [Fact]
@@ -903,7 +906,10 @@ public sealed class CaseReportGenerationTests
         Sha256Of([(byte)role]), "image/png", true, null, CaseAssetRotation.None,
         CaseAssetCrop.Full, 1, "engineer-1", RecordedAtUtc)
     {
-        TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId]
+        TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId],
+        SourceFileName = role == CaseAssetReportRole.CloseUp ? "close-up.png" : "overview.png",
+        RecordedAtUtc = RecordedAtUtc,
+        CanPrint = true
     };
 
     private static DocumentVersion Version(Guid occurrenceId) => new(
