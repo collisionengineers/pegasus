@@ -1216,6 +1216,46 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
+    /// The one-off lease is released whatever the generation answers: a
+    /// NotReady answer, or a refusal thrown by the generation, releases it
+    /// exactly as a Pending answer does, so nothing is left holding the Case.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GenerateReportOutsideEditModeReleasesTheLeaseWhenTheGenerationIsNotReadyOrThrows(bool throws)
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var generator = throws
+            ? new RecordingGenerateReport { Failure = new InvalidOperationException("The report snapshot was refused.") }
+            : new RecordingGenerateReport { Outcome = CaseReportGenerationOutcome.NotReady };
+        using var workspace = await OpenEngineerWorkspaceAsync(store, services =>
+            ReadyReportPorts(services, store, generator));
+        var form = GenerateReportForm(await ReportSectionAsync(workspace));
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=GenerateReport&section=report",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+
+        AssertPrg(response, store.CaseId, "section=report");
+        Assert.Single(generator.Requests);
+        Assert.Single(store.Claims);
+        var release = Assert.Single(store.LeaseReleases);
+        Assert.Equal(store.LeaseToken, release.LeaseToken);
+        Assert.Null(store.LeaseHolder);
+        var after = await workspace.GetWorkspaceAsync();
+        Assert.DoesNotContain("data-case-editing=\"true\"", after, StringComparison.Ordinal);
+        Assert.Contains(
+            throws ? "The report snapshot was refused." : CaseWorkspaceLabels.ReportDelivery.GenerationNotReady,
+            after,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// In edit mode Generate report is a save-first action: its form carries
     /// the session's lease and <c>data-case-save-first</c>, so the script
     /// saves the Case's unsaved changes, keeps editing, and then posts the
