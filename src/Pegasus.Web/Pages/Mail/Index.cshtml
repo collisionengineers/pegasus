@@ -153,8 +153,11 @@
         </div>
         @* The list and preview scroll bodies are height-capped at constrained
            widths, so each must be keyboard-scrollable, not pointer-only.
-           Up and Down move through the rows (docs/design/README.md). *@
-        <div class="pane-body pane-scroll" tabindex="0" data-row-list>
+           Up and Down move through the rows (docs/design/README.md) where a
+           row has a link to take focus; Deleted Items rows have none, so
+           there the arrow keys scroll the pane. *@
+        <div class="pane-body pane-scroll" tabindex="0"
+             data-row-list="@(Model.DeletedResults is null ? string.Empty : null)">
             @if (Model.SearchValidationMessage is { } validationMessage)
             {
                 <div class="notice notice--warning" role="alert">
