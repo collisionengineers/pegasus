@@ -36,6 +36,9 @@ public sealed class MailWorkspaceWebTests
     private const string SecondMailboxId = "reports";
     private const string SecondMailboxAddress = "reports@collisionengineers.co.uk";
 
+    /// <summary>The Inbox rows as a row list; the shell's notification list carries the same hook on every page.</summary>
+    private const string InboxRowList = "<div data-row-list>";
+
     [Fact]
     public async Task QuickPreviewIsAuthenticatedExactEvidenceAndDoesNotMutateMailState()
     {
@@ -70,15 +73,25 @@ public sealed class MailWorkspaceWebTests
 
         using var response = await client.GetAsync($"/Inbox?handler=Preview&id={messageId:D}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var json = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(json);
         var preview = document.RootElement;
         Assert.Equal(messageId, preview.GetProperty("id").GetGuid());
         Assert.Equal("A Sender", preview.GetProperty("sender").GetString());
         Assert.Equal($"Message 0 from {FirstMailboxId}", preview.GetProperty("subject").GetString());
+        // The pane's every cell: the chip with its tone, the mailbox, the
+        // folder and one attachment line by kind, never the names.
+        Assert.Equal(FirstMailboxAddress, preview.GetProperty("mailbox").GetString());
+        Assert.Equal("Not yet processed", preview.GetProperty("state").GetString());
+        Assert.Equal("amber", preview.GetProperty("stateTone").GetString());
         Assert.Equal("Please inspect the vehicle at the address supplied.", preview.GetProperty("excerpt").GetString());
+        Assert.Equal("1 attachment · 1 document", preview.GetProperty("attachments").GetString());
         Assert.Equal("Not yet processed", preview.GetProperty("classification").GetString());
-        Assert.Equal("No case", preview.GetProperty("association").GetString());
-        Assert.Equal("estimate.pdf", Assert.Single(preview.GetProperty("attachments").EnumerateArray()).GetString());
+        Assert.Equal("None", preview.GetProperty("association").GetString());
+        Assert.Equal("Inbox", preview.GetProperty("folder").GetString());
+        Assert.DoesNotContain("estimate.pdf", json, StringComparison.Ordinal);
+        // No Case, so a pinned row's pane offers no Case action.
+        Assert.True(!preview.TryGetProperty("caseUrl", out var caseUrl) || caseUrl.ValueKind == JsonValueKind.Null);
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -840,6 +853,217 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("/Account/SignOut", html, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The row (26 September 2026): the subject opens the message with the
+    /// list's query values, the selection mark sits on the row where the shared
+    /// highlight rule reads it, and the list carries the row-list keyboard hook.
+    /// </summary>
+    [Fact]
+    public async Task TheSubjectOpensTheMessageAndTheSelectedRowCarriesTheMark()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(
+            client,
+            $"/Inbox?mailbox={FirstMailboxFilter}&sort=oldest&selected={ids[1]:D}");
+
+        Assert.Contains(InboxRowList, html, StringComparison.Ordinal);
+        var selectedRow = MailRow(html, ids[1]);
+        var otherRow = MailRow(html, ids[0]);
+        Assert.Contains("aria-current=\"true\"", selectedRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-current", otherRow, StringComparison.Ordinal);
+
+        // The subject anchor targets the message and carries the list's
+        // values; it no longer carries a selection or a tooltip of itself.
+        var subject = Between(selectedRow, "<a class=\"row-title\"", "</a>");
+        Assert.Contains($"href=\"/Inbox/{ids[1]:D}?", subject, StringComparison.Ordinal);
+        Assert.Contains($"mailbox={FirstMailboxFilter}", subject, StringComparison.Ordinal);
+        Assert.Contains("sort=oldest", subject, StringComparison.Ordinal);
+        Assert.DoesNotContain("selected=", subject, StringComparison.Ordinal);
+        Assert.DoesNotContain("title=", subject, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-trigger", subject, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The preview's text (26 September 2026): the sender's line breaks are
+    /// kept, runs of spaces collapse, and it stops after eight lines.
+    /// </summary>
+    [Fact]
+    public async Task ThePreviewKeepsTheSendersLineBreaksAndStopsAfterEightLines()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        var body = string.Join(
+            "\n\n",
+            Enumerable.Range(1, 10).Select(line => $"Line  {line}   of the message."));
+        await StoreSearchProjectionAsync(factory, FirstMailboxId, FirstMailboxId + "-0", body);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+        // The HTML encoder writes each line break and the ellipsis as a
+        // character reference; the browser reads them back for pre-line.
+        var excerpt = WebUtility.HtmlDecode(
+            Between(html, "<p class=\"mail-excerpt\" data-mail-preview-excerpt>", "</p>"));
+
+        Assert.Contains("Line 1 of the message.\nLine 2 of the message.", excerpt, StringComparison.Ordinal);
+        Assert.EndsWith("Line 8 of the message.…", excerpt, StringComparison.Ordinal);
+        Assert.DoesNotContain("Line 9", excerpt, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A long single paragraph: the preview reads enough of the body to cut
+    /// it, so the text stops at a word boundary with an ellipsis rather than
+    /// mid-word where the read ran out.
+    /// </summary>
+    [Fact]
+    public async Task ALongParagraphIsCutAtAWordBoundaryWithAnEllipsis()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        var body = string.Join(' ', Enumerable.Range(1, 300).Select(word => $"word{word:D3}"));
+        await StoreSearchProjectionAsync(factory, FirstMailboxId, FirstMailboxId + "-0", body);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+        const string excerptStart = "<p class=\"mail-excerpt\" data-mail-preview-excerpt>";
+        var excerpt = WebUtility.HtmlDecode(Between(html, excerptStart, "</p>")[excerptStart.Length..]);
+
+        Assert.EndsWith("…", excerpt, StringComparison.Ordinal);
+        Assert.True(excerpt.Length <= 600, $"The excerpt is {excerpt.Length} characters: {excerpt}");
+        var kept = excerpt[..^1];
+        Assert.StartsWith(kept, body, StringComparison.Ordinal);
+        Assert.Equal(' ', body[kept.Length]);
+    }
+
+    /// <summary>
+    /// The preview's attachments (26 September 2026): one line counting them
+    /// by kind, no names. The row keeps its count and the full message still
+    /// names every file.
+    /// </summary>
+    [Fact]
+    public async Task ThePreviewCountsAttachmentsByKindWhileTheMessageNamesThem()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var messageId = Assert.Single(await SeedAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxAddress,
+            count: 1,
+            attachments:
+            [
+                new("front.jpg", "image/jpeg", 4096),
+                new("rear.png", "image/png", 4096),
+                new("estimate.pdf", "application/pdf", 2048)
+            ]));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+        var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
+        Assert.Contains("data-mail-preview-attachments>3 attachments &#xB7; 2 images, 1 document</p>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("front.jpg", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("estimate.pdf", preview, StringComparison.Ordinal);
+        Assert.Contains("3 attachments", MailRow(html, messageId), StringComparison.Ordinal);
+
+        var attachments = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=attachments");
+        Assert.Contains("front.jpg", attachments, StringComparison.Ordinal);
+        Assert.Contains("rear.png", attachments, StringComparison.Ordinal);
+        Assert.Contains("estimate.pdf", attachments, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A message that opened a Triage (26 September 2026): the chip reads
+    /// Triage, the Case cell carries the t. reference, the row links it, and
+    /// the pane offers Open Triage rather than saying there is no Case.
+    /// </summary>
+    [Fact]
+    public async Task AMessageThatOpenedATriageShowsItsReferenceAndOpenTriage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.NeedsSorting);
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var triageCaseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, receiptId, "t.QDOS31007");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+
+        var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
+        Assert.Contains(">Triage</span>", preview, StringComparison.Ordinal);
+        Assert.Contains("<dt>Case</dt>", preview, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-association>t.QDOS31007</dd>", preview, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{triageCaseId:D}\"", preview, StringComparison.Ordinal);
+        Assert.Contains("<span>Open Triage</span>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open Case", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain(">None<", preview, StringComparison.Ordinal);
+
+        var row = MailRow(html, messageId);
+        Assert.Contains(">Triage</span>", row, StringComparison.Ordinal);
+        Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31007</a>", row, StringComparison.Ordinal);
+
+        // A pinned row's pane takes its Case action from the preview JSON.
+        Assert.Contains("data-mail-preview-open", preview, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-case", preview, StringComparison.Ordinal);
+        using var response = await client.GetAsync($"/Inbox?handler=Preview&id={messageId:D}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal($"/Cases/{triageCaseId:D}", json.RootElement.GetProperty("caseUrl").GetString());
+        Assert.Equal("Open Triage", json.RootElement.GetProperty("caseAction").GetString());
+    }
+
+    /// <summary>
+    /// The Triage flag follows the Case's own type, not how the message came
+    /// to it: a message staff linked to a Triage Case it did not open shows
+    /// the Triage chip and Open Triage too.
+    /// </summary>
+    [Fact]
+    public async Task AMessageLinkedToATriageCaseShowsItAsATriage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.NeedsSorting);
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var triageCaseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, originReceiptId: null, "t.QDOS31008");
+        await MailboxIntakeTestData.LinkReceiptAsync(factory.Services, receiptId, triageCaseId);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+
+        var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
+        Assert.Contains(">Triage</span>", preview, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-association>t.QDOS31008</dd>", preview, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{triageCaseId:D}\"", preview, StringComparison.Ordinal);
+        Assert.Contains("<span>Open Triage</span>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open Case", preview, StringComparison.Ordinal);
+        Assert.Contains(">Triage</span>", MailRow(html, messageId), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The full message agrees with itself: a message that opened a Triage and
+    /// is linked to no Case shows that Triage on its Case tab, with its t.
+    /// reference and Open Triage, and Link to Case stays available because
+    /// linking to an instruction Case is a separate act.
+    /// </summary>
+    [Fact]
+    public async Task TheCaseTabShowsTheTriageTheMessageOpened()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.NeedsSorting);
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var triageCaseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, receiptId, "t.QDOS31010");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var caseTab = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=case");
+
+        Assert.Contains("<h2 class=\"decision-head\">Triage</h2>", caseTab, StringComparison.Ordinal);
+        Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31010</a>", caseTab, StringComparison.Ordinal);
+        Assert.Contains("<span>Open Triage</span>", caseTab, StringComparison.Ordinal);
+        Assert.DoesNotContain("Linked case", caseTab, StringComparison.Ordinal);
+        Assert.Contains("association-case-query", caseTab, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task CompoundOutcomeLabelsStayExactAndGreenInRowsAndSelectedPreview()
     {
@@ -1065,6 +1289,9 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Attachment content: proof.pdf (attachment 1)", firstPage, StringComparison.Ordinal);
         Assert.Contains("checked the 100 newest Deleted Items", firstPage, StringComparison.Ordinal);
         Assert.Contains("pageNumber=2", firstPage, StringComparison.Ordinal);
+        // Deleted Items rows have no link to take focus, so the pane is not a
+        // row list: the arrow keys scroll it.
+        Assert.DoesNotContain(InboxRowList, firstPage, StringComparison.Ordinal);
 
         var secondPage = await GetHtmlAsync(
             client,
@@ -1167,6 +1394,15 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("search=inspect&amp;pageNumber=2", html, StringComparison.Ordinal);
         Assert.Contains("Matched in: Message body", html, StringComparison.Ordinal);
         Assert.Contains("search=inspect", html, StringComparison.Ordinal);
+
+        // The pane says where the term matched only while one is typed.
+        var searched = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
+        Assert.Contains("<dt>Matched</dt>", searched, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-matched", searched, StringComparison.Ordinal);
+        Assert.Contains("<dd>Message body</dd>", searched, StringComparison.Ordinal);
+        var unsearched = Between(await GetHtmlAsync(client, "/Inbox"), "<aside id=\"mail-quick-preview\"", "</aside>");
+        Assert.DoesNotContain("Matched", unsearched, StringComparison.Ordinal);
+        Assert.DoesNotContain("Search match", unsearched, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1409,6 +1645,32 @@ public sealed class MailWorkspaceWebTests
             .ToListAsync());
     }
 
+    /// <summary>
+    /// Back to Inbox carries the message it leaves as the selection, so the
+    /// list returns with that row pinned rather than its first row.
+    /// </summary>
+    [Fact]
+    public async Task BackToInboxPinsTheMessageItLeft()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var list = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxFilter}");
+        var left = MailRow(list, ids[0]).Contains("aria-current", StringComparison.Ordinal) ? ids[1] : ids[0];
+        var other = left == ids[0] ? ids[1] : ids[0];
+
+        var message = await GetHtmlAsync(client, $"/Inbox/{left:D}?mailbox={FirstMailboxFilter}");
+        var back = WebUtility.HtmlDecode(Regex.Match(
+            message,
+            "<a class=\"btn\" href=\"(?<href>/Inbox\\?[^\"]*)\">\\s*<svg class=\"icon\" aria-hidden=\"true\"><use href=\"#icon-arrow-right\" />").Groups["href"].Value);
+        Assert.Contains($"mailbox={FirstMailboxFilter}", back, StringComparison.Ordinal);
+        Assert.Contains($"selected={left:D}", back, StringComparison.Ordinal);
+
+        var returned = await GetHtmlAsync(client, back);
+        Assert.Contains("aria-current=\"true\"", MailRow(returned, left), StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-current", MailRow(returned, other), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AnUnknownFolderScopeIsNotFound()
     {
@@ -1434,7 +1696,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("intake@collisionengineers.co.uk", message, StringComparison.Ordinal);
         // Nothing was processed, so the state strip says so rather than blanking.
         Assert.Contains("Not yet processed", message, StringComparison.Ordinal);
-        Assert.Contains(">No case</strong>", message, StringComparison.Ordinal);
+        Assert.Contains(">None</strong>", message, StringComparison.Ordinal);
         // Back reconstructs the exact list position.
         Assert.Contains($"/Inbox?mailbox={FirstMailboxFilter}", message, StringComparison.Ordinal);
         // Beyond the layout's sign-out and Report a problem, the record's only POST is Dismiss (Inbox, 13 September).
@@ -1563,13 +1825,18 @@ public sealed class MailWorkspaceWebTests
 
         var preview = Between(previewPage, "<aside id=\"mail-quick-preview\"", "</aside>");
         Assert.Contains("data-mail-preview-classification>Unclassified</dd>", preview, StringComparison.Ordinal);
+        // An instruction Case: the Case cell names its Case/PO and the pane offers Open Case.
+        Assert.Contains("<dt>Case</dt>", preview, StringComparison.Ordinal);
         Assert.Contains("data-mail-preview-association>MAIL-DESTINATION</dd>", preview, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{caseId:D}\"", preview, StringComparison.Ordinal);
+        Assert.Contains("<span>Open Case</span>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open Triage", preview, StringComparison.Ordinal);
         Assert.DoesNotContain("Unidentified", preview, StringComparison.Ordinal);
 
         var unlinked = await GetHtmlAsync(viewer, $"/Inbox/{unlinkedMessageId:D}");
         Assert.Contains("<strong>Unclassified</strong>", unlinked, StringComparison.Ordinal);
         Assert.Contains("<strong>Unidentified</strong>", unlinked, StringComparison.Ordinal);
-        Assert.Contains(">No case</strong>", unlinked, StringComparison.Ordinal);
+        Assert.Contains(">None</strong>", unlinked, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2412,7 +2679,8 @@ public sealed class MailWorkspaceWebTests
         string mailboxId,
         string mailboxAddress,
         int count,
-        DateTimeOffset? lastCompletedAtUtc = null)
+        DateTimeOffset? lastCompletedAtUtc = null,
+        IReadOnlyList<RetainedMailboxAttachment>? attachments = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
@@ -2460,7 +2728,7 @@ public sealed class MailWorkspaceWebTests
                         [],
                         $"Message {index} from {mailboxId}",
                         "Please inspect the vehicle at the address supplied.",
-                        [new("estimate.pdf", "application/pdf", 2048)],
+                        attachments ?? [new("estimate.pdf", "application/pdf", 2048)],
                         IsRead: false),
                     NowUtc),
                 CancellationToken.None);

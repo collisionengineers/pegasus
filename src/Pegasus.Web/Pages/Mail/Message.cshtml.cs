@@ -1350,7 +1350,11 @@ public sealed class MessageModel(
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(CorrespondenceCaseReference))
+        // The message's Case is the default, unless it is a Triage Case: the
+        // composer resolves an instruction Case by its Case/PO, and a Triage's
+        // t. reference never resolves, so staff choose the Case themselves.
+        if (string.IsNullOrWhiteSpace(CorrespondenceCaseReference)
+            && !Detail.Summary.IsTriageCase)
         {
             CorrespondenceCaseReference = Detail.Summary.CaseReference;
         }
@@ -2105,16 +2109,19 @@ public sealed class MessageModel(
         OperatorLabels.MailClassification(category);
 
     /// <summary>
-    /// The one label for a message's Case association when it has no Case:
-    /// the preview pane, its JSON projection and the message page must all
-    /// say the same word, because two copies of this label drifted apart
-    /// once before.
+    /// The one label for a message's Case cell when it has no Case: the
+    /// preview pane, its JSON projection and the message page must all say
+    /// the same word, because two copies of this label drifted apart once
+    /// before.
     /// </summary>
     public static string AssociationLabel(string? caseReference) =>
-        caseReference ?? "No case";
+        caseReference ?? OperatorLabels.Inbox.NoCase;
 
     public static string OutcomeLabel(RetainedMailSummary summary) => summary switch
     {
+        // A Triage Case is the message's Case, but the chip names what it
+        // is: a Triage, not an instruction Case created.
+        { IsTriageCase: true } => OperatorLabels.Inbox.Triage,
         { CaseId: not null } => "Case created",
         { AllocationState.Status: IntakeAllocationProjectionStatus.Pending } => "Creating case",
         { AllocationState.Status: IntakeAllocationProjectionStatus.FailedRecoverable
@@ -2123,9 +2130,9 @@ public sealed class MessageModel(
         // material, because both are pre-case, but they are not the same thing
         // and this column must not call one the other: the operator reported
         // this defect from this screen, which labelled a Triage request as
-        // though a case were coming. The word is the destination's own
-        // (OperatorLabels.MailOperationalDestination.Triage), not a new one.
-        { Classification.IsTriageRequest: true } => "Triage",
+        // though a case were coming. The word is the Triage destination's
+        // own (OperatorLabels.Inbox.Triage), not a new one.
+        { Classification.IsTriageRequest: true } => OperatorLabels.Inbox.Triage,
         _ => OutcomeLabel(summary.ProcessingOutcome)
     };
 
