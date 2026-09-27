@@ -1021,8 +1021,6 @@ public sealed class EfCaseReportGenerationStore(
             ?? throw new InvalidOperationException("A ready case report has a resolved sign-off Engineer.");
         var estimate = inputs.Readiness.CurrentEstimate
             ?? throw new InvalidOperationException("A ready case report has a Current estimate.");
-        var valuation = inputs.Readiness.AppliedValuation
-            ?? throw new InvalidOperationException("A ready case report has an accepted Engineer's Value.");
 
         return new CaseReportGenerationSnapshot(
             request.CaseId,
@@ -1037,8 +1035,10 @@ public sealed class EfCaseReportGenerationStore(
             estimate.SpecificationId,
             estimate.Version,
             report.Costs,
-            valuation.AcceptedEngineerValue,
-            valuation.Id,
+            // The value the report prints is the recorded field; a card's
+            // calculation row is frozen by identity only when one exists.
+            report.EngineerValue,
+            inputs.Readiness.AppliedValuation?.Id,
             readiness.Content,
             inputs.Projection.Guides ?? ReportGuideSources.None,
             reportDate,

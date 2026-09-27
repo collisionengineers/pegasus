@@ -172,6 +172,9 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(6_100m, rendered.RetailValue);
         Assert.Equal(4_900m, rendered.TradeValue);
         Assert.Equal(5_700m, rendered.EngineerValue);
+        var frozen = result.Generation!.Snapshot;
+        Assert.Equal(5_700m, frozen.EngineerValue);
+        Assert.Null(frozen.AppliedValuationId);
     }
 
     [Theory]
@@ -1134,7 +1137,7 @@ public sealed class CaseReportGenerationPersistenceTests
 
         Assert.NotEqual(first.Generation.Id, second.Generation!.Id);
         Assert.NotEqual(first.Generation.SnapshotHash, second.Generation.SnapshotHash);
-        Assert.Equal(5_250m, second.Generation.Snapshot.AcceptedEngineerValue);
+        Assert.Equal(5_250m, second.Generation.Snapshot.EngineerValue);
         Assert.Equal(CaseReportGenerationState.Confirmed, second.Generation.State);
 
         // The prior generation keeps its bytes, its confirmed artifact and its
@@ -1143,7 +1146,7 @@ public sealed class CaseReportGenerationPersistenceTests
             harness.StaffActor, harness.CaseId, first.Generation.Id, CancellationToken.None);
         Assert.Equal(CaseReportGenerationState.Stale, prior!.State);
         Assert.Equal(second.Generation.Id, prior.SupersededById);
-        Assert.Equal(5_000m, prior.Snapshot.AcceptedEngineerValue);
+        Assert.Equal(5_000m, prior.Snapshot.EngineerValue);
         var priorArtifact = Assert.Single(prior.Artifacts);
         Assert.Equal(firstArtifact.Id, priorArtifact.Id);
         Assert.Equal(firstArtifact.VersionId, priorArtifact.VersionId);
