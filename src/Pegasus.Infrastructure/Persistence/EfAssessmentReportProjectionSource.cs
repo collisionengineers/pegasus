@@ -133,7 +133,9 @@ internal sealed class EfAssessmentReportProjectionSource(
                     pair.Row.Version,
                     pair.Row.SemanticRole,
                     pair.Row.FileName,
-                    pair.Row.MediaType),
+                    pair.Row.MediaType,
+                    pair.Row.BoxFileId,
+                    pair.Row.BoxVersionId),
                 pair.Row.Sha256,
                 pair.Row.ContentLength))
             .ToArray();
