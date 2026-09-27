@@ -1639,6 +1639,32 @@ public sealed class MailWorkspaceWebTests
             .ToListAsync());
     }
 
+    /// <summary>
+    /// Back to Inbox carries the message it leaves as the selection, so the
+    /// list returns with that row pinned rather than its first row.
+    /// </summary>
+    [Fact]
+    public async Task BackToInboxPinsTheMessageItLeft()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var list = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxFilter}");
+        var left = MailRow(list, ids[0]).Contains("aria-current", StringComparison.Ordinal) ? ids[1] : ids[0];
+        var other = left == ids[0] ? ids[1] : ids[0];
+
+        var message = await GetHtmlAsync(client, $"/Inbox/{left:D}?mailbox={FirstMailboxFilter}");
+        var back = WebUtility.HtmlDecode(Regex.Match(
+            message,
+            "<a class=\"btn\" href=\"(?<href>/Inbox\\?[^\"]*)\">\\s*<svg class=\"icon\" aria-hidden=\"true\"><use href=\"#icon-arrow-right\" />").Groups["href"].Value);
+        Assert.Contains($"mailbox={FirstMailboxFilter}", back, StringComparison.Ordinal);
+        Assert.Contains($"selected={left:D}", back, StringComparison.Ordinal);
+
+        var returned = await GetHtmlAsync(client, back);
+        Assert.Contains("aria-current=\"true\"", MailRow(returned, left), StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-current", MailRow(returned, other), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AnUnknownFolderScopeIsNotFound()
     {
