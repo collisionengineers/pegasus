@@ -263,10 +263,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
-    /// The adoption is part of the one Case Save (23 September 2026) and of
-    /// its one transaction: the accepted figure reaches the confirmed
-    /// <c>assessment.values.engineer</c> field and the whole ordered
-    /// calculation reaches the snapshot table, or neither does. A retried
+    /// The calculation is part of the one Case Save (23 September 2026) and of
+    /// its one transaction: the Engineer's Value box the calculation filled
+    /// reaches the <c>assessment.values.engineer</c> field and the whole
+    /// ordered calculation reaches the snapshot table, or neither does. A retried
     /// operation key replays that same save, a preset that moved underneath
     /// the form is refused before anything is written, and returning to an
     /// earlier calculation later is a new adoption.
@@ -350,7 +350,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var applyLease = await LeaseAsync("valuation-apply-lease");
         var stale = await Assert.ThrowsAsync<ValuationPresetException>(() =>
             workspace.SaveAsync(
-                AdoptRequest(applyLease, selection, "valuation-apply-stale"),
+                AdoptRequest(applyLease, selection, "valuation-apply-stale", "3176"),
                 CancellationToken.None));
         Assert.Equal(ValuationPresetError.VersionConflict, stale.Error);
         Assert.Null(await ReadEngineersValueAsync(harness, caseId));
@@ -358,7 +358,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         // The refusal left the Case exactly as it was, edit lease and version
         // included, so the corrected save carries on with the same lease.
         selection = selection with { Additions = [new(TowBarPresetId, 2, null, 300m)] };
-        var request = AdoptRequest(applyLease, selection, "valuation-apply");
+        var request = AdoptRequest(applyLease, selection, "valuation-apply", "3176");
         var saved = await workspace.SaveAsync(request, CancellationToken.None);
         version++;
         Assert.Equal(version, saved.Version);
@@ -414,7 +414,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         harness.Advance(TimeSpan.FromMinutes(1));
         var correctionLease = await LeaseAsync("valuation-correction-lease");
         await workspace.SaveAsync(
-            AdoptRequest(correctionLease, selection with { ConditionDeduction = 26m }, "valuation-correction"),
+            AdoptRequest(correctionLease, selection with { ConditionDeduction = 26m }, "valuation-correction", "3250"),
             CancellationToken.None);
         version++;
         Assert.Equal(
@@ -427,7 +427,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         harness.Advance(TimeSpan.FromMinutes(1));
         var returnLease = await LeaseAsync("valuation-return-lease");
         await workspace.SaveAsync(
-            AdoptRequest(returnLease, selection, "valuation-return"),
+            AdoptRequest(returnLease, selection, "valuation-return", "3176"),
             CancellationToken.None);
         version++;
         Assert.Equal(
@@ -457,7 +457,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         SaveCaseWorkspaceRequest AdoptRequest(
             CaseEditLease lease,
             ValuationCalculationSelection chosen,
-            string operationKey) => new(
+            string operationKey,
+            string engineersValue) => new(
             caseId,
             lease.Version,
             engineer,
@@ -465,15 +466,22 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             null,
             lease.Token)
         {
-            // An adopted Engineer's Value carries the Case's own mileage
-            // (operator, 24 September 2026), recorded by the same save.
+            // A calculated Engineer's Value records the Case's own mileage
+            // when it has one, recorded here by the same save.
             Vehicle = new(
                 null,
                 null,
                 null,
                 new(42_000, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
                 new Dictionary<string, string?>(StringComparer.Ordinal)),
-            Valuation = new([], chosen)
+            // The Engineer's Value box, as the calculation filled it on the page.
+            Valuation = new(
+                [],
+                chosen,
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.ValueEngineer] = engineersValue
+                })
         };
     }
 

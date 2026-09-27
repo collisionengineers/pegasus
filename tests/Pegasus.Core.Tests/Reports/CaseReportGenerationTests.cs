@@ -233,8 +233,9 @@ public sealed class CaseReportGenerationTests
     }
 
     /// <summary>
-    /// The report prints the trade value of the Engineer's Value basis card,
-    /// recorded by the adoption, so a Case without one is not generated.
+    /// The report prints the trade value beside the Engineer's Value, so a
+    /// Case without one is not generated; it is entered on Valuation
+    /// (operator, 26 September 2026).
     /// </summary>
     [Fact]
     public void AMissingTradeValueBlocksGeneration()
@@ -248,7 +249,7 @@ public sealed class CaseReportGenerationTests
             input with { Assessment = input.Assessment with { Fields = withoutTrade } });
 
         var reason = AssertBlocked(result, "Trade value");
-        Assert.Equal("Valuation", reason.Source);
+        Assert.Equal("Enter it on the Valuation section.", reason.HowToResolve);
     }
 
     /// <summary>
