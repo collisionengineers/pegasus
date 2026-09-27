@@ -104,7 +104,7 @@
             <div class="ribbon-item"><span class="ribbon-label">Source</span><span class="ribbon-value">@view.SourceLabel</span></div>
             <div class="ribbon-item"><span class="ribbon-label">Opened</span><span class="ribbon-value">@OperatorLabels.OfficeTime(view.Triage.CreatedAtUtc)</span></div>
             <div class="ribbon-item">
-                <span class="ribbon-label">Assignee</span>
+                <span class="ribbon-label">@Labels.Assignee</span>
                 <span class="ribbon-value">
                     <span>@(view.AssigneeName ?? Labels.NoAssignee)</span>
                     @if (canAssign)
@@ -114,11 +114,11 @@
                 </span>
             </div>
             <div class="ribbon-item">
-                <span class="ribbon-label">Case</span>
+                <span class="ribbon-label">@Labels.Case</span>
                 <span class="ribbon-value">
                     @if (record.LinkedInstructionCaseId is { } linkedCaseId)
                     {
-                        <a asp-page="/Cases/Details" asp-route-id="@linkedCaseId" data-triage-linked-case>@(view.LinkedCaseReference ?? "Open the case")</a>
+                        <a asp-page="/Cases/Details" asp-route-id="@linkedCaseId" data-triage-linked-case>@(view.LinkedCaseReference ?? Labels.OpenCase)</a>
                     }
                     else
                     {
@@ -612,7 +612,7 @@
                 <input type="hidden" name="operationKey" value="@view.OperationKey" />
                 <div class="dialog-body">
                     <div class="field">
-                        <label class="req" for="triage-assignee">Assignee</label>
+                        <label class="req" for="triage-assignee">@Labels.Assignee</label>
                         <select id="triage-assignee" name="assigneeId" required data-dialog-initial-focus>
                             <option value=""></option>
                             @foreach (var choice in view.EngineerChoices)
@@ -627,7 +627,7 @@
                     {
                         <button type="submit" name="actionName" value="unassign" class="btn" formnovalidate data-triage-unassign>@Labels.Unassign</button>
                     }
-                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="button" class="btn" data-dialog-close>@Labels.Cancel</button>
                     <button type="submit" name="actionName" value="assign" class="btn btn--primary">@Labels.Assign</button>
                 </div>
             </form>
@@ -656,7 +656,7 @@
                     <partial name="Cases/Shared/_TriageDeterminationFields" model="view" />
                 </div>
                 <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    <button type="button" class="btn" data-dialog-close>@Labels.Cancel</button>
                     <button type="submit" name="actionName" value="supersede_finding" class="btn btn--primary">@Labels.RecordCorrection</button>
                 </div>
             </form>

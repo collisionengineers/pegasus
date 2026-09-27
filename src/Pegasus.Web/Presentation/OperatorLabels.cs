@@ -209,12 +209,16 @@ public static class OperatorLabels
         public const string Expired = "Editing expired before this change was saved. Reload and try again.";
         public const string ChooseAssignee = "Choose who to assign.";
 
+        public const string Assignee = "Assignee";
         public const string Assign = "Assign";
         public const string Reassign = "Reassign";
         public const string Unassign = "Unassign";
         public const string NoAssignee = "Unassigned";
         public static string You(string name) => $"{name} (you)";
+        public const string Case = "Case";
         public const string NoCase = "None";
+        public const string OpenCase = "Open the case";
+        public const string Cancel = "Cancel";
 
         public const string Determinations = "Determinations";
         public const string SaveDeterminations = "Save determinations";
