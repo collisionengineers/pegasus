@@ -18,6 +18,12 @@ internal sealed class EfRetainedMailboxMessageStore(
     /// <summary>The preview's excerpt: eight lines or this many characters, whichever comes first.</summary>
     private const int ExcerptLength = 600;
     private const int ExcerptLines = 8;
+    /// <summary>
+    /// How much of the receipt's cleaned body the read paths excerpt from: the
+    /// excerpt's length again as headroom for the forwarded header block it
+    /// skips, so a long paragraph is still long enough to cut.
+    /// </summary>
+    private const int BodyHeadLength = ExcerptLength * 2;
     /// <summary>The retained column's length (<see cref="MailboxModelConfiguration"/>); the read paths excerpt the receipt's body head instead.</summary>
     internal const int StoredExcerptLength = 400;
     private static readonly char[] LineOrSpace = [' ', '\n'];
@@ -826,7 +832,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 // header block is skipped; never the whole document text.
                 BodyHead = item.SearchDocuments
                     .Where(document => document.AttachmentFileName == null && document.Text != null)
-                    .Select(document => document.Text!.Substring(0, 600))
+                    .Select(document => document.Text!.Substring(0, BodyHeadLength))
                     .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
