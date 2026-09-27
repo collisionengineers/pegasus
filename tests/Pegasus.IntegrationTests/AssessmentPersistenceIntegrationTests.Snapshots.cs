@@ -238,7 +238,17 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 null,
                 valueLease.Token)
             {
-                Valuation = new([], new ValuationCalculationSelection(guideId, false, null, [], 0m))
+                // The Save records the three boxes the card filled, beside the
+                // calculation that says where they came from.
+                Valuation = new(
+                    [],
+                    new ValuationCalculationSelection(guideId, false, null, [], 0m),
+                    new Dictionary<string, string?>(StringComparer.Ordinal)
+                    {
+                        [AssessmentVocabulary.ValueRetail] = "5000.00",
+                        [AssessmentVocabulary.ValueTrade] = "3000.00",
+                        [AssessmentVocabulary.ValueEngineer] = "5000.00"
+                    })
             },
             CancellationToken.None);
 
