@@ -70,7 +70,7 @@
     // counted from the preparations that grid reads. The Preview images
     // offer still depends on there being at least one.
     var inReport = Model.AssetPreparations.Count(
-        item => item.Role != Pegasus.Core.Documents.CaseAssetReportRole.NotUsed);
+        item => item.InReport);
 
     // A delivery may attach a subset of the generation's documents (v28 P22),
     // so what it needs is a confirmed report, not every artifact confirmed.
@@ -545,7 +545,7 @@
             </div>
         }
 
-        @* P50: an image has one place. Its report role, its order and the
+        @* P50: an image has one place. Whether the report uses it, its order and the
            tools that change it are on its tile under Files; the Report
            section no longer repeats the strip or the preparation cards. *@
         </div>

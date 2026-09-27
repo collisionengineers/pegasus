@@ -2717,8 +2717,6 @@ public sealed partial class DetailsModel(
 
         public long ExpectedPreparationVersion { get; set; }
 
-        public CaseAssetReportRole Role { get; set; }
-
         public int? Order { get; set; }
 
         public int Rotation { get; set; }
@@ -2737,8 +2735,7 @@ public sealed partial class DetailsModel(
             new(
                 OccurrenceId,
                 ExpectedPreparationVersion,
-                Role,
-                Role == CaseAssetReportRole.Supporting ? Order : null,
+                Order,
                 (CaseAssetRotation)Rotation,
                 new(CropLeft, CropTop, CropWidth, CropHeight),
                 FullPage);

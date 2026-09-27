@@ -47,7 +47,7 @@ internal static partial class CaseWebTestSupport
         private IReadOnlyList<CaseAssetPreparation> Current() =>
         [
             .. Preparations
-                .OrderBy(item => item.Role)
+                .OrderBy(item => item.InReport ? 0 : 1)
                 .ThenBy(item => item.Order ?? int.MaxValue)
         ];
     }
@@ -110,6 +110,7 @@ internal static partial class CaseWebTestSupport
         ILogicallyRemoveDocument,
         ITagCaseImage,
         IUntagCaseImage,
+        ISetCaseImageInReport,
         ICreateImageTag,
         IMarkAsOriginalReportStore
     {
@@ -121,6 +122,7 @@ internal static partial class CaseWebTestSupport
         public List<LogicallyRemoveDocumentCommand> DocumentRemovals { get; } = [];
         public List<TagCaseImageCommand> ImageTagsApplied { get; } = [];
         public List<UntagCaseImageCommand> ImageTagsRemoved { get; } = [];
+        public List<SetCaseImageInReportCommand> ImagesSetInReport { get; } = [];
         public List<CreateImageTagCommand> ImageTagsCreated { get; } = [];
         public List<MarkAsOriginalReportCommand> OriginalReportMarks { get; } = [];
 
@@ -200,6 +202,16 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             ImageTagsRemoved.Add(command);
+            ConsumeLease();
+            return Task.CompletedTask;
+        }
+
+        Task ISetCaseImageInReport.ExecuteAsync(
+            SetCaseImageInReportCommand command,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            ImagesSetInReport.Add(command);
             ConsumeLease();
             return Task.CompletedTask;
         }
