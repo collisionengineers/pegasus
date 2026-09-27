@@ -9,6 +9,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
@@ -596,6 +597,86 @@ public sealed class ImageCaseCustodyIntegrationTests
             await download.Content.CopyToAsync(buffer);
             Assert.Equal(PngBytes, buffer.ToArray());
         }
+    }
+
+    /// <summary>
+    /// Photographs that arrive by merge complete the Case's images when the
+    /// fold files them (FRD-13). A Not ready Case with nothing else missing
+    /// moves to Review, as it does when a linked message's photographs are
+    /// filed; one still missing instructions stays Not ready and chased.
+    /// </summary>
+    [Theory]
+    [InlineData(true, nameof(CaseLifecycleState.Review), nameof(CaseDueWorkState.Stopped))]
+    [InlineData(false, nameof(CaseLifecycleState.NotReady), nameof(CaseDueWorkState.Scheduled))]
+    public async Task TheFoldCompletesTheCasesImagesAndItsReadinessDecidesReview(
+        bool instructionComplete,
+        string expectedState,
+        string expectedChase)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        await processor.ExecuteAsync(
+            await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
+            CancellationToken.None);
+        var (caseId, _) = await SeedCaseWithFolderAsync(
+            services, memberReceiptIds[0], "IMG26004", instructionComplete: instructionComplete, imagesComplete: false);
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            // A Not ready Case is being chased for what it is missing.
+            context.CaseDueWork.Add(new()
+            {
+                CaseId = caseId,
+                MissingMaterialReason = "Case completeness is not confirmed",
+                State = nameof(CaseDueWorkState.Scheduled),
+                NextChaseAtUtc = services.GetRequiredService<TimeProvider>().GetUtcNow().AddDays(7)
+            });
+            await context.SaveChangesAsync();
+        }
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        long versionBeforeTheFold;
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            var linked = await context.CaseWorkflows.AsNoTracking()
+                .Include(item => item.Case)
+                .SingleAsync(item => item.CaseId == caseId);
+            // Neither the link nor the merge completed the images.
+            Assert.False(linked.Case.ImagesComplete);
+            Assert.Equal(nameof(CaseLifecycleState.NotReady), linked.State);
+            versionBeforeTheFold = linked.Version;
+        }
+
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+
+        await using var after = await contextFactory.CreateDbContextAsync();
+        var workflow = await after.CaseWorkflows.AsNoTracking()
+            .Include(item => item.Case)
+            .Include(item => item.DueWork)
+            .SingleAsync(item => item.CaseId == caseId);
+        Assert.True(workflow.Case.ImagesComplete);
+        Assert.Equal(expectedState, workflow.State);
+        Assert.Equal(versionBeforeTheFold + 1, workflow.Version);
+        Assert.Equal(expectedChase, workflow.DueWork!.State);
+        Assert.Equal(
+            instructionComplete,
+            (await after.CaseDataSnapshots.AsNoTracking().SingleAsync(item => item.WorkId == caseId))
+                .CompletenessPolicySatisfied);
+        // Recorded once, under the fold's version, with the policy it used.
+        var completion = Assert.Single(await after.CaseWorkflowEvents.AsNoTracking()
+            .Where(item => item.CaseId == caseId
+                && item.EventType == "case_images_completed_from_merged_photographs")
+            .ToListAsync());
+        Assert.Equal(workflow.Version, completion.AfterVersion);
+        Assert.Equal(nameof(ActorKind.SystemWorker), completion.ActorKind);
+        Assert.False(string.IsNullOrWhiteSpace(
+            (await after.ActionHistory.AsNoTracking()
+                .SingleAsync(item => item.CorrelationId == completion.OperationKey)).PolicyVersion));
     }
 
     /// <summary>

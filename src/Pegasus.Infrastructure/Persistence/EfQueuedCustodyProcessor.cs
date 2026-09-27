@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -1224,8 +1225,13 @@ internal sealed class EfQueuedCustodyProcessor(
             var beforeVersion = authority.Version;
             // The photographs are Case images from here (operator, 27
             // September 2026). Filed by this completion, under its version.
-            await RecordFoldedPhotographsAsync(
+            var filed = await RecordFoldedPhotographsAsync(
                 context, intake, authority.Case, work.OperationKey, moved, now, cancellationToken);
+            if (filed > 0 && authority.Workflow is { } workflow && !authority.Case.ImagesComplete)
+            {
+                await CompleteCaseImagesAsync(
+                    context, workflow, work.OperationKey, beforeVersion, now, cancellationToken);
+            }
             authority.CompleteSystemMutation();
             context.CaseHistory.Add(new()
             {
@@ -1247,6 +1253,39 @@ internal sealed class EfQueuedCustodyProcessor(
 
     private const string CaseIsBeingEditedMessage =
         "A member of staff is editing the Case; the fold retries after they finish.";
+
+    /// <summary>
+    /// The Case's photographs are confirmed in its custody, so its images are
+    /// complete and its readiness is re-evaluated as it is when a linked
+    /// message's photographs are filed (FRD-13). Recorded under the fold's
+    /// version, with the readiness policy it used.
+    /// </summary>
+    private static async Task CompleteCaseImagesAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        string foldOperationKey,
+        long beforeVersion,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var (before, after, evaluation) = await EfCaseArtifactCustody.CompleteCaseImagesAsync(
+            context, workflow, now, cancellationToken);
+        var operationKey = $"{foldOperationKey}:images-complete";
+        CaseMutationHistory.Add(
+            context,
+            workflow,
+            ActionActor.SystemWorker("custody"),
+            operationKey,
+            "The merged Vehicle images photographs completed the Case's images.",
+            "case_images_completed_from_merged_photographs",
+            CaseOperationReplay.Hash(operationKey),
+            beforeVersion,
+            checked(beforeVersion + 1),
+            JsonSerializer.Serialize(before),
+            JsonSerializer.Serialize(after),
+            $"{evaluation.PolicyKey}/v{evaluation.PolicyVersion}",
+            now);
+    }
 
     /// <summary>
     /// Records each photograph the fold moved as an image document of the
