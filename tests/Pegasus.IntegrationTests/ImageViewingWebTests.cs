@@ -1,10 +1,14 @@
 using System.Globalization;
 using System.Net;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -193,6 +197,93 @@ public sealed class ImageViewingWebTests
         // The overview tab does not pay the gallery query cost.
         var overview = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}");
         Assert.DoesNotContain(expectedSource, overview, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Once a Vehicle images record has merged into a Case, its photograph is
+    /// a Case image (operator, 27 September 2026). The Case page shows it
+    /// once, as a tile, and the record has no group of its own there.
+    /// </summary>
+    [Fact]
+    public async Task AMergedRecordsPhotographShowsOnceOnTheCasePageAsACaseImage()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "MERGED-01");
+        await ImageIntakeTestData.ProcessCustodyAsync(factory, ExternalWorkKinds.CreateCaseCustody);
+
+        var pngBytes = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, "vehicle.png", "image/png", pngBytes, Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        await ImageIntakeTestData.ProcessImageCaseCustodyAsync(factory);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
+        var detail = await queries.GetByOriginReceiptAsync(receiptId, CancellationToken.None);
+        var receipt = await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        var workflow = await scope.ServiceProvider.GetRequiredService<ICaseWorkflowStore>()
+            .GetAsync(caseId, CancellationToken.None);
+        using var attach = await client.PostAsync(
+            "/Cases?handler=Attach",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["id"] = detail!.Record.Id.ToString("D"),
+                ["receiptId"] = receiptId.ToString("D"),
+                ["operationId"] = Guid.NewGuid().ToString("D"),
+                ["receiptVersion"] = receipt!.Version.ToString(CultureInfo.InvariantCulture),
+                ["caseId"] = caseId.ToString("D"),
+                ["caseVersion"] = workflow!.Version.ToString(CultureInfo.InvariantCulture),
+                ["reference"] = string.Empty,
+                ["reason"] = "Staff matched the reviewed image to the instructed case.",
+                ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client)
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, attach.StatusCode);
+
+        // Associated and not yet merged in: the record still holds the
+        // photograph, under its own group.
+        var before = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+        Assert.Contains("data-intake-group", before, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-image-tile=", before, StringComparison.Ordinal);
+
+        await ImageIntakeTestData.ProcessCustodyAsync(factory, ExternalWorkKinds.MergeImageCaseCustody);
+
+        Guid occurrenceId;
+        Guid versionId;
+        await using (var context = await factory.Database.CreateContextAsync())
+        {
+            var image = await context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                .SingleAsync(item => item.CaseId == caseId && item.SemanticRole == DocumentSemanticRole.Image);
+            occurrenceId = image.Id;
+            versionId = image.VersionId;
+        }
+        var after = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{caseId:D}?section=files");
+        Assert.DoesNotContain("data-intake-group", after, StringComparison.Ordinal);
+        Assert.DoesNotContain($"/Received/{receiptId:D}/", after, StringComparison.OrdinalIgnoreCase);
+        var tile = $"data-image-tile=\"{occurrenceId:D}\"";
+        Assert.Equal(after.IndexOf(tile, StringComparison.OrdinalIgnoreCase),
+            after.LastIndexOf(tile, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(
+            after.IndexOf("data-image-tile=", StringComparison.Ordinal),
+            after.LastIndexOf("data-image-tile=", StringComparison.Ordinal));
+        Assert.Contains(tile, after, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-file-name=\"vehicle.png\"", after, StringComparison.Ordinal);
+
+        // The tile's preview is read from the Case's own copy.
+        using var preview = await client.GetAsync(
+            $"/Cases/{caseId:D}/Documents/{occurrenceId:D}/Download?versionId={versionId:D}&inline=true");
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        Assert.Equal("image/png", preview.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(pngBytes, await preview.Content.ReadAsByteArrayAsync());
+
+        // The record keeps its own page and photograph.
+        var recordPage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
+        Assert.Contains("alt=\"vehicle.png\"", recordPage, StringComparison.Ordinal);
     }
 
     /// <summary>
