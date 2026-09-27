@@ -6,6 +6,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
 using Pegasus.Core.ProviderApi;
+using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Transport;
 using Pegasus.Infrastructure.Custody;
 using Microsoft.Azure.Functions.Worker;
@@ -218,6 +219,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileStagedArtifacts reconcileStagedArtifacts,
     IDocumentContentCacheCleanup documentContentCacheCleanup,
     ReconcilePendingArtifactCustody reconcilePendingArtifactCustody,
+    ISettleFiledCaseReportArtifacts settleFiledCaseReportArtifacts,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
     IImageIntakeCasePairing imageIntakeCasePairing,
     ITriageCasePairing triageCasePairing,
@@ -260,6 +262,13 @@ public sealed partial class StagedArtifactReconciliationFunction(
                 pendingArtifacts.Failures,
                 pendingArtifacts.Candidates);
         }
+
+        // A generated report whose file was filed after its request ended
+        // is recorded as stored, so nobody has to press Generate report
+        // again. Same existing timer trigger deliberately; this is not a new
+        // schedule.
+        var settledReportFiles = await settleFiledCaseReportArtifacts.ExecuteAsync(50, cancellationToken);
+        LogFiledReportSettlement(logger, settledReportFiles);
 
         // Recovers a grouped-image straggler that never got a
         // registered Image intake or an Unidentified reference — re-drives
@@ -363,6 +372,11 @@ public sealed partial class StagedArtifactReconciliationFunction(
         ILogger logger,
         int failureCount,
         int candidateCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Settled {Settled} generated report files filed after their request ended.")]
+    private static partial void LogFiledReportSettlement(ILogger logger, int settled);
 
     [LoggerMessage(
         Level = LogLevel.Information,
