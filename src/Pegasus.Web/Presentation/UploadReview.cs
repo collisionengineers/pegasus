@@ -44,7 +44,7 @@ public sealed record UploadReviewFile(
 {
     public bool IsImage => ImageUrl is not null;
 
-    public string Size => Bytes is { } bytes ? OperatorLabels.Upload.FileSize(bytes) : string.Empty;
+    public string Size => Bytes is { } bytes ? OperatorLabels.FileSize(bytes) : string.Empty;
 
     /// <summary>The photographs Pegasus kept out of this document (a PDF or Word file), in stored order; empty for an image or a file not yet processed.</summary>
     public IReadOnlyList<UploadReviewPhotograph> Photographs { get; init; } = [];
@@ -173,7 +173,7 @@ public sealed record UploadReviewView(
         get
         {
             var known = Files.Where(file => file.Bytes is not null).ToArray();
-            return known.Length == 0 ? string.Empty : OperatorLabels.Upload.FileSize(known.Sum(file => file.Bytes!.Value));
+            return known.Length == 0 ? string.Empty : OperatorLabels.FileSize(known.Sum(file => file.Bytes!.Value));
         }
     }
 

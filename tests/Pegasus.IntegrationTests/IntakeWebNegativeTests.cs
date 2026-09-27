@@ -141,8 +141,8 @@ public sealed class IntakeWebNegativeTests
 
     /// <summary>
     /// The manual channel's per-file cap, read from the constant that owns it
-    /// rather than restated here: C07 item 5 set it to
-    /// 100 MiB and these boundary tests must move with it.
+    /// rather than restated here: 100 MB, 100,000,000 bytes (operator,
+    /// 26 September 2026), and these boundary tests move with it.
     /// </summary>
     private const int PerFileLimit = IntakeEnvelopeLimits.MaximumContentLength;
 
@@ -249,7 +249,7 @@ public sealed class IntakeWebNegativeTests
             form.ExternalReceiptToken);
 
         // Exactly at the limit the transport accepts the file and it reaches
-        // the reader. What the reader then makes of a hundred mebibytes of
+        // the reader. What the reader then makes of a hundred megabytes of
         // zeroes is beside the point; that a receipt exists at all is the
         // boundary this test guards.
         Assert.Equal(HttpStatusCode.Found, result.StatusCode);

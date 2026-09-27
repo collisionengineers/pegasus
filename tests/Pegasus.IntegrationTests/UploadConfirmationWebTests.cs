@@ -166,6 +166,47 @@ public sealed class UploadConfirmationWebTests
     }
 
     /// <summary>
+    /// The picker's words (operator, 26 September 2026): no subtitle under
+    /// Upload and no sentence under the declared Case, whose card alone says
+    /// where the files go; the limits read in megabytes through the one size
+    /// label, with or without a declared Case.
+    /// </summary>
+    [Fact]
+    public async Task ThePickerCarriesNoNarrationAndStatesItsLimitsInMegabytes()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "PICKER-WORDS-01");
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+
+        foreach (var url in new[] { "/Upload", $"/Upload?caseId={caseId:D}" })
+        {
+            var picker = await IntakeWebDriver.GetHtmlAsync(client, url);
+            Assert.DoesNotContain("up-subtitle", picker, StringComparison.Ordinal);
+            Assert.DoesNotContain("up-explainer", picker, StringComparison.Ordinal);
+            Assert.Contains("20 files maximum", picker, StringComparison.Ordinal);
+            Assert.Contains("100.0 MB per file", picker, StringComparison.Ordinal);
+            Assert.Contains("200.0 MB per upload", picker, StringComparison.Ordinal);
+            Assert.Contains("data-max-bytes=\"100000000\"", picker, StringComparison.Ordinal);
+            Assert.Contains("data-max-total=\"200000000\"", picker, StringComparison.Ordinal);
+            Assert.DoesNotContain("MiB", picker, StringComparison.Ordinal);
+        }
+
+        // The declared card still carries the reference, registration ·
+        // claimant, Principal and stage; nothing is said beneath it.
+        var declared = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload?caseId={caseId:D}");
+        Assert.Contains("data-upload-declared", declared, StringComparison.Ordinal);
+        Assert.Contains("data-upload-destination", declared, StringComparison.Ordinal);
+        Assert.Contains(caseReference, declared, StringComparison.Ordinal);
+        Assert.Contains("AB12", declared, StringComparison.Ordinal);
+        Assert.Contains("Fixture Claimant", declared, StringComparison.Ordinal);
+        Assert.Contains($"<p>{QdosPrincipal.Code}</p>", declared, StringComparison.Ordinal);
+        Assert.Contains("class=\"status status--navy\">Review</span>", declared, StringComparison.Ordinal);
+        Assert.DoesNotContain("go straight to this Case", declared, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The same PDF through the generic Upload page: no plate, no principal,
     /// so it becomes an Unidentified item and waits for a destination. Adding
     /// it to a Case files the PDF and its photographs on that Case and resolves
