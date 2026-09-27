@@ -6,11 +6,12 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// The one place a case assessment field row is materialised with its
 /// provenance. The assessment save and the Case save write the whole surface
-/// through it, the valuation adoption writes <c>assessment.values.engineer</c>,
-/// <c>assessment.values.retail</c> and <c>assessment.values.trade</c> through
-/// it, and the vehicle lookup and the original-report prefill write the values
-/// they fill through it, so the row shape and the provenance stamped on it
-/// have exactly one owner. A recorded value is the Case's value whoever
+/// through it, <c>assessment.values.engineer</c>, <c>assessment.values.retail</c>
+/// and <c>assessment.values.trade</c> among the rest as ordinary fields, and
+/// the vehicle lookup, the report date a generation records and the
+/// original-report prefill write the values they fill through it, so the row
+/// shape and the provenance stamped on it have exactly one owner. A recorded
+/// value is the Case's value whoever
 /// recorded it (operator, 25 September 2026); there is no confirmation state.
 /// </summary>
 internal static class AssessmentFieldWriter

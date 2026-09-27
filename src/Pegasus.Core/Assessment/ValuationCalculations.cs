@@ -689,9 +689,10 @@ public sealed class RemoveValuationPreset(IValuationPresetStore store) : IRemove
 
 /// <summary>
 /// Shows the Engineer what the selection comes to. It reads the same basis
-/// and runs the same arithmetic the adoption will, and writes nothing: an
-/// Engineer's Value changes only when a Case Save adopts a changed
-/// calculation.
+/// and runs the same arithmetic the Save will, and writes nothing: the result
+/// fills the Engineer's Value box on screen, and the Case Save records that
+/// box like any field and, when the calculation changed since the page
+/// opened, the calculation against its basis card.
 /// </summary>
 public sealed class PreviewValuationCalculation(IAppliedValuationStore store)
     : IPreviewValuationCalculation
