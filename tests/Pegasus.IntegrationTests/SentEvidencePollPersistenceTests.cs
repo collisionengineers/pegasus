@@ -474,8 +474,7 @@ public sealed class SentEvidencePollPersistenceTests
                 triageId,
                 4,
                 staffActor,
-                "sent-poll-auto-link-complete",
-                "Finding and exact response evidence confirmed")
+                "sent-poll-auto-link-complete")
             { EditLeaseToken = completionLease.Token },
             default);
         Assert.Equal(TriageState.Completed, completed.State);

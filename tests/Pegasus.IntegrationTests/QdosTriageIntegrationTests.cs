@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using System.Text;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
@@ -143,6 +142,11 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Single(await GetEvaluationRevisionsAsync(factory.Database, blockedReceiptId));
     }
 
+    /// <summary>
+    /// The Triage Case page has no Edit step: each action posts once and its
+    /// save claims and releases the Triage edit scope itself. Completion needs
+    /// a recorded finding and nothing else: no reason and no sent reply.
+    /// </summary>
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task AuthenticatedTriagePageExecutesLifecycleWithVersionsAndPermanentHistory()
@@ -158,8 +162,6 @@ public sealed partial class QdosTriageIntegrationTests
         using var detailResponse = await client.GetAsync($"/Cases/{triageId:D}");
         var detailHtml = await detailResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
-        // The record is one container now: its registration and state are the
-        // header, not a "Triage record" panel among stacked panels.
         Assert.Contains("class=\"record triage-record\"", detailHtml, StringComparison.Ordinal);
         // A Triage Case has the Files every Case has, before its Notes.
         var filesAt = detailHtml.IndexOf("id=\"section-files\"", StringComparison.Ordinal);
@@ -167,62 +169,33 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.True(
             filesAt < detailHtml.IndexOf(">Notes</h2>", StringComparison.Ordinal),
             "The Files panel must come before Notes.");
-        Assert.DoesNotContain(
-            "name=\"caseEditLeaseToken\"",
-            detailHtml,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"caseEditLeaseToken\"", detailHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"editLeaseToken\"", detailHtml, StringComparison.Ordinal);
 
-        // The record's own identifiers are internal. An operator cannot act on
-        // a receipt GUID, an evaluation revision or a source hash, and none of
-        // them is printed any more.
+        // The record's own identifiers are internal and never printed.
         Assert.DoesNotContain("Source SHA-256", detailHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Evaluation revision", detailHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(triage.Record.Origin!.SourceHash, detailHtml, StringComparison.Ordinal);
 
-        // Completion keeps its place with its condition named, rather than
-        // disappearing until it happens to work.
-        Assert.Contains(
-            "Available once a finding is recorded",
-            detailHtml,
-            StringComparison.Ordinal);
-
-        // Assignment is a button and a small dialog carrying the roster, not
-        // an inline picker stretching the record bar (operator review 28).
-        Assert.Contains(
-            "data-dialog-open=\"triage-assign-dialog\"",
-            detailHtml,
-            StringComparison.Ordinal);
-        Assert.Contains("Assign to Engineer", detailHtml, StringComparison.Ordinal);
-        Assert.Contains(
-            "data-dialog=\"triage-assign-dialog\"",
-            detailHtml,
-            StringComparison.Ordinal);
+        // Complete is offered only once a finding is recorded.
+        Assert.DoesNotContain("data-triage-complete", detailHtml, StringComparison.Ordinal);
+        Assert.Contains("data-dialog=\"triage-assign-dialog\"", detailHtml, StringComparison.Ordinal);
         Assert.Contains("id=\"triage-assignee\"", detailHtml, StringComparison.Ordinal);
 
-        // The origin is offered as Open message only when a retained message
-        // exists (v26, 405faa39a). This request was submitted directly, with no
-        // retained message, so there is none to open and no receipt page instead.
+        // This request was submitted directly, with no retained message, so
+        // there is no message to open and no receipt page instead.
         Assert.DoesNotContain("data-triage-action=\"open-message\"", detailHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("View email", detailHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "View retained source",
-            detailHtml,
-            StringComparison.Ordinal);
         var antiforgeryToken = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
-
-        _ = await PostActionAsync(
+        var assignedHtml = await PostActionAsync(
             client,
             triageId,
             antiforgeryToken,
             0,
             "assign",
-            "Claimed by the reviewing operator",
-            // The engineer is named explicitly now; nothing defaults to the
-            // signed-in staff member.
-            KeyValuePair.Create(
-                "assigneeId",
-                DevelopmentOfflineIdentity.AdministratorId.ToString("D")));
+            reason: null,
+            KeyValuePair.Create("assigneeId", DevelopmentOfflineIdentity.AdministratorId.ToString("D")));
+        Assert.Contains("Assigned to ", assignedHtml, StringComparison.Ordinal);
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(1, triage.Record.Version);
         Assert.Equal(DevelopmentOfflineIdentity.AdministratorId, triage.Record.AssigneeId);
@@ -239,7 +212,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(1, triage.Record.Version);
         Assert.Equal(2, triage.History.Count);
 
-        _ = await PostActionAsync(
+        var recordedHtml = await PostActionAsync(
             client,
             triageId,
             antiforgeryToken,
@@ -248,70 +221,29 @@ public sealed partial class QdosTriageIntegrationTests
             "Reviewed assessment",
             KeyValuePair.Create("roadworthiness", nameof(RoadworthinessFinding.Unroadworthy)),
             KeyValuePair.Create("assessment", nameof(AssessmentFinding.TotalLoss)));
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.FindingRecorded, recordedHtml, StringComparison.Ordinal);
+        Assert.Contains("data-triage-complete", recordedHtml, StringComparison.Ordinal);
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(TriageState.FindingRecorded, triage.Record.State);
         Assert.Equal(2, triage.Record.Version);
         var initialFinding = Assert.Single(triage.Findings);
 
-        Guid sentEvidenceId;
-        var pollOutcomeId = Guid.NewGuid();
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var sentRecorder = scope.ServiceProvider.GetRequiredService<IRecordSentEmailEvidence>();
-            var sent = await sentRecorder.ExecuteAsync(
-                new(
-                    triageId,
-                    2,
-                    "sent-item:triage-lifecycle",
-                    "Triage response",
-                    ["recipient@example.test"],
-                    new string('a', 64),
-                    new DateTimeOffset(2031, 5, 6, 11, 0, 0, TimeSpan.Zero),
-                    new DateTimeOffset(2031, 5, 13, 11, 0, 0, TimeSpan.Zero),
-                    actor,
-                    Guid.NewGuid().ToString("N")),
-                CancellationToken.None);
-            sentEvidenceId = sent.Id;
-
-            await SeedReplyCandidateAsync(
-                factory.Database,
-                pollOutcomeId,
-                sent.MessageIdentity);
-        }
-
+        // One post, no reason and no response evidence.
+        Assert.Empty(triage.ResponseEvidence);
+        var completedHtml = await PostActionAsync(client, triageId, antiforgeryToken, 2, "complete", reason: null);
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.Completed, completedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Post-send correction", completedHtml, StringComparison.Ordinal);
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.RecordCorrection, completedHtml, StringComparison.Ordinal);
         triage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Equal(2, triage.Record.Version);
-        _ = await PostActionAsync(
-            client,
-            triageId,
-            antiforgeryToken,
-            2,
-            "link_response",
-            "Confirmed exact reply-chain evidence",
-            KeyValuePair.Create(
-                "responseCandidate",
-                $"{pollOutcomeId:D}|{sentEvidenceId:D}"));
-        triage = await GetTriageAsync(factory.Services, triageId);
+        Assert.Equal(TriageState.Completed, triage.Record.State);
         Assert.Equal(3, triage.Record.Version);
-        Assert.Equal(sentEvidenceId, Assert.Single(triage.ResponseEvidence).SentEvidenceId);
+        Assert.Equal(CompleteTriage.Reason, triage.History[^1].Reason);
 
-        var completedHtml = await PostActionAsync(
+        _ = await PostActionAsync(
             client,
             triageId,
             antiforgeryToken,
             3,
-            "complete",
-            "Finding and exact response confirmed");
-        triage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Equal(TriageState.Completed, triage.Record.State);
-        Assert.Equal(4, triage.Record.Version);
-        Assert.Contains("Post-send correction", completedHtml, StringComparison.Ordinal);
-
-        _ = await PostActionAsync(
-            client,
-            triageId,
-            antiforgeryToken,
-            4,
             "supersede_finding",
             "Correction after further retained evidence",
             KeyValuePair.Create("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)),
@@ -319,35 +251,20 @@ public sealed partial class QdosTriageIntegrationTests
             KeyValuePair.Create("supersedesFindingId", initialFinding.Id.ToString("D")));
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(TriageState.FindingRecorded, triage.Record.State);
-        Assert.Equal(5, triage.Record.Version);
+        Assert.Equal(4, triage.Record.Version);
         Assert.Equal(initialFinding.Id, triage.Findings.Single(
             finding => finding.SupersedesFindingId is not null).SupersedesFindingId);
-        Assert.Empty(triage.ResponseEvidence);
-
-        var completionWithoutNewResponse = await PostActionAsync(
-            client,
-            triageId,
-            antiforgeryToken,
-            5,
-            "complete",
-            "Old response evidence must not satisfy a corrected finding");
-        Assert.Contains(
-            "completion requires exactly one replied Sent email evidence link",
-            completionWithoutNewResponse,
-            StringComparison.Ordinal);
-        triage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Equal(5, triage.Record.Version);
 
         _ = await PostActionAsync(
             client,
             triageId,
             antiforgeryToken,
-            5,
+            4,
             "cancel",
             "Provider withdrew the request");
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(TriageState.Cancelled, triage.Record.State);
-        Assert.Equal(6, triage.Record.Version);
+        Assert.Equal(5, triage.Record.Version);
 
         var caseId = await SeedCaseAsync(factory.Services, receiptId);
         var otherHolder = ActionActor.Staff(
@@ -371,36 +288,19 @@ public sealed partial class QdosTriageIntegrationTests
             client,
             triageId,
             antiforgeryToken,
-            6,
+            5,
             "link_case",
             "Must not bypass another holder",
             KeyValuePair.Create("caseId", caseId.ToString("D")));
         // The holder is disclosed by staff account, never by identifier, and the wording and
         // clock are the ones the case workspace uses.
-        Assert.Contains(
-            "Case locked - ",
-            unavailableCaseHtml,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "is editing the case",
-            unavailableCaseHtml,
-            StringComparison.Ordinal);
-        // An open editor keeps its own lease alive, so this names no time.
-        Assert.DoesNotContain(
-            "Editing becomes available",
-            unavailableCaseHtml,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            otherHolder.SubjectId,
-            unavailableCaseHtml,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(
-            "value=\"link_case\"",
-            unavailableCaseHtml,
-            StringComparison.Ordinal);
+        Assert.Contains("Case locked - ", unavailableCaseHtml, StringComparison.Ordinal);
+        Assert.Contains("is editing the case", unavailableCaseHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Editing becomes available", unavailableCaseHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(otherHolder.SubjectId, unavailableCaseHtml, StringComparison.OrdinalIgnoreCase);
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Null(triage.Record.LinkedInstructionCaseId);
-        Assert.Equal(6, triage.Record.Version);
+        Assert.Equal(5, triage.Record.Version);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>().ReleaseAsync(
@@ -412,46 +312,46 @@ public sealed partial class QdosTriageIntegrationTests
                 CancellationToken.None);
         }
 
+        var linkedHtml = await PostActionAsync(
+            client,
+            triageId,
+            antiforgeryToken,
+            5,
+            "link_case",
+            "Associated later instruction",
+            KeyValuePair.Create("caseId", caseId.ToString("D")));
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.CaseLinked, linkedHtml, StringComparison.Ordinal);
+        triage = await GetTriageAsync(factory.Services, triageId);
+        Assert.Equal(caseId, triage.Record.LinkedInstructionCaseId);
+        Assert.Equal(6, triage.Record.Version);
         _ = await PostActionAsync(
             client,
             triageId,
             antiforgeryToken,
             6,
-            "link_case",
-            "Associated later instruction",
-            KeyValuePair.Create("caseId", caseId.ToString("D")));
-        triage = await GetTriageAsync(factory.Services, triageId);
-        Assert.Equal(caseId, triage.Record.LinkedInstructionCaseId);
-        Assert.Equal(7, triage.Record.Version);
-        _ = await PostActionAsync(
-            client,
-            triageId,
-            antiforgeryToken,
-            7,
             "unlink_case",
             "Association corrected",
             KeyValuePair.Create("caseId", caseId.ToString("D")));
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Null(triage.Record.LinkedInstructionCaseId);
-        Assert.Equal(8, triage.Record.Version);
+        Assert.Equal(7, triage.Record.Version);
         Assert.Equal(TriageState.Cancelled, triage.Record.State);
 
         _ = await PostActionAsync(
             client,
             triageId,
             antiforgeryToken,
-            8,
+            7,
             "reopen",
             "Further review required");
         triage = await GetTriageAsync(factory.Services, triageId);
         Assert.Equal(TriageState.Open, triage.Record.State);
-        Assert.Equal(9, triage.Record.Version);
+        Assert.Equal(8, triage.Record.Version);
         Assert.Collection(
             triage.History,
             item => Assert.Equal("triage_created", item.EventType),
             item => Assert.Equal("triage_assigned", item.EventType),
             item => Assert.Equal("triage_finding_recorded", item.EventType),
-            item => Assert.Equal("triage_response_linked", item.EventType),
             item => Assert.Equal("triage_state_completed", item.EventType),
             item => Assert.Equal("triage_finding_superseded", item.EventType),
             item => Assert.Equal("triage_state_cancelled", item.EventType),
@@ -469,16 +369,21 @@ public sealed partial class QdosTriageIntegrationTests
             nameof(Pegasus.Core.Identity.ActorKind.SystemWorker),
             triage.History[0].ActorKind);
 
+        // Every save ended its own hold: nothing is left holding the record.
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            Assert.Null(await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().GetActiveAsync(
+                EditScopeKind.Triage,
+                triageId,
+                ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                CancellationToken.None));
+        }
+
         using var finalResponse = await client.GetAsync($"/Cases/{triageId:D}");
         var finalHtml = await finalResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, finalResponse.StatusCode);
-        // The panel is named "Notes"; its entries are still the one permanent,
-        // attributed history, and nothing offers to assign to whoever is
-        // signed in.
         Assert.Contains(">Notes</h2>", finalHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Assign to me", finalHtml, StringComparison.Ordinal);
         Assert.Contains("Case unlinked", finalHtml, StringComparison.Ordinal);
-
     }
 
     /// <summary>
@@ -537,33 +442,30 @@ public sealed partial class QdosTriageIntegrationTests
             await queries.GetAsync(triageId, CancellationToken.None));
     }
 
+    /// <summary>
+    /// One Triage action, posted once as the page posts it: no Edit step and
+    /// no edit token. Link and Unlink case redirect back to the record.
+    /// </summary>
     private static async Task<string> PostActionAsync(
         HttpClient client,
         Guid triageId,
         string antiforgeryToken,
         long expectedVersion,
         string actionName,
-        string reason,
+        string? reason,
         params KeyValuePair<string, string>[] additionalFields)
     {
-        var editPage = await OpenEditAsync(client, triageId, expectedVersion, antiforgeryToken);
-        var editLeaseToken = TriageEditLeaseTokenRegex().Matches(editPage)
-            .Select(match => Value(match.Value))
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        if (string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            return editPage;
-        }
-
         var fields = new List<KeyValuePair<string, string>>
         {
             KeyValuePair.Create("__RequestVerificationToken", antiforgeryToken),
             KeyValuePair.Create("expectedVersion", expectedVersion.ToString(CultureInfo.InvariantCulture)),
             KeyValuePair.Create("operationKey", Guid.NewGuid().ToString("N")),
-            KeyValuePair.Create("actionName", actionName),
-            KeyValuePair.Create("reason", reason),
-            KeyValuePair.Create("editLeaseToken", editLeaseToken)
+            KeyValuePair.Create("actionName", actionName)
         };
+        if (reason is not null)
+        {
+            fields.Add(KeyValuePair.Create("reason", reason));
+        }
         fields.AddRange(additionalFields);
 
         using var response = await client.PostAsync(
@@ -585,31 +487,6 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return html;
     }
-
-    private static async Task<string> OpenEditAsync(
-        HttpClient client,
-        Guid triageId,
-        long expectedVersion,
-        string antiforgeryToken)
-    {
-        using var response = await client.PostAsync(
-            $"/Cases/{triageId:D}?handler=TriageEdit",
-            new FormUrlEncodedContent(
-            [
-                KeyValuePair.Create("__RequestVerificationToken", antiforgeryToken),
-                KeyValuePair.Create("expectedVersion", expectedVersion.ToString(CultureInfo.InvariantCulture))
-            ]));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    private static string Value(string tag)
-    {
-        var match = TriageEditLeaseTokenValueRegex().Match(tag);
-        Assert.True(match.Success);
-        return match.Groups["value"].Value;
-    }
-
 
     private static async Task<Guid> SeedCaseAsync(IServiceProvider services, Guid receiptId)
     {
@@ -668,9 +545,4 @@ public sealed partial class QdosTriageIntegrationTests
     }
     private sealed record EvaluationRevision(Guid Id, int Revision);
 
-    [GeneratedRegex("<input[^>]*name=\"editLeaseToken\"[^>]*>", RegexOptions.IgnoreCase)]
-    private static partial Regex TriageEditLeaseTokenRegex();
-
-    [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)]
-    private static partial Regex TriageEditLeaseTokenValueRegex();
 }

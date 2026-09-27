@@ -32,13 +32,12 @@ public static class CaseLinkAuthority
         ArgumentNullException.ThrowIfNull(editScopes);
         if (destination.IsTriageCase)
         {
-            var scope = await editScopes.ClaimAsync(
-                new ClaimEditScopeRequest(
-                    EditScopeKind.Triage,
-                    destination.CaseId,
-                    expectedVersion,
-                    actor,
-                    operationKey),
+            var scope = await TriageWriteAuthority.ClaimAsync(
+                editScopes,
+                destination.CaseId,
+                expectedVersion,
+                actor,
+                operationKey,
                 cancellationToken);
             return new(destination.CaseId, true, scope.RecordVersion, scope.Token);
         }

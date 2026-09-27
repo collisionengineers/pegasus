@@ -188,6 +188,67 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The Triage Case page's own words: each action's notice, the one Assign
+    /// control and the reply the correspondence panel offers (26 September 2026).
+    /// </summary>
+    public static class Triage
+    {
+        public const string FindingRecorded = "Finding recorded.";
+        public const string Completed = "Triage completed.";
+        public static string AssignedTo(string name) => $"Assigned to {name}.";
+        public const string Unassigned = "Unassigned.";
+        public const string AwaitingInformation = "Now awaiting information.";
+        public const string Cancelled = "Triage cancelled.";
+        public const string Reopened = "Triage reopened.";
+        public const string CaseLinked = "Case linked.";
+        public const string CaseUnlinked = "Case unlinked.";
+        public const string NoteAdded = "Note added.";
+        public const string ResponseLinked = "Response evidence linked.";
+        public const string ResponseUnlinked = "Response evidence unlinked.";
+        public const string Changed = "This Triage record changed while you were working. Reload and try again.";
+        public const string Expired = "Editing expired before this change was saved. Reload and try again.";
+        public const string ChooseAssignee = "Choose who to assign.";
+
+        public const string Assignee = "Assignee";
+        public const string Assign = "Assign";
+        public const string Reassign = "Reassign";
+        public const string Unassign = "Unassign";
+        public const string NoAssignee = "Unassigned";
+        public static string You(string name) => $"{name} (you)";
+        public const string Case = "Case";
+        public const string NoCase = "None";
+        public const string OpenCase = "Open the case";
+        public const string Cancel = "Cancel";
+
+        public const string Determinations = "Determinations";
+        public const string SaveDeterminations = "Save determinations";
+        public const string RecordCorrection = "Record correction";
+        public const string CompleteTriage = "Complete Triage";
+        public const string AwaitInformation = "Await information";
+        public const string CancelTriage = "Cancel Triage";
+        public const string Reopen = "Reopen";
+
+        public const string ReplyWithOutcome = "Reply with outcome";
+        public const string ChaserCorrespondence = "Chaser correspondence";
+        public const string SendChaser = "Send chaser";
+        public const string SendReply = "Send reply";
+        public const string ReconcileStatus = "Reconcile status";
+        public const string NoReplyWhenCancelled = "A cancelled Triage has no reply to send.";
+        public const string ReplyNeedsEmail = "A reply can only be sent for a Triage that came by e-mail.";
+
+        public static string Sent(Pegasus.Core.Operations.StaffMailPurpose purpose) =>
+            purpose == Pegasus.Core.Operations.StaffMailPurpose.TriageOutcomeReply ? "Reply sent." : "Chaser sent.";
+
+        public static string SendStatus(
+            Pegasus.Core.Operations.StaffMailPurpose purpose,
+            Pegasus.Core.Operations.StaffMailState state) =>
+            $"{(purpose == Pegasus.Core.Operations.StaffMailPurpose.TriageOutcomeReply ? "Reply" : "Chaser")} status: {StaffMail.State(state)}.";
+
+        public static string LatestSendStatus(Pegasus.Core.Operations.StaffMailState state) =>
+            $"Latest send: {StaffMail.State(state)}";
+    }
+
+    /// <summary>
     /// The state a staff "Link to case" destination shows: a Case's stage, or
     /// a Triage Case's Triage state.
     /// </summary>
@@ -777,7 +838,7 @@ public static class OperatorLabels
         public const string Assigned = "The Case was assigned.";
         public const string TriageAssignedToYou = "The Triage was assigned to you.";
         public const string AssignRefused = "The Case was not assigned because it changed, someone is editing it, or the action is not permitted.";
-        public const string TriageAssignRefused = "The Triage was not assigned because it changed or the action is not permitted.";
+        public const string TriageAssignRefused = "The Triage was not assigned because it changed, someone is editing it, or the action is not permitted.";
         public const string JobCompleted = "The AI job was completed.";
         public const string JobRefused = "The AI job changed before it could be completed. Refresh and try again.";
     }

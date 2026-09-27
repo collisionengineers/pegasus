@@ -612,16 +612,14 @@ tbody tr:hover{background:#f3f6f7}
 .preset-table th:nth-child(2),.preset-table td:nth-child(2){width:160px;text-align:right;font-variant-numeric:tabular-nums}
 .preset-table td .cluster{flex-wrap:nowrap}
 @media(max-width:540px){.settings-line{align-items:flex-start;flex-direction:column}}
-.triage-workspace,.unidentified-workspace{align-items:start}
-.triage-source-panel{order:-1}
-.triage-record-actions,.triage-assignment-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.unidentified-workspace{align-items:start}
+.triage-record-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .unidentified-resolution-panel .panel-body{align-items:flex-start}
 .received-linked-record{margin-bottom:10px}
 .received-linked-record .record-ribbon{margin-bottom:0}
 .received-source-details{display:block;border:1px solid var(--line);background:var(--surface)}
 .received-source-details>summary{cursor:pointer;padding:10px 14px;font-weight:650}
 .received-source-details-body{padding:0 14px 14px}
-@media(max-width:760px){.triage-source-panel{order:initial}}
 .mail-compose-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(19,20,21,.62)}
 .dialog.mail-compose-dialog{width:min(660px,calc(100vw - 32px));height:min(660px,calc(100vh - 40px));max-height:none;display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
 .mail-compose-dialog .dialog-head{padding:10px 16px}

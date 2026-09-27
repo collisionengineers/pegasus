@@ -139,6 +139,96 @@ public sealed class TriageReplayTests
         Assert.Equal(0, store.MutationCount);
     }
 
+    /// <summary>
+    /// Complete and Await information ask for no reason: each writes its own
+    /// fixed history text into the one state change the store records.
+    /// </summary>
+    [Theory]
+    [InlineData(ReplayCommand.Complete, TriageState.FindingRecorded, CompleteTriage.Reason)]
+    [InlineData(ReplayCommand.AwaitInformation, TriageState.Open, AwaitTriageInformation.Reason)]
+    [InlineData(ReplayCommand.AwaitInformation, TriageState.FindingRecorded, AwaitTriageInformation.Reason)]
+    public async Task AReasonlessTransitionWritesItsFixedHistoryText(
+        ReplayCommand command,
+        TriageState current,
+        string expectedText)
+    {
+        var store = new ReplayStore
+        {
+            Current = CreateDetail(current),
+            AcceptsStateChange = true
+        };
+
+        await ExecuteAsync(command, store);
+
+        var changed = Assert.IsType<TriageMutationRequest>(store.StateChange);
+        Assert.Equal(expectedText, changed.Reason);
+        Assert.Equal(OperationKey(command), changed.OperationKey);
+        Assert.Equal(ResultState(command), store.TargetState);
+        Assert.Equal(1, store.MutationCount);
+    }
+
+    /// <summary>
+    /// Unassign asks for no reason either: Core writes its fixed history
+    /// text into the one mutation the store records.
+    /// </summary>
+    [Fact]
+    public async Task UnassignWritesItsFixedHistoryText()
+    {
+        var store = new ReplayStore
+        {
+            Current = CreateDetail(TriageState.Open),
+            AcceptsUnassign = true
+        };
+
+        await new UnassignTriage(store).ExecuteAsync(
+            new TriageTransitionRequest(TriageCaseId, 3, Actor, "triage-replay-unassign"),
+            CancellationToken.None);
+
+        var unassigned = Assert.IsType<TriageMutationRequest>(store.Unassigned);
+        Assert.Equal(UnassignTriage.Reason, unassigned.Reason);
+        Assert.Equal("triage-replay-unassign", unassigned.OperationKey);
+        Assert.Equal(3, unassigned.ExpectedVersion);
+        Assert.Equal(1, store.MutationCount);
+    }
+
+    [Theory]
+    [InlineData(TriageState.Open)]
+    [InlineData(TriageState.AwaitingInformation)]
+    [InlineData(TriageState.Completed)]
+    [InlineData(TriageState.Cancelled)]
+    public async Task CompleteIsRefusedInEveryStateButFindingRecorded(TriageState current)
+    {
+        var store = new ReplayStore
+        {
+            Current = CreateDetail(current),
+            AcceptsStateChange = true
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ExecuteAsync(ReplayCommand.Complete, store));
+
+        Assert.Null(store.StateChange);
+        Assert.Equal(0, store.MutationCount);
+    }
+
+    [Theory]
+    [InlineData(TriageState.AwaitingInformation)]
+    [InlineData(TriageState.Completed)]
+    [InlineData(TriageState.Cancelled)]
+    public async Task AwaitInformationKeepsItsStateRule(TriageState current)
+    {
+        var store = new ReplayStore
+        {
+            Current = CreateDetail(current),
+            AcceptsStateChange = true
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ExecuteAsync(ReplayCommand.AwaitInformation, store));
+
+        Assert.Null(store.StateChange);
+    }
+
     private static Task<TriageRecord> ExecuteAsync(
         ReplayCommand command,
         ITriageStore store) => command switch
@@ -150,10 +240,10 @@ public sealed class TriageReplayTests
             FindingRequest(command, superseding: true),
             CancellationToken.None),
         ReplayCommand.AwaitInformation => new AwaitTriageInformation(store).ExecuteAsync(
-            MutationRequest(command),
+            TransitionRequest(command),
             CancellationToken.None),
         ReplayCommand.Complete => new CompleteTriage(store).ExecuteAsync(
-            MutationRequest(command),
+            TransitionRequest(command),
             CancellationToken.None),
         ReplayCommand.Cancel => new CancelTriage(store).ExecuteAsync(
             MutationRequest(command),
@@ -182,6 +272,12 @@ public sealed class TriageReplayTests
         Actor,
         OperationKey(command),
         "Required lifecycle transition");
+
+    private static TriageTransitionRequest TransitionRequest(ReplayCommand command) => new(
+        TriageCaseId,
+        3,
+        Actor,
+        OperationKey(command));
 
     private static string OperationKey(ReplayCommand command) =>
         $"triage-replay-{command}";
@@ -281,6 +377,18 @@ public sealed class TriageReplayTests
 
         public int MutationCount { get; private set; }
 
+        /// <summary>A state change is recorded and answered rather than refused.</summary>
+        public bool AcceptsStateChange { get; init; }
+
+        public TriageMutationRequest? StateChange { get; private set; }
+
+        /// <summary>An unassignment is recorded and answered rather than refused.</summary>
+        public bool AcceptsUnassign { get; init; }
+
+        public TriageMutationRequest? Unassigned { get; private set; }
+
+        public TriageState? TargetState { get; private set; }
+
         public Task<TriageOperationReplay?> ProbeRecordFindingReplayAsync(
             RecordTriageFindingRequest request,
             CancellationToken cancellationToken) =>
@@ -350,7 +458,17 @@ public sealed class TriageReplayTests
 
         public Task<TriageRecord> UnassignAsync(
             TriageMutationRequest request,
-            CancellationToken cancellationToken) => UnexpectedMutation<TriageRecord>();
+            CancellationToken cancellationToken)
+        {
+            if (!AcceptsUnassign)
+            {
+                return UnexpectedMutation<TriageRecord>();
+            }
+
+            MutationCount++;
+            Unassigned = request;
+            return Task.FromResult(CreateRecord(TriageState.Open, request.ExpectedVersion + 1));
+        }
 
         public Task<TriageRecord> RecordFindingAsync(
             RecordTriageFindingRequest request,
@@ -371,7 +489,18 @@ public sealed class TriageReplayTests
         public Task<TriageRecord> ChangeStateAsync(
             TriageMutationRequest request,
             TriageState targetState,
-            CancellationToken cancellationToken) => UnexpectedMutation<TriageRecord>();
+            CancellationToken cancellationToken)
+        {
+            if (!AcceptsStateChange)
+            {
+                return UnexpectedMutation<TriageRecord>();
+            }
+
+            MutationCount++;
+            StateChange = request;
+            TargetState = targetState;
+            return Task.FromResult(CreateRecord(targetState, request.ExpectedVersion + 1));
+        }
 
         public Task LinkCaseAsync(
             TriageCaseLinkRequest request,

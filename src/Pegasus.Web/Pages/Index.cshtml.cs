@@ -39,6 +39,8 @@ public partial class IndexModel(
     IAssignCaseEngineer assignEngineer,
     IAssignCaseToMe assignCaseToMe,
     IAssignTriageToMe assignTriageToMe,
+    IEditScopeLeases editScopes,
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     IConfirmAiJob confirmAiJob,
     TimeProvider timeProvider,
     ILogger<IndexModel> logger) : StaffPageModel
@@ -276,7 +278,10 @@ public partial class IndexModel(
             Labels.AssignedToYou,
             cancellationToken);
 
-    /// <summary>Assign to me on a Triage without an assignee (P8).</summary>
+    /// <summary>
+    /// Assign to me on a Triage without an assignee (P8). The Triage edit scope
+    /// is claimed for this one save and ends with it (<see cref="TriageWriteAuthority"/>).
+    /// </summary>
     public async Task<IActionResult> OnPostAssignTriageToMeAsync(
         Guid triageId,
         string operationKey,
@@ -292,14 +297,36 @@ public partial class IndexModel(
         {
             var detail = await getTriage.ExecuteAsync(new GetTriageQuery(triageId, actor), cancellationToken)
                 ?? throw new KeyNotFoundException("The Triage was not found.");
-            await assignTriageToMe.ExecuteAsync(
-                new AssignTriageToMeRequest(triageId, detail.Record.Version, actor, operationKey),
+            await TriageWriteAuthority.ExecuteAsync(
+                editScopes,
+                triageId,
+                detail.Record.Version,
+                actor,
+                operationKey,
+                logger,
+                token => assignTriageToMe.ExecuteAsync(
+                    new AssignTriageToMeRequest(triageId, detail.Record.Version, actor, operationKey)
+                    {
+                        EditLeaseToken = token
+                    },
+                    cancellationToken),
                 cancellationToken);
             StatusMessage = Labels.TriageAssignedToYou;
         }
         catch (StaffAuthorizationException)
         {
             return Forbid();
+        }
+        catch (EditScopeConflictException)
+        {
+            // Held by an Automation session or a colleague's save: say who,
+            // as the Triage page does.
+            ErrorMessage = await TriageWriteAuthority.DescribeHeldAsync(
+                editScopes,
+                describeEditAuthorityHolder,
+                triageId,
+                actor,
+                cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
