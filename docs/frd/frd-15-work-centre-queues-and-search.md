@@ -281,7 +281,9 @@ new note. There is no note edit and no note delete.
 its approved mailbox may send. It holds one reply form. Before Completed it
 is the chaser FRD-03 offers. Once Completed it is **Reply with outcome**: the
 same To, the subject "Re: {original subject}" and a body rendered from the
-outcome template, which staff edit before Send. The server decides which it
+Triage outcome template
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which staff
+edit before Send. The server decides which it
 is. The sent correspondence attaches to the Triage and is never a completion
 gate. Server-side transitions stay reachable where a handler exists.
 

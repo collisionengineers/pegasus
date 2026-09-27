@@ -193,6 +193,7 @@ exclusion.
 | EXT-13 | Independently licensed valuation-source adapters that preserve each source observation and version | [Valuation sources](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources) |
 | AI-07 | AI Assessor as a staff-selected Engineer option | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | MAIL-12 | Authenticated staff compose, reply, forward, and send email in Pegasus | [Outbound correspondence](frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence) |
+| MAIL-24 | Editable e-mail templates with placeholders | [E-mail templates](frd/frd-17-administration-workspace.md#e-mail-templates) |
 | EXT-17 | Tractable capture outside Pegasus, received as an emailed PDF | [Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts) |
 | CASE-31 | One accepted record feeds every report and fee note | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | ENG-01 | One canonical repair specification with route provenance | [Canonical repair specifications](frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications) |
