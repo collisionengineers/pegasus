@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -251,52 +252,10 @@ public sealed class ImageCaseCustodyIntegrationTests
             true,
             recognitionEngine: new FakeVrmRecognitionEngine());
         using var client = IntakeWebDriver.CreateClient(factory);
-        var pngBytes = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
-        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
-        var upload = await IntakeWebDriver.PostUploadManyAsync(
-            client,
-            form.AntiforgeryToken,
-            form.ExternalReceiptToken,
-            [
-                ("overview.png", "image/png", pngBytes),
-                ("close-up.png", "image/png", pngBytes)
-            ]);
-        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
-
-        Guid[] stagedReceiptIds;
-        await using (var lookupScope = factory.Services.CreateAsyncScope())
-        {
-            var groups = lookupScope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>();
-            var group = await groups.GetAsync(groupId);
-            stagedReceiptIds = group!.Members
-                .OrderBy(member => member.Ordinal)
-                .Select(member => member.StagedReceiptId)
-                .ToArray();
-        }
-        var memberReceiptIds = new Guid[stagedReceiptIds.Length];
-        for (var index = 0; index < stagedReceiptIds.Length; index++)
-        {
-            await using var drainScope = factory.Services.CreateAsyncScope();
-            var evaluation = await IntakeWebDriver.DrainStagedAsync(
-                drainScope.ServiceProvider,
-                stagedReceiptIds[index]);
-            memberReceiptIds[index] = evaluation.ProcessedReceiptId;
-        }
-
+        var pngBytes = PngBytes;
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
-        var register = services.GetRequiredService<IRegisterImageIntake>();
-        var origin = await resolver.ResolveOriginAsync(memberReceiptIds[0], CancellationToken.None);
-        var record = await register.ExecuteAsync(
-            new(
-                origin!,
-                "AB12CDE",
-                StaffActor(),
-                $"image-intake-register:group:{groupId:N}",
-                "Staff registered the whole submission group.",
-                SubmissionGroupId: groupId),
-            CancellationToken.None);
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
         Assert.Equal("AB12CDE-01", record.ImageIntakeReference);
 
         // Registration itself enqueued the custody work in-transaction:
@@ -323,16 +282,7 @@ public sealed class ImageCaseCustodyIntegrationTests
         // A redelivered queue message is a no-op replay.
         await processor.ExecuteAsync(createWorkId, CancellationToken.None);
 
-        Guid[] sourceAssetIds;
-        await using (var sourceContext = await contextFactory.CreateDbContextAsync())
-        {
-            var sources = await sourceContext.IntakeAssets.AsNoTracking()
-                .Where(asset => memberReceiptIds.Contains(asset.IntakeReceiptId)
-                    && asset.Kind == "source" && asset.Disposition == "source")
-                .Select(asset => new { asset.IntakeReceiptId, asset.Id })
-                .ToDictionaryAsync(asset => asset.IntakeReceiptId, asset => asset.Id);
-            sourceAssetIds = memberReceiptIds.Select(receiptId => sources[receiptId]).ToArray();
-        }
+        var sourceAssetIds = await PhotographIdsAsync(services, memberReceiptIds);
         var custodyRootDirectory = Path.Combine(
             factory.ArtifactDirectory, "custody", "cases", record.Id.ToString("N"));
         await using (var context = await contextFactory.CreateDbContextAsync())
@@ -390,69 +340,30 @@ public sealed class ImageCaseCustodyIntegrationTests
         // Merge into a formal case: the transition enqueues the fold and
         // commits regardless of external storage availability. The Case is a
         // standalone Audit, whose folder is named by its own a. Case/PO.
-        var caseId = await SeedCaseAsync(services, memberReceiptIds[0], "a.IMG26001", "audit");
-        var caseCustody = services.GetRequiredService<ICaseCustody>();
-        var caseRoot = await caseCustody.CreateCaseRootAsync(
-            caseId, "a.IMG26001", $"img-case-root:{caseId:N}", CancellationToken.None);
-        await using (var context = await contextFactory.CreateDbContextAsync())
-        {
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE Cases SET CustodyRootRemoteId = {caseRoot.RemoteId}, CustodyState = {"confirmed"} WHERE Id = {caseId}");
-        }
-
-        var store = services.GetRequiredService<IImageIntakeStore>();
-        var mutations = services.GetRequiredService<IIntakeMutationStore>();
-        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var (caseId, caseRootRemoteId) = await SeedCaseWithFolderAsync(
+            services, memberReceiptIds[0], "a.IMG26001", "audit");
         var workflows = services.GetRequiredService<ICaseWorkflowQueries>();
-        foreach (var receiptId in memberReceiptIds)
-        {
-            var workflow = await workflows.GetAsync(caseId, CancellationToken.None);
-            var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
-                new(caseId, workflow!.Version, StaffActor(), $"image-custody-link-lease:{receiptId:N}"),
-                CancellationToken.None);
-            var receipt = await receipts.GetAsync(receiptId, CancellationToken.None);
-            await mutations.LinkAsync(new(receiptId, caseId, receipt!.Version, workflow.Version,
-                lease.Token, StaffActor(), $"image-custody-link:{receiptId:N}",
-                "Staff confirmed this image belongs to the instruction Case."),
-                DateTimeOffset.UtcNow, CancellationToken.None);
-        }
-        var detail = await store.GetAsync(record.Id, CancellationToken.None);
-        var imageIntakeLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(
-                EditScopeKind.ImageIntake,
-                record.Id,
-                detail!.LifecycleVersion,
-                StaffActor(),
-                $"image-intake-merge-lease:{record.Origin.ReceiptId:N}"),
-            CancellationToken.None);
-        await store.MergeAsync(
-            new(
-                record.Id,
-                caseId,
-                StaffActor(),
-                $"image-intake-merge:{record.Origin.ReceiptId:N}",
-                "The Image-initiated case was merged into the linked formal Case.",
-                detail!.LifecycleVersion,
-                ExpectedStaffOriginAssociationVersion: 0)
-            {
-                EditLeaseToken = imageIntakeLease.Token
-            },
-            CancellationToken.None);
-
-        Guid mergeWorkId;
-        await using (var context = await contextFactory.CreateDbContextAsync())
-        {
-            var work = await context.ExternalWorkItems
-                .AsNoTracking()
-                .SingleAsync(item => item.ImageIntakeId == record.Id
-                    && item.Kind == ExternalWorkKinds.MergeImageCaseCustody);
-            Assert.Equal("pending", work.State);
-            Assert.Equal(caseId, work.CaseId);
-            mergeWorkId = work.Id;
-        }
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
 
         await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
         await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+
+        // Each photograph's filing has its own key under the fold's, so filing
+        // the same photographs again records nothing twice.
+        await using (var refiling = await contextFactory.CreateDbContextAsync())
+        {
+            Assert.Equal(
+                2,
+                await EfQueuedCustodyProcessor.RecordFoldedPhotographsAsync(
+                    refiling,
+                    await refiling.ImageIntakes.SingleAsync(item => item.Id == record.Id),
+                    await refiling.Cases.SingleAsync(item => item.Id == caseId),
+                    $"image-case-custody-merge:{record.Id:N}",
+                    await refiling.IntakeAssets.Where(asset => sourceAssetIds.Contains(asset.Id)).ToListAsync(),
+                    services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                    CancellationToken.None));
+            await refiling.SaveChangesAsync();
+        }
 
         await using (var assertContext = await contextFactory.CreateDbContextAsync())
         {
@@ -475,7 +386,7 @@ public sealed class ImageCaseCustodyIntegrationTests
             Assert.All(
                 await assertContext.IntakeAssets.AsNoTracking()
                     .Where(asset => sourceAssetIds.Contains(asset.Id)).ToListAsync(),
-                asset => Assert.Equal(caseRoot.RemoteId, asset.BoxParentFolderId));
+                asset => Assert.Equal(caseRootRemoteId, asset.BoxParentFolderId));
         }
         // The contents moved into the case's location and the emptied
         // image-case folder is gone.
@@ -578,6 +489,60 @@ public sealed class ImageCaseCustodyIntegrationTests
             CancellationToken.None);
         Assert.Empty(DocumentCustodyDurabilityTests.ImageBlockers(
             await preparations.ListForCaseAsync(caseId, CancellationToken.None)));
+    }
+
+    /// <summary>
+    /// The fold files exactly the photographs it moved. A photograph the
+    /// record shows that its folder never held, here one kept in holding,
+    /// has no file in the Case folder and is not filed.
+    /// </summary>
+    [Fact]
+    public async Task TheFoldFilesOnlyThePhotographsTheRecordsFolderHeld()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        var (record, memberReceiptIds) = await RegisterTwoPhotographsAsync(factory, client, services);
+        var photographIds = await PhotographIdsAsync(services, memberReceiptIds);
+        // The second member was routed elsewhere when the folder was stored,
+        // and its photograph is held in the holding folder.
+        await SetDecisionAsync(contextFactory, memberReceiptIds[1], IntakeDecision.NeedsSorting);
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            (await context.IntakeAssets.SingleAsync(asset => asset.Id == photographIds[1]))
+                .ConfirmCustody("holding-file", "holding-version", "holding-folder");
+            await context.SaveChangesAsync();
+        }
+        await processor.ExecuteAsync(
+            await WorkIdAsync(services, record.Id, ExternalWorkKinds.CreateImageCaseCustody),
+            CancellationToken.None);
+        await SetDecisionAsync(contextFactory, memberReceiptIds[1], IntakeDecision.ImageIntakeRegistered);
+        Assert.Equal(
+            2,
+            (await services.GetRequiredService<IImageIntakeQueries>()
+                .ListImagesAsync(record.Id, CancellationToken.None)).Count);
+
+        var (caseId, caseRootRemoteId) = await SeedCaseWithFolderAsync(services, memberReceiptIds[0], "IMG26005");
+        var mergeWorkId = await LinkAndMergeAsync(services, record, memberReceiptIds, caseId);
+        await processor.ExecuteAsync(mergeWorkId, CancellationToken.None);
+
+        await using var after = await contextFactory.CreateDbContextAsync();
+        var filed = Assert.Single(await after.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .ToListAsync());
+        Assert.Equal(
+            $"image-case-custody-merge:{record.Id:N}:photograph:{photographIds[0]:N}",
+            filed.OperationKey);
+        var assets = await after.IntakeAssets.AsNoTracking()
+            .Where(asset => photographIds.Contains(asset.Id))
+            .ToDictionaryAsync(asset => asset.Id);
+        Assert.Equal(caseRootRemoteId, assets[photographIds[0]].BoxParentFolderId);
+        Assert.Equal("holding-folder", assets[photographIds[1]].BoxParentFolderId);
+        Assert.Equal("holding-file", assets[photographIds[1]].BoxFileId);
     }
 
     /// <summary>
@@ -797,11 +762,169 @@ public sealed class ImageCaseCustodyIntegrationTests
         return id;
     }
 
+    /// <summary>
+    /// Two photographs uploaded together and registered as one Vehicle images
+    /// record, through the upload and registration staff use.
+    /// </summary>
+    private static async Task<(ImageIntakeRecord Record, Guid[] MemberReceiptIds)> RegisterTwoPhotographsAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        IServiceProvider services)
+    {
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", PngBytes),
+                ("close-up.png", "image/png", PngBytes)
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        var group = await services.GetRequiredService<IIntakeSubmissionGroupStore>().GetAsync(groupId);
+        var memberReceiptIds = new List<Guid>();
+        foreach (var member in group!.Members.OrderBy(member => member.Ordinal))
+        {
+            await using var drainScope = factory.Services.CreateAsyncScope();
+            memberReceiptIds.Add((await IntakeWebDriver.DrainStagedAsync(
+                drainScope.ServiceProvider, member.StagedReceiptId)).ProcessedReceiptId);
+        }
+
+        var origin = await services.GetRequiredService<IImageIntakeOriginResolver>()
+            .ResolveOriginAsync(memberReceiptIds[0], CancellationToken.None);
+        var record = await services.GetRequiredService<IRegisterImageIntake>().ExecuteAsync(
+            new(
+                origin!,
+                "AB12CDE",
+                StaffActor(),
+                $"image-intake-register:group:{groupId:N}",
+                "Staff registered the whole submission group.",
+                SubmissionGroupId: groupId),
+            CancellationToken.None);
+        return (record, [.. memberReceiptIds]);
+    }
+
+    /// <summary>Each member's photograph, in member order.</summary>
+    private static async Task<Guid[]> PhotographIdsAsync(IServiceProvider services, Guid[] memberReceiptIds)
+    {
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var sources = await context.IntakeAssets.AsNoTracking()
+            .Where(asset => memberReceiptIds.Contains(asset.IntakeReceiptId)
+                && asset.Kind == "source" && asset.Disposition == "source")
+            .Select(asset => new { asset.IntakeReceiptId, asset.Id })
+            .ToDictionaryAsync(asset => asset.IntakeReceiptId, asset => asset.Id);
+        return [.. memberReceiptIds.Select(receiptId => sources[receiptId])];
+    }
+
+    private static async Task<Guid> WorkIdAsync(IServiceProvider services, Guid imageIntakeId, string kind)
+    {
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        return await context.ExternalWorkItems.AsNoTracking()
+            .Where(item => item.ImageIntakeId == imageIntakeId && item.Kind == kind)
+            .Select(item => item.Id)
+            .SingleAsync();
+    }
+
+    private static async Task SetDecisionAsync(
+        IDbContextFactory<PegasusDbContext> contextFactory,
+        Guid receiptId,
+        IntakeDecision decision)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync();
+        (await context.IntakeReceipts.SingleAsync(item => item.Id == receiptId)).Decision =
+            EfIntakeReceiptStore.ToCode(decision);
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>A seeded Case whose evidence folder is stored.</summary>
+    private static async Task<(Guid CaseId, string CaseRootRemoteId)> SeedCaseWithFolderAsync(
+        IServiceProvider services,
+        Guid originReceiptId,
+        string reference,
+        string caseType = "inspection",
+        bool instructionComplete = true,
+        bool imagesComplete = true)
+    {
+        var caseId = await SeedCaseAsync(
+            services, originReceiptId, reference, caseType, instructionComplete, imagesComplete);
+        var caseRoot = await services.GetRequiredService<ICaseCustody>().CreateCaseRootAsync(
+            caseId, reference, $"img-case-root:{caseId:N}", CancellationToken.None);
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE Cases SET CustodyRootRemoteId = {caseRoot.RemoteId}, CustodyState = {"confirmed"} WHERE Id = {caseId}");
+        return (caseId, caseRoot.RemoteId);
+    }
+
+    /// <summary>
+    /// Staff link every member to the Case and merge the record into it. The
+    /// merge enqueues the fold, whose work item is returned.
+    /// </summary>
+    private static async Task<Guid> LinkAndMergeAsync(
+        IServiceProvider services,
+        ImageIntakeRecord record,
+        Guid[] memberReceiptIds,
+        Guid caseId)
+    {
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var mutations = services.GetRequiredService<IIntakeMutationStore>();
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var workflows = services.GetRequiredService<ICaseWorkflowQueries>();
+        foreach (var receiptId in memberReceiptIds)
+        {
+            var workflow = await workflows.GetAsync(caseId, CancellationToken.None);
+            var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+                new(caseId, workflow!.Version, StaffActor(), $"image-custody-link-lease:{receiptId:N}"),
+                CancellationToken.None);
+            var receipt = await receipts.GetAsync(receiptId, CancellationToken.None);
+            await mutations.LinkAsync(new(receiptId, caseId, receipt!.Version, workflow.Version,
+                lease.Token, StaffActor(), $"image-custody-link:{receiptId:N}",
+                "Staff confirmed this image belongs to the instruction Case."),
+                DateTimeOffset.UtcNow, CancellationToken.None);
+        }
+        var detail = await store.GetAsync(record.Id, CancellationToken.None);
+        var imageIntakeLease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
+            new(
+                EditScopeKind.ImageIntake,
+                record.Id,
+                detail!.LifecycleVersion,
+                StaffActor(),
+                $"image-intake-merge-lease:{record.Origin.ReceiptId:N}"),
+            CancellationToken.None);
+        await store.MergeAsync(
+            new(
+                record.Id,
+                caseId,
+                StaffActor(),
+                $"image-intake-merge:{record.Origin.ReceiptId:N}",
+                "The Image-initiated case was merged into the linked formal Case.",
+                detail!.LifecycleVersion,
+                ExpectedStaffOriginAssociationVersion: 0)
+            {
+                EditLeaseToken = imageIntakeLease.Token
+            },
+            CancellationToken.None);
+
+        await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var work = await context.ExternalWorkItems
+            .AsNoTracking()
+            .SingleAsync(item => item.ImageIntakeId == record.Id
+                && item.Kind == ExternalWorkKinds.MergeImageCaseCustody);
+        Assert.Equal("pending", work.State);
+        Assert.Equal(caseId, work.CaseId);
+        return work.Id;
+    }
+
     private static async Task<Guid> SeedCaseAsync(
         IServiceProvider services,
         Guid originReceiptId,
         string reference,
-        string caseType = "inspection")
+        string caseType = "inspection",
+        bool instructionComplete = true,
+        bool imagesComplete = true)
     {
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -817,10 +940,12 @@ public sealed class ImageCaseCustodyIntegrationTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {caseType}, {"not_ready"}, {"pending"}, {originReceiptId}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {caseType}, {"not_ready"}, {"pending"}, {originReceiptId}, {instructionComplete}, {imagesComplete}, {now}, {0L}, {Guid.NewGuid()})");
         await CaseWorkFixture.InsertPrimaryWorksAsync(context);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO CaseDataSnapshots (WorkId, OriginIntakeReceiptId, OriginSourceChannel, OriginExternalReceiptToken, OriginSourceHash, OriginReceivedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, CompletenessPolicyKey, CompletenessPolicyVersion, CompletenessPolicySatisfied, AcceptedAtUtc) VALUES ({caseId}, {originReceiptId}, {"manual_upload"}, {reference}, {1.ToString("X64", CultureInfo.InvariantCulture)}, {now}, {"image-case-custody-test-reader"}, {"1"}, {"image-case-custody-fixture"}, {1}, {reference}, {1}, {instructionComplete && imagesComplete}, {now})");
         return caseId;
     }
 
