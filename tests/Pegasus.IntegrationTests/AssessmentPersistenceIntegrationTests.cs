@@ -98,6 +98,13 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(1, contentStore.BatchReadCount);
         Assert.Equal(0, contentStore.SingleReadCount);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
+        // Box reads an exact file and version, so the preview's read names
+        // both: without them no image in the report can be read from Box.
+        Assert.All(contentStore.Reads, read =>
+        {
+            Assert.StartsWith("box-file-", read.Address.BoxFileId, StringComparison.Ordinal);
+            Assert.StartsWith("box-version-", read.Address.BoxVersionId, StringComparison.Ordinal);
+        });
         var projected = AssessmentReportProjection.Project(
             input with { ReportDate = new DateOnly(2026, 8, 19) });
         Assert.False(projected.IsReady);
@@ -406,8 +413,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     ["settlement.excess"] = "250.00"
                     // The findings and the valuation values are deliberately
                     // absent: a finding is recorded only by staff, and the
-                    // Engineer's Value and its basis card's retail and trade
-                    // are recorded only by a Case Save's adoption.
+                    // Engineer's Value and its retail and trade are staff
+                    // findings too.
                 }),
             CancellationToken.None);
 
@@ -1543,9 +1550,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
     /// <summary>
     /// Stream A review (comments 5560764306/5560667174, one staleness root
-    /// cause): adopting an Engineer's Value through the Case save changes
-    /// frozen report inputs — the confirmed Engineer's Value field and the
-    /// applied valuation — so it stales the Case's current generation inside
+    /// cause): recording a valuation calculation through the Case save changes
+    /// a frozen report input — the applied valuation — so it stales the
+    /// Case's current generation inside
     /// the save's own transaction, a replay returns before staling, and a
     /// superseded generation never moves.
     /// </summary>
@@ -2480,6 +2487,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     Sha256 = Convert.ToHexStringLower(
                         SHA256.HashData([(byte)ordinal])),
                     CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    BoxFileId = $"box-file-{ordinal}",
+                    BoxVersionId = $"box-version-{ordinal}",
                     CreatedAtUtc = StartUtc,
                     CreatedBy = "Staff:test",
                     IsCurrent = true
@@ -2496,17 +2505,26 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     SourceOccurrenceIdentity = $"photo:{ordinal}",
                     RecordedAtUtc = StartUtc,
                     OperationKey = $"seed-photo:{ordinal}",
-                    PreparationRole = ordinal switch
-                    {
-                        1 => nameof(CaseAssetReportRole.CloseUp),
-                        2 => nameof(CaseAssetReportRole.Overview),
-                        _ => nameof(CaseAssetReportRole.Supporting)
-                    },
-                    SupportingOrder = ordinal > 2 ? ordinal - 2 : null,
+                    InReport = true,
+                    SupportingOrder = ordinal,
                     PreparationVersion = 1,
                     PreparedBy = "Staff:test",
                     PreparedAtUtc = StartUtc
                 });
+            // The tag decides how an image prints: the first is the Close-up,
+            // the second the Overview, the rest Supporting.
+            if (ordinal <= 2)
+            {
+                context.Add(new DocumentOccurrenceTagEntity
+                {
+                    OccurrenceId = occurrenceId,
+                    TagId = ordinal == 1 ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId,
+                    AppliedByKind = nameof(ActorKind.Staff),
+                    AppliedBySubjectId = "test",
+                    AppliedAtUtc = StartUtc,
+                    OperationKey = $"seed-photo-tag:{ordinal}"
+                });
+            }
         }
         await context.SaveChangesAsync();
     }

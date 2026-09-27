@@ -84,17 +84,12 @@ public sealed class ReportRequirementOwnershipTests
             {
                 writers.Add("the damage derivation");
             }
-            // The Case Save's valuation adoption records these.
-            if (AssessmentVocabulary.AdoptedFindingPaths.Contains(path))
-            {
-                writers.Add("the valuation adoption");
-            }
             // The DVLA/DVSA lookup records these.
             if (AssessmentVocabulary.LookupDerivedPaths.Contains(path))
             {
                 writers.Add("the vehicle lookup");
             }
-            // None is the #834 defect; two means an adopted or derived path
+            // None is the #834 defect; two means a derived or lookup path
             // leaked into an editor.
             if (writers.Count != 1)
             {
@@ -142,12 +137,41 @@ public sealed class ReportRequirementOwnershipTests
         }
     }
 
+    /// <summary>
+    /// Every report blocker links the Case section that clears it. The
+    /// Sign-off Engineer has two homes (operator, 26 September 2026): staff
+    /// choose one on Case details, and its name and signature are the
+    /// account's, which an Administrator sets in Accounts, so that blocker
+    /// names Accounts and links no Case section.
+    /// </summary>
     [Fact]
     public void EveryReportBlockerLinksASectionTheCaseRecordHas()
     {
+        var reasons = ReportBlockerTriggers()
+            .SelectMany(input => CaseReportReadiness.Evaluate(input).Reasons)
+            .ToArray();
         Assert.All(
-            ReportBlockerTriggers().SelectMany(input => CaseReportReadiness.Evaluate(input).Reasons),
+            reasons.Where(item => item.Requirement != CaseReportReadiness.SignatoryRequirement),
             AssertLinks);
+        var signOff = reasons.Where(item => item.Requirement == CaseReportReadiness.SignatoryRequirement).ToArray();
+        Assert.Contains(CaseReportReadiness.SignOffEngineerNotChosen, signOff);
+        Assert.All(
+            signOff,
+            item =>
+            {
+                if (item == CaseReportReadiness.SignOffEngineerNotChosen)
+                {
+                    Assert.Equal("overview", CaseWorkspaceLabels.Report.BlockerSection(item));
+                    Assert.Equal("Choose the Sign-off Engineer on Case details.", item.HowToResolve);
+                    Assert.Equal(
+                        "Case details",
+                        OperatorLabels.CaseWorkspace.Sections.Single(section => section.Key == "overview").Label);
+                    return;
+                }
+
+                Assert.Null(CaseWorkspaceLabels.Report.BlockerSection(item));
+                Assert.Contains("in Accounts", item.HowToResolve, StringComparison.Ordinal);
+            });
     }
 
     [Fact]
@@ -218,7 +242,7 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(AssessmentVocabulary.VehicleTemporaryRepairsPossible, null, "settlement")]
     [InlineData(AssessmentVocabulary.VehicleTemporaryRepairMethod, null, "settlement")]
     [InlineData(AssessmentVocabulary.VehicleTemporaryRepairCost, null, "settlement")]
-    [InlineData(null, CaseReportReadiness.SignatoryRequirement, "overview")]
+    [InlineData(null, CaseReportReadiness.SignatoryRequirement, null)]
     [InlineData(null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.LabourRateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.CloseUpImageRequirement, "files")]
@@ -256,7 +280,6 @@ public sealed class ReportRequirementOwnershipTests
         {
             Assert.Contains(path, AssessmentVocabulary.Definitions);
             Assert.DoesNotContain(path, AssessmentVocabulary.DerivedPaths);
-            Assert.DoesNotContain(path, AssessmentVocabulary.AdoptedFindingPaths);
             Assert.DoesNotContain(path, AssessmentVocabulary.CaseOwnedPaths);
             Assert.False(CaseWorkspaceLabels.Editors.HasStaffEditor(path));
             // MCP lets the path through, so Core's field save names the refusal.
@@ -296,14 +319,11 @@ public sealed class ReportRequirementOwnershipTests
         var complete = Complete();
         yield return NothingElseRecorded(complete with { Fields = [], CaseOwned = NothingRecordedCaseOwned });
 
-        foreach (var category in AssessmentVocabulary.Definitions[AssessmentVocabulary.SalvageCategory].Codes!
-            .Where(code => !AssessmentReportContract.PrintsSalvageCategory(code)))
-        {
-            yield return NothingElseRecorded(With(
-                complete,
-                (AssessmentVocabulary.Outcome, "total_loss"),
-                (AssessmentVocabulary.SalvageCategory, category)));
-        }
+        yield return NothingElseRecorded(With(
+            complete,
+            (AssessmentVocabulary.Outcome, "total_loss"),
+            (AssessmentVocabulary.SalvageCategory, null),
+            (AssessmentVocabulary.SalvageValue, null)));
 
         yield return NothingElseRecorded(With(
             complete,
@@ -329,6 +349,14 @@ public sealed class ReportRequirementOwnershipTests
             (AssessmentVocabulary.ReportValuationCommentaryText, null),
             (AssessmentVocabulary.ReportIncludeUnrelatedDamage, "true"),
             (AssessmentVocabulary.DamageUnrelated, null)));
+        // An account is offered and the Case has none chosen.
+        yield return NothingElseRecorded(complete) with
+        {
+            EligibleSignOffEngineers =
+            [
+                new SignOffEngineerProfile(Guid.NewGuid(), "Ed Mawdsley", null, [1, 2, 3], "image/png", IsDefault: false),
+            ],
+        };
         yield return NothingElseRecorded(complete) with
         {
             CurrentEstimate = new RepairSpecificationVersion(
@@ -347,7 +375,7 @@ public sealed class ReportRequirementOwnershipTests
 
     /// <summary>
     /// Report readiness over <paramref name="assessment"/> with nothing else
-    /// recorded: no sign-off account, Current repair spec, adopted valuation
+    /// recorded: no sign-off account, Current repair spec, applied valuation
     /// or report image.
     /// </summary>
     private static CaseReportReadinessInput NothingElseRecorded(CaseAssessmentProjection assessment) => new(
@@ -381,7 +409,6 @@ public sealed class ReportRequirementOwnershipTests
     {
         AssessmentVocabulary.Outcome => "repairable",
         AssessmentVocabulary.LegalStatus => "roadworthy",
-        AssessmentVocabulary.SalvageCategory => AssessmentReportContract.PrintableSalvageCategory,
         _ => definition.Type switch
         {
             AssessmentFieldType.Text => "value",

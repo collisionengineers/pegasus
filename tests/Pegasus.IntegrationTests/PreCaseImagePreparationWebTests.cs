@@ -134,6 +134,8 @@ public sealed class PreCaseImagePreparationWebTests
             var carriedTag = Assert.Single(context.ChangeTracker.Entries<DocumentOccurrenceTagEntity>());
             Assert.Equal(ImageTagVocabulary.OverviewId, carriedTag.Entity.TagId);
             Assert.Equal(occurrence.Id, carriedTag.Entity.OccurrenceId);
+            // Overview decides how it prints; the image arrives in the report.
+            Assert.True(occurrence.InReport);
         }
 
         await PostAsync(client, "Tag", token, record, new()
@@ -174,6 +176,57 @@ public sealed class PreCaseImagePreparationWebTests
             Assert.Single(events, kind => kind == EfPreCaseImagePreparationStore.TaggedEventKind);
             Assert.Single(events, kind => kind == EfPreCaseImagePreparationStore.UntaggedEventKind);
         }
+    }
+
+    /// <summary>
+    /// A new image is in the report (operator, 26 September 2026), and one
+    /// tagged Third party or Reflection before it reached the Case arrives
+    /// out of it, as tagging it on the Case would leave it.
+    /// </summary>
+    [Theory]
+    [InlineData("00000000-0000-4000-8000-0000000017a3")]
+    [InlineData("00000000-0000-4000-8000-0000000017a4")]
+    public async Task AnImageTaggedThirdPartyOrReflectionBeforeTheCaseArrivesOutOfTheReport(string tag)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
+            Guid.NewGuid().ToString("N"));
+        var (itemId, assetId) = await ResolveAsync(factory, IntakeWebDriver.ReceiptId(upload));
+
+        // Nothing recorded on it yet: it arrives in the report.
+        Assert.True((await CopiedToANewOccurrenceAsync(factory, assetId)).InReport);
+
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        await PostAsync(client, "Tag", token, $"/Unidentified/{itemId:D}", new()
+        {
+            ["intakeAssetId"] = assetId.ToString("D"),
+            ["tagId"] = tag,
+            ["applied"] = "true",
+            ["operationKey"] = Guid.NewGuid().ToString("N")
+        });
+
+        Assert.False((await CopiedToANewOccurrenceAsync(factory, assetId)).InReport);
+    }
+
+    /// <summary>The occurrence intake custody would record for this image, not saved.</summary>
+    private static async Task<DocumentOccurrenceEntity> CopiedToANewOccurrenceAsync(
+        IntakeWebApplicationFactory factory, Guid assetId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var occurrence = new DocumentOccurrenceEntity { Id = Guid.NewGuid() };
+        await EfPreCaseImagePreparationStore.CopyToOccurrenceAsync(context, assetId, occurrence, CancellationToken.None);
+        return occurrence;
     }
 
     private static async Task PostAsync(

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -91,6 +92,7 @@ internal sealed class EfQueuedCustodyProcessor(
                         context,
                         RequireImageIntakeId(work),
                         work.OperationKey,
+                        now,
                         cancellationToken),
                     _ => await LoadPayloadAsync(
                         context,
@@ -372,11 +374,10 @@ internal sealed class EfQueuedCustodyProcessor(
     /// Records the files intake put in the case folder as case documents, so
     /// the case can list and open them.
     ///
-    /// The files are already in Box, uploaded by the custody route above, so
-    /// this writes records only — it never sends the content a second time.
-    /// The occurrence ordinal is the ordinal the upload used, and the flat
-    /// Box name is derived from that ordinal at both ends, so a download
-    /// resolves exactly the file that was uploaded.
+    /// The files are already in Box, uploaded by the custody route above or
+    /// moved in by a Vehicle images fold, so this writes records only — it
+    /// never sends the content a second time. A read resolves the file by the
+    /// file and version identity recorded here.
     ///
     /// Idempotent by operation key: custody work can be retried, and a
     /// replay must not produce a second copy of a document that is already
@@ -476,8 +477,9 @@ internal sealed class EfQueuedCustodyProcessor(
 
     /// <summary>
     /// One file this case's intake put in the case folder, and the record it
-    /// needs so the case can show it. The ordinal is the one the upload used,
-    /// because the flat file name is built from it at both ends.
+    /// needs so the case can show it. The ordinal is the Case document's
+    /// number: the one the upload used, or the next free one for a file a
+    /// fold moved in.
     /// </summary>
     private sealed record RetainedCaseFile(
         int Ordinal,
@@ -815,10 +817,19 @@ internal sealed class EfQueuedCustodyProcessor(
         CustodyProcessingLeaseLostException => "custody_lease_lost",
         OperationCanceledException => "custody_cancelled",
         HttpRequestException or IOException => "custody_dependency_failure",
+        // Another filing took the Case document number first. The files are
+        // already in the Case folder, so the work retries and takes the next.
+        DbUpdateException collision when IsDocumentOrdinalCollision(collision) =>
+            "custody_dependency_failure",
         _ => Truncate($"{UnexpectedFailureCode}:{exception.GetType().Name}")
     };
 
     private const string UnexpectedFailureCode = "custody_unexpected_failure";
+
+    private static bool IsDocumentOrdinalCollision(DbUpdateException exception) =>
+        exception.InnerException?.Message.Contains(
+            "IX_CaseDocuments_CaseId_Ordinal",
+            StringComparison.Ordinal) == true;
 
     /// <summary>The column holds 100 characters; a long type name must not fail the write it is describing.</summary>
     private static string Truncate(string value) =>
@@ -874,6 +885,7 @@ internal sealed class EfQueuedCustodyProcessor(
         PegasusDbContext context,
         Guid imageIntakeId,
         string operationKey,
+        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var intake = await context.ImageIntakes
@@ -885,6 +897,7 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .AsNoTracking()
             .SingleAsync(value => value.Id == mergedIntoCaseId, cancellationToken);
+        var authority = await CaseMutationAuthority.LoadAsync(context, mergedIntoCaseId, cancellationToken);
         // The case root folder is named for the reference the create path
         // used: the Case/PO of every Case, a standalone Audit's included.
         return new(
@@ -895,6 +908,7 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.Id,
             caseEntity.Reference,
             caseEntity.CustodyRootRemoteId,
+            authority?.SystemWorkYields(now) == true,
             operationKey);
     }
 
@@ -1070,10 +1084,19 @@ internal sealed class EfQueuedCustodyProcessor(
                 "The formal case evidence folder has not been stored yet; the fold retries after it is.");
         }
 
-        var imageRoot = await caseCustody.GetExistingCaseRootAsync(
+        if (payload.CaseIsBeingEdited)
+        {
+            // Nothing has moved yet: the fold waits for the editor (FRD-14).
+            throw new IOException(CaseIsBeingEditedMessage);
+        }
+
+        // The record's folder is known by the identity recorded when it was
+        // stored. A fold that moved the files and then yielded has already
+        // removed it, and custody replays that as a fold already done.
+        var imageRoot = new CaseCustodyRoot(
             payload.ImageIntakeId,
-            payload.ImageReference,
-            cancellationToken);
+            payload.ImageCustodyRootRemoteId,
+            payload.ImageReference);
         var caseRoot = await caseCustody.GetExistingCaseRootAsync(
             payload.CaseId,
             payload.CaseRootReference,
@@ -1154,6 +1177,28 @@ internal sealed class EfQueuedCustodyProcessor(
         var intake = await context.ImageIntakes
             .SingleAsync(value => value.Id == imageIntakeId, cancellationToken);
         var alreadyMerged = string.Equals(intake.CustodyState, ImageCustodyStates.Merged, StringComparison.Ordinal);
+        CaseMutationAuthority? authority = null;
+        if (folded && !alreadyMerged)
+        {
+            // A Triage Case has no workflow: its Triage is the authority, and
+            // the fold leaves its version alone. A staff link reaches a Case in
+            // any lifecycle state (operator, 24 September 2026), so the fold
+            // that completes it does too; the recorded association decides.
+            authority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
+                ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
+            var staffDecision = await context.IntakeManualAssociations.AsNoTracking().AnyAsync(
+                association => association.IntakeReceiptId == intake.OriginReceiptId
+                    && association.ActorKind == nameof(ActorKind.Staff),
+                cancellationToken);
+            authority.RequireMutable(anyLifecycleState: staffDecision);
+            if (authority.SystemWorkYields(now))
+            {
+                // An editor arrived while the files moved. Nothing is written
+                // here, and the retry files them after the editor finishes.
+                throw new IOException(CaseIsBeingEditedMessage);
+            }
+        }
+        var moved = new List<IntakeAssetEntity>();
         if (folded && intake.CustodyRootRemoteId is { } imageRoot)
         {
             // The fold moved the image folder's files into the Case folder;
@@ -1164,30 +1209,29 @@ internal sealed class EfQueuedCustodyProcessor(
                 .SingleAsync(cancellationToken);
             if (!string.IsNullOrWhiteSpace(caseRoot))
             {
-                foreach (var asset in await context.IntakeAssets
+                moved = await context.IntakeAssets
                     .Where(value => value.BoxParentFolderId == imageRoot)
-                    .ToListAsync(cancellationToken))
+                    .ToListAsync(cancellationToken);
+                foreach (var asset in moved)
                 {
                     asset.BoxParentFolderId = caseRoot;
                 }
             }
         }
-        if (folded && !alreadyMerged)
+        if (authority is not null)
         {
             intake.CustodyState = ImageCustodyStates.Merged;
             intake.CustodyMergedAtUtc ??= now;
-            // A Triage Case has no workflow: its Triage is the authority, and
-            // the fold leaves its version alone. A staff link reaches a Case in
-            // any lifecycle state (operator, 24 September 2026), so the fold
-            // that completes it does too; the recorded association decides.
-            var authority = await CaseMutationAuthority.LoadAsync(context, caseId, cancellationToken)
-                ?? throw new InvalidOperationException("The custody work item's Case is unavailable.");
-            var staffDecision = await context.IntakeManualAssociations.AsNoTracking().AnyAsync(
-                association => association.IntakeReceiptId == intake.OriginReceiptId
-                    && association.ActorKind == nameof(ActorKind.Staff),
-                cancellationToken);
-            authority.RequireMutable(anyLifecycleState: staffDecision);
             var beforeVersion = authority.Version;
+            // The photographs are Case images from here (operator, 27
+            // September 2026). Filed by this completion, under its version.
+            var filed = await RecordFoldedPhotographsAsync(
+                context, intake, authority.Case, work.OperationKey, moved, now, cancellationToken);
+            if (filed > 0 && authority.Workflow is { } workflow && !authority.Case.ImagesComplete)
+            {
+                await CompleteCaseImagesAsync(
+                    context, workflow, work.OperationKey, beforeVersion, now, cancellationToken);
+            }
             authority.CompleteSystemMutation();
             context.CaseHistory.Add(new()
             {
@@ -1203,8 +1247,111 @@ internal sealed class EfQueuedCustodyProcessor(
             });
         }
         CompleteWork(work, now, intake.CustodyRootRemoteId);
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException) when (authority is not null)
+        {
+            // The Case changed between the check above and this save: an
+            // editor claimed it, or another writer advanced it. Nothing was
+            // recorded, so the fold retries as it does for an editor it saw.
+            throw new IOException(CaseIsBeingEditedMessage);
+        }
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private const string CaseIsBeingEditedMessage =
+        "A member of staff is editing the Case; the fold retries after they finish.";
+
+    /// <summary>
+    /// The Case's photographs are confirmed in its custody, so its images are
+    /// complete and its readiness is re-evaluated as it is when a linked
+    /// message's photographs are filed (FRD-13). Recorded under the fold's
+    /// version, with the readiness policy it used.
+    /// </summary>
+    private static async Task CompleteCaseImagesAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        string foldOperationKey,
+        long beforeVersion,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var (before, after, evaluation) = await EfCaseArtifactCustody.CompleteCaseImagesAsync(
+            context, workflow, now, cancellationToken);
+        var operationKey = $"{foldOperationKey}:images-complete";
+        CaseMutationHistory.Add(
+            context,
+            workflow,
+            ActionActor.SystemWorker("custody"),
+            operationKey,
+            "The merged Vehicle images photographs completed the Case's images.",
+            "case_images_completed_from_merged_photographs",
+            CaseOperationReplay.Hash(operationKey),
+            beforeVersion,
+            checked(beforeVersion + 1),
+            JsonSerializer.Serialize(before),
+            JsonSerializer.Serialize(after),
+            $"{evaluation.PolicyKey}/v{evaluation.PolicyVersion}",
+            now);
+    }
+
+    /// <summary>
+    /// Records each photograph the fold moved as an image document of the
+    /// Case (FRD-19), and returns how many it moved. The fold left each file
+    /// in the Case folder under the file and version identity its asset
+    /// already carries, so this writes records only. Each takes the next Case
+    /// document number, and its own operation key under the fold's, so a
+    /// replay adds nothing.
+    /// </summary>
+    internal static async Task<int> RecordFoldedPhotographsAsync(
+        PegasusDbContext context,
+        ImageIntakeEntity intake,
+        CaseEntity caseEntity,
+        string foldOperationKey,
+        IReadOnlyCollection<IntakeAssetEntity> moved,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        // A photograph the record shows is filed only when the record's
+        // folder held it: nothing else has a file in the Case folder.
+        var folded = moved.ToDictionary(asset => asset.Id);
+        var photographs = await EfImageIntakeStore.ListPhotographsAsync(
+            context, intake.OriginReceiptId, intake.SubmissionGroupId, cancellationToken);
+        var ordinal = await EfDocumentCustodyStore.NextDocumentOrdinalAsync(
+            context, caseEntity.Id, cancellationToken);
+        var files = new List<RetainedCaseFile>(folded.Count);
+        foreach (var (_, photograph) in photographs)
+        {
+            if (!folded.TryGetValue(photograph.Id, out var file))
+            {
+                continue;
+            }
+
+            files.Add(new(
+                ordinal++,
+                photograph.FileName,
+                photograph.MediaType,
+                photograph.ContentLength,
+                photograph.ContentHash,
+                DocumentSemanticRole.Image,
+                $"{foldOperationKey}:photograph:{photograph.Id:N}",
+                file.BoxFileId
+                    ?? throw new InvalidDataException("A folded photograph has no recorded file identity."),
+                file.BoxVersionId,
+                photograph.Id));
+        }
+
+        await RecordRetainedCaseFilesAsync(
+            context,
+            caseEntity.Id,
+            caseEntity.CustodyRootRemoteId
+                ?? throw new InvalidDataException("The Case the record merged into has no evidence folder."),
+            files,
+            now,
+            cancellationToken);
+        return files.Count;
     }
 
     /// <summary>
@@ -1286,6 +1433,7 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid CaseId,
         string CaseRootReference,
         string? CaseCustodyRootRemoteId,
+        bool CaseIsBeingEdited,
         string OperationKey) : CustodyWorkPayload;
 
     private sealed record WorkPayload(

@@ -17,6 +17,7 @@
             "health" => "/Administration/Health",
             "valuation-presets" => "/Administration/ValuationPresets/Index",
             "contacts" => "/Administration/Contacts/Index",
+            "email-templates" => "/Administration/EmailTemplates/Index",
             _ => string.Empty
         })
         ? "page"
@@ -43,6 +44,10 @@
         <a asp-page="/Administration/Mailboxes" aria-current="@Current("mail")">
             <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
             <span>@OperatorLabels.Admin.Mail</span>
+        </a>
+        <a asp-page="/Administration/EmailTemplates/Index" aria-current="@Current("email-templates")">
+            <svg class="icon" aria-hidden="true"><use href="#icon-mail-open" /></svg>
+            <span>@OperatorLabels.EmailTemplates.Area</span>
         </a>
         <a asp-page="/Administration/ValuationPresets/Index" aria-current="@Current("valuation-presets")">
             <svg class="icon" aria-hidden="true"><use href="#icon-pound-sterling" /></svg>

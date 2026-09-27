@@ -1,5 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Web.Presentation;
 
@@ -49,6 +50,17 @@ public sealed partial class DetailsModel
         CaseWorkspaceLabels.Report.BlockerSection(item) is { } key && (key != "original-report" || IsAuditCase)
             ? key
             : null;
+
+    /// <summary>
+    /// Whether a blocker sends this viewer to Accounts: the Sign-off
+    /// Engineer's name and signature are set there, by an Administrator
+    /// (operator, 26 September 2026). For anyone else it links nowhere.
+    /// Choosing the Sign-off Engineer is Case details' instead.
+    /// </summary>
+    public bool BlockerOpensAccounts(AssessmentReadinessItem item) =>
+        item.Requirement == CaseReportReadiness.SignatoryRequirement
+        && item != CaseReportReadiness.SignOffEngineerNotChosen
+        && User.IsInRole(StaffRoleNames.Administrator);
 
     /// <summary>The same reading over any raw value the vocabulary defines at <paramref name="path"/>.</summary>
     public static string DisplayAssessmentValue(string path, string? raw)

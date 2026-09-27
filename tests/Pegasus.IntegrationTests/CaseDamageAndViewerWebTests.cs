@@ -216,7 +216,6 @@ public sealed class CaseDamageAndViewerWebTests
                 "Cropped on the viewer stage.",
                 ("preparationEdits[0].OccurrenceId", fixture.OverviewOccurrenceId.ToString("D")),
                 ("preparationEdits[0].ExpectedPreparationVersion", "4"),
-                ("preparationEdits[0].Role", nameof(CaseAssetReportRole.Overview)),
                 ("preparationEdits[0].Order", string.Empty),
                 ("preparationEdits[0].Rotation", "90"),
                 ("preparationEdits[0].CropLeft", "0.25"),
@@ -233,7 +232,6 @@ public sealed class CaseDamageAndViewerWebTests
             new CaseAssetPreparationEdit(
                 fixture.OverviewOccurrenceId,
                 4,
-                CaseAssetReportRole.Overview,
                 null,
                 CaseAssetRotation.Clockwise90,
                 new(0.25m, 0.2m, 0.5m, 0.4m)),

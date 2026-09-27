@@ -3286,6 +3286,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("DocumentId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("InReport")
+                        .HasColumnType("bit");
+
                     b.Property<string>("OperationKey")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -3296,10 +3299,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("PreparationFullPage")
                         .HasColumnType("bit");
-
-                    b.Property<string>("PreparationRole")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<long>("PreparationVersion")
                         .HasColumnType("bigint");
@@ -3629,6 +3628,39 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsDescending(true, false);
 
                     b.ToTable("EmailResponseEvidence", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EmailTemplateEntity", b =>
+                {
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Purpose");
+
+                    b.ToTable("EmailTemplates", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.EvaFirstHandoffProxyEntity", b =>

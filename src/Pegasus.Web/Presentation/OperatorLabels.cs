@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using Pegasus.Core;
 using Pegasus.Core.Assessment;
@@ -186,6 +186,103 @@ public static class OperatorLabels
         Pegasus.Core.Triage.TriageState.Cancelled => "Cancelled",
         _ => throw new InvalidOperationException($"Unknown triage state '{(int)state}'.")
     };
+
+    /// <summary>
+    /// The Triage Case page's own words: each action's notice, the one Assign
+    /// control and the reply the correspondence panel offers (26 September 2026).
+    /// </summary>
+    public static class Triage
+    {
+        public const string FindingRecorded = "Finding recorded.";
+        public const string Completed = "Triage completed.";
+        public static string AssignedTo(string name) => $"Assigned to {name}.";
+        public const string Unassigned = "Unassigned.";
+        public const string AwaitingInformation = "Now awaiting information.";
+        public const string Cancelled = "Triage cancelled.";
+        public const string Reopened = "Triage reopened.";
+        public const string CaseLinked = "Case linked.";
+        public const string CaseUnlinked = "Case unlinked.";
+        public const string NoteAdded = "Note added.";
+        public const string ResponseLinked = "Response evidence linked.";
+        public const string ResponseUnlinked = "Response evidence unlinked.";
+        public const string Changed = "This Triage record changed while you were working. Reload and try again.";
+        public const string Expired = "Editing expired before this change was saved. Reload and try again.";
+        public const string ChooseAssignee = "Choose who to assign.";
+
+        public const string Assignee = "Assignee";
+        public const string Assign = "Assign";
+        public const string Reassign = "Reassign";
+        public const string Unassign = "Unassign";
+        public const string NoAssignee = "Unassigned";
+        public static string You(string name) => $"{name} (you)";
+        public const string Case = "Case";
+        public const string NoCase = "None";
+        public const string OpenCase = "Open the case";
+        public const string Cancel = "Cancel";
+
+        public const string Determinations = "Determinations";
+        public const string SaveDeterminations = "Save determinations";
+        public const string RecordCorrection = "Record correction";
+        public const string CompleteTriage = "Complete Triage";
+        public const string AwaitInformation = "Await information";
+        public const string CancelTriage = "Cancel Triage";
+        public const string Reopen = "Reopen";
+
+        public const string ReplyWithOutcome = "Reply with outcome";
+        public const string ChaserCorrespondence = "Chaser correspondence";
+        public const string SendChaser = "Send chaser";
+        public const string SendReply = "Send reply";
+        public const string ReconcileStatus = "Reconcile status";
+        public const string NoReplyWhenCancelled = "A cancelled Triage has no reply to send.";
+        public const string ReplyNeedsEmail = "A reply can only be sent for a Triage that came by e-mail.";
+
+        public static string Sent(Pegasus.Core.Operations.StaffMailPurpose purpose) =>
+            purpose == Pegasus.Core.Operations.StaffMailPurpose.TriageOutcomeReply ? "Reply sent." : "Chaser sent.";
+
+        public static string SendStatus(
+            Pegasus.Core.Operations.StaffMailPurpose purpose,
+            Pegasus.Core.Operations.StaffMailState state) =>
+            $"{(purpose == Pegasus.Core.Operations.StaffMailPurpose.TriageOutcomeReply ? "Reply" : "Chaser")} status: {StaffMail.State(state)}.";
+
+        public static string LatestSendStatus(Pegasus.Core.Operations.StaffMailState state) =>
+            $"Latest send: {StaffMail.State(state)}";
+    }
+
+    /// <summary>
+    /// Administration › E-mail templates: the area, its list and its dialog
+    /// (26 September 2026).
+    /// </summary>
+    public static class EmailTemplates
+    {
+        public const string Area = "E-mail templates";
+        public const string Card = "Edit the wording of staff replies.";
+        public const string ActionLogArea = "E-mail template";
+        public const string Template = "Template";
+        public const string LastChanged = "Last changed";
+        public const string Actions = "Actions";
+        public const string Edit = "Edit";
+        public const string Body = "Body";
+        public const string Placeholders = "Placeholders";
+        public const string Cancel = "Cancel";
+        public const string Save = "Save";
+        public const string Saved = "E-mail template saved.";
+        public const string Stale = "The template changed after this page was loaded. Reload it and try again.";
+        public const string OperationConflict = "The form was already used for a different change. Retry from the current page.";
+        public const string Expired = "The form has expired. Retry the operation.";
+        public const string BodyRequired = "Enter the template body.";
+
+        public static string TooLong =>
+            $"The template body can be at most {Pegasus.Core.Operations.EmailTemplates.MaximumBodyLength} characters.";
+
+        public static string UnknownPlaceholder(string placeholder) =>
+            $"{{{placeholder}}} is not a placeholder for this template.";
+
+        public static string Name(EmailTemplatePurpose purpose) => purpose switch
+        {
+            EmailTemplatePurpose.TriageOutcomeReply => "Triage outcome reply",
+            _ => throw new InvalidOperationException($"Unknown e-mail template purpose '{(int)purpose}'.")
+        };
+    }
 
     /// <summary>
     /// The state a staff "Link to case" destination shows: a Case's stage, or
@@ -777,7 +874,7 @@ public static class OperatorLabels
         public const string Assigned = "The Case was assigned.";
         public const string TriageAssignedToYou = "The Triage was assigned to you.";
         public const string AssignRefused = "The Case was not assigned because it changed, someone is editing it, or the action is not permitted.";
-        public const string TriageAssignRefused = "The Triage was not assigned because it changed or the action is not permitted.";
+        public const string TriageAssignRefused = "The Triage was not assigned because it changed, someone is editing it, or the action is not permitted.";
         public const string JobCompleted = "The AI job was completed.";
         public const string JobRefused = "The AI job changed before it could be completed. Refresh and try again.";
     }
@@ -1126,11 +1223,13 @@ public static class OperatorLabels
     /// <summary>
     /// A file size the operator can act on. Bytes are an implementation detail
     /// and a KB branch lets a 10 MB limit render as "10240 KB", so MB with one
-    /// decimal is the only form — and only where the size matters at all.
+    /// decimal is the only form — and only where the size matters at all. A
+    /// megabyte is 1,000,000 bytes, the unit the upload limits are declared
+    /// in (FRD-18), so 100,000,000 bytes reads "100.0 MB".
     /// </summary>
     public static string FileSize(long bytes)
     {
-        var megabytes = bytes / 1024d / 1024d;
+        var megabytes = bytes / 1_000_000d;
         return megabytes < 0.1d
             ? "under 0.1 MB"
             : string.Create(CultureInfo.InvariantCulture, $"{megabytes:0.0} MB");
@@ -1164,6 +1263,115 @@ public static class OperatorLabels
         CaseInspectionMode.ImageBasedAssessment => "Image Based Assessment",
         _ => Humanise(value.ToString())
     };
+
+    /// <summary>
+    /// The tone a status chip takes for a state label. One table: the
+    /// <c>_StatusChip</c> partial reads it when it renders, and the Inbox
+    /// preview's JSON carries it so a chip repainted by script takes the
+    /// colour the server would give it. Tones follow docs/design/README.md:
+    /// amber is incomplete or pending, navy is Review and other in-flight
+    /// states, red is blocked, failed or denied, green is confirmed completion
+    /// only, and neutral covers absent, loading, current and settled-terminal
+    /// states.
+    /// </summary>
+    public static string StatusTone(string? state)
+    {
+        // Normalising only `_` and `-` meant a PascalCase compound reaching the
+        // chip — "NotReady", "PostReportComplete" — matched no key and fell
+        // through to neutral grey, losing both the wording and the
+        // amber/navy/green tone contract. Callers should pass an operator
+        // label, but the chip must not silently mis-tone a state when one
+        // does not.
+        var key = Humanise(string.IsNullOrWhiteSpace(state) ? "Unknown" : state.Trim()).ToLowerInvariant();
+        key = new string(key
+            .Where(character => char.IsLetterOrDigit(character) || character == ' ')
+            .ToArray());
+        key = string.Join(' ', key.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+        return key switch
+        {
+            // Case lifecycle (D3 display labels)
+            "not ready" => "amber",
+            "review" => "navy",
+            "with engineer" => "navy",
+            "held" => "amber",
+            "complete" or "completed" or "post report completion" => "green",
+            "cancelled" or "provider cancellation" or "archived" => "neutral",
+            "created in error" => "neutral",
+            "reopened" or "open" => "navy",
+
+            // Intake and Triage
+            "needs sorting" or "unidentified" => "amber",
+            "blocked intake" or "blocked" => "red",
+            "document text required" or "unsupported" => "amber",
+            "awaiting information" => "amber",
+            "finding recorded" => "navy",
+            "registration missing" => "amber",
+
+            // Query freshness
+            "current" => "neutral",
+            "loading" or "refreshing" => "neutral",
+            "stale" => "amber",
+            "partial" or "limit reached" => "amber",
+            "unavailable" => "red",
+            "failed" or "technical failure" or "error" => "red",
+
+            // Access and mutation
+            "denied" or "unauthenticated" => "red",
+            "disabled" => "neutral",
+            "enabled" => "navy",
+            "conflict" or "stale version" => "red",
+            "lease lost" => "red",
+            "lease held" or "editing" => "navy",
+            "lease expired" => "amber",
+            "locked" => "neutral",
+
+            // Access review
+            "due no review recorded" or "due" => "amber",
+            "recorded" => "neutral",
+
+            // Chase state (Case-side CaseDueWorkState and the Image-initiated
+            // Case's derived due/not-due read share this vocabulary)
+            "chase due" => "amber",
+            "chasing paused" => "amber",
+            "chasing stopped" => "neutral",
+            "not yet due" => "neutral",
+
+            // External and document custody
+            "pending" => "amber",
+            "retry" => "amber",
+            "success" => "green",
+            "unknown" => "neutral",
+
+            // Service health and request operations
+            "running" => "blue",
+            "review required" => "amber",
+            "needs attention" or "not configured" => "amber",
+            "active" => "navy",
+
+            // Tone by meaning (v28 P2, 18 September 2026): green for an operation
+            // or outcome that succeeded, red for one that did not, amber for
+            // waiting on someone or something, navy for in hand, neutral for
+            // settled. One table owns this; pages pass the label, never a tone.
+            "case created" or "ready for case allocation" or "linked" or "linked to case" or "email linked" or "reply linked"
+                or "vehicle images" or "triage"
+                or "vehicle images registered" or "sent" or "report sent" or "delivered" or "saved" or "stored" or "document stored"
+                or "approved" or "accepted" or "applied" or "resolved" or "registered" or "connected"
+                or "configured" or "succeeded" or "passed" or "roadworthy" => "green",
+            "could not be read" or "case not created" or "rejected" or "refused" or "overdue"
+                or "unroadworthy" or "failure" => "red",
+            "query" or "creating case" or "not yet processed" or "draft" or "password change required"
+                or "overridden" or "today" => "amber",
+            "repairable" => "blue",
+            "dismissed" or "staff closed" or "no recorded activity" => "neutral",
+            _ when key.StartsWith("awaiting ", StringComparison.Ordinal) || key.EndsWith(" preparing", StringComparison.Ordinal) => "amber",
+            _ when key.EndsWith(" failed", StringComparison.Ordinal) || key.StartsWith("failed ", StringComparison.Ordinal) => "red",
+
+            // Every other state, including the D3 "Closed · <outcome>" terminals,
+            // is settled or absent and reads neutral.
+            _ => "neutral"
+        };
+    }
 
     /// <summary>
     /// Turns a persisted code into a sentence: <c>case_returned_to_review</c>
@@ -1235,6 +1443,7 @@ public static class OperatorLabels
     {
         "ai_job" => "AI job",
         "automation_mcp" => "Automation",
+        "email_template" => EmailTemplates.ActionLogArea,
         "staff_account" => "Staff account",
         "Security" => "Security",
         "Case" => "Case",
@@ -2027,7 +2236,6 @@ public static class OperatorLabels
     public static class Upload
     {
         public const string Title = "Upload";
-        public const string ChoosingSubtitle = "Bring related files into Pegasus.";
         public const string ReviewSubtitle = "Review your upload and its destination.";
         public const string SelectEyebrow = "Add files to Pegasus";
         public const string ChooseHeading = "Choose the files for this upload";
@@ -2048,9 +2256,9 @@ public static class OperatorLabels
         public const string Remove = "Remove";
 
         // A destination declared before the upload: Add evidence on a Case
-        // page opened Upload for that Case (FRD-18).
+        // page opened Upload for that Case (FRD-18). The card alone says
+        // where the files go; no sentence follows it.
         public const string AddingTo = "Adding to";
-        public const string DestinationSentence = "The files in this upload go straight to this Case. Nothing is matched or sorted.";
         public const string DestinationUnavailable = "This Case is not available for evidence. Files you upload here will need a destination after upload.";
 
         // The decision panel.
@@ -2167,11 +2375,12 @@ public static class OperatorLabels
             return $"Received {when}, {OfficeClock(value)}";
         }
 
-        /// <summary>Binary units, as the limits are declared (FRD-18): "3.08 MiB".</summary>
-        public static string FileSize(long bytes) =>
-            string.Create(CultureInfo.InvariantCulture, $"{bytes / 1048576d:0.00} MiB");
-
-        /// <summary>The file's kind in the operator's words, from its media type.</summary>
+        /// <summary>
+        /// The file's kind in the operator's words, from its media type. This
+        /// stays its own table because the upload review names formats ("JPEG
+        /// image", "PDF document", "Email") where Core's one file-kind table
+        /// gives the broad kind and the Unidentified wording.
+        /// </summary>
         public static string Kind(string? mediaType, string fileName) => (mediaType ?? string.Empty).ToLowerInvariant() switch
         {
             "image/jpeg" => "JPEG image",
@@ -2347,6 +2556,53 @@ public static class OperatorLabels
         public const string RestoredNotice = "Restored";
         public const string OpenFile = "Open file";
         public const string OpenFullMessage = "Open full message";
+
+        // The quick preview (26 September 2026): one attachment line, the
+        // Case cell naming the Case/PO or the Triage's t. reference, and a
+        // Matched cell only while a search term is typed.
+        public const string Case = "Case";
+        public const string NoCase = "None";
+        public const string Matched = "Matched";
+        public const string OpenCase = WorkCentre.OpenCase;
+        public const string OpenTriage = "Open Triage";
+
+        /// <summary>
+        /// The chip for a message on a Triage Case or asking for one, and the
+        /// message's Case tab heading for the Triage it opened. It is the
+        /// Triage destination's own word, not a new one.
+        /// </summary>
+        public const string Triage = "Triage";
+        public const string NoAttachments = "No attachments";
+
+        /// <summary>"1 attachment · 1 document", "11 attachments · 10 images, 1 document".</summary>
+        public static string Attachments(IReadOnlyList<RetainedMailAttachment> attachments)
+        {
+            if (attachments.Count == 0)
+            {
+                return NoAttachments;
+            }
+
+            var kinds = attachments
+                .GroupBy(attachment => UnidentifiedFileKind.Broad(attachment.MediaType))
+                .OrderBy(group => group.Key)
+                .Select(group => Counted(group.Count(), AttachmentKind(group.Key)));
+            return $"{AttachmentCount(attachments.Count)} · {string.Join(", ", kinds)}";
+        }
+
+        /// <summary>"1 attachment", "3 attachments": a list row's count and the preview line's head.</summary>
+        public static string AttachmentCount(int count) => Counted(count, "attachment");
+
+        private static string AttachmentKind(BroadFileKind kind) => kind switch
+        {
+            BroadFileKind.Image => "image",
+            BroadFileKind.Document => "document",
+            BroadFileKind.Email => "e-mail",
+            BroadFileKind.Video => "video",
+            _ => "other file"
+        };
+
+        private static string Counted(int count, string noun) =>
+            $"{count} {noun}{(count == 1 ? string.Empty : "s")}";
     }
 
     /// <summary>Upload: one upload is one group with one decision (Upload, 13 September).</summary>

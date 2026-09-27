@@ -162,6 +162,11 @@ public sealed partial class DetailsModel(
             ? "is-active"
             : null;
 
+    /// <summary>
+    /// The associated Vehicle images records whose photographs are still the
+    /// record's own. Once a record's merge files them they are Case images,
+    /// drawn once as tiles, and the record has no group here.
+    /// </summary>
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
 
     /// <summary>
@@ -1269,7 +1274,11 @@ public sealed partial class DetailsModel(
     /// </summary>
     private async Task LoadFilesAsync(Guid caseId, CancellationToken cancellationToken)
     {
-        ImageIntakes = await imageIntakeQueries.ListForCaseAsync(caseId, cancellationToken);
+        ImageIntakes =
+        [
+            .. (await imageIntakeQueries.ListForCaseAsync(caseId, cancellationToken))
+                .Where(intake => !intake.PhotographsAreCaseImages)
+        ];
         // The picker needs the whole vocabulary; a read-only visit draws chips
         // only, so it does not ask for it.
         if (CanEditCaseData)
@@ -1680,6 +1689,10 @@ public sealed partial class DetailsModel(
                 AssessmentPolicy.RequireOriginalReportScope(
                     settlementFields.Keys,
                     current.Summary.CaseType);
+                // The report's three values are Valuation's own boxes (operator,
+                // 26 September 2026), saved like any field.
+                var valuationFields = assessmentFields.Where(field => EditorLabels.Valuation.ContainsKey(field.Key))
+                    .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 var reportSubmitted = reportFields.Count > 0 || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
                 var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
                     nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
@@ -1777,7 +1790,7 @@ public sealed partial class DetailsModel(
                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : (DateOnly?)null;
                 // The guide source cards have no Save of their own (23 September
                 // 2026): this save records the ones whose boxes were changed, and
-                // adopts the calculation when the operator changed it.
+                // records the calculation when the operator changed it.
                 List<ValuationDetails> guideValuations = guideEntries is { Length: > 0 }
                     ? GuideEntriesToRecord(guideEntries, recordedCards)
                     : [];
@@ -1786,7 +1799,9 @@ public sealed partial class DetailsModel(
                 {
                     workspaceSave = await saveCaseWorkspace.ExecuteAsync(new(id, expectedVersion, actor, operationKey, reason, editLeaseToken)
                     {
-                        Valuation = guideValuations.Count == 0 && adoption is null ? null : new(guideValuations, adoption),
+                        Valuation = guideValuations.Count == 0 && adoption is null && valuationFields.Count == 0
+                            ? null
+                            : new(guideValuations, adoption, valuationFields.Count == 0 ? null : valuationFields),
                         Estimate = estimate,
                         Overview = !overviewSubmitted ? null : new(
                             Submitted(nameof(claimantName), claimantName, Accepted(data.Claimant.Name)?.Value),
@@ -1851,7 +1866,7 @@ public sealed partial class DetailsModel(
                 catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
                 {
                     // A refusal names its own reason (a spec line, a valuation
-                    // figure, a value adopted with no Case mileage); a lost lease
+                    // figure, a calculation that cannot be recorded); a lost lease
                     // or a changed Case keeps the shared one.
                     saveError = MutationRefusalMessage(exception, string.Empty);
                     throw;
@@ -2147,10 +2162,71 @@ public sealed partial class DetailsModel(
         long expectedCaseVersion,
         bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        GenerateArtifactAsync(
-            id, operationKey, editLeaseToken, expectedCaseVersion,
-            CaseReportArtifactKind.AssessmentReport, includeFeeNote,
-            targetGenerationId: null, cancellationToken);
+        string.IsNullOrWhiteSpace(editLeaseToken)
+            ? GenerateReportWithOneOffLeaseAsync(
+                id, operationKey, expectedCaseVersion, includeFeeNote, cancellationToken)
+            : GenerateArtifactAsync(
+                id, operationKey, editLeaseToken, expectedCaseVersion,
+                CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+                targetGenerationId: null, cancellationToken);
+
+    /// <summary>
+    /// Generate report outside edit mode (operator, 26 September 2026): the
+    /// handler claims the Case's edit lease for this one generation and
+    /// releases it after, the way Work Centre actions do. A colleague's live
+    /// lease refuses the claim with the claim's own wording. A generation
+    /// never consumes the lease, so the release runs whatever the outcome.
+    /// </summary>
+    private async Task<IActionResult> GenerateReportWithOneOffLeaseAsync(
+        Guid id,
+        string operationKey,
+        long expectedCaseVersion,
+        bool includeFeeNote,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardSectionCommandAsync(
+            id, operationKey, editLeaseToken: null, () => RedirectToReport(id), cancellationToken,
+            requireLease: false);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        CaseEditLease lease;
+        try
+        {
+            lease = await acquireLease.ExecuteAsync(
+                new ClaimCaseEditLeaseRequest(id, expectedCaseVersion, actor, NewOperationKey()),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "claim_lease", exception);
+            TempData["CaseError"] = ClaimLeaseFailureMessage(exception);
+            return RedirectToReport(id);
+        }
+
+        try
+        {
+            return await GenerateAsync(
+                actor, id, operationKey, lease.Token, expectedCaseVersion,
+                CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+                targetGenerationId: null, cancellationToken);
+        }
+        finally
+        {
+            await Pegasus.Web.Presentation.CaseEditLeaseRelease.ReleaseQuietlyAsync(
+                releaseLease, logger, id, actor, lease);
+        }
+    }
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
         Guid id,
@@ -2213,7 +2289,23 @@ public sealed partial class DetailsModel(
         {
             return Forbid();
         }
+        return await GenerateAsync(
+            actor, id, operationKey, editLeaseToken!, expectedCaseVersion,
+            kind, includeFeeNote, targetGenerationId, cancellationToken);
+    }
 
+    /// <summary>The generation itself, once guarded: the request, and how each outcome reads back.</summary>
+    private async Task<IActionResult> GenerateAsync(
+        ActionActor actor,
+        Guid id,
+        string operationKey,
+        string editLeaseToken,
+        long expectedCaseVersion,
+        CaseReportArtifactKind kind,
+        bool includeFeeNote,
+        Guid? targetGenerationId,
+        CancellationToken cancellationToken)
+    {
         CaseReportGenerationResult result;
         try
         {
@@ -2224,7 +2316,7 @@ public sealed partial class DetailsModel(
                     actor,
                     id,
                     expectedCaseVersion,
-                    editLeaseToken!,
+                    editLeaseToken,
                     operationKey,
                     kind,
                     kind switch
@@ -2476,16 +2568,18 @@ public sealed partial class DetailsModel(
     /// <summary>
     /// What every section command on the record requires before it touches
     /// the case: an authorized actor, an assessment this command may open, a
-    /// case that is not read-only, a live form, and an edit lease. Only the
-    /// section the refusal lands on differs between the Report, Valuation and
-    /// Files commands, so the checks themselves are written once.
+    /// case that is not read-only, a live form, and an edit lease unless the
+    /// command claims one for itself. Only the section the refusal lands on
+    /// differs between the Report, Valuation and Files commands, so the
+    /// checks themselves are written once.
     /// </summary>
     private async Task<IActionResult?> GuardSectionCommandAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
         Func<IActionResult> redirect,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireLease = true)
     {
         if (!TryGetActor(out var actor))
         {
@@ -2507,7 +2601,7 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = "The form has expired. Retry the operation.";
             return redirect();
         }
-        if (string.IsNullOrWhiteSpace(editLeaseToken))
+        if (requireLease && string.IsNullOrWhiteSpace(editLeaseToken))
         {
             TempData["CaseError"] = NotInEditMode;
             return redirect();
@@ -2618,8 +2712,6 @@ public sealed partial class DetailsModel(
 
         public long ExpectedPreparationVersion { get; set; }
 
-        public CaseAssetReportRole Role { get; set; }
-
         public int? Order { get; set; }
 
         public int Rotation { get; set; }
@@ -2638,8 +2730,7 @@ public sealed partial class DetailsModel(
             new(
                 OccurrenceId,
                 ExpectedPreparationVersion,
-                Role,
-                Role == CaseAssetReportRole.Supporting ? Order : null,
+                Order,
                 (CaseAssetRotation)Rotation,
                 new(CropLeft, CropTop, CropWidth, CropHeight),
                 FullPage);

@@ -107,6 +107,11 @@ public interface IRegisterImageIntake
         CancellationToken cancellationToken);
 }
 
+/// <param name="PhotographsAreCaseImages">
+/// The record's merge has folded into the Case it is associated with, which
+/// filed its photographs as that Case's images. The Case shows them as its
+/// own, so it does not list them again under the record.
+/// </param>
 public sealed record ImageIntakeSummary(
     Guid Id,
     Guid OriginReceiptId,
@@ -122,7 +127,8 @@ public sealed record ImageIntakeSummary(
     IntakeSourceChannel Source = IntakeSourceChannel.ManualUpload,
     string? PrincipalCode = null,
     Guid? PrincipalId = null,
-    int GroupExpectedMemberCount = 1);
+    int GroupExpectedMemberCount = 1,
+    bool PhotographsAreCaseImages = false);
 
 public sealed record ImageIntakeLifecycleEvent(
     Guid Id,

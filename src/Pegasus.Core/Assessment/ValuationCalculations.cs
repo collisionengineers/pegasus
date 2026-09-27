@@ -447,34 +447,6 @@ public static class ValuationCalculationPolicy
         return accepted;
     }
 
-    /// <summary>
-    /// The report's Retail value and Trade value an adoption records beside the
-    /// Engineer's Value (operator, 24 September 2026): the basis retail the
-    /// calculation started from, and the basis card's trade as the Save leaves
-    /// it. A card without a positive trade records none (null clears the
-    /// field), so the report stays blocked on Trade value until trade is
-    /// entered on that card and the Case saved.
-    /// </summary>
-    public static IReadOnlyList<KeyValuePair<string, string?>> AdoptedBasisFields(
-        ValuationCalculation calculation,
-        decimal? basisTradeValue)
-    {
-        ArgumentNullException.ThrowIfNull(calculation);
-        // GuideRetailValue is always above zero, because Calculate refuses
-        // anything else.
-        return
-        [
-            new(AssessmentVocabulary.ValueRetail, AssessmentPolicy.NormalizeFieldValue(
-                AssessmentVocabulary.ValueRetail,
-                calculation.GuideRetailValue.ToString(CultureInfo.InvariantCulture))),
-            new(AssessmentVocabulary.ValueTrade, basisTradeValue is { } trade && trade > 0m
-                ? AssessmentPolicy.NormalizeFieldValue(
-                    AssessmentVocabulary.ValueTrade,
-                    trade.ToString(CultureInfo.InvariantCulture))
-                : null),
-        ];
-    }
-
     private static ValuationAddition Resolve(
         ValuationAdditionSelection selection,
         ValuationCalculationBasis basis)
@@ -717,9 +689,10 @@ public sealed class RemoveValuationPreset(IValuationPresetStore store) : IRemove
 
 /// <summary>
 /// Shows the Engineer what the selection comes to. It reads the same basis
-/// and runs the same arithmetic the adoption will, and writes nothing: an
-/// Engineer's Value changes only when a Case Save adopts a changed
-/// calculation.
+/// and runs the same arithmetic the Save will, and writes nothing: the result
+/// fills the Engineer's Value box on screen, and the Case Save records that
+/// box like any field and, when the calculation changed since the page
+/// opened, the calculation against its basis card.
 /// </summary>
 public sealed class PreviewValuationCalculation(IAppliedValuationStore store)
     : IPreviewValuationCalculation

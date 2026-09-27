@@ -169,6 +169,8 @@ public sealed class UnidentifiedContractsTests
     [InlineData(IntakeSourceChannel.ManualUpload, "image/jpeg", UnidentifiedMediaKind.Image)]
     [InlineData(IntakeSourceChannel.ManualUpload, "image/png", UnidentifiedMediaKind.Image)]
     [InlineData(IntakeSourceChannel.ManualUpload, "application/pdf", UnidentifiedMediaKind.Document)]
+    [InlineData(IntakeSourceChannel.ManualUpload, "message/rfc822", UnidentifiedMediaKind.Document)]
+    [InlineData(IntakeSourceChannel.ManualUpload, "video/mp4", UnidentifiedMediaKind.Document)]
     [InlineData(IntakeSourceChannel.Automation, "application/msword", UnidentifiedMediaKind.Document)]
     public void MediaKindPolicyClassifiesByChannelThenContentType(
         IntakeSourceChannel channel,
@@ -176,6 +178,35 @@ public sealed class UnidentifiedContractsTests
         UnidentifiedMediaKind expected)
     {
         Assert.Equal(expected, UnidentifiedMediaKindPolicy.Classify(channel, mediaType));
+    }
+
+    /// <summary>
+    /// One table gives a file its broad kind and its name, so the Inbox
+    /// preview's attachment count and the Unidentified description can never
+    /// disagree about the same media type. A type without a name of its own
+    /// is described by its extension, as before.
+    /// </summary>
+    [Theory]
+    [InlineData("image/jpeg", "front.jpg", BroadFileKind.Image, "Image")]
+    [InlineData("application/pdf", "estimate.pdf", BroadFileKind.Document, "PDF")]
+    [InlineData("application/msword", "letter.doc", BroadFileKind.Document, "Word document")]
+    [InlineData("application/vnd.ms-excel", "claim.xls", BroadFileKind.Document, "Spreadsheet")]
+    [InlineData("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "claim.xlsx", BroadFileKind.Document, "Spreadsheet")]
+    [InlineData("application/vnd.openxmlformats-officedocument.presentationml.presentation", "deck.pptx", BroadFileKind.Document, "PPTX file")]
+    [InlineData("text/plain", "notes.txt", BroadFileKind.Document, "Text file")]
+    [InlineData("message/rfc822", "forwarded.eml", BroadFileKind.Email, "E-mail")]
+    [InlineData("application/vnd.ms-outlook", "forwarded.msg", BroadFileKind.Email, "E-mail")]
+    [InlineData("video/mp4", "walkround.mp4", BroadFileKind.Video, "MP4 file")]
+    [InlineData("application/zip", "bundle.zip", BroadFileKind.Other, "ZIP file")]
+    [InlineData(null, null, BroadFileKind.Other, "File")]
+    public void OneTableGivesAFileItsBroadKindAndItsName(
+        string? mediaType,
+        string? fileName,
+        BroadFileKind expectedKind,
+        string expectedName)
+    {
+        Assert.Equal(expectedKind, UnidentifiedFileKind.Broad(mediaType));
+        Assert.Equal(expectedName, UnidentifiedFileKind.Describe(mediaType, fileName));
     }
 }
 

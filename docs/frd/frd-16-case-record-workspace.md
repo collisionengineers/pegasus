@@ -97,7 +97,8 @@ The Repair Spec and the Valuation calculator have no save of their own. A
 refusal refuses the whole save and keeps every proposed value on the page
 with its original authority for review. Ctrl S saves the same way and keeps
 editing open, as does a save the page makes first so an action can carry on
-from it (Apply or Remove scaling, and the unsaved-changes question's Save).
+from it (Apply or Remove scaling, Generate report while editing, and the
+unsaved-changes question's Save).
 Pressing a section's Edit enters edit mode in place: the section stays where
 it was on the screen. Selecting a tab also updates the section that Refresh
 submits; after a refresh its active lazy body loads.
@@ -128,8 +129,8 @@ Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
-in Held and after completion. Adopting the Engineer's Value is a human
-staff act: the Save adopts it when the valuation calculation changed.
+in Held and after completion. The Engineer's Value is a staff finding, typed
+or filled from a guide card on Valuation.
 
 ### Inspection and Audit views
 
@@ -316,9 +317,14 @@ The field set is owned by
 
 ### Valuation
 
+Valuation opens with one row of three boxes: **Retail value**, **Trade
+value** and **Engineer's Value**, the figures the report prints side by side
+(operator, 26 September 2026). They are fields of the Case form, greyed while
+reading, and the ribbon Save records them.
+
 Valuation lists each entry with its source, date, time, retail and trade
-values, and guide month, with the mileage an Engineer's Value or AI market
-research entry carries (`EXT-10`). Sources are Glass's, Brego, Super
+values, and guide month (`EXT-10`). A calculated Engineer's Value entry
+carries a mileage when the Case has one. Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
 (automation only). Read and edit show the same cards: each guide source is
 one card with month, retail and trade boxes holding that source's
@@ -338,13 +344,14 @@ above the cards create a `MarketResearch` job and show a
 "Researching · {month}" card until it completes; a re-run replaces the card
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
 Read and edit list the same value increases, every active preset with a tick
-on each the latest adoption applied, and the calculator opens on that
-applied selection. The calculator has no Apply of its own (operator, 23
-September 2026): the ribbon Save adopts the Engineer's Value it shows when
-the calculation changed since the page opened — a different basis card, the
-basis card's retail or trade, or any of its controls — and an unchanged
-calculation adopts nothing. The adoption records the basis card's retail and
-trade with the Engineer's Value
+on each the latest recorded calculation applied, and the calculator opens on
+that applied selection. Choosing a card as the basis fills Retail value and
+Trade value from it, and the calculation fills Engineer's Value; any box can
+be overtyped. The calculator has no Apply of its own (operator, 23 September
+2026): when the calculation changed since the page opened — a different
+basis card, the basis card's retail or trade, or any of its controls — the
+ribbon Save records it against its basis card; an unchanged calculation
+records nothing
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 The calculator applies presets and custom lines through Core. Valuation
 sources are owned by
@@ -391,7 +398,8 @@ Financial ratio lines are permitted. The field meanings are owned by
 
 ### Report
 
-Image role, order, rotation and crop live on the image tile in Files. The
+Whether the report uses an image, its order, rotation and crop live on the
+image tile in Files. The
 Report section shows the readiness list — one row per blocker with the
 requirement, its source, why it is outstanding, what clears it and a link to
 the section that clears it
@@ -399,6 +407,9 @@ the section that clears it
 — wording blocks, Generate / Preview report draft, and a separate Fee pane
 for the agreed fee, description lines and fee note preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+**Generate report** is offered in and out of edit mode when nothing blocks;
+in edit mode it saves the Case first. The **Report not ready** label and the
+blocker list show in both modes (operator, 26 September 2026).
 The content switches are under **On the report** in Valuation. The report
 renders the sign-off Engineer tuple and the marked damage diagram. The
 **Statement of truth** cell shows the accepted statement the report prints,
@@ -439,9 +450,13 @@ format recognises — an Audatex that arrived by email, say — also offers
 file through the same import as the Repair Spec section, with no second copy
 ([Assessment](#assessment)).
 
-**Images** is one grid of every image occurrence: the Case's own image
-documents plus, for each vehicle-images record associated with the Case, its
-photographs labelled by Image reference. Each tile shows:
+**Images** is one grid of the Case's image documents. A vehicle-images
+record that is associated with the Case and not yet merged into it lists its
+photographs below the grid, under its Image reference. When the merge
+completes they are Case images and the record's group goes, so each
+photograph shows once
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). Each
+tile shows:
 
 - a lazy-loaded thumbnail that expands to the full image, with the original
   filename as the accessible name. It is served only by an authorised staff
@@ -451,6 +466,9 @@ photographs labelled by Image reference. Each tile shows:
   ([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)), and for
   a Case image a Tag picker naming every vocabulary entry plus New tag with
   a colour;
+- while the Case edit lease is held, **In report**, on or off, posted at
+  once like a tag, so readiness reads it with no Case save (operator, 26
+  September 2026);
 - Preview and, while the Case edit lease is held, Crop.
 
 The Crop lease gate is the record's whole edit mode
@@ -458,7 +476,8 @@ The Crop lease gate is the record's whole edit mode
 once the Case reaches Completed or Query, and never on an archived Case. It
 is not tied to With Engineer, so a Review-state Case shows Crop. Images open
 in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, In
-report while editing, and a filmstrip). Crop happens on the viewer stage. A
+report while editing, which is the tile's own In report, and a filmstrip).
+Crop happens on the viewer stage. A
 crop is a stored rectangle: the tile and the report show the cropped region
 and Download returns the original.
 
@@ -499,18 +518,21 @@ chaser are on the Triage Case page
 
 The Engineer workbench is the Damage, Valuation, Repair Spec, Decisions and
 Report sections of the Case record. The sections can always be read and are
-read-only in Completed. An image has one place (v28 P50): its report
-role, its order and the tools that change them are on its tile under Files —
-a distinct `Close-up` first, `Overview` second, optional supporting images in
-explicit order, and non-destructive crops that leave the retained source and
-its hash untouched. Beneath the grid a line counts what the report uses. The
-tile also carries Rotate, **Full page** and Remove (v28 P41): Full page is a
-flag on an image the report uses, so the image prints on a page of its own;
-Remove sets the role to Not used and the file stays on the Case, with Undo
-for eight seconds; the grip drags a tile above the one it lands on and the
-order the tiles then stand in is the report's supporting order. While the
-Case edits, clicking the image itself toggles whether the report uses it
-(v28 P27). The Report section carries no image surface.
+read-only in Completed. An image has one place (v28 P50): whether the report
+uses it, its order and the tools that change them are on its tile under
+Files, and non-destructive crops leave the retained source and its hash
+untouched. A new image is in the report. The tile has no report
+role: its tag decides how it prints, the first tagged `Close-up` first and
+the first other one tagged `Overview` second, the rest as supporting images
+in order (operator, 26 September 2026). Beneath the grid a line counts what
+the report uses, out of the images that can print
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis));
+an image still being stored is in neither number. The tile also carries
+Rotate and **Full page** (v28 P41): Full page is a flag on an image the
+report uses, so the image prints on a page of its own; the grip drags a tile
+above the one it lands on and the order the tiles then stand in is the
+report's order. While the Case edits, clicking the image itself presses its
+In report (v28 P27). The Report section carries no image surface.
 
 The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
 repairer's document) carries the repair specification set (`EXT-09`): named
