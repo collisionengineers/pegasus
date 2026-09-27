@@ -1,15 +1,15 @@
-using Pegasus.Core.Assessment;
-
-namespace Pegasus.Web.Presentation;
+namespace Pegasus.Core.Assessment;
 
 /// <summary>
 /// The plan (v28 P5): one top-down silhouette drawn as the actual panels —
 /// bumper ends wrap to the corners, wings sit beside the bonnet, doors beside
-/// the glasshouse, quarters beside the rear screen. Presentation only: the
-/// areas, the bands that divide the plan and the disc a damage is drawn as
-/// are Core's own (<see cref="DamageAreaGeometry"/>), mapped onto this
-/// silhouette's body box, so the discs here and on the report read the same
-/// facts. The paths are the mockup's <c>PLAN_*</c> verbatim.
+/// the glasshouse, quarters beside the rear screen. It is the one vehicle
+/// drawing (operator, 27 September 2026): the Case page and the report both
+/// draw it. Geometry only: each renderer brings its own colours. The areas,
+/// the bands that divide the plan and the disc a damage is drawn as are
+/// <see cref="DamageAreaGeometry"/>'s, mapped onto this silhouette's body box,
+/// so every disc reads the same facts. The paths are the mockup's
+/// <c>PLAN_*</c> verbatim.
 /// </summary>
 public static class DamagePlanGeometry
 {
