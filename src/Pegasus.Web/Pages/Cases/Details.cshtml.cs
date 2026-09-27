@@ -162,6 +162,11 @@ public sealed partial class DetailsModel(
             ? "is-active"
             : null;
 
+    /// <summary>
+    /// The associated Vehicle images records whose photographs are still the
+    /// record's own. Once a record's merge files them they are Case images,
+    /// drawn once as tiles, and the record has no group here.
+    /// </summary>
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
 
     /// <summary>
@@ -1269,7 +1274,11 @@ public sealed partial class DetailsModel(
     /// </summary>
     private async Task LoadFilesAsync(Guid caseId, CancellationToken cancellationToken)
     {
-        ImageIntakes = await imageIntakeQueries.ListForCaseAsync(caseId, cancellationToken);
+        ImageIntakes =
+        [
+            .. (await imageIntakeQueries.ListForCaseAsync(caseId, cancellationToken))
+                .Where(intake => !intake.PhotographsAreCaseImages)
+        ];
         // The picker needs the whole vocabulary; a read-only visit draws chips
         // only, so it does not ask for it.
         if (CanEditCaseData)
