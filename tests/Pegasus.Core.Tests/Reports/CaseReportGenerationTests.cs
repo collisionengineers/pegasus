@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -222,6 +223,46 @@ public sealed class CaseReportGenerationTests
 
         var reason = AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
         Assert.Equal("An Administrator sets a name and signature on the account in Accounts.", reason.HowToResolve);
+    }
+
+    /// <summary>
+    /// A frozen generation stores each image's role as its number. Retiring
+    /// Not used must not move the others: a snapshot frozen with the numbers
+    /// the roles had before reads the same roles, so it renders the same.
+    /// </summary>
+    [Theory]
+    [InlineData(1, CaseAssetReportRole.CloseUp)]
+    [InlineData(2, CaseAssetReportRole.Overview)]
+    [InlineData(3, CaseAssetReportRole.Supporting)]
+    public void ASnapshotFrozenWithTheEarlierRoleNumbersReadsTheSameRoles(int stored, CaseAssetReportRole role)
+    {
+        var frozen = $$"""
+            {
+              "occurrenceId": "33333333-3333-3333-3333-333333333333",
+              "versionId": "11111111-2222-3333-4444-555555555555",
+              "documentId": "66666666-7777-8888-9999-000000000000",
+              "contentLength": 8,
+              "sha256": "{{new string('a', 64)}}",
+              "contentType": "image/png",
+              "role": {{stored}},
+              "order": null,
+              "rotation": 90,
+              "crop": { "left": 0, "top": 0, "width": 1, "height": 1 },
+              "boxFileId": null,
+              "boxVersionId": null,
+              "fullPage": false
+            }
+            """;
+
+        var image = JsonSerializer.Deserialize<CaseReportSnapshotImage>(
+            frozen, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+
+        Assert.Equal(role, image.Role);
+        Assert.Equal(CaseAssetRotation.Clockwise90, image.Rotation);
+        Assert.Contains(
+            $"\"role\":{stored}",
+            JsonSerializer.Serialize(image, new JsonSerializerOptions(JsonSerializerDefaults.Web)),
+            StringComparison.Ordinal);
     }
 
     [Fact]

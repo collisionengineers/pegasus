@@ -10,12 +10,14 @@ namespace Pegasus.Core.Documents;
 /// image's tags decide it (operator, 26 September 2026), through
 /// <see cref="CaseAssetPreparationPolicy.ForReport"/>. Distinct from
 /// <see cref="DocumentSemanticRole"/>, which intake and EVA eligibility read.
+/// A frozen generation snapshot stores the role as its number, so each value
+/// is pinned: a generation frozen earlier renders the same.
 /// </summary>
 public enum CaseAssetReportRole
 {
-    CloseUp,
-    Overview,
-    Supporting
+    CloseUp = 1,
+    Overview = 2,
+    Supporting = 3
 }
 
 /// <summary>
