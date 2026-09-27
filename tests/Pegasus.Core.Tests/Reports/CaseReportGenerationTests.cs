@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text.Json;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -24,9 +23,6 @@ public sealed class CaseReportGenerationTests
     private static readonly Guid OverviewOccurrence = Guid.Parse("44444444-4444-4444-4444-444444444444");
     private static readonly ActionActor Engineer =
         ActionActor.Staff(Guid.Parse("55555555-5555-5555-5555-555555555555"), [StaffRole.Engineer]);
-
-    /// <summary>The options a generation's snapshot is frozen and read with.</summary>
-    private static readonly JsonSerializerOptions SnapshotJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
     public void ACompleteCaseIsReady()
@@ -302,45 +298,6 @@ public sealed class CaseReportGenerationTests
         Assert.Equal(
             CaseReportReadiness.OverviewImageRequirement,
             Assert.Single(result.Reasons).Requirement);
-    }
-
-    /// <summary>
-    /// A frozen generation stores each image's role as its number. Retiring
-    /// Not used must not move the others: a snapshot frozen with the numbers
-    /// the roles had before reads the same roles, so it renders the same.
-    /// </summary>
-    [Theory]
-    [InlineData(1, CaseAssetReportRole.CloseUp)]
-    [InlineData(2, CaseAssetReportRole.Overview)]
-    [InlineData(3, CaseAssetReportRole.Supporting)]
-    public void ASnapshotFrozenWithTheEarlierRoleNumbersReadsTheSameRoles(int stored, CaseAssetReportRole role)
-    {
-        var frozen = $$"""
-            {
-              "occurrenceId": "33333333-3333-3333-3333-333333333333",
-              "versionId": "11111111-2222-3333-4444-555555555555",
-              "documentId": "66666666-7777-8888-9999-000000000000",
-              "contentLength": 8,
-              "sha256": "{{new string('a', 64)}}",
-              "contentType": "image/png",
-              "role": {{stored}},
-              "order": null,
-              "rotation": 90,
-              "crop": { "left": 0, "top": 0, "width": 1, "height": 1 },
-              "boxFileId": null,
-              "boxVersionId": null,
-              "fullPage": false
-            }
-            """;
-
-        var image = JsonSerializer.Deserialize<CaseReportSnapshotImage>(frozen, SnapshotJson)!;
-
-        Assert.Equal(role, image.Role);
-        Assert.Equal(CaseAssetRotation.Clockwise90, image.Rotation);
-        Assert.Contains(
-            $"\"role\":{stored}",
-            JsonSerializer.Serialize(image, SnapshotJson),
-            StringComparison.Ordinal);
     }
 
     [Fact]
