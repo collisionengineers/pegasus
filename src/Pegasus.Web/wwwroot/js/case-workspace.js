@@ -2128,6 +2128,12 @@
                     schedule();
                 }
             });
+            // Get valuation refilled the card that is already the basis.
+            section.addEventListener('pegasus:valuation-basis-refilled', function (event) {
+                if (belongs(event.target)) {
+                    fillFromCard(event.target);
+                }
+            });
             // A click anywhere on a card picks it as the basis; a click on one
             // of an entry card's own controls is the operator typing, not choosing.
             function selectCard(card) {
@@ -2202,11 +2208,13 @@
                         fill(card, '[data-valuation-trade]', answer.trade);
                         fill(card, '[data-valuation-entry-month]', answer.guideMonth);
                         // When this card is already the basis, its new figures
-                        // are the basis figures: re-choosing it runs the same
-                        // fill of the Retail and Trade boxes a card choice does.
+                        // are the basis figures: the Retail and Trade boxes take
+                        // them. The Engineer's Value box is left as it stands;
+                        // a calculation from the card's saved figures would
+                        // overwrite what the engineer typed.
                         var basis = card.querySelector('[data-valuation-basis]');
                         if (basis && basis.checked) {
-                            basis.dispatchEvent(new Event('change', { bubbles: true }));
+                            basis.dispatchEvent(new CustomEvent('pegasus:valuation-basis-refilled', { bubbles: true }));
                         }
                         return;
                     }
