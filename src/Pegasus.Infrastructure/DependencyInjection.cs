@@ -683,6 +683,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IUntagCaseImage>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<ISetCaseImageInReport>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ICreateImageTag>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IMarketResearchAiJobCompletionStore, EfMarketResearchAiJobCompletionStore>();

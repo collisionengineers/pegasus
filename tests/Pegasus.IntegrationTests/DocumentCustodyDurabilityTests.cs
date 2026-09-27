@@ -8,6 +8,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
@@ -563,6 +564,176 @@ public sealed class DocumentCustodyDurabilityTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    /// <summary>
+    /// A new image is in the report (operator, 26 September 2026). Tagging it
+    /// Third party takes it out at once and moves its preparation version;
+    /// staff may put it back with In report, which replays exactly.
+    /// </summary>
+    [Fact]
+    public async Task ANewImageIsInTheReportAndTaggingItThirdPartyTakesItOut()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            var occurrenceId = await SeedCurrentImageAsync(database, caseId);
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+            var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
+            Assert.True((await OccurrenceAsync(database, occurrenceId)).InReport);
+
+            var lease = await leases.ClaimAsync(
+                new(caseId, 0, actor, $"third-party-lease:{Guid.NewGuid():N}"), CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<ITagCaseImage>().ExecuteAsync(
+                new(caseId, occurrenceId, ImageTagVocabulary.ThirdPartyId, actor,
+                    $"third-party-tag:{Guid.NewGuid():N}", lease.Version, lease.Token),
+                CancellationToken.None);
+
+            var takenOut = await OccurrenceAsync(database, occurrenceId);
+            Assert.False(takenOut.InReport);
+            Assert.Null(takenOut.SupportingOrder);
+            Assert.Equal(1, takenOut.PreparationVersion);
+
+            var putBackLease = await leases.ClaimAsync(
+                new(caseId, lease.Version + 1, actor, $"in-report-lease:{Guid.NewGuid():N}"), CancellationToken.None);
+            var putBack = new SetCaseImageInReportCommand(
+                caseId, occurrenceId, true, actor, $"in-report:{Guid.NewGuid():N}", lease.Version + 1, putBackLease.Token);
+            var inReport = scope.ServiceProvider.GetRequiredService<ISetCaseImageInReport>();
+            await inReport.ExecuteAsync(putBack, CancellationToken.None);
+            await inReport.ExecuteAsync(putBack, CancellationToken.None);
+
+            await using var verification = await database.CreateContextAsync();
+            var back = await verification.Set<DocumentOccurrenceEntity>().SingleAsync(item => item.Id == occurrenceId);
+            Assert.True(back.InReport);
+            Assert.Equal(2, back.PreparationVersion);
+            Assert.Equal(
+                "case_image_in_report",
+                await verification.ActionHistory
+                    .Where(item => item.CorrelationId == putBack.OperationKey)
+                    .Select(item => item.EventKind)
+                    .SingleAsync());
+            Assert.Equal(
+                lease.Version + 2,
+                await verification.CaseWorkflows.Where(item => item.CaseId == caseId).Select(item => item.Version).SingleAsync());
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The tag decides how an image in the report prints (operator, 26
+    /// September 2026): tagging one image Overview and one Close-up clears
+    /// both image blockers with no Case save, and stales the current report.
+    /// </summary>
+    [Fact]
+    public async Task TaggingOneOverviewAndOneCloseUpClearsBothImageBlockersWithoutACaseSave()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            var overview = await SeedCurrentImageAsync(database, caseId);
+            var closeUp = await SeedCurrentImageAsync(database, caseId);
+            var generationId = await SeedCurrentGenerationAsync(database, caseId);
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+            var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
+            var queries = scope.ServiceProvider.GetRequiredService<ICaseAssetPreparationQueries>();
+            var tagger = scope.ServiceProvider.GetRequiredService<ITagCaseImage>();
+            Assert.Equal(2, ImageBlockers(await queries.ListForCaseAsync(caseId, CancellationToken.None)).Count);
+
+            var version = 0L;
+            foreach (var (occurrenceId, tagId) in new[]
+            {
+                (overview, ImageTagVocabulary.OverviewId),
+                (closeUp, ImageTagVocabulary.CloseUpId),
+            })
+            {
+                var lease = await leases.ClaimAsync(
+                    new(caseId, version, actor, $"tag-lease:{Guid.NewGuid():N}"), CancellationToken.None);
+                await tagger.ExecuteAsync(
+                    new(caseId, occurrenceId, tagId, actor, $"tag:{Guid.NewGuid():N}", lease.Version, lease.Token),
+                    CancellationToken.None);
+                version = lease.Version + 1;
+            }
+
+            Assert.Empty(ImageBlockers(await queries.ListForCaseAsync(caseId, CancellationToken.None)));
+            await using var verification = await database.CreateContextAsync();
+            Assert.Equal(
+                nameof(CaseReportGenerationState.Stale),
+                await verification.Set<CaseReportGenerationEntity>()
+                    .Where(item => item.Id == generationId)
+                    .Select(item => item.State)
+                    .SingleAsync());
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>The Close-up and Overview blockers report readiness names over these preparations.</summary>
+    private static IReadOnlyList<string> ImageBlockers(IReadOnlyList<CaseAssetPreparation> preparations) =>
+    [
+        .. CaseReportReadiness.Evaluate(new CaseReportReadinessInput(
+                new CaseAssessmentProjection(
+                    Guid.NewGuid(), "QDOS001", 0, CaseLifecycleState.ReportPreparation, null, [], [],
+                    new AssessmentCaseOwnedData(
+                        null, null, null, null, null, null, "tbc", null, new DateOnly(2031, 5, 6),
+                        null, null, null, null, null)),
+                null,
+                null,
+                [],
+                null,
+                null,
+                preparations,
+                new Dictionary<Guid, DocumentVersion>()))
+            .Reasons
+            .Select(reason => reason.Requirement)
+            .Where(requirement => requirement is CaseReportReadiness.CloseUpImageRequirement
+                or CaseReportReadiness.OverviewImageRequirement)
+    ];
+
+    private static async Task<DocumentOccurrenceEntity> OccurrenceAsync(LocalDbTestDatabase database, Guid occurrenceId)
+    {
+        await using var context = await database.CreateContextAsync();
+        return await context.Set<DocumentOccurrenceEntity>().AsNoTracking().SingleAsync(item => item.Id == occurrenceId);
+    }
+
+    private static async Task<Guid> SeedCurrentGenerationAsync(LocalDbTestDatabase database, Guid caseId)
+    {
+        await using var context = await database.CreateContextAsync();
+        var generationId = Guid.NewGuid();
+        context.Add(new CaseReportGenerationEntity
+        {
+            Id = generationId,
+            CaseId = caseId,
+            WorkId = caseId,
+            CaseVersion = 0,
+            SnapshotHash = new string('2', 64),
+            SnapshotJson = ReportGenerationSnapshotFixture.Json(caseId, "seed-generation-current"),
+            TemplateVersion = "assessment-report/v1",
+            RendererVersion = "renderer/v1",
+            State = nameof(CaseReportGenerationState.Confirmed),
+            GeneratedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 0, 0, TimeSpan.Zero),
+            Version = 1
+        });
+        await context.SaveChangesAsync();
+        return generationId;
     }
 
     /// <summary>

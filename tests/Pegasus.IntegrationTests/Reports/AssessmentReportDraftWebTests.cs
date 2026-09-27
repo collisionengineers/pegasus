@@ -938,9 +938,13 @@ public sealed partial class AssessmentReportDraftWebTests
                 var occurrenceId = Guid.NewGuid();
                 var documentId = Guid.NewGuid();
                 var versionId = Guid.NewGuid();
+                // In the report, wearing the tag that prints it as this role.
                 preparations.Add(new(projection.Assessment.CaseId, occurrenceId, documentId, versionId,
-                    1, photo.Sha256, photo.ContentType, role, null, CaseAssetRotation.None,
-                    CaseAssetCrop.Full, 1, "engineer-1", ReportFixtureAtUtc));
+                    1, photo.Sha256, photo.ContentType, true, null, CaseAssetRotation.None,
+                    CaseAssetCrop.Full, 1, "engineer-1", ReportFixtureAtUtc)
+                {
+                    TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId]
+                });
                 sources.Add(occurrenceId, new(versionId, documentId, 1, photo.CustodyReference,
                     photo.ContentType, photo.Content.Length, photo.Sha256, DocumentCustodyStatus.Confirmed,
                     ReportFixtureAtUtc, "engineer-1", true, false, null));

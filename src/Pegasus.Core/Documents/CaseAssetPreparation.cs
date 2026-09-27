@@ -5,16 +5,14 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Documents;
 
 /// <summary>
-/// How a case document occurrence is used on the generated report: at most
-/// one Close-up and one Overview, any number of ordered Supporting images, or
-/// excluded entirely. Distinct from <see cref="DocumentSemanticRole"/>, which
-/// intake and EVA eligibility read — this is a
-/// report-authoring choice layered on top of an occurrence, not a change to
-/// what the occurrence intrinsically is.
+/// How an image in the report prints: the one Close-up, the one Overview, or
+/// one of the ordered Supporting images. It is never chosen or stored: the
+/// image's tags decide it (operator, 26 September 2026), through
+/// <see cref="CaseAssetPreparationPolicy.ForReport"/>. Distinct from
+/// <see cref="DocumentSemanticRole"/>, which intake and EVA eligibility read.
 /// </summary>
 public enum CaseAssetReportRole
 {
-    NotUsed,
     CloseUp,
     Overview,
     Supporting
@@ -101,8 +99,10 @@ public sealed record CaseAssetCrop(decimal Left, decimal Top, decimal Width, dec
 /// The report-preparation state of one case document occurrence: the
 /// immutable source facts of the exact version this occurrence names (never
 /// touched by preparation, and never re-read from a later superseding
-/// version), plus the mutable role/order/rotation/crop an Engineer chooses.
-/// Keyed on <see cref="OccurrenceId"/>.
+/// version), whether the report uses it, and the mutable order, rotation and
+/// crop an Engineer chooses. A new image is in the report (operator, 26
+/// September 2026). <see cref="TagIds"/> are the image's tags, which decide
+/// how it prints. Keyed on <see cref="OccurrenceId"/>.
 /// </summary>
 public sealed record CaseAssetPreparation(
     Guid CaseId,
@@ -112,14 +112,17 @@ public sealed record CaseAssetPreparation(
     int SourceVersion,
     string SourceSha256,
     string SourceContentType,
-    CaseAssetReportRole Role,
+    bool InReport,
     int? Order,
     CaseAssetRotation Rotation,
     CaseAssetCrop Crop,
     long PreparationVersion,
     string? PreparedBy,
     DateTimeOffset? PreparedAtUtc,
-    bool FullPage = false);
+    bool FullPage = false)
+{
+    public IReadOnlyList<Guid> TagIds { get; init; } = [];
+}
 
 /// <summary>
 /// One requested change to a single occurrence's preparation, guarded by its
@@ -127,12 +130,12 @@ public sealed record CaseAssetPreparation(
 /// enclosing request's Case version and edit lease. Keyboard reordering and
 /// drag reordering both submit the same shape: a full desired
 /// <see cref="Order"/> per moved occurrence, which the store renormalizes to
-/// a contiguous Supporting sequence.
+/// a contiguous sequence of the images in the report. Whether the report
+/// uses the image is its own immediate command, not part of the Case save.
 /// </summary>
 public sealed record CaseAssetPreparationEdit(
     Guid OccurrenceId,
     long ExpectedPreparationVersion,
-    CaseAssetReportRole Role,
     int? Order,
     CaseAssetRotation Rotation,
     CaseAssetCrop Crop,
@@ -149,9 +152,10 @@ public sealed record SaveCaseAssetPreparationRequest(
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 /// <summary>
-/// One image as the report will use it: its confirmed source identity/hash
-/// and the prepared role/order/rotation/crop/full-page choice. Files and Report
-/// read the same preparation through this and <see cref="ICaseAssetPreparationQueries"/>.
+/// One image as the report will use it: its confirmed source identity/hash,
+/// how it prints, and its order/rotation/crop/full-page choice. Files and
+/// Report read the same preparation through this and
+/// <see cref="ICaseAssetPreparationQueries"/>.
 /// </summary>
 public sealed record PreparedReportImage(
     Guid OccurrenceId,
@@ -201,6 +205,26 @@ public sealed class CaseAssetPreparationVersionConflictException(
 }
 
 /// <summary>
+/// Staff put one image in the report or take it out, at once rather than
+/// with the Case save, so readiness reads the choice on the next view
+/// (operator, 26 September 2026). Carries the Case's edit lease, expected
+/// version and an operation key, like a tag.
+/// </summary>
+public sealed record SetCaseImageInReportCommand(
+    Guid CaseId,
+    Guid OccurrenceId,
+    bool InReport,
+    ActionActor Actor,
+    string OperationKey,
+    long ExpectedCaseVersion,
+    string EditLeaseToken);
+
+public interface ISetCaseImageInReport
+{
+    Task ExecuteAsync(SetCaseImageInReportCommand command, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// The one save-rule and report-projection owner for case asset preparation.
 /// A second implementation of either rule anywhere else is a stop condition.
 /// </summary>
@@ -208,13 +232,12 @@ public static class CaseAssetPreparationPolicy
 {
     /// <summary>
     /// Validates and renormalizes a proposed complete preparation set for one
-    /// Case: at most one Close-up and one Overview (exactly one each is
-    /// report readiness, evaluated elsewhere — this is only the save rule),
-    /// Supporting orders renormalized to a contiguous sequence from 1,
-    /// accepted report content type for every used role, a validated crop for
-    /// every item, no cross-Case reference, and — for every occurrence this
-    /// call is told the confirmed source of — that the occurrence's pinned
-    /// version is still that confirmed source.
+    /// Case: the images in the report renumbered to a contiguous order from 1,
+    /// an accepted report content type for each of them, no order and no
+    /// full page for an image out of the report, a validated crop for every
+    /// item, no cross-Case reference, and — for every occurrence this call is
+    /// told the confirmed source of — that the occurrence's pinned version is
+    /// still that confirmed source.
     /// </summary>
     /// <param name="caseId">The Case every item must belong to.</param>
     /// <param name="proposed">
@@ -235,10 +258,8 @@ public static class CaseAssetPreparationPolicy
         ArgumentNullException.ThrowIfNull(proposed);
         ArgumentNullException.ThrowIfNull(confirmedSourcesByOccurrence);
 
-        var closeUps = 0;
-        var overviews = 0;
         var normalized = new List<CaseAssetPreparation>(proposed.Count);
-        var supporting = new List<CaseAssetPreparation>();
+        var inReport = new List<CaseAssetPreparation>();
 
         foreach (var item in proposed)
         {
@@ -260,81 +281,75 @@ public static class CaseAssetPreparationPolicy
                 RequireCurrentConfirmedSource(item, confirmed);
             }
 
-            switch (item.Role)
+            if (item.InReport)
             {
-                case CaseAssetReportRole.NotUsed:
-                    if (item.Order is not null)
-                    {
-                        throw new InvalidOperationException(
-                            "An unused case asset cannot carry a supporting order.");
-                    }
-                    normalized.Add(item);
-                    break;
-                case CaseAssetReportRole.CloseUp:
-                    RequireAcceptedContentType(item);
-                    if (++closeUps > 1)
-                    {
-                        throw new InvalidOperationException("At most one Close-up image is permitted.");
-                    }
-                    normalized.Add(item with { Order = null });
-                    break;
-                case CaseAssetReportRole.Overview:
-                    RequireAcceptedContentType(item);
-                    if (++overviews > 1)
-                    {
-                        throw new InvalidOperationException("At most one Overview image is permitted.");
-                    }
-                    normalized.Add(item with { Order = null });
-                    break;
-                case CaseAssetReportRole.Supporting:
-                    RequireAcceptedContentType(item);
-                    supporting.Add(item);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(
-                        nameof(proposed), item.Role, "An unrecognized case asset role was supplied.");
+                RequireAcceptedContentType(item);
+                inReport.Add(item);
+                continue;
             }
+            if (item.Order is not null)
+            {
+                throw new InvalidOperationException(
+                    "An image out of the report cannot carry a report order.");
+            }
+            // An image the report does not use never claims a page of its own.
+            normalized.Add(item with { FullPage = false });
         }
 
-        var orderedSupporting = supporting
-            .OrderBy(item => item.Order ?? int.MaxValue)
-            .ThenBy(item => item.OccurrenceId)
-            .ToArray();
-        for (var index = 0; index < orderedSupporting.Length; index++)
+        var ordered = InReportOrder(inReport);
+        for (var index = 0; index < ordered.Count; index++)
         {
-            normalized.Add(orderedSupporting[index] with { Order = index + 1 });
+            normalized.Add(ordered[index] with { Order = index + 1 });
         }
 
         return normalized;
     }
 
     /// <summary>
-    /// The report's ordered image set: Close-up first, Overview second, then
-    /// Supporting by its persisted order. Not used images are excluded.
+    /// The report's ordered image set (operator, 26 September 2026): of the
+    /// images in the report, in their order, the first tagged Close-up prints
+    /// as the Close-up, the first other one tagged Overview as the Overview,
+    /// and the rest as Supporting in that order. The Close-up comes first and
+    /// the Overview second. An image out of the report is left out.
     /// </summary>
     public static IReadOnlyList<PreparedReportImage> ForReport(IReadOnlyList<CaseAssetPreparation> current)
     {
         ArgumentNullException.ThrowIfNull(current);
-        var closeUp = current.Where(item => item.Role == CaseAssetReportRole.CloseUp);
-        var overview = current.Where(item => item.Role == CaseAssetReportRole.Overview);
-        var supporting = current
-            .Where(item => item.Role == CaseAssetReportRole.Supporting)
-            .OrderBy(item => item.Order ?? int.MaxValue);
+        var ordered = InReportOrder(current.Where(item => item.InReport));
+        var closeUp = ordered.FirstOrDefault(item => item.TagIds.Contains(ImageTagVocabulary.CloseUpId));
+        var overview = ordered.FirstOrDefault(item =>
+            item.OccurrenceId != closeUp?.OccurrenceId
+            && item.TagIds.Contains(ImageTagVocabulary.OverviewId));
+        var supporting = ordered
+            .Where(item => item.OccurrenceId != closeUp?.OccurrenceId && item.OccurrenceId != overview?.OccurrenceId)
+            .Select((item, index) => Prepared(item, CaseAssetReportRole.Supporting, index + 1));
 
-        return closeUp.Concat(overview).Concat(supporting)
-            .Select(item => new PreparedReportImage(
-                item.OccurrenceId,
-                item.VersionId,
-                item.SourceSha256,
-                item.SourceContentType,
-                item.Role,
-                item.Order,
-                item.Rotation,
-                item.Crop,
-                item.FullPage))
-            .ToArray();
+        return
+        [
+            .. closeUp is null ? [] : new[] { Prepared(closeUp, CaseAssetReportRole.CloseUp, null) },
+            .. overview is null ? [] : new[] { Prepared(overview, CaseAssetReportRole.Overview, null) },
+            .. supporting
+        ];
     }
 
+    /// <summary>
+    /// The images in the report in the order staff set, which is the order
+    /// the gallery shows; one not yet ordered follows the ordered ones.
+    /// </summary>
+    private static List<CaseAssetPreparation> InReportOrder(IEnumerable<CaseAssetPreparation> inReport) =>
+        [.. inReport.OrderBy(item => item.Order ?? int.MaxValue).ThenBy(item => item.OccurrenceId)];
+
+    private static PreparedReportImage Prepared(CaseAssetPreparation item, CaseAssetReportRole role, int? order) =>
+        new(
+            item.OccurrenceId,
+            item.VersionId,
+            item.SourceSha256,
+            item.SourceContentType,
+            role,
+            order,
+            item.Rotation,
+            item.Crop,
+            item.FullPage);
     private static void RequireAcceptedContentType(CaseAssetPreparation item)
     {
         if (!ReportImageEvidence.IsAcceptedContentType(item.SourceContentType))

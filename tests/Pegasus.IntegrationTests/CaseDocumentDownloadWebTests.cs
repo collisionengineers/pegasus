@@ -434,7 +434,7 @@ public sealed class CaseDocumentDownloadWebTests
             1,
             Sha256,
             MediaType,
-            CaseAssetReportRole.NotUsed,
+            false,
             null,
             rotation,
             crop,
