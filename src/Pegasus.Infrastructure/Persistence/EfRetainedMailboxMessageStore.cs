@@ -19,7 +19,7 @@ internal sealed class EfRetainedMailboxMessageStore(
     private const int ExcerptLength = 600;
     private const int ExcerptLines = 8;
     /// <summary>The retained column's length (<see cref="MailboxModelConfiguration"/>); the read paths excerpt the receipt's body head instead.</summary>
-    private const int StoredExcerptLength = 400;
+    internal const int StoredExcerptLength = 400;
     private static readonly char[] LineOrSpace = [' ', '\n'];
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -1102,7 +1102,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         while (!remaining.IsEmpty)
         {
             var newline = remaining.IndexOf('\n');
-            var line = CollapseSpaces(newline < 0 ? remaining : remaining[..newline]);
+            var line = CollapseSpaces(newline < 0 ? remaining : remaining[..newline], maxLength);
             remaining = newline < 0 ? ReadOnlySpan<char>.Empty : remaining[(newline + 1)..];
             if (line.Length == 0)
             {
@@ -1123,21 +1123,37 @@ internal sealed class EfRetainedMailboxMessageStore(
         {
             return null;
         }
-        if (text.Length > maxLength)
+        if (!moreLines && text.Length <= maxLength)
         {
-            var cut = text.LastIndexOfAny(LineOrSpace, maxLength - 1);
-            return (cut > 0 ? text[..cut] : text[..(maxLength - 1)]) + "…";
+            return text;
+        }
+        // The ellipsis counts against the limit: the stored excerpt fills a
+        // column of exactly that length, and one character over fails the
+        // insert.
+        if (text.Length < maxLength)
+        {
+            return text + "…";
         }
 
-        return moreLines ? text + "…" : text;
+        var cut = text.LastIndexOfAny(LineOrSpace, maxLength - 1);
+        return (cut > 0 ? text[..cut] : text[..(maxLength - 1)]) + "…";
     }
 
-    private static string CollapseSpaces(ReadOnlySpan<char> line)
+    /// <summary>
+    /// One line with its runs of whitespace collapsed and its ends trimmed.
+    /// It stops once it passes <paramref name="limit"/>: the excerpt cuts
+    /// there anyway, and a body can be one very long line.
+    /// </summary>
+    private static string CollapseSpaces(ReadOnlySpan<char> line, int limit)
     {
-        var collapsed = new StringBuilder(line.Length);
+        var collapsed = new StringBuilder(Math.Min(line.Length, limit + 1));
         var pendingSpace = false;
         foreach (var character in line)
         {
+            if (collapsed.Length > limit)
+            {
+                break;
+            }
             if (char.IsWhiteSpace(character))
             {
                 pendingSpace = collapsed.Length > 0;
