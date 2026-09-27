@@ -152,12 +152,8 @@
             }
         </div>
         @* The list and preview scroll bodies are height-capped at constrained
-           widths, so each must be keyboard-scrollable, not pointer-only.
-           Up and Down move through the rows (docs/design/README.md) where a
-           row has a link to take focus; Deleted Items rows have none, so
-           there the arrow keys scroll the pane. *@
-        <div class="pane-body pane-scroll" tabindex="0"
-             data-row-list="@(Model.DeletedResults is null ? string.Empty : null)">
+           widths, so each must be keyboard-scrollable, not pointer-only. *@
+        <div class="pane-body pane-scroll" tabindex="0">
             @if (Model.SearchValidationMessage is { } validationMessage)
             {
                 <div class="notice notice--warning" role="alert">
@@ -245,6 +241,10 @@
             }
             else
             {
+                @* Up and Down move through the rows (docs/design/README.md).
+                   Only these rows have a link to take focus; Deleted Items
+                   rows have none, so there the arrow keys scroll the pane. *@
+                <div data-row-list>
                 @foreach (var item in Model.Results.Items)
                 {
                     var isSelected = selectedSummary?.Id == item.Id;
@@ -358,6 +358,7 @@
                         }
                     </div>
                 }
+                </div>
             }
         </div>
         @* Accessible pagination, never infinite scrolling, and never a Next
