@@ -67,7 +67,9 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
                     version.IsLogicallyRemoved,
                     document.CustodyFolder == CaseCustodyFolders.Audit
                         ? caseEntity.AuditCustodyRemoteId
-                        : caseEntity.CustodyRootRemoteId))
+                        : caseEntity.CustodyRootRemoteId,
+                    version.BoxFileId,
+                    version.BoxVersionId))
             .ToArrayAsync(cancellationToken);
         var eligibleVersionIds = EvaHandoffPolicy.SelectEligibleImages(candidateRows.Select(
                 selected => new EvaHandoffImageCandidate(
@@ -106,7 +108,9 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
                     selected.Version,
                     selected.SemanticRole,
                     selected.FileName,
-                    selected.MediaType),
+                    selected.MediaType,
+                    selected.BoxFileId,
+                    selected.BoxVersionId),
                 selected.Sha256,
                 selected.ContentLength))
             .ToArray();
@@ -152,5 +156,7 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
         DocumentCustodyStatus CustodyStatus,
         bool IsCurrent,
         bool IsLogicallyRemoved,
-        string? CaseRootRemoteId);
+        string? CaseRootRemoteId,
+        string? BoxFileId,
+        string? BoxVersionId);
 }

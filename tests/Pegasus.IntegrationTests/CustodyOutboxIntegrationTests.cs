@@ -1799,6 +1799,22 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(apiFirstVersion + 1, afterFirstApi.Version);
         Assert.Equal("22 Park Avenue", Assert.Single(evaTransport.Payloads).ClaimantAddress);
         Assert.Equal(1, evaImages.ReadCount);
+        // Box reads an exact file and version, so the bundle's read names the
+        // identities each image was stored under.
+        Assert.NotEmpty(evaImages.Reads);
+        await using (var stored = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            foreach (var read in evaImages.Reads)
+            {
+                var version = await stored.Set<DocumentVersionEntity>().AsNoTracking()
+                    .SingleAsync(item => item.Id == read.Address.VersionId);
+                Assert.False(string.IsNullOrWhiteSpace(version.BoxFileId));
+                Assert.Equal(version.BoxFileId, read.Address.BoxFileId);
+                Assert.Equal(version.BoxVersionId, read.Address.BoxVersionId);
+            }
+        }
 
         await SetClaimantAddressAsync(confirmed: "\u200b");
         var knownApiReplay = await submitter.ExecuteAsync(
@@ -2139,10 +2155,13 @@ public sealed class CustodyOutboxIntegrationTests
     {
         public int ReadCount { get; private set; }
 
+        public IReadOnlyList<ManagedDocumentContentRead> Reads { get; private set; } = [];
+
         public Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
             IReadOnlyList<ManagedDocumentContentRead> reads, CancellationToken cancellationToken)
         {
             ReadCount++;
+            Reads = reads;
             return inner.ReadVersionsAsync(reads, cancellationToken);
         }
 
