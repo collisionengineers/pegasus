@@ -36,6 +36,11 @@ public sealed class MailWorkspaceWebTests
     private const string SecondMailboxId = "reports";
     private const string SecondMailboxAddress = "reports@collisionengineers.co.uk";
 
+    /// <summary>The list pane as a row list; the shell's notification list carries the same hook on every page.</summary>
+    private static readonly Regex ListPaneRowList = new(
+        "<div class=\"pane-body pane-scroll\" tabindex=\"0\"\\s+data-row-list",
+        RegexOptions.CultureInvariant);
+
     [Fact]
     public async Task QuickPreviewIsAuthenticatedExactEvidenceAndDoesNotMutateMailState()
     {
@@ -866,7 +871,7 @@ public sealed class MailWorkspaceWebTests
             client,
             $"/Inbox?mailbox={FirstMailboxFilter}&sort=oldest&selected={ids[1]:D}");
 
-        Assert.Contains("data-row-list", html, StringComparison.Ordinal);
+        Assert.Matches(ListPaneRowList, html);
         var selectedRow = MailRow(html, ids[1]);
         var otherRow = MailRow(html, ids[0]);
         Assert.Contains("aria-current=\"true\"", selectedRow, StringComparison.Ordinal);
@@ -1288,7 +1293,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("pageNumber=2", firstPage, StringComparison.Ordinal);
         // Deleted Items rows have no link to take focus, so the pane is not a
         // row list: the arrow keys scroll it.
-        Assert.DoesNotContain("data-row-list", firstPage, StringComparison.Ordinal);
+        Assert.DoesNotMatch(ListPaneRowList, firstPage);
 
         var secondPage = await GetHtmlAsync(
             client,
