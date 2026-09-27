@@ -1,90 +1,29 @@
-using System.Text.RegularExpressions;
+using Pegasus.Core.Operations;
 
 namespace Pegasus.Core.Triage;
 
 /// <summary>
-/// Reply with outcome: the built-in body a Completed Triage's reply opens
-/// with, rendered from the registration and the current finding. Staff edit
-/// the text before Send; the subject stays the origin's with one "Re:".
+/// Reply with outcome: what one Triage supplies to the Triage outcome reply
+/// template (<see cref="EmailTemplatePurpose.TriageOutcomeReply"/>). The
+/// template, its placeholders and its built-in body belong to
+/// <see cref="EmailTemplates"/>; staff edit the rendered text before Send, and
+/// the subject stays the origin's with one "Re:".
 /// </summary>
 /// <remarks>
-/// A placeholder with no value renders nothing, and a line whose placeholders
-/// are all empty is left out, so a dimension that was not recorded does not
-/// appear. <c>{reason}</c> is available but not in the default: the finding
-/// reason is internal wording.
+/// A dimension that was not recorded has no value, so its line is left out
+/// of the rendered body.
 /// </remarks>
-public static partial class TriageOutcomeReply
+public sealed record TriageOutcomeReply(string Registration, TriageFinding? Finding)
 {
-    public const string Registration = "registration";
-    public const string Roadworthiness = "roadworthiness";
-    public const string RepairOutcome = "repair outcome";
-    public const string Reason = "reason";
-
-    public const string DefaultBody =
-        "Thank you for your triage request for {registration}.\n"
-        + "\n"
-        + "Roadworthiness: {roadworthiness}\n"
-        + "Repair outcome: {repair outcome}\n"
-        + "\n"
-        + "Kind regards\n"
-        + "Collision Engineers";
-
-    /// <summary>The default body rendered for one Triage.</summary>
-    public static string Render(string registration, TriageFinding? finding) =>
-        Render(DefaultBody, Values(registration, finding));
-
-    /// <summary>The placeholder values one Triage supplies, by placeholder name.</summary>
-    public static IReadOnlyDictionary<string, string?> Values(string registration, TriageFinding? finding) =>
+    /// <summary>The placeholder values this Triage supplies, by placeholder name.</summary>
+    public IReadOnlyDictionary<string, string?> Values() =>
         new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            [Registration] = registration,
-            [Roadworthiness] = finding?.Roadworthiness is { } roadworthiness ? Label(roadworthiness) : null,
-            [RepairOutcome] = finding?.Assessment is { } assessment ? Label(assessment) : null,
-            [Reason] = finding?.Reason
+            [EmailTemplates.Registration] = Registration,
+            [EmailTemplates.Roadworthiness] = Finding?.Roadworthiness is { } roadworthiness ? Label(roadworthiness) : null,
+            [EmailTemplates.RepairOutcome] = Finding?.Assessment is { } assessment ? Label(assessment) : null,
+            [EmailTemplates.FindingReason] = Finding?.Reason
         };
-
-    /// <summary>
-    /// Renders <paramref name="body"/> line by line. A known placeholder is
-    /// replaced by its value, or by nothing when the value is empty; a line
-    /// whose known placeholders are all empty is left out. A placeholder the
-    /// values do not name is left as written.
-    /// </summary>
-    public static string Render(string body, IReadOnlyDictionary<string, string?> values)
-    {
-        ArgumentNullException.ThrowIfNull(body);
-        ArgumentNullException.ThrowIfNull(values);
-        var lines = body.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
-        var kept = new List<string>(lines.Length);
-        foreach (var line in lines)
-        {
-            var known = 0;
-            var filled = 0;
-            var rendered = PlaceholderPattern().Replace(line, match =>
-            {
-                if (!values.TryGetValue(match.Groups["name"].Value, out var value))
-                {
-                    return match.Value;
-                }
-
-                known++;
-                if (string.IsNullOrWhiteSpace(value))
-                {
-                    return string.Empty;
-                }
-
-                filled++;
-                return value;
-            });
-            if (known > 0 && filled == 0)
-            {
-                continue;
-            }
-
-            kept.Add(rendered);
-        }
-
-        return string.Join("\n", kept);
-    }
 
     public static string Label(RoadworthinessFinding finding) => finding switch
     {
@@ -101,7 +40,4 @@ public static partial class TriageOutcomeReply
         _ => throw new InvalidOperationException(
             $"Unknown assessment finding value '{(int)finding}'.")
     };
-
-    [GeneratedRegex(@"\{(?<name>[^{}]+)\}", RegexOptions.CultureInvariant)]
-    private static partial Regex PlaceholderPattern();
 }

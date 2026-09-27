@@ -943,9 +943,15 @@ public sealed partial class DetailsModel
                 view.ReplySubject = TriageReplySubject(retainedMail.Summary.Subject);
                 if (view.IsOutcomeReply)
                 {
-                    view.ReplyBody = TriageOutcomeReply.Render(
-                        triage.Record.NormalizedVehicleRegistration,
-                        view.CurrentFinding);
+                    // The Administrator's saved template, or the built-in
+                    // body until one is saved (FRD-17 E-mail templates).
+                    view.ReplyBody = await ports.RenderTemplate.ExecuteAsync(
+                        actor,
+                        EmailTemplatePurpose.TriageOutcomeReply,
+                        new TriageOutcomeReply(
+                            triage.Record.NormalizedVehicleRegistration,
+                            view.CurrentFinding).Values(),
+                        cancellationToken);
                 }
             }
         }
