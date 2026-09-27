@@ -204,6 +204,29 @@ public sealed record CaseReportGenerationSnapshot(
 }
 
 /// <summary>
+/// Where a generated document's file stands, in plain meaning. It is read
+/// from the artifact row's own status and identities, so every reader says
+/// the same thing about the same row.
+/// </summary>
+public enum CaseReportArtifactFiling
+{
+    /// <summary>The row was frozen but holds no file at all: the render never finished.</summary>
+    NotProduced,
+
+    /// <summary>The file was drawn and is on its way to Box.</summary>
+    BeingStored,
+
+    /// <summary>The file is in Box.</summary>
+    Stored,
+
+    /// <summary>Storing the file failed.</summary>
+    StorageFailed,
+
+    /// <summary>What became of the file is not known.</summary>
+    Unconfirmed,
+}
+
+/// <summary>
 /// One artifact row of a generation. Logical identities are retained for a
 /// Pending or Unknown custody outcome so a retry after process restart can
 /// ask custody what actually happened instead of rendering again blindly.
@@ -223,7 +246,23 @@ public sealed record CaseReportArtifactRecord(
     string? BoxFileId,
     string? BoxVersionId,
     string? PendingContentStorageKey,
-    string? FailureCode);
+    string? FailureCode)
+{
+    /// <summary>
+    /// Where this document's file stands. A Pending row is being stored only
+    /// once custody has given it a version; until then no file exists.
+    /// </summary>
+    [JsonIgnore]
+    public CaseReportArtifactFiling Filing => Status switch
+    {
+        CaseReportArtifactStatus.Confirmed => CaseReportArtifactFiling.Stored,
+        CaseReportArtifactStatus.Failed => CaseReportArtifactFiling.StorageFailed,
+        CaseReportArtifactStatus.Unknown => CaseReportArtifactFiling.Unconfirmed,
+        _ => VersionId is null
+            ? CaseReportArtifactFiling.NotProduced
+            : CaseReportArtifactFiling.BeingStored,
+    };
+}
 
 /// <summary>
 /// A generation with its frozen snapshot and every artifact asked of it.
