@@ -317,7 +317,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         EvaSubmissions:SELECT,INSERT
         CaseReportGenerations:SELECT,UPDATE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
-        GeneratedCaseArtifacts:SELECT
+        GeneratedCaseArtifacts:SELECT,UPDATE
         IntakeOcrOperations:SELECT,INSERT,UPDATE
         IntakeSourceCandidates:SELECT,INSERT
         RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
@@ -976,6 +976,34 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 .Where(value => value.StartsWith("CaseAssessmentFields:", StringComparison.Ordinal))
                 .ToArray());
         Assert.DoesNotContain("CaseAssessmentFields", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+    }
+
+    // 20260928090000_GrantWorkerGeneratedCaseArtifactUpdate: the Worker's sweep
+    // records a generated report file as stored once custody has filed it, so
+    // it updates the artifact row and its generation. It never inserts or
+    // deletes either.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerUpdateOnGeneratedCaseArtifacts()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            [
+                "CaseReportGenerations:SELECT",
+                "CaseReportGenerations:UPDATE",
+                "GeneratedCaseArtifacts:SELECT",
+                "GeneratedCaseArtifacts:UPDATE"
+            ],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("CaseReportGenerations:", StringComparison.Ordinal)
+                    || value.StartsWith("GeneratedCaseArtifacts:", StringComparison.Ordinal))
+                .ToArray());
+        var deniedDelete = await ReadDeniedDeleteTablesAsync(database, WorkerRole);
+        Assert.Contains("CaseReportGenerations", deniedDelete);
+        Assert.Contains("GeneratedCaseArtifacts", deniedDelete);
     }
 
     // Case-document registration moved into the Worker's
