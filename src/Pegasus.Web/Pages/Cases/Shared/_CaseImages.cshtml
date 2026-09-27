@@ -212,9 +212,10 @@ else
     </ul>
     <p class="muted image-grid-count"><b data-image-report-count>@ReportImageLabels.InReportCount(includedCount, printableCount)</b></p>
 
-    @* The associated Image-initiated Cases' photographs, each naming the
-       intake it arrived on. They are receipts, not case documents, so they
-       carry no tags and no preparation. *@
+    @* The photographs of a Vehicle images record associated with the Case and
+       not yet merged into it, under the record they arrived on. They are not
+       Case images yet, so they carry no tags and no preparation here. The
+       merge files them as Case images, and the record's group goes. *@
     @foreach (var intake in Model.ImageIntakes)
     {
         var intakeImages = Model.ImagesByIntake.GetValueOrDefault(intake.Id, []);

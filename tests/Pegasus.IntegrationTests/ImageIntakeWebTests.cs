@@ -349,14 +349,21 @@ internal static class ImageIntakeTestData
     /// registered record's photographs are read from its own folder, never
     /// from a holding copy (operator, 23 September 2026).
     /// </summary>
-    public static async Task ProcessImageCaseCustodyAsync(IntakeWebApplicationFactory factory)
+    public static Task ProcessImageCaseCustodyAsync(IntakeWebApplicationFactory factory) =>
+        ProcessCustodyAsync(factory, ExternalWorkKinds.CreateImageCaseCustody);
+
+    /// <summary>
+    /// Runs every queued custody operation of one kind as the Worker would:
+    /// the test host discards the queue publication.
+    /// </summary>
+    public static async Task ProcessCustodyAsync(IntakeWebApplicationFactory factory, string kind)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         Guid[] workIds;
         await using (var context = await factory.Database.CreateContextAsync())
         {
             workIds = await context.ExternalWorkItems.AsNoTracking()
-                .Where(item => item.Kind == ExternalWorkKinds.CreateImageCaseCustody)
+                .Where(item => item.Kind == kind)
                 .Select(item => item.Id)
                 .ToArrayAsync();
         }

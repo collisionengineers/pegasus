@@ -169,11 +169,18 @@ throughout, and the queued work re-arms itself with bounded backoff on
 dependency failures before it records a terminal failure honestly on the
 record. When the record merges into a formal Case
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)), the
-folder's contents move into that Case's Box custody, at the Case root's
-image evidence location, and the emptied folder is removed. The removal is
+folder's contents move into that Case's Box folder, beside its other files,
+and the emptied folder is removed. A file whose name the Case folder already
+holds takes the record's reference in front of its name. The removal is
 non-recursive, so unexpected content makes the fold fail closed instead of
-being destroyed. The record's lifecycle state and merge or closure history
-stay in SQL whatever happens to custody.
+being destroyed. Each moved file keeps its Box file and version identity.
+When the fold completes it records each photograph it moved as a Case image
+document under that identity (operator, 27 September 2026). Nothing is
+uploaded again, and a replay records nothing twice. The fold yields to a
+member of staff editing the Case and retries after they finish
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). The record's
+lifecycle state and merge or closure history stay in SQL whatever happens to
+custody.
 
 ### Custody and staging distinctions
 
@@ -276,7 +283,7 @@ There is no way back from a tag to the flag.
 | Source file | Received and staged → destination custody (Case, Vehicle images folder, or holding while no destination is settled) | Staging is never proof of custody |
 | OCR operation | Submitted → output kept → analysed, no-profile or ambiguous; or visibly failed | Retries reuse the kept output |
 | Custody of one file | Pending → Confirmed; or Failed | Galleries show the state until Confirmed |
-| Vehicle images folder | Queued → written; folded into a Case on merge | A Box failure never blocks the record |
+| Vehicle images folder | Queued → written; folded into a Case on merge, its photographs recorded as Case images | A Box failure never blocks the record |
 
 ## Edge cases and fail-closed behaviour
 

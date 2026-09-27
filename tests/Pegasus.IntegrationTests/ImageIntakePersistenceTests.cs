@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -870,6 +871,28 @@ public sealed class ImageIntakePersistenceTests
             CancellationToken.None);
         await ProcessCustodyWorkAsync(services, ExternalWorkKinds.CreateCaseCustody, caseId: triage.CaseId);
 
+        // Staff crop and tag the photograph on the record, before the Triage
+        // Case has it.
+        var photographId = Assert.Single(await queries.ListImagesAsync(
+            registered.Record.Id, CancellationToken.None)).AssetId!.Value;
+        await services.GetRequiredService<ISavePreCaseImageCrop>().ExecuteAsync(
+            new(
+                photographId,
+                0,
+                CaseAssetRotation.Clockwise90,
+                new CaseAssetCrop(0.1m, 0.2m, 0.5m, 0.6m),
+                StaffActor(),
+                $"triage-record-crop:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+        await services.GetRequiredService<ITagPreCaseImage>().ExecuteAsync(
+            new(
+                photographId,
+                ImageTagVocabulary.OverviewId,
+                true,
+                StaffActor(),
+                $"triage-record-tag:{Guid.NewGuid():N}"),
+            CancellationToken.None);
+
         var triageScope = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
             new(EditScopeKind.Triage, triage.CaseId, 0, StaffActor(), "link-images-triage-edit"),
             CancellationToken.None);
@@ -911,6 +934,32 @@ public sealed class ImageIntakePersistenceTests
             .Select(item => item.Version)
             .SingleAsync());
         Assert.False(await context.CaseWorkflows.AnyAsync(item => item.CaseId == triage.CaseId));
+
+        // A Triage Case takes the photograph as a Case image the same way
+        // (operator, 27 September 2026), and its Triage version stays put.
+        var filed = Assert.Single(await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == triage.CaseId
+                    && occurrence.SemanticRole == DocumentSemanticRole.Image
+                select new { Occurrence = occurrence, version.FileName, version.CustodyStatus })
+            .ToListAsync());
+        Assert.Equal("vehicle.png", filed.FileName);
+        Assert.Equal(DocumentCustodyStatus.Confirmed, filed.CustodyStatus);
+        Assert.True(filed.Occurrence.InReport);
+        // The crop, the rotation and the tag made on the record came with it.
+        Assert.Equal(90, filed.Occurrence.RotationDegrees);
+        Assert.Equal(0.1m, filed.Occurrence.CropLeft);
+        Assert.Equal(0.2m, filed.Occurrence.CropTop);
+        Assert.Equal(0.5m, filed.Occurrence.CropWidth);
+        Assert.Equal(0.6m, filed.Occurrence.CropHeight);
+        var tag = Assert.Single(await context.Set<DocumentOccurrenceTagEntity>().AsNoTracking()
+            .Where(item => item.OccurrenceId == filed.Occurrence.Id)
+            .ToListAsync());
+        Assert.Equal(ImageTagVocabulary.OverviewId, tag.TagId);
+        var forTriage = Assert.Single(await queries.ListForCaseAsync(triage.CaseId, CancellationToken.None));
+        Assert.True(forTriage.PhotographsAreCaseImages);
     }
 
     [Fact]
