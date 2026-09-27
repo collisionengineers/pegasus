@@ -570,6 +570,13 @@ function Get-MigrationPermissionMatrix {
     # 20260925090000_VehicleLookupDerivedFacts: the Worker's lookup fill clears a
     # lookup-derived Case fact that a complete answer no longer carries.
     $expected.Add('pegasus_worker_runtime_role|G|DELETE|CaseAssessmentFields')
+    # 20260927002303_EmailTemplates: Web reads, adds and edits the editable
+    # templates; neither role deletes one.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|EmailTemplates")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|EmailTemplates')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|EmailTemplates')
     return @($expected | Sort-Object -Unique)
 }
 

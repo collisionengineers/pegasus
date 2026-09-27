@@ -27,11 +27,12 @@ $preserve = @(
     'ProviderDomainEvidence', 'ProviderDomainPackages', 'ProviderReferences',
     'WorkflowConfigurations', 'LabourRateCards', 'ImageTags', 'SendToAiControl', 'SecurityEvents',
     'CaseSequences', 'ImageIntakeSequences', 'TriageSequences', 'UnidentifiedSequences',
-    'ValuationPresets'
+    'ValuationPresets', 'EmailTemplates'
 )
-# Preserved only where the schema still has it: 20260924180000_CaseWorksAndTriageCases
-# drops TriageSequences (a Triage Case takes its reference from CaseSequences).
-$optionalPreserve = @('TriageSequences')
+# Preserved only where the schema has it: 20260924180000_CaseWorksAndTriageCases
+# drops TriageSequences (a Triage Case takes its reference from CaseSequences);
+# 20260927002303_EmailTemplates adds EmailTemplates.
+$optionalPreserve = @('TriageSequences', 'EmailTemplates')
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="
 $blobsJson = az storage blob list --account-name $storageAccount --container-name $container --auth-mode login --output json
@@ -182,6 +183,14 @@ $sequenceBeforeValues = @($sequencesBefore | Where-Object {
 } | Sort-Object)
 $valuationPresetRowsBefore = (Invoke-Query 'SELECT COUNT(*) AS ValuationPresetRows FROM dbo.ValuationPresets').ValuationPresetRows
 Write-Output ("Valuation preset rows before: {0}" -f $valuationPresetRowsBefore)
+# Saved e-mail templates are Administrator settings, kept like the presets.
+$emailTemplatesPresent = 'EmailTemplates' -in $all
+function Get-EmailTemplateRows {
+    if (-not $emailTemplatesPresent) { return 0 }
+    (Invoke-Query 'SELECT COUNT(*) AS EmailTemplateRows FROM dbo.EmailTemplates').EmailTemplateRows
+}
+$emailTemplateRowsBefore = Get-EmailTemplateRows
+Write-Output ("E-mail template rows before: {0}" -f $emailTemplateRowsBefore)
 
 if (-not $Execute) {
     $resetSummary = if ($ResetTestEstate) { ' Accounts and the QDOS counter were not changed.' } else { '' }
@@ -260,6 +269,8 @@ $valuationPresetRowsAfter = (Invoke-Query 'SELECT COUNT(*) AS ValuationPresetRow
 Write-Output ("Reference sequence changes: {0}" -f $sequenceChanges.Count)
 $sequenceChanges | Format-Table -AutoSize | Out-String | Write-Output
 Write-Output ("Valuation preset rows before/after: {0}/{1}" -f $valuationPresetRowsBefore, $valuationPresetRowsAfter)
+$emailTemplateRowsAfter = Get-EmailTemplateRows
+Write-Output ("E-mail template rows before/after: {0}/{1}" -f $emailTemplateRowsBefore, $emailTemplateRowsAfter)
 $resetVerificationFailed = $false
 if ($ResetTestEstate) {
     $resetVerification = Invoke-Query "SELECT
@@ -279,7 +290,7 @@ if ($ResetTestEstate) {
 }
 $connection.Close()
 
-if ($sequenceChanges.Count -gt 0 -or $valuationPresetRowsBefore -ne $valuationPresetRowsAfter -or $resetVerificationFailed) {
+if ($sequenceChanges.Count -gt 0 -or $valuationPresetRowsBefore -ne $valuationPresetRowsAfter -or $emailTemplateRowsBefore -ne $emailTemplateRowsAfter -or $resetVerificationFailed) {
     throw 'Post-wipe protected-state verification failed; do not resume the Worker.'
 }
 
