@@ -61,7 +61,8 @@ zero, so the next allocation is `QDOSyy001`.
   (`AspNet*`, `OpenIddict*`), mailbox configuration and Graph subscriptions,
   `Organizations*`/`Principals*`, `ProviderDomain*`/
   `ProviderReferences`, `WorkflowConfigurations`, `SendToAiControl`,
-  `SecurityEvents`, `ValuationPresets` (administrator-managed configuration),
+  `SecurityEvents`, `ValuationPresets` and `EmailTemplates`
+  (administrator-managed configuration),
   and the reference-sequence tables `CaseSequences`, `ImageIntakeSequences`
   and `UnidentifiedSequences`, plus `TriageSequences` only while the schema
   still has it (so no case/image/Triage/unidentified reference is ever

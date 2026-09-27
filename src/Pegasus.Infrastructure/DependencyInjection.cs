@@ -416,6 +416,10 @@ public static class DependencyInjection
         services.AddScoped<Pegasus.Core.ReleaseNotes.IMyReleaseNotes, Pegasus.Core.ReleaseNotes.MyReleaseNotes>();
         services.AddScoped<Pegasus.Core.Support.IProblemReportStore, EfProblemReportStore>();
         services.AddScoped<Pegasus.Core.Support.ListProblemReports>();
+        services.AddScoped<Pegasus.Core.Operations.IEmailTemplateStore, EfEmailTemplateStore>();
+        services.AddScoped<Pegasus.Core.Operations.GetEmailTemplate>();
+        services.AddScoped<Pegasus.Core.Operations.UpdateEmailTemplate>();
+        services.AddScoped<Pegasus.Core.Operations.RenderEmailTemplate>();
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());

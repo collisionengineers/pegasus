@@ -37,6 +37,7 @@ public sealed record TriageCasePorts(
     ITriageQueries TriageQueries,
     Pegasus.Core.ImageIntake.IGetPreCaseImagePreparations GetPreparations,
     Pegasus.Core.Documents.IReadImageTagVocabulary TagVocabulary,
+    RenderEmailTemplate RenderTemplate,
     GetRetainedMail? RetainedMail = null,
     IStaffMailSend? StaffMailSend = null,
     IApprovedMailboxStore? ApprovedMailboxes = null,

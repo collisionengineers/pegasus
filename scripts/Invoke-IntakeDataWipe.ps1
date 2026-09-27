@@ -27,11 +27,12 @@ $preserve = @(
     'ProviderDomainEvidence', 'ProviderDomainPackages', 'ProviderReferences',
     'WorkflowConfigurations', 'LabourRateCards', 'ImageTags', 'SendToAiControl', 'SecurityEvents',
     'CaseSequences', 'ImageIntakeSequences', 'TriageSequences', 'UnidentifiedSequences',
-    'ValuationPresets'
+    'ValuationPresets', 'EmailTemplates'
 )
-# Preserved only where the schema still has it: 20260924180000_CaseWorksAndTriageCases
-# drops TriageSequences (a Triage Case takes its reference from CaseSequences).
-$optionalPreserve = @('TriageSequences')
+# Preserved only where the schema has it: 20260924180000_CaseWorksAndTriageCases
+# drops TriageSequences (a Triage Case takes its reference from CaseSequences);
+# 20260927002303_EmailTemplates adds EmailTemplates.
+$optionalPreserve = @('TriageSequences', 'EmailTemplates')
 
 Write-Output "=== Blob inventory: $storageAccount/$container ==="
 $blobsJson = az storage blob list --account-name $storageAccount --container-name $container --auth-mode login --output json
