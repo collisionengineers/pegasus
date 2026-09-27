@@ -254,10 +254,13 @@ reason, then only the buttons the state permits.
 | Cancelled | Reopen | none |
 
 On a Completed or Cancelled Triage the two determinations are greyed boxes
-in the same places; Completed keeps the correction form. Complete and Await
-information act on the click and ask no reason. Cancel Triage, Reopen, Link
-case and Unlink case keep their reason dialogs, as does the determination
-reason ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
+in the same places. A correction is still offered on Completed: **Record
+correction** below the boxes opens the same determinations form in a
+dialog, and the correction supersedes the finding
+([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
+Complete and Await information act on the click and ask no reason. Cancel
+Triage, Reopen, Link case and Unlink case keep their reason dialogs, as does
+the determination reason.
 Each action shows its own notice. The completion notice links to Reply with
 outcome when a reply can be sent.
 

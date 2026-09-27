@@ -738,6 +738,61 @@ public sealed partial class TriageCaseWebTests
         Assert.Equal(0, detail.Record.Version);
     }
 
+    /// <summary>
+    /// On a Completed Triage the determinations are greyed boxes with the
+    /// recorded values, and Record correction opens the same form in a
+    /// dialog; the correction supersedes the finding and returns the Triage
+    /// to Finding recorded.
+    /// </summary>
+    [Fact]
+    public async Task ACompletedTriageShowsGreyedDeterminationsAndOffersRecordCorrection()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var triage = await CreateManualTriageAsync(factory.Services, "completed-correction");
+        var antiforgery = AntiforgeryValue(await GetHtmlAsync(client, $"/Cases/{triage.CaseId:D}"));
+        _ = await PostTriageActionAsync(
+            client,
+            triage.CaseId,
+            antiforgery,
+            0,
+            "record_finding",
+            ("reason", "Reviewed the request images."),
+            ("roadworthiness", nameof(RoadworthinessFinding.Roadworthy)),
+            ("assessment", nameof(AssessmentFinding.Repairable)));
+        var finding = Assert.Single((await GetTriageAsync(factory.Services, triage.CaseId)).Findings);
+        var completed = await PostTriageActionAsync(client, triage.CaseId, antiforgery, 1, "complete");
+
+        var panel = DeterminationsPanel(completed);
+        Assert.DoesNotContain("data-triage-determinations", panel, StringComparison.Ordinal);
+        Assert.Contains("<div class=\"fc ro\">", panel, StringComparison.Ordinal);
+        Assert.Contains(">Roadworthy</div>", panel, StringComparison.Ordinal);
+        Assert.Contains(">Repairable</div>", panel, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"triage-correction-dialog\"", panel, StringComparison.Ordinal);
+        var dialog = CorrectionDialog(completed);
+        Assert.Contains("data-triage-determinations", dialog, StringComparison.Ordinal);
+        Assert.Contains("value=\"supersede_finding\"", dialog, StringComparison.Ordinal);
+        Assert.Contains($"name=\"supersedesFindingId\" value=\"{finding.Id:D}\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("value=\"Roadworthy\" selected=\"selected\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("value=\"Repairable\" selected=\"selected\"", dialog, StringComparison.Ordinal);
+
+        var corrected = await PostTriageActionAsync(
+            client,
+            triage.CaseId,
+            antiforgery,
+            2,
+            "supersede_finding",
+            ("reason", "Further images show the damage."),
+            ("roadworthiness", nameof(RoadworthinessFinding.Unroadworthy)),
+            ("assessment", nameof(AssessmentFinding.TotalLoss)),
+            ("supersedesFindingId", finding.Id.ToString("D")));
+        Assert.Contains(Pegasus.Web.Presentation.OperatorLabels.Triage.FindingRecorded, corrected, StringComparison.Ordinal);
+        var detail = await GetTriageAsync(factory.Services, triage.CaseId);
+        Assert.Equal(TriageState.FindingRecorded, detail.Record.State);
+        Assert.Equal(finding.Id, detail.Findings.Single(item => item.SupersedesFindingId is not null).SupersedesFindingId);
+        await AssertNoLiveScopeAsync(factory.Services, triage.CaseId);
+    }
+
     private static CreateManualCaseRequest ManualTriageRequest(string operationKey, string registration) => new(
         ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
         operationKey,
@@ -896,6 +951,24 @@ public sealed partial class TriageCaseWebTests
         Assert.True(start >= 0, "The Triage ribbon is not rendered.");
         var end = html.IndexOf("class=\"ribbon-chips\"", start, StringComparison.Ordinal);
         Assert.True(end > start, "The Triage ribbon has no state chip.");
+        return html[start..end];
+    }
+
+    /// <summary>The Determinations panel, from its head to its end.</summary>
+    private static string DeterminationsPanel(string html)
+    {
+        var start = html.IndexOf("id=\"triage-determinations-title\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Determinations panel is not rendered.");
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Determinations panel is not closed.");
+        return html[start..end];
+    }
+
+    private static string CorrectionDialog(string html)
+    {
+        var start = html.IndexOf("data-dialog=\"triage-correction-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Record correction dialog is not rendered.");
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
         return html[start..end];
     }
 
