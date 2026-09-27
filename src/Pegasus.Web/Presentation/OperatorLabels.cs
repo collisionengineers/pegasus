@@ -206,6 +206,7 @@ public static class OperatorLabels
         public const string ResponseLinked = "Response evidence linked.";
         public const string ResponseUnlinked = "Response evidence unlinked.";
         public const string Changed = "This Triage record changed while you were working. Reload and try again.";
+        public const string Expired = "Editing expired before this change was saved. Reload and try again.";
         public const string ChooseAssignee = "Choose who to assign.";
 
         public const string Assign = "Assign";

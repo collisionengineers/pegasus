@@ -57,9 +57,11 @@ public sealed class CustodyModel(
         // A Triage Case keeps standard Case custody, so its failed custody is
         // retried here too. Its expected version is its Triage version, and
         // its authority is the Triage edit scope, claimed for this one save
-        // (a Triage Case has no Edit step). It holds no Case edit lease for
-        // this page to keep, and its page shows the outcome as its Triage
-        // status.
+        // (a Triage Case has no Edit step). The retry answers a replay, a
+        // conflict, a refusal and not-found as results, and only a Pending
+        // retry consumes the scope; every other outcome releases it here. It
+        // holds no Case edit lease for this page to keep, and its page shows
+        // the outcome as its Triage status.
         var triageCase = await getCaseKind.ExecuteAsync(id, cancellationToken) == CaseType.Triage;
         try
         {
@@ -70,10 +72,12 @@ public sealed class CustodyModel(
                     expectedVersion,
                     actor,
                     operationKey,
+                    logger,
                     token => retryCaseCustody.ExecuteAsync(
                         new(id, expectedVersion, actor, operationKey, reason, token, targetKind),
                         cancellationToken),
-                    cancellationToken)
+                    cancellationToken,
+                    consumesScope: retry => retry.Outcome == RetryCaseCustodyOutcome.Pending)
                 : await retryCaseCustody.ExecuteAsync(
                     new(id, expectedVersion, actor, operationKey, reason, editLeaseToken ?? string.Empty, targetKind),
                     cancellationToken);
