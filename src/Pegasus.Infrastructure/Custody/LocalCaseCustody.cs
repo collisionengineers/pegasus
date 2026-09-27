@@ -167,7 +167,9 @@ internal sealed class LocalCaseCustody(
             metadata,
             existing => existing == metadata,
             cancellationToken);
-        return new(root.CaseId, relativeId, expectedHash, expectedHash);
+        // The file carries a version identity as a Box file does, so the
+        // asset records where its copy is and the fold can file it on a Case.
+        return new(root.CaseId, relativeId, expectedHash, expectedHash, expectedHash);
     }
 
     public async Task MergeImageCaseContentsAsync(
