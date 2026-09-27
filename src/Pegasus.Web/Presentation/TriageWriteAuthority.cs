@@ -92,7 +92,7 @@ public static class TriageWriteAuthority
     /// Releases a scope a refused save left behind. A scope that has already
     /// gone, or that a newer claim replaced, protects nothing and is not an error.
     /// </summary>
-    public static async Task ReleaseAsync(
+    private static async Task ReleaseAsync(
         IEditScopeLeases editScopes,
         Guid triageCaseId,
         ActionActor actor,
