@@ -406,8 +406,8 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     ["settlement.excess"] = "250.00"
                     // The findings and the valuation values are deliberately
                     // absent: a finding is recorded only by staff, and the
-                    // Engineer's Value and its basis card's retail and trade
-                    // are recorded only by a Case Save's adoption.
+                    // Engineer's Value and its retail and trade are staff
+                    // findings too.
                 }),
             CancellationToken.None);
 
