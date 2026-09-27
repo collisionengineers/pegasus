@@ -156,6 +156,24 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(new DateOnly(2026, 9, 7), result.Generation.Snapshot.Report.ReportDate);
     }
 
+    [Fact]
+    public async Task TypedValuesGenerateWithoutAnAppliedValuationAndTheReportPrintsThem()
+    {
+        await using var harness = await Harness.CreateAsync();
+        harness.TypeValues(retail: 6_100m, trade: 4_900m, engineer: 5_700m);
+        var renderer = new RecordingRenderer(harness);
+
+        var result = await harness.Generate(new RecordingCustody(harness), renderer)
+            .ExecuteAsync(harness.Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.Empty(result.Reasons);
+        var rendered = Assert.IsType<AssessmentReportSnapshot>(renderer.Rendered);
+        Assert.Equal(6_100m, rendered.RetailValue);
+        Assert.Equal(4_900m, rendered.TradeValue);
+        Assert.Equal(5_700m, rendered.EngineerValue);
+    }
+
     [Theory]
     [InlineData("add")]
     [InlineData("remove")]
@@ -1668,6 +1686,10 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Accepts a different Engineer's Value, a material change.</summary>
         public void AcceptEngineerValue(decimal value) => snapshotSource.AcceptEngineerValue(value);
 
+        /// <summary>Types the three boxes with no basis card, so no applied valuation row exists.</summary>
+        public void TypeValues(decimal retail, decimal trade, decimal engineer) =>
+            snapshotSource.TypeValues(retail, trade, engineer);
+
         /// <summary>Records a revised assessment, which every later freeze reads.</summary>
         public void ReviseAssessment(Func<CaseAssessmentProjection, CaseAssessmentProjection> revise) =>
             snapshotSource.TransformAssessment(revise);
@@ -2008,6 +2030,7 @@ public sealed class CaseReportGenerationPersistenceTests
         private readonly Guid valuationId = Guid.NewGuid();
         private readonly Guid guideValuationId = Guid.NewGuid();
         private decimal engineerValue = 5_000m;
+        private bool fromCard = true;
         private Func<CaseAssessmentProjection, CaseAssessmentProjection>? transform;
 
         public FakeSnapshotSource(
@@ -2036,7 +2059,26 @@ public sealed class CaseReportGenerationPersistenceTests
             };
         }
 
-        public void AcceptEngineerValue(decimal value) => engineerValue = value;
+        /// <summary>
+        /// A calculation fills the Engineer's Value box with <paramref name="value"/>
+        /// and the Save records it against its basis card: the field the report
+        /// prints and the applied row move together.
+        /// </summary>
+        public void AcceptEngineerValue(decimal value)
+        {
+            engineerValue = value;
+            transform = current => WithValues(current, engineer: value);
+        }
+
+        /// <summary>
+        /// The three boxes typed by hand: the fields carry the figures and no
+        /// applied valuation row exists (operator, 26 September 2026).
+        /// </summary>
+        public void TypeValues(decimal retail, decimal trade, decimal engineer)
+        {
+            fromCard = false;
+            transform = current => WithValues(current, retail, trade, engineer);
+        }
 
         /// <summary>
         /// Applies <paramref name="revise"/> to the accepted assessment every
@@ -2064,9 +2106,29 @@ public sealed class CaseReportGenerationPersistenceTests
             [new SignOffEngineerProfile(
                 SignatoryId, "Ed Mawdsley", "ATA VDA AQP", SignatureBytes, "image/png", IsDefault: true)],
             estimate,
-            Valuation(),
+            fromCard ? Valuation() : null,
             [Preparation(closeUp, CaseAssetReportRole.CloseUp), Preparation(overview, CaseAssetReportRole.Overview)],
             confirmedSources);
+
+        private static CaseAssessmentProjection WithValues(
+            CaseAssessmentProjection current,
+            decimal? retail = null,
+            decimal? trade = null,
+            decimal? engineer = null) => current with
+            {
+                Fields = current.Fields
+                    .Select(field => field.Path switch
+                    {
+                        AssessmentVocabulary.ValueRetail when retail is { } value => field with { Value = Money(value) },
+                        AssessmentVocabulary.ValueTrade when trade is { } value => field with { Value = Money(value) },
+                        AssessmentVocabulary.ValueEngineer when engineer is { } value => field with { Value = Money(value) },
+                        _ => field,
+                    })
+                    .ToArray(),
+            };
+
+        private static string Money(decimal value) =>
+            value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
 
         private AppliedValuation Valuation() => new(
             valuationId, caseId, 1, guideValuationId, RecordedAtUtc,
@@ -2174,12 +2236,16 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Runs after the freeze committed and before custody.</summary>
         public Func<Task>? Before { get; set; }
 
+        /// <summary>The facts the last render was given.</summary>
+        public AssessmentReportSnapshot? Rendered { get; private set; }
+
         public async Task<RenderedReportArtifact> RenderAsync(
             AssessmentReportSnapshot snapshot,
             CaseReportArtifactKind kind,
             CancellationToken cancellationToken = default)
         {
             Kinds.Add(kind);
+            Rendered = snapshot;
             harness.Sequence.Add("render");
             if (Before is not null)
             {
