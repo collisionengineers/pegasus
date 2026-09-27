@@ -979,7 +979,7 @@ public sealed class MailWorkspaceWebTests
         var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
         await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.NeedsSorting);
         var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
-        var triageCaseId = await SeedTriageCaseAsync(factory, receiptId, "t.QDOS31007");
+        var triageCaseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, receiptId, "t.QDOS31007");
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Inbox");
@@ -996,6 +996,33 @@ public sealed class MailWorkspaceWebTests
         var row = MailRow(html, messageId);
         Assert.Contains(">Triage</span>", row, StringComparison.Ordinal);
         Assert.Contains($"<a href=\"/Cases/{triageCaseId:D}\">t.QDOS31007</a>", row, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Triage flag follows the Case's own type, not how the message came
+    /// to it: a message staff linked to a Triage Case it did not open shows
+    /// the Triage chip and Open Triage too.
+    /// </summary>
+    [Fact]
+    public async Task AMessageLinkedToATriageCaseShowsItAsATriage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.NeedsSorting);
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var triageCaseId = await MailboxIntakeTestData.SeedTriageCaseAsync(factory.Services, originReceiptId: null, "t.QDOS31008");
+        await LinkReceiptAsync(factory, receiptId, triageCaseId);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+
+        var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
+        Assert.Contains(">Triage</span>", preview, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-association>t.QDOS31008</dd>", preview, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{triageCaseId:D}\"", preview, StringComparison.Ordinal);
+        Assert.Contains("<span>Open Triage</span>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open Case", preview, StringComparison.Ordinal);
+        Assert.Contains(">Triage</span>", MailRow(html, messageId), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2559,55 +2586,29 @@ public sealed class MailWorkspaceWebTests
             .SingleAsync();
     }
 
-    /// <summary>
-    /// A Triage Case opened from the receipt, as intake writes it: a Case row
-    /// of the seeded Principal with a t. reference and its Triage row, and no
-    /// CaseIntakeLinks row (a Triage is not a manual link).
-    /// </summary>
-    private static async Task<Guid> SeedTriageCaseAsync(
+    /// <summary>A staff member's active link from the receipt to a Case, as the Link to Case confirmation writes it.</summary>
+    private static async Task LinkReceiptAsync(
         IntakeWebApplicationFactory factory,
         Guid receiptId,
-        string reference)
+        Guid caseId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
-        var principal = await SeededPrincipals.QdosAsync(context);
-        var caseId = Guid.NewGuid();
-        context.AddRange(
-            new CaseEntity
-            {
-                Id = caseId,
-                PrincipalId = principal.Id,
-                SequenceLineageId = principal.SequenceLineageId,
-                Year = 2031,
-                Sequence = 7,
-                Reference = reference,
-                Type = "triage",
-                InitialState = null,
-                CustodyState = "pending",
-                OriginIntakeReceiptId = receiptId,
-                CreatedAtUtc = NowUtc,
-                Version = 0,
-                ConcurrencyToken = Guid.NewGuid()
-            },
-            new TriageEntity
-            {
-                CaseId = caseId,
-                OriginReceiptId = receiptId,
-                SourceChannel = "mailbox",
-                ExternalReceiptToken = $"{FirstMailboxId.Length}:{FirstMailboxId}{FirstMailboxId}-0",
-                SourceHash = new string('E', 64),
-                EvaluationRevisionId = Guid.NewGuid(),
-                NormalizedVehicleRegistration = "AB12CDE",
-                State = "open",
-                CreatedAtUtc = NowUtc,
-                CreationOperationKey = $"triage:{reference}",
-                Version = 0,
-                ConcurrencyToken = Guid.NewGuid()
-            });
+        context.IntakeManualAssociations.Add(new()
+        {
+            IntakeReceiptId = receiptId,
+            CaseId = caseId,
+            IsActive = true,
+            Version = 1,
+            LinkedAtUtc = NowUtc,
+            ActorKind = ActorKind.Staff.ToString(),
+            ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+            ActorRolesJson = "[\"Administrator\"]",
+            Reason = "Fixture message association.",
+            LastOperationKey = $"fixture-link:{Guid.NewGuid():N}"
+        });
         await context.SaveChangesAsync();
-        return caseId;
     }
 
     private static string AntiforgeryToken(string html)

@@ -813,7 +813,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             return [];
         }
 
-        // Five lookups for the whole page, never one per row.
+        // Six lookups for the whole page, never one per row.
         var tokens = rows.Select(item => item.ExternalReceiptToken).Distinct().ToArray();
         var receipts = await context.IntakeReceipts
             .AsNoTracking()
@@ -857,25 +857,26 @@ internal sealed class EfRetainedMailboxMessageStore(
                     group => IntakeAllocationState.FromAttempt(
                         EfIntakeAllocationStore.Map(group.First())));
         // A Triage opened from the receipt is the message's Case as much as an
-        // instruction Case is; the intake log reads it the same way. The newest
-        // Triage per receipt stands where a cancelled one was followed by another.
+        // instruction Case is; the intake log reads it the same way. The
+        // unique index on Triage.OriginReceiptId allows one Triage per receipt,
+        // whatever its state, so a cancelled Triage is never followed by a
+        // second from the same receipt.
         var triageCases = receiptIds.Length == 0
             ? new Dictionary<Guid, CurrentIntakeAssociation>()
-            : (await context.Triage
+            : await context.Triage
                 .AsNoTracking()
                 .Where(item => item.OriginReceiptId != null && receiptIds.Contains(item.OriginReceiptId.Value))
-                .OrderByDescending(item => item.CreatedAtUtc)
                 .Select(item => new
                 {
                     ReceiptId = item.OriginReceiptId!.Value,
                     item.CaseId,
-                    item.Case.Reference
+                    item.Case.Reference,
+                    IsTriage = item.Case.Type == CaseTypeCodes.Triage
                 })
-                .ToListAsync(cancellationToken))
-                .GroupBy(item => item.ReceiptId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => new CurrentIntakeAssociation(group.First().CaseId, group.First().Reference));
+                .ToDictionaryAsync(
+                    item => item.ReceiptId,
+                    item => new CurrentIntakeAssociation(item.CaseId, item.Reference, item.IsTriage),
+                    cancellationToken);
         var resolved = UnidentifiedState.Resolved.ToString();
         var receiptOrigin = UnidentifiedOriginKind.Receipt.ToString();
         var resolvedUnidentifiedReceiptIds = receiptIds.Length == 0
@@ -926,6 +927,15 @@ internal sealed class EfRetainedMailboxMessageStore(
                 // opened. Any one of them is the case.
                 var caseId = linkedCase?.CaseId ?? allocationCase?.CaseId ?? triageCase?.CaseId;
                 var caseReference = linkedCase?.Reference ?? allocationCase?.CaseReference ?? triageCase?.Reference;
+                // Whether that Case is a Triage is its own type, in the same
+                // order: a message staff linked to a Triage Case is on a
+                // Triage as surely as one that opened it. An allocation
+                // records the type of the Case it created.
+                var isTriageCase = linkedCase?.IsTriage
+                    ?? (allocationCase?.CaseId is null
+                        ? triageCase?.IsTriage
+                        : allocationCase.AttemptedCaseType == CaseType.Triage)
+                    ?? false;
                 var classification = receipt?.Classification is null
                     ? null
                     : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification);
@@ -988,7 +998,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                     DismissedAtUtc = row.DismissedAtUtc,
                     UnidentifiedResolved = receipt is not null
                         && resolvedUnidentifiedReceiptIds.Contains(receipt.Id),
-                    IsTriageCase = caseId is not null && triageCase?.CaseId == caseId
+                    IsTriageCase = isTriageCase
                 };
             })
             .ToArray();
