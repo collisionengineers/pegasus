@@ -35,7 +35,6 @@ public sealed record TriageCasePorts(
     ICaseEngineerChoices EngineerChoices,
     IAddTriageNote AddNote,
     ITriageQueries TriageQueries,
-    IAssignTriageToMe AssignToMe,
     Pegasus.Core.ImageIntake.IGetPreCaseImagePreparations GetPreparations,
     Pegasus.Core.Documents.IReadImageTagVocabulary TagVocabulary,
     GetRetainedMail? RetainedMail = null,

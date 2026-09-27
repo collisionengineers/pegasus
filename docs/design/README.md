@@ -598,7 +598,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | — | `rotate-cw` | `5DE57E248094872B06E8408E710E05E1D89BDEB2243DDF780254C8632FC6DDFB` | Rotate view right (paired with `rotate-ccw`) |
 | `activity` (undefined in the prototype) | `activity` | `8E33259DA8A236EBC5D6C96F27DFAB90CE1F69D78F9D935FA28A143443F2380B` | Service health, presence |
 | `spark` (undefined) | `sparkles` | `D412CDDF7D44B1EED79ACB99F7D64A85E99BB77E9780FE49770883301EE63652` | Automation & AI nav entry, AI job rows |
-| `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply |
+| `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply; Triage Reply with outcome |
 | `flag` (undefined) | `flag` | `A55F63EE07DFA4078A73AC54401544201065765B3DDB64C23B39CAC355A8AAE9` | Flag message |
 | `sort` (undefined) | `arrow-up-down` | `9F9C9571C4A30B5642E7D6BBA19E58C836CC57F8ECDC5D044EB0819065C534BC` | Sort toggle |
 
@@ -618,7 +618,7 @@ glyph the v26 mockups reference that no current page draws.
 | — | `users` | `EEE334506429CAE176E7E392A686D8C504C856F11349B2D47D0450D772200FB6` | No caller |
 | — | `images` | `3736526CF1887288E9D504986D739ADFE2BF83FA0A5411F37529ECD5E87F0285` | Cases Awaiting instruction; Search vehicle images |
 | — | `forward` | `966C6DDDFF8EDD62B3F529C90209A061685034199BB8670F1FF6A0281979AD26` | Forward message |
-| — | `unlink` | `FA6C00D4700751303B08AF8A35E90B3CE581A77DA80F428F585130BACB39DAE4` | Unlink a message from its Case |
+| — | `unlink` | `FA6C00D4700751303B08AF8A35E90B3CE581A77DA80F428F585130BACB39DAE4` | Unlink a message from its Case; Triage Unlink case |
 | — | `file-output` | `C109CACE75A7483445BF22061B3141C5210AB2706012502180288644E3917F62` | No caller |
 | — | `eye-off` | `56982F58FC81CBE4EB066E455259234DE2F2FE4B120631693BA0FA5544EB516F` | No caller |
 | — | `key-round` | `5E7E3CD234E740B048195FBEF0B1C66E7CA85500AE1C7ACA7F35117496576E83` | No caller |
@@ -645,7 +645,7 @@ glyph the v26 mockups reference that no current page draws.
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
 | — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item |
 | — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | No caller |
-| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified Reopen; Damage Reset; restore composed wording |
+| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
 
 The v26 rail no longer draws the prototype's rail glyphs for three routes:
 Cases uses `list-checks`, Operations `activity` and Administration `settings`
@@ -1011,7 +1011,7 @@ this section holds the cross-cutting rules every page is held to.
 | Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
-| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage, Mail, Image Intake and Operations; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
+| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail, Image Intake and Operations; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
 
 ### Presentation responsibilities
 

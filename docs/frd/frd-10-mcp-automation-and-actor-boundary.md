@@ -124,6 +124,13 @@ id (`caseId`) and return its `t.` Case/PO. Each action calls the same Core
 query or command staff use, supplies the resolved Automation identity rather
 than caller-provided actor data, and keeps Triage distinct from Unidentified.
 
+`pegasus_triage_complete` and `pegasus_triage_await_information` take no
+`reason`: completion and Awaiting information write their own history text,
+as they do for staff. Findings, response evidence, cancel, reopen and Case
+links keep their reasons. The edit begin, renew and end tools let a session
+hold a Triage for a multi-step change; staff actions on it are refused while
+it does.
+
 Assignment names a selected staff assignee, separate from the acting principal.
 An actor-relative `Assign to me` is not part of the Automation contract and
 is not offered to it.

@@ -3,7 +3,7 @@ using Pegasus.Core.Reports;
 
 namespace Pegasus.Core.Operations;
 
-public enum StaffMailPurpose { CaseReport, GeneralCorrespondence, TriageChaser }
+public enum StaffMailPurpose { CaseReport, GeneralCorrespondence, TriageChaser, TriageOutcomeReply }
 public enum StaffMailComposeMode { New, Reply, ReplyAll, Forward }
 public enum StaffMailState { Prepared, DraftCreating, DraftReady, Sending, Submitted, Sent, Failed, Unknown, Cancelled }
 public enum StaffMailAttemptStage { CreateDraft, Attach, Send, ObserveSent }

@@ -251,6 +251,28 @@
     bindEditScopeHeartbeats(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEditScopeHeartbeats);
 
+    // A Triage Case page action posts once and holds the record for that one
+    // save. Marking the form busy as it submits greys its buttons (the shared
+    // form[aria-busy] rule) and refuses a second submit while the first is in
+    // flight, so a double click cannot put two posts in flight together. The
+    // page's dialogs post from outside the record, so the guard is the page's
+    // rather than the record's.
+    if (document.querySelector('[data-triage-record]')) {
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+            if (event.defaultPrevented
+                || !(form instanceof HTMLFormElement)
+                || (form.getAttribute('method') || 'get').toLowerCase() !== 'post') {
+                return;
+            }
+            if (form.getAttribute('aria-busy') === 'true') {
+                event.preventDefault();
+                return;
+            }
+            form.setAttribute('aria-busy', 'true');
+        });
+    }
+
     // Global drop safety net. Without this, a file dropped anywhere off a
     // dropzone's own listeners below — the heading, a panel border, released
     // a beat early while still moving — is unhandled, and the browser's

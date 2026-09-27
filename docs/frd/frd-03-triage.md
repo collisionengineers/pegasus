@@ -115,13 +115,14 @@ may link uploaded material to a Triage Case in any state
 images linked to the Triage are shown with it. A Triage created with Create
 case has no retained source. Triage has no separate file store.
 
-**Editing.** An existing Triage Case is read-only until a staff member
-presses Edit, which claims the Triage edit scope for that one Triage Case,
-not its queue or its linked instruction Case
-([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes); takeover follows
-[FRD-14](frd-14-record-edit-leases.md#take-over)). Every change, including
-assignment, findings, notes, response evidence, state and Case association,
-rechecks the holder, token and Triage version in its own transaction. Manual
+**Editing.** A Triage Case has no Edit step. Each change is one action. Its
+save claims the Triage edit scope for that one Triage Case, not its queue or
+its linked instruction Case, and releases it in the same save
+([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). A refused change
+releases it at once. Every change, including assignment, findings, notes,
+response evidence, state and Case association, rechecks the holder, token and
+Triage version in its own transaction. A scope someone else holds, such as an
+Automation session, refuses the change and names who holds it. Manual
 Case association also needs the separate current edit lease of the
 instruction Case; neither scope stands in for the other. Where Case custody
 or upload association needs edit authority on a Triage Case, the Triage edit
@@ -137,19 +138,23 @@ At least one is required. A correction records a new finding with a reason
 and keeps the earlier decision and correspondence. Recording the corrected
 outcome can complete the Triage without sending another message.
 
-**Completion.** Completion records the outcome, actor and time. **Reply with
-outcome** is optional. It opens the email feature with a preset outcome
-template the user can edit. A sent reply is linked to the Triage through the
-normal email evidence rules, but neither composing nor sending is a gate.
+**Completion.** Completion records the outcome, actor and time. It asks no
+reason. Marking a Triage Awaiting information asks no reason either.
+**Reply with outcome** is optional. The completion notice offers it when the
+Triage came by e-mail and its mailbox may send. It opens the reply with a
+preset outcome template the user can edit. A sent reply is linked to the
+Triage through the normal email evidence rules, but neither composing nor
+sending is a gate.
 `Cancelled` closes a Triage without a finding. Neither outcome turns a Triage
 finding into an instruction for a later Case.
 
-**Assignee.** A Triage may have an assignee. Choosing or changing the
-assigned Engineer is an ordinary edit available to every enabled staff role,
-including self-assignment where the existing state and edit-scope rules
-allow it. It needs no reason; history records the assignment, actor and
-time. Findings, cancellation, reopening and Case-association decisions keep
-their required reasons.
+**Assignee.** A Triage may have an assignee. One **Assign** control
+chooses, changes or removes the assignee. It is an ordinary edit available
+to every enabled staff role, including self-assignment where the existing
+state and edit-scope rules allow it. Neither assigning nor unassigning needs
+a reason; history records the assignment, actor and time. Findings,
+cancellation, reopening and Case-association decisions keep their required
+reasons.
 
 **Due target and chaser.** A Triage Case without a finding is due at the
 Triage target after it opened, a Workflow configuration setting in whole
@@ -204,9 +209,9 @@ authority, reason and current Case edit lease.
 | From | To | Trigger |
 | --- | --- | --- |
 | (none) | `Open` | Classification, Principal declaration, Open the Triage or Create case, with an established Principal and a known registration |
-| `Open` | `Awaiting information` | Staff mark it waiting |
+| `Open`, `Finding recorded` | `Awaiting information` | Staff mark it waiting, with no reason |
 | `Open`, `Awaiting information` | `Finding recorded` | A finding with at least one dimension is recorded |
-| `Finding recorded` | `Completed` | The authorised actor records the outcome |
+| `Finding recorded` | `Completed` | The authorised actor records the outcome, with no reason |
 | any open state | `Cancelled` | Cancel with a reason |
 | `Completed`, `Cancelled` | `Open` | Reopen with a reason |
 
