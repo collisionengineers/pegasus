@@ -301,27 +301,13 @@ public sealed partial class DetailsModel(
         }
     }
 
-    public bool OriginalReportMissing
-    {
-        get
-        {
-            if (CurrentSummary?.CaseType != CaseType.Audit)
-            {
-                return false;
-            }
-
-            var evidenceId = Case?.Data.StandaloneAuditEvidenceId
-                ?? FilesSection?.StandaloneAuditEvidenceId;
-            if (evidenceId is not null)
-            {
-                return false;
-            }
-
-            var documents = FilesSection?.Documents ?? Case?.Documents ?? [];
-            return !CaseFiles.Current(documents)
-                .Any(file => file.Occurrence.SemanticRole == DocumentSemanticRole.AuditReport);
-        }
-    }
+    public bool OriginalReportMissing =>
+        CurrentSummary?.CaseType is { } caseType
+        && OriginalReportPolicy.IsMissing(
+            caseType,
+            Case?.Data.StandaloneAuditEvidenceId ?? FilesSection?.StandaloneAuditEvidenceId,
+            CaseFiles.Current(FilesSection?.Documents ?? Case?.Documents ?? [])
+                .Any(file => file.Occurrence.SemanticRole == DocumentSemanticRole.AuditReport));
 
     public sealed record CaseRequirement(string Title, string Source, string? Why);
 

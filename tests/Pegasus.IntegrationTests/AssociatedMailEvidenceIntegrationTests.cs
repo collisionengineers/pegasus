@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -409,6 +410,81 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             Assert.Equal("case-root", asset.BoxParentFolderId);
         });
     }
+
+    /// <summary>
+    /// An original report e-mailed separately to an Audit created without it
+    /// (#901): the matched follow-up files the report and Pegasus recognises
+    /// it, so the Audit has its original report and its cells, in the
+    /// system's name, and a replay records nothing more.
+    /// </summary>
+    [Fact]
+    public async Task AMatchedFollowUpCarryingOneRecognisedReportGivesTheAuditItsOriginalReport()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            factory.Services, ReportFollowUp(("connexus-report.pdf", ConnexusReport)));
+
+        await using var db = await factory.Database.CreateContextAsync();
+        var files = await FiledRolesAsync(db, caseId);
+        Assert.Equal(DocumentSemanticRole.AuditReport, files["connexus-report.pdf"]);
+        Assert.Equal(DocumentSemanticRole.OriginalSource, files["report-follow-up.eml"]);
+        var assessor = await db.CaseAssessmentFields.SingleAsync(item =>
+            item.WorkId == caseId && item.FieldPath == AssessmentVocabulary.OriginalReportAssessor);
+        Assert.Equal("Connexus Vehicle Assessors", assessor.Value);
+        var recorded = await db.CaseWorkflowEvents.SingleAsync(item =>
+            item.CaseId == caseId && item.EventType == "original_report_recorded");
+        Assert.Equal(nameof(ActorKind.SystemWorker), recorded.ActorKind);
+        Assert.Equal("Original report: connexus-report.pdf", recorded.Reason);
+
+        var stagedId = await db.IntakeWorkItems.Where(value => value.ProcessedReceiptId == receiptId)
+            .Select(value => value.StagedReceiptId).SingleAsync();
+        await using var scope = factory.Services.CreateAsyncScope();
+        await IntakeWebDriver.CreateProcessor(scope.ServiceProvider).ExecuteAsync(stagedId, default);
+        Assert.Equal(1, await db.CaseWorkflowEvents.CountAsync(item =>
+            item.CaseId == caseId && item.EventType == "original_report_recorded"));
+    }
+
+    /// <summary>
+    /// Two recognised reports in one e-mail mark neither (operator, 28
+    /// September 2026): both are filed and staff choose with Mark as original
+    /// report.
+    /// </summary>
+    [Fact]
+    public async Task AMatchedFollowUpCarryingTwoRecognisedReportsMarksNeither()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory);
+        await MailboxIntakeTestData.SubmitAndProcessAsync(
+            factory.Services,
+            ReportFollowUp(
+                ("connexus-report.pdf", ConnexusReport),
+                ("connexus-supplementary.pdf", ConnexusReport + " Supplementary")));
+
+        await using var db = await factory.Database.CreateContextAsync();
+        var files = await FiledRolesAsync(db, caseId);
+        Assert.Equal(DocumentSemanticRole.Correspondence, files["connexus-report.pdf"]);
+        Assert.Equal(DocumentSemanticRole.Correspondence, files["connexus-supplementary.pdf"]);
+        Assert.False(await db.CaseWorkflowEvents.AnyAsync(item =>
+            item.CaseId == caseId && item.EventType == "original_report_recorded"));
+    }
+
+    private const string ConnexusReport =
+        "Engineer Repairable Report Our Ref: 48450/1 Roadworthy: No Connexus Vehicle Assessors";
+
+    private static TestEmail ReportFollowUp(params (string FileName, string Text)[] reports) =>
+        IntakeTestEvidence.CreateEmail("report-follow-up.eml", "Please find the engineer's report attached.",
+            subject: "Fw: (EREF10) RTA on 09/09/2031 : Mr Test Person (Our Ref: SCL/ND/48450/1)",
+            attachments: [.. reports.Select(report =>
+                (report.FileName, "application/pdf", IntakeTestEvidence.CreatePdf(report.Text)))]);
+
+    private static async Task<Dictionary<string, DocumentSemanticRole>> FiledRolesAsync(
+        PegasusDbContext db, Guid caseId) =>
+        await (from occurrence in db.Set<DocumentOccurrenceEntity>()
+               join version in db.Set<DocumentVersionEntity>() on occurrence.VersionId equals version.Id
+               where occurrence.CaseId == caseId
+               select new { version.FileName, occurrence.SemanticRole })
+            .ToDictionaryAsync(file => file.FileName, file => file.SemanticRole);
 
     private static async Task AssertFiledAsync(IntakeWebApplicationFactory factory, Guid caseId, DocumentCustodyStatus custody)
     {

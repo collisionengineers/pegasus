@@ -99,26 +99,83 @@ public sealed class ReadOriginalReportTests
         Assert.Empty(harness.Documents.Requests);
     }
 
+    [Fact]
+    public async Task AFiledFileMatchingOneReportSignatureIsRecognisedWithItsReading()
+    {
+        var harness = new Harness();
+
+        var recognition = await harness.Sut.RecogniseFiledAssetAsync(harness.ReceiptId, harness.Asset, default);
+
+        Assert.Equal(OriginalReportRecognitionOutcome.Recognised, recognition.Outcome);
+        Assert.NotNull(recognition.Reading);
+        Assert.Equal(Hash, recognition.Reading.Sha256);
+        Assert.Equal("Connexus Vehicle Assessors", recognition.Reading.Assessor);
+        Assert.Equal(IntakeSourceChannel.Automation, Assert.Single(harness.Reader.Sources).SourceIdentity.Channel);
+    }
+
+    [Fact]
+    public async Task AFiledFileNoReportSignatureMatchesIsNotRecognised()
+    {
+        var harness = new Harness(text: "Please find the repair invoice attached. Total due £420.00.");
+
+        var recognition = await harness.Sut.RecogniseFiledAssetAsync(harness.ReceiptId, harness.Asset, default);
+
+        Assert.Equal(OriginalReportRecognitionOutcome.NotRecognised, recognition.Outcome);
+        Assert.Null(recognition.Reading);
+    }
+
+    [Fact]
+    public async Task AFiledFileWhoseRetainedBytesAreMissingOrDifferIsUnavailableNotUnrecognised()
+    {
+        var missing = new Harness(storageKey: "another-key");
+        var tampered = new Harness(storedBytes: Encoding.UTF8.GetBytes("tampered"));
+
+        Assert.Equal(
+            OriginalReportRecognitionOutcome.Unavailable,
+            (await missing.Sut.RecogniseFiledAssetAsync(missing.ReceiptId, missing.Asset, default)).Outcome);
+        Assert.Equal(
+            OriginalReportRecognitionOutcome.Unavailable,
+            (await tampered.Sut.RecogniseFiledAssetAsync(tampered.ReceiptId, tampered.Asset, default)).Outcome);
+        Assert.Empty(missing.Reader.Sources);
+        Assert.Empty(tampered.Reader.Sources);
+    }
+
+    [Fact]
+    public async Task AFiledFileTheReaderCannotOpenIsNotRecognised()
+    {
+        var harness = new Harness(readerFailure: new IOException("The PDF could not be opened."));
+
+        var recognition = await harness.Sut.RecogniseFiledAssetAsync(harness.ReceiptId, harness.Asset, default);
+
+        Assert.Equal(OriginalReportRecognitionOutcome.NotRecognised, recognition.Outcome);
+    }
+
     private sealed class Harness
     {
-        public Harness(byte[]? storedBytes = null, Exception? readerFailure = null)
+        public Harness(
+            byte[]? storedBytes = null,
+            Exception? readerFailure = null,
+            string? text = null,
+            string storageKey = "report-key")
         {
             var assetId = Guid.NewGuid();
-            Reader = new(readerFailure);
+            Reader = new(readerFailure, text ?? Report);
             Documents = new(Bytes);
+            Asset = new(
+                assetId, "attachment 2: report.pdf", "report.pdf", "application/pdf",
+                IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment,
+                Bytes.Length, Hash, "report-key", null, null, null, null);
             Sut = new ReadOriginalReport(
                 Reader,
                 new EvidenceQueries(ReceiptId, EvidenceId, assetId),
-                new ReceiptQueries(ReceiptId, new(
-                    assetId, "attachment 2: report.pdf", "report.pdf", "application/pdf",
-                    IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment,
-                    Bytes.Length, Hash, "report-key", null, null, null, null)),
-                new ArtifactStore("report-key", storedBytes ?? Bytes),
+                new ReceiptQueries(ReceiptId, Asset),
+                new ArtifactStore(storageKey, storedBytes ?? Bytes),
                 new Metadata(CaseId, OccurrenceId, VersionId),
                 Documents,
                 TimeProvider.System);
         }
 
+        public IntakeAssetRecord Asset { get; }
         public Guid ReceiptId { get; } = Guid.NewGuid();
         public Guid EvidenceId { get; } = Guid.NewGuid();
         public Guid CaseId { get; } = Guid.NewGuid();
@@ -129,7 +186,7 @@ public sealed class ReadOriginalReportTests
         public ReadOriginalReport Sut { get; }
     }
 
-    private sealed class SourceReader(Exception? failure) : IIntakeSourceReader
+    private sealed class SourceReader(Exception? failure, string text) : IIntakeSourceReader
     {
         public List<IntakeSource> Sources { get; } = [];
 
@@ -143,7 +200,7 @@ public sealed class ReadOriginalReportTests
 
             return Task.FromResult(new IntakeSourceReadResult(
                 IntakeSourceReadStatus.Readable,
-                [new(IntakeEvidenceSource.PdfContent, $"{source.FileName}, page 1", Report)],
+                [new(IntakeEvidenceSource.PdfContent, $"{source.FileName}, page 1", text)],
                 [],
                 [],
                 RequiresOcr: false));
