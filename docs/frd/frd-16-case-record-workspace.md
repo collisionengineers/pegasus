@@ -318,9 +318,9 @@ The field set is owned by
 ### Valuation
 
 Valuation opens with one row of three boxes: **Retail value**, **Trade
-value** and **Engineer's Value**, the figures the report prints side by side
-(operator, 26 September 2026). They are fields of the Case form, greyed while
-reading, and the ribbon Save records them.
+value** and **Engineer's Value**, the figures the report prints in its
+Vehicle Data table (operator, 26 September 2026). They are fields of the Case
+form, greyed while reading, and the ribbon Save records them.
 
 Valuation lists each entry with its source, date, time, retail and trade
 values, and guide month (`EXT-10`). A calculated Engineer's Value entry
@@ -412,6 +412,8 @@ in edit mode it saves the Case first. The **Report not ready** label and the
 blocker list show in both modes (operator, 26 September 2026).
 The content switches are under **On the report** in Valuation. The report
 renders the sign-off Engineer tuple and the marked damage diagram. The
+diagram is the Case page's own plan: the report and the Damage section draw
+the same vehicle and place each disc alike (operator, 27 September 2026). The
 **Statement of truth** cell shows the accepted statement the report prints,
 read-only; no Case edits it
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
@@ -524,8 +526,11 @@ Files, and non-destructive crops leave the retained source and its hash
 untouched. A new image is in the report. The tile has no report
 role: its tag decides how it prints, the first tagged `Close-up` first and
 the first other one tagged `Overview` second, the rest as supporting images
-in order (operator, 26 September 2026). Beneath the grid a line counts what
-the report uses, out of the images that can print
+in order (operator, 26 September 2026). The Close-up prints on page 1 and the
+Overview leads the image pages
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+Beneath the grid a line counts what the report uses, out of the images that
+can print
 ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis));
 an image still being stored is in neither number. The tile also carries
 Rotate and **Full page** (v28 P41): Full page is a flag on an image the
@@ -547,8 +552,9 @@ or returned from Glass's — is Current as soon as it is recorded; **Use repair
 spec** switches to another live spec. Each version's rate prices
 panel, paint and Specialist work-unit hours. The VAT rule is owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report);
-an unknown repairer VAT status never gates **Use repair spec** (P10). Lines
-an import brought in read `imported · AX`, `GL`, `JSON` or `AI` on their
+an unknown repairer VAT status never gates **Use repair spec** (P10), and it
+does block the report (operator, 27 September 2026). Lines an import brought
+in read `imported · AX`, `GL`, `JSON` or `AI` on their
 Source chip (P18); a cell Core finds off-pattern reads amber and named
 Off-pattern, and the rollup carries the off-pattern amount as specialist
 (P37). **Delete all lines** sits beside Add line and asks first; a removed

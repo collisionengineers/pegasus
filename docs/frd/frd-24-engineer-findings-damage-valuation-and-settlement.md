@@ -101,13 +101,18 @@ on the workspace and on the report alike.
 
 The record also carries tyres and seat belts per corner, the spare tyre, the
 centre belt, which airbags deployed in the Engineer's words (for example
-`None` or `Driver and passenger front`, recorded under Tyres & seat belts and
-printed in the report's Vehicle Details), unrelated damage with its
-deduction, and paint or material transfer. `impact_location` and
-`impact_severity` are derived from the areas by `Pegasus.Core`, never typed
-in: one distinct area reads as itself, more read Multiple. The report prints
-the marked diagram
-([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
+`None` or `Driver and passenger front`, recorded under Tyres & seat belts),
+unrelated damage with its deduction, and paint or material transfer.
+`impact_location` and `impact_severity` are derived from the areas by
+`Pegasus.Core`, never typed in: one distinct area reads as itself, more read
+Multiple.
+
+The report prints the marked diagram, which is the Case page's own plan, and
+no damage or tyre table (operator, 27 September 2026). Tyres, seat belts,
+airbags, the unrelated-damage deduction and paint or material transfer are
+recorded on the Case and not printed. Unrelated damage prints as its own
+paragraph when its switch is on
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks)).
 
 ### Valuation sources
 
@@ -144,12 +149,12 @@ the proposal recorded by the `MarketResearch` job
 it never becomes the Engineer's Value by itself.
 
 **Retail value, Trade value and Engineer's Value** are three boxes at the
-top of Valuation (operator, 26 September 2026). The report prints them side
-by side. Staff type them, or choose a guide card as the basis: the card's
-retail and trade fill the first two boxes in place, and the calculation fills
-the Engineer's Value. Any box can be overtyped. The Case's single workspace
-Save records the three like any field, and no mileage is needed. Each is a
-report blocker until it is entered
+top of Valuation (operator, 26 September 2026). The report prints them in its
+Vehicle Data table. Staff type them, or choose a guide card as the basis: the
+card's retail and trade fill the first two boxes in place, and the
+calculation fills the Engineer's Value. Any box can be overtyped. The Case's
+single workspace Save records the three like any field, and no mileage is
+needed. Each is a report blocker until it is entered
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
 
 The calculation starts from the basis card's retail and applies, in this
@@ -175,6 +180,12 @@ Financial ratio lines are allowed, not required; the "no percentage" rule in
 only to completeness. Outcome meanings are owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
 
+The report prints the outcome, the roadworthiness and the unroadworthy
+reason. On a total loss it prints the category and the salvage value. On a
+contract repair it prints the agreed contract sum. The other settlement
+fields are recorded on the Case and not printed (operator, 27 September
+2026).
+
 **The Decisions surface (v28, ruled 20 September 2026).** Outcome, Salvage
 category and Roadworthiness are chosen from a radio group of their codes,
 with the unset state offered as "Not recorded"; the select stays the posted
@@ -185,12 +196,11 @@ last touch wins. While the outcome is not a total loss the salvage rows are
 absent and a "Salvage · Not applicable" line stands in their place. While
 Roadworthiness is Unroadworthy, Temporary repairs possible (Yes or No),
 Temporary repair method and Temporary repair cost follow the unroadworthy
-reason; otherwise they are absent (operator, 24 September 2026), and the
-report's Vehicle Details prints their values only for an unroadworthy vehicle;
-for any other vehicle those rows read —. Beside the typed
-reserve, a computed **Repair reserve** reads the Current repair
-specification's VAT-inclusive cost rounded up to the next £50 on a
-Repairable outcome, and Not applicable otherwise; it is never written.
+reason; otherwise they are absent (operator, 24 September 2026). They are
+recorded on the Case and not printed on the report (operator, 27 September
+2026). Beside the typed reserve, a computed **Repair reserve** reads the
+Current repair specification's VAT-inclusive cost rounded up to the next £50
+on a Repairable outcome, and Not applicable otherwise; it is never written.
 
 **The unroadworthy reason bank (v28 P15).** An Engineer inserts a wording
 into the reason, joined to what is already there with "and", and may save
