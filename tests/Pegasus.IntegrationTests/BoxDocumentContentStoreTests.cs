@@ -19,7 +19,7 @@ namespace Pegasus.IntegrationTests;
 /// time how reads share it, so the class runs alone rather than beside other
 /// classes reading through that gate.
 /// </summary>
-[Collection(BoxReadGateCollection.Name)]
+[Collection(BoxReadGateSerialTests.Name)]
 public sealed class BoxDocumentContentStoreTests
 {
     private const string BoxConfigJson = """
@@ -1129,7 +1129,7 @@ public sealed class BoxDocumentContentStoreTests
 /// that disables parallelization after, and apart from, every parallel one.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class BoxReadGateCollection
+public sealed class BoxReadGateSerialTests
 {
     public const string Name = "Box read gate";
 }
