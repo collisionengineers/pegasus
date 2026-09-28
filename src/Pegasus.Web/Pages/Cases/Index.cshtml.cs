@@ -531,10 +531,12 @@ public sealed class IndexModel(
 
     private async Task<IReadOnlyList<QueueRow>> LoadAwaitingAsync(CancellationToken cancellationToken)
     {
-        var images = await _imageIntakeQueries.ListAsync(false, cancellationToken);
+        var images = await _imageIntakeQueries.ListAsync(
+            associated: false,
+            ImageInitiatedCaseState.AwaitingInstruction,
+            cancellationToken);
         var configuration = await _workflowConfiguration.GetCurrentAsync(cancellationToken);
         return images
-            .Where(item => item.State == ImageInitiatedCaseState.AwaitingInstruction)
             .Select(item => ImageRow(item, configuration.ChaseIntervalDays))
             .ToArray();
     }
@@ -557,20 +559,13 @@ public sealed class IndexModel(
 
     /// <summary>
     /// The Closed filter (received file D5): each closed item with the reason it
-    /// was closed, read from the item itself.
+    /// was closed, which its queue row carries.
     /// </summary>
-    private async Task<IReadOnlyList<QueueRow>> LoadClosedUnidentifiedAsync(CancellationToken cancellationToken)
-    {
-        var closed = await _unidentifiedStore.ListClosedQueueAsync(null, cancellationToken);
-        var rows = new List<QueueRow>(Math.Min(closed.Count, MergedPageSize));
-        foreach (var row in closed.Take(MergedPageSize))
-        {
-            var item = await _unidentifiedStore.GetAsync(row.Id, cancellationToken);
-            rows.Add(ClosedUnidentifiedRow(row, item?.ResolutionReason));
-        }
-
-        return rows;
-    }
+    private async Task<IReadOnlyList<QueueRow>> LoadClosedUnidentifiedAsync(CancellationToken cancellationToken) =>
+        (await _unidentifiedStore.ListClosedQueueAsync(null, cancellationToken))
+            .Take(MergedPageSize)
+            .Select(ClosedUnidentifiedRow)
+            .ToArray();
 
     private async Task<IReadOnlyList<QueueRow>> LoadOpenUnidentifiedAsync(CancellationToken cancellationToken) =>
         (await _unidentifiedStore.ListQueueAsync(null, cancellationToken))
@@ -829,9 +824,9 @@ public sealed class IndexModel(
         Notice: OperatorLabels.UnidentifiedReason(row.ReasonCode),
         NoticeTone: "warning");
 
-    private static QueueRow ClosedUnidentifiedRow(UnidentifiedQueueRow row, string? reason)
+    private static QueueRow ClosedUnidentifiedRow(UnidentifiedQueueRow row)
     {
-        var outcome = string.IsNullOrWhiteSpace(reason) ? "Closed" : $"Closed · {reason}";
+        var outcome = string.IsNullOrWhiteSpace(row.ResolutionReason) ? "Closed" : $"Closed · {row.ResolutionReason}";
         return new(
             RowKind.Unidentified,
             row.Id,

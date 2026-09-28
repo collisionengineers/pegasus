@@ -499,7 +499,7 @@ public sealed class UploadOutcomeQueriesTests
     private sealed class FakeImageIntakeQueries(ImageIntakeDetail? detail) : IImageIntakeQueries
     {
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
-            bool? associated, CancellationToken cancellationToken) =>
+            bool? associated, ImageInitiatedCaseState? state, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
 
         public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(

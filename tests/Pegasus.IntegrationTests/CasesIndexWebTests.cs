@@ -637,6 +637,7 @@ public sealed class CasesIndexWebTests
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,
+            ImageInitiatedCaseState? state,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

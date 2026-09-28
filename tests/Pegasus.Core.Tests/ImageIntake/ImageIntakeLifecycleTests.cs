@@ -283,6 +283,7 @@ public sealed class ImageIntakeLifecycleTests
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,
+            ImageInitiatedCaseState? state,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
 

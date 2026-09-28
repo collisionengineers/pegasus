@@ -236,8 +236,15 @@ public sealed record ImageIntakeImage(
 
 public interface IImageIntakeQueries
 {
+    /// <summary>
+    /// Image intakes newest first. <paramref name="associated"/> keeps only
+    /// those with (<see langword="true"/>) or without (<see langword="false"/>)
+    /// a current Case, and <paramref name="state"/> only those in that
+    /// lifecycle state; <see langword="null"/> applies no filter.
+    /// </summary>
     Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
         bool? associated,
+        ImageInitiatedCaseState? state,
         CancellationToken cancellationToken);
 
     /// <summary>

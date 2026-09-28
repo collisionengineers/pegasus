@@ -319,6 +319,7 @@ public sealed class ImageIntakeCasePairingTests
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,
+            ImageInitiatedCaseState? state,
             CancellationToken cancellationToken)
         {
             Assert.Null(associated);

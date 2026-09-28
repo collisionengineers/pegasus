@@ -612,7 +612,8 @@ public sealed class DashboardBoundaryTests
         EmailSubject: null,
         EmailSender: null,
         ReceivedAtUtc: NowUtc,
-        UnidentifiedReasonCode.NoUsableIdentification);
+        UnidentifiedReasonCode.NoUsableIdentification,
+        ResolutionReason: null);
 
     private static RequestOperationProjection NewExternalWork(bool canRetry) => new(
         Guid.NewGuid(),
