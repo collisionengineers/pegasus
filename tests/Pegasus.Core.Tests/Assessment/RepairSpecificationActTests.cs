@@ -65,6 +65,45 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
+    public void APreviewScalesTheSpecASaveRecordsWithItsSpecialistWorkUnitsCarried()
+    {
+        // The editor posts a Specialist line as fixed-price; the save keeps
+        // the saved line's work-unit sub-type, whose hours are priced labour.
+        // The preview scales the spec the save records, so it matches Apply
+        // on the saved spec to the penny.
+        var saved = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 400m),
+            Line("specialist_wu", workUnits: 3m));
+        var posted = saved.Lines
+            .Select(RepairSpecificationScaling.ToInput)
+            .Select(line => line with
+            {
+                Type = EstimateOperations.ToLineType(EstimateOperations.FromLineType(line.Type)),
+            })
+            .ToArray();
+        Assert.Equal("specialist_fixed", posted[1].Type);
+        Guid?[] ids = [.. saved.Lines.Select(line => (Guid?)line.Id)];
+        var target = RepairSpecificationScaling.TargetGross(1_000m, 60m);
+
+        var preview = RepairSpecificationScaling.Scale(
+            EstimatePolicy.Edited(CaseId, Engineer, saved, saved.Details, posted, ids, Now),
+            target, ScalingFloors.Default);
+        var applied = RepairSpecificationScaling.Scale(saved, target, ScalingFloors.Default);
+
+        Assert.Equal("specialist_wu", preview.Lines[1].Type);
+        Assert.Equal(applied.GrossBefore, preview.GrossBefore);
+        Assert.Equal(applied.Totals.Printed, preview.Totals.Printed);
+        Assert.Equal(
+            RepairSpecificationWording.ScaleReadout(applied, 60m),
+            RepairSpecificationWording.ScaleReadout(preview, 60m));
+
+        // A line the save refuses is refused by the preview too.
+        Assert.Throws<ArgumentException>(() => EstimatePolicy.Edited(
+            CaseId, Engineer, saved, saved.Details, [posted[0] with { Quantity = 0 }, posted[1]], ids, Now));
+    }
+
+    [Fact]
     public void ScalingUsesTheLastNonExceedingRoundedEndpoint()
     {
         var specification = Estimate(
