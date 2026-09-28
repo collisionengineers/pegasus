@@ -94,7 +94,7 @@ public sealed class ServiceHealthTests
     }
 
     [Fact]
-    public void ExternalWorkRowsCarryTheRetryIdentityOfEachRetryableFailure()
+    public void ExternalWorkRowsNameTheNewestRetryableFailure()
     {
         var failedId = Guid.NewGuid();
         var rows = ServiceHealthPolicy.ExternalWorkRows(
@@ -109,7 +109,6 @@ public sealed class ServiceHealthTests
         Assert.Equal(ServiceHealthState.Failed, row.State);
         Assert.Equal(FixedUtcNow.AddMinutes(-10), row.LatestEvidenceAtUtc);
         Assert.Equal(ServiceHealthDependency.Box, row.Dependency);
-        Assert.Equal(new ServiceHealthRetryTarget(failedId, 3), row.RetryTarget);
     }
 
     [Fact]
@@ -125,7 +124,6 @@ public sealed class ServiceHealthTests
         Assert.Equal(ServiceHealthPolicy.ExternalWorkService, row.Service);
         Assert.Equal(ServiceHealthState.Running, row.State);
         Assert.Equal(FixedUtcNow.AddMinutes(-2), row.LatestEvidenceAtUtc);
-        Assert.Null(row.RetryTarget);
 
         var empty = Assert.Single(ServiceHealthPolicy.ExternalWorkRows(Array.Empty<RequestOperationProjection>()));
         Assert.Equal(ServiceHealthState.Configured, empty.State);
@@ -397,9 +395,6 @@ public sealed class ServiceHealthTests
             Assert.Equal(1, max);
             return Task.FromResult(RecentJobs);
         }
-
-        public Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
-            throw new NotSupportedException("Not used by the snapshot.");
 
         public Task<AiJobCounts> GetCountsAsync(CancellationToken cancellationToken) =>
             Task.FromResult(AiCounts);

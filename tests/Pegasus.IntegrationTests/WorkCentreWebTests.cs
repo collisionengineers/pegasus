@@ -376,6 +376,31 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
+    public async Task ADraftReadyQueuePassCompletesByHandAndShowsNoDraftLink()
+    {
+        var pass = Job(AiJobKind.UnidentifiedQueuePass, AiJobState.DraftReady, "Unidentified queue", Guid.NewGuid()) with
+        {
+            SubjectKind = AiJobSubjectKind.Queue,
+            SubjectId = null
+        };
+        var jobs = new FakeAiJobs { Open = [pass] };
+        // A queue pass has no record to open, so its draft carries no route.
+        var drafts = new FakeAiDrafts
+        {
+            Drafts = [new(pass, AiDraftAction.Review, null, Now.AddHours(-4), Now.AddDays(1))]
+        };
+        using var host = Host(new FakeSnapshot(), jobs: jobs, drafts: drafts);
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, "/?tab=ai-jobs");
+
+        Assert.Equal(1, Regex.Count(html, "handler=CompleteAiJob"));
+        var actions = Regex.Match(html, "<div class=\"wc-job-actions\">(.*?)</div>", RegexOptions.Singleline);
+        Assert.True(actions.Success);
+        Assert.DoesNotContain("<a ", actions.Groups[1].Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AFailedLiveReadIsStatedAndRendersNoZeroMetrics()
     {
         using var host = Host(new FakeSnapshot { Throw = true });
@@ -574,11 +599,6 @@ public sealed class WorkCentreWebTests
 
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(Recent);
-
-        public Task<IReadOnlyList<AiJobRecord>> ListTerminalInWindowAsync(DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<AiJobRecord>>(Recent.Where(job =>
-                (job.State == AiJobState.Expired ? job.ExpiresAtUtc : job.ClosedAtUtc) is { } terminal
-                && terminal >= startUtc && terminal < endUtc).ToArray());
 
         public Task<AiJobQueryPage> ListOpenPageAsync(AiJobKind? kind, string grantId, DateTimeOffset? afterCreatedAtUtc, Guid? afterJobId, int limit, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
