@@ -11,26 +11,26 @@ namespace Pegasus.Core.Intake;
 /// (AND2 from an office-address footer, OCTOBER, postcode outward codes). The durable
 /// claim identity is the NNNNN/N tail, so 'ABC/DEF/12345/1' and a bare '12345/1' hit
 /// the same claim; qdoslaw.co.uk references keep their own letters-only grammar under
-/// the same provider. Only the client vehicle is a key: TP-prefixed labels are skipped,
+/// the same Principal. Only the client vehicle is a key: TP-prefixed labels are skipped,
 /// which keeps two claimants from one accident apart.
 /// </summary>
 public sealed partial class PrincipalCaseMatchPolicy(
-    IInstructionExtractionPolicy extractionPolicy) : IProviderCaseMatchPolicy
+    IInstructionExtractionPolicy extractionPolicy) : IPrincipalCaseMatchPolicy
 {
     public const string Key = "principal_case_match";
     public const int Version = 1;
 
-    public string WorkProviderCode => extractionPolicy.PrincipalCode;
+    public string PrincipalCode => extractionPolicy.PrincipalCode;
     public string PolicyKey => Key;
     public int PolicyVersion => Version;
 
     public CaseMatchKeys ExtractMatchKeys(IntakeSourceReadResult readResult)
     {
         ArgumentNullException.ThrowIfNull(readResult);
-        if (WorkProviderCode != QdosInstructionExtractionPolicy.SupportedPrincipalCode)
+        if (PrincipalCode != QdosInstructionExtractionPolicy.SupportedPrincipalCode)
         {
             var result = extractionPolicy.Extract(readResult, new(DateTimeOffset.UnixEpoch),
-                new(WorkProviderCode, Key, Version));
+                new(PrincipalCode, Key, Version));
             var draft = result.InstructionDraft;
             if (draft is null)
             {
@@ -107,7 +107,7 @@ public sealed partial class PrincipalCaseMatchPolicy(
         ArgumentNullException.ThrowIfNull(caseData);
         var name = NormalizeName(caseData.ClaimantName ?? string.Empty);
         return new(
-            WorkProviderCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
+            PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
                 ? NormalizeClaimReference(caseData.ClaimNumber ?? string.Empty)
                 : NormalizeFullReference(caseData.ClaimNumber),
             NormalizeVrm(caseData.VehicleRegistration ?? string.Empty),

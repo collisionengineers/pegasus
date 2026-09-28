@@ -3,7 +3,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Intake;
 
 /// <summary>
-/// Normalized match keys extracted from an inbound message by a provider's case-match
+/// Normalized match keys extracted from an inbound message by a Principal's case-match
 /// policy. The incident date is never a positive key: it participates only as an
 /// eliminator (requirements: a mismatch between accepted incident dates may eliminate a
 /// candidate; a matching incident date proves nothing alone).
@@ -22,8 +22,8 @@ public sealed record CaseMatchKeys(
 }
 
 /// <summary>
-/// The accepted case-data values a provider policy normalizes into index keys. Write
-/// side and read side share the provider's one normalization grammar so they can never
+/// The accepted case-data values a Principal policy normalizes into index keys. Write
+/// side and read side share the Principal's one normalization grammar so they can never
 /// drift.
 /// </summary>
 public sealed record CaseMatchSourceData(
@@ -41,7 +41,7 @@ public sealed record CaseMatchIndexKeys(
 
 public sealed record CaseMatchCandidate(
     Guid CaseId,
-    string WorkProviderCode,
+    string PrincipalCode,
     string? DurableClaimToken,
     string? NormalizedVrm,
     string? NormalizedSurname,
@@ -53,12 +53,12 @@ public sealed record CaseMatchCandidate(
 public interface ICaseMatchCandidateQueries
 {
     /// <summary>
-    /// Returns every case of the provider matching ANY populated key. All lifecycle
+    /// Returns every case of the Principal matching ANY populated key. All lifecycle
     /// states are eligible (operator decision 2026-08-03: staff do not archive; a
     /// post-report case is simply post-report stage).
     /// </summary>
     Task<IReadOnlyList<CaseMatchCandidate>> FindByAnyKeyAsync(
-        string workProviderCode,
+        string principalCode,
         CaseMatchKeys keys,
         CancellationToken cancellationToken);
 
@@ -74,13 +74,13 @@ public interface ICaseMatchCandidateQueries
 
 /// <summary>
 /// A route-owned case-match policy (ADR-0008: each route policy owns its own evidence
-/// precedence and case-association rules). The policy owns the provider's extraction
+/// precedence and case-association rules). The policy owns the Principal's extraction
 /// labels and normalization grammars; the shared eliminator orchestrator owns the
 /// accepted decision procedure.
 /// </summary>
-public interface IProviderCaseMatchPolicy
+public interface IPrincipalCaseMatchPolicy
 {
-    string WorkProviderCode { get; }
+    string PrincipalCode { get; }
     string PolicyKey { get; }
     int PolicyVersion { get; }
     CaseMatchKeys ExtractMatchKeys(IntakeSourceReadResult readResult);

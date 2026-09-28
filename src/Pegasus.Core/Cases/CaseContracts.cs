@@ -165,7 +165,7 @@ public sealed record CaseAcceptanceRequest(
     string PrincipalCode,
     CaseCompleteness Completeness,
     CaseCompletenessEvaluation CompletenessEvaluation,
-    CaseInspectionMode ProviderInspectionMode,
+    CaseInspectionMode PrincipalInspectionMode,
     Guid? StandaloneAuditEvidenceId = null,
     DateOnly? AcceptedInspectionDeadline = null,
     Guid? AllocationAttemptId = null,

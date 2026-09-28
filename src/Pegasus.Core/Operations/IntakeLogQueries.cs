@@ -39,7 +39,7 @@ public sealed record IntakeLogBecame(IntakeLogBecameKind Kind, Guid Id, string R
 
 /// <summary>
 /// Where a received item came from: the mailbox and sender, the upload and who
-/// made it, or the Provider API and the principal. <see cref="Detail"/> is the
+/// made it, or the Principal API and the principal. <see cref="Detail"/> is the
 /// second half of that pair; null when the record did not keep it.
 /// </summary>
 public sealed record IntakeLogSource(IntakeSourceChannel Channel, string? Address, string? Detail);

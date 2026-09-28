@@ -24,7 +24,7 @@ public enum ActorKind
     Staff,
     SystemWorker,
     Automation,
-    Provider
+    Principal
 }
 
 public sealed class ActionActor
@@ -84,18 +84,18 @@ public sealed class ActionActor
         CreateNonStaff(ActorKind.Automation, actorId, nameof(actorId));
 
     /// <summary>
-    /// A Provider API caller (API-01): the authenticated Principal is the
+    /// A Principal API caller (API-01): the authenticated Principal is the
     /// subject, so every submission is attributable to that Principal and
     /// never to a credential, an e-mail domain or a tenant (FRD-09).
     /// </summary>
-    public static ActionActor Provider(Guid principalId)
+    public static ActionActor Principal(Guid principalId)
     {
         if (principalId == Guid.Empty)
         {
-            throw new ArgumentException("A provider actor requires a non-empty principal identifier.", nameof(principalId));
+            throw new ArgumentException("A Principal actor requires a non-empty principal identifier.", nameof(principalId));
         }
 
-        return new ActionActor(ActorKind.Provider, principalId.ToString("D"), NoRoles);
+        return new ActionActor(ActorKind.Principal, principalId.ToString("D"), NoRoles);
     }
 
     private static ActionActor CreateNonStaff(ActorKind kind, string subjectId, string parameterName)

@@ -20,7 +20,7 @@ public sealed record EvaSubmissionModes(PrincipalReportGenerationPolicy Policy)
 
 /// <summary>
 /// Reads a principal's persisted EVA submission settings, the way
-/// <see cref="Cases.IProviderInspectionModeStore"/> reads its inspection mode.
+/// <see cref="Cases.IPrincipalInspectionModeStore"/> reads its inspection mode.
 ///
 /// A principal code that names no active principal returns
 /// <see cref="EvaSubmissionModes.Disabled"/> rather than null: an unknown

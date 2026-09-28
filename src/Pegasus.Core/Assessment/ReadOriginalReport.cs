@@ -229,8 +229,8 @@ public sealed class ReadOriginalReport(
             return new(null, StatusHashMismatch);
         }
 
-        // Read as automation, never as the Provider API channel: that reader
-        // takes its source for a provider's JSON request, not a report file.
+        // Read as automation, never as the Principal API channel: that reader
+        // takes its source for a Principal's JSON request, not a report file.
         var read = await sourceReader.ReadAsync(
             new(fileName, mediaType, content, timeProvider.GetUtcNow(), OriginalReportPrefillPolicy.RecorderId,
                 new(IntakeSourceChannel.Automation, $"{OriginalReportPrefillPolicy.RecorderId}:{sha256}")),

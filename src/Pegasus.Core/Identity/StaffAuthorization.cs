@@ -17,7 +17,7 @@ public enum StaffAccessRight
     ViewOperationalReports,
     PublishReleaseNotes,
     ExecuteSystemWork,
-    SubmitProviderInstruction,
+    SubmitPrincipalInstruction,
     ManageEmailTemplates
 }
 
@@ -54,10 +54,10 @@ public static class StaffAuthorization
                 actor.Kind == ActorKind.Staff && actor.IsInRole(StaffRole.Administrator),
 
             StaffAccessRight.ExecuteSystemWork => actor.Kind == ActorKind.SystemWorker,
-            // The Provider API actor (API-01) may only submit its own
+            // The Principal API actor (API-01) may only submit its own
             // Principal's instructions and read its own receipts; every staff,
             // management and system-work right above stays denied for it.
-            StaffAccessRight.SubmitProviderInstruction => actor.Kind == ActorKind.Provider,
+            StaffAccessRight.SubmitPrincipalInstruction => actor.Kind == ActorKind.Principal,
             _ => false
         };
     }

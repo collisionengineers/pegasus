@@ -329,7 +329,7 @@ public sealed class ReceiveIntake(
 
         // A received message and an uploaded file do not share a size bound:
         // the form takes one file, a mailbox message carries the whole job, and
-        // a Provider API submission is bounded by the request body that carries
+        // a Principal API submission is bounded by the request body that carries
         // it inline. One switch, one constant per channel, all of them owned by
         // IntakeEnvelopeLimits (C07 item 5).
         var maximumContentLength = source.SourceIdentity.Channel switch
@@ -337,7 +337,7 @@ public sealed class ReceiveIntake(
             IntakeSourceChannel.ManualUpload => IntakeEnvelopeLimits.MaximumContentLength,
             IntakeSourceChannel.Mailbox => IntakeEnvelopeLimits.MaximumMailboxContentLength,
             IntakeSourceChannel.Automation => IntakeEnvelopeLimits.MaximumContentLength,
-            IntakeSourceChannel.ProviderApi => IntakeEnvelopeLimits.MaximumProviderApiRequestLength,
+            IntakeSourceChannel.PrincipalApi => IntakeEnvelopeLimits.MaximumPrincipalApiRequestLength,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(source),
                 source.SourceIdentity.Channel,
@@ -1215,7 +1215,7 @@ public sealed class ProcessQueuedIntake(
         // A file placed into Pegasus by a member of staff is deliberately not
         // consent to a recorded match. It stays available for the upload
         // confirmation surface, even where matching found exactly one Case.
-        // Mailbox and provider deliveries retain the existing automatic path.
+        // Mailbox and Principal deliveries retain the existing automatic path.
         if (receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload)
         {
             return false;
@@ -1373,7 +1373,7 @@ public sealed class ProcessQueuedIntake(
         // API-01's existing-Case rejection is a property of the submitted
         // facts, not a fault: a redelivery would reach the same conclusion, so
         // it fails on the first attempt under its own code with no backoff.
-        ProviderExistingCaseMatchException => ProviderExistingCaseMatchException.FailureCode,
+        PrincipalExistingCaseMatchException => PrincipalExistingCaseMatchException.FailureCode,
         _ => null
     };
 
