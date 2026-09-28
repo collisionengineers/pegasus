@@ -655,11 +655,21 @@ public sealed class ImageIntakePersistenceTests
             $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.Review)} WHERE CaseId = {caseId}");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.Review)} WHERE CaseId = {secondCase}");
+        // An unknown Principal leaves the full candidate set: two eligible
+        // Cases with the registration are a tie.
+        await store.SetPrincipalAsync(new(image.Record.Id, null, StaffActor(), 2)
+        {
+            EditLeaseToken = await ClaimImageEditLeaseAsync(services, image.Record.Id, 2, StaffActor(), "auto-link-cleared")
+        }, CancellationToken.None);
         await Assert.ThrowsAsync<IntakeAssociationConflictException>(() => mutations.AutoLinkAsync(
             request, DateTimeOffset.UtcNow, CancellationToken.None));
         Assert.False(await context.IntakeManualAssociations.AnyAsync(item => item.IntakeReceiptId == imageReceipt));
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.PostReport)} WHERE CaseId = {secondCase}");
+        // A known Principal is a hard scope: the other Principal's Case is no
+        // candidate, so the tie is gone and the write associates.
+        await store.SetPrincipalAsync(new(image.Record.Id, selected.PrincipalId, StaffActor(), 3)
+        {
+            EditLeaseToken = await ClaimImageEditLeaseAsync(services, image.Record.Id, 3, StaffActor(), "auto-link-scoped")
+        }, CancellationToken.None);
         await mutations.AutoLinkAsync(request, DateTimeOffset.UtcNow, CancellationToken.None);
         Assert.Equal(caseId, (await services.GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(imageReceipt, CancellationToken.None))!.CurrentCaseId);
