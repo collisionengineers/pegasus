@@ -218,10 +218,11 @@ things follow when the return is accepted but the estimate does not land:
   vehicle and fetches the export for the same estimate. It makes no vehicle
   and starts no estimate. It is refused while the account holds another live
   session.
-- If custody cannot store the export, the session is `Unknown` with
+- If custody throws while storing the export, the session is `Unknown` with
   `glass.custody.failed`, holds the account and can be resumed. Resume fetches
   the export again and does not relay Save & Exit again. It is never reported
-  as interrupted.
+  as interrupted. If custody instead answers that an artifact failed, the
+  session is `Failed` with the same code and is not resumable.
 
 Every Resume presents the current Case version and live edit lease, including
 preparation, an active estimate and a waiting import. The current registration

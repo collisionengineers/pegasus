@@ -214,6 +214,38 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Empty(await workspace.SessionsAsync());
     }
 
+    /// <summary>
+    /// Issue 916: Resume and Fetch again post the same handler, so a Case that
+    /// moved or lost its lease is refused with the same reload notice there.
+    /// </summary>
+    [Theory]
+    [InlineData("version")]
+    [InlineData("lease-expired")]
+    [InlineData("lease-held")]
+    public async Task ACaseThatChangedRefusesTheResumeWithAReloadAndRetryNotice(string change)
+    {
+        var caseId = Guid.NewGuid();
+        var fault = new GatewayFault();
+        await using var workspace = await Workspace.CreateAsync(fault: fault);
+        workspace.Mva.Set("POST /ere/start-ere", new(HttpStatusCode.OK,
+            GlassProviderFixture.StartEre(GlassProviderFixture.LaunchUrl().Replace(
+                "&EuComp=1005_1005_powered_by_eucomp", string.Empty, StringComparison.Ordinal))));
+        await workspace.ClaimLeaseAsync();
+        using var launch = await workspace.LaunchAsync();
+        var form = FormFor(await workspace.CaseHtmlAsync(), "ResumeGlass");
+        fault.ResumeFailure = change switch
+        {
+            "version" => new CaseVersionConflictException(caseId, expectedVersion: 1, actualVersion: 2),
+            "lease-expired" => new CaseEditLeaseExpiredException(caseId, caseVersion: 2),
+            _ => new CaseEditLeaseConflictException(caseId, caseVersion: 2),
+        };
+
+        using var refused = await workspace.PostGlassAsync("ResumeGlass", form);
+
+        await AssertHandsBackToTheEstimateSectionAsync(refused, workspace.CaseId);
+        Assert.Contains("The Case changed. Reload it and retry.", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AnHttp200ProviderRefusalReturnsToTheCaseAndRecordsNoEstimate()
     {
@@ -1015,6 +1047,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
     {
         public Exception? LaunchFailure { get; set; }
 
+        public Exception? ResumeFailure { get; set; }
+
         public bool OnComplete { get; set; }
 
         /// <summary>Holds every background import until the test releases it.</summary>
@@ -1065,7 +1099,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         public Task<GlassRepairEstimateStep> PrepareResumeAsync(
             GlassRepairEstimateResumeRequest request, CancellationToken cancellationToken) =>
-            inner.PrepareResumeAsync(request, cancellationToken);
+            fault.ResumeFailure is { } failure
+                ? Task.FromException<GlassRepairEstimateStep>(failure)
+                : inner.PrepareResumeAsync(request, cancellationToken);
 
         public Task<GlassRepairEstimateStep> AcceptCallbackAsync(
             GlassRepairEstimateCallback callback, CancellationToken cancellationToken) =>
