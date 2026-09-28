@@ -41,6 +41,88 @@ public sealed class RecentCasesPersistenceTests
                 && item.ChangeKind is "case_created_as_replacement" or "case_guidance_applied");
     }
 
+    [Fact]
+    public async Task EveryPageSizeWalksTheSameRowsInTheSameOrderAsOneWholePage()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedTiesAsync(database);
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRecentCaseQueries>();
+        var whole = await queries.ListAsync(Since, 1, 100, CancellationToken.None);
+
+        // Six Cases created at one moment, one after it, and the Automation's
+        // changes to two older Cases at the same moments: the Triage Case, a
+        // creation event and version-0 guidance never appear.
+        Assert.Equal(12, whole.TotalCount);
+        Assert.Equal(12, whole.Items.Count);
+        Assert.DoesNotContain(whole.Items, item => item.Reference.StartsWith("T", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            whole.Items,
+            item => item.ChangeKind is "manual_case_created" or "case_guidance_applied");
+        Assert.Equal(
+            whole.Items
+                .OrderByDescending(item => item.OccurredAtUtc)
+                .ThenBy(item => item.Reference, StringComparer.Ordinal)
+                .Select(item => (item.OccurredAtUtc, item.Reference)),
+            whole.Items.Select(item => (item.OccurredAtUtc, item.Reference)));
+
+        foreach (var pageSize in new[] { 1, 2, 3, 5 })
+        {
+            var walked = new List<RecentCaseRow>();
+            for (var page = 1; ; page++)
+            {
+                var result = await queries.ListAsync(Since, page, pageSize, CancellationToken.None);
+                Assert.Equal(whole.TotalCount, result.TotalCount);
+                walked.AddRange(result.Items);
+                if (page >= result.TotalPages)
+                {
+                    break;
+                }
+            }
+
+            Assert.Equal(
+                whole.Items.Select(item => (item.OccurredAtUtc, item.Reference, item.Kind)),
+                walked.Select(item => (item.OccurredAtUtc, item.Reference, item.Kind)));
+            Assert.Equal(
+                whole.Items.OrderBy(Key, StringComparer.Ordinal).ToArray(),
+                walked.OrderBy(Key, StringComparer.Ordinal).ToArray());
+        }
+
+        static string Key(RecentCaseRow row) => $"{row.CaseId:N}:{row.Kind}:{row.ChangeKind}";
+    }
+
+    private static async Task SeedTiesAsync(LocalDbTestDatabase database)
+    {
+        await using var context = await database.CreateContextAsync();
+        var principal = await SeededPrincipals.QdosAsync(context);
+        var tie = Since.AddMinutes(10);
+        var later = Since.AddMinutes(11);
+        var created = Enumerable.Range(11, 6)
+            .Select(sequence => Case(Guid.NewGuid(), principal, sequence, tie))
+            .ToArray();
+        var afterTie = Case(Guid.NewGuid(), principal, 17, later);
+        var olderFirst = Case(Guid.NewGuid(), principal, 18, Since.AddDays(-1));
+        var olderSecond = Case(Guid.NewGuid(), principal, 19, Since.AddDays(-1));
+        var triage = Case(Guid.NewGuid(), principal, 20, tie);
+        triage.Reference = "TQDOS3100020";
+        triage.Type = "triage";
+        triage.InitialState = null;
+        context.AddRange(created);
+        context.AddRange(afterTie, olderFirst, olderSecond, triage);
+        context.AddRange(created.Append(afterTie).Append(olderFirst).Append(olderSecond)
+            .Select(item => Workflow(item.Id)));
+        context.AddRange(
+            Event(created[0].Id, "manual_case_created", tie, 0, 0),
+            Event(created[1].Id, "case_guidance_applied", tie, 0, 1),
+            Event(olderFirst.Id, "case_field_updated", tie, 1, 2),
+            Event(olderFirst.Id, "audit_created", tie, 2, 3),
+            Event(olderFirst.Id, "operator_note", later, 3, 3),
+            Event(olderSecond.Id, "case_field_updated", tie, 1, 2),
+            Event(olderSecond.Id, "operator_note", tie, 2, 2));
+        await context.SaveChangesAsync();
+    }
+
     private static async Task<CaseIds> SeedAsync(LocalDbTestDatabase database)
     {
         await using var context = await database.CreateContextAsync();

@@ -28,18 +28,61 @@ internal sealed class EfRecentCaseQueries(
         ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
+        // New cases are definitive instructions; a Triage Case is counted by
+        // its own Work Centre metric.
+        var createdCases = context.Set<CaseEntity>().AsNoTracking()
+            .Where(caseEntity => caseEntity.CreatedAtUtc >= sinceUtc
+                && caseEntity.Type != CaseTypeCodes.Triage);
+        // A creation event is already its Case's New case row, and guidance
+        // applied at version 0 is part of creating the Case.
+        var changes = context.CaseWorkflowEvents.AsNoTracking()
+            .Where(change => change.OccurredAtUtc >= sinceUtc
+                && change.ActorKind == AutomationActorKind
+                && !(change.BeforeVersion == 0
+                    && change.AfterVersion == 0
+                    && (change.EventType == "manual_case_created"
+                        || change.EventType == "case_created_as_replacement"))
+                && !(change.EventType == "case_guidance_applied" && change.BeforeVersion == 0));
+        // Every Case has its Principal and every event its Case, so the joins
+        // below neither add nor drop rows and each source is counted alone.
+        var createdCount = await createdCases.CountAsync(cancellationToken);
+        var changedCount = await changes.CountAsync(cancellationToken);
+
+        // Only a source's newest page*pageSize rows can reach the requested
+        // page. A longer source is cut at its page*pageSize-th newest moment,
+        // keeping every row tied with it, so the merge below orders exactly
+        // the rows that lead the whole window.
+        var leading = page * pageSize;
+        var createdWindow = createdCases;
+        if (createdCount > leading)
+        {
+            createdWindow = createdCases.Where(caseEntity => caseEntity.CreatedAtUtc
+                >= createdCases
+                    .OrderByDescending(item => item.CreatedAtUtc)
+                    .Skip(leading - 1)
+                    .Select(item => item.CreatedAtUtc)
+                    .FirstOrDefault());
+        }
+
+        var changedWindow = changes;
+        if (changedCount > leading)
+        {
+            changedWindow = changes.Where(change => change.OccurredAtUtc
+                >= changes
+                    .OrderByDescending(item => item.OccurredAtUtc)
+                    .Skip(leading - 1)
+                    .Select(item => item.OccurredAtUtc)
+                    .FirstOrDefault());
+        }
+
         var creationEvents = CreationEvents(context.CaseWorkflowEvents);
         var created = await (
-            from caseEntity in context.Set<CaseEntity>().AsNoTracking()
+            from caseEntity in createdWindow
             join principal in context.Set<PrincipalEntity>().AsNoTracking()
                 on caseEntity.PrincipalId equals principal.Id
             join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
                 on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
             from receipt in receipts.DefaultIfEmpty()
-            // New cases are definitive instructions; a Triage Case is counted
-            // by its own Work Centre metric.
-            where caseEntity.CreatedAtUtc >= sinceUtc
-                && caseEntity.Type != CaseTypeCodes.Triage
             select new Row(
                 RecentCaseRowKind.NewCase,
                 caseEntity.Id,
@@ -54,7 +97,7 @@ internal sealed class EfRecentCaseQueries(
             .ToListAsync(cancellationToken);
 
         var changed = await (
-            from change in context.CaseWorkflowEvents.AsNoTracking()
+            from change in changedWindow
             join caseEntity in context.Set<CaseEntity>().AsNoTracking()
                 on change.CaseId equals caseEntity.Id
             join principal in context.Set<PrincipalEntity>().AsNoTracking()
@@ -62,10 +105,6 @@ internal sealed class EfRecentCaseQueries(
             join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
                 on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
             from receipt in receipts.DefaultIfEmpty()
-            where change.OccurredAtUtc >= sinceUtc
-                && change.ActorKind == AutomationActorKind
-                && !creationEvents.Select(item => item.Id).Contains(change.Id)
-                && !(change.EventType == "case_guidance_applied" && change.BeforeVersion == 0)
             select new Row(
                 RecentCaseRowKind.ChangedByAutomation,
                 caseEntity.Id,
@@ -116,7 +155,7 @@ internal sealed class EfRecentCaseQueries(
                 row.ChangeKind);
         }).ToArray();
 
-        return new RecentCasesPage(items, page, pageSize, rows.Length);
+        return new RecentCasesPage(items, page, pageSize, createdCount + changedCount);
     }
 
     private static IntakeSourceChannel? Channel(string? code) => code switch
