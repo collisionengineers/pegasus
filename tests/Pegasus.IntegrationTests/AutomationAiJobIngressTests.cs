@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
@@ -311,8 +312,6 @@ public sealed class AutomationAiJobIngressTests
                 Guid.NewGuid(),
                 0,
                 Guid.NewGuid(),
-                0,
-                "not-a-lease",
                 "mcp:market-research-scope-denied"));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = await ReadJsonRpcAsync(response);
@@ -570,7 +569,7 @@ public sealed class AutomationAiJobIngressTests
     }
 
     [Fact]
-    public async Task MarketResearchCompletesOverHttpWithCaseLeaseDocumentValuationAndActorHistory()
+    public async Task MarketResearchCompletesOverHttpWithDocumentValuationAndActorHistoryAndNoCaseLease()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
@@ -598,15 +597,12 @@ public sealed class AutomationAiJobIngressTests
         }
 
         using var client = mcpFactory.CreateClient();
-        var token = await RequestTokenAsync(client, $"{JobsScope} automation.cases");
-        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 20);
+        var token = await RequestTokenAsync(client, JobsScope);
         var arguments = new
         {
             jobId = taken.JobId,
             expectedJobVersion = taken.Version,
             caseId,
-            expectedCaseVersion = lease.CaseVersion,
-            editLeaseToken = lease.LeaseToken,
             operationKey = "mcp:market-research-complete",
             fileName = "market-research.pdf",
             mediaType = "application/pdf",
@@ -678,15 +674,12 @@ public sealed class AutomationAiJobIngressTests
         }
 
         using var client = mcpFactory.CreateClient();
-        var token = await RequestTokenAsync(client, $"{JobsScope} automation.cases");
-        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 26);
+        var token = await RequestTokenAsync(client, JobsScope);
         var arguments = new
         {
             jobId = taken.JobId,
             expectedJobVersion = taken.Version,
             caseId,
-            expectedCaseVersion = lease.CaseVersion,
-            editLeaseToken = lease.LeaseToken,
             operationKey = "mcp:market-research-switch-off-complete",
             fileName = "market-research.pdf",
             mediaType = "application/pdf",
@@ -743,15 +736,12 @@ public sealed class AutomationAiJobIngressTests
         }
 
         using var client = mcpFactory.CreateClient();
-        var token = await RequestTokenAsync(client, $"{JobsScope} automation.cases");
-        var lease = await BeginEditAsync(client, token, caseId, 0, rpcId: 23);
+        var token = await RequestTokenAsync(client, JobsScope);
         var arguments = new
         {
             jobId = taken.JobId,
             expectedJobVersion = taken.Version,
             caseId,
-            expectedCaseVersion = lease.CaseVersion,
-            editLeaseToken = lease.LeaseToken,
             operationKey = "mcp:market-research-confirmed-replay-complete",
             fileName = "market-research.pdf",
             mediaType = "application/pdf",
@@ -806,13 +796,20 @@ public sealed class AutomationAiJobIngressTests
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
     }
 
+    /// <summary>
+    /// The Engineer who asked for the research stays in their edit session
+    /// (FRD-24): the result is filed without any Case lease, does not take or
+    /// end theirs, and does not move the Case version their Save is checked
+    /// against.
+    /// </summary>
     [Fact]
-    public async Task MarketResearchCompletionRefusesAMissingCaseLeaseWithoutChangingTheJob()
+    public async Task MarketResearchCompletionDoesNotWaitForOrEndAStaffEditSession()
     {
         using var factory = new IntakeWebApplicationFactory(TimeProvider.System);
         using var mcpFactory = WithAutomationMcp(factory);
         var caseId = await SeedAcceptedCaseAsync(mcpFactory);
         AiJobRecord taken;
+        CaseEditLease staffLease;
         await using (var scope = mcpFactory.Services.CreateAsyncScope())
         {
             var services = scope.ServiceProvider;
@@ -826,16 +823,19 @@ public sealed class AutomationAiJobIngressTests
                     null,
                     null,
                     Staff,
-                    "market-research-missing-lease-seed",
+                    "market-research-staff-editing-seed",
                     AiJobPolicy.DefaultExpiry),
                 CancellationToken.None);
             taken = await services.GetRequiredService<IWorkAiJob>().TakeAsync(
-                new(created.JobId, created.Version, Client, "market-research-missing-lease-take"),
+                new(created.JobId, created.Version, Client, "market-research-staff-editing-take"),
+                CancellationToken.None);
+            staffLease = await services.GetRequiredService<IAcquireCaseEditLease>().ExecuteAsync(
+                new(caseId, 0, Staff, "market-research-staff-editing-lease"),
                 CancellationToken.None);
         }
 
         using var client = mcpFactory.CreateClient();
-        var token = await RequestTokenAsync(client, $"{JobsScope} automation.cases");
+        var token = await RequestTokenAsync(client, JobsScope);
         using var response = await PostMcpAsync(
             client,
             token,
@@ -844,23 +844,21 @@ public sealed class AutomationAiJobIngressTests
                 taken.JobId,
                 taken.Version,
                 caseId,
-                0,
-                "not-a-lease",
-                "mcp:market-research-missing-lease"));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = await ReadJsonRpcAsync(response);
-        Assert.True(document.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
-        Assert.Contains(
-            "no active edit authority",
-            document.RootElement.ToString(),
-            StringComparison.OrdinalIgnoreCase);
+                "mcp:market-research-staff-editing-complete"));
+        var result = await ReadStructuredContentAsync(response);
 
-        Assert.Equal("Taken", await factory.Database.ScalarAsync<string>(
-            $"SELECT State FROM AiJobs WHERE JobId = '{taken.JobId:D}'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal("DraftReady", result.GetProperty("job").GetProperty("state").GetString());
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM DocumentOccurrences WHERE CaseId = '{caseId:D}' AND Source = N'Automation'"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseValuations WHERE WorkId = '{caseId:D}' AND Source = N'AiMarketResearch'"));
+        // The staff member's session and the Case version are as they were.
+        Assert.Equal(Staff.SubjectId, await factory.Database.ScalarAsync<string>(
+            $"SELECT EditLeaseHolder FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal(staffLease.Version, await factory.Database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseWorkflowEvents WHERE CaseId = '{caseId:D}' AND EventType = N'market_research_attached'"));
     }
 
     private static string MarketResearchCompletionPayload(
@@ -868,8 +866,6 @@ public sealed class AutomationAiJobIngressTests
         Guid jobId,
         long expectedJobVersion,
         Guid caseId,
-        long expectedCaseVersion,
-        string editLeaseToken,
         string operationKey) =>
         ToolCallPayload(
             id,
@@ -879,8 +875,6 @@ public sealed class AutomationAiJobIngressTests
                 jobId,
                 expectedJobVersion,
                 caseId,
-                expectedCaseVersion,
-                editLeaseToken,
                 operationKey,
                 fileName = "market-research.pdf",
                 mediaType = "application/pdf",

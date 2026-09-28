@@ -196,12 +196,18 @@ public sealed record ConfirmAiJobCommand(
     ActionActor Actor,
     string OperationKey);
 
+/// <summary>
+/// Files a market research result: one findings document and one AI market
+/// research card. It takes no Case version and no edit lease: a source card is
+/// not a Case field edit, and the Engineer who asked for the research is
+/// usually still editing the Case, so requiring the lease would hold the
+/// result back until they left. The Case, its version and any edit session
+/// are left as they were.
+/// </summary>
 public sealed record CompleteMarketResearchAiJobCommand(
     Guid JobId,
     long ExpectedJobVersion,
     Guid CaseId,
-    long ExpectedCaseVersion,
-    string EditLeaseToken,
     ActionActor Actor,
     string OperationKey,
     string FileName,

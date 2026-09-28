@@ -72,8 +72,9 @@ internal static class CaseWorkflowModelConfiguration
             // recent changes from this index alone.
             entity.HasIndex(item => new { item.ActorKind, item.OccurredAtUtc })
                 .IncludeProperties(item => new { item.CaseId, item.EventType, item.BeforeVersion, item.AfterVersion });
-            // A report or estimate-document preview, a report download, or
-            // an edit lease taken over from a colleague is Case history
+            // A report or estimate-document preview, a report download, an
+            // edit lease taken over from a colleague, or a market research
+            // result filed while the Case is being edited is Case history
             // rather than a Case mutation, so it carries no fresh version and
             // is exempted here exactly as operator_note and
             // case_guidance_applied are.
@@ -81,7 +82,7 @@ internal static class CaseWorkflowModelConfiguration
                 .HasFilter(
                     "[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' "
                     + "AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded' "
-                    + "AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over'");
+                    + "AND [EventType] <> 'case_estimate_document_previewed' AND [EventType] <> 'edit_lease_taken_over' AND [EventType] <> 'market_research_attached'");
             entity.HasOne(item => item.Workflow).WithMany().HasForeignKey(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);
         });
 

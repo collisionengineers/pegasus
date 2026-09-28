@@ -265,7 +265,7 @@ public sealed class AiJobTests
         var store = new RecordingMarketResearchStore();
         var useCase = new CompleteMarketResearchAiJob(store);
         var command = new CompleteMarketResearchAiJobCommand(
-            Guid.NewGuid(), 1, Guid.NewGuid(), 3, "lease", Client, "op",
+            Guid.NewGuid(), 1, Guid.NewGuid(), Client, "op",
             "findings.pdf", "application/pdf", new byte[] { 1 },
             new DateOnly(2031, 5, 6), new TimeOnly(10, 30), 45000, 12000m, 10000m);
 
