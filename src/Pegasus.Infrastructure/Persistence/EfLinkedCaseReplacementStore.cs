@@ -322,7 +322,7 @@ public sealed class EfLinkedCaseReplacementStore(
             Value = value,
             SourceKind = underlying?.SourceKind ?? CaseDataCodes.StaffCorrection,
             SourceIdentity = underlying?.SourceIdentity ?? request.CaseId.ToString("D"),
-            SourceLabel = underlying?.SourceLabel ?? "staff-corrected wrong-principal principal",
+            SourceLabel = underlying?.SourceLabel ?? "staff-corrected wrong-principal replacement",
             PolicyKey = underlying?.PolicyKey ?? replacementCaseData.CompletenessPolicyKey,
             PolicyVersion = underlying?.PolicyVersion ?? replacementCaseData.CompletenessPolicyVersion,
             ConfirmedByActor = request.Actor.SubjectId,

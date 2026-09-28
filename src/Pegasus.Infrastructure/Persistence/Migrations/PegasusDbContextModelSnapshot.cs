@@ -2110,6 +2110,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("PrincipalCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -4900,6 +4905,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("PredicatesJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PrincipalCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Reason")
                         .IsRequired()
@@ -9481,12 +9490,3 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         }
     }
 }
-                    b.Property<string>("PrincipalCode")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("PrincipalCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-

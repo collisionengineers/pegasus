@@ -19,7 +19,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// the bootstrap permission matrix reads them under the new names.
 ///
 /// Rewritten: source-channel, source-kind, route, evidence-source, reader,
-/// policy, actor-kind, lifecycle, security-reason and operation-key codes,
+/// policy, actor-kind, packed-actor, lifecycle, security-reason and
+/// operation-key codes (including the case-note and submission keys),
 /// plus the evidence JSON that names an evidence source. The two check
 /// constraints that list codes (<c>CK_CaseDataFields_SourceKind</c> and
 /// <c>CK_OrganizationRoles_Role</c>) are dropped and recreated around the
@@ -68,6 +69,21 @@ public partial class PrincipalVocabulary : Migration
         ("UnidentifiedItems", "ResolvedByActorKind")
     ];
 
+    /// <summary>
+    /// Columns that store an actor as one <c>"{kind}:{subjectId}"</c> string:
+    /// lowercase from <c>MailClassificationActor</c>, or the <c>ActorKind</c>
+    /// name from the allocation and intake stores. Both spellings are rewritten.
+    /// </summary>
+    private static readonly (string Table, string Column)[] PackedActorColumns =
+    [
+        ("IntakeMailClassificationDecisions", "DecidedByActor"),
+        ("IntakeMailClassificationHistory", "Actor"),
+        ("IntakeReceiptEvents", "Actor"),
+        ("IntakeStagedReceipts", "Actor"),
+        ("IntakeSubmissionGroups", "Actor"),
+        ("RetainedMailFolderMoves", "Actor")
+    ];
+
     /// <summary>Columns that store the reader key of an intake source.</summary>
     private static readonly (string Table, string Column)[] ReaderKeyColumns =
     [
@@ -97,6 +113,7 @@ public partial class PrincipalVocabulary : Migration
     private static readonly (string Table, string Column)[] OperationKeyColumns =
     [
         ("CaseHistory", "OperationKey"),
+        ("CaseWorkflowEvents", "OperationKey"),
         ("ImageIntakes", "CreationOperationKey"),
         ("IntakeSubmissionGroupHistory", "OperationKey"),
         ("IntakeWorkItems", "OperationKey")
@@ -255,7 +272,12 @@ public partial class PrincipalVocabulary : Migration
             SetPrefix(migrationBuilder, table, column, "provider-api:", "principal-api:");
             SetPrefix(migrationBuilder, table, column, "provider-mode:", "principal-mode:");
             SetPrefix(migrationBuilder, table, column, "provider-note:", "principal-note:");
+            SetPrefix(migrationBuilder, table, column, "provider-submission:", "principal-submission:");
         }
+
+        // The accepted-submission history row carries the submission's
+        // operation key as its correlation id.
+        SetPrefix(migrationBuilder, "ActionHistory", "CorrelationId", "provider-submission:", "principal-submission:");
 
         // Case data: the source kinds, the field name, and the label that names
         // the setting a value came from.
@@ -263,16 +285,20 @@ public partial class PrincipalVocabulary : Migration
         SetCode(migrationBuilder, "CaseDataFields", "SourceKind", "provider_api", "principal_api");
         SetCode(migrationBuilder, "CaseDataFields", "FieldName", "work_provider_code", "principal_code");
         SetPrefix(migrationBuilder, "CaseDataFields", "SourceLabel", "provider setting:", "principal setting:");
-        SetCode(migrationBuilder, "CaseDataFields", "SourceLabel", "staff-corrected wrong-principal work provider", "staff-corrected wrong-principal principal");
+        SetPrefix(migrationBuilder, "CaseDataFields", "SourceLabel", "ProviderDeclaration:", "PrincipalDeclaration:");
+        SetCode(migrationBuilder, "CaseDataFields", "SourceLabel", "staff-corrected wrong-principal work provider", "staff-corrected wrong-principal replacement");
 
         // Organization role and mail routing.
         SetCode(migrationBuilder, "OrganizationRoles", "Role", "work_provider", "principal");
         SetCode(migrationBuilder, "IntakeMailRouteDecisions", "RouteKind", "direct_provider", "direct_principal");
         SetCode(migrationBuilder, "IntakeMailClassificationDecisions", "Subtype", "provider-chasing-for-update", "principal-chasing-for-update");
 
-        // The actor packed as "{kind}:{subjectId}" beside a mail classification.
-        SetPrefix(migrationBuilder, "IntakeMailClassificationDecisions", "DecidedByActor", "provider:", "principal:");
-        SetPrefix(migrationBuilder, "IntakeMailClassificationHistory", "Actor", "provider:", "principal:");
+        // The actor packed as "{kind}:{subjectId}".
+        foreach (var (table, column) in PackedActorColumns)
+        {
+            SetPrefix(migrationBuilder, table, column, "provider:", "principal:");
+            SetPrefix(migrationBuilder, table, column, "Provider:", "Principal:");
+        }
 
         // Failure codes a Principal submission's intake can record.
         foreach (var table in new[] { "IntakeReceipts", "IntakeWorkItems" })
@@ -294,6 +320,10 @@ public partial class PrincipalVocabulary : Migration
         SetCode(migrationBuilder, "CaseWorkflows", "State", "ProviderCancelled", "PrincipalCancelled");
         SetCode(migrationBuilder, "CaseWorkflows", "ClosureOutcome", "ProviderCancelled", "PrincipalCancelled");
         ReplaceText(migrationBuilder, "CaseWorkflowEvents", "ResultJson", "\"ProviderCancelled\"", "\"PrincipalCancelled\"");
+        foreach (var column in new[] { "BeforeJson", "AfterJson" })
+        {
+            ReplaceText(migrationBuilder, "ActionHistory", column, "\"ProviderCancelled\"", "\"PrincipalCancelled\"");
+        }
 
         // Evidence and field JSON name the evidence source and its label; both
         // are parsed strictly on read.
@@ -302,6 +332,9 @@ public partial class PrincipalVocabulary : Migration
             ReplaceText(migrationBuilder, "IntakeReceipts", column, "\"provider_declaration\"", "\"principal_declaration\"");
             ReplaceText(migrationBuilder, "IntakeReceipts", column, "\"provider-original-report\"", "\"principal-original-report\"");
             ReplaceText(migrationBuilder, "IntakeReceipts", column, "\"provider-file:", "\"principal-file:");
+            ReplaceText(migrationBuilder, "IntakeReceipts", column, "provider_api_declared_instruction", "principal_api_declared_instruction");
+            ReplaceText(migrationBuilder, "IntakeReceipts", column, "provider_api_declaration", "principal_api_declaration");
+            ReplaceText(migrationBuilder, "IntakeReceipts", column, "provider-inspection-mode", "principal-inspection-mode");
         }
     }
 
@@ -346,11 +379,12 @@ public partial class PrincipalVocabulary : Migration
             $"UPDATE [dbo].[{table}] SET [{column}] = N'{renamed}' WHERE [{column}] = N'{old}';");
 
     // A prefix is matched by length rather than LIKE, which treats the "_"
-    // some prefixes contain as a wildcard.
+    // some prefixes contain as a wildcard. The match is case-sensitive so the
+    // lowercase packed actor and the ActorKind-name stamp are told apart.
     private static void SetPrefix(MigrationBuilder migrationBuilder, string table, string column, string old, string renamed) =>
         migrationBuilder.Sql(
             $"UPDATE [dbo].[{table}] SET [{column}] = N'{renamed}' + SUBSTRING([{column}], {old.Length + 1}, LEN([{column}])) "
-            + $"WHERE LEFT([{column}], {old.Length}) = N'{old}';");
+            + $"WHERE LEFT([{column}], {old.Length}) = N'{old}' COLLATE Latin1_General_100_BIN2;");
 
     private static void ReplaceText(MigrationBuilder migrationBuilder, string table, string column, string old, string renamed) =>
         migrationBuilder.Sql(

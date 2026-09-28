@@ -1022,7 +1022,7 @@ public sealed class PrincipalApiSubmissionTests
                 principalId,
                 0,
                 $"issue:{Guid.NewGuid():N}",
-                "provider api test"),
+                "principal api test"),
             default);
         return issued.Secret ?? throw new InvalidOperationException("The issued secret was not returned.");
     }
@@ -1040,7 +1040,7 @@ public sealed class PrincipalApiSubmissionTests
                 principalId,
                 current.Version,
                 $"pause:{Guid.NewGuid():N}",
-                "provider api test"),
+                "principal api test"),
             default);
     }
 
@@ -1069,7 +1069,7 @@ public sealed class PrincipalApiSubmissionTests
                 principalId,
                 0,
                 "principal-api:issue:other",
-                "provider api test"),
+                "principal api test"),
             default);
         return issued.Secret ?? throw new InvalidOperationException("The issued secret was not returned.");
     }

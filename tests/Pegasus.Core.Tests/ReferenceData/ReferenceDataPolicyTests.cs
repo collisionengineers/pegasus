@@ -76,7 +76,7 @@ public sealed class PrincipalDomainPolicyTests
     {
         var package = ValidPackage() with
         {
-            Providers = [ValidPackage().Providers[0] with { Code = code }]
+            Principals = [ValidPackage().Principals[0] with { Code = code }]
         };
 
         var result = Validate(package);
@@ -104,13 +104,13 @@ public sealed class PrincipalDomainPolicyTests
     [Fact]
     public void PrincipalDomainValidationRejectsDuplicateCodesRowsAndPerPrincipalSuffixes()
     {
-        var provider = ValidPackage().Providers[0];
+        var principal = ValidPackage().Principals[0];
         var package = ValidPackage() with
         {
-            Providers =
+            Principals =
             [
-                provider with { DomainSuffixes = ["@qdosassist.co.uk", "@qdosassist.co.uk"] },
-                provider
+                principal with { DomainSuffixes = ["@qdosassist.co.uk", "@qdosassist.co.uk"] },
+                principal
             ]
         };
 

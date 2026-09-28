@@ -144,6 +144,50 @@ public sealed class PrincipalVocabularyMigrationTests
     }
 
     [Fact]
+    public async Task ActionHistoryCodesAndSubmissionKeysAreRewritten()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync(PreviousMigration);
+        await database.ExecuteAsync(
+            """
+            INSERT INTO ActionHistory
+                (Id, ActorKind, ActorRolesJson, ActorSubjectId, AggregateId, AggregateType, CorrelationId,
+                 EventKind, OccurredAtUtc, Outcome, BeforeJson, AfterJson)
+            VALUES
+                ('87000000-0000-0000-0000-000000000031', N'Provider', N'[]', N'principal-1',
+                 N'87000000-0000-0000-0000-0000000000a1', N'ProviderSubmission',
+                 N'provider-submission:87000000000000000000000000000a1', N'Submitted',
+                 '2031-07-01T09:00:00+00:00', N'Accepted',
+                 N'{"State":"ProviderCancelled"}', N'{"ClosureOutcome":"ProviderCancelled"}'),
+                ('87000000-0000-0000-0000-000000000032', N'Staff', N'[]', N'staff-1',
+                 N'87000000-0000-0000-0000-0000000000a2', N'CaseWorkflow',
+                 N'corr-staff', N'Reopened',
+                 '2031-07-01T09:01:00+00:00', N'Accepted', NULL, NULL);
+            """);
+
+        await context.Database.MigrateAsync();
+
+        const string migrated = "87000000-0000-0000-0000-000000000031";
+        Assert.Equal("Principal", await database.ScalarAsync<string>(
+            $"SELECT ActorKind FROM ActionHistory WHERE Id = '{migrated}'"));
+        Assert.Equal("PrincipalSubmission", await database.ScalarAsync<string>(
+            $"SELECT AggregateType FROM ActionHistory WHERE Id = '{migrated}'"));
+        Assert.Equal("principal-submission:87000000000000000000000000000a1", await database.ScalarAsync<string>(
+            $"SELECT CorrelationId FROM ActionHistory WHERE Id = '{migrated}'"));
+        Assert.Equal("{\"State\":\"PrincipalCancelled\"}", await database.ScalarAsync<string>(
+            $"SELECT BeforeJson FROM ActionHistory WHERE Id = '{migrated}'"));
+        Assert.Equal("{\"ClosureOutcome\":\"PrincipalCancelled\"}", await database.ScalarAsync<string>(
+            $"SELECT AfterJson FROM ActionHistory WHERE Id = '{migrated}'"));
+
+        // A row the migration does not own keeps its actor and aggregate.
+        Assert.Equal("Staff", await database.ScalarAsync<string>(
+            "SELECT ActorKind FROM ActionHistory WHERE Id = '87000000-0000-0000-0000-000000000032'"));
+        Assert.Equal("CaseWorkflow", await database.ScalarAsync<string>(
+            "SELECT AggregateType FROM ActionHistory WHERE Id = '87000000-0000-0000-0000-000000000032'"));
+    }
+
+    [Fact]
     public async Task TheCodeCheckConstraintsAcceptThePrincipalCodesAndRefuseTheOldOnes()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);

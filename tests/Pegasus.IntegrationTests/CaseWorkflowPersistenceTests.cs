@@ -90,7 +90,7 @@ public sealed class CaseWorkflowPersistenceTests
                 sent.Version,
                 actor,
                 "close-post-report",
-                "Provider cancelled after report delivery",
+                "Principal cancelled after report delivery",
                 closeLease.Token,
                 CaseClosureOutcome.PrincipalCancelled),
             default);
@@ -1277,7 +1277,7 @@ public sealed class CaseWorkflowPersistenceTests
                 linked.Version,
                 actor,
                 "close-before-unlink",
-                "Provider cancelled after the report",
+                "Principal cancelled after the report",
                 postReportLease.Token,
                 CaseClosureOutcome.PrincipalCancelled),
             default);
@@ -1465,7 +1465,7 @@ public sealed class CaseWorkflowPersistenceTests
                 0,
                 actor,
                 "close-principal",
-                "Provider cancelled before report delivery",
+                "Principal cancelled before report delivery",
                 closeLease.Token,
                 CaseClosureOutcome.PrincipalCancelled),
             default);
