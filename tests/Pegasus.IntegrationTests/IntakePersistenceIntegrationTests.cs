@@ -201,7 +201,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260927004150_ImageInReport",
                 "20260928090000_GrantWorkerGeneratedCaseArtifactUpdate",
                 "20260928100000_WorkCentreQueryIndexes",
-                "20260928160000_GrantWorkerDocumentOccurrenceUpdate"
+                "20260928160000_GrantWorkerDocumentOccurrenceUpdate",
+                "20260929090000_RetireUnusedTables"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -241,7 +242,7 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseEstimateLines'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseRepairSpecifications'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
+        Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'AiWorkRequests'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'SendToAiControl'"));

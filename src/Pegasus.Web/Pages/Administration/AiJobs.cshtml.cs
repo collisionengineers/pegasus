@@ -9,10 +9,9 @@ namespace Pegasus.Web.Pages.Administration;
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class AiJobsModel(
     GetAdministrationAiJobs getJobs,
-    ICancelAiJob cancelJob,
-    IServiceProvider services) : AdministrationPageModel
+    ICancelAiJob cancelJob) : AdministrationPageModel
 {
-    public AdministrationAiJobPage Result { get; private set; } = new([], new(0, 0), false, false, false);
+    public AdministrationAiJobPage Result { get; private set; } = new([], new(0, 0), false, false);
     public int CurrentPage { get; private set; } = 1;
     [TempData] public string? StatusMessage { get; set; }
 
@@ -22,8 +21,7 @@ public sealed class AiJobsModel(
     {
         if (!TryGetActor(out var actor)) return Forbid();
         CurrentPage = pageNumber == 0 ? 1 : pageNumber;
-        var transportComposed = services.GetService<IAiHandOffTransport>() is not null;
-        try { Result = await getJobs.ExecuteAsync(actor, CurrentPage, transportComposed, cancellationToken); }
+        try { Result = await getJobs.ExecuteAsync(actor, CurrentPage, cancellationToken); }
         catch (ArgumentOutOfRangeException) { return NotFound(); }
         return Page();
     }

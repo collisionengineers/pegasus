@@ -541,7 +541,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 "PrincipalSequenceLineages:INSERT", "PrincipalSequenceLineages:SELECT",
                 "Principals:SELECT", "Principals:UPDATE",
                 "StandaloneAuditEvidence:INSERT", "StandaloneAuditEvidence:SELECT",
-                "VehicleConfirmations:INSERT", "VehicleConfirmations:SELECT",
                 "WorkflowConfigurations:SELECT"
             ],
             await ReadValuesAsync(
@@ -562,7 +561,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                         N'CaseWorkflows', N'CaseDataSnapshots', N'CaseDataFields',
                         N'CaseDueWork', N'ExternalWorkItems', N'IntakeMutationHistory',
                         N'Principals', N'PrincipalSequenceLineages', N'Organizations',
-                        N'OrganizationRoles', N'VehicleConfirmations', N'WorkflowConfigurations')
+                        N'OrganizationRoles', N'WorkflowConfigurations')
                   AND permission.class = 1
                   AND permission.minor_id = 0
                   AND permission.[state] = 'G'
