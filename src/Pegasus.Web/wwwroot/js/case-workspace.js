@@ -2665,6 +2665,11 @@
         section.addEventListener('change', function (event) {
             if (shown && !bar.contains(event.target)) { schedule(); }
         });
+        // So is a line removed or put back: the grid announces it on the
+        // spec's own estimateId (renumber), which no change event carries.
+        form.addEventListener('input', function (event) {
+            if (shown && event.target.name === 'estimateId') { schedule(); }
+        });
     }
 
     // Contract repair (v28 P35): the tick is the outcome in Decisions; ticking
