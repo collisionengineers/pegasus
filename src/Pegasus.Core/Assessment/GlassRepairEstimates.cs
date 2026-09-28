@@ -98,9 +98,14 @@ public sealed record GlassRepairEstimateSession(
     long Version, string OperationKey, DateTimeOffset CreatedAtUtc, DateTimeOffset ExpiresAtUtc,
     string? ProviderVehicleId, string? ProviderEstimateId, string? FailureCode,
     DateTimeOffset? CallbackConsumedAtUtc = null);
+/// <summary>
+/// A launch. <paramref name="SessionId"/> is the id a new session takes, chosen
+/// by the caller so it can hold the session busy before it exists; a replay of
+/// the operation key answers the session it already created instead.
+/// </summary>
 public sealed record GlassRepairEstimateLaunchRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
-    string OperationKey);
+    string OperationKey, Guid SessionId);
 public sealed record GlassRepairEstimateResumeRequest(
     ActionActor Actor, Guid SessionId, long ExpectedVersion,
     long ExpectedCaseVersion, string LeaseToken);
@@ -131,15 +136,10 @@ public sealed record GlassRepairEstimateStep(
 
 /// <summary>
 /// The provider work a step left owed, run for the staff member who asked for
-/// it. <paramref name="RawQuery"/> is the accepted return's own message, carried
-/// in memory only; without it an import looks the export up again and never
-/// relays.
+/// it. Everything else it needs, the accepted return's own message included,
+/// is read back from the session.
 /// </summary>
-public sealed record GlassRepairEstimateContinueRequest(
-    ActionActor Actor, Guid SessionId, string? RawQuery = null)
-{
-    public override string ToString() => nameof(GlassRepairEstimateContinueRequest);
-}
+public sealed record GlassRepairEstimateContinueRequest(ActionActor Actor, Guid SessionId);
 
 /// <summary>
 /// Every Glass's act is two halves. The prepare half proves authority,

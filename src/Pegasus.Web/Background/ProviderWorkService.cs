@@ -46,6 +46,9 @@ public sealed partial class ProviderWorkService(
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, cap.Token);
         try
         {
+            // Work for one record runs one piece at a time; the time cap counts
+            // the wait behind earlier work too.
+            using var entered = await queue.EnterAsync(work.Key, linked.Token);
             await using var scope = scopes.CreateAsyncScope();
             await work.RunAsync(scope.ServiceProvider, linked.Token);
         }
@@ -59,7 +62,8 @@ public sealed partial class ProviderWorkService(
         }
         finally
         {
-            queue.Complete(work.Key);
+            // Queued work holds the reservation it was admitted under.
+            queue.Release(work.Key);
         }
     }
 

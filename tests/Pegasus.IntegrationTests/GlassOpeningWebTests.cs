@@ -63,6 +63,65 @@ public sealed class GlassOpeningWebTests
     }
 
     /// <summary>
+    /// While the launch's work runs, a second click of the same form waits on
+    /// that same work rather than settling it, and the session cannot be
+    /// closed: the Close control is absent and a posted Close is refused, so
+    /// nothing the launch creates at the provider is left without a session.
+    /// </summary>
+    [Fact]
+    public async Task WhileTheLaunchRunsASecondClickWaitsOnItAndTheSessionCannotBeClosed()
+    {
+        var launchGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var workspace = await Workspace.CreateAsync(fault: new GatewayFault { LaunchGate = launchGate });
+        await workspace.ClaimLeaseAsync();
+        var form = await workspace.LaunchFormAsync();
+
+        using var first = await workspace.PostAsync("LaunchGlass", form);
+        using var second = await workspace.PostAsync("LaunchGlass", form);
+
+        var opening = AssertWaitsOnTheGlassWindow(first);
+        Assert.Equal(opening, AssertWaitsOnTheGlassWindow(second));
+        Assert.True(await workspace.PendingAsync(opening));
+        using (var early = await workspace.Client.GetAsync(opening + "?handler=Go"))
+        {
+            Assert.Equal(opening, AssertWaitsOnTheGlassWindow(early));
+        }
+        var running = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Prepared, running.State);
+        Assert.Null(running.FailureCode);
+
+        var html = await workspace.CaseHtmlAsync();
+        Assert.DoesNotContain("handler=CloseGlass", html, StringComparison.Ordinal);
+        var close = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["__RequestVerificationToken"] = FormFor(html, "ResumeGlass")["__RequestVerificationToken"],
+            ["sessionId"] = running.Id.ToString("D"),
+            ["expectedSessionVersion"] = running.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["reason"] = "Closed in Glass's.",
+            ["externalSessionClosed"] = "true",
+        };
+        using (var refused = await workspace.PostAsync("CloseGlass", close))
+        {
+            Assert.Equal(HttpStatusCode.Found, refused.StatusCode);
+        }
+        Assert.Equal(running, Assert.Single(await workspace.SessionsAsync()));
+        Assert.Contains(
+            GlassLabels.CloseWhileWorking,
+            WebUtility.HtmlDecode(await workspace.CaseHtmlAsync()),
+            StringComparison.Ordinal);
+
+        launchGate.SetResult();
+        using var opened = await workspace.FollowAsync(opening);
+
+        _ = ReadEstimator(opened);
+        Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
+        Assert.Equal(
+            GlassRepairEstimateSessionState.Active,
+            Assert.Single(await workspace.SessionsAsync()).State);
+        Assert.Contains("handler=CloseGlass", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Another staff member's session is not there at all, whether the page,
     /// its state or its Go is asked for, and nothing about it changes; a
     /// signed-out browser is sent to sign in.
@@ -121,12 +180,13 @@ public sealed class GlassOpeningWebTests
     }
 
     /// <summary>
-    /// A return whose import never ran was claimed, so the provider may have
-    /// been told nothing or everything: the window settles it Unknown, the
-    /// account stays held and the owner may close it, and nothing is relayed.
+    /// A return whose import never ran — the host stopped while it was queued —
+    /// is settled Unknown by the window: the account stays held and the owner
+    /// may close it, and nothing is relayed. The claim kept the provider's
+    /// message, so Resume makes the relay once and the estimate is recorded.
     /// </summary>
     [Fact]
-    public async Task AReturnWhoseImportNeverRanIsSettledUnknownAndNothingIsRelayed()
+    public async Task AReturnWhoseImportNeverRanIsSettledUnknownAndResumeRelaysItOnce()
     {
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
@@ -153,5 +213,14 @@ public sealed class GlassOpeningWebTests
         Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
         Assert.Equal(0, workspace.Mva.Count("GET /ere/ere-callback/"));
         Assert.Empty(await workspace.EstimatesAsync());
+
+        using var resumed = await workspace.PostGlassAsync("ResumeGlass", await workspace.ResumeFormAsync());
+
+        await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
+        Assert.Equal(
+            GlassRepairEstimateSessionState.Completed,
+            Assert.Single(await workspace.SessionsAsync()).State);
+        Assert.Equal(1, workspace.Mva.Count("GET /ere/ere-callback/"));
+        Assert.Single(await workspace.EstimatesAsync());
     }
 }
