@@ -733,6 +733,36 @@ public sealed class TriageQueuesWebTests
         var html = await redirected.Content.ReadAsStringAsync();
         Assert.Contains($"This was added to case {reference}.", html, StringComparison.Ordinal);
         Assert.DoesNotContain(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
+
+        // The single press linked the receipt to the Case; no second press exists.
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.True(await context.IntakeManualAssociations.AnyAsync(item =>
+            item.IntakeReceiptId == imageIntake.Origin.ReceiptId && item.CaseId == caseId && item.IsActive));
+    }
+
+    [Fact]
+    public async Task AwaitingAttachWithAnUnknownReferenceShowsTheErrorAndLinksNothing()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "TU34VWX");
+
+        using var response = await PostAttachAsync(
+            client, imageIntake.Id, imageIntake.Origin.ReceiptId, "NOSUCHREF", "No such case.");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("No single viable case matched that reference.", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Confirm and add to this case", html, StringComparison.Ordinal);
+        Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.False(await context.IntakeManualAssociations.AnyAsync(item =>
+            item.IntakeReceiptId == imageIntake.Origin.ReceiptId));
     }
 
     [Fact]
@@ -1209,23 +1239,9 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(HttpStatusCode.OK, surface.StatusCode);
         var surfaceHtml = await surface.Content.ReadAsStringAsync();
         var receiptVersion = InputValue(surfaceHtml, "receiptVersion");
-        var operationId = Guid.NewGuid().ToString("D");
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
-        using var prepared = await client.PostAsync(
-            "/Cases?handler=Attach",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = token,
-                ["id"] = id.ToString("D"),
-                ["receiptId"] = receiptId.ToString("D"),
-                ["operationId"] = operationId,
-                ["receiptVersion"] = receiptVersion,
-                ["reference"] = reference,
-                ["reason"] = reason
-            }));
-        Assert.Equal(HttpStatusCode.OK, prepared.StatusCode);
-        var preparedHtml = await prepared.Content.ReadAsStringAsync();
-        var caseVersion = long.Parse(InputValue(preparedHtml, "caseVersion"), CultureInfo.InvariantCulture);
+        // The Cases page has no review dialog: one press resolves the typed
+        // reference and attaches, so the test sends exactly one POST.
         return await client.PostAsync(
             "/Cases?handler=Attach",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -1233,10 +1249,8 @@ public sealed class TriageQueuesWebTests
                 ["__RequestVerificationToken"] = token,
                 ["id"] = id.ToString("D"),
                 ["receiptId"] = receiptId.ToString("D"),
-                ["operationId"] = operationId,
+                ["operationId"] = Guid.NewGuid().ToString("D"),
                 ["receiptVersion"] = receiptVersion,
-                ["caseId"] = InputValue(preparedHtml, "caseId"),
-                ["caseVersion"] = caseVersion.ToString(CultureInfo.InvariantCulture),
                 ["reference"] = reference,
                 ["reason"] = reason
             }));

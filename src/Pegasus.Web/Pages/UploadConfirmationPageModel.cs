@@ -29,6 +29,13 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
     /// <summary>The search itself could not run; distinct from no matches (FRD-18).</summary>
     public bool SearchFailed { get; protected set; }
 
+    /// <summary>
+    /// True when the surface has no review dialog: the first post resolves the
+    /// Case and attaches in the same request. False (the default) renders the
+    /// prepared target for the dialog and attaches on the second post.
+    /// </summary>
+    protected virtual bool AttachInOnePress => false;
+
     /// <summary>Back to the concrete status surface after a decision.</summary>
     protected abstract IActionResult RedirectToSurface(Guid id);
 
@@ -117,31 +124,33 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
                 return await RenderSurfaceAsync(id, cancellationToken);
             }
 
-            // Without script a chosen or typed Case takes an explicit server
-            // confirmation round-trip. It resolves and re-reads the viable
-            // target, then renders its receipt and Case versions in the review
-            // dialog; no write happens until staff posts that rendered decision.
-            if (caseId is null)
+            // A chosen or typed Case is resolved and re-read on the server first.
+            // A surface with a review dialog renders that prepared target and
+            // writes nothing until staff posts the rendered decision. A surface
+            // with no dialog (AttachInOnePress) uses the prepared target in this
+            // same request, so one press attaches.
+            if (caseId is null || caseVersion is null)
             {
-                UploadCaseConfirmation = await caseDecision.PrepareAsync(
-                    receiptId, reference, operationId, reviewedReceiptVersion, actor, cancellationToken);
-                if (UploadCaseConfirmation is null)
+                var prepared = caseId is null
+                    ? await caseDecision.PrepareAsync(
+                        receiptId, reference, operationId, reviewedReceiptVersion, actor, cancellationToken)
+                    : await caseDecision.PrepareByCaseAsync(
+                        receiptId, caseId.Value, operationId, reviewedReceiptVersion, actor, cancellationToken);
+                if (prepared is null)
                 {
-                    TempData["UploadConfirmationError"] = "No single viable case matched that reference. Search and choose a case from the suggestions.";
+                    TempData["UploadConfirmationError"] = caseId is null
+                        ? "No single viable case matched that reference. Search and choose a case from the suggestions."
+                        : "That case is not currently available for this upload. Search and choose another case.";
+                    return await RenderSurfaceAsync(id, cancellationToken);
+                }
+                if (!AttachInOnePress)
+                {
+                    UploadCaseConfirmation = prepared;
+                    return await RenderSurfaceAsync(id, cancellationToken);
                 }
 
-                return await RenderSurfaceAsync(id, cancellationToken);
-            }
-            if (caseVersion is null)
-            {
-                UploadCaseConfirmation = await caseDecision.PrepareByCaseAsync(
-                    receiptId, caseId.Value, operationId, reviewedReceiptVersion, actor, cancellationToken);
-                if (UploadCaseConfirmation is null)
-                {
-                    TempData["UploadConfirmationError"] = "That case is not currently available for this upload. Search and choose another case.";
-                }
-
-                return await RenderSurfaceAsync(id, cancellationToken);
+                caseId = prepared.CaseId;
+                caseVersion = prepared.Input.ExpectedCaseVersion;
             }
             if (caseVersion is not { } reviewedCaseVersion || reviewedCaseVersion < 0)
             {
