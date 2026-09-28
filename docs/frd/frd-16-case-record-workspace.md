@@ -99,7 +99,10 @@ Below 1441px the aside folds into a strip above the sections.
 
 Actions post in place and the record's parts refresh without navigation.
 Unsaved changes are confirmed before Refresh, navigation or an immediate
-action.
+action. Tagging, untagging and adding a tag on an image are the exception:
+they post at once while the Case has unsaved changes, keep those changes and
+redraw only the image's tags. A tag that also takes the image out of the
+report still asks first.
 
 **Edit session.** The whole record enters one edit mode over one lease
 ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). There is one Save
