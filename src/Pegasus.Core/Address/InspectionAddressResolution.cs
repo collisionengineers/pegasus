@@ -164,7 +164,23 @@ public sealed record InspectionAddressChoicesData(
     IReadOnlyList<string> PreviousAddresses,
     // The Case's recorded repairer name, so the repairer option
     // says which repairer rather than only offering an address.
-    string? RepairerName = null);
+    string? RepairerName = null)
+{
+    /// <summary>The choices a Case offers from its own data and its Principal's history.</summary>
+    public static InspectionAddressChoicesData Of(
+        CaseDataProjection data,
+        IReadOnlyList<string> previousAddresses)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(previousAddresses);
+        return new(
+            data.Claimant.Address.Current?.Value,
+            data.Inspection.RepairerAddress?.Current?.Value,
+            data.Inspection.StorageLocation?.Current?.Value,
+            previousAddresses,
+            data.Inspection.RepairerName?.Current?.Value);
+    }
+}
 
 /// <param name="SourceLabel">
 /// Which record the address came from, where the Case knows it — the
@@ -207,9 +223,13 @@ public static class InspectionAddressChoices
 
 public interface IInspectionAddressChoicesQueries
 {
-    Task<InspectionAddressChoicesData?> GetAsync(
+    /// <summary>
+    /// The inspection addresses confirmed on the Principal's other Cases, one
+    /// per address, most recently confirmed first. The Case's own addresses
+    /// come from the Case data the caller already holds.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetPreviousAddressesAsync(
         Guid caseId,
-        CaseWorkSelector work,
         CancellationToken cancellationToken);
 }
 

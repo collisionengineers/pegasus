@@ -74,6 +74,7 @@ never renumbered or reused.
 | [ADR-0054](0054-release-notes-authored-in-the-application.md) | Release notes are authored in the application by an Administrator | accepted | — | — |
 | [ADR-0055](0055-github-issues-as-the-problem-report-sink.md) | GitHub issues as the problem-report sink | accepted | — | — |
 | [ADR-0056](0056-one-case-per-work-data-and-triage-case-type.md) | One Case with per-work data; Triage as a Case type | accepted | — | CASE-04, TRI-01 |
+| [ADR-0057](0057-compress-staff-html-responses.md) | Compress staff HTML responses over HTTPS | accepted | — | — |
 | [ADR-0058](0058-glass-provider-work-in-the-web-host.md) | Glass's provider work runs in the background of the Web host | accepted | — | EXT-06 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap

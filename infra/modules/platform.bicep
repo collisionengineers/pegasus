@@ -420,6 +420,12 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         // the same port so the platform and the app agree without a container.
         { name: 'ASPNETCORE_HTTP_PORTS', value: '8080' }
         { name: 'WEBSITES_PORT', value: '8080' }
+        // A started instance takes traffic only once the warm-up endpoint
+        // answers 200. It waits for the startup warm-up alone (bounded at 45 s,
+        // inside the platform's start limit) and never for the database, so an
+        // outage cannot hold a new instance in a restart loop.
+        { name: 'WEBSITE_WARMUP_PATH', value: '/health/warm' }
+        { name: 'WEBSITE_WARMUP_STATUSES', value: '200' }
         // ADR-0049: the release artifact is web.zip, mounted read-only by the
         // platform; nothing is built on the host.
         { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' }

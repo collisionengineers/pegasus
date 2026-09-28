@@ -184,8 +184,8 @@ $webPackageSha256 = @($manifest.artifacts | Where-Object name -eq 'web.zip')[0].
 The manifest must use schema 3. Its `migrationRuntimeIdentifier` and
 `migrationBundleName` must match the workstation: `win-x64`/`efbundle.exe` on
 Windows or `linux-x64`/`efbundle` on Linux. The three artifacts are `web.zip`,
-`worker.zip` and that migration bundle. `web.zip` is a framework-dependent
-Linux x64 publish for the platform `DOTNETCORE|10.0` stack with
+`worker.zip` and that migration bundle. `web.zip` is a framework-dependent,
+ReadyToRun Linux x64 publish for the platform `DOTNETCORE|10.0` stack with
 `Pegasus.Web.dll` at its root; `worker.zip` targets Linux x64 and carries
 `.azurefunctions/`. Build and migrate on the same workstation platform; do not
 rename the bundle.

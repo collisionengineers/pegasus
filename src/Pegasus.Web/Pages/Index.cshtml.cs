@@ -500,9 +500,29 @@ public partial class IndexModel(
         CurrentPage = Math.Max(1, page);
         NewCasesPage = Math.Max(1, newPage);
 
+        // The three sections read side by side, each on its own database
+        // contexts, and each keeps its own failure: one unreadable section
+        // never hides the others. The page's state is set once all three end.
+        var clientId = HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId;
+        var attentionRead = ReadAttentionAsync(actor, Scope, CurrentPage, Kinds, Search, selected, assign, cancellationToken);
+        var newCasesRead = listRecentCases.ExecuteAsync(
+            actor,
+            NewCasesPage,
+            markSeen: NewCasesPage == 1 && !refresh,
+            cancellationToken, NowUtc);
+        var aiJobsRead = ReadAiJobsAsync(clientId, cancellationToken);
         try
         {
-            await ReadAttentionAsync(actor, selected, assign, cancellationToken);
+            await Task.WhenAll(attentionRead, newCasesRead, aiJobsRead);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Every read has ended; each section's own outcome is taken below.
+        }
+
+        try
+        {
+            ApplyAttention(await attentionRead);
         }
         catch (StaffAuthorizationException)
         {
@@ -517,11 +537,7 @@ public partial class IndexModel(
 
         try
         {
-            NewCases = await listRecentCases.ExecuteAsync(
-                actor,
-                NewCasesPage,
-                markSeen: NewCasesPage == 1 && !refresh,
-                cancellationToken, NowUtc);
+            NewCases = await newCasesRead;
             NewCasesLoadedAtUtc = NowUtc;
             DividerUtc = refresh
                 && DateTimeOffset.TryParse(since, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var carried)
@@ -536,7 +552,7 @@ public partial class IndexModel(
 
         try
         {
-            AiJobs = await ReadAiJobsAsync(cancellationToken);
+            AiJobs = await aiJobsRead;
             AiJobsLoadedAtUtc = NowUtc;
         }
         catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
@@ -555,46 +571,69 @@ public partial class IndexModel(
         return null;
     }
 
-    private async Task ReadAttentionAsync(
+    /// <summary>What the Needs attention section read, set on the page together.</summary>
+    private sealed record AttentionRead(
+        int Page,
+        OperationsSnapshot Snapshot,
+        NeedsAttentionItem? Selected,
+        bool CanTakeSelected,
+        WorkCentreAssignment? Assignment,
+        bool OpenAssignment);
+
+    private async Task<AttentionRead> ReadAttentionAsync(
         ActionActor actor,
+        NeedsAttentionScope scope,
+        int page,
+        IReadOnlyList<NeedsAttentionKind> kinds,
+        string? search,
         Guid? selected,
         bool assign,
         CancellationToken cancellationToken)
     {
-        var filter = Kinds.Count > 0 ? Kinds : null;
+        var filter = kinds.Count > 0 ? kinds : null;
         var snapshot = await getOperationsSnapshot.ExecuteAsync(
-            new NeedsAttentionQuery(actor, Scope, CurrentPage, filter, NowUtc, Search),
+            new NeedsAttentionQuery(actor, scope, page, filter, NowUtc, search),
             cancellationToken);
-        if (snapshot.Attention.Items.Count == 0 && CurrentPage > snapshot.Attention.TotalPages)
+        if (snapshot.Attention.Items.Count == 0 && page > snapshot.Attention.TotalPages)
         {
             // A page past the end (the list shrank) lands on the last page, not an empty one.
-            CurrentPage = snapshot.Attention.TotalPages;
+            page = snapshot.Attention.TotalPages;
             snapshot = await getOperationsSnapshot.ExecuteAsync(
-                new NeedsAttentionQuery(actor, Scope, CurrentPage, filter, NowUtc, Search),
+                new NeedsAttentionQuery(actor, scope, page, filter, NowUtc, search),
                 cancellationToken);
         }
 
-        LoadedAtUtc = snapshot.AsOfUtc;
-        Attention = snapshot.Attention;
-        Metrics = snapshot.Metrics;
-        // Core counts the chips over the scope before the kind filter: one read.
-        KindCounts = snapshot.Attention.KindCounts;
-
         // Only the row the address names expands (v30 B); nothing opens by itself.
         var items = snapshot.Attention.Items;
-        Selected = selected is { } id ? items.FirstOrDefault(item => item.Id == id) : null;
-        if (Selected is null)
+        var selectedItem = selected is { } id ? items.FirstOrDefault(item => item.Id == id) : null;
+        if (selectedItem is null)
         {
-            return;
+            return new(page, snapshot, null, false, null, false);
         }
 
-        CanTakeSelected = Selected.OwnerStaffId is null
-            && NeedsAttentionPolicy.CanTake(Selected.Kind, actor);
-        if (Selected.Kind == NeedsAttentionKind.UnassignedEngineer)
+        var canTake = selectedItem.OwnerStaffId is null
+            && NeedsAttentionPolicy.CanTake(selectedItem.Kind, actor);
+        WorkCentreAssignment? assignment = null;
+        if (selectedItem.Kind == NeedsAttentionKind.UnassignedEngineer)
         {
-            Assignment = await ReadAssignmentAsync(actor, Selected.Id, cancellationToken);
-            OpenAssignment = assign && Assignment is not null;
+            assignment = await ReadAssignmentAsync(actor, selectedItem.Id, cancellationToken);
         }
+
+        return new(page, snapshot, selectedItem, canTake, assignment, assign && assignment is not null);
+    }
+
+    private void ApplyAttention(AttentionRead read)
+    {
+        CurrentPage = read.Page;
+        LoadedAtUtc = read.Snapshot.AsOfUtc;
+        Attention = read.Snapshot.Attention;
+        Metrics = read.Snapshot.Metrics;
+        // Core counts the chips over the scope before the kind filter: one read.
+        KindCounts = read.Snapshot.Attention.KindCounts;
+        Selected = read.Selected;
+        CanTakeSelected = read.CanTakeSelected;
+        Assignment = read.Assignment;
+        OpenAssignment = read.OpenAssignment;
     }
 
     /// <summary>The assignment dialog's facts and Engineers, as the Case record's dialog reads them.</summary>
@@ -641,7 +680,9 @@ public partial class IndexModel(
     /// the open ledger, and the jobs that failed within the New cases window.
     /// Market research never waits for a person and is not listed.
     /// </summary>
-    private async Task<IReadOnlyList<WorkCentreAiJobRow>> ReadAiJobsAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<WorkCentreAiJobRow>> ReadAiJobsAsync(
+        string? clientId,
+        CancellationToken cancellationToken)
     {
         var open = await aiJobQueries.ListOpenAsync(cancellationToken);
         var drafts = (await aiDrafts.ListOpenAsync(cancellationToken))
@@ -667,7 +708,6 @@ public partial class IndexModel(
             staffAccounts,
             AiJobActions.StaffCreatorIds(jobs),
             cancellationToken);
-        var clientId = HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId;
         return jobs
             .Select(job => new WorkCentreAiJobRow(
                 job,

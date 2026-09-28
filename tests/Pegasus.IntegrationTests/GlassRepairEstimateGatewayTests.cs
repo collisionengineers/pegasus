@@ -138,6 +138,29 @@ public sealed class GlassRepairEstimateGatewayTests
         }
     }
 
+    /// <summary>
+    /// The named client abandons a slow request after its timeout, which
+    /// surfaces as a cancellation the caller did not ask for. Before the
+    /// session leaves Prepared nothing exists in the account, so the launch
+    /// failed; after it, the provider may have acted, so the outcome is unknown.
+    /// </summary>
+    [Theory]
+    [InlineData("/", false)]
+    [InlineData("/index/create-new-vehicle", true)]
+    [InlineData("/ere/start-ere", true)]
+    public async Task AProviderRequestThatTimesOutSettlesByWhatTheProviderMayHaveDone(
+        string timedOutPath, bool uncertain)
+    {
+        var harness = Harness.Create(transport: inner => new TimedOutProvider(inner, timedOutPath));
+
+        var settled = await harness.LaunchAsync(operationKey: "timed-out-launch");
+
+        Assert.Equal(
+            uncertain ? GlassRepairEstimateSessionState.Unknown : GlassRepairEstimateSessionState.Failed,
+            settled.State);
+        Assert.Equal(uncertain ? GlassFailure.TransportUnknown : GlassFailure.TransportFailed, settled.FailureCode);
+    }
+
     [Fact]
     public async Task ARecordedVehicleResumesAfterHostLossWithoutCreatingAnotherVehicle()
     {
@@ -2048,6 +2071,17 @@ public sealed class GlassRepairEstimateGatewayTests
         }
     }
 
+    /// <summary>What HttpClient throws when its timeout abandons a request.</summary>
+    private sealed class TimedOutProvider(HttpMessageHandler inner, string path) : DelegatingHandler(inner)
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            path == "/" || request.RequestUri!.AbsolutePath.StartsWith(path, StringComparison.Ordinal)
+                ? throw new TaskCanceledException(
+                    "The request was canceled due to the configured HttpClient.Timeout.",
+                    new TimeoutException())
+                : base.SendAsync(request, cancellationToken);
+    }
+
     private sealed class ClientFactory(HttpMessageHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
@@ -2095,6 +2129,10 @@ public sealed class GlassRepairEstimateGatewayTests
         public Task<PerUserExternalCredentialMaterial?> GetEnabledAsync(
             ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken) =>
             Task.FromResult(held.GetValueOrDefault(actor.SubjectId));
+
+        public Task<bool> IsEnabledAsync(
+            ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken) =>
+            Task.FromResult(held.ContainsKey(actor.SubjectId));
     }
 
     private sealed class CustodyDouble : ICaseArtifactCustody, ICaseArtifactCustodyStatus

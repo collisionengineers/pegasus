@@ -421,6 +421,7 @@ public sealed class CaseViewsWebTests
                 builder.ConfigureServices(services =>
                 {
                     Substitute<IGetCase>(services, store);
+                    Substitute<IGetCaseEditBasis>(services, store);
                     SubstituteDetailsPageReaders(services, store);
                     substitute?.Invoke(services);
                 }));

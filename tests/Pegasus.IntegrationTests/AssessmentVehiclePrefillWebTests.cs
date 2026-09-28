@@ -34,6 +34,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId);
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
@@ -80,6 +81,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId, includeConfirmedFacts: true);
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
@@ -120,6 +122,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId, includePartialConfirmedFacts: true);
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetCaseVehicleSection>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
@@ -144,7 +147,7 @@ public sealed class AssessmentVehiclePrefillWebTests
         Guid caseId,
         bool includeConfirmedFacts = false,
         bool includePartialConfirmedFacts = false)
-        : IGetCase, IGetCasePageFrame, IGetCaseVehicleSection, IGetAssessmentWorkspace
+        : IGetCase, IGetCaseEditBasis, IGetCasePageFrame, IGetCaseVehicleSection, IGetAssessmentWorkspace
     {
         private CaseDetails? Details(Guid requestedCaseId)
         {
@@ -173,6 +176,10 @@ public sealed class AssessmentVehiclePrefillWebTests
             };
             return details;
         }
+
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
             Task.FromResult(Details(query.CaseId));

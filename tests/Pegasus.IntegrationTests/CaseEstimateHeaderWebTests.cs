@@ -74,6 +74,7 @@ public sealed class CaseEstimateHeaderWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IGetCase>(services, store);
+            Substitute<IGetCaseEditBasis>(services, store);
             SubstituteDetailsPageReaders(services, store);
             // A lifecycle state outside the former Assessment CanOpen gate
             // remains a readable Case and still offers this read action.
@@ -123,6 +124,7 @@ public sealed class CaseEstimateHeaderWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IGetCase>(services, store);
+            Substitute<IGetCaseEditBasis>(services, store);
             SubstituteDetailsPageReaders(services, store);
             Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
             Substitute<IListCaseEstimates>(services, estimates);
@@ -187,6 +189,7 @@ public sealed class CaseEstimateHeaderWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IGetCase>(services, store);
+            Substitute<IGetCaseEditBasis>(services, store);
             SubstituteDetailsPageReaders(services, store);
             Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
             Substitute<IListCaseEstimates>(services, estimates);

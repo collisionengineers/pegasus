@@ -36,6 +36,13 @@ public sealed record GlassRepairEstimateOptions(
     public const string HttpClientName = "glass.mva";
 
     /// <summary>
+    /// How long one provider request may take before it is abandoned. A
+    /// request abandoned after the session left Prepared is recorded as
+    /// outcome unknown, like any other transport failure there.
+    /// </summary>
+    public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// The Pegasus page the provider's <c>caller</c> is rewritten to. The
     /// one-use correlation token is the last path segment, matching the
     /// callback route B publishes at <c>/Integrations/Glass/Callback/{correlation}</c>.
@@ -61,7 +68,10 @@ public sealed record GlassRepairEstimateOptions(
             // The export is read by GlassEstimateXmlParser, which refuses a
             // document larger than this; a second, different cap here would be
             // a second copy of the same rule.
-            RequirePositive(read, "Glass:MaximumExportBytes", GlassEstimateXmlParser.MaximumDocumentBytes));
+            RequirePositive(read, "Glass:MaximumExportBytes", GlassEstimateXmlParser.MaximumDocumentBytes))
+        {
+            RequestTimeout = TimeSpan.FromSeconds(RequirePositive(read, "Glass:RequestTimeoutSeconds", 30)),
+        };
     }
 
     /// <summary>The callback this launch will accept, carrying its one-use token.</summary>

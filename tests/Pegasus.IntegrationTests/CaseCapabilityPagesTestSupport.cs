@@ -43,6 +43,7 @@ internal static partial class CaseWebTestSupport
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -218,6 +219,7 @@ internal static partial class CaseWebTestSupport
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -776,7 +778,7 @@ internal static partial class CaseWebTestSupport
     /// </summary>
 
     internal sealed partial class RecordingCaseDetailsStore :
-        IGetCase,
+        IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
@@ -878,11 +880,26 @@ internal static partial class CaseWebTestSupport
         public List<PutCaseOnHoldRequest> Holds { get; } = [];
         public List<CaseMutationRequest> Releases { get; } = [];
         public List<TransitionCaseRequest> Transitions { get; } = [];
-        public InspectionAddressChoicesData InspectionChoices { get; init; } = new(
-            "8 Claimant Street",
-            RepairerAddress: null,
-            "14 Storage Lane",
-            ["2 Previous Street", "1 Older Avenue"]);
+        public IReadOnlyList<string> PreviousInspectionAddresses { get; init; } =
+            ["2 Previous Street", "1 Older Avenue"];
+
+        /// <summary>The Case's recorded repairer, which Inspect at offers as a location.</summary>
+        public string? RepairerAddress { get; init; }
+
+        public string? RepairerName { get; init; }
+
+        /// <summary>How many times a Save or a reclaim read the Case's edit basis.</summary>
+        public int EditBasisReads { get; private set; }
+
+        Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken)
+        {
+            EditBasisReads++;
+            var workflow = CreateWorkflow();
+            return Task.FromResult<CaseEditBasis?>(new(
+                new CaseSectionFrame(CreateSummary(workflow), workflow, ActiveLease()),
+                DataOverride ?? CreateData()));
+        }
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
@@ -1045,11 +1062,10 @@ internal static partial class CaseWebTestSupport
             string operationKey,
             CancellationToken cancellationToken) => Task.FromResult(false);
 
-        Task<InspectionAddressChoicesData?> IInspectionAddressChoicesQueries.GetAsync(
+        Task<IReadOnlyList<string>> IInspectionAddressChoicesQueries.GetPreviousAddressesAsync(
             Guid caseId,
-            CaseWorkSelector work, CancellationToken cancellationToken) =>
-            Task.FromResult<InspectionAddressChoicesData?>(
-                caseId == CaseId ? InspectionChoices : null);
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<string>>(caseId == CaseId ? PreviousInspectionAddresses : []);
 
         /// <summary>
         /// The case as it currently stands, so a refused editor's proposed values have something to
@@ -1089,7 +1105,8 @@ internal static partial class CaseWebTestSupport
                     Confirmed("1 Depot Road"),
                     Confirmed(CaseInspectionMode.PhysicalAddress),
                     Confirmed("14 Storage Lane"),
-                    Empty<string>()),
+                    RepairerAddress is null ? Empty<string>() : Confirmed(RepairerAddress),
+                    RepairerName is null ? null : Confirmed(RepairerName)),
                 Workspace: ClaimSource is null
                     ? null
                     : new(ClaimSource, null, null, null, null, null, null, null, null, null, null),
@@ -1325,6 +1342,7 @@ internal static partial class CaseWebTestSupport
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);
@@ -1344,4 +1362,15 @@ internal static partial class CaseWebTestSupport
         client.DefaultRequestHeaders.Add("X-Test-Roles", role.ToString());
         return (baseFactory, factory, client);
     }
+}
+
+/// <summary>A test double's full Case read, narrowed to what a Case edit reads.</summary>
+internal static class CaseEditBasisTestData
+{
+    public static CaseEditBasis? Of(CaseDetails? details) =>
+        details is null
+            ? null
+            : new(
+                new CaseSectionFrame(details.Summary, details.Workflow, details.ActiveEditLease),
+                details.Data ?? throw new InvalidOperationException("The test Case has no data."));
 }

@@ -132,6 +132,9 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                     StringComparison.OrdinalIgnoreCase).ToString(),
                 ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
                 ["Graph:ChangeNotificationClientState"] = "integration-client-state",
+                // The startup warm-up reads in the background; a test host
+                // skips it so its own command counts stay exact.
+                ["Startup:Warmup"] = "false",
             };
 
             configuration.AddInMemoryCollection(values);
