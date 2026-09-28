@@ -225,7 +225,6 @@ public sealed class LogsWebTests
         public Guid MessageId { get; } = Guid.NewGuid();
         public IntakeLogFilter? LastFilter { get; private set; }
         public List<IntakeLogFilter> Filters { get; } = [];
-        public int RetryableFailureReads { get; private set; }
         public List<ReevaluateIntakeRequest> Reevaluations { get; } = [];
         public List<RetryIntakeOcrRequest> OcrRetries { get; } = [];
         public List<RetryIntakeAllocationRequest> AllocationRetries { get; } = [];
@@ -302,24 +301,6 @@ public sealed class LogsWebTests
                     ReceivedAtUtc,
                     SafeReason: "The principal code was not recognised.")],
                 new IntakeLogActions(CanReevaluate: true, CanRetryAllocation: true, CanRetryOcr: true)));
-
-        public Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
-            ActionActor actor,
-            CancellationToken cancellationToken)
-        {
-            RetryableFailureReads++;
-            return Task.FromResult<IReadOnlyList<IntakeLogActionableFailure>>(
-            [
-                new(RowFor(IntakeLogOutcome.AllocationFailed), 7,
-                    new IntakeAllocationState(AttemptId, IntakeAllocationProjectionStatus.FailedRecoverable, null, ReceivedAtUtc,
-                        SafeReason: "The principal code was not recognised."),
-                    new IntakeLogActions(CanReevaluate: true, CanRetryAllocation: true, CanRetryOcr: true)),
-                new(RowFor(IntakeLogOutcome.OcrFailed), 7, null,
-                    new IntakeLogActions(CanReevaluate: true, CanRetryAllocation: false, CanRetryOcr: true)),
-                new(RowFor(IntakeLogOutcome.ProcessingFailed), 7, null,
-                    new IntakeLogActions(CanReevaluate: true, CanRetryAllocation: false, CanRetryOcr: false))
-            ]);
-        }
 
         public Task<IntakeReceipt> ExecuteAsync(ReevaluateIntakeRequest request, CancellationToken cancellationToken = default)
         {
