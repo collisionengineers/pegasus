@@ -49,7 +49,7 @@ public sealed class ImageIntakeCasePairing(
     /// <summary>
     /// A known intake Principal is a hard scope on the candidate Cases, the
     /// way an established Principal is on the mail path
-    /// ([FRD-09](../../../docs/frd/frd-09-provider-and-intermediary-routes.md)):
+    /// ([FRD-09](../../../docs/frd/frd-09-principal-and-intermediary-routes.md)):
     /// only that Principal's Cases are candidates, and they are restricted
     /// BEFORE any uniqueness count. An unknown Principal leaves the full set.
     /// </summary>

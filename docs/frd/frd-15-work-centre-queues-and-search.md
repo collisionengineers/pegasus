@@ -122,7 +122,7 @@ a Triage item without an assignee, where Core would accept it.
 
 **New cases.** Every Case except a Triage Case created in the last 7 calendar
 days, newest first, whatever created it: reference, registration, claimant,
-principal and an arrival chip (Manual, E-mail, Provider API, Automation). A
+principal and an arrival chip (Manual, E-mail, Principal API, Automation). A
 "Since you last looked" divider marks what is new for this person. Opening the
 Work Centre records the look. A change the Automation actor makes to an
 existing Case appears as a "Changed by automation" row naming the change. The
@@ -168,7 +168,7 @@ Each queue keeps its own row shape:
   registration, whether or not it has an Audit;
 - an Awaiting-instruction row: Image reference, registration, file count and
   custody;
-- a Triage row: `t.` Case/PO, registration, provider and assignee;
+- a Triage row: `t.` Case/PO, registration, Principal and assignee;
 - an Unidentified row: the U-reference, kind, a handle the operator will
   recognise (the original filename, or the e-mail subject and sender, never
   an internal identifier), received date and time, and the canonical reason.
@@ -302,7 +302,7 @@ gate. Server-side transitions stay reachable where a handler exists.
 ### Search
 
 `/Search` carries the `UI-07` filters: Case/PO or Image reference,
-Registration, Claimant, Claim/provider reference, Principal, State, Engineer,
+Registration, Claimant, Claim/Principal reference, Principal, State, Engineer,
 Received from/to and Origin, with Search and Clear. Results are one table
 (Case/PO and Our ref, vehicle, claimant, principal, type, state, due).
 Pointer or keyboard intent on a row shows a selected-Case preview beside the

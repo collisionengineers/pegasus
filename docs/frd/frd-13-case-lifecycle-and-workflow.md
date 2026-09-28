@@ -45,7 +45,7 @@ names never leak into labels.
 Pegasus stores With Engineer as two internal states, one before the report
 and one after it. Screens show them as one word.
 
-A Case can also carry one of four closed dispositions: `Provider cancelled`,
+A Case can also carry one of four closed dispositions: `Principal cancelled`,
 `Collision Engineers rejected`, `Created in error` and `Source email
 unlinked`. Each records a reason. The Case stays on record and can be
 returned to work with a reason. No Case is ever shown as "Closed".
@@ -154,7 +154,7 @@ received or assigned anything.
 
 **Close case** is the one adverse action, kept apart from ordinary progress.
 It offers exactly the closed dispositions Core allows for that Case:
-`Provider cancelled` and `Collision Engineers rejected`. A reason is
+`Principal cancelled` and `Collision Engineers rejected`. A reason is
 required. An outcome that is missing or unrecognised is refused; it never
 falls back to a default.
 
@@ -283,7 +283,7 @@ instruction creates intake work.
 
 A cancellation that has been retained and associated with a reason may
 support a staff action on a pre-report Case: place it on Hold with the
-cancellation as the reason, confirm `Provider cancelled`, or release it.
+cancellation as the reason, confirm `Principal cancelled`, or release it.
 Release needs the message recategorised, unlinked or reassociated first. Every
 original and corrected classification, with actor, time, reason and evidence,
 stays in history.
@@ -301,7 +301,7 @@ stays in history.
 | Query | Completed | Reply sent |
 | Completed, Query | With Engineer | Return to Engineer (reason) |
 | With Engineer after the report, Completed, Query | With Engineer before the report | Create audit, once, on an Inspection + Audit Case |
-| pre-report states | Provider cancelled, Collision Engineers rejected | Close case (reason) |
+| pre-report states | Principal cancelled, Collision Engineers rejected | Close case (reason) |
 | any open state | Created in error | Corrected-Principal replacement action |
 | any open state | Source email unlinked | Unlink the source email |
 | closed disposition | archived | Archive |

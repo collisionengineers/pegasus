@@ -6,7 +6,7 @@ authorization comes from the operator; the primary agent owns verification.
 
 - [Local setup](runbook.md#local-setup-and-run)
 - [Build and test commands](runbook.md#locked-restore-build-and-test)
-- [Reference authoring](runbook.md#provider-domain-reference-authoring)
+- [Reference authoring](runbook.md#principal-domain-reference-authoring)
 - [Mailbox operations](runbook.md#approved-mailbox-estate)
 - [OAuth certificate operations](runbook.md#automation-oauth-certificate-operation)
 - [Monitoring](runbook.md#monitoring-and-diagnosis) and [recovery](runbook.md#recovery)
@@ -428,7 +428,7 @@ the application solution.
 
 ## Corpus safety and evaluation
 
-`corpus/` contains genuine operational emails, instructions, documents, images, and case material authorised for local project evaluation. It is the preferred reality check for intake, provider detection, attachment grouping, PDF extraction, registration recognition, and exception handling.
+`corpus/` contains genuine operational emails, instructions, documents, images, and case material authorised for local project evaluation. It is the preferred reality check for intake, Principal detection, attachment grouping, PDF extraction, registration recognition, and exception handling.
 
 A dated 2026-07-23 observation recorded:
 
@@ -479,9 +479,9 @@ source evidence as unavailable. Ordinary CI excludes the Corpus category and
 is not evidence that the private collection passed. Keep `corpus/` immutable;
 the private collection is separate and does not replace it.
 
-## Provider-domain reference authoring
+## Principal-domain reference authoring
 
-Provider-domain authoring is an offline operation over one immutable package. The `provider-domains-v1` command reads only:
+Principal-domain authoring is an offline operation over one immutable package. The `provider-domains-v1` command reads only (the package version id keeps its original name; it is the hash-pinned identity):
 
 ```text
 reference/workproviders-and-repairers/initial.xlsx
@@ -495,7 +495,7 @@ republishes `provider-domains-v1` with a new path or hash.
 
 It retains:
 
-- the provider code from column A; and
+- the Principal code from column A; and
 - the final lowercase `@domain` suffix from each semicolon-separated column-E observation.
 
 It ignores columns B–D and all later columns. It never edits the workbook or emits an email local part, full email address, inspection location, default, Case ID, or opaque source value.
@@ -546,11 +546,11 @@ pwsh ./scripts/Build-PrincipalReferenceData.ps1 `
   -PreviousPackagePath ./src/Pegasus.Infrastructure/Persistence/ReferenceData/principal-domains.v1.json
 ```
 
-Every previous provider/suffix pair must remain. Removal fails `non-monotonic-source`. Source, previous package, staging, and output paths must be distinct; staging and output may not be beneath `reference/`.
+Every previous Principal/suffix pair must remain. Removal fails `non-monotonic-source`. Source, previous package, staging, and output paths must be distinct; staging and output may not be beneath `reference/`.
 
 Corrections or removals require separately accepted authority and a new explicit contract. Published snapshots remain unchanged.
 
-Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a provider at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
+Successful completion proves deterministic authoring bytes only. It does not activate an email route, resolve a Principal at intake, prove a migration or caller, or establish release acceptance. Runtime reads only the explicit versioned SQL snapshot and never opens a workbook. Reference ownership is indexed in [reference material](../reference/README.md).
 
 ## Principal-identification corpus authoring
 

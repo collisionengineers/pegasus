@@ -83,7 +83,7 @@ plus every eligible retained Case-vehicle image:
 12. `Mileage`
 13. `Mileage Unit`
 
-`Reference` is the work provider's reference, not the Pegasus Case
+`Reference` is the Principal's reference, not the Pegasus Case
 reference. `Instruction Date` is the Case's Received date
 ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#instruction-field-meanings))
 as `dd/MM/yyyy`; every Case has one, so it is never blank. The archive holds
@@ -120,7 +120,7 @@ prerequisite, not a Case-readiness or ZIP gate. The thirteen-field package is
 unchanged.
 
 **Values EVA has no field for.** The inspection date and the mileage go as
-labelled lines in the instruction note. The work provider travels the same
+labelled lines in the instruction note. The Principal travels the same
 way, because the claimant name occupies `InsName`. The Case's Received
 date is not sent; EVA sets its own instruction date on arrival.
 
