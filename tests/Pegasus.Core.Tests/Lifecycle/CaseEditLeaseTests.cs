@@ -188,11 +188,53 @@ public sealed class CaseEditLeaseTests
             });
     }
 
+    [Fact]
+    public async Task ResumeHandsBackTheStoresAnswerForTheCallersOwnLease()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var lease = new CaseEditLease(
+            Guid.NewGuid(),
+            new string('b', CaseEditAuthority.LeaseTokenLength),
+            actor.SubjectId,
+            5,
+            new DateTimeOffset(2031, 2, 3, 4, 5, 0, TimeSpan.Zero));
+        var store = new RecordingLeaseStore(lease);
+        var request = new ResumeCaseEditLeaseRequest(lease.CaseId, actor);
+
+        var result = await new ResumeCaseEditLease(store).ExecuteAsync(request, default);
+
+        Assert.Equal(lease, result);
+        Assert.Same(request, store.ResumeRequest);
+    }
+
+    [Fact]
+    public async Task ResumeRequiresCaseworkPermissionAndACaseBeforeTheStoreIsAsked()
+    {
+        var store = new RecordingLeaseStore(new CaseEditLease(
+            Guid.NewGuid(),
+            new string('b', CaseEditAuthority.LeaseTokenLength),
+            "holder",
+            5,
+            new DateTimeOffset(2031, 2, 3, 4, 5, 0, TimeSpan.Zero)));
+        var resume = new ResumeCaseEditLease(store);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => resume.ExecuteAsync(
+            new ResumeCaseEditLeaseRequest(Guid.NewGuid(), ActionActor.SystemWorker("case-worker")),
+            default));
+        await Assert.ThrowsAsync<ArgumentException>(() => resume.ExecuteAsync(
+            new ResumeCaseEditLeaseRequest(
+                Guid.Empty,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])),
+            default));
+        Assert.Null(store.ResumeRequest);
+    }
+
     private sealed class RecordingLeaseStore(CaseEditLease claimResult) : ILeaseCaseForEdit
     {
         public ClaimCaseEditLeaseRequest? ClaimRequest { get; private set; }
         public RenewCaseEditLeaseRequest? RenewRequest { get; private set; }
         public HeartbeatCaseEditLeaseRequest? HeartbeatRequest { get; private set; }
+        public ResumeCaseEditLeaseRequest? ResumeRequest { get; private set; }
         public ReleaseCaseEditLeaseRequest? ReleaseRequest { get; private set; }
 
         public Task<CaseEditLease> ClaimAsync(
@@ -220,6 +262,15 @@ public sealed class CaseEditLeaseTests
             cancellationToken.ThrowIfCancellationRequested();
             HeartbeatRequest = request;
             return Task.FromResult(claimResult);
+        }
+
+        public Task<CaseEditLease?> ResumeAsync(
+            ResumeCaseEditLeaseRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ResumeRequest = request;
+            return Task.FromResult<CaseEditLease?>(claimResult);
         }
 
         public Task ReleaseAsync(

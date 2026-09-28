@@ -38,53 +38,23 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(["Door skin"], snapshot.NewParts);
         Assert.Equal(["Nearside door"], snapshot.Repairs);
         Assert.Equal(["Blend nearside wing"], snapshot.Operations);
-        Assert.Equal("Manual", snapshot.Vehicle.Transmission);
-        Assert.Equal("Blue", snapshot.Vehicle.Colour);
-        Assert.Equal("Hatchback", snapshot.Vehicle.Body);
-        Assert.Equal(new DateOnly(2027, 1, 2), snapshot.Vehicle.TaxExpiry);
-        Assert.Equal(new DateOnly(2027, 3, 4), snapshot.Vehicle.MotExpiry);
-        Assert.Equal("None", snapshot.Vehicle.AirbagsDeployed);
-        // A roadworthy vehicle prints no temporary repair.
-        Assert.Null(snapshot.Vehicle.TemporaryRepairsPossible);
-        Assert.Null(snapshot.Vehicle.TemporaryRepairMethod);
-        Assert.Null(snapshot.Vehicle.TemporaryRepairCost);
+        // The vehicle facts the template prints, as recorded. The Case also
+        // records a transmission, colour, body, expiry dates, airbags, tyres,
+        // belts and settlement facts, and the report carries none of them.
+        Assert.Equal(
+            new ReportVehicle(
+                "PK12TMZ", "Ford", "Focus", "2012", "good", "80,000 miles", "online_data",
+                "VIN12345", "1600", "Petrol"),
+            snapshot.Vehicle);
         var impact = Assert.Single(snapshot.Damage.Impacts);
-        Assert.Equal(("RH Rear", "Moderate", "Quarter panel"), (impact.Areas, impact.Severity, impact.Note));
         Assert.Equal(["right_rear"], impact.Codes);
+        // Each damage keeps its own severity, which shades its disc.
+        Assert.Equal("moderate", impact.Severity);
         // The disc the operator drew travels to the report as drawn.
         Assert.Equal(new DamageDisc(0.86, 0.86, 0.1), impact.Disc);
-        Assert.Equal("OK", snapshot.Damage.RightFrontTyre);
-        Assert.Equal("Worn", snapshot.Damage.LeftFrontTyre);
-        Assert.Equal("Damaged", snapshot.Damage.RightRearTyre);
-        Assert.Equal("Illegal", snapshot.Damage.LeftRearTyre);
-        Assert.Equal("OK", snapshot.Damage.RightFrontBelt);
-        Assert.Equal("Locked", snapshot.Damage.LeftFrontBelt);
-        Assert.Equal("Deployed", snapshot.Damage.RightRearBelt);
-        Assert.Equal("Not fitted", snapshot.Damage.LeftRearBelt);
-        Assert.Equal("Repair kit", snapshot.Damage.SpareTyre);
-        Assert.Equal("Not fitted", snapshot.Damage.CentreBelt);
         Assert.Equal("Door scratch", snapshot.Damage.Unrelated);
-        Assert.Equal(75m, snapshot.Damage.UnrelatedDeduction);
-        Assert.Equal("Red paint", snapshot.Damage.MaterialTransfer);
-        Assert.Equal(250m, snapshot.Settlement.Excess);
-        Assert.Equal(100m, snapshot.Settlement.Betterment);
-        Assert.True(snapshot.Settlement.ClaimantVatRegistered);
-        Assert.Equal(6_000m, snapshot.Settlement.Reserve);
-        Assert.Equal(4_830m, snapshot.Settlement.Equity);
-        Assert.Equal("Parts delay", snapshot.Settlement.RepairDelays);
-        Assert.Equal("None", snapshot.Settlement.ReportDelay);
-        Assert.Equal(20m, snapshot.Settlement.StoragePerDay);
-        Assert.Equal(80m, snapshot.Settlement.Recovery);
-        Assert.Equal(new DateOnly(2026, 8, 4), snapshot.Settlement.HireStart);
-        Assert.Equal(35m, snapshot.Settlement.HireDailyCost);
-        Assert.Equal(200m, snapshot.Settlement.Diminution);
-        Assert.Null(snapshot.Settlement.SalvageAt);
-        Assert.Null(snapshot.Settlement.SalvageAgent);
-        Assert.Null(snapshot.Settlement.SalvageAgentReference);
-        Assert.Null(snapshot.Settlement.SalvageMoved);
-        Assert.Null(snapshot.Settlement.SalvageOwnerRetains);
-        Assert.Null(snapshot.Settlement.SalvageValueAgreed);
-        Assert.Null(snapshot.Settlement.SalvageSettled);
+        // Only a contract repair carries an agreed sum.
+        Assert.Equal(new ReportSettlement(), snapshot.Settlement);
         Assert.Equal("Ed Mawdsley", snapshot.Signatory.PrintedName);
         Assert.Equal("ATA VDA AQP", snapshot.Signatory.Qualifications);
         Assert.Single(snapshot.Photos);
@@ -94,8 +64,13 @@ public sealed class AssessmentReportProjectionTests
         snapshot.Validate();
     }
 
+    /// <summary>
+    /// An unroadworthy vehicle's report carries the reason and says the
+    /// vehicle is unroadworthy. Its temporary repairs are recorded on the Case
+    /// and printed nowhere.
+    /// </summary>
     [Fact]
-    public void TemporaryRepairsPrintOnlyForAnUnroadworthyVehicle()
+    public void AnUnroadworthyVehicleCarriesItsReasonAndNoTemporaryRepair()
     {
         var input = ReadyInput();
         AssessmentFieldValue[] fields =
@@ -108,10 +83,11 @@ public sealed class AssessmentReportProjectionTests
             input with { Assessment = input.Assessment with { Fields = fields } });
 
         Assert.True(result.IsReady);
-        var vehicle = result.Snapshot!.Vehicle;
-        Assert.True(vehicle.TemporaryRepairsPossible);
-        Assert.Equal("Secure bumper", vehicle.TemporaryRepairMethod);
-        Assert.Equal(25m, vehicle.TemporaryRepairCost);
+        var snapshot = result.Snapshot!;
+        Assert.True(snapshot.IsUnroadworthy);
+        Assert.Equal("Brake line severed", snapshot.UnroadworthyReason);
+        Assert.Equal(AssessmentReportProjection.Project(input).Snapshot!.Vehicle, snapshot.Vehicle);
+        snapshot.Validate();
     }
 
     /// <summary>
@@ -123,7 +99,8 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void TheIncidentNarrativeIsTheNatureOfIncidentBlockTheReportPrints()
     {
-        const string composed = "The vehicle has suffered Moderate collision/impact damage to the Right Rear.";
+        // The template's sentence (Sample - Total Loss Report.pdf, page 2).
+        const string composed = "The vehicle has suffered moderate collision/impact damage to the right rear.";
         const string worded = "The vehicle was struck from behind.";
         var input = ReadyInput();
 
@@ -155,6 +132,95 @@ public sealed class AssessmentReportProjectionTests
             }
         };
         Assert.Null(ReportWordingComposition.NatureOfIncidentOf(noImpact));
+    }
+
+    /// <summary>
+    /// Damage to several areas reads the same on the Damage section and on the
+    /// report: the manager's case page's sentence
+    /// (pegasus_case_dashboard_2026-09-15.html, lines 1161 to 1163), with the
+    /// areas the recorded damages name.
+    /// </summary>
+    [Fact]
+    public void DamageToSeveralAreasReadsTheSameOnTheCaseAndOnTheReport()
+    {
+        const string composed =
+            "The vehicle has suffered heavy collision/impact damage to the following areas:"
+            + "\n— Front"
+            + "\n— Right rear";
+        var ready = ReadyInput();
+        AssessmentFieldValue[] fields =
+        [
+            .. ready.Assessment.Fields.Where(field => field.Path is not (
+                AssessmentVocabulary.ImpactSeverity
+                or AssessmentVocabulary.ImpactLocation
+                or AssessmentVocabulary.DamageImpacts)),
+            Field(AssessmentVocabulary.ImpactSeverity, "heavy"),
+            Field(AssessmentVocabulary.ImpactLocation, "multiple"),
+            Field(
+                AssessmentVocabulary.DamageImpacts,
+                "[{\"areas\":[\"front\"],\"severity\":\"light\",\"note\":\"Bonnet\"},{\"areas\":[\"right_rear\"],\"severity\":\"heavy\",\"note\":\"Quarter\"}]"),
+        ];
+        var input = ready with { Assessment = ready.Assessment with { Fields = fields } };
+
+        Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(input));
+        Assert.Equal(composed, PrintedNatureOfIncident(input));
+        Assert.Equal(composed, ReportWordingComposition.NatureOfIncidentOf(input with { Signatory = null }));
+    }
+
+    /// <summary>
+    /// A Case with no mileage prints the template's word for it
+    /// (DESIGN_SPEC.md line 90: a missing value renders as "TBC").
+    /// </summary>
+    [Fact]
+    public void AVehicleWithNoMileagePrintsTheTemplatesWordForIt()
+    {
+        var input = ReadyInput();
+
+        var snapshot = AssessmentReportProjection.Project(input with
+        {
+            Assessment = input.Assessment with
+            {
+                CaseOwned = input.Assessment.CaseOwned with
+                {
+                    Mileage = null,
+                    MileageUnit = null,
+                    MileageSource = "tbc",
+                }
+            }
+        }).Snapshot!;
+
+        Assert.Equal("TBC", snapshot.Vehicle.MileageDescription);
+        Assert.Equal("tbc", snapshot.Vehicle.MileageSource);
+    }
+
+    /// <summary>
+    /// "Engineer's Value applied." is what the Case save records when a
+    /// calculated value is applied. It is a message for the screen, in neither
+    /// the template nor the manager's case page, so it is never the report's
+    /// valuation commentary; the Engineer's own commentary is.
+    /// </summary>
+    [Fact]
+    public void TheCaseSavesOwnReasonIsNeverTheValuationCommentary()
+    {
+        var assessment = ReadyInput().Assessment;
+
+        Assert.Equal("Engineer's Value applied.", ValuationCalculationPolicy.AppliedReason);
+        Assert.Null(AssessmentReportProjection.ValuationCommentaryOf(
+            assessment, ValuationCalculationPolicy.AppliedReason));
+        Assert.Null(AssessmentReportProjection.ValuationCommentaryOf(
+            assessment, "  " + ValuationCalculationPolicy.AppliedReason + " "));
+
+        var written = assessment with
+        {
+            Fields =
+            [
+                .. assessment.Fields,
+                Field(AssessmentVocabulary.ReportValuationCommentaryText, "Low mileage for its age."),
+            ]
+        };
+        Assert.Equal(
+            "Low mileage for its age.",
+            AssessmentReportProjection.ValuationCommentaryOf(written, ValuationCalculationPolicy.AppliedReason));
     }
 
     [Theory]
@@ -213,32 +279,11 @@ public sealed class AssessmentReportProjectionTests
         }
     }
 
-    [Fact]
-    public void UnconfirmedEstimateLineBlocksTheWholeDraftViaTheSharedReadinessRail()
-    {
-        // The estimate-line grouping never has to filter by confirmation
-        // itself: AssessmentPolicy.EvaluatePostReviewReadiness already blocks the
-        // whole draft on the first unconfirmed line, of any type.
-        var input = ReadyInput();
-        var unconfirmed = input.Assessment.EstimateLines[0] with { ConfirmedBy = null, ConfirmedAtUtc = null };
-        var withUnconfirmedLine = input with
-        {
-            Assessment = input.Assessment with
-            {
-                EstimateLines = [.. input.Assessment.EstimateLines.Skip(1), unconfirmed]
-            }
-        };
-
-        var result = AssessmentReportProjection.Project(withUnconfirmedLine);
-
-        AssertNotReady(result, $"Estimate line {unconfirmed.Position} ({unconfirmed.Type}) awaits review");
-    }
-
     /// <summary>
     /// Entry to Review proves only instruction and image completeness, so each
     /// Case fact the report prints is named before anything is projected. The
     /// vehicle make, model and year are left to the Review-entry rail, and a
-    /// missing mileage prints as To be confirmed, so none of them is named.
+    /// missing mileage prints as TBC, so none of them is named.
     /// </summary>
     [Fact]
     public void EveryCaseFactTheReportPrintsIsANamedBlocker()
@@ -353,18 +398,15 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void UnconfirmedAssessmentFieldSurfacesFromTheSharedReadinessRail()
+    public void ACurrentRepairSpecWithNoLinesIsNotReady()
     {
-        var input = ReadyInput();
-        var mutatedFields = input.Assessment.Fields
-            .Select(field => field.Path == AssessmentVocabulary.Outcome
-                ? field with { ConfirmedBy = null, ConfirmedAtUtc = null }
-                : field)
-            .ToArray();
+        // Taking a spec into use no longer needs lines, so report readiness
+        // names the empty Current spec instead.
         var result = AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { Fields = mutatedFields } });
+            ReadyInput() with { CurrentEstimate = ReadyCurrentEstimate() with { Lines = [] } });
 
-        AssertNotReady(result, $"{AssessmentVocabulary.Outcome} awaits review");
+        var reason = AssertNotReady(result, AssessmentReportProjection.RepairCostRequirement);
+        Assert.Equal(CaseReportReadiness.CurrentEstimateEmpty, reason);
     }
 
     [Fact]
@@ -379,7 +421,7 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void ContractRepairWithoutAConfirmedSumIsNotReady()
+    public void ContractRepairWithoutASumIsNotReady()
     {
         var input = ReadyInput();
         var contractFields = input.Assessment.Fields
@@ -392,18 +434,7 @@ public sealed class AssessmentReportProjectionTests
             input with { Assessment = input.Assessment with { Fields = contractFields } });
         AssertNotReady(missing, "Agreed contract sum");
 
-        var unconfirmed = contractFields
-            .Append(Field(AssessmentVocabulary.SettlementContractSum, "4500.00") with
-            {
-                ConfirmedBy = null,
-                ConfirmedAtUtc = null,
-            })
-            .ToArray();
-        var refused = AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { Fields = unconfirmed } });
-        AssertNotReady(refused, "Agreed contract sum");
-
-        var confirmed = AssessmentReportProjection.Project(
+        var recorded = AssessmentReportProjection.Project(
             input with
             {
                 Assessment = input.Assessment with
@@ -412,8 +443,8 @@ public sealed class AssessmentReportProjectionTests
                         Field(AssessmentVocabulary.SettlementContractSum, "4500.00")).ToArray(),
                 },
             });
-        Assert.True(confirmed.IsReady);
-        Assert.Equal(4500m, confirmed.Snapshot!.Settlement.ContractSum);
+        Assert.True(recorded.IsReady);
+        Assert.Equal(4500m, recorded.Snapshot!.Settlement.ContractSum);
     }
 
     [Fact]
@@ -487,7 +518,68 @@ public sealed class AssessmentReportProjectionTests
                 2,
                 MidpointRounding.AwayFromZero),
             costs.Printed.Vat);
+        // The template's own row for a repairer who is not VAT registered
+        // (DESIGN_SPEC.md line 129).
+        Assert.Equal("VAT (20% — parts & paint only)", costs.VatLabel);
         costs.Validate();
+    }
+
+    /// <summary>
+    /// A repair spec whose repairer VAT status is Unknown charges VAT on
+    /// nothing, so its report would understate the repair cost: it blocks the
+    /// report (operator, 27 September 2026). The preview and generation name
+    /// the one item, and its resolution says where to record the status.
+    /// </summary>
+    [Fact]
+    public void AnUnknownRepairerVatStatusIsNotReady()
+    {
+        var estimate = CurrentEstimate(new("Repairer", 45m, 15m, 20m), materials: 60m);
+
+        var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = estimate });
+
+        var reason = AssertNotReady(result, CaseReportReadiness.RepairerVatRequirement);
+        Assert.Equal(CaseReportReadiness.RepairerVatStatusUnknown, reason);
+        Assert.Equal("Repairer VAT status", reason.Requirement);
+        Assert.Contains("on the Repair Spec section", reason.HowToResolve, StringComparison.Ordinal);
+        Assert.Equal(reason, Assert.Single(result.Reasons));
+    }
+
+    /// <summary>
+    /// Recording the status does not by itself word a hand-picked set of
+    /// costs: the template words VAT on everything and VAT on parts and paint
+    /// only, so any other set blocks the report too.
+    /// </summary>
+    [Theory]
+    [InlineData(RepairerVatStatus.Registered, EstimateVatCategories.Labour | EstimateVatCategories.Parts)]
+    [InlineData(RepairerVatStatus.NotRegistered, EstimateVatCategories.Parts)]
+    [InlineData(RepairerVatStatus.NotRegistered, EstimateVatCategories.None)]
+    public void AHandPickedSetOfVatCostsTheTemplateCannotWordIsNotReady(
+        RepairerVatStatus status, EstimateVatCategories categories)
+    {
+        var estimate = CurrentEstimate(
+            new("Repairer", 45m, 15m, 20m, Vat: new EstimateVatPolicy(status, categories, CategoriesOverridden: true)),
+            materials: 60m);
+
+        var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = estimate });
+
+        var reason = AssertNotReady(result, CaseReportReadiness.RepairerVatRequirement);
+        Assert.Equal(CaseReportReadiness.RepairerVatHandPicked, reason);
+        Assert.Contains("on the Repair Spec section", reason.HowToResolve, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(RepairerVatStatus.Registered, "VAT (20%)")]
+    [InlineData(RepairerVatStatus.NotRegistered, "VAT (20% — parts & paint only)")]
+    public void ARecordedRepairerVatStatusIsReadyAndWordsItsRow(RepairerVatStatus status, string row)
+    {
+        var estimate = CurrentEstimate(
+            new("Repairer", 45m, 15m, 20m, Vat: EstimateVatPolicy.For(status)), materials: 60m);
+
+        var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = estimate });
+
+        Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
+        Assert.Equal(row, result.Snapshot!.Costs.VatLabel);
+        result.Snapshot.Validate();
     }
 
     [Fact]
@@ -529,21 +621,22 @@ public sealed class AssessmentReportProjectionTests
     }
 
     /// <summary>
-    /// The active total-loss template has accepted wording for Category S
-    /// only, so another category is named before projection instead of being
-    /// refused at render after a generation is written.
+    /// The report prints the recorded category's accepted wording (operator,
+    /// 26 September 2026), so a total loss projects whichever category is
+    /// recorded, N/A included.
     /// </summary>
-    [Fact]
-    public void AnUnprintableSalvageCategoryIsNotReady()
+    [Theory]
+    [InlineData("A")]
+    [InlineData("B")]
+    [InlineData("S")]
+    [InlineData("N")]
+    [InlineData("N/A")]
+    public void ATotalLossProjectsItsRecordedCategory(string category)
     {
-        var reason = AssertNotReady(
-            AssessmentReportProjection.Project(TotalLossInput("N")),
-            "Salvage category");
-        Assert.Equal(AssessmentVocabulary.SalvageCategory, reason.Field);
+        var result = AssessmentReportProjection.Project(TotalLossInput(category));
 
-        var printable = AssessmentReportProjection.Project(TotalLossInput("S"));
-        Assert.True(printable.IsReady);
-        Assert.Equal("S", printable.Snapshot!.SalvageCategory);
+        Assert.True(result.IsReady);
+        Assert.Equal(category, result.Snapshot!.SalvageCategory);
     }
 
     [Fact]
@@ -593,11 +686,16 @@ public sealed class AssessmentReportProjectionTests
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("th-TH");
         try
         {
-            var snapshot = AssessmentReportProjection.Project(TotalLossInput()).Snapshot!;
+            var input = ReadyInput();
+            var fields = input.Assessment.Fields
+                .Append(Field(AssessmentVocabulary.ReportDateOverride, "true"))
+                .Append(Field(AssessmentVocabulary.ReportDate, "2027-01-02"))
+                .ToArray();
 
-            Assert.Equal(new DateOnly(2027, 1, 2), snapshot.Vehicle.TaxExpiry);
-            Assert.Equal(new DateOnly(2027, 3, 4), snapshot.Vehicle.MotExpiry);
-            Assert.Equal(new DateOnly(2026, 8, 20), snapshot.Settlement.SalvageSettled);
+            var snapshot = AssessmentReportProjection.Project(
+                input with { Assessment = input.Assessment with { Fields = fields } }).Snapshot!;
+
+            Assert.Equal(new DateOnly(2027, 1, 2), snapshot.ReportDate);
         }
         finally
         {
@@ -651,79 +749,30 @@ public sealed class AssessmentReportProjectionTests
         Assert.False(snapshot.PrintsGuideDisclosure);
     }
 
-    [Fact]
-    public void EquitySubtractsRepairAfterBettermentAndSalvageButNotExcess()
-    {
-        var result = AssessmentReportProjection.Project(TotalLossInput());
-
-        Assert.Equal(4_330m, result.Snapshot!.Settlement.Equity);
-        Assert.Equal(250m, result.Snapshot.Settlement.Excess);
-    }
-
-    [Fact]
-    public void CaseSettlementAndReportUseTheSameFigures()
-    {
-        var input = TotalLossInput();
-
-        var settlement = AssessmentReportProjection.BuildSettlement(input.Assessment, input.CurrentEstimate);
-        var report = AssessmentReportProjection.Project(input);
-
-        Assert.NotNull(settlement);
-        Assert.Equal(4_330m, settlement.Equity);
-        Assert.Equal(report.Snapshot!.Settlement, settlement);
-    }
-
-    [Fact]
-    public void MissingCurrentEstimateWithholdsSettlementInsteadOfAssumingZeroRepairCost()
-    {
-        Assert.Null(AssessmentReportProjection.BuildSettlement(ReadyInput().Assessment, null));
-    }
-
+    /// <summary>
+    /// The settlement facts the Case records beyond the agreed contract sum
+    /// (excess, betterment, reserve, hire, storage and the salvage
+    /// arrangements) are no part of the report, and a sum left on a Case that
+    /// is not a contract repair is not carried either.
+    /// </summary>
     [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("not-money")]
-    public void MissingOrUnusableEngineerValueWithholdsSettlement(string? value)
+    [InlineData("repairable")]
+    [InlineData("cash_in_lieu")]
+    public void OnlyAContractRepairCarriesAnAgreedSum(string outcome)
     {
         var input = ReadyInput();
-        var fields = input.Assessment.Fields
-            .Where(field => field.Path != AssessmentVocabulary.ValueEngineer)
-            .ToList();
-        if (value is not null)
-        {
-            fields.Add(Field(AssessmentVocabulary.ValueEngineer, value));
-        }
+        AssessmentFieldValue[] fields =
+        [
+            .. ReplaceField(input.Assessment.Fields, AssessmentVocabulary.Outcome, outcome),
+            Field(AssessmentVocabulary.SettlementContractSum, "4500.00"),
+        ];
 
-        Assert.Null(AssessmentReportProjection.BuildSettlement(
-            input.Assessment with { Fields = fields }, input.CurrentEstimate));
-    }
+        var result = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = fields } });
 
-    [Theory]
-    [InlineData(AssessmentVocabulary.ValueEngineer)]
-    [InlineData(AssessmentVocabulary.SettlementBetterment)]
-    [InlineData(AssessmentVocabulary.SalvageValue)]
-    public void UnconfirmedCalculationInputsDoNotBecomeAcceptedSettlementMoney(string path)
-    {
-        var input = path == AssessmentVocabulary.SalvageValue ? TotalLossInput() : ReadyInput();
-        var fields = input.Assessment.Fields.Where(field => field.Path != path)
-            .Append(Field(path, "500.00") with { ConfirmedBy = null, ConfirmedAtUtc = null })
-            .ToArray();
-
-        Assert.Null(AssessmentReportProjection.BuildSettlement(
-            input.Assessment with { Fields = fields }, input.CurrentEstimate));
-    }
-
-    [Theory]
-    [InlineData(RepairSpecificationState.Draft, true)]
-    [InlineData(RepairSpecificationState.Accepted, false)]
-    [InlineData(RepairSpecificationState.Superseded, false)]
-    public void OnlyTheCurrentAcceptedEstimateCanSupplySettlementMoney(
-        RepairSpecificationState state, bool isCurrent)
-    {
-        var input = ReadyInput();
-
-        Assert.Null(AssessmentReportProjection.BuildSettlement(
-            input.Assessment, input.CurrentEstimate! with { State = state, IsCurrent = isCurrent }));
+        Assert.True(result.IsReady);
+        Assert.Null(result.Snapshot!.Settlement.ContractSum);
+        Assert.Null(AssessmentReportProjection.Project(TotalLossInput()).Snapshot!.Settlement.ContractSum);
     }
 
     [Fact]
@@ -742,8 +791,7 @@ public sealed class AssessmentReportProjectionTests
     /// hours at 30, 20 materials and 5 specialist, giving a printed net of
     /// 225, 20 per cent VAT of 45 and a printed gross of 270.
     /// </summary>
-    private static RepairSpecificationVersion DefaultCurrentEstimate() => AcceptedEstimate(
-        new(
+    private static RepairSpecificationVersion DefaultCurrentEstimate() => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
@@ -751,12 +799,11 @@ public sealed class AssessmentReportProjectionTests
             Line(2, "new_part", "Door skin") with { WorkUnits = null, Price = 50m, Quantity = 1 },
             Line(3, "paint_blend", "Blend nearside wing") with { WorkUnits = null, Price = null, Materials = 20m },
         ],
-        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
+        "engineer-1", RecordedAtUtc,
         new EstimateDetails("Repairer", 30m, 5m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-        IsCurrent: true));
+        IsCurrent: true);
 
-    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details, decimal? materials = null) => AcceptedEstimate(
-        new(
+    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details, decimal? materials = null) => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
@@ -764,14 +811,7 @@ public sealed class AssessmentReportProjectionTests
             Line(2, "repair", "Repair wing") with { WorkUnits = 3m },
             Line(3, "paint_repair", "Paint wing") with { WorkUnits = null, PaintWorkUnits = 2.5m, Materials = materials },
         ],
-        null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null, details, IsCurrent: true));
-
-    private static RepairSpecificationVersion AcceptedEstimate(RepairSpecificationVersion draft) =>
-        draft with
-        {
-            State = RepairSpecificationState.Accepted,
-            RecordedTotals = EstimateTotals.Compute(draft),
-        };
+        "engineer-1", RecordedAtUtc, details, IsCurrent: true);
 
     private static AssessmentReadinessItem AssertNotReady(
         AssessmentReportProjectionResult result, string requirement)
@@ -952,10 +992,10 @@ public sealed class AssessmentReportProjectionTests
         fields.Select(field => field.Path == path ? field with { Value = value } : field).ToArray();
 
     private static AssessmentFieldValue Field(string path, string value) => new(
-        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc);
+        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc);
 
     private static CaseEstimateLineRecord Line(int position, string type, string description) => new(
         Guid.NewGuid(), position, type, null, description, 2.5m, null, false, null, null,
-        "confirmed", "case", "Test evidence",
-        ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc);
+        "case", "Test evidence",
+        ActorKind.Staff, "engineer-1", RecordedAtUtc);
 }

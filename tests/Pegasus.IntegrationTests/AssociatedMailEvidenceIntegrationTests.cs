@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
@@ -27,26 +28,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         var caseId = await SeedCaseAsync(factory);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
-        var email = FollowUp();
-        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
-        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
-            new(email.FileName, email.MediaType, email.Content, now,
-                "system-worker:approved-inbox-poller",
-                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
-            $"existing-link:{Guid.NewGuid():N}", default);
-        // Model the deployed association-only route through the existing promotion port.
-        var oldRoute = new PromoteAssociatedIntakeCaseEvidence(
-            services.GetRequiredService<IIntakeArtifactStore>(),
-            services.GetRequiredService<ICaseArtifactCustody>(), new AssociationOnlyPromotionStore());
-        var oldProcessor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, oldRoute);
-        await DispatchAsync(services, received.StagedReceiptId);
-        Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
-            await oldProcessor.ExecuteAsync(received.StagedReceiptId, default));
-        var evaluation = Assert.IsType<IntakeEvaluationRevision>(await services.GetRequiredService<IIntakeWorkStore>()
-            .GetCompletedEvaluationAsync(received.StagedReceiptId, default));
-        var receipt = Assert.IsType<IntakeReceipt>(await services.GetRequiredService<IIntakeReceiptQueries>()
-            .GetAsync(evaluation.ProcessedReceiptId, default));
-        Assert.Equal(caseId, receipt.CurrentCaseId);
+        var (receipt, stagedReceiptId) = await LinkWithoutFilingAsync(services, caseId);
         await using (var before = await factory.Database.CreateContextAsync())
         {
             Assert.False(await before.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
@@ -68,9 +50,9 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(new(
             receipt.Id, receipt.Version, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
             $"repair-linked-evidence:{Guid.NewGuid():N}", "Recover retained photographs from the association-only route."), default);
-        await DispatchAsync(services, received.StagedReceiptId);
+        await DispatchAsync(services, stagedReceiptId);
         Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
-            await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(received.StagedReceiptId, default));
+            await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(stagedReceiptId, default));
         await using var after = await factory.Database.CreateContextAsync();
         Assert.True(await after.Set<IntakeSearchDocumentEntity>().AnyAsync(value =>
             value.IntakeReceiptId == receipt.Id && value.AttachmentFileName == "1_Images-V1.pdf"));
@@ -85,6 +67,56 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             Assert.True(await after.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
         }
         Assert.Equal(1, await after.Cases.CountAsync());
+    }
+
+    /// <summary>
+    /// Filing a linked message's photographs carries what staff made of each
+    /// before the Case had it: its crop, rotation and tags (FRD-19). One
+    /// tagged Third party arrives out of the report.
+    /// </summary>
+    [Fact]
+    public async Task FilingALinkedMessageCarriesAPhotographsCropRotationAndTags()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var (receipt, stagedReceiptId) = await LinkWithoutFilingAsync(services, caseId);
+        var photographId = InstructionEvidenceImages.Select(receipt.AssetRecords)[0].Id;
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        await services.GetRequiredService<ISavePreCaseImageCrop>().ExecuteAsync(
+            new(photographId, 0, CaseAssetRotation.Clockwise90, new CaseAssetCrop(0.1m, 0.2m, 0.5m, 0.6m),
+                staff, $"linked-crop:{Guid.NewGuid():N}"), default);
+        await services.GetRequiredService<ITagPreCaseImage>().ExecuteAsync(
+            new(photographId, ImageTagVocabulary.ThirdPartyId, true, staff, $"linked-tag:{Guid.NewGuid():N}"), default);
+
+        await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(new(
+            receipt.Id, receipt.Version, staff,
+            $"file-linked-evidence:{Guid.NewGuid():N}", "File the linked message's evidence on its Case."), default);
+        await DispatchAsync(services, stagedReceiptId);
+        Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
+            await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(stagedReceiptId, default));
+
+        await using var db = await factory.Database.CreateContextAsync();
+        var images = await db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            .Where(value => value.CaseId == caseId && value.SemanticRole == DocumentSemanticRole.Image)
+            .ToListAsync();
+        Assert.Equal(4, images.Count);
+        var prepared = Assert.Single(images, image => image.SourceOccurrenceIdentity == photographId.ToString("N"));
+        Assert.False(prepared.InReport);
+        Assert.Equal(90, prepared.RotationDegrees);
+        Assert.Equal(0.1m, prepared.CropLeft);
+        Assert.Equal(0.6m, prepared.CropHeight);
+        var imageIds = images.Select(image => image.Id).ToArray();
+        var tag = Assert.Single(await db.Set<DocumentOccurrenceTagEntity>().AsNoTracking()
+            .Where(value => imageIds.Contains(value.OccurrenceId)).ToListAsync());
+        Assert.Equal(prepared.Id, tag.OccurrenceId);
+        Assert.Equal(ImageTagVocabulary.ThirdPartyId, tag.TagId);
+        Assert.All(images.Where(image => image.Id != prepared.Id), image =>
+        {
+            Assert.True(image.InReport);
+            Assert.Null(image.CropLeft);
+        });
     }
 
     [Theory]
@@ -395,6 +427,35 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.Single(files, file => file.FileName == "1_Images-V1.pdf" && file.SemanticRole == DocumentSemanticRole.Correspondence);
         Assert.Equal(4, files.Count(file => file.SemanticRole == DocumentSemanticRole.Image && file.MediaType == "image/jpeg"));
         Assert.DoesNotContain(files, file => file.MediaType == "image/png");
+    }
+
+    /// <summary>
+    /// A follow-up the association-only route linked to its Case and did not
+    /// file there, modelled through the existing promotion port.
+    /// </summary>
+    private static async Task<(IntakeReceipt Receipt, Guid StagedReceiptId)> LinkWithoutFilingAsync(
+        IServiceProvider services, Guid caseId)
+    {
+        var email = FollowUp();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            new(email.FileName, email.MediaType, email.Content, now,
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
+            $"existing-link:{Guid.NewGuid():N}", default);
+        var oldRoute = new PromoteAssociatedIntakeCaseEvidence(
+            services.GetRequiredService<IIntakeArtifactStore>(),
+            services.GetRequiredService<ICaseArtifactCustody>(), new AssociationOnlyPromotionStore());
+        var oldProcessor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, oldRoute);
+        await DispatchAsync(services, received.StagedReceiptId);
+        Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
+            await oldProcessor.ExecuteAsync(received.StagedReceiptId, default));
+        var evaluation = Assert.IsType<IntakeEvaluationRevision>(await services.GetRequiredService<IIntakeWorkStore>()
+            .GetCompletedEvaluationAsync(received.StagedReceiptId, default));
+        var receipt = Assert.IsType<IntakeReceipt>(await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(evaluation.ProcessedReceiptId, default));
+        Assert.Equal(caseId, receipt.CurrentCaseId);
+        return (receipt, received.StagedReceiptId);
     }
 
     private static async Task DispatchAsync(IServiceProvider services, Guid stagedId)

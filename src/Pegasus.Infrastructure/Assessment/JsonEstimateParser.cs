@@ -156,7 +156,6 @@ public sealed class JsonEstimateParser : IEstimateDocumentParser
             Unpriced: price is null && type == "new_part",
             OptionalText(line, "partNumber", 100),
             Betterment: null,
-            Status: "estimated",
             EvidenceLabel: "reference",
             Justification: null,
             PaintWorkUnits: Hours(line, "paintHours", position),

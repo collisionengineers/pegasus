@@ -226,11 +226,10 @@ public sealed class CaseTasksWebTests
                }))
         {
             var recoveryHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
-            // A second window can explicitly rotate the first window's lease.
-            Assert.Contains("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
-            Assert.Contains("data-case-edit", RecordBar(recoveryHtml), StringComparison.Ordinal);
-            Assert.NotEqual(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
-            Assert.Contains("name=\"takeOver\" value=\"true\"", recoveryHtml, StringComparison.Ordinal);
+            // A second window of the holder resumes the same lease: no takeover of themselves.
+            Assert.Equal(store.LeaseToken, InputValue(recoveryHtml, "editLeaseToken"));
+            Assert.DoesNotContain("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
+            Assert.DoesNotContain("name=\"takeOver\"", recoveryHtml, StringComparison.Ordinal);
         }
         Assert.Single(store.Claims);
 

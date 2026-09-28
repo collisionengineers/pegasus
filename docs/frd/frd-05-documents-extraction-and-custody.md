@@ -139,12 +139,17 @@ Worker permissions. Receipt and asset GUIDs are typed identities, never matched 
 filename, source label or formatted string. The designated Box holding
 folder is only for intake whose destination is not settled automatically
 (operator, 23 September 2026): Unidentified and refused material, Triage,
-a manual upload, a failed or suppressed allocation, and material a member of
-staff links later. Intake that automation files to a new Case, to a matched
-Case or to a Vehicle images record goes straight to that destination's Box
-folder and never through holding. The holding decision is taken after
-destination automation; a held source, its documents and its selected
-photographs each carry verified content and confirmed file and version IDs.
+a manual upload whose destination is still to be chosen, a failed or
+suppressed allocation, and material a member of staff links later. Intake
+that automation files to a new Case, to a matched Case or to a Vehicle
+images record, and an upload whose Case was declared before the upload
+([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)), goes
+straight to that destination's Box folder and never through holding. When
+a member of staff later links held material to a Case, its copies are filed
+on that Case; the holding copies remain as retained intake. The holding
+decision is taken after destination automation; a held source, its
+documents and its selected photographs each carry verified content and
+confirmed file and version IDs.
 Each intake asset records the Box folder its confirmed copy is in (holding,
 the Case root or the Vehicle images folder), and reads expect exactly that
 folder. Unknown or pending holding custody is unfinished work, not success.
@@ -164,11 +169,18 @@ throughout, and the queued work re-arms itself with bounded backoff on
 dependency failures before it records a terminal failure honestly on the
 record. When the record merges into a formal Case
 ([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)), the
-folder's contents move into that Case's Box custody, at the Case root's
-image evidence location, and the emptied folder is removed. The removal is
+folder's contents move into that Case's Box folder, beside its other files,
+and the emptied folder is removed. A file whose name the Case folder already
+holds takes the record's reference in front of its name. The removal is
 non-recursive, so unexpected content makes the fold fail closed instead of
-being destroyed. The record's lifecycle state and merge or closure history
-stay in SQL whatever happens to custody.
+being destroyed. Each moved file keeps its Box file and version identity.
+When the fold completes it records each photograph it moved as a Case image
+document under that identity (operator, 27 September 2026). Nothing is
+uploaded again, and a replay records nothing twice. The fold yields to a
+member of staff editing the Case and retries after they finish
+([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)). The record's
+lifecycle state and merge or closure history stay in SQL whatever happens to
+custody.
 
 ### Custody and staging distinctions
 
@@ -198,9 +210,12 @@ Audit share them and nothing is copied. Create audit makes Pegasus create an
 `a.{Case/PO}` subfolder under the Case's Box folder. Each document records
 which folder holds it: the Case folder, or the audit folder for a report of
 the Audit. An Audit report waits as pending custody until the audit folder
-exists, then is filed there; reconciliation retries it. Every other file,
-including images, stays in the Case folder. A document is always found
-through its recorded folder, never from a reference prefix
+exists, then is filed there; reconciliation retries it. Once a generated
+report's file is filed, the Worker settles the report's own record as stored,
+so nobody presses Generate report again
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+Every other file, including images, stays in the Case folder. A document is
+always found through its recorded folder, never from a reference prefix
 ([ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md),
 [FRD-01](frd-01-case-identity-and-lifecycle.md)).
 
@@ -241,6 +256,13 @@ may add a custom tag of up to 40 characters, unique against every existing
 name ignoring case, with one of six fixed design tints. An occurrence may
 carry any number of tags.
 
+Tags carry meaning for the report (operator, 26 September 2026). A new
+image is in the report. The first image in the
+report tagged Close-up prints as the Close-up and the first other one tagged
+Overview as the Overview; the rest print as supporting images. Tagging an
+image Third party or Reflection takes it out of the report; staff may put it
+back in ([FRD-06](frd-06-vehicle-and-engineering-evidence.md)).
+
 Applying or removing a tag on a Case image has the same guards as any other
 Case change: the current Case edit lease, the expected Case version and an
 operation key for replay. It bumps the Case version, so the tag is on the
@@ -264,7 +286,7 @@ There is no way back from a tag to the flag.
 | Source file | Received and staged → destination custody (Case, Vehicle images folder, or holding while no destination is settled) | Staging is never proof of custody |
 | OCR operation | Submitted → output kept → analysed, no-profile or ambiguous; or visibly failed | Retries reuse the kept output |
 | Custody of one file | Pending → Confirmed; or Failed | Galleries show the state until Confirmed |
-| Vehicle images folder | Queued → written; folded into a Case on merge | A Box failure never blocks the record |
+| Vehicle images folder | Queued → written; folded into a Case on merge, its photographs recorded as Case images | A Box failure never blocks the record |
 
 ## Edge cases and fail-closed behaviour
 

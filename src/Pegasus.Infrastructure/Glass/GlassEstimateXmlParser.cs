@@ -289,9 +289,7 @@ public sealed class GlassEstimateXmlParser : IEstimateDocumentParser
                 ordinal,
                 "part number"),
             Betterment: null,
-            // An imported provider document states values, not confirmations:
-            // the Audatex report's own labels, because this is the same claim.
-            Status: "provisional",
+            // The Audatex report's own evidence label, because this is the same claim.
             EvidenceLabel: "case",
             Justification: null,
             PaintWorkUnits: isPaint ? hours : null,

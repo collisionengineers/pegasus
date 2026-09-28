@@ -40,7 +40,7 @@ public static class EditModeDisplay
     /// <summary>
     /// The same disclosure for a Triage or Image Intake record that carries an edit scope. The holder is
     /// never named as the blocker of themselves: their own live scope belongs to another window of
-    /// their own session, and the sentence says so and offers the take-over that ends it.
+    /// their own session, the sentence says so, and Edit replaces it without a take-over.
     /// </summary>
     /// <param name="recordName">
     /// The record as the operator reading the sentence names it, lower case unless it is a proper

@@ -8,8 +8,8 @@ namespace Pegasus.Core.Assessment;
 /// drawn and names the areas that disc touches (ruled 23 September 2026,
 /// replacing the 20 September areas-only record); a damage recorded by area
 /// alone is drawn with the disc <see cref="Disc"/> gives its areas. The Case
-/// workspace and the assessment report map the unit plan onto their own
-/// silhouettes, so both draw the same disc.
+/// workspace and the assessment report map the unit plan onto the one
+/// silhouette (<see cref="DamagePlanGeometry"/>), so both draw the same disc.
 /// </summary>
 public static class DamageAreaGeometry
 {

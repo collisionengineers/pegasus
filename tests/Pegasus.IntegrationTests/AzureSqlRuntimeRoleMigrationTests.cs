@@ -317,7 +317,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         EvaSubmissions:SELECT,INSERT
         CaseReportGenerations:SELECT,UPDATE
         DocumentContentCacheEntries:SELECT,INSERT,UPDATE,DELETE
-        GeneratedCaseArtifacts:SELECT
+        GeneratedCaseArtifacts:SELECT,UPDATE
         IntakeOcrOperations:SELECT,INSERT,UPDATE
         IntakeSourceCandidates:SELECT,INSERT
         RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
@@ -850,6 +850,43 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Contains("Triage", await ReadDeniedDeleteTablesAsync(database, WebRole));
     }
 
+    // 20260927002303_EmailTemplates: Web alone reads and writes the saved
+    // e-mail templates and neither role deletes one; the Worker has no part in
+    // them.
+    [Fact]
+    public async Task LatestMigrationGivesEmailTemplatesItsExactRuntimePermissions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            [
+                $"{WebRole}:D:DELETE",
+                $"{WebRole}:G:INSERT",
+                $"{WebRole}:G:SELECT",
+                $"{WebRole}:G:UPDATE",
+                $"{WorkerRole}:D:DELETE"
+            ],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    principal.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.[state] COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE permission.major_id = OBJECT_ID(N'[dbo].[EmailTemplates]')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND principal.name IN (N'{WebRole}', N'{WorkerRole}')
+                """));
+    }
+
     [Fact]
     public async Task RetainedMailSearchProjectionUsesExactCallerPermissions()
     {
@@ -939,6 +976,34 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 .Where(value => value.StartsWith("CaseAssessmentFields:", StringComparison.Ordinal))
                 .ToArray());
         Assert.DoesNotContain("CaseAssessmentFields", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+    }
+
+    // 20260928090000_GrantWorkerGeneratedCaseArtifactUpdate: the Worker's sweep
+    // records a generated report file as stored once custody has filed it, so
+    // it updates the artifact row and its generation. It never inserts or
+    // deletes either.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerUpdateOnGeneratedCaseArtifacts()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            [
+                "CaseReportGenerations:SELECT",
+                "CaseReportGenerations:UPDATE",
+                "GeneratedCaseArtifacts:SELECT",
+                "GeneratedCaseArtifacts:UPDATE"
+            ],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("CaseReportGenerations:", StringComparison.Ordinal)
+                    || value.StartsWith("GeneratedCaseArtifacts:", StringComparison.Ordinal))
+                .ToArray());
+        var deniedDelete = await ReadDeniedDeleteTablesAsync(database, WorkerRole);
+        Assert.Contains("CaseReportGenerations", deniedDelete);
+        Assert.Contains("GeneratedCaseArtifacts", deniedDelete);
     }
 
     // Case-document registration moved into the Worker's

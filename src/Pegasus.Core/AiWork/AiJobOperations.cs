@@ -119,7 +119,7 @@ public static class AiJobPolicy
             if (job.EngineerValueAtSend is not > 0)
             {
                 throw new InvalidOperationException(
-                    "An estimate job needs a confirmed Engineer's Value on the case.");
+                    "An estimate job needs an Engineer's Value on the case.");
             }
         }
         if (job.Expiry <= TimeSpan.Zero || job.Expiry > TimeSpan.FromDays(7))
@@ -308,7 +308,7 @@ public sealed class CreateAiJob(
 
         var projection = await assessment.GetAsync(record.CaseId, cancellationToken);
         var engineerValue = projection?.Field(AssessmentVocabulary.ValueEngineer);
-        decimal? valueAtSend = engineerValue is { IsConfirmed: true }
+        decimal? valueAtSend = engineerValue is not null
             && decimal.TryParse(
                 engineerValue.Value,
                 NumberStyles.Number,

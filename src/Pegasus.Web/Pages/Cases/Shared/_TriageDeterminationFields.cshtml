@@ -1,0 +1,32 @@
+@model Pegasus.Web.Pages.Cases.TriageCaseView
+@using Pegasus.Core.Triage
+@{
+    // The two determinations and the reason as white controls, prefilled
+    // from the finding the form supersedes (none when it records the first).
+    // The Determinations panel draws them while a finding can be recorded;
+    // the Record correction dialog draws them on a Completed Triage. Never
+    // both at once, so the ids stay unique on the page.
+    var finding = Model.CurrentFinding;
+}
+<div class="fg g2 is-editing">
+    <div class="fc">
+        <label for="triage-roadworthiness">Roadworthiness</label>
+        <select id="triage-roadworthiness" name="roadworthiness" class="fi" data-dialog-initial-focus>
+            <option value="" selected="@(finding?.Roadworthiness is null ? "selected" : null)">Not recorded</option>
+            <option value="Roadworthy" selected="@(finding?.Roadworthiness == RoadworthinessFinding.Roadworthy ? "selected" : null)">Roadworthy</option>
+            <option value="Unroadworthy" selected="@(finding?.Roadworthiness == RoadworthinessFinding.Unroadworthy ? "selected" : null)">Unroadworthy</option>
+        </select>
+    </div>
+    <div class="fc">
+        <label for="triage-repair-outcome">Repair outcome</label>
+        <select id="triage-repair-outcome" name="assessment" class="fi">
+            <option value="" selected="@(finding?.Assessment is null ? "selected" : null)">Not recorded</option>
+            <option value="Repairable" selected="@(finding?.Assessment == AssessmentFinding.Repairable ? "selected" : null)">Repairable</option>
+            <option value="TotalLoss" selected="@(finding?.Assessment == AssessmentFinding.TotalLoss ? "selected" : null)">Total loss</option>
+        </select>
+    </div>
+    <div class="fc span2">
+        <label class="req" for="triage-finding-reason">Reason</label>
+        <textarea id="triage-finding-reason" name="reason" class="fi" rows="3" required maxlength="500"></textarea>
+    </div>
+</div>

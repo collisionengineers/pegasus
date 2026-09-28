@@ -126,51 +126,25 @@ public sealed class EstimateDocumentRenderingTests
     }
 
     [Fact]
-    public void AcceptedAndDiscardedAcceptedEstimateUseFrozenRecordedTotals()
+    public void EveryEstimateProjectsItsLiveCalculation()
     {
-        var original = Estimate(Details(rate: 40m), Line("repair", 1, workUnits: 2m));
-        var recorded = EstimateTotals.Compute(original);
-        var discarded = original with
-        {
-            State = RepairSpecificationState.Discarded,
-            Details = Details(rate: 100m),
-            RecordedTotals = recorded,
-        };
+        // No calculation is frozen on the estimate: the printed spec is what
+        // the lines and header cost now, whatever its state.
+        var draft = Estimate(Details(rate: 40m), Line("repair", 1, workUnits: 2m));
+        var discarded = draft with { State = RepairSpecificationState.Discarded, Details = Details(rate: 100m) };
 
-        var snapshot = Snapshot(discarded);
-
-        Assert.Same(recorded, snapshot.Totals);
-        Assert.Equal("DISCARDED", snapshot.Status);
-        Assert.NotEqual(EstimateTotals.Compute(discarded).Printed, snapshot.Totals.Printed);
+        Assert.Equal(80m, Snapshot(draft).Totals.Printed.Net);
+        Assert.Equal(200m, Snapshot(discarded).Totals.Printed.Net);
     }
 
     [Fact]
-    public void DraftAlwaysProjectsItsLiveCalculationEvenIfARecordedValueIsPresent()
+    public void TheStatusNamesTheSpecInUseADraftOrADiscardedSpec()
     {
         var draft = Estimate(Details(rate: 40m), Line("repair", 1, workUnits: 2m));
-        var obsolete = EstimateTotals.Compute(draft) with
-        {
-            Printed = EstimateTotals.Compute(draft).Printed with { Net = 999m },
-        };
 
-        var snapshot = Snapshot(draft with { RecordedTotals = obsolete });
-
-        Assert.NotSame(obsolete, snapshot.Totals);
-        Assert.Equal(80m, snapshot.Totals.Printed.Net);
-    }
-
-    [Fact]
-    public void AcceptedNonCurrentHasAnExplicitStatus()
-    {
-        var draft = Estimate(Details(rate: 40m), Line("repair", 1, workUnits: 2m));
-        var accepted = draft with
-        {
-            State = RepairSpecificationState.Accepted,
-            IsCurrent = false,
-            RecordedTotals = EstimateTotals.Compute(draft),
-        };
-
-        Assert.Equal("ACCEPTED", Snapshot(accepted).Status);
+        Assert.Equal("CURRENT", Snapshot(draft with { IsCurrent = true }).Status);
+        Assert.Equal("DRAFT", Snapshot(draft).Status);
+        Assert.Equal("DISCARDED", Snapshot(draft with { State = RepairSpecificationState.Discarded }).Status);
     }
 
     [Theory]
@@ -238,7 +212,7 @@ public sealed class EstimateDocumentRenderingTests
         params CaseEstimateLineRecord[] lines) => new(
         Guid.NewGuid(), CaseId, 1, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
-        lines, null, "engineer", Now, null, null, null, null, details);
+        lines, "engineer", Now, details);
 
     private static CaseEstimateLineRecord[] EvaEstimateLines(string timedOperationType) =>
     [
@@ -279,6 +253,6 @@ public sealed class EstimateDocumentRenderingTests
         decimal? price = null,
         bool unpriced = false) => new(
         Guid.NewGuid(), position, type, guideCode, description, workUnits, price, unpriced,
-        partNumber, null, null, null, null, ActorKind.Staff, "engineer", Now, "engineer", Now,
+        partNumber, null, null, null, ActorKind.Staff, "engineer", Now,
         paintWorkUnits, quantity, materials);
 }

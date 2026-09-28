@@ -55,6 +55,12 @@
     // decoration on top of it, so the feedback still reads correctly under
     // reduced motion or with no CSS at all. Bound per region so a Work
     // Centre fragment adopted by its background refresh keeps the feedback.
+    // The feedback ends with the navigation it announces; a page that
+    // refreshes in place instead (the Case record) ends it itself with
+    // pegasusResetRefresh, kept beside the busy step so the two cannot drift.
+    function refreshRegion(form) {
+        return form.closest('[data-refresh-region]') || form.parentElement;
+    }
     function bindRefreshFeedback(root) {
         root.querySelectorAll('[data-refresh-form]').forEach(function (form) {
             if (form.dataset.refreshBound === 'true') {
@@ -62,13 +68,17 @@
             }
             form.dataset.refreshBound = 'true';
             form.addEventListener('submit', function () {
-                var region = form.closest('[data-refresh-region]') || form.parentElement;
+                var region = refreshRegion(form);
                 if (region) {
                     region.classList.add('is-refreshing');
                     region.setAttribute('aria-busy', 'true');
                 }
                 var label = form.querySelector('[data-refresh-label]');
                 if (label) {
+                    // The idle wording is the partial's; the reset puts it back.
+                    if (!label.dataset.idleLabel) {
+                        label.dataset.idleLabel = label.textContent;
+                    }
                     label.textContent = 'Refreshing';
                 }
                 form.querySelectorAll('button').forEach(function (button) {
@@ -77,8 +87,23 @@
             });
         });
     }
+    function resetRefresh(form) {
+        var region = refreshRegion(form);
+        if (region) {
+            region.classList.remove('is-refreshing');
+            region.removeAttribute('aria-busy');
+        }
+        var label = form.querySelector('[data-refresh-label]');
+        if (label && label.dataset.idleLabel) {
+            label.textContent = label.dataset.idleLabel;
+        }
+        form.querySelectorAll('button').forEach(function (button) {
+            button.disabled = false;
+        });
+    }
     bindRefreshFeedback(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindRefreshFeedback);
+    window.pegasusResetRefresh = resetRefresh;
 
     // Copy a support reference. Without script the value is still selectable
     // text, which is why the button is rendered hidden and revealed here rather
@@ -226,6 +251,28 @@
     bindEditScopeHeartbeats(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEditScopeHeartbeats);
 
+    // A Triage Case page action posts once and holds the record for that one
+    // save. Marking the form busy as it submits greys its buttons (the shared
+    // form[aria-busy] rule) and refuses a second submit while the first is in
+    // flight, so a double click cannot put two posts in flight together. The
+    // page's dialogs post from outside the record, so the guard is the page's
+    // rather than the record's.
+    if (document.querySelector('[data-triage-record]')) {
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+            if (event.defaultPrevented
+                || !(form instanceof HTMLFormElement)
+                || (form.getAttribute('method') || 'get').toLowerCase() !== 'post') {
+                return;
+            }
+            if (form.getAttribute('aria-busy') === 'true') {
+                event.preventDefault();
+                return;
+            }
+            form.setAttribute('aria-busy', 'true');
+        });
+    }
+
     // Global drop safety net. Without this, a file dropped anywhere off a
     // dropzone's own listeners below — the heading, a panel border, released
     // a beat early while still moving — is unhandled, and the browser's
@@ -314,11 +361,12 @@
     });
 })();
 
-// UI-10: evidence-only mail preview. A subject remains an ordinary full-detail
-// link; this enhancement selects its row on pointer/keyboard intent and reads
+// UI-10: evidence-only mail preview. A subject is the message's own link;
+// this enhancement previews its row on pointer/keyboard intent and reads
 // the same authorized exact-message projection without moving focus or state.
-// When that intent moves on, the pane restores the server-selected message
-// instead of hiding: the pane is a fixture of the page, not a tooltip.
+// When that intent moves on, the pane restores the selected message instead
+// of hiding: the pane is a fixture of the page, not a tooltip. Clicking a row
+// anywhere but a link or a button pins it as the selected message.
 (function () {
     document.querySelectorAll('[data-mail-preview-workspace]').forEach(function (workspace) {
         var panel = workspace.querySelector('[data-mail-preview]');
@@ -334,20 +382,37 @@
         var cache = new Map();
 
         // The pane renders only beside a list that has a server-selected row
-        // (the page model resolves one whenever it renders the pane at all),
-        // and that row's trigger is the pane's fallback wherever intent goes.
+        // (the page model resolves one whenever it renders the pane at all).
+        // The selected row, which a click may move, is the pane's fallback
+        // wherever intent goes.
         var selectedRow = rows.filter(function (row) {
-            var trigger = row.querySelector('[data-mail-preview-trigger]');
-            return trigger && trigger.getAttribute('aria-current') === 'true';
+            return row.getAttribute('aria-current') === 'true';
         })[0] || null;
         if (!selectedRow) {
             return;
         }
         var actions = facts.querySelector('[data-mail-preview-actions]');
+        var matched = facts.querySelector('[data-mail-preview-matched]');
+        // Where the search term matched is drawn for the row the page was
+        // drawn with; no other row's preview carries it.
+        var matchedRow = selectedRow;
         activeRow = selectedRow;
 
         var field = function (name) {
             return facts.querySelector('[data-mail-preview-' + name + ']');
+        };
+        var caseLink = function () {
+            return actions && actions.querySelector('[data-mail-preview-case]');
+        };
+        // The state chip is the _StatusChip partial's span; its tone class is
+        // the one the server's tone table gave it, and the JSON carries the
+        // same table's answer for a hovered row.
+        var chip = function () {
+            return field('state').querySelector('.status');
+        };
+        var toneOf = function (element) {
+            var tone = /status--([a-z]+)/.exec(element.className);
+            return tone ? tone[1] : 'neutral';
         };
 
         // The pane already shows the selected message; seeding the cache from
@@ -362,31 +427,72 @@
                 subject: field('subject').textContent,
                 received: field('received').textContent,
                 receivedAtUtc: field('received').getAttribute('datetime'),
+                mailbox: field('mailbox').textContent,
+                state: chip().textContent,
+                stateTone: toneOf(chip()),
                 excerpt: field('excerpt').textContent,
+                attachments: field('attachments').textContent,
                 classification: field('classification').textContent,
                 association: field('association').textContent,
-                attachments: Array.prototype.map.call(
-                    field('attachments').querySelectorAll('li'),
-                    function (item) { return item.textContent; })
+                folder: field('folder').textContent,
+                caseUrl: caseLink() ? caseLink().getAttribute('href') : null,
+                caseAction: caseLink() ? caseLink().querySelector('span').textContent : null
             });
 
-        var render = function (data) {
+        // The actions are the shown row's own: Open full message is its
+        // subject's link, which carries the list's values, and Open Case or
+        // Open Triage comes with its preview.
+        var renderActions = function (row, data) {
+            if (!actions) {
+                return;
+            }
+            actions.querySelector('[data-mail-preview-open]').setAttribute(
+                'href',
+                row.querySelector('[data-mail-preview-trigger]').getAttribute('href'));
+            var link = caseLink();
+            if (!data.caseUrl) {
+                if (link) {
+                    link.hidden = true;
+                }
+                return;
+            }
+            if (!link) {
+                link = document.createElement('a');
+                link.className = 'btn';
+                link.setAttribute('data-mail-preview-case', '');
+                link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg><span></span>';
+                actions.appendChild(link);
+            }
+            link.setAttribute('href', data.caseUrl);
+            link.querySelector('span').textContent = data.caseAction;
+            link.hidden = false;
+        };
+
+        // The actions belong to the selected message; while a transient
+        // preview shows a different row, they are not its.
+        var showOwnFacts = function (row) {
+            if (actions) {
+                actions.hidden = row !== selectedRow;
+            }
+            if (matched) {
+                matched.hidden = row !== matchedRow;
+            }
+        };
+
+        var render = function (row, data) {
             field('sender').textContent = data.sender;
             field('subject').textContent = data.subject;
             field('received').textContent = data.received;
             field('received').setAttribute('datetime', data.receivedAtUtc);
+            field('mailbox').textContent = data.mailbox;
+            chip().textContent = data.state;
+            chip().className = 'status status--' + data.stateTone;
             field('excerpt').textContent = data.excerpt;
+            field('attachments').textContent = data.attachments;
             field('classification').textContent = data.classification;
             field('association').textContent = data.association;
-
-            var attachments = field('attachments');
-            attachments.replaceChildren();
-            (data.attachments.length === 0 ? ['No attachments'] : data.attachments)
-                .forEach(function (name) {
-                    var item = document.createElement('li');
-                    item.textContent = name;
-                    attachments.appendChild(item);
-                });
+            field('folder').textContent = data.folder;
+            renderActions(row, data);
 
             status.hidden = true;
             facts.hidden = false;
@@ -412,11 +518,7 @@
                 }
             });
             activeRow = row;
-            if (actions) {
-                // The pane's actions belong to the selected message; while a
-                // transient preview shows a different row, they are not its.
-                actions.hidden = row !== selectedRow;
-            }
+            showOwnFacts(row);
             panel.hidden = false;
             status.hidden = false;
             status.textContent = 'Loading quick preview…';
@@ -424,7 +526,7 @@
             panel.setAttribute('aria-busy', 'true');
 
             if (cache.has(url)) {
-                render(cache.get(url));
+                render(row, cache.get(url));
                 return;
             }
 
@@ -441,7 +543,7 @@
             }).then(function (data) {
                 cache.set(url, data);
                 if (activeRow === row) {
-                    render(data);
+                    render(row, data);
                 }
             }).catch(function (error) {
                 if (error.name === 'AbortError' || activeRow !== row) {
@@ -459,16 +561,41 @@
         };
 
         // Leaving the rows ends the transient preview, not the pane: it falls
-        // back to the server-selected message, whose actions must stay
-        // reachable. select() no-ops when that row is already active, so
+        // back to the selected message, whose actions must stay reachable. select() no-ops when that row is already active, so
         // leaving the selected row itself leaves the pane untouched.
         var restoreSelection = function () {
             select(selectedRow);
         };
 
+        // Pinning makes a row the selected message: it carries the selection
+        // mark, its preview stays when intent moves on, the pane's actions
+        // are its own, and the address names it, so a reload or a return
+        // from the message lands on it. Without script the row still links.
+        var pin = function (row) {
+            if (row === selectedRow) {
+                return;
+            }
+            selectedRow.removeAttribute('aria-current');
+            row.setAttribute('aria-current', 'true');
+            selectedRow = row;
+            if (activeRow === row) {
+                showOwnFacts(row);
+            } else {
+                select(row);
+            }
+            var address = new URL(window.location.href);
+            address.searchParams.set('selected', row.getAttribute('data-mail-row'));
+            window.history.replaceState(window.history.state, '', address.toString());
+        };
+
         rows.forEach(function (row) {
             var trigger = row.querySelector('[data-mail-preview-trigger]');
             row.addEventListener('pointerenter', function () { select(row); });
+            row.addEventListener('click', function (event) {
+                if (!event.target.closest('a, button, form')) {
+                    pin(row);
+                }
+            });
             row.addEventListener('pointerleave', function (event) {
                 if (activeRow !== row || row.contains(document.activeElement)) {
                     return;
@@ -1779,6 +1906,11 @@ window.pegasusPreferences = (function () {
             var row = rows[next];
             if (row.tagName === 'TR' && !row.hasAttribute('tabindex')) {
                 row.setAttribute('tabindex', '-1');
+            }
+            // A row that is a container rather than a control (the Inbox's
+            // rows) hands focus to its first link, which is what Enter opens.
+            if (row.tagName === 'DIV') {
+                row = row.querySelector('a[href]') || row;
             }
             row.focus();
         });

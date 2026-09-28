@@ -21,6 +21,11 @@ public enum IntakeWorkState
     Dispatching = 6
 }
 
+/// <param name="DeclaredCaseId">
+/// The Case the uploading member of staff chose before the upload (Add
+/// evidence on a Case page). Carried from the source to the processed receipt
+/// so the Worker links the file there and runs no identification.
+/// </param>
 public sealed record IntakeStagedReceipt(
     Guid Id,
     string SourceFileName,
@@ -31,7 +36,8 @@ public sealed record IntakeStagedReceipt(
     DateTimeOffset ReceivedAtUtc,
     string Actor,
     string StorageKey,
-    DateTimeOffset StagedAtUtc);
+    DateTimeOffset StagedAtUtc,
+    Guid? DeclaredCaseId = null);
 
 public sealed record IntakeWorkItem(
     Guid Id,
@@ -352,6 +358,7 @@ public sealed class ReceiveIntake(
             {
                 throw new IntakeSourceIdentityConflictException(existing.SourceHash, sourceHash);
             }
+            RequireSameDeclaredDestination(existing, source.DeclaredCaseId);
 
             var received = await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
             await PublishCommittedAsync(received, cancellationToken);
@@ -385,7 +392,8 @@ public sealed class ReceiveIntake(
             source.ReceivedAtUtc,
             source.Actor,
             stagedArtifact.StorageKey,
-            nowUtc);
+            nowUtc,
+            source.DeclaredCaseId);
         var receivedIntake = await workStore.ReceiveAsync(stagedReceipt, operationKey, cancellationToken);
         await PublishCommittedAsync(receivedIntake, cancellationToken);
         return receivedIntake;
@@ -405,6 +413,7 @@ public sealed class ReceiveIntake(
             {
                 throw new IntakeSourceIdentityConflictException(existing.SourceHash, hash);
             }
+            RequireSameDeclaredDestination(existing, source.DeclaredCaseId);
 
             var replay = await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
             await PublishCommittedAsync(replay, cancellationToken);
@@ -440,10 +449,24 @@ public sealed class ReceiveIntake(
             source.ReceivedAtUtc,
             source.Actor,
             staged.StorageKey,
-            now);
+            now,
+            source.DeclaredCaseId);
         var received = await workStore.ReceiveAsync(receipt, operationKey, cancellationToken);
         await PublishCommittedAsync(received, cancellationToken);
         return received;
+    }
+
+    /// <summary>
+    /// A replay of the same upload receipt must carry the same decision: the
+    /// same token presented for a different Case is a second, different
+    /// submission, and is refused like different bytes under one identity.
+    /// </summary>
+    private static void RequireSameDeclaredDestination(IntakeStagedReceipt existing, Guid? declaredCaseId)
+    {
+        if (existing.DeclaredCaseId != declaredCaseId)
+        {
+            throw new IntakeSourceIdentityConflictException();
+        }
     }
 
     internal static async Task<string> StreamHashAsync(StreamedIntakeSource source, CancellationToken cancellationToken)
@@ -690,9 +713,13 @@ public sealed class ProcessQueuedIntake(
     AssociateRetainedMailWithCase? automaticMailCaseAssociation = null,
     IIntakeSubmissionGroupStore? submissionGroups = null,
     ICaseStaffNotifier? caseNotifier = null,
-    PromoteAssociatedIntakeCaseEvidence? promoteAssociatedCaseEvidence = null) : IProcessQueuedIntake
+    PromoteAssociatedIntakeCaseEvidence? promoteAssociatedCaseEvidence = null,
+    IIntakeMutationStore? mutationStore = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
+
+    /// <summary>The reason every declared-destination link records (FRD-18 Add evidence).</summary>
+    internal const string DeclaredDestinationReason = "Destination declared by staff on upload.";
 
     /// <summary>
     /// The same intake system worker as <see cref="SystemActor"/>, typed, for the
@@ -861,7 +888,8 @@ public sealed class ProcessQueuedIntake(
                             content,
                             stagedReceipt.ReceivedAtUtc,
                             stagedReceipt.Actor,
-                            stagedReceipt.SourceIdentity),
+                            stagedReceipt.SourceIdentity,
+                            stagedReceipt.DeclaredCaseId),
                         durableStorageKey,
                         workItem.IsReevaluation,
                         isFinalAttempt,
@@ -881,6 +909,14 @@ public sealed class ProcessQueuedIntake(
             AutomaticCaseEvidencePromotionOutcome promotion;
             using (StartStage("association_and_allocation"))
             {
+                // A destination the uploading member of staff declared is
+                // their decision, made before the upload: it is recorded
+                // first, so nothing below identifies, registers or holds
+                // material that already has its Case.
+                if (await AssociateDeclaredDestinationAsync(processed, stagedReceipt, cancellationToken))
+                {
+                    processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+                }
                 var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
                 if (associated)
                 {
@@ -1102,8 +1138,12 @@ public sealed class ProcessQueuedIntake(
             return;
         }
 
+        // A receipt that already has its Case — a declared destination the
+        // link above recorded — is never registered: it was deferred to this
+        // caller precisely so the link could be tried first.
         if (registerUnidentified is not null
             && ProcessIntake.IsDeferredForAutomation(receipt)
+            && receipt.CurrentCaseId is null
             && !(ProcessIntake.IsTriageRequest(receipt)
                 && triage is not TriageCreationOutcome.NotQualifying))
         {
@@ -1120,6 +1160,47 @@ public sealed class ProcessQueuedIntake(
         }
 
         await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
+    }
+
+    /// <summary>
+    /// Records the Case the uploading member of staff declared before the
+    /// upload (Add evidence on a Case page, FRD-18) as their association, in
+    /// their name, so the evidence files onto that Case like any staff link.
+    /// Only a receipt with no association of its own is linked; a later staff
+    /// decision, a missing Case or an archived one leaves the receipt
+    /// unlinked, and the ordinary path then holds it and registers it
+    /// Unidentified for staff to place by hand. Returns whether the receipt's
+    /// association changed.
+    /// </summary>
+    private async Task<bool> AssociateDeclaredDestinationAsync(
+        IntakeReceipt receipt,
+        IntakeStagedReceipt stagedReceipt,
+        CancellationToken cancellationToken)
+    {
+        if (mutationStore is null
+            || receipt.DeclaredCaseId is not { } declaredCaseId
+            || receipt.ManualAssociationVersion is not null)
+        {
+            return false;
+        }
+
+        if (!IntakeActorIdentity.TryParseStaff(stagedReceipt.Actor, out var staffSubjectId))
+        {
+            Activity.Current?.SetTag("intake.declared_destination", "actor_not_staff");
+            return false;
+        }
+
+        var outcome = await mutationStore.LinkDeclaredDestinationAsync(
+            new(
+                receipt.Id,
+                declaredCaseId,
+                staffSubjectId,
+                $"declared-destination:{receipt.Id:N}",
+                DeclaredDestinationReason),
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+        Activity.Current?.SetTag("intake.declared_destination", outcome.ToString());
+        return outcome is DeclaredDestinationLinkOutcome.Linked or DeclaredDestinationLinkOutcome.AlreadyLinked;
     }
 
     /// <summary>
@@ -1538,11 +1619,26 @@ public sealed class ReevaluateIntake(
     }
 }
 
+/// <summary>
+/// The one owner of a staff link (Add to an existing case on Upload, Link to
+/// Case on an Unidentified item, the Inbox's link): the association, then
+/// what the link means — the linked material files on the Case and the
+/// material's Unidentified item, if it has one, is resolved to that Case, in
+/// this same request (FRD-22, FRD-02). Filing that cannot complete here (the
+/// Case is being edited, or a transient fault) is handed to the Worker, whose
+/// replay of the receipt's completed work item files it; the sweeps remain
+/// the backstop for the rest.
+/// </summary>
 public sealed class LinkIntake(
     IIntakeMutationStore store,
     IImageIntakeCasePairing casePairing,
     TimeProvider timeProvider,
-    ICaseStaffNotifier? caseNotifier = null) : ILinkIntake
+    ICaseStaffNotifier? caseNotifier = null,
+    IIntakeReceiptQueries? receiptQueries = null,
+    PromoteAssociatedIntakeCaseEvidence? promoteCaseEvidence = null,
+    ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
+    IIntakeWorkStore? workStore = null,
+    IIntakeWorkEnqueuer? workEnqueuer = null) : ILinkIntake
 {
     public async Task ExecuteAsync(
         LinkIntakeRequest request,
@@ -1575,6 +1671,77 @@ public sealed class LinkIntake(
         if (pairing.Failures > 0)
         {
             Activity.Current?.SetStatus(ActivityStatusCode.Error, "image_pairing_failed");
+        }
+
+        await FileLinkedMaterialAsync(request.ReceiptId, cancellationToken);
+    }
+
+    /// <summary>
+    /// What the committed link means for the material: its evidence on the
+    /// Case and its Unidentified item settled. Each step is best effort — the
+    /// link stands whatever happens here — and a filing this request could not
+    /// finish is re-driven through the Worker's replay of the receipt's work.
+    /// </summary>
+    private async Task FileLinkedMaterialAsync(Guid receiptId, CancellationToken cancellationToken)
+    {
+        if (receiptQueries is null)
+        {
+            return;
+        }
+
+        var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
+        if (receipt is null)
+        {
+            return;
+        }
+
+        var retryOnWorker = false;
+        if (promoteCaseEvidence is not null)
+        {
+            try
+            {
+                var promotion = await promoteCaseEvidence.ExecuteAsync(receipt, cancellationToken);
+                Activity.Current?.SetTag("intake.link_filing", promotion.ToString());
+                retryOnWorker = promotion == AutomaticCaseEvidencePromotionOutcome.Deferred;
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                Activity.Current?.SetTag("intake.link_filing", "failed");
+                Activity.Current?.SetTag("intake.link_filing_failure_type", exception.GetType().Name);
+                retryOnWorker = true;
+            }
+        }
+
+        if (unidentifiedDestinations is not null)
+        {
+            try
+            {
+                await unidentifiedDestinations.SynchronizeForReceiptAsync(receipt, cancellationToken);
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                Activity.Current?.SetTag("intake.link_unidentified", "failed");
+                Activity.Current?.SetTag("intake.link_unidentified_failure_type", exception.GetType().Name);
+            }
+        }
+
+        if (!retryOnWorker || workStore is null || workEnqueuer is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var stagedReceiptId = await workStore.FindStagedReceiptIdForReceiptAsync(receipt.Id, cancellationToken);
+            if (stagedReceiptId is { } id)
+            {
+                await workEnqueuer.EnqueueAsync(id, cancellationToken);
+                Activity.Current?.SetTag("intake.link_filing_retry", "enqueued");
+            }
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            Activity.Current?.SetTag("intake.link_filing_retry", "failed");
         }
     }
 }

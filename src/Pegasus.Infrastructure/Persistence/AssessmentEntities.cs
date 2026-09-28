@@ -15,8 +15,6 @@ internal sealed class CaseAssessmentFieldEntity
     public required string RecordedByKind { get; set; }
     public required string RecordedBy { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
-    public string? ConfirmedBy { get; set; }
-    public DateTimeOffset? ConfirmedAtUtc { get; set; }
 }
 
 internal sealed class CaseEstimateLineEntity
@@ -35,18 +33,14 @@ internal sealed class CaseEstimateLineEntity
     public bool Unpriced { get; set; }
     public string? PartNumber { get; set; }
     public string? Betterment { get; set; }
-    public string? Status { get; set; }
     public string? EvidenceLabel { get; set; }
     public string? Justification { get; set; }
     public required string RecordedByKind { get; set; }
     public required string RecordedBy { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
-    public string? ConfirmedBy { get; set; }
-    public DateTimeOffset? ConfirmedAtUtc { get; set; }
     public string? Operation { get; set; }
     public decimal? Materials { get; set; }
     public string? OriginalValuesJson { get; set; }
-    public string? CurrentValuesJson { get; set; }
     public string? SourceDocumentIdentity { get; set; }
     public Guid? SourceDocumentVersionId { get; set; }
     public string? SourceDocumentSha256 { get; set; }
@@ -68,24 +62,12 @@ internal sealed class CaseRepairSpecificationEntity
     public string? SourceArtifactReference { get; set; }
     public string? SourceVersion { get; set; }
     public string? SourceSha256 { get; set; }
-    public decimal? CalculationLabour { get; set; }
-    public decimal? CalculationParts { get; set; }
-    public decimal? CalculationPaintMaterials { get; set; }
-    public decimal? CalculationSpecialistOther { get; set; }
-    public bool? RepairerVatRegistered { get; set; }
-    public decimal? CalculationVat { get; set; }
-    public decimal? CalculationTotal { get; set; }
-    public string? CalculationPolicyVersion { get; set; }
     public required string CreatedBy { get; set; }
     public required string CreationOperationKey { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
-    public string? AcceptedBy { get; set; }
-    public DateTimeOffset? AcceptedAtUtc { get; set; }
-    public Guid? SupersedesSpecificationId { get; set; }
-    public string? SupersessionReason { get; set; }
 
-    // Named estimate header. Exactly one row per work carries
-    // IsCurrent; the Current estimate is the one the report costs from.
+    // Named estimate header. At most one row per work carries IsCurrent;
+    // the Current estimate is the one the report costs from.
     public required string Name { get; set; }
     public decimal? LabourRate { get; set; }
     public bool RegionalUplift { get; set; }
@@ -101,8 +83,6 @@ internal sealed class CaseRepairSpecificationEntity
     public bool? MaterialsVatApplicable { get; set; }
     public bool? SpecialistVatApplicable { get; set; }
     public string RepairerVatStatus { get; set; } = "Unknown";
-    public string? VatOverrideReason { get; set; }
-    public string? CalculationBreakdownJson { get; set; }
     public decimal VatPercent { get; set; }
     public bool IsCurrent { get; set; }
     public Guid? AiJobId { get; set; }

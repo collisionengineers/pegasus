@@ -74,12 +74,11 @@ public sealed partial class QdosTriageIntegrationTests
             (await GetTriageAsync(factory.Services, triageId)).Findings,
             finding => finding.SupersedesFindingId == firstFinding.Id);
 
-        var awaitRequest = new TriageMutationRequest(
+        var awaitRequest = new TriageTransitionRequest(
             triageId,
             2,
             staffActor,
-            "replay-await-information",
-            "Further retained information is required")
+            "replay-await-information")
         {
             EditLeaseToken = await ClaimEditAsync(2, "replay-await-information-edit")
         };
@@ -92,8 +91,7 @@ public sealed partial class QdosTriageIntegrationTests
                 awaitRequest with
                 {
                     ExpectedVersion = 3,
-                    OperationKey = "new-await-information",
-                    Reason = "A new request must still satisfy the current-state gate"
+                    OperationKey = "new-await-information"
                 },
                 CancellationToken.None));
         Assert.Contains("only while open", invalidNewAwait.Message, StringComparison.OrdinalIgnoreCase);
@@ -129,8 +127,7 @@ public sealed partial class QdosTriageIntegrationTests
                 awaitRequest with
                 {
                     ExpectedVersion = 4,
-                    OperationKey = "new-stale-await-information",
-                    Reason = "A new operation must retain optimistic concurrency"
+                    OperationKey = "new-stale-await-information"
                 },
                 CancellationToken.None));
 
@@ -225,12 +222,11 @@ public sealed partial class QdosTriageIntegrationTests
             await factory.Database.ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM TriageResponseEvidenceLinks WHERE TriageCaseId = '{triageId:D}'"));
 
-        var completeRequest = new TriageMutationRequest(
+        var completeRequest = new TriageTransitionRequest(
             triageId,
             7,
             staffActor,
-            "replay-complete",
-            "Finding and exact response evidence confirmed")
+            "replay-complete")
         {
             EditLeaseToken = completeEditLeaseToken
         };
@@ -260,7 +256,7 @@ public sealed partial class QdosTriageIntegrationTests
                 CancellationToken.None));
         await AssertReplayConflictAsync(
             () => awaitInformation.ExecuteAsync(
-                awaitRequest with { Reason = "Altered await request" },
+                awaitRequest with { ExpectedVersion = 1 },
                 CancellationToken.None));
         await AssertReplayConflictAsync(
             () => cancel.ExecuteAsync(
@@ -272,7 +268,7 @@ public sealed partial class QdosTriageIntegrationTests
                 CancellationToken.None));
         await AssertReplayConflictAsync(
             () => complete.ExecuteAsync(
-                completeRequest with { Reason = "Altered completion request" },
+                completeRequest with { ExpectedVersion = 6 },
                 CancellationToken.None));
         // The actor kind is part of the command, not decoration: the same
         // subject acting as Automation rather than Staff is a different
@@ -287,8 +283,7 @@ public sealed partial class QdosTriageIntegrationTests
                 completeRequest with
                 {
                     ExpectedVersion = 8,
-                    OperationKey = "new-invalid-completion",
-                    Reason = "A new request must not bypass the terminal-state gate"
+                    OperationKey = "new-invalid-completion"
                 },
                 CancellationToken.None));
         Assert.Contains("only after a finding", invalidNewCompletion.Message, StringComparison.OrdinalIgnoreCase);

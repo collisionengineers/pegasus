@@ -6,7 +6,8 @@ namespace Pegasus.Core.Workflow;
 /// The single owner of the decision every staff case mutation is guarded by: the case must stand at
 /// the version the editor loaded, and the caller must present the live edit lease it holds. A
 /// missing, expired, wrong-holder, or stale-version mutation is refused without overwriting newer
-/// work. Explicit authorised takeover rotates the lease before another edit. Infrastructure supplies the persisted material
+/// work. The holder resumes their own lease from any window; an explicit authorised takeover by a
+/// colleague rotates it before another edit. Infrastructure supplies the persisted material
 /// and the fixed-time token comparison; the refusal order is business policy and lives here.
 /// </summary>
 public static class CaseEditAuthority
@@ -31,6 +32,26 @@ public static class CaseEditAuthority
     /// </summary>
     public static bool IsHeld(DateTimeOffset? leaseExpiresAtUtc, DateTimeOffset nowUtc) =>
         leaseExpiresAtUtc is { } expiresAtUtc && expiresAtUtc > nowUtc;
+
+    /// <summary>
+    /// The holder is the staff member, not the window. A Case page its staff holder opens again
+    /// — a second tab, or a return from another case — resumes the live lease as it stands: the
+    /// same token, no rotation and no takeover history. Take over is only ever a colleague's
+    /// action. The Automation Actor never resumes: each of its sessions claims, and fails closed
+    /// while any lease is live.
+    /// </summary>
+    public static bool CanResume(
+        ActorKind? retainedLeaseHolderKind,
+        string? retainedLeaseHolder,
+        DateTimeOffset? leaseExpiresAtUtc,
+        ActionActor actor,
+        DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.Kind == ActorKind.Staff
+            && IsHeld(leaseExpiresAtUtc, nowUtc)
+            && IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor);
+    }
 
     /// <summary>A colleague takeover is a staff action on a staff-held lease.</summary>
     public static bool CanTakeOver(ActorKind? retainedLeaseHolderKind, ActionActor actor)

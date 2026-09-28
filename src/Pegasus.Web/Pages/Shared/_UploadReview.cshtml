@@ -23,7 +23,9 @@
         kind = file.Kind,
         image = file.ImageUrl,
         original = file.OriginalUrl,
-        unreadable = file.CouldNotBeRead
+        unreadable = file.CouldNotBeRead,
+        photos = file.Photographs.Select(photo => new { url = photo.Url, name = photo.Name }),
+        photosLabel = file.Photographs.Count > 0 ? Labels.PhotographsFound(file.Photographs.Count) : null
     }));
     var single = Model.SingleReceiptId is not null;
     var target = Model.Confirmation?.Target;
@@ -86,24 +88,7 @@
                         <p class="up-explainer">@Labels.AttachedSentence(files.Count)</p>
                         @if (Model.Destination is { } destination)
                         {
-                            <div class="up-final-destination" data-upload-destination>
-                                <strong class="mono">@destination.Reference</strong>
-                                @{
-                                    var person = new[] { destination.Registration, destination.Claimant }.Where(part => !string.IsNullOrWhiteSpace(part));
-                                }
-                                @if (person.Any())
-                                {
-                                    <p>@string.Join(" · ", person)</p>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(destination.Principal))
-                                {
-                                    <p>@destination.Principal</p>
-                                }
-                                @if (destination.Stage is { } stage)
-                                {
-                                    <partial name="Shared/_StatusChip" model="@stage" />
-                                }
-                            </div>
+                            <partial name="Shared/_UploadDestinationCard" model="@destination" />
                             <a class="btn btn--primary" href="@destination.Url">@Labels.OpenCase(destination.Reference)</a>
                         }
                     </div>
@@ -287,6 +272,19 @@
                         <span>@Labels.Open</span>
                     </a>
                 }
+            </div>
+            @* The photographs Pegasus pulled out of a document (FRD-18): what
+               would become the Case's images, shown before the decision. *@
+            <div class="up-inspect-photos" data-inspect-photos hidden="@(inspected is not { Photographs.Count: > 0 })">
+                <p class="up-inspect-photos-count" data-inspect-photos-count>@(inspected is { Photographs.Count: > 0 } ? Labels.PhotographsFound(inspected.Photographs.Count) : null)</p>
+                <div class="up-inspect-photos-strip" data-inspect-photos-strip>
+                    @foreach (var photo in inspected?.Photographs ?? [])
+                    {
+                        <a class="up-film" href="@photo.Url" target="_blank" rel="noopener" aria-label="@photo.Name">
+                            <img src="@photo.Url" loading="lazy" alt="" />
+                        </a>
+                    }
+                </div>
             </div>
             <div class="up-filmstrip" aria-label="Choose a file to inspect">
                 @for (var index = 0; index < files.Count; index++)

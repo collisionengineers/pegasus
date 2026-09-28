@@ -9,6 +9,24 @@ public enum GlassRepairEstimateSessionState
 
 public static class GlassRepairEstimateSessionPolicy
 {
+    public static bool SameRegistration(string? left, string? right) =>
+        string.Equals(Compact(left), Compact(right), StringComparison.OrdinalIgnoreCase);
+
+    private static string Compact(string? value) =>
+        new((value ?? string.Empty).Where(character => !char.IsWhiteSpace(character)).ToArray());
+
+    public static void RequireUnchangedVehicle(
+        string originalRegistration, long originalMileage, string registration, long mileage)
+    {
+        if (!SameRegistration(originalRegistration, registration) || originalMileage != mileage)
+        {
+            throw new GlassRepairEstimateRefusalException(
+                "The Case registration or mileage has changed since this Glass's session started. "
+                + "The session still holds the account. Restore the original vehicle details to resume, "
+                + "or close the external session and confirm its closure before launching again.");
+        }
+    }
+
     public static bool OccupiesAccount(GlassRepairEstimateSessionState state) => state is
         GlassRepairEstimateSessionState.Prepared or GlassRepairEstimateSessionState.Launching
         or GlassRepairEstimateSessionState.Active or GlassRepairEstimateSessionState.Importing
@@ -75,7 +93,7 @@ public sealed record GlassRepairEstimateLaunchRequest(
     string OperationKey);
 public sealed record GlassRepairEstimateResumeRequest(
     ActionActor Actor, Guid SessionId, long ExpectedVersion,
-    long? ExpectedCaseVersion = null, string? LeaseToken = null);
+    long ExpectedCaseVersion, string LeaseToken);
 public sealed record GlassRepairEstimateCloseRequest(
     ActionActor Actor, Guid SessionId, long ExpectedVersion, bool ExternalSessionClosed,
     string Reason);

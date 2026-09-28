@@ -165,6 +165,12 @@ public sealed record CaseReportSnapshotSource(
 /// per-image and per-source hashes pin the exact bytes, which
 /// <see cref="ICaseReportContentSource"/> reopens through custody at render
 /// time and re-verifies against those hashes.
+///
+/// <see cref="EngineerValue"/> is the recorded Engineer's Value field, the
+/// figure the report prints, whether typed or filled from a guide card.
+/// <see cref="AppliedValuationId"/> names the calculation row a card-based
+/// value came from and is absent for typed values (operator, 26 September
+/// 2026).
 /// </remarks>
 public sealed record CaseReportGenerationSnapshot(
     Guid CaseId,
@@ -179,8 +185,8 @@ public sealed record CaseReportGenerationSnapshot(
     Guid CurrentEstimateId,
     int CurrentEstimateVersion,
     ReportRepairCosts Costs,
-    decimal AcceptedEngineerValue,
-    Guid AppliedValuationId,
+    decimal EngineerValue,
+    Guid? AppliedValuationId,
     CaseReportContentSwitches Content,
     ReportGuideSources Guides,
     DateOnly ReportDate,
@@ -195,6 +201,29 @@ public sealed record CaseReportGenerationSnapshot(
 {
     /// <summary>The exact Current repair specification used by this generation.</summary>
     public required RepairSpecificationVersion CurrentEstimate { get; init; }
+}
+
+/// <summary>
+/// Where a generated document's file stands, in plain meaning. It is read
+/// from the artifact row's own status and identities, so every reader says
+/// the same thing about the same row.
+/// </summary>
+public enum CaseReportArtifactFiling
+{
+    /// <summary>The row was frozen but holds no file at all: the render never finished.</summary>
+    NotProduced,
+
+    /// <summary>The file was drawn and is on its way to Box.</summary>
+    BeingStored,
+
+    /// <summary>The file is in Box.</summary>
+    Stored,
+
+    /// <summary>Storing the file failed.</summary>
+    StorageFailed,
+
+    /// <summary>What became of the file is not known.</summary>
+    Unconfirmed,
 }
 
 /// <summary>
@@ -217,7 +246,23 @@ public sealed record CaseReportArtifactRecord(
     string? BoxFileId,
     string? BoxVersionId,
     string? PendingContentStorageKey,
-    string? FailureCode);
+    string? FailureCode)
+{
+    /// <summary>
+    /// Where this document's file stands. A Pending row is being stored only
+    /// once custody has given it a version; until then no file exists.
+    /// </summary>
+    [JsonIgnore]
+    public CaseReportArtifactFiling Filing => Status switch
+    {
+        CaseReportArtifactStatus.Confirmed => CaseReportArtifactFiling.Stored,
+        CaseReportArtifactStatus.Failed => CaseReportArtifactFiling.StorageFailed,
+        CaseReportArtifactStatus.Unknown => CaseReportArtifactFiling.Unconfirmed,
+        _ => VersionId is null
+            ? CaseReportArtifactFiling.NotProduced
+            : CaseReportArtifactFiling.BeingStored,
+    };
+}
 
 /// <summary>
 /// A generation with its frozen snapshot and every artifact asked of it.
@@ -378,6 +423,20 @@ public interface ICaseReportGenerationStore
 }
 
 /// <summary>
+/// Records a generated report file as stored once custody has filed it. A
+/// request can end while its file is still on its way to Box; the file is
+/// filed afterwards and the report's own record would otherwise stay Pending
+/// until someone pressed Generate report again. Each pass confirms at most
+/// <c>maximumItems</c> such files and returns how many it confirmed. It
+/// leaves alone a report frozen, or a file recorded, in the last three
+/// minutes, so it never competes with the request still producing it.
+/// </summary>
+public interface ISettleFiledCaseReportArtifacts
+{
+    Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// Reopens a confirmed generated artifact's immutable bytes. It never
 /// regenerates and never returns a Pending, Failed or Unknown artifact.
 /// </summary>
@@ -508,27 +567,82 @@ public static class CaseReportReadiness
     public const string SignatoryRequirement = "Sign-off Engineer";
     public const string CurrentEstimateRequirement = "Current repair spec";
     public const string LabourRateRequirement = "Repair spec labour rate";
-    public const string EngineerValueRequirement = "Accepted Engineer's Value";
+    public const string RepairerVatRequirement = "Repairer VAT status";
     public const string CloseUpImageRequirement = "Close-up image";
     public const string OverviewImageRequirement = "Overview image";
     public const string ImageSourceRequirement = "Report image sources";
     public const string ValuationCommentaryRequirement = "Valuation commentary";
     public const string UnrelatedDamageRequirement = "Unrelated damage";
 
-    internal static readonly AssessmentReadinessItem SignatoryMissing = new(
+    // Staff cannot clear these two on the Case: the name and signature are
+    // the account's (operator, 26 September 2026).
+    private const string AccountResolution =
+        "An Administrator sets a name and signature on the account in Accounts.";
+
+    internal static readonly AssessmentReadinessItem SignOffAccountMissing = new(
         SignatoryRequirement, "Case sign-off account",
-        "The Case has no eligible sign-off Engineer with a complete signature on file.",
-        "Select a Sign-off Engineer with a signature on file on the Case details section.");
+        "No staff account is a Sign-off Engineer with a signature on file.",
+        AccountResolution);
+
+    internal static readonly AssessmentReadinessItem SignOffAccountIncomplete = new(
+        SignatoryRequirement, "Case sign-off account",
+        "The Sign-off Engineer's account has no name or signature the report can print.",
+        AccountResolution);
+
+    /// <summary>
+    /// Accounts are offered and the Case resolves to none of them, so staff
+    /// clear this one on the Case.
+    /// </summary>
+    public static readonly AssessmentReadinessItem SignOffEngineerNotChosen = new(
+        SignatoryRequirement, "Case record",
+        "The Case has no Sign-off Engineer.",
+        "Choose the Sign-off Engineer on Case details.");
 
     internal static readonly AssessmentReadinessItem CurrentEstimateMissing = new(
         CurrentEstimateRequirement, "Estimates",
         "No repair spec is Current on the Case.",
-        "Make one repair spec Current with Use repair spec on the Repair Spec section.");
+        "Import an estimate, bring one back from Glass's or add a new repair spec on the Repair Spec section; Use repair spec switches to an existing one.");
+
+    internal static readonly AssessmentReadinessItem CurrentEstimateEmpty = new(
+        CurrentEstimateRequirement, "Estimates",
+        "The Current repair spec has no lines.",
+        "Add the repair lines to the Current repair spec on the Repair Spec section.");
 
     internal static readonly AssessmentReadinessItem LabourRateMissing = new(
         LabourRateRequirement, "Estimates",
         "The Current repair spec has no labour rate, and the report prints the hourly rate.",
         "Record the labour rate on the Repair Spec section.");
+
+    // The repairer's VAT status decides what VAT is charged on, so a report
+    // on an unknown status would understate the repair cost (operator, 27
+    // September 2026).
+    internal static readonly AssessmentReadinessItem RepairerVatStatusUnknown = new(
+        RepairerVatRequirement, "Estimates",
+        "The Current repair spec does not say whether the repairer is VAT registered, so the report cannot work out the VAT.",
+        "Choose Registered or Not registered as the Repairer VAT status on the Repair Spec section.");
+
+    internal static readonly AssessmentReadinessItem RepairerVatHandPicked = new(
+        RepairerVatRequirement, "Estimates",
+        "The Current repair spec charges VAT on a hand-picked set of costs, and the report has no wording for that set.",
+        "Use Reset to repairer status beside VAT charged on, on the Repair Spec section.");
+
+    /// <summary>
+    /// The repairer VAT blocker, or none when the report has wording for what
+    /// the Current repair spec charges VAT on. The preview and generation
+    /// both name it, so neither prints a VAT row the template cannot word.
+    /// </summary>
+    internal static AssessmentReadinessItem? RepairerVatBlocker(RepairSpecificationVersion currentEstimate)
+    {
+        ArgumentNullException.ThrowIfNull(currentEstimate);
+        var policy = currentEstimate.Details.VatPolicy;
+        if (policy.RepairerStatus == RepairerVatStatus.Unknown)
+        {
+            return RepairerVatStatusUnknown;
+        }
+        return ReportRepairCosts.VatLabelOf(policy, currentEstimate.Details.VatPercent) is null
+            ? RepairerVatHandPicked
+            : null;
+    }
 
     public static CaseReportReadinessResult Evaluate(CaseReportReadinessInput input)
     {
@@ -549,44 +663,51 @@ public static class CaseReportReadiness
             input.PersistedSignOffEngineerId,
             input.AssignedEngineerId,
             input.EligibleSignOffEngineers);
-        Require(signatory is not null && IsComplete(signatory), SignatoryMissing);
+        if (SignOffBlocker(
+                signatory is null ? null : IsComplete(signatory),
+                input.EligibleSignOffEngineers.Count > 0) is { } signOff)
+        {
+            reasons.Add(signOff);
+        }
 
         Require(input.CurrentEstimate is not null, CurrentEstimateMissing);
+        Require(input.CurrentEstimate is null || input.CurrentEstimate.Lines.Count > 0, CurrentEstimateEmpty);
         Require(
             input.CurrentEstimate is null || input.CurrentEstimate.Details.HourlyRate > 0m,
             LabourRateMissing);
+        if (input.CurrentEstimate is { } estimate && RepairerVatBlocker(estimate) is { } repairerVat)
+        {
+            reasons.Add(repairerVat);
+        }
 
-        // One missing Engineer's Value is one blocker: the post-review item
-        // already names a Case with no adoption at all, so this names only an
-        // adoption whose applied valuation is missing.
-        Require(
-            input.AppliedValuation is { AcceptedEngineerValue: > 0m }
-                || reasons.Any(reason => reason.Field == AssessmentVocabulary.ValueEngineer),
-            new(
-                EngineerValueRequirement, "Valuation",
-                "No Engineer's Value has been adopted from a valuation calculation.",
-                "Save a valuation calculation on the Valuation section to adopt the Engineer's Value.",
-                Field: AssessmentVocabulary.ValueEngineer));
-
+        // The image tag decides how an image in the report prints (operator,
+        // 26 September 2026), so each blocker asks for a tag.
         var images = CaseAssetPreparationPolicy.ForReport(input.Preparations);
         Require(
-            images.Count(image => image.Role == CaseAssetReportRole.CloseUp) == 1,
+            images.Any(image => image.Role == CaseAssetReportRole.CloseUp),
             new(
                 CloseUpImageRequirement, "Case files",
-                "The report requires exactly one Close-up image.",
-                "Mark one confirmed Case image as the Close-up on the Files section."));
+                "The report prints one Close-up image and no image in the report is tagged Close-up.",
+                "Tag one Case image Close-up on the Files section."));
         Require(
-            images.Count(image => image.Role == CaseAssetReportRole.Overview) == 1,
+            images.Any(image => image.Role == CaseAssetReportRole.Overview),
             new(
                 OverviewImageRequirement, "Case files",
-                "The report requires exactly one Overview image.",
-                "Mark one confirmed Case image as the Overview on the Files section."));
+                "The report prints one Overview image and no image in the report is tagged Overview.",
+                "Tag one Case image Overview on the Files section."));
+        // Only an image that can print is one of these (operator, 26
+        // September 2026), so this names one whose stored version changed
+        // between the two reads.
+        var changed = images
+            .Where(image => !MatchesConfirmedSource(image, input.ConfirmedImageSources))
+            .Select(image => input.Preparations.First(item => item.OccurrenceId == image.OccurrenceId).SourceFileName)
+            .ToArray();
         Require(
-            images.All(image => MatchesConfirmedSource(image, input.ConfirmedImageSources)),
+            changed.Length == 0,
             new(
                 ImageSourceRequirement, "Case files",
-                "A selected report image no longer matches its custody-confirmed source version.",
-                "Re-select the affected image on the Files section once its custody version settles."));
+                $"The stored version of {string.Join(", ", changed)} has changed.",
+                "Open the Files section to see the image as it is stored now."));
 
         var content = ContentOf(assessment);
         var overridden = Flag(assessment, AssessmentVocabulary.ReportDateOverride);
@@ -610,6 +731,19 @@ public static class CaseReportReadiness
 
         return new(reasons, signatory, images, content, recordedDate, overridden);
     }
+
+    /// <summary>
+    /// The Sign-off Engineer blocker, or none when the Case's Sign-off
+    /// Engineer can sign the report. <paramref name="resolvedIsComplete"/> is
+    /// null when the Case resolves to no account.
+    /// </summary>
+    internal static AssessmentReadinessItem? SignOffBlocker(bool? resolvedIsComplete, bool accountsOffered) =>
+        resolvedIsComplete switch
+        {
+            true => null,
+            false => SignOffAccountIncomplete,
+            null => accountsOffered ? SignOffEngineerNotChosen : SignOffAccountMissing,
+        };
 
     /// <summary>
     /// The report content switches as persisted. Absent means off.
@@ -666,7 +800,9 @@ public static class CaseReportReadiness
 /// render and retain outside every transaction, then confirm or record the
 /// custody outcome in a second short transaction. A concurrent material Case
 /// change between freeze and confirm leaves the generation confirmed but
-/// stale — rendering finishing later never makes it current again.
+/// stale — rendering finishing later never makes it current again. A retry
+/// asks custody what was filed first and never draws again a file custody
+/// already holds.
 /// </summary>
 public sealed class GenerateCaseReport(
     ICaseReportGenerationStore store,
@@ -715,14 +851,16 @@ public sealed class GenerateCaseReport(
         var artifact = generation.Artifacts.Single(item => item.Id == frozen.ArtifactId);
         var artifactKind = artifact.Kind;
 
-        // Restart-safe retry: a retained Pending or Unknown artifact already
-        // has a logical version, so ask custody what actually happened before
-        // rendering the same bytes again. The status read is occurrence-exact
+        // Restart-safe retry: ask custody what was filed under this artifact
+        // before drawing anything. A drawn file carries its own creation
+        // time, so a second drawing never matches the bytes custody holds
+        // and custody would refuse it. The status read is occurrence-exact
         // (G24) and the artifact record keeps no occurrence id, so the read is
         // by the retain operation key, which is this artifact's recovery
-        // identity (G15) and addresses the same object.
-        if (artifact is { VersionId: not null, DocumentId: not null }
-            && artifact.Status is CaseReportArtifactStatus.Pending or CaseReportArtifactStatus.Unknown)
+        // identity (G15) and addresses the same object. The artifact row need
+        // not hold a version: a request that ended after custody recorded the
+        // file and before its outcome was written left none.
+        if (artifact.Status != CaseReportArtifactStatus.Confirmed)
         {
             var status = await custodyStatus
                 .FindByOperationKeyAsync(request.Actor, request.CaseId, artifact.OperationKey, cancellationToken)
@@ -731,6 +869,11 @@ public sealed class GenerateCaseReport(
             {
                 return Result(await ConfirmAsync(request, generation, artifact, status, cancellationToken)
                     .ConfigureAwait(false));
+            }
+            if (status is not null)
+            {
+                return await RecordOutcomeAsync(request, generation, artifact, status, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
 
@@ -765,23 +908,38 @@ public sealed class GenerateCaseReport(
                 .ConfigureAwait(false));
         }
 
+        return await RecordOutcomeAsync(request, generation, artifact, retained, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Records what custody said about a file it has not confirmed, with
+    /// custody's own identities, and answers Failed or Pending.
+    /// </summary>
+    private async Task<CaseReportGenerationResult> RecordOutcomeAsync(
+        GenerateCaseReportRequest request,
+        CaseReportGenerationRecord generation,
+        CaseReportArtifactRecord artifact,
+        CaseArtifactCustodyResult custodyResult,
+        CancellationToken cancellationToken)
+    {
         var recorded = await store.RecordArtifactOutcomeAsync(
             new RecordCaseReportArtifactOutcomeRequest(
                 request.Actor,
                 request.CaseId,
                 generation.Id,
                 artifact.Id,
-                StatusOf(retained.Disposition),
-                retained.DocumentId,
-                retained.VersionId,
-                retained.BoxFileId,
-                retained.BoxVersionId,
-                retained.PendingContentStorageKey,
-                retained.FailureCode,
+                StatusOf(custodyResult.Disposition),
+                custodyResult.DocumentId,
+                custodyResult.VersionId,
+                custodyResult.BoxFileId,
+                custodyResult.BoxVersionId,
+                custodyResult.PendingContentStorageKey,
+                custodyResult.FailureCode,
                 timeProvider.GetUtcNow()),
             cancellationToken).ConfigureAwait(false);
         return new(
-            retained.Disposition == CaseArtifactCustodyDisposition.Failed
+            custodyResult.Disposition == CaseArtifactCustodyDisposition.Failed
                 ? CaseReportGenerationOutcome.Failed
                 : CaseReportGenerationOutcome.Pending,
             recorded,

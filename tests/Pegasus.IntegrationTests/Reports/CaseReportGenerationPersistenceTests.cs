@@ -156,6 +156,27 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(new DateOnly(2026, 9, 7), result.Generation.Snapshot.Report.ReportDate);
     }
 
+    [Fact]
+    public async Task TypedValuesGenerateWithoutAnAppliedValuationAndTheReportPrintsThem()
+    {
+        await using var harness = await Harness.CreateAsync();
+        harness.TypeValues(retail: 6_100m, trade: 4_900m, engineer: 5_700m);
+        var renderer = new RecordingRenderer(harness);
+
+        var result = await harness.Generate(new RecordingCustody(harness), renderer)
+            .ExecuteAsync(harness.Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.Empty(result.Reasons);
+        var rendered = Assert.IsType<AssessmentReportSnapshot>(renderer.Rendered);
+        Assert.Equal(6_100m, rendered.RetailValue);
+        Assert.Equal(4_900m, rendered.TradeValue);
+        Assert.Equal(5_700m, rendered.EngineerValue);
+        var frozen = result.Generation!.Snapshot;
+        Assert.Equal(5_700m, frozen.EngineerValue);
+        Assert.Null(frozen.AppliedValuationId);
+    }
+
     [Theory]
     [InlineData("add")]
     [InlineData("remove")]
@@ -589,6 +610,269 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Null(status.LastQuery);
         Assert.Equal(["freeze", "confirm"], harness.Sequence);
         Assert.Equal(1, await harness.ActionHistoryCountAsync("case_report_generation_ready"));
+    }
+
+    /// <summary>
+    /// A request can end while its file is still on its way to Box. Custody
+    /// files it afterwards, and the Worker's pass then records the report as
+    /// stored, so nobody has to press Generate report again.
+    /// </summary>
+    [Fact]
+    public async Task APendingReportWhoseFileIsFiledLaterIsSettledWithoutAnotherGenerate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var custody = new RecordingCustody(harness)
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending
+        };
+        var pending = await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pending.Outcome);
+        await harness.RecordCustodyOccurrenceAsync(custody, Harness.OperationKey);
+        var later = Harness.StartUtc.AddMinutes(4);
+
+        // Nothing is filed yet, so there is nothing to settle however old it is.
+        Assert.Equal(0, await harness.SettleAt(later).ExecuteAsync(50, CancellationToken.None));
+        Assert.Equal(
+            CaseReportArtifactStatus.Pending,
+            Assert.Single(Assert.Single(await harness.GenerationRowsAsync()).Artifacts).Status);
+
+        // Custody files the version out of process, as its reconciliation does.
+        await harness.ConfirmCustodyObjectAsync(custody.VersionId!.Value);
+
+        Assert.Equal(1, await harness.SettleAt(later).ExecuteAsync(50, CancellationToken.None));
+
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        var artifact = Assert.Single(generation.Artifacts);
+        Assert.Equal(CaseReportArtifactStatus.Confirmed, artifact.Status);
+        Assert.Equal(custody.VersionId, artifact.VersionId);
+        Assert.Equal(custody.DocumentId, artifact.DocumentId);
+        Assert.Equal(custody.Sha256, artifact.Sha256);
+        Assert.Equal($"box-file-{custody.VersionId:N}", artifact.BoxFileId);
+        Assert.Null(artifact.FailureCode);
+
+        // The history says the Worker confirmed it, and names the file as custody holds it.
+        var confirmed = Assert.Single(await harness.ArtifactConfirmedEventsAsync());
+        Assert.Equal(nameof(ActorKind.SystemWorker), confirmed.ActorKind);
+        Assert.Equal(EfSettleFiledCaseReportArtifacts.ActorId, confirmed.ActorSubjectId);
+        Assert.Equal(later, confirmed.OccurredAtUtc);
+        Assert.Equal(Harness.OperationKey, confirmed.CorrelationId);
+        using var after = JsonDocument.Parse(confirmed.AfterJson!);
+        Assert.Equal("AssessmentReport.pdf", after.RootElement.GetProperty("fileName").GetString());
+        Assert.Equal(
+            custody.VersionId,
+            Guid.Parse(after.RootElement.GetProperty("versionId").GetString()!));
+        var ready = Assert.Single(await harness.ReadyEventsAsync());
+        Assert.Equal(EfSettleFiledCaseReportArtifacts.ActorId, ready.ActorSubjectId);
+
+        // A second pass finds nothing left to settle and writes nothing more.
+        Assert.Equal(0, await harness.SettleAt(later).ExecuteAsync(50, CancellationToken.None));
+        Assert.Single(await harness.ArtifactConfirmedEventsAsync());
+        Assert.Single(await harness.ReadyEventsAsync());
+
+        // Generate report pressed afterwards answers from the settled row and draws nothing.
+        harness.Sequence.Clear();
+        var replayed = await harness.Generate(new RecordingCustody(harness), new RefusingRenderer())
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Generated, replayed.Outcome);
+        Assert.Equal(["freeze"], harness.Sequence);
+    }
+
+    /// <summary>
+    /// The production case: the file was filed while the request still ran,
+    /// and the request recorded Pending. The pass leaves the report to its
+    /// request until it was frozen more than three minutes ago.
+    /// </summary>
+    [Fact]
+    public async Task AFiledReportFrozenWithinThreeMinutesIsLeftToItsRequest()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var custody = new RecordingCustody(harness)
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending,
+            ConfirmedInCustody = true
+        };
+        var pending = await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pending.Outcome);
+        Assert.Equal(
+            DocumentCustodyStatus.Confirmed,
+            await harness.CustodyStatusAsync(custody.VersionId!.Value));
+        await harness.RecordCustodyOccurrenceAsync(custody, Harness.OperationKey);
+
+        Assert.Equal(
+            0,
+            await harness.SettleAt(Harness.StartUtc.AddMinutes(3)).ExecuteAsync(50, CancellationToken.None));
+
+        var untouched = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Pending, untouched.State);
+        Assert.Equal(CaseReportArtifactStatus.Pending, Assert.Single(untouched.Artifacts).Status);
+        Assert.Empty(await harness.ArtifactConfirmedEventsAsync());
+
+        Assert.Equal(
+            1,
+            await harness.SettleAt(Harness.StartUtc.AddMinutes(3).AddSeconds(1))
+                .ExecuteAsync(50, CancellationToken.None));
+        Assert.Equal(
+            CaseReportGenerationState.Confirmed,
+            Assert.Single(await harness.GenerationRowsAsync()).State);
+    }
+
+    /// <summary>
+    /// A fee note joins a report frozen long before, so the report's age
+    /// says nothing about the request producing the fee note. The pass goes
+    /// by when custody recorded the file as well.
+    /// </summary>
+    [Fact]
+    public async Task ACompanionDocumentIsLeftToItsRequestHoweverOldItsReportIs()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        const string feeOperationKey = "case-report-fee-later";
+        var custody = new RecordingCustody(harness)
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending,
+            ConfirmedInCustody = true
+        };
+        var feeNote = await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(
+                harness.Request(
+                    CaseReportArtifactKind.FeeNote,
+                    feeOperationKey,
+                    targetGenerationId: report.Generation!.Id),
+                CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Pending, feeNote.Outcome);
+        var asked = Harness.StartUtc.AddHours(1);
+        await harness.RecordCustodyOccurrenceAsync(custody, feeOperationKey, asked);
+
+        Assert.Equal(
+            0,
+            await harness.SettleAt(asked.AddMinutes(2)).ExecuteAsync(50, CancellationToken.None));
+        Assert.Equal(
+            1,
+            await harness.SettleAt(asked.AddMinutes(4)).ExecuteAsync(50, CancellationToken.None));
+
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        Assert.Equal(2, generation.Artifacts.Count);
+        Assert.All(
+            generation.Artifacts,
+            artifact => Assert.Equal(CaseReportArtifactStatus.Confirmed, artifact.Status));
+        // The report was ready before the fee note was asked for; it is not announced twice.
+        Assert.Single(await harness.ReadyEventsAsync());
+    }
+
+    /// <summary>
+    /// Catalogue checks run as the database owner. This runs the actual pass
+    /// as a member of the Worker's role, which must be able to update the
+    /// artifact row it could only read before.
+    /// </summary>
+    [Fact]
+    public async Task WorkerRuntimeRoleCanSettleAFiledReportThroughTheActualPass()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var custody = new RecordingCustody(harness)
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending,
+            ConfirmedInCustody = true
+        };
+        await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        await harness.RecordCustodyOccurrenceAsync(custody, Harness.OperationKey);
+        await using var connectionOwner = await harness.Factory.CreateDbContextAsync();
+        await connectionOwner.Database.OpenConnectionAsync();
+        await connectionOwner.Database.ExecuteSqlRawAsync(
+            "CREATE USER [report_settlement_caller] WITHOUT LOGIN; ALTER ROLE [pegasus_worker_runtime_role] ADD MEMBER [report_settlement_caller];");
+        await connectionOwner.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'report_settlement_caller';");
+        try
+        {
+            // EF does not own this already-open connection. The pass's read
+            // and its confirmation both run under the real runtime role.
+            var factory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>()
+                    .UseSqlServer(connectionOwner.Database.GetDbConnection()).Options);
+            var settled = await new EfSettleFiledCaseReportArtifacts(
+                    factory, Harness.ClockAt(Harness.StartUtc.AddMinutes(4)))
+                .ExecuteAsync(50, CancellationToken.None);
+
+            Assert.Equal(1, settled);
+        }
+        finally
+        {
+            await connectionOwner.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        Assert.Equal(CaseReportArtifactStatus.Confirmed, Assert.Single(generation.Artifacts).Status);
+    }
+
+    /// <summary>
+    /// The whole chain over custody itself, with no fake between the report
+    /// and its file: the report waits for its Box folder, a second press draws
+    /// nothing, reconciliation files the version once the folder exists, and
+    /// the pass then records the report as stored.
+    /// </summary>
+    [Fact]
+    public async Task AReportWaitingForItsFolderIsFiledByReconciliationAndThenSettled()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using var scope = harness.CreateScope();
+        var content = scope.ServiceProvider.GetRequiredService<IDocumentContentStore>();
+        var custody = new EfCaseArtifactCustody(
+            harness.Factory,
+            content,
+            scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeQuarantineArtifactStore>(),
+            Harness.Clock);
+
+        var pending = await harness.GenerateThroughCustody(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pending.Outcome);
+        var waiting = Assert.Single(pending.Generation!.Artifacts);
+        Assert.Equal(CaseReportArtifactStatus.Pending, waiting.Status);
+        Assert.Equal("case_custody_pending", waiting.FailureCode);
+
+        // A second press asks custody first. Drawing again could never match
+        // the bytes custody holds, so the renderer here refuses every call.
+        harness.Sequence.Clear();
+        var pressedAgain = await harness.GenerateThroughCustody(custody, new RefusingRenderer())
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pressedAgain.Outcome);
+        Assert.Equal(["freeze", "record"], harness.Sequence);
+
+        await harness.RecordCaseFolderAsync("case-root");
+        var reconciled = await new ReconcilePendingArtifactCustody(
+                harness.Factory,
+                content,
+                scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeArtifactStore>(),
+                Harness.Clock)
+            .ExecuteAsync(10, CancellationToken.None);
+        Assert.Equal(1, reconciled.Confirmed);
+        Assert.Equal(
+            DocumentCustodyStatus.Confirmed,
+            await harness.CustodyStatusAsync(waiting.VersionId!.Value));
+        // Filing the version leaves the report's own record as it was.
+        Assert.Equal(
+            CaseReportArtifactStatus.Pending,
+            Assert.Single(Assert.Single(await harness.GenerationRowsAsync()).Artifacts).Status);
+
+        Assert.Equal(
+            1,
+            await harness.SettleAt(Harness.StartUtc.AddMinutes(4)).ExecuteAsync(50, CancellationToken.None));
+
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        var settled = Assert.Single(generation.Artifacts);
+        Assert.Equal(waiting.Id, settled.Id);
+        Assert.Equal(CaseReportArtifactStatus.Confirmed, settled.Status);
+        Assert.Equal(waiting.VersionId, settled.VersionId);
+        Assert.Equal(new RecordingRenderer(harness).Sha256, settled.Sha256);
+        Assert.Null(settled.FailureCode);
+        Assert.Null(settled.PendingContentStorageKey);
+        Assert.Single(await harness.ReadyEventsAsync());
     }
 
     [Fact]
@@ -1116,7 +1400,7 @@ public sealed class CaseReportGenerationPersistenceTests
 
         Assert.NotEqual(first.Generation.Id, second.Generation!.Id);
         Assert.NotEqual(first.Generation.SnapshotHash, second.Generation.SnapshotHash);
-        Assert.Equal(5_250m, second.Generation.Snapshot.AcceptedEngineerValue);
+        Assert.Equal(5_250m, second.Generation.Snapshot.EngineerValue);
         Assert.Equal(CaseReportGenerationState.Confirmed, second.Generation.State);
 
         // The prior generation keeps its bytes, its confirmed artifact and its
@@ -1125,7 +1409,7 @@ public sealed class CaseReportGenerationPersistenceTests
             harness.StaffActor, harness.CaseId, first.Generation.Id, CancellationToken.None);
         Assert.Equal(CaseReportGenerationState.Stale, prior!.State);
         Assert.Equal(second.Generation.Id, prior.SupersededById);
-        Assert.Equal(5_000m, prior.Snapshot.AcceptedEngineerValue);
+        Assert.Equal(5_000m, prior.Snapshot.EngineerValue);
         var priorArtifact = Assert.Single(prior.Artifacts);
         Assert.Equal(firstArtifact.Id, priorArtifact.Id);
         Assert.Equal(firstArtifact.VersionId, priorArtifact.VersionId);
@@ -1141,12 +1425,12 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     /// <summary>
-    /// Issue #834: the report prints only Category S, so a total loss of any
-    /// other category is named before the freeze writes anything. The
-    /// confirmed current generation stays current and nothing supersedes it.
+    /// Issue #834: a missing printed fact, here a total loss with no salvage
+    /// category, is named before the freeze writes anything. The confirmed
+    /// current generation stays current and nothing supersedes it.
     /// </summary>
     [Fact]
-    public async Task ANonPrintableSalvageCategoryIsNamedBeforeAnyGenerationIsWritten()
+    public async Task AMissingSalvageCategoryIsNamedBeforeAnyGenerationIsWritten()
     {
         await using var harness = await Harness.CreateAsync();
         var first = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
@@ -1156,21 +1440,22 @@ public sealed class CaseReportGenerationPersistenceTests
         var artifactsBefore = await harness.ArtifactRowsAsync();
 
         var recordedAt = new DateTimeOffset(2026, 8, 3, 9, 0, 0, TimeSpan.Zero);
-        AssessmentFieldValue Confirmed(string path, string value) => new(
-            path, value, ActorKind.Staff, "engineer-1", recordedAt, "engineer-1", recordedAt);
+        AssessmentFieldValue Recorded(string path, string value) => new(
+            path, value, ActorKind.Staff, "engineer-1", recordedAt);
         harness.ReviseAssessment(assessment => assessment with
         {
             Fields =
             [
-                .. assessment.Fields.Where(field => field.Path != AssessmentVocabulary.Outcome),
-                Confirmed(AssessmentVocabulary.Outcome, "total_loss"),
-                Confirmed(AssessmentVocabulary.SalvageCategory, "B"),
-                Confirmed(AssessmentVocabulary.SalvageValue, "500.00"),
+                .. assessment.Fields.Where(field =>
+                    field.Path != AssessmentVocabulary.Outcome
+                    && field.Path != AssessmentVocabulary.SalvageCategory),
+                Recorded(AssessmentVocabulary.Outcome, "total_loss"),
+                Recorded(AssessmentVocabulary.SalvageValue, "500.00"),
             ],
         });
         var renderer = new RecordingRenderer(harness);
         var refused = await harness.Generate(new RecordingCustody(harness), renderer)
-            .ExecuteAsync(harness.Request(operationKey: "case-report-category-b"), CancellationToken.None);
+            .ExecuteAsync(harness.Request(operationKey: "case-report-no-category"), CancellationToken.None);
 
         Assert.Equal(CaseReportGenerationOutcome.NotReady, refused.Outcome);
         Assert.Null(refused.Generation);
@@ -1484,6 +1769,32 @@ public sealed class CaseReportGenerationPersistenceTests
                 custodyStatus ?? new RecordingCustodyStatus(),
                 new FixedTimeProvider(StartUtc));
 
+        /// <summary>
+        /// The generator over custody itself, which both retains the file and
+        /// answers what it holds, clocked as the store is.
+        /// </summary>
+        public GenerateCaseReport GenerateThroughCustody(
+            EfCaseArtifactCustody custody, IAssessmentReportRenderer renderer) => new(
+            new RecordingStore(Store, Sequence),
+            new FakeContentSource(this),
+            renderer,
+            new RefusingRepairSpecificationDocuments(),
+            custody,
+            custody,
+            new FixedTimeProvider(StartUtc));
+
+        /// <summary>The harness's own services, for the local stores custody writes to.</summary>
+        public AsyncServiceScope CreateScope() => database.CreateAsyncScope();
+
+        /// <summary>Records the Case's Box folder, as creating it does.</summary>
+        public async Task RecordCaseFolderAsync(string rootRemoteId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var @case = await context.Cases.SingleAsync(item => item.Id == CaseId);
+            @case.CustodyRootRemoteId = rootRemoteId;
+            await context.SaveChangesAsync();
+        }
+
         public static IRenderCaseEstimateDocument RenderedRepairSpecificationDocumentsForTest() =>
             new RenderedRepairSpecificationDocuments();
 
@@ -1715,6 +2026,10 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Accepts a different Engineer's Value, a material change.</summary>
         public void AcceptEngineerValue(decimal value) => snapshotSource.AcceptEngineerValue(value);
 
+        /// <summary>Types the three boxes with no basis card, so no applied valuation row exists.</summary>
+        public void TypeValues(decimal retail, decimal trade, decimal engineer) =>
+            snapshotSource.TypeValues(retail, trade, engineer);
+
         /// <summary>Records a revised assessment, which every later freeze reads.</summary>
         public void ReviseAssessment(Func<CaseAssessmentProjection, CaseAssessmentProjection> revise) =>
             snapshotSource.TransformAssessment(revise);
@@ -1784,6 +2099,52 @@ public sealed class CaseReportGenerationPersistenceTests
                 occurrences[document.Id] = occurrenceId = Guid.NewGuid();
             }
             return new(document.Id, version.Id, request.Sha256, content) { OccurrenceId = occurrenceId };
+        }
+
+        /// <summary>
+        /// Writes the occurrence custody keeps for a retained file, under the
+        /// operation key the report's row carries, recorded at the given time.
+        /// The fake custody keeps its occurrences in memory; the Worker's
+        /// settle pass finds a filed report through this row.
+        /// </summary>
+        public async Task RecordCustodyOccurrenceAsync(
+            RecordingCustody custody, string operationKey, DateTimeOffset? recordedAtUtc = null)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var version = await context.Set<DocumentVersionEntity>().SingleAsync(
+                item => item.Id == custody.VersionId);
+            var document = await context.Set<CaseDocumentEntity>().SingleAsync(
+                item => item.Id == version.DocumentId);
+            version.CreatedAtUtc = recordedAtUtc ?? StartUtc;
+            context.Add(new DocumentOccurrenceEntity
+            {
+                Id = custody.OccurrenceId!.Value,
+                CaseId = CaseId,
+                DocumentId = document.Id,
+                VersionId = version.Id,
+                Ordinal = document.Ordinal,
+                SemanticRole = DocumentSemanticRole.OriginalSource,
+                Source = DocumentSource.Generated,
+                SourceOccurrenceIdentity = document.SourceOccurrenceIdentity,
+                RecordedAtUtc = version.CreatedAtUtc,
+                OperationKey = operationKey,
+                InReport = false
+            });
+            await context.SaveChangesAsync();
+        }
+
+        /// <summary>The Worker's settle pass, clocked to the given instant.</summary>
+        public EfSettleFiledCaseReportArtifacts SettleAt(DateTimeOffset now) =>
+            new(Factory, new FixedTimeProvider(now));
+
+        public async Task<IReadOnlyList<ActionHistoryEntity>> ArtifactConfirmedEventsAsync()
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            return await context.ActionHistory.AsNoTracking()
+                .Where(item => item.AggregateType == "case"
+                    && item.AggregateId == CaseId.ToString("D")
+                    && item.EventKind == EfCaseReportGenerationStore.ArtifactConfirmedEventKind)
+                .ToArrayAsync();
         }
 
         public async Task ConfirmCustodyObjectAsync(Guid versionId)
@@ -1934,7 +2295,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     SourceOccurrenceIdentity = $"report-fixture:{occurrenceId:N}",
                     RecordedAtUtc = StartUtc,
                     OperationKey = $"seed:{occurrenceId:N}",
-                    PreparationRole = nameof(CaseAssetReportRole.NotUsed)
+                    InReport = false
                 });
             await context.SaveChangesAsync();
             return new(documentId, versionId, sha256, content) { OccurrenceId = occurrenceId };
@@ -2055,6 +2416,7 @@ public sealed class CaseReportGenerationPersistenceTests
         private readonly Guid valuationId = Guid.NewGuid();
         private readonly Guid guideValuationId = Guid.NewGuid();
         private decimal engineerValue = 5_000m;
+        private bool fromCard = true;
         private Func<CaseAssessmentProjection, CaseAssessmentProjection>? transform;
 
         public FakeSnapshotSource(
@@ -2083,7 +2445,26 @@ public sealed class CaseReportGenerationPersistenceTests
             };
         }
 
-        public void AcceptEngineerValue(decimal value) => engineerValue = value;
+        /// <summary>
+        /// A calculation fills the Engineer's Value box with <paramref name="value"/>
+        /// and the Save records it against its basis card: the field the report
+        /// prints and the applied row move together.
+        /// </summary>
+        public void AcceptEngineerValue(decimal value)
+        {
+            engineerValue = value;
+            transform = current => WithValues(current, engineer: value);
+        }
+
+        /// <summary>
+        /// The three boxes typed by hand: the fields carry the figures and no
+        /// applied valuation row exists (operator, 26 September 2026).
+        /// </summary>
+        public void TypeValues(decimal retail, decimal trade, decimal engineer)
+        {
+            fromCard = false;
+            transform = current => WithValues(current, retail, trade, engineer);
+        }
 
         /// <summary>
         /// Applies <paramref name="revise"/> to the accepted assessment every
@@ -2111,9 +2492,29 @@ public sealed class CaseReportGenerationPersistenceTests
             [new SignOffEngineerProfile(
                 SignatoryId, "Ed Mawdsley", "ATA VDA AQP", SignatureBytes, "image/png", IsDefault: true)],
             estimate,
-            Valuation(),
+            fromCard ? Valuation() : null,
             [Preparation(closeUp, CaseAssetReportRole.CloseUp), Preparation(overview, CaseAssetReportRole.Overview)],
             confirmedSources);
+
+        private static CaseAssessmentProjection WithValues(
+            CaseAssessmentProjection current,
+            decimal? retail = null,
+            decimal? trade = null,
+            decimal? engineer = null) => current with
+            {
+                Fields = current.Fields
+                    .Select(field => field.Path switch
+                    {
+                        AssessmentVocabulary.ValueRetail when retail is { } value => field with { Value = Money(value) },
+                        AssessmentVocabulary.ValueTrade when trade is { } value => field with { Value = Money(value) },
+                        AssessmentVocabulary.ValueEngineer when engineer is { } value => field with { Value = Money(value) },
+                        _ => field,
+                    })
+                    .ToArray(),
+            };
+
+        private static string Money(decimal value) =>
+            value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
 
         private AppliedValuation Valuation() => new(
             valuationId, caseId, 1, guideValuationId, RecordedAtUtc,
@@ -2133,8 +2534,14 @@ public sealed class CaseReportGenerationPersistenceTests
         private CaseAssetPreparation Preparation(
             Harness.SeededDocument document, CaseAssetReportRole role) => new(
                 caseId, document.OccurrenceId, document.DocumentId, document.VersionId, 1,
-                document.Sha256, "image/png", role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
-                1, "engineer-1", RecordedAtUtc, role == CaseAssetReportRole.CloseUp);
+                document.Sha256, "image/png", true, null, CaseAssetRotation.None, CaseAssetCrop.Full,
+                1, "engineer-1", RecordedAtUtc, role == CaseAssetReportRole.CloseUp)
+            {
+                TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId],
+                SourceFileName = $"{document.OccurrenceId:D}.png",
+                RecordedAtUtc = RecordedAtUtc,
+                CanPrint = true
+            };
 
     }
 
@@ -2221,12 +2628,16 @@ public sealed class CaseReportGenerationPersistenceTests
         /// <summary>Runs after the freeze committed and before custody.</summary>
         public Func<Task>? Before { get; set; }
 
+        /// <summary>The facts the last render was given.</summary>
+        public AssessmentReportSnapshot? Rendered { get; private set; }
+
         public async Task<RenderedReportArtifact> RenderAsync(
             AssessmentReportSnapshot snapshot,
             CaseReportArtifactKind kind,
             CancellationToken cancellationToken = default)
         {
             Kinds.Add(kind);
+            Rendered = snapshot;
             harness.Sequence.Add("render");
             if (Before is not null)
             {
@@ -2325,15 +2736,16 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public string? LastOperationKey { get; private set; }
 
-        public CaseArtifactCustodyResult Result { get; init; } = new(
-            CaseArtifactCustodyDisposition.Unknown, null, null, null, null, null, null, null, null, null, null);
+        /// <summary>What custody holds under the operation key; nothing on a first request.</summary>
+        public CaseArtifactCustodyResult? Result { get; init; }
 
         public Task<CaseArtifactCustodyResult> GetAsync(
             ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
             CancellationToken cancellationToken)
         {
             LastQuery = (caseId, documentId, versionId, occurrenceId);
-            return Task.FromResult(Result);
+            return Task.FromResult(Result
+                ?? throw new FileNotFoundException("Custody holds nothing under these identities."));
         }
 
         /// <summary>
@@ -2345,7 +2757,7 @@ public sealed class CaseReportGenerationPersistenceTests
             CancellationToken cancellationToken)
         {
             LastOperationKey = operationKey;
-            return Task.FromResult<CaseArtifactCustodyResult?>(Result);
+            return Task.FromResult(Result);
         }
     }
 

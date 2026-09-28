@@ -14,11 +14,13 @@ namespace Pegasus.Core.Assessment;
 /// closed on unknown or case-owned paths; values are canonicalized before
 /// persistence; the required-when pairings from the screen's own hints are
 /// enforced against the merged state; and the actor rules implement the
-/// operator-decided direct-write model: staff saves record confirmed values,
-/// Automation saves record unconfirmed values, and a professional-finding
-/// field is confirmable only by an authenticated staff actor. Estimate
-/// derivation (totals, worklists) is deliberately absent until its formulas
-/// hold accepted authority (EXT-09, open decision D2).
+/// operator-decided direct-write model: a staff or Automation save records
+/// the Case's value with its provenance, and a professional-finding field is
+/// recorded only by an authenticated staff actor. There is no per-field
+/// review (operator, 25 September 2026): Review is a Case stage, and Hand to
+/// Engineer is the review. Estimate derivation (totals, worklists) is
+/// deliberately absent until its formulas hold accepted authority (EXT-09,
+/// open decision D2).
 /// </summary>
 public static class AssessmentPolicy
 {
@@ -36,10 +38,10 @@ public static class AssessmentPolicy
             throw new InvalidOperationException(
                 "Only a staff member or the Automation actor can save an assessment.");
         }
-        if (request.Fields.Count == 0 && request.EstimateLines is null)
+        if (request.Fields.Count == 0)
         {
             throw new ArgumentException(
-                "An assessment save requires at least one field or the estimate-line collection.",
+                "An assessment save requires at least one field.",
                 nameof(request));
         }
         if (request.Fields.Count > MaximumFieldsPerSave)
@@ -56,33 +58,23 @@ public static class AssessmentPolicy
         }
 
         var normalizedFields = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var touchesFinding = false;
         foreach (var (path, rawValue) in request.Fields)
         {
-            normalizedFields[path] = NormalizeWritableField(path, rawValue);
-            touchesFinding |= AssessmentVocabulary.Definitions[path].IsFinding;
+            normalizedFields[path] = NormalizeWritableField(path, rawValue, request.Actor);
         }
 
-        if (touchesFinding && request.Actor.Kind == ActorKind.Staff)
-        {
-            RequireFindingConfirmationAuthority(request.Actor);
-        }
-
-        var normalizedLines = request.EstimateLines is null
-            ? null
-            : NormalizeLines(request.EstimateLines);
-        return request with { Fields = normalizedFields, EstimateLines = normalizedLines };
+        return request with { Fields = normalizedFields };
     }
 
     /// <summary>
-    /// The one owner of who may confirm a professional finding: a staff
-    /// member only when that member is authenticated staff. The
-    /// assessment save applies it to its staff branch (the Automation actor
-    /// records unconfirmed working data instead); a caller that writes a
-    /// finding field as a confirmed value outside that save - the Engineer's
-    /// Value valuation - applies it on its own.
+    /// The one owner of who may record a professional finding: an
+    /// authenticated staff member, never the Automation actor. The field gate
+    /// (<see cref="NormalizeWritableField"/>) applies it to every finding path
+    /// a field save writes, naming the field; a caller that writes a finding
+    /// outside a field save - the Engineer's Value valuation - applies it on
+    /// its own.
     /// </summary>
-    public static void RequireFindingConfirmationAuthority(ActionActor actor)
+    public static void RequireFindingAuthority(ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
         if (actor.Kind != ActorKind.Staff)
@@ -95,15 +87,16 @@ public static class AssessmentPolicy
     /// <summary>
     /// The one gate every generic field save passes: the path must be part of
     /// the vocabulary, must not be derived from the damage impacts or recorded
-    /// by the vehicle lookup, must not be owned by the accepted case record, and
-    /// must not be a finding a named command adopts. The value is then
-    /// canonicalized against its own definition. Both the assessment save and
-    /// the Case workspace save call it, so an unwritable path fails the same
-    /// way on either route.
+    /// by the vehicle lookup, must not be owned by the accepted case record,
+    /// and a professional finding is written only by staff. The value is then canonicalized
+    /// against its own definition. Both the assessment save and the Case
+    /// workspace save call it, so an unwritable path fails the same way on
+    /// either route.
     /// </summary>
-    public static string? NormalizeWritableField(string path, string? rawValue)
+    public static string? NormalizeWritableField(string path, string? rawValue, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(actor);
         if (AssessmentVocabulary.DerivedPaths.Contains(path))
         {
             throw new InvalidOperationException(
@@ -120,21 +113,28 @@ public static class AssessmentPolicy
                 $"The field '{path}' is owned by the accepted case record; "
                 + "save it through the case-detail edit path instead.");
         }
-        if (AssessmentVocabulary.AdoptedFindingPaths.Contains(path))
-        {
-            throw new InvalidOperationException(
-                $"The field '{path}' is recorded only when a Case Save adopts an Engineer's Value; "
-                + "a field save can neither record nor clear it.");
-        }
         if (!AssessmentVocabulary.Definitions.TryGetValue(path, out var definition))
         {
             throw new ArgumentException(
                 $"The field path '{path}' is not part of the assessment vocabulary.",
                 nameof(path));
         }
+        if (definition.IsFinding && actor.Kind != ActorKind.Staff)
+        {
+            throw new InvalidOperationException(
+                $"The field '{path}' is a professional finding; only staff record it on the Case.");
+        }
 
         return NormalizeValue(definition, rawValue);
     }
+
+    /// <summary>
+    /// Whether an automated fill (the original-report extraction, the vehicle
+    /// lookup's Vehicle type) lands on a cell: only where staff have not
+    /// recorded a value. A value staff typed is never overwritten; a value an
+    /// automation recorded takes the newer reading.
+    /// </summary>
+    public static bool FillLands(ActorKind? recordedByKind) => recordedByKind != ActorKind.Staff;
 
     public static void RequireOriginalReportScope(IEnumerable<string> paths, CaseType caseType)
     {
@@ -423,32 +423,18 @@ public static class AssessmentPolicy
         RequireField(
             AssessmentVocabulary.ImpactLocation, "Impact location", "Damage",
             "Record a damage on the Damage section; the impact location is derived from it.");
-        // The report's retail and trade are the Engineer's Value basis card's,
-        // recorded by the adoption (operator, 24 September 2026). Before an
-        // adoption the Engineer's Value item names the one Save that records
-        // all three; retail and trade are named only once an adoption has
-        // left one of them unrecorded.
-        var adopted = fields.ContainsKey(AssessmentVocabulary.ValueEngineer);
-        if (adopted && !fields.ContainsKey(AssessmentVocabulary.ValueRetail))
-        {
-            items.Add(new(
-                "Retail value", "Valuation",
-                "The adopted Engineer's Value records no basis retail value.",
-                "Save the valuation calculation again on the Valuation section; the Save records its basis card's retail value.",
-                Field: AssessmentVocabulary.ValueRetail));
-        }
-        if ((adopted || fields.ContainsKey(AssessmentVocabulary.ValueRetail))
-            && !fields.ContainsKey(AssessmentVocabulary.ValueTrade))
-        {
-            items.Add(new(
-                "Trade value", "Valuation",
-                "The adopted Engineer's Value basis card records no trade value.",
-                "Enter the trade value on the basis card on the Valuation section, then save the Case.",
-                Field: AssessmentVocabulary.ValueTrade));
-        }
+        // The report prints the retail, trade and Engineer's values side by
+        // side, so each is named until entered. Each is a box on Valuation,
+        // typed or filled from a guide card (operator, 26 September 2026).
+        RequireField(
+            AssessmentVocabulary.ValueRetail, "Retail value", "Valuation",
+            "Enter it on the Valuation section.");
+        RequireField(
+            AssessmentVocabulary.ValueTrade, "Trade value", "Valuation",
+            "Enter it on the Valuation section.");
         RequireField(
             AssessmentVocabulary.ValueEngineer, "Engineer's Value", "Valuation",
-            "Save a valuation calculation on the Valuation section.");
+            "Enter it on the Valuation section.");
         RequireField(AssessmentVocabulary.Outcome, "Assessment outcome", "Decisions");
         RequireField(AssessmentVocabulary.LegalStatus, "Roadworthiness", "Decisions");
         RequireField(
@@ -497,24 +483,13 @@ public static class AssessmentPolicy
         if (fields.TryGetValue(AssessmentVocabulary.Outcome, out var outcome)
             && string.Equals(outcome, "total_loss", StringComparison.Ordinal))
         {
-            if (!fields.TryGetValue(AssessmentVocabulary.SalvageCategory, out var category))
+            if (!fields.ContainsKey(AssessmentVocabulary.SalvageCategory))
             {
                 items.Add(new(
                     "Salvage category",
                     "Assessment record",
                     "The outcome is Total loss without a salvage category.",
                     "Record it on the Decisions section.",
-                    Field: AssessmentVocabulary.SalvageCategory));
-            }
-            else if (!AssessmentReportContract.PrintsSalvageCategory(category))
-            {
-                items.Add(new(
-                    "Salvage category",
-                    "Assessment record",
-                    $"The report prints only Category {AssessmentReportContract.PrintableSalvageCategory}; "
-                        + $"this total loss is recorded as Category {category}.",
-                    $"Record Category {AssessmentReportContract.PrintableSalvageCategory} on the Decisions section, "
-                        + "or record a different outcome.",
                     Field: AssessmentVocabulary.SalvageCategory));
             }
             if (!fields.ContainsKey(AssessmentVocabulary.SalvageValue))
@@ -528,55 +503,22 @@ public static class AssessmentPolicy
             }
         }
 
-        var contractRepair = string.Equals(
-            fields.GetValueOrDefault(AssessmentVocabulary.Outcome),
-            "contract_repair",
-            StringComparison.Ordinal);
-        if (contractRepair
-            && projection.Field(AssessmentVocabulary.SettlementContractSum) is not { IsConfirmed: true })
+        if (string.Equals(outcome, "contract_repair", StringComparison.Ordinal)
+            && !fields.ContainsKey(AssessmentVocabulary.SettlementContractSum))
         {
             items.Add(new(
                 "Agreed contract sum",
                 "Assessment record",
-                "The outcome is Contract repair without a confirmed agreed contract sum.",
+                "The outcome is Contract repair without an agreed contract sum.",
                 "Record the agreed contract sum on the Decisions section and save it.",
                 Field: AssessmentVocabulary.SettlementContractSum));
         }
 
-        // Temporary repairs are the unroadworthy vehicle's: the report prints
-        // them only then and Decisions shows their rows only then. For any
-        // other vehicle an unconfirmed temporary repair would block the report
-        // on a value it does not print, from rows the operator cannot see, so
-        // it blocks nothing.
-        var temporaryRepairsApply = AssessmentVocabulary.TemporaryRepairsApply(
-            fields.GetValueOrDefault(AssessmentVocabulary.LegalStatus));
-
-        // One actionable blocker per unconfirmed value, naming the exact
-        // field or line and who recorded it. A single aggregate count is
-        // prohibited: an unmet requirement has to identify its own material,
-        // provenance, reason, and permitted resolution.
-        foreach (var field in projection.Fields.Where(field => !field.IsConfirmed
-            && !(contractRepair && field.Path == AssessmentVocabulary.SettlementContractSum)
-            && (temporaryRepairsApply || !AssessmentVocabulary.TemporaryRepairPaths.Contains(field.Path))))
-        {
-            items.Add(new(
-                $"{field.Path} awaits review",
-                $"Recorded by {field.RecordedByKind} ({field.RecordedBy})",
-                "The value is unconfirmed working data until a staff member confirms it.",
-                "Review the value on its Case section and save to confirm it, or clear it there.",
-                Field: field.Path));
-        }
-
-        foreach (var line in projection.EstimateLines.Where(line => !line.IsConfirmed))
-        {
-            items.Add(new(
-                $"Estimate line {line.Position} ({line.Type}) awaits review",
-                $"Recorded by {line.RecordedByKind} ({line.RecordedBy})",
-                "The line is unconfirmed working data until a staff member confirms it.",
-                "Review the line on the Repair Spec section; Use repair spec confirms the spec's lines.",
-                EstimateLine: line.Position));
-        }
-
+        // A recorded value is the Case's value whoever recorded it (operator,
+        // 25 September 2026): nothing here names a field because of who
+        // recorded it. Each requirement above identifies its own material,
+        // reason and permitted resolution; a single aggregate count is
+        // prohibited.
         return items;
     }
 
@@ -920,7 +862,6 @@ public static class AssessmentPolicy
                     nameof(lines));
             }
 
-            var status = NormalizeCode(line.Status, EstimateLineCodes.Statuses, "status");
             var evidence = NormalizeCode(
                 line.EvidenceLabel,
                 EstimateLineCodes.EvidenceLabels,
@@ -930,7 +871,6 @@ public static class AssessmentPolicy
                 Type = line.Type!.Trim(),
                 GuideCode = NormalizeText(line.GuideCode, 50, "guide code"),
                 Description = NormalizeText(line.Description, 300, "description"),
-                Status = status,
                 EvidenceLabel = evidence,
                 PartNumber = NormalizeText(line.PartNumber, 100, "part number"),
                 Betterment = NormalizeText(line.Betterment, 100, "betterment"),

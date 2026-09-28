@@ -22,6 +22,7 @@
 .record-section.panel{scroll-margin-top:calc(var(--utility-h) + var(--sticky-h,97px) + 8px)}
 .record-section>.panel-head>.meta{font-size:12px;color:var(--quiet);font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .record-section .panel-actions form{display:contents}
+#section-estimate [data-glass-controls="launch"]:not([hidden]){display:contents}
 .record-section .panel-actions .btn--small .icon{width:13px;height:13px}
 .record-section .gated.avail{margin-left:0}
 .section-placeholder{min-height:120px;display:grid;place-items:center;color:var(--quiet);font-size:12.5px}
@@ -424,21 +425,13 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .decisions{border:1px solid var(--line);border-radius:var(--radius);background:#fff}
 .dec-head{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line);background:var(--surface-2)}
 .dec-head h3{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;margin:0}
-.dec-head .muted{flex:1}
-.dec-head [data-accept-all-proposals]{margin-left:auto}
 .dec{display:grid;grid-template-columns:160px minmax(0,1fr);gap:10px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--line)}
-.decisions.has-proposal .dec{grid-template-columns:160px minmax(0,1fr) minmax(0,1fr)}
-.decisions .dec.wide{grid-template-columns:160px minmax(0,1fr)}
-.decisions.has-proposal .dec.wide{grid-template-columns:160px minmax(0,2fr)}
 .dec:last-child{border-bottom:0}
 .dec .dl{font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
 .dec .fc>label,.dec .fc>.lbl{display:none}
 .dec .fc{margin:0}
-.dec .prop{display:flex;align-items:center;gap:8px;min-height:var(--control);padding:4px 9px;border:1px dashed var(--line-strong);border-radius:var(--radius);background:var(--navy-bg);font-size:13px;flex-wrap:wrap}
-.dec .prop:empty{border-style:none;background:transparent}
-.dec .prop .btn{margin-left:auto}
 .dec .fv .src-tag{margin-left:6px}
-@media(max-width:900px){.dec,.decisions.has-proposal .dec,.decisions .dec.wide,.decisions.has-proposal .dec.wide{grid-template-columns:1fr}.dec .dl{padding-top:4px}}
+@media(max-width:900px){.dec{grid-template-columns:1fr}.dec .dl{padding-top:4px}}
 @media(max-width:760px){#section-settlement .metric-strip{grid-template-columns:repeat(2,1fr)}#section-settlement .metric:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 
 /* ---- Report (v26): preview card, generation, recipients, image strip -------- */

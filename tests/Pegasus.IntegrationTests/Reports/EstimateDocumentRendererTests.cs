@@ -7,6 +7,7 @@ using Pegasus.Core.Reports;
 using Pegasus.Infrastructure;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
+using static Pegasus.IntegrationTests.Reports.PrintedPages;
 
 namespace Pegasus.IntegrationTests.Reports;
 
@@ -37,9 +38,11 @@ public sealed partial class EstimateDocumentRendererTests
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(artifact.Pdf)), artifact.Sha256);
         Assert.EndsWith("_estimate.pdf", artifact.SuggestedFileName, StringComparison.Ordinal);
         var text = string.Join(" ", PageTexts(artifact.Pdf));
+        // The title's letters are spaced, so it is looked for with the spaces taken out.
+        Assert.Contains("ESTIMATE", Squeeze(text), StringComparison.Ordinal);
         foreach (var expected in new[]
         {
-            "ESTIMATE", "QDOS26001", "CLAIM-1", "Alex Example", "Ford Focus",
+            "QDOS26001", "CLAIM-1", "Alex Example", "Ford Focus",
             "AB12 CDE", "Estimate 1", "DRAFT", "Door skin", "PN-42",
             "Additional costs", "Hours", "Rate and discounts",
             "Labour", "Materials", "Parts", "Specialist / Other", "Net", "Gross",
@@ -49,6 +52,75 @@ public sealed partial class EstimateDocumentRendererTests
         }
         Assert.Contains("1.75", text, StringComparison.Ordinal);
         Assert.Contains("2.75", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Repair Spec printout takes the report's running header, footer,
+    /// margins, title and heading style (operator, 27 September 2026), on
+    /// every page it runs to.
+    /// </summary>
+    [Fact]
+    public async Task ThePrintoutTakesTheReportsPage()
+    {
+        await using var provider = Provider();
+        var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
+        var snapshot = Document(Estimate(Enumerable.Range(1, 120)
+            .Select(index => Line(index, $"Repair line {index:000}"))
+            .ToArray()) with
+        {
+            Details = DefaultDetails() with { OtherCosts = 25m },
+        });
+
+        var artifact = await renderer.RenderAsync(snapshot);
+
+        Assert.Equal("estimate-v2", artifact.TemplateVersion);
+        var pages = Read(artifact.Pdf);
+        Assert.True(pages.Count > 1);
+        for (var index = 0; index < pages.Count; index++)
+        {
+            var page = pages[index];
+            // The company block against the right edge, 190 mm, and the logo at the left.
+            var block = Lines(page.Letters.Where(letter => letter.Baseline < 36));
+            Assert.Equal(
+                AssessmentReportWording.CompanyBlock(feeNote: false).Select(Squeeze),
+                block.Select(line => line.Text));
+            Assert.All(block, line => Assert.InRange(line.Right, 189.5, 190.5));
+            var logo = Assert.Single(page.Images);
+            Assert.Equal((20.0, 8.2, 44.0), (Math.Round(logo.Left, 1), Math.Round(logo.Top, 1), Math.Round(logo.Width, 1)));
+
+            // The footer beneath its red rule, centred, and the page number at the right.
+            var foot = Lines(page.Letters.Where(letter => letter.Baseline > 280));
+            Assert.Equal(
+                [
+                    Squeeze(AssessmentReportWording.Footer("AB12 CDE", "QDOS26001", feeNote: false)),
+                    Squeeze(AssessmentReportWording.PageNumber(index + 1, pages.Count)),
+                ],
+                foot.OrderBy(line => line.Left).Select(line => line.Text));
+            Assert.All(foot, line => Assert.Equal("#777777", line.Colour));
+            var footer = foot.MinBy(line => line.Left)!;
+            Assert.InRange((footer.Left + footer.Right) / 2, 104.5, 105.5);
+            Assert.Contains(page.Shapes, shape =>
+                shape.Stroke == "#c80a32" && Math.Abs(shape.Left - 39) < 0.5 && Math.Abs(shape.Right - 171) < 0.5
+                && Math.Abs(shape.Top - 282.26) < 0.5);
+
+            // The body keeps the report's margins.
+            var body = page.Letters.Where(letter => letter.Baseline is > 36 and < 280).ToArray();
+            Assert.InRange(body.Min(letter => letter.Left), 22.0, 22.3);
+            Assert.InRange(body.Max(letter => letter.Right), 22.0, 188.0);
+        }
+
+        // The title and the headings are the report's: 16 point bold italic
+        // and 11 point bold, red, with no rule beneath a heading.
+        var title = Assert.Single(Lines(pages[0].Letters.Where(letter => letter.Size == 16)));
+        Assert.Equal(("ESTIMATE", "#c80a32", true, true), (title.Text, title.Colour, title.Bold, title.Italic));
+        Assert.InRange((title.Left + title.Right) / 2, 104.5, 105.5);
+        var headings = pages.SelectMany(page => Lines(page.Letters.Where(letter => letter.Size == 11))).ToArray();
+        Assert.Equal(["Adjustments", "Hours", "Rateanddiscounts", "Totals"], headings.Select(line => line.Text));
+        Assert.All(headings, heading =>
+        {
+            Assert.Equal(("#c80a32", true, false), (heading.Colour, heading.Bold, heading.Italic));
+            Assert.InRange(heading.Left, 22.0, 22.3);
+        });
     }
 
     [Fact]
@@ -81,7 +153,7 @@ public sealed partial class EstimateDocumentRendererTests
     }
 
     [Fact]
-    public async Task AMaximumLengthSavedEstimateNameWrapsInsideTheLetterhead()
+    public async Task AMaximumLengthSavedEstimateNameWrapsWithinTheBody()
     {
         await using var provider = Provider();
         var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
@@ -97,6 +169,10 @@ public sealed partial class EstimateDocumentRendererTests
         Assert.Equal(1, artifact.PageCount);
         Assert.Equal(EstimatePolicy.MaximumNameLength * 2, text.Count(character => character == 'W'));
         Assert.Contains("Estimate:", text, StringComparison.Ordinal);
+        // Both printings of the name wrap between the body's margins.
+        var name = Assert.Single(Read(artifact.Pdf)).Letters.Where(letter => letter.Value == "W").ToArray();
+        Assert.InRange(name.Min(letter => letter.Left), 22.0, 188.0);
+        Assert.InRange(name.Max(letter => letter.Right), 22.0, 188.0);
     }
 
     [Fact]
@@ -172,8 +248,8 @@ public sealed partial class EstimateDocumentRendererTests
         params CaseEstimateLineRecord[] lines) => new(
         Guid.NewGuid(), Guid.NewGuid(), 1, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
-        lines, null, "engineer", new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero),
-        null, null, null, null, details);
+        lines, "engineer", new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero),
+        details);
 
     private static CaseEstimateLineRecord[] EvaEstimateLines(string timedOperationType) =>
     [
@@ -207,8 +283,7 @@ public sealed partial class EstimateDocumentRendererTests
 
     private static CaseEstimateLineRecord Line(int position, string description) => new(
         Guid.NewGuid(), position, "repair", null, description, 0.1m, null, false,
-        null, null, null, null, null, ActorKind.Staff, "engineer",
-        new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero), "engineer",
+        null, null, null, null, ActorKind.Staff, "engineer",
         new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero));
 
     private static string[] PageTexts(byte[] pdf)
@@ -221,6 +296,7 @@ public sealed partial class EstimateDocumentRendererTests
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();
+
 
     private static ServiceProvider Provider()
     {

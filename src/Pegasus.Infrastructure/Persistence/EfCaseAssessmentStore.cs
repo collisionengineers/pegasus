@@ -18,8 +18,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// the case workflow event stream, optimistic case version, the server-owned
 /// edit lease, and the same three history records (workflow event, permanent
 /// action history with before/after values, case history). An Automation
-/// save differs from a staff save only in the stored provenance: its values
-/// carry the unconfirmed mark until staff review.
+/// save differs from a staff save only in the stored provenance.
 /// </summary>
 public sealed class EfCaseAssessmentStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -131,33 +130,8 @@ public sealed class EfCaseAssessmentStore(
         CaseDataSourceKind? mileageProvenance = mileageField is null
             ? null
             : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind);
-        var specification = await EfRepairSpecificationStore.DraftQuery(context, workId)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (specification is null && request.EstimateLines is not null)
-        {
-            var acceptedExists = await EfRepairSpecificationStore.AcceptedQuery(context, workId)
-                .AnyAsync(cancellationToken);
-            if (acceptedExists)
-            {
-                throw new InvalidOperationException(
-                    "An accepted repair specification is immutable; start a reasoned correction draft before editing its lines.");
-            }
-            var version = await EfRepairSpecificationStore.NextVersionAsync(
-                context, workId, cancellationToken);
-            specification = EfRepairSpecificationStore.NewLegacyDraft(
-                workId, version, request.Actor.SubjectId, request.OperationKey, now);
-            context.CaseRepairSpecifications.Add(specification);
-        }
-        var specificationId = specification?.Id;
-        var lines = await context.CaseEstimateLines
-            .Where(item => item.WorkId == workId
-                && item.RepairSpecificationId == specificationId)
-            .OrderBy(item => item.Position)
-            .ToListAsync(cancellationToken);
-
         var (fieldsToWrite, merged) = AssessmentWriteSet.Build(request.Fields, fields, request.Actor.Kind);
         AssessmentPolicy.ValidateMergedState(fieldsToWrite, merged);
-        var confirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null;
         var (beforeFields, afterFields) = AssessmentWriteSet.Apply(
             context,
             workId,
@@ -165,20 +139,6 @@ public sealed class EfCaseAssessmentStore(
             fieldsToWrite,
             request.Actor,
             now);
-
-        object? beforeLines = null;
-        object? afterLines = null;
-        if (request.EstimateLines is { } replacementLines)
-        {
-            (beforeLines, afterLines) = EstimateLineWriter.Replace(
-                context,
-                workId,
-                specification,
-                lines,
-                replacementLines,
-                request.Actor,
-                now);
-        }
 
         var beforeVersion = workflow.Version;
         workflow.Version++;
@@ -194,13 +154,12 @@ public sealed class EfCaseAssessmentStore(
             beforeVersion,
             workflow.Version,
             JsonSerializer.Serialize(
-                new { Fields = beforeFields, EstimateLines = beforeLines },
+                new { Fields = beforeFields },
                 JsonOptions),
             JsonSerializer.Serialize(
                 new
                 {
                     Fields = afterFields,
-                    EstimateLines = afterLines,
                     request.AiWorkRequestId
                 },
                 JsonOptions),
@@ -305,9 +264,7 @@ public sealed class EfCaseAssessmentStore(
                 item.Value,
                 ParseActorKind(item.RecordedByKind),
                 item.RecordedBy,
-                item.RecordedAtUtc,
-                item.ConfirmedBy,
-                item.ConfirmedAtUtc))
+                item.RecordedAtUtc))
             .ToArray(),
         lines.Select(item => new CaseEstimateLineRecord(
                 item.Id,
@@ -320,37 +277,24 @@ public sealed class EfCaseAssessmentStore(
                 item.Unpriced,
                 item.PartNumber,
                 item.Betterment,
-                item.Status,
                 item.EvidenceLabel,
                 item.Justification,
                 ParseActorKind(item.RecordedByKind),
                 item.RecordedBy,
                 item.RecordedAtUtc,
-                item.ConfirmedBy,
-                item.ConfirmedAtUtc,
                 item.PaintWorkUnits,
                 item.Quantity))
             .ToArray(),
         MapCaseOwned(workflow.Case, caseDataFields, fields, originReceivedAtUtc));
 
     /// <summary>
-    /// The current specification for report/read purposes is the accepted
-    /// one, or the open draft when nothing is accepted yet. <see
-    /// cref="IRepairSpecificationStore"/> is the single owner of both
-    /// queries; this store only resolves which one wins.
+    /// The assessment reads the Current specification's lines; <see
+    /// cref="IRepairSpecificationStore"/> owns which one that is.
     /// </summary>
     private async Task<Guid?> CurrentSpecificationIdAsync(
         Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        var accepted = await repairSpecifications.GetCurrentAcceptedAsync(caseId, cancellationToken);
-        if (accepted is not null)
-        {
-            return accepted.SpecificationId;
-        }
-        var draft = await repairSpecifications.GetCurrentDraftAsync(caseId, cancellationToken);
-        return draft?.SpecificationId;
-    }
+        CancellationToken cancellationToken) =>
+        (await repairSpecifications.GetCurrentAsync(caseId, cancellationToken))?.SpecificationId;
 
     private static AssessmentCaseOwnedData MapCaseOwned(
         CaseEntity caseEntity,
@@ -383,11 +327,8 @@ public sealed class EfCaseAssessmentStore(
         var mileageSource = CaseVehicleMileageSourcePolicy.Resolve(
             mileageField is null ? null : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind),
             mileageField is not null,
-            // Only a confirmed pick counts, which is the same row the Case
-            // record reads: an unconfirmed draft must not reach the report.
             assessmentFields
-                .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource
-                    && item.ConfirmedAtUtc is not null)
+                .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource)
                 ?.Value);
         // The Case's Received date (CaseDataPolicy.ReceivedDate); the report
         // prints it as the date instructions were received.
@@ -452,7 +393,6 @@ public sealed class EfCaseAssessmentStore(
             request.Reason,
             request.EditLeaseToken,
             Fields = request.Fields.OrderBy(pair => pair.Key, StringComparer.Ordinal),
-            request.EstimateLines,
             request.AiWorkRequestId
         }, JsonOptions);
         return CaseOperationReplay.Hash(material);
@@ -470,11 +410,20 @@ internal static class CaseDataFieldValues
         CurrentField(fields, fieldName)?.Value;
 
     /// <summary>The accepted value: confirmed, else the intake fact; never a suggestion.</summary>
-    internal static string? Accepted(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
+    internal static string? Accepted(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName) =>
+        AcceptedField(fields, fieldName)?.Value;
+
+    /// <summary>
+    /// The accepted row itself: the staff-confirmed row, else the intake fact,
+    /// never a suggestion. The value the Case shows and the one Save posts
+    /// back, so the editable-data reader and the field writer both read it
+    /// (#837).
+    /// </summary>
+    internal static CaseDataFieldEntity? AcceptedField(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
     {
         var values = fields.Where(item => item.FieldName == fieldName).ToArray();
-        return (values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
-            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact))?.Value;
+        return values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
+            ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact);
     }
 
     /// <summary>

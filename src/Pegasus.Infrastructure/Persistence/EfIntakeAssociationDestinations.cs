@@ -172,6 +172,62 @@ public sealed class EfIntakeAssociationDestinations(
             return null;
         }
 
+        return await GetAsync(caseId, actor, cancellationToken);
+    }
+
+    /// <summary>
+    /// The Case as a destination before any receipt exists for it (Add
+    /// evidence on a Case page): the same workflow or Triage authority row the
+    /// receipt overload reads, with the registration, claimant and Principal
+    /// the destination card shows, read from the Case search by exact
+    /// reference. A failed facts read leaves the card with the reference and
+    /// state it certainly has.
+    /// </summary>
+    public async Task<IntakeAssociationDestination?> GetAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (caseId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var destination = await ReadAuthorityAsync(caseId, cancellationToken);
+        if (destination is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var searched = await caseQueries.SearchAsync(
+                new(actor, new(CaseReference: destination.Reference, IncludeTriage: true), Page: 1, PageSize: 2),
+                cancellationToken);
+            var facts = searched.Items.FirstOrDefault(item => item.CaseId == caseId);
+            return facts is null
+                ? destination
+                : destination with
+                {
+                    Registration = facts.Registration ?? destination.Registration,
+                    Claimant = facts.Claimant,
+                    Principal = facts.Principal
+                };
+        }
+        catch (Exception exception) when (exception is not StaffAuthorizationException
+            && !cancellationToken.IsCancellationRequested
+            && IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            return destination;
+        }
+    }
+
+    private async Task<IntakeAssociationDestination?> ReadAuthorityAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var row = await context.CaseWorkflows.AsNoTracking()
             .Where(item => item.CaseId == caseId)

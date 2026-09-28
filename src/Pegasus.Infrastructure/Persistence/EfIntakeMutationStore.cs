@@ -26,12 +26,6 @@ internal sealed class EfIntakeMutationStore(
       IAutomaticCaseEvidencePromotionStore
 {
     private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
-    private static readonly string[] AutomaticPromotionEligibleStates =
-        Enum.GetValues<CaseLifecycleState>()
-            .Where(state => ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, false))
-            .Select(state => state.ToString())
-            .ToArray();
-
     public async Task<AutomaticCaseEvidencePromotionPreparation> PrepareAsync(
         AutomaticCaseEvidencePromotionRequest request,
         CancellationToken cancellationToken)
@@ -62,12 +56,13 @@ internal sealed class EfIntakeMutationStore(
         var receipt = await context.IntakeReceipts
             .SingleOrDefaultAsync(item => item.Id == request.IntakeReceiptId, cancellationToken)
             ?? throw new KeyNotFoundException("The intake receipt does not exist.");
-        var association = await context.IntakeManualAssociations
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.IntakeReceiptId == request.IntakeReceiptId, cancellationToken);
-        if (association is null || !association.IsActive || association.CaseId != request.CaseId
-            || association.ActorKind != nameof(ActorKind.SystemWorker)
-            || receipt.SourceChannel == "manual_upload")
+        // One rule for whether this Case may receive the receipt's evidence,
+        // shared with every custody step (IntakePromotionTarget): a staff
+        // decision files on any Case in any state, the pipeline's own only
+        // where automatic association is accepted.
+        var target = await IntakePromotionTarget.EvaluateAsync(
+            context, request.CaseId, request.IntakeReceiptId, timeProvider.GetUtcNow(), cancellationToken);
+        if (target.Disposition == PromotionTargetDisposition.NotApplicable)
         {
             return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
         }
@@ -92,24 +87,13 @@ internal sealed class EfIntakeMutationStore(
             }
         }
 
-        var workflow = await context.CaseWorkflows
-            .Include(item => item.Case)
-            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
-            ?? throw new KeyNotFoundException("The associated Case does not exist.");
-        if (workflow.ArchivedAtUtc is not null
-            || workflow.Case.OriginIntakeReceiptId == request.IntakeReceiptId
-            || !AutomaticPromotionEligibleStates.Contains(workflow.State)
-            || workflow.ReportSentEvidenceId is not null)
-        {
-            return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
-        }
-        if (workflow.EditLeaseExpiresAtUtc > timeProvider.GetUtcNow())
+        if (target.Disposition == PromotionTargetDisposition.Deferred)
         {
             return new(AutomaticCaseEvidencePromotionPreparationDisposition.Deferred);
         }
         if (replay is not null)
         {
-            return new(AutomaticCaseEvidencePromotionPreparationDisposition.Ready, request.CaseId, workflow.Version);
+            return new(AutomaticCaseEvidencePromotionPreparationDisposition.Ready, request.CaseId, target.Version);
         }
 
         var actualAssetIds = await context.IntakeAssets.AsNoTracking()
@@ -139,15 +123,138 @@ internal sealed class EfIntakeMutationStore(
             ExpectedIntakeVersion = receipt.Version,
             BeforeIntakeVersion = receipt.Version,
             AfterIntakeVersion = receipt.Version,
-            ExpectedCaseVersion = workflow.Version,
-            BeforeCaseVersion = workflow.Version,
-            AfterCaseVersion = workflow.Version,
+            ExpectedCaseVersion = target.Version,
+            BeforeCaseVersion = target.Version,
+            AfterCaseVersion = target.Version,
             AfterJson = JsonSerializer.Serialize(
                 new AutomaticCaseEvidencePromotionPlan(assetIds, request.HasSelectedPhotographs))
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new(AutomaticCaseEvidencePromotionPreparationDisposition.Ready, request.CaseId, workflow.Version);
+        return new(AutomaticCaseEvidencePromotionPreparationDisposition.Ready, request.CaseId, target.Version);
+    }
+
+    /// <summary>
+    /// The association a member of staff declared before uploading (Add
+    /// evidence on a Case page): written in their name, receipt-side only, in
+    /// the same shape as <see cref="AssociateFromMatchAsync"/>. Any prior
+    /// association row — the pipeline's, or one staff made or reversed after
+    /// the upload — is the later or better-informed decision and wins.
+    /// </summary>
+    public async Task<DeclaredDestinationLinkOutcome> LinkDeclaredDestinationAsync(
+        DeclaredDestinationLinkRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.StaffSubjectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
+        if (request.ReceiptId == Guid.Empty || request.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A receipt and a declared Case are required.", nameof(request));
+        }
+        var operationKey = request.OperationKey.Trim();
+        var requestHash = Hash(JsonSerializer.Serialize(new
+        {
+            request.ReceiptId,
+            request.CaseId,
+            StaffSubjectId = request.StaffSubjectId.Trim()
+        }));
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        await AcquireCaseQueryLockAsync(
+            context, transaction, request.CaseId, request.ReceiptId, cancellationToken);
+
+        var replay = await context.IntakeMutationHistory
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
+        if (replay is not null)
+        {
+            if (replay.IntakeReceiptId != request.ReceiptId
+                || !FixedTimeHashEquals(replay.RequestFingerprint, requestHash))
+            {
+                throw new IntakeOperationConflictException();
+            }
+
+            return DeclaredDestinationLinkOutcome.AlreadyLinked;
+        }
+
+        var receipt = await LoadReceiptAsync(context, request.ReceiptId, cancellationToken)
+            ?? throw new KeyNotFoundException("The intake receipt does not exist.");
+        if (receipt.ManualAssociation is { } existing)
+        {
+            return existing.IsActive && existing.CaseId == request.CaseId
+                ? DeclaredDestinationLinkOutcome.AlreadyLinked
+                : DeclaredDestinationLinkOutcome.Superseded;
+        }
+        if (await AcceptedCaseIdAsync(context, request.ReceiptId, cancellationToken) is not null)
+        {
+            return DeclaredDestinationLinkOutcome.Superseded;
+        }
+
+        // Any Case or Triage Case in any state may be declared (FRD-22 staff
+        // linking); only one that is gone, or archived, cannot take it.
+        var authority = await CaseMutationAuthority.LoadAsync(context, request.CaseId, cancellationToken);
+        if (authority is null || authority.Workflow?.ArchivedAtUtc is not null)
+        {
+            return DeclaredDestinationLinkOutcome.CaseUnavailable;
+        }
+
+        var @case = authority.Case;
+        var beforeVersion = receipt.Version;
+        var beforeJson = Snapshot(receipt);
+        var reason = request.Reason.Trim();
+        var subjectId = request.StaffSubjectId.Trim();
+        receipt.ManualAssociation = new IntakeManualAssociationEntity
+        {
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            CaseId = @case.Id,
+            Case = @case,
+            IsActive = true,
+            Version = 0,
+            LinkedAtUtc = occurredAtUtc,
+            ActorKind = nameof(ActorKind.Staff),
+            ActorSubjectId = subjectId,
+            ActorRolesJson = "[]",
+            Reason = reason,
+            LastOperationKey = operationKey,
+            MatchPolicyKey = null,
+            MatchPolicyVersion = null
+        };
+        receipt.Version++;
+        context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            CaseId = @case.Id,
+            Case = @case,
+            EventType = "intake_case_linked",
+            ActorKind = nameof(ActorKind.Staff),
+            ActorSubjectId = subjectId,
+            ActorRolesJson = "[]",
+            Reason = reason,
+            OperationKey = operationKey,
+            RequestFingerprint = requestHash,
+            OccurredAtUtc = occurredAtUtc,
+            ExpectedIntakeVersion = beforeVersion,
+            BeforeIntakeVersion = beforeVersion,
+            AfterIntakeVersion = receipt.Version,
+            ExpectedCaseVersion = null,
+            BeforeCaseVersion = null,
+            AfterCaseVersion = null,
+            BeforeJson = beforeJson,
+            AfterJson = Snapshot(receipt)
+        });
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return DeclaredDestinationLinkOutcome.Linked;
     }
 
     public async Task<AutomaticMailCaseAssociationEvidence?> GetAsync(

@@ -397,11 +397,26 @@ public sealed class LogsModel(
             ? kind
             : null;
 
-    public string? ReferenceLabel(ActionLogRow row) =>
-        IsCaseReference(row)
-        && Guid.TryParse(row.Reference, out var caseId)
-            ? _caseReferences.GetValueOrDefault(caseId)
-            : Guid.TryParse(row.Reference, out _) ? null : row.Reference;
+    public string? ReferenceLabel(ActionLogRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        if (IsCaseReference(row) && Guid.TryParse(row.Reference, out var caseId))
+        {
+            return _caseReferences.GetValueOrDefault(caseId);
+        }
+
+        // An e-mail template is recorded by its purpose; the log names it.
+        if (row.Area == EmailTemplateArea
+            && Enum.TryParse<EmailTemplatePurpose>(row.Reference, out var purpose)
+            && Enum.IsDefined(purpose))
+        {
+            return OperatorLabels.EmailTemplates.Name(purpose);
+        }
+
+        return Guid.TryParse(row.Reference, out _) ? null : row.Reference;
+    }
+
+    private const string EmailTemplateArea = "email_template";
 
     /// <summary>
     /// The record an AI job row points at, or <see langword="null"/> when the

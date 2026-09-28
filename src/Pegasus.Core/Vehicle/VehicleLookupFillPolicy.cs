@@ -28,8 +28,8 @@ public static class VehicleLookupFillPolicy
     public const string RecorderId = "vehicle-lookup";
 
     /// <summary>
-    /// A lookup fills a vehicle field only where the Case holds neither an
-    /// extracted fact nor a staff-confirmed value.
+    /// A lookup fills a Case-data field only where the Case holds neither an
+    /// extracted fact nor a confirmed value.
     /// </summary>
     public static bool Fills(bool hasFact, bool hasConfirmed) => !hasFact && !hasConfirmed;
 

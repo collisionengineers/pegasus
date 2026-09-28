@@ -163,6 +163,9 @@ public sealed class CaseCustodyWebTests
         Assert.Contains("data-custody-chip", html, StringComparison.Ordinal);
         Assert.DoesNotContain(OperatorLabels.CustodyState(DocumentCustodyStatus.Confirmed), row, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.AddEvidence, html, StringComparison.Ordinal);
+        // Add evidence opens Upload for this Case: the destination is declared
+        // before the upload (FRD-18).
+        Assert.Contains($"href=\"/Upload?caseId={store.CaseId:D}\"", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(OperatorLabels.CaseWorkspace.OpenOperations, html, StringComparison.Ordinal);
         Assert.Contains("href=\"/Operations\"", html, StringComparison.OrdinalIgnoreCase);
     }

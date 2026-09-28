@@ -107,15 +107,15 @@ else {
 
 # Uncommitted work is part of the change set: it is not exempt from its own
 # verification because it has not been committed yet.
-$uncommitted = @(
+$uncommitted = @(@(
     & git -C $repositoryRoot diff --name-only HEAD
     & git -C $repositoryRoot ls-files --others --exclude-standard
-) | Where-Object { $_ }
+) | Where-Object { $_ })
 
-$changed = @(
+$changed = @(@(
     & git -C $repositoryRoot diff --name-only "$mergeBase..HEAD"
     $uncommitted
-) | Where-Object { $_ } | Sort-Object -Unique
+) | Where-Object { $_ } | Sort-Object -Unique)
 
 $flags = & (Join-Path $PSScriptRoot 'Get-CiChangeFlags.ps1') -ChangedPath $changed
 

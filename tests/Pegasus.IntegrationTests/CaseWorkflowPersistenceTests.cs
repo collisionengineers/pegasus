@@ -1636,6 +1636,116 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(1, await harness.WorkflowEventCountAsync("colleague-takeover"));
     }
 
+    /// <summary>
+    /// The QDOS26019 failure: every Case past its first change already has an event at its current
+    /// version, and the takeover's history line is written at that same version. The takeover is
+    /// history, not a Case change, so it neither collides with that event nor with an earlier
+    /// takeover at the same version.
+    /// </summary>
+    [Fact]
+    public async Task AColleagueTakesOverACaseWhoseCurrentVersionAlreadyHasItsOwnEvent()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var first = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var second = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var third = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var started = await new StartCaseWork(harness.Store, harness.EngineerEligibility).ExecuteAsync(
+            new ChangeCaseStateRequest(
+                harness.CaseId,
+                0,
+                first,
+                "start-before-takeover",
+                "Inspection work started",
+                (await harness.Store.ClaimAsync(
+                    new(harness.CaseId, 0, first, "claim-start-before-takeover"),
+                    default)).Token),
+            default);
+        Assert.Equal(1, await harness.WorkflowEventCountAsync("start-before-takeover"));
+        var held = await harness.Store.ClaimAsync(
+            new(harness.CaseId, started.Version, first, "claim-after-start"),
+            default);
+
+        var taken = await harness.Store.ClaimAsync(
+            new(harness.CaseId, started.Version, second, "takeover-at-current-version")
+            {
+                TakeOver = true
+            },
+            default);
+        var takenAgain = await harness.Store.ClaimAsync(
+            new(harness.CaseId, started.Version, third, "second-takeover-at-same-version")
+            {
+                TakeOver = true
+            },
+            default);
+
+        Assert.NotEqual(held.Token, taken.Token);
+        Assert.NotEqual(taken.Token, takenAgain.Token);
+        Assert.Equal(third.SubjectId, takenAgain.Holder);
+        Assert.Equal(started.Version, takenAgain.Version);
+        Assert.Equal(1, await harness.WorkflowEventCountAsync("takeover-at-current-version"));
+        Assert.Equal(1, await harness.WorkflowEventCountAsync("second-takeover-at-same-version"));
+    }
+
+    /// <summary>
+    /// A one-off command the holder makes elsewhere claims, and is refused while their lease is
+    /// live, so it can never take or end their open edit session. Taking their own lease back
+    /// explicitly rotates it but is not a takeover: nothing is recorded as history.
+    /// </summary>
+    [Fact]
+    public async Task TheHoldersOwnClaimIsRefusedUnlessTakenBackAndIsNeverATakeover()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "own-first-claim"),
+            default);
+
+        await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
+            harness.Store.ClaimAsync(
+                new(harness.CaseId, 0, holder, "own-one-off-claim"),
+                default));
+        var takenBack = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "own-take-back") { TakeOver = true },
+            default);
+
+        Assert.NotEqual(held.Token, takenBack.Token);
+        Assert.Equal(holder.SubjectId, takenBack.Holder);
+        Assert.Equal(0, await harness.WorkflowEventCountAsync("own-take-back"));
+        var resumed = await harness.Store.ResumeAsync(new(harness.CaseId, holder), default);
+        Assert.Equal(takenBack.Token, resumed?.Token);
+    }
+
+    /// <summary>
+    /// Returning to a Case puts its holder straight back into edit mode: the holder is handed
+    /// their live lease, renewed for a full lease as a heartbeat renews it, with no operation row.
+    /// Anyone else, and the holder once the lease has lapsed, gets nothing.
+    /// </summary>
+    [Fact]
+    public async Task ResumeHandsTheHolderTheirLiveLeaseAndNobodyElse()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var held = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, holder, "claim-before-resume"),
+            default);
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(4));
+
+        var resumed = await harness.Store.ResumeAsync(new(harness.CaseId, holder), default);
+
+        Assert.NotNull(resumed);
+        Assert.Equal(held.Token, resumed.Token);
+        Assert.Equal(harness.TimeProvider.GetUtcNow().AddMinutes(5), resumed.ExpiresAtUtc);
+        Assert.Equal(1, await harness.LeaseOperationCountAsync(harness.CaseId));
+        Assert.Null(await harness.Store.ResumeAsync(new(harness.CaseId, colleague), default));
+        Assert.Null(await harness.Store.ResumeAsync(
+            new(harness.CaseId, ActionActor.Automation(holder.SubjectId)),
+            default));
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(5));
+        Assert.Null(await harness.Store.ResumeAsync(new(harness.CaseId, holder), default));
+    }
+
     [Fact]
     public async Task StaffCannotTakeOverAnAutomationHeldCase()
     {

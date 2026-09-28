@@ -91,7 +91,7 @@ public sealed class EfRepairSpecificationSnapshotStore(
             LinesJson = linesJson,
             SupplementaryJson = supplementaryJson,
             ContentHash = hash,
-            Gross = EstimateTotals.ForProjection(specification).Printed.Gross,
+            Gross = EstimateTotals.Compute(specification).Printed.Gross,
             SentOnReport = kind == RepairSpecificationSnapshotKind.Sent,
         };
         context.CaseRepairSpecificationSnapshots.Add(entity);

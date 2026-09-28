@@ -610,6 +610,7 @@
 
     var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
     function swap(html, command, preferred) {
+        glassRefreshGeneration += 1;
         var parsed = new DOMParser().parseFromString(html, 'text/html');
         var incoming = parsed.querySelector('[data-case-record]');
         if (!incoming) {
@@ -728,6 +729,12 @@
             var text = confirmation.querySelector('span');
             if (text) { window.pegasusToast(text.textContent.trim()); }
         }
+        // Work the server reports as not yet finished is announced in amber.
+        var warning = document.querySelector('[data-case-notices] [data-case-warning]');
+        if (warning && typeof window.pegasusToast === 'function') {
+            var warningText = warning.querySelector('span');
+            if (warningText) { window.pegasusToast(warningText.textContent.trim(), 'warning'); }
+        }
         // Only a refusal the server rendered into the swapped-in notices;
         // showActionError has already toasted its own [data-inplace-error].
         var alertNotice = document.querySelector('[data-case-notices] [role="alert"]:not([data-inplace-error])');
@@ -745,6 +752,14 @@
             return target.pathname.replace(/\/+$/, '') === window.location.pathname.replace(/\/+$/, '');
         } catch (_) {
             return false;
+        }
+    }
+    // The shared Refresh control (site.js) marks itself busy on submit and
+    // expects the navigation to end that. An intercepted refresh never
+    // navigates, so every way out of one ends it here.
+    function resetRefresh(form) {
+        if (form.hasAttribute('data-refresh-form') && typeof window.pegasusResetRefresh === 'function') {
+            window.pegasusResetRefresh(form);
         }
     }
     function submitInPlace(form, submitter) {
@@ -799,8 +814,10 @@
             if (!swap(html, command, preferred)) {
                 throw new Error('The server did not return the Case.');
             }
+            if (form.hasAttribute('data-glass-close-form')) { return refreshGlassControls(); }
         }).catch(function (error) {
             // A failed save runs nothing after it.
+            if (afterSave && afterSave.cancel) { afterSave.cancel(); }
             afterSave = null;
             var failure = isImport
                 ? error.message + ' Import completion was not confirmed. Your unsaved changes are still here; reload the Case before retrying. If the source was already stored, it will be reused.'
@@ -809,6 +826,7 @@
         }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
+            resetRefresh(form);
             if (importSection && importSection.isConnected) {
                 importSection.removeAttribute('data-estimate-importing');
                 importSection.classList.remove('is-import-unavailable');
@@ -1017,7 +1035,12 @@
         }
         event.preventDefault();
         var isImport = form.hasAttribute('data-estimate-import-form');
-        if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') { return; }
+        if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') {
+            // A Refresh already in flight (F5 bypasses the disabled button)
+            // stays busy until its own response lands.
+            if (form.dataset.inplaceSubmitting !== 'true') { resetRefresh(form); }
+            return;
+        }
         if (isImport && estimateIsDirty()) {
             showActionError(form.dataset.estimateImportDirty
                 || 'Save or cancel the estimate changes before importing another estimate.');
@@ -1042,13 +1065,16 @@
         }
         // Cancel is the operator discarding: it needs no second question.
         var isCancel = form.hasAttribute('data-case-cancel-form');
-        if (!isSave && dirty && !isCancel) {
+        if (!isSave && dirty && !isCancel && !form.hasAttribute('data-glass-close-form')) {
             askUnsaved().then(function (answer) {
                 if (answer === 'keep') {
+                    resetRefresh(form);
                     return;
                 }
                 if (answer === 'save') {
-                    // Saving carries on into what was asked for.
+                    // Saving carries on into what was asked for. A refresh
+                    // ends here: the save's own response is the fresh Case.
+                    resetRefresh(form);
                     var save = activeDirtyForm();
                     if (save) { saveThen(save, again(form, submitter)); }
                     return;
@@ -1076,23 +1102,59 @@
         var form = activeDirtyForm();
         if (form) { form.requestSubmit(); }
     }, true);
+    // Leaving the Case by a link ends edit mode (FRD-14): unsaved changes are
+    // asked about first, and the lease is released as the operator goes, so
+    // the Case is free rather than held until its lease lapses. A link to
+    // this same Case (a section, a view, one of its own pages) keeps editing.
+    function leavesCase(link) {
+        var beacon = record.querySelector('[data-case-release-beacon]');
+        if (!beacon) {
+            return false;
+        }
+        var url;
+        try {
+            url = new URL(link.href, window.location.href);
+        } catch (error) {
+            return false;
+        }
+        var caseId = (beacon.getAttribute('data-case-id') || '').toLowerCase();
+        return url.origin !== window.location.origin
+            || (url.pathname.toLowerCase().indexOf(caseId) === -1
+                && (url.searchParams.get('id') || '').toLowerCase() !== caseId);
+    }
+    function releaseOnLeaving(link) {
+        var beacon = record.querySelector('[data-case-release-beacon]');
+        if (beacon && typeof navigator.sendBeacon === 'function' && leavesCase(link)) {
+            navigator.sendBeacon(beacon.action, new FormData(beacon));
+        }
+    }
     document.addEventListener('click', function (event) {
         var link = event.target.closest('a[href]');
-        if (!dirty || !link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey
+        if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey
             || link.hasAttribute('target') || link.hasAttribute('download') || link.hasAttribute('data-section-link')
             || link.getAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
             || link.getAttribute('href').startsWith('#')) { return; }
+        if (!dirty) {
+            // A post still in flight decides the lease itself; a release
+            // overtaking it could refuse a save.
+            if (!submitting) { releaseOnLeaving(link); }
+            return;
+        }
         event.preventDefault();
         if (submitting || confirmResolve) { return; }
         askUnsaved().then(function (answer) {
             if (answer === 'save') {
                 var form = activeDirtyForm();
                 if (form) {
-                    saveThen(form, function () { window.location.assign(link.href); });
+                    saveThen(form, function () {
+                        releaseOnLeaving(link);
+                        window.location.assign(link.href);
+                    });
                 }
             } else if (answer === 'discard') {
                 dirtyEditors.clear();
                 setDirty(false);
+                releaseOnLeaving(link);
                 window.location.assign(link.href);
             }
         });
@@ -1102,13 +1164,16 @@
     //      over unsaved Case changes) runs what was asked for once the save
     //      has landed, rather than dropping it ------------------------------
     var afterSave = null;
-    function saveThen(save, next) {
-        afterSave = { editor: save.getAttribute('id'), next: next };
+    function saveThen(save, next, cancel) {
+        if (!save.reportValidity()) { if (cancel) { cancel(); } return; }
+        afterSave = { editor: save.getAttribute('id'), next: next, cancel: cancel };
         save.requestSubmit();
     }
     // The action's form is found again after the save's swap, which renders
     // it afresh with the Case's new version and a new operation key, and the
-    // operator's choices in it are put back before it is sent.
+    // operator's choices in it are put back before it is sent. A form that
+    // says what to tell the operator when the saved Case no longer offers it
+    // (data-save-first-dropped) has that said rather than the press lost.
     function again(form, submitter) {
         var id = form.getAttribute('id');
         var action = form.getAttribute('action');
@@ -1116,11 +1181,15 @@
         var name = submitter ? submitter.name : '';
         var value = submitter ? submitter.value : '';
         var formaction = submitter ? submitter.getAttribute('formaction') : null;
+        var dropped = form.getAttribute('data-save-first-dropped');
         return function () {
             var next = id ? document.getElementById(id) : Array.prototype.find.call(
                 record.querySelectorAll('form[action]'),
                 function (candidate) { return candidate.getAttribute('action') === action; });
-            if (!next) { return; }
+            if (!next) {
+                if (dropped) { showActionError(dropped); }
+                return;
+            }
             restoreChoices(next, choices);
             var button = submitter ? Array.prototype.find.call(next.elements, function (element) {
                 return element.type === 'submit' && element.name === name && element.value === value
@@ -1159,9 +1228,138 @@
         var pending = afterSave;
         afterSave = null;
         // A save the server refused leaves its editor unsaved: nothing follows.
-        if (!pending || dirtyEditors.has(pending.editor)) { return; }
+        if (!pending) { return; }
+        if (dirtyEditors.has(pending.editor)) { if (pending.cancel) { pending.cancel(); } return; }
         // After the save's own submission has finished.
         window.setTimeout(pending.next, 0);
+    });
+
+    // Glass's controls are independent of the Case draft and its authority.
+    var glassRefreshGeneration = 0;
+    var glassOpening = false;
+    var glassWindow = null;
+    var glassWindowWatch = null;
+    function finishGlassOpening() {
+        glassOpening = false;
+        if (glassWindowWatch) { window.clearInterval(glassWindowWatch); glassWindowWatch = null; }
+        record.querySelectorAll('[data-glass-window]').forEach(function (form) { form.removeAttribute('aria-busy'); });
+    }
+    function cancelGlassOpening() {
+        if (glassWindow && !glassWindow.closed) { glassWindow.close(); }
+        finishGlassOpening();
+    }
+    function refreshGlassControls() {
+        var host = record.querySelector('[data-glass-controls="launch"]');
+        if (!host) { return Promise.reject(new Error("Glass's controls are unavailable. Reload the Case after saving your changes.")); }
+        var generation = ++glassRefreshGeneration;
+        var lease = record.querySelector('#case-edit-form [name="editLeaseToken"]');
+        return fetch(host.dataset.glassControlsUrl, {
+            credentials: 'same-origin', cache: 'no-store',
+            headers: { 'X-Pegasus-Edit-Lease': lease ? lease.value : '', 'Accept': 'text/html' }
+        }).then(function (response) {
+            if (!response.ok) { throw new Error("Glass's controls could not be refreshed. Save your changes and reload the Case before retrying."); }
+            return response.text();
+        }).then(function (html) {
+            if (generation !== glassRefreshGeneration) { return; }
+            var parsed = new DOMParser().parseFromString(html, 'text/html');
+            var nextLaunch = parsed.querySelector('[data-glass-controls="launch"]');
+            var nextSession = parsed.querySelector('[data-glass-controls="session"]');
+            var nextOutcome = parsed.querySelector('[data-glass-controls="outcome"]');
+            if (!nextLaunch || !nextSession || !nextOutcome) { throw new Error("Sign in again to refresh Glass's controls. Your Case changes are still here."); }
+            var current = record.querySelector('[data-glass-controls="session"]');
+            if (current && current.dataset.glassId === nextSession.dataset.glassId
+                && Number(current.dataset.glassVersion) > Number(nextSession.dataset.glassVersion)) { return; }
+            var saved = anchor();
+            var focused = document.activeElement;
+            var focusedHost = focused && focused.closest('[data-glass-controls]');
+            var focusSelector = focusedHost && (focused.name ? '[name="' + focused.name + '"]' : focused.tagName.toLowerCase());
+            [nextLaunch, nextOutcome, nextSession].forEach(function (next) {
+                var old = record.querySelector('[data-glass-controls="' + next.dataset.glassControls + '"]');
+                if (old) { old.replaceWith(next); bindMounted(next); }
+            });
+            if (focusSelector) {
+                var replacement = record.querySelector('[data-glass-controls="' + focusedHost.dataset.glassControls + '"] ' + focusSelector);
+                if (replacement) { replacement.focus({ preventScroll: true }); }
+            }
+            keep(saved);
+            return nextSession.dataset.glassState;
+        });
+    }
+    window.pegasusGlassHandoff = function () {
+        return refreshGlassControls().catch(function (error) { showActionError(error.message); }).finally(finishGlassOpening);
+    };
+    function showGlassReturnNotice(state) {
+        var host = record.querySelector('[data-glass-controls="outcome"]');
+        var session = record.querySelector('[data-glass-controls="session"]');
+        if (!host || !session) { return; }
+        var text = state === 'Completed'
+            ? (session.dataset.glassImportedDirty || "The Glass's estimate was recorded as a repair spec, and your unsaved changes are still here. Save or cancel them to view it.")
+            : (session.dataset.glassReturnedDirty || "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.");
+        var notice = host.querySelector('[data-estimate-notice]');
+        if (!notice) {
+            notice = document.createElement('p'); notice.setAttribute('data-estimate-notice', '');
+            notice.appendChild(document.createElement('span')); host.appendChild(notice);
+        }
+        host.hidden = false;
+        notice.className = state === 'Completed' ? 'notice notice--success' : 'notice';
+        notice.setAttribute('role', 'status');
+        notice.querySelector('span').textContent = text;
+    }
+    window.pegasusGlassReturn = function (url) {
+        if (!samePage(url) || new URL(url, window.location.href).origin !== window.location.origin) {
+            return Promise.reject(new Error('The Glass return does not belong to this Case.'));
+        }
+        return refreshGlassControls().then(function (state) {
+            if (dirty || submitting) {
+                showGlassReturnNotice(state);
+                return;
+            }
+            var versionBeforeRead = record.getAttribute('data-case-version');
+            var generationBeforeRead = glassRefreshGeneration;
+            return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function (response) {
+                if (!response.ok || !samePage(response.url)) { throw new Error('The Case could not be refreshed.'); }
+                return response.text();
+            }).then(function (html) {
+                // A save or another refresh may have finished during this read.
+                // An older response cannot put the record back on its old version.
+                if (submitting || generationBeforeRead !== glassRefreshGeneration
+                    || versionBeforeRead !== record.getAttribute('data-case-version')) { return; }
+                if (!swap(html)) { throw new Error('The Case could not be refreshed.'); }
+                if (dirty) { showGlassReturnNotice(state); }
+            });
+        }).catch(function (error) { showActionError(error.message); throw error; }).finally(finishGlassOpening);
+    };
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-glass-window')) { return; }
+        event.preventDefault();
+        if (glassOpening || submitting || confirmResolve) { return; }
+        var windowName = 'pegasus-glass-' + window.location.pathname;
+        glassWindow = window.open('', windowName, 'popup=yes,width=1280,height=900');
+        if (!glassWindow) { showActionError("Allow pop-ups for Pegasus, then open Glass's again."); return; }
+        glassOpening = true;
+        form.setAttribute('aria-busy', 'true');
+        glassWindowWatch = window.setInterval(function () {
+            if (glassWindow.closed) { finishGlassOpening(); }
+        }, 500);
+        var action = form.getAttribute('action');
+        function launchSaved() {
+            // A save renders the form again with its current lease and session
+            // version. Never reuse the detached form's authority.
+            var next = Array.from(record.querySelectorAll('form[data-glass-window]')).find(function (candidate) {
+                return candidate.getAttribute('action') === action;
+            });
+            if (!next || dirty || glassWindow.closed) {
+                cancelGlassOpening();
+                showActionError("Glass's was not opened. Check the Case changes and try again.");
+                return;
+            }
+            next.target = windowName;
+            next.setAttribute('aria-busy', 'true');
+            HTMLFormElement.prototype.submit.call(next);
+        }
+        var save = activeDirtyForm();
+        if (save) { saveThen(save, launchSaved, cancelGlassOpening); } else { launchSaved(); }
     });
 
     // ---- the section-head Edit posts the ribbon's claim and remembers the
@@ -1217,31 +1415,8 @@
         });
     }
 
-    // Glass's runs in its own window, opened here inside the
-    // submit so no popup rule refuses it, and the Case record stays open with
-    // its edit lease alive. The form's own target="_blank" stands when the
-    // window is refused, and is the no-script path.
-    function bindGlassWindow(root) {
-        Array.prototype.slice.call((root || document).querySelectorAll('form[data-glass-window]')).forEach(function (form) {
-            if (form.dataset.glassWindowBound) { return; }
-            form.dataset.glassWindowBound = 'true';
-            form.addEventListener('submit', function () {
-                var opened = window.open('', 'pegasus-glass', 'popup=yes,width=1280,height=900');
-                if (opened) { form.target = 'pegasus-glass'; }
-            });
-        });
-    }
-
-    // The Glass's window hands its outcome back here: the Estimate section is
-    // reloaded without beaconing the edit scope away, exactly as a posted
-    // command keeps it.
-    window.pegasusGlassReturn = function (url) {
-        if (typeof window.pegasusHoldEditScopeRelease === 'function') { window.pegasusHoldEditScopeRelease(); }
-        window.location.assign(url);
-    };
-
-    bindReportRecipients(document); bindGlassWindow(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(function (root) { bindReportRecipients(root); bindGlassWindow(root); });
+    bindReportRecipients(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindReportRecipients);
 })();
 
 
@@ -1853,7 +2028,10 @@
 // The lines are Core's arithmetic: every change posts the selection to the
 // PreviewValuation handler and the returned partial replaces the lines. The
 // calculator's controls and the Basis radios belong to the Case form, so the
-// ribbon Save adopts a changed calculation (one Save, 23 September 2026).
+// ribbon Save records a changed calculation (one Save, 23 September 2026).
+// Choosing a card fills the Retail and Trade boxes in place, and each
+// calculation fills the Engineer's Value box; the operator may overtype any
+// of them (operator, 26 September 2026).
 (function () {
     'use strict';
 
@@ -1914,6 +2092,10 @@
                     return response.text();
                 }).then(function (html) {
                     host.innerHTML = html;
+                    var proposal = host.querySelector('[data-valuation-proposal]');
+                    if (proposal) {
+                        fill(section, '[data-valuation-value="engineer"]', proposal.getAttribute('data-valuation-proposal'));
+                    }
                 }).catch(function () {
                     // The lines keep their last state; a refused calculation
                     // shows on Save, which Core answers.
@@ -1934,6 +2116,21 @@
                 }
             }
 
+            // The chosen card's figures as it shows them: an entry card's own
+            // boxes, any other card as recorded.
+            function shown(card, box, recorded) {
+                var input = card.querySelector(box);
+                return input ? input.value : (card.getAttribute(recorded) || '');
+            }
+            function fillFromCard(radio) {
+                var card = radio.closest('[data-valuation-card]');
+                if (!card) {
+                    return;
+                }
+                fill(section, '[data-valuation-value="retail"]', shown(card, '[data-valuation-retail]', 'data-retail'));
+                fill(section, '[data-valuation-value="trade"]', shown(card, '[data-valuation-trade]', 'data-trade'));
+            }
+
             function paintAdditions() {
                 section.querySelectorAll('[data-valuation-add]').forEach(function (row) {
                     var toggle = row.querySelector('[data-preset-toggle]');
@@ -1948,6 +2145,7 @@
                 }
                 if (control.matches('[data-valuation-basis]') && control.checked) {
                     chooseBasis(control);
+                    fillFromCard(control);
                 }
                 if (control.matches('[data-preset-toggle]')) {
                     paintAdditions();
@@ -1957,6 +2155,12 @@
             section.addEventListener('input', function (event) {
                 if (belongs(event.target)) {
                     schedule();
+                }
+            });
+            // Get valuation refilled the card that is already the basis.
+            section.addEventListener('pegasus:valuation-basis-refilled', function (event) {
+                if (belongs(event.target)) {
+                    fillFromCard(event.target);
                 }
             });
             // A click anywhere on a card picks it as the basis; a click on one
@@ -2032,6 +2236,15 @@
                         fill(card, '[data-valuation-retail]', answer.retail);
                         fill(card, '[data-valuation-trade]', answer.trade);
                         fill(card, '[data-valuation-entry-month]', answer.guideMonth);
+                        // When this card is already the basis, its new figures
+                        // are the basis figures: the Retail and Trade boxes take
+                        // them. The Engineer's Value box is left as it stands;
+                        // a calculation from the card's saved figures would
+                        // overwrite what the engineer typed.
+                        var basis = card.querySelector('[data-valuation-basis]');
+                        if (basis && basis.checked) {
+                            basis.dispatchEvent(new CustomEvent('pegasus:valuation-basis-refilled', { bubbles: true }));
+                        }
                         return;
                     }
                     showNotice(notice, true, answer && answer.status === 'refused' ? answer.message : null);
@@ -2568,8 +2781,9 @@
 })();
 
 // --- images: the grid's own acts (v28 P41 drag, P27 click to include) --------
-// Both write through the role and order controls the preparation binder
-// already owns, so the tile, the viewer and the Case Save cannot disagree.
+// Drag writes through the order controls the preparation binder already owns,
+// so the tile, the viewer and the Case Save cannot disagree; a click on the
+// image presses the tile's own In report button, posted at once.
 (function () {
     'use strict';
 
@@ -2587,9 +2801,8 @@
             function renumber() {
                 var at = 0;
                 grid.querySelectorAll('[data-image-tile][data-preparation-card]').forEach(function (tile) {
-                    var role = tile.querySelector('[data-preparation-role-select]');
                     var order = tile.querySelector('[data-preparation-order]');
-                    if (!role || !order || role.value !== 'Supporting') { return; }
+                    if (!order || tile.getAttribute('data-preparation-in-report') !== 'true') { return; }
                     at += 1;
                     if (order.value !== String(at)) {
                         order.value = String(at);
@@ -2636,13 +2849,12 @@
                 if (event.target.closest('[data-image-report], .image-tile-actions')) { return; }
                 var link = event.target.closest('a[data-evidence-item]');
                 var tile = tileOf(link);
-                var role = tile ? tile.querySelector('[data-preparation-role-select]') : null;
-                if (!link || !role) { return; }
+                if (!link || !tile || !tile.querySelector('[data-image-in-report]')) { return; }
                 event.preventDefault();
                 event.stopPropagation();
                 window.pegasusCasePreparation.toggleInReport(
                     tile.getAttribute('data-preparation-occurrence'),
-                    role.value === 'NotUsed');
+                    tile.getAttribute('data-preparation-in-report') !== 'true');
             }, true);
         });
     }
@@ -2791,9 +3003,9 @@
 
 // --- settlement: the Decisions strip -----------------------------------------
 // The outcome and roadworthiness selects show and hide the rows that only
-// apply to them; Accept copies an AI proposal into the row's own control.
-// Every control is a plain form field of #case-edit-form, so without script
-// the rows the server rendered stand and the operator picks the value.
+// apply to them. Every control is a plain form field of #case-edit-form, so
+// without script the rows the server rendered stand and the operator picks
+// the value.
 (function () {
     'use strict';
 
@@ -2828,11 +3040,6 @@
             function choose(button, focus) {
                 var choice = button.getAttribute('data-radio-value');
                 select.value = choice;
-                if (choice === '') {
-                    select.dataset.decisionExplicitUnset = 'true';
-                } else {
-                    delete select.dataset.decisionExplicitUnset;
-                }
                 select.dispatchEvent(new Event('input', { bubbles: true }));
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 paint();
@@ -2979,54 +3186,18 @@
                         + ' (' + reserveRead.getAttribute('data-rounded-up') + ')';
                 reserveRead.classList.toggle('empty', reserve === null);
             }
-            // An awaiting AI proposal leaves its control empty until accepted,
-            // so the rows it implies follow the proposal until a person decides.
-            function decided(path, control) {
-                if (control && (control.value || control.dataset.decisionExplicitUnset === 'true')) {
-                    return control.value;
-                }
-                var awaiting = section.querySelector('[data-proposal="' + path + '"][data-proposal-status="Awaiting"] [data-proposal-value]');
-                return awaiting ? awaiting.getAttribute('data-proposal-value') : '';
-            }
             function sync() {
                 if (outcome) {
-                    var outcomeValue = decided('assessment.outcome', outcome);
-                    show('total-loss', outcomeValue === 'total_loss');
-                    syncReserve(outcomeValue);
+                    show('total-loss', outcome.value === 'total_loss');
+                    syncReserve(outcome.value);
                 }
                 if (legal) {
-                    show('unroadworthy', decided('assessment.legal_status', legal) === 'unroadworthy');
+                    show('unroadworthy', legal.value === 'unroadworthy');
                 }
             }
             if (outcome) { outcome.addEventListener('change', sync); }
             if (legal) { legal.addEventListener('change', sync); }
             sync();
-
-            function accept(button) {
-                var path = button.getAttribute('data-accept-proposal');
-                var row = section.querySelector('[data-decision="' + path + '"]');
-                var proposal = row && row.querySelector('[data-proposal-value]');
-                var target = control(row);
-                if (!proposal || !target) {
-                    return;
-                }
-                target.value = proposal.getAttribute('data-proposal-value');
-                target.dispatchEvent(new Event('input', { bubbles: true }));
-                target.dispatchEvent(new Event('change', { bubbles: true }));
-                button.hidden = true;
-            }
-            section.querySelectorAll('[data-accept-proposal]').forEach(function (button) {
-                button.addEventListener('click', function () { accept(button); });
-            });
-            var all = section.querySelector('[data-accept-all-proposals]');
-            if (all) {
-                all.addEventListener('click', function () {
-                    section.querySelectorAll('[data-accept-proposal]').forEach(function (button) {
-                        if (!button.hidden) { accept(button); }
-                    });
-                    all.hidden = true;
-                });
-            }
         });
     }
     bind(document);
@@ -3130,45 +3301,75 @@
         return 'Preview unavailable';
     }
 
+    function currentViewer() {
+        var viewer = window.pegasusCaseViewer;
+        return viewer && typeof viewer.openDocument === 'function' ? viewer : null;
+    }
+
+    async function openInViewer(trigger, viewer) {
+        var menu = trigger.closest('details[data-menu]');
+        if (menu) { menu.open = false; }
+        var response;
+        var message = 'Preview unavailable';
+        try {
+            response = await fetch(trigger.href, {
+                credentials: 'same-origin',
+                headers: { 'X-Pegasus-Document-Preview': '1' }
+            });
+            if (!response.ok || mediaType(response) !== 'application/pdf') {
+                message = await failureMessage(response);
+                throw new Error(message);
+            }
+            var url = URL.createObjectURL(await response.blob());
+            viewer.openDocument({
+                href: url,
+                name: fileName(response, trigger.getAttribute('data-file-name') || 'Estimate PDF'),
+                download: url,
+                downloadLabel: trigger.hasAttribute('data-report-preview') ? 'Download draft' : 'Download',
+                revoke: url,
+                invoker: trigger
+            });
+        } catch (error) {
+            if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
+            else { window.alert(message); }
+        }
+    }
+
     function bind(root) {
         root.querySelectorAll('[data-document-preview]').forEach(function (trigger) {
             if (trigger.dataset.documentPreviewBound === 'true') { return; }
             trigger.dataset.documentPreviewBound = 'true';
-            trigger.addEventListener('click', async function (event) {
-                var viewer = window.pegasusCaseViewer;
-                if (!viewer || typeof viewer.openDocument !== 'function') { return; }
+            trigger.addEventListener('click', function (event) {
+                var viewer = currentViewer();
+                if (!viewer) { return; }
                 event.preventDefault();
-                var menu = trigger.closest('details[data-menu]');
-                if (menu) { menu.open = false; }
-                var response;
-                var message = 'Preview unavailable';
-                try {
-                    response = await fetch(trigger.href, {
-                        credentials: 'same-origin',
-                        headers: { 'X-Pegasus-Document-Preview': '1' }
-                    });
-                    if (!response.ok || mediaType(response) !== 'application/pdf') {
-                        message = await failureMessage(response);
-                        throw new Error(message);
-                    }
-                    var url = URL.createObjectURL(await response.blob());
-                    viewer.openDocument({
-                        href: url,
-                        name: fileName(response, trigger.getAttribute('data-file-name') || 'Estimate PDF'),
-                        download: url,
-                        downloadLabel: trigger.hasAttribute('data-report-preview') ? 'Download draft' : 'Download',
-                        revoke: url,
-                        invoker: trigger
-                    });
-                } catch (error) {
-                    if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
-                    else { window.alert(message); }
-                }
+                openInViewer(trigger, viewer);
             });
         });
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+
+    // The report Generate report has just stored opens by itself, once: the
+    // page that follows the generation carries the mark on its Open report
+    // link, whether it was swapped in or loaded whole. The mark is taken off
+    // as it is read, so a section kept across a later swap cannot open the
+    // report again, and no later page carries it.
+    function openOnArrival() {
+        var trigger = document.querySelector('[data-document-preview][data-open-on-arrival="true"]');
+        if (!trigger) { return; }
+        trigger.removeAttribute('data-open-on-arrival');
+        var viewer = currentViewer();
+        if (viewer) { openInViewer(trigger, viewer); }
+    }
+    document.addEventListener('pegasus:case-swapped', openOnArrival);
+    // The viewer is bound further down this file, so a whole page is read
+    // once every block has run.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', openOnArrival);
+    } else {
+        window.setTimeout(openOnArrival, 0);
+    }
 })();
 
 
@@ -3216,9 +3417,6 @@
         function fmt(v) { return String(Math.round(v * 100) / 100); }
     }
     function rotationLabel(r) { return r ? r + '°' : 'None'; }
-    function roleLabel(role) {
-        return { NotUsed: 'Not used', CloseUp: 'Close-up', Overview: 'Overview', Supporting: 'Supporting' }[role] || role;
-    }
 
     // Lays an <img> out so the crop region (in the rotated source's
     // fractions) fills the box; the image is expected to sit centred at its
@@ -3374,12 +3572,12 @@
                 width: number(card.getAttribute('data-preparation-crop-width'), 1),
                 height: number(card.getAttribute('data-preparation-crop-height'), 1)
             };
-            var role = card.getAttribute('data-preparation-role') || 'NotUsed';
             store[id] = {
                 id: id,
                 version: number(card.getAttribute('data-preparation-version'), 0),
-                role: role,
-                previousRole: role === 'NotUsed' ? 'Supporting' : role,
+                // Whether the report uses the image is the server's, posted at
+                // once (operator, 26 September 2026): read here, never staged.
+                inReport: card.getAttribute('data-preparation-in-report') === 'true',
                 order: card.getAttribute('data-preparation-order') ? number(card.getAttribute('data-preparation-order'), null) : null,
                 rotation: normalRotation(number(card.getAttribute('data-preparation-rotation'), 0)),
                 fullPage: card.getAttribute('data-preparation-full-page') === 'true',
@@ -3408,8 +3606,8 @@
             var value = store[id];
             if (!value.changed) { return; }
             [
-                ['OccurrenceId', value.id], ['ExpectedPreparationVersion', value.version], ['Role', value.role],
-                ['Order', value.role === 'Supporting' && value.order !== null ? value.order : ''], ['Rotation', value.rotation],
+                ['OccurrenceId', value.id], ['ExpectedPreparationVersion', value.version],
+                ['Order', value.inReport && value.order !== null ? value.order : ''], ['Rotation', value.rotation],
                 ['CropLeft', round7(value.crop.left)], ['CropTop', round7(value.crop.top)],
                 ['CropWidth', round7(value.crop.width)], ['CropHeight', round7(value.crop.height)],
                 ['FullPage', value.fullPage ? 'true' : 'false']
@@ -3437,28 +3635,21 @@
         var value = get(id);
         if (!value) { return; }
         cardsFor(id).forEach(function (card) {
-            var role = card.querySelector('[data-preparation-role-select]');
             var order = card.querySelector('[data-preparation-order]');
-            var roleLabelElement = card.querySelector('[data-preparation-role-label]');
             var rotationLabelElement = card.querySelector('[data-preparation-rotation-label]');
             var cropLabelElement = card.querySelector('[data-preparation-crop-label]');
-            if (role) { role.value = value.role; }
-            if (order) { order.value = value.order === null ? '' : value.order; order.disabled = value.role !== 'Supporting'; }
+            if (order) { order.value = value.order === null ? '' : value.order; order.disabled = !value.inReport; }
             // v28 P41 and P50: the tile's Full page flag and its order cell
-            // follow the same staged state as the role.
+            // are an image in the report's.
             var orderCell = card.querySelector('[data-image-order-cell]');
-            if (orderCell) { orderCell.hidden = value.role !== 'Supporting'; }
-            var reportActionsAvailable = value.role !== 'NotUsed';
+            if (orderCell) { orderCell.hidden = !value.inReport; }
             var fullButton = card.querySelector('[data-image-full-page]');
             if (fullButton) {
-                fullButton.hidden = !reportActionsAvailable;
+                fullButton.hidden = !value.inReport;
                 fullButton.setAttribute('aria-pressed', value.fullPage ? 'true' : 'false');
             }
-            var removeButton = card.querySelector('[data-image-remove]');
-            if (removeButton) { removeButton.hidden = !reportActionsAvailable; }
             var fullChip = card.querySelector('[data-image-full-chip]');
             if (fullChip) { fullChip.hidden = !value.fullPage; }
-            if (roleLabelElement) { roleLabelElement.textContent = roleLabel(value.role); }
             if (rotationLabelElement) { rotationLabelElement.textContent = rotationLabel(value.rotation); }
             if (cropLabelElement) { cropLabelElement.textContent = cropLabel(value.crop); }
             var box = card.querySelector('[data-preparation-preview-box]');
@@ -3473,11 +3664,6 @@
                 badge.textContent = value.rotation ? value.rotation + '°' : '';
                 badge.hidden = !value.rotation;
             }
-        });
-        all(document, '[data-report-image-toggle="' + id + '"]').forEach(function (tile) {
-            tile.classList.toggle('off', value.role === 'NotUsed');
-            var mark = tile.querySelector('.inc');
-            if (mark) { mark.textContent = value.role === 'NotUsed' ? '–' : '✓'; }
         });
         if (viewer && viewer.open && viewer.current() && viewer.current().occurrence === id) {
             viewer.render();
@@ -3509,15 +3695,10 @@
     function set(id, patch) {
         var value = get(id);
         if (!value) { return null; }
-        if (patch.role !== undefined) {
-            if (value.role !== 'NotUsed') { value.previousRole = value.role; }
-            value.role = patch.role;
-            if (value.role !== 'Supporting') { value.order = null; }
-        }
         if (patch.order !== undefined) { value.order = patch.order === null ? null : Math.max(1, Math.floor(number(patch.order, 1))); }
         // An image the report does not use never claims a page of its own.
         if (patch.fullPage !== undefined) { value.fullPage = !!patch.fullPage; }
-        if (value.role === 'NotUsed') { value.fullPage = false; }
+        if (!value.inReport) { value.fullPage = false; }
         if (patch.rotation !== undefined) { value.rotation = normalRotation(patch.rotation); }
         if (patch.crop !== undefined) {
             value.crop = {
@@ -3530,11 +3711,14 @@
         writeHidden();
         return value;
     }
+    // In report is posted at once through the tile's own form (operator, 26
+    // September 2026), so the tile, the viewer and a click on the image all
+    // press the same button.
     function toggleInReport(id, on) {
         var value = get(id);
-        if (!value) { return; }
-        set(id, { role: on ? (value.previousRole || 'Supporting') : 'NotUsed' });
-        countImagesInReport();
+        var form = document.querySelector('[data-image-in-report-form="' + id + '"]');
+        if (!value || !form || value.inReport === on) { return; }
+        form.requestSubmit();
     }
     window.pegasusCasePreparation = {
         get: get,
@@ -3542,20 +3726,6 @@
         openCrop: function (id) { if (viewer) { viewer.openCrop(id); } },
         toggleInReport: toggleInReport
     };
-
-    // v28 P50: how many of the Case's images the report uses, under the grid.
-    function countImagesInReport() {
-        var line = document.querySelector('[data-image-report-count]');
-        var grid = document.querySelector('[data-image-grid]');
-        if (!line || !grid) { return; }
-        var tiles = all(grid, '[data-image-tile]');
-        var included = tiles.filter(function (tile) {
-            if (!tile.hasAttribute('data-preparation-card')) { return false; }
-            var staged = get(tile.getAttribute('data-preparation-occurrence'));
-            return staged ? staged.role !== 'NotUsed' : tile.getAttribute('data-preparation-role') !== 'NotUsed';
-        }).length;
-        line.textContent = included + ' of ' + tiles.length + ' in report';
-    }
 
     function bindPreparationCards(root) {
         all(root, '[data-preparation-card]').forEach(function (card) {
@@ -3566,9 +3736,7 @@
             var enhanced = card.querySelector('[data-image-report]');
             if (enhanced) { enhanced.hidden = false; }
             sync(value.id);
-            var role = card.querySelector('[data-preparation-role-select]');
             var order = card.querySelector('[data-preparation-order]');
-            if (role) { role.addEventListener('change', function () { set(value.id, { role: role.value }); countImagesInReport(); }); }
             if (order) { order.addEventListener('change', function () { set(value.id, { order: order.value === '' ? null : order.value }); }); }
             all(card, '[data-preparation-rotate]').forEach(function (button) {
                 button.addEventListener('click', function () {
@@ -3576,41 +3744,15 @@
                     set(value.id, { rotation: current.rotation + number(button.getAttribute('data-preparation-rotate'), 0) });
                 });
             });
-            // v28 P41: Full page is a flag on an image the report uses;
-            // Remove sets the role to Not used and the file stays on the Case,
-            // so Undo simply puts the role back.
+            // v28 P41: Full page is a flag on an image the report uses.
             var fullPage = card.querySelector('[data-image-full-page]');
             if (fullPage) {
                 fullPage.addEventListener('click', function (event) {
                     event.preventDefault();
                     event.stopPropagation();
                     var current = get(value.id);
-                    if (!current || current.role === 'NotUsed') { return; }
+                    if (!current || !current.inReport) { return; }
                     set(value.id, { fullPage: !current.fullPage });
-                    countImagesInReport();
-                });
-            }
-            var removeImage = card.querySelector('[data-image-remove]');
-            if (removeImage) {
-                removeImage.addEventListener('click', function (event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    var current = get(value.id);
-                    if (!current || current.role === 'NotUsed') { return; }
-                    var was = current.role;
-                    var wasOrder = current.order;
-                    var wasFullPage = current.fullPage;
-                    set(value.id, { role: 'NotUsed', fullPage: false });
-                    countImagesInReport();
-                    if (window.pegasusUndoToast) {
-                        window.pegasusUndoToast(
-                            removeImage.getAttribute('data-undo-title') || 'Image removed',
-                            function () {
-                                set(value.id, { role: was, order: wasOrder, fullPage: wasFullPage });
-                                countImagesInReport();
-                            },
-                            removeImage.getAttribute('data-undo-label'));
-                    }
                 });
             }
         });
@@ -3623,20 +3765,6 @@
                     || (owner ? owner.getAttribute('data-preparation-occurrence') : null);
                 if (id) { window.pegasusCasePreparation.openCrop(id); }
             });
-        });
-        // A report-strip tile toggles inclusion while editing (v26 § Image
-        // viewer); the small view glyph opens the viewer instead.
-        all(root, '[data-report-image-toggle]').forEach(function (tile) {
-            if (tile.dataset.toggleBound === 'true') { return; }
-            tile.dataset.toggleBound = 'true';
-            var id = tile.getAttribute('data-report-image-toggle');
-            tile.addEventListener('click', function (event) {
-                if (event.target.closest('[data-tile-view], .th-view')) { return; }
-                if (!get(id)) { return; }
-                event.preventDefault();
-                event.stopPropagation();
-                toggleInReport(id, tile.classList.contains('off'));
-            }, true);
         });
         all(root, '[data-tile-view], .th-view').forEach(function (button) {
             if (button.dataset.viewBound === 'true') { return; }
@@ -3788,7 +3916,7 @@
             if (zoomLabel) { zoomLabel.textContent = state.zoom ? 'Fit' : 'Zoom'; }
             cropButton.hidden = kind !== 'image' || !value;
             inReportWrap.hidden = kind !== 'image' || !value;
-            if (value) { inReport.checked = value.role !== 'NotUsed'; }
+            if (value) { inReport.checked = value.inReport; }
             viewTools.hidden = !!state.crop;
             cropTools.hidden = !state.crop;
             host.querySelector('[data-viewer-prev]').disabled = state.items.length < 2;
@@ -3804,7 +3932,7 @@
                 var button = document.createElement('button');
                 button.type = 'button';
                 var value = preparable(item) ? get(item.occurrence) : null;
-                var excluded = value ? value.role === 'NotUsed' : item.excluded;
+                var excluded = value ? !value.inReport : item.excluded;
                 button.className = (at === state.index ? 'on' : '') + (excluded ? ' off' : '');
                 button.setAttribute('aria-label', item.name);
                 button.title = item.name;
@@ -4099,7 +4227,13 @@
         });
         inReport.addEventListener('change', function () {
             var item = current();
-            if (item && preparable(item)) { toggleInReport(item.occurrence, inReport.checked); }
+            var value = item && preparable(item) ? get(item.occurrence) : null;
+            if (!value) { return; }
+            var wanted = inReport.checked;
+            // The box shows what is stored. The post redraws it; Keep editing
+            // on the unsaved-changes question, or a refusal, posts nothing.
+            inReport.checked = value.inReport;
+            toggleInReport(item.occurrence, wanted);
         });
         if (aspect) { aspect.addEventListener('change', function () { cropAspect(aspect.value); }); }
         all(host, '[data-viewer-crop-rotate]').forEach(function (button) {
@@ -4133,7 +4267,7 @@
                 if (!card || !value) { return; }
                 state.items = [{
                     href: value.preview, downloadHref: value.preview, mediaType: 'image/jpeg', kind: 'image',
-                    name: (card.querySelector('h3') || {}).textContent || '', thumb: '', tag: '', occurrence: id, excluded: value.role === 'NotUsed',
+                    name: (card.querySelector('h3') || {}).textContent || '', thumb: '', tag: '', occurrence: id, excluded: !value.inReport,
                     downloadLabel: downloadDefault, element: null
                 }];
                 state.invoker = document.activeElement;

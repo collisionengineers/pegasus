@@ -12,6 +12,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ProviderApi;
+using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Worker;
 
@@ -58,6 +59,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
         var pairing = new RecordingPairing();
         var triagePairing = new RecordingTriagePairing();
+        var settlement = new RecordingSettlement();
         var function = new StagedArtifactReconciliationFunction(
             reconciler,
             new EmptyCacheCleanup(),
@@ -65,6 +67,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 pendingCustodyFactory,
                 new EmptyDocumentContentStore(),
                 new EmptyStagedArtifactStore()),
+            settlement,
             groupedImageReconciler,
             pairing,
             triagePairing,
@@ -78,10 +81,11 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
 
         Assert.Equal(50, workStore.MaximumItems);
         Assert.True(pendingCustodyFactory.CreateCount > 0);
+        Assert.Equal(50, settlement.MaximumItems);
         Assert.Equal(50, pairing.MaximumItems);
         Assert.Equal(50, triagePairing.MaximumItems);
-        // Seven reconciliation results and the staff-notification purge.
-        Assert.Equal(8, logger.States.Count);
+        // Eight reconciliation results and the staff-notification purge.
+        Assert.Equal(9, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredWorkItems"]);
         Assert.Equal(0, state["Completed"]);
@@ -90,41 +94,70 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.Equal(0, state["Unmatched"]);
         Assert.Equal(0, state["Failures"]);
 
-        var groupedImageState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[1]);
+        // The settle pass runs straight after the pending-custody reconciliation.
+        var settlementState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[1]);
+        Assert.Equal(3, settlementState["Settled"]);
+
+        var groupedImageState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[2]);
         Assert.Equal(0, groupedImageState["Candidates"]);
         Assert.Equal(0, groupedImageState["Retried"]);
         Assert.Equal(0, groupedImageState["Escaped"]);
         Assert.Equal(0, groupedImageState["Failures"]);
 
-        var pairingState = logger.States[2];
+        var pairingState = logger.States[3];
         Assert.Equal(7, pairingState["Candidates"]);
         Assert.Equal(3, pairingState["Merged"]);
         Assert.Equal(2, pairingState["Failures"]);
         Assert.Equal(nameof(IntakeAssociationConflictException), pairingState["FirstFailure"]);
 
-        var triagePairingState = logger.States[3];
+        var triagePairingState = logger.States[4];
         Assert.Equal(4, triagePairingState["Candidates"]);
         Assert.Equal(2, triagePairingState["Linked"]);
         Assert.Equal(1, triagePairingState["Failures"]);
         Assert.Equal(nameof(TriageVersionConflictException), triagePairingState["FirstFailure"]);
 
-        var unidentifiedState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[4]);
+        var unidentifiedState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[5]);
         Assert.Equal(0, unidentifiedState["Candidates"]);
         Assert.Equal(0, unidentifiedState["Resolved"]);
         Assert.Equal(0, unidentifiedState["Failures"]);
 
-        var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[5]);
+        var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[6]);
         Assert.Equal(0, vehicleLookupState["Enqueued"]);
 
-        var providerSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[6]);
+        var providerSubmissionState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[7]);
         Assert.Equal(0, providerSubmissionState["Candidates"]);
         Assert.Equal(0, providerSubmissionState["Repaired"]);
         Assert.Equal(0, providerSubmissionState["Failures"]);
         Assert.Null(providerSubmissionState["FirstFailure"]);
     }
 
+    /// <summary>
+    /// A report that cannot be settled is named with its cause and the steps
+    /// after it still run: filing a report never holds up intake.
+    /// </summary>
+    [Fact]
+    public async Task ASettlementFailureIsLoggedAndTheRestOfTheSweepStillRuns()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var pairing = new RecordingPairing();
+        var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
+
+        await RunPairingTimerAsync(pairing, contextFactory, new FailingSettlement(), logger);
+
+        var failure = Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Error);
+        Assert.IsType<InvalidOperationException>(failure.Exception);
+        Assert.DoesNotContain(logger.States, state => state.ContainsKey("Settled"));
+        Assert.Equal(50, pairing.MaximumItems);
+        Assert.Contains(logger.States, state => state.ContainsKey("Purged"));
+    }
+
     internal static Task RunPairingTimerAsync(
-        IImageIntakeCasePairing pairing, IDbContextFactory<PegasusDbContext> contextFactory)
+        IImageIntakeCasePairing pairing,
+        IDbContextFactory<PegasusDbContext> contextFactory,
+        ISettleFiledCaseReportArtifacts? settlement = null,
+        ILogger<StagedArtifactReconciliationFunction>? logger = null)
     {
         var workStore = new ReconciliationWorkStore(0);
         var receipts = new EmptyIntakeReceiptQueries();
@@ -133,6 +166,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new EmptyStagedArtifactStore(), TimeProvider.System),
             new EmptyCacheCleanup(),
             new ReconcilePendingArtifactCustody(contextFactory, new EmptyDocumentContentStore(), new EmptyStagedArtifactStore()),
+            settlement ?? new EfSettleFiledCaseReportArtifacts(contextFactory, TimeProvider.System),
             new ReconcileGroupedImageIntake(receipts, new UnreachableGroupStore(), workStore,
                 new UnreachableProcessQueuedIntake(), TimeProvider.System, new UnreachableRegisterUnidentified()),
             pairing,
@@ -144,7 +178,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
             new ReconcileProviderSubmissions(new EmptyProviderSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
             new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
+            logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, CancellationToken.None);
     }
 
@@ -160,6 +194,22 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             throw new NotSupportedException();
         public Task<TriageCasePairingResult> PairTriageAsync(Guid triageCaseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class RecordingSettlement : ISettleFiledCaseReportArtifacts
+    {
+        public int MaximumItems { get; private set; }
+        public Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken)
+        {
+            MaximumItems = maximumItems;
+            return Task.FromResult(3);
+        }
+    }
+
+    private sealed class FailingSettlement : ISettleFiledCaseReportArtifacts
+    {
+        public Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken) =>
+            Task.FromException<int>(new InvalidOperationException("The report could not be settled."));
     }
 
     private sealed class RecordingPairing : IImageIntakeCasePairing
@@ -648,6 +698,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     {
         internal List<IReadOnlyDictionary<string, object?>> States { get; } = [];
 
+        internal List<(LogLevel Level, Exception? Exception)> Entries { get; } = [];
+
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => null;
 
@@ -660,6 +712,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
+            Entries.Add((logLevel, exception));
             States.Add(state is IEnumerable<KeyValuePair<string, object?>> values
                 ? values.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
                 : throw new InvalidOperationException(

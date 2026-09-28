@@ -70,13 +70,15 @@ identity. ZIP output streams in order, without ranges. An invalid, expired or
 foreign export ticket gets the same non-disclosing unavailable response.
 
 **Assessment writes.** `pegasus_assessment_update` writes only non-finding
-assessment fields a staff member records, and so confirms or clears, on the
+assessment fields a staff member records, and so can change or clear, on the
 Case: the fields a Case section's editor posts and those a section writes
 through its own typed member (damage entries, mileage source, storage per
 day, recovery charge and report date). Any other field is refused and named,
-so every unconfirmed Automation value is one the next staff Save of its
-section confirms or clears (operator, 24 September 2026). Professional
-findings (including the Engineer's Value and its basis card's retail and
+so every Automation value is one staff can change or clear on its section
+(operator, 24 September 2026). A value it writes is the Case's value, shown
+with its AI source tag until staff change it; there is no per-field review
+(operator, 25 September 2026). Professional
+findings (including the Engineer's Value and its retail and
 trade), Case-owned facts, fields derived from damage entries and the facts
 the DVLA/DVSA lookup alone records (engine, fuel, colour, tax and MOT expiry)
 are refused. Case facts, including the Inspection date the report prints as
@@ -122,6 +124,13 @@ id (`caseId`) and return its `t.` Case/PO. Each action calls the same Core
 query or command staff use, supplies the resolved Automation identity rather
 than caller-provided actor data, and keeps Triage distinct from Unidentified.
 
+`pegasus_triage_complete` and `pegasus_triage_await_information` take no
+`reason`: completion and Awaiting information write their own history text,
+as they do for staff. Findings, response evidence, cancel, reopen and Case
+links keep their reasons. The edit begin, renew and end tools let a session
+hold a Triage for a multi-step change; staff actions on it are refused while
+it does.
+
 Assignment names a selected staff assignee, separate from the acting principal.
 An actor-relative `Assign to me` is not part of the Automation contract and
 is not offered to it.
@@ -152,13 +161,14 @@ stopped automation client is refused before any tool runs.
 
 `pegasus_estimate_import` and **Import estimate** on the Repair Spec section
 are two callers of one Core command. Both use the same parser types, the same
-fail-closed provider detection, the same provider-plus-sequence Draft naming
-and the same replay rule. The caller does not choose a trusted provider
+fail-closed provider detection, the same provider-plus-sequence naming, the
+same labour-rate card and the same replay rule. The caller does not choose a trusted provider
 route. Even a source-hash replay needs the current actor, version and lease
 authority and the exact retained source tuple. An unsupported estimate
-document is refused without OCR or partial rows. The import stays an
-unconfirmed Draft with no AI job reference and cannot become Current through
-MCP. These contracts do not prove live provider acceptance.
+document is refused without OCR or partial rows. A staff Import on the Case
+is the Current repair spec at once; the MCP import runs as the Automation
+actor, so it stays a Draft with no AI job reference and cannot become Current
+through MCP. These contracts do not prove live provider acceptance.
 
 **Scopes.** `automation.jobs` is its own scope with a consent description on
 the Administrator consent page; a token without it cannot see the ledger. The

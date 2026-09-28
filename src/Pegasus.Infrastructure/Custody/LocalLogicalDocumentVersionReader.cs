@@ -75,7 +75,9 @@ internal sealed class LocalLogicalDocumentVersionReader(
             resolved.Version.Version,
             resolved.Occurrence.SemanticRole,
             resolved.Version.FileName,
-            resolved.Version.MediaType);
+            resolved.Version.MediaType,
+            resolved.Version.BoxFileId,
+            resolved.Version.BoxVersionId);
         var content = await documentContentStore.OpenReadVersionAsync(
             address,
             resolved.Version.Sha256,

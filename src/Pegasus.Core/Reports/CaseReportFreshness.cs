@@ -76,67 +76,32 @@ public static class CaseReportFreshness
         AssessmentVocabulary.ReportDateOverride,
     };
 
+    // The assessment facts the report prints: the ones its snapshot carries
+    // (operator, 27 September 2026). Tyres, belts, airbags, temporary
+    // repairs, the vehicle's colour, body, transmission and expiry dates, and
+    // the settlement facts beyond the agreed contract sum are recorded on the
+    // Case and printed nowhere, so changing one leaves a report current.
     private static readonly IReadOnlySet<string> PrintedAssessmentPaths = new HashSet<string>(
         StringComparer.Ordinal)
     {
-        AssessmentVocabulary.VehicleType,
         AssessmentVocabulary.VehicleVin,
         AssessmentVocabulary.VehicleEngineCc,
         AssessmentVocabulary.VehicleFuel,
         AssessmentVocabulary.VehicleCondition,
-        AssessmentVocabulary.VehicleTransmission,
-        AssessmentVocabulary.VehicleColour,
-        AssessmentVocabulary.VehicleBody,
-        AssessmentVocabulary.VehicleTaxExpiry,
-        AssessmentVocabulary.VehicleMotExpiry,
-        AssessmentVocabulary.VehicleAirbagsDeployed,
-        AssessmentVocabulary.VehicleTemporaryRepairsPossible,
-        AssessmentVocabulary.VehicleTemporaryRepairMethod,
-        AssessmentVocabulary.VehicleTemporaryRepairCost,
         AssessmentVocabulary.ImpactSeverity,
         AssessmentVocabulary.ImpactLocation,
         AssessmentVocabulary.DamageImpacts,
-        AssessmentVocabulary.DamageTyreRightFront,
-        AssessmentVocabulary.DamageTyreLeftFront,
-        AssessmentVocabulary.DamageTyreRightRear,
-        AssessmentVocabulary.DamageTyreLeftRear,
-        AssessmentVocabulary.DamageBeltRightFront,
-        AssessmentVocabulary.DamageBeltLeftFront,
-        AssessmentVocabulary.DamageBeltRightRear,
-        AssessmentVocabulary.DamageBeltLeftRear,
-        AssessmentVocabulary.DamageSpareTyre,
-        AssessmentVocabulary.DamageCentreBelt,
         AssessmentVocabulary.DamageUnrelated,
-        AssessmentVocabulary.DamageUnrelatedDeduction,
-        AssessmentVocabulary.DamageMaterialTransfer,
         AssessmentVocabulary.ValueRetail,
         AssessmentVocabulary.ValueTrade,
         AssessmentVocabulary.ValueEngineer,
-        AssessmentVocabulary.CostRecoveryCharge,
         AssessmentVocabulary.Outcome,
         AssessmentVocabulary.LegalStatus,
         AssessmentVocabulary.UnroadworthyReason,
         AssessmentVocabulary.SalvageCategory,
         AssessmentVocabulary.SalvageValue,
         AssessmentVocabulary.HistoryCheck,
-        AssessmentVocabulary.SettlementExcess,
-        AssessmentVocabulary.SettlementBetterment,
-        AssessmentVocabulary.SettlementClaimantVatRegistered,
-        AssessmentVocabulary.SettlementReserve,
         AssessmentVocabulary.SettlementContractSum,
-        AssessmentVocabulary.SettlementRepairDelays,
-        AssessmentVocabulary.SettlementReportDelay,
-        AssessmentVocabulary.SettlementStoragePerDay,
-        AssessmentVocabulary.SettlementHireStart,
-        AssessmentVocabulary.SettlementHireDailyCost,
-        AssessmentVocabulary.SettlementDiminution,
-        AssessmentVocabulary.SettlementSalvageAt,
-        AssessmentVocabulary.SettlementSalvageAgent,
-        AssessmentVocabulary.SettlementSalvageAgentReference,
-        AssessmentVocabulary.SettlementSalvageMoved,
-        AssessmentVocabulary.SettlementSalvageOwnerRetains,
-        AssessmentVocabulary.SettlementSalvageValueAgreed,
-        AssessmentVocabulary.SettlementSalvageSettled,
     };
 
     public static CaseReportFreshnessDecision ClassifyWorkspace(

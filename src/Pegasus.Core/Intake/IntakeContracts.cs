@@ -11,16 +11,17 @@ public static class IntakeEnvelopeLimits
     /// bounded multipart HTTP request.
     /// </summary>
     /// <remarks>
-    /// Exactly 100 MiB, set by C07 item 5 (residual INTK-052) as the single
-    /// per-file cap the manual intake channel uses. This class is the one
-    /// owner of that figure: host and ingress limits may tighten it and may
-    /// never raise it.
+    /// Exactly 100 MB (100,000,000 bytes), the single per-file cap the manual
+    /// and Automation intake channels use: a decimal megabyte, the unit the
+    /// operator reads (operator, 26 September 2026; C07 item 5 had set
+    /// 100 MiB). This class is the one owner of that figure: host and ingress
+    /// limits may tighten it and may never raise it.
     ///
     /// The Provider API does not follow this cap. Its files arrive inline as
     /// base64 in one request body, so they are bounded by
     /// <see cref="MaximumProviderApiFileLength"/> instead.
     /// </remarks>
-    public const int MaximumContentLength = 100 * 1024 * 1024;
+    public const int MaximumContentLength = 100_000_000;
 
     /// <summary>
     /// One received mailbox message, envelope and every attachment together.
@@ -89,10 +90,11 @@ public static class IntakeEnvelopeLimits
     /// multipart boundaries and non-file form fields.
     /// </summary>
     /// <remarks>
-    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB. Every file
-    /// may be at its individual cap; the batch as a whole may not.
+    /// Pinned at exactly 200 MB (200,000,000 bytes; operator, 26 September
+    /// 2026, where C07 item 5 had set 200 MiB). Every file may be at its
+    /// individual cap; the batch as a whole may not.
     /// </remarks>
-    public const long MaximumBatchFileContentLength = 200L * 1024 * 1024;
+    public const long MaximumBatchFileContentLength = 200_000_000L;
 
     /// <summary>
     /// The multipart request body budget for one whole Upload submission.
@@ -197,6 +199,42 @@ public static class IntakeEvidenceSignals
 
     public const string ConflictingInstructionSelection =
         "conflicting-instruction-selection";
+
+    /// <summary>
+    /// The member of staff who uploaded the file declared its Case before the
+    /// upload (Add evidence on a Case page, FRD-18): no identification ran.
+    /// </summary>
+    public const string DeclaredDestination = "declared-destination";
+}
+
+/// <summary>
+/// The one owner of the actor string an upload is staged under. The Upload
+/// page writes it and processing reads the staff subject back out of it when
+/// a declared destination is linked in that member of staff's name.
+/// </summary>
+public static class IntakeActorIdentity
+{
+    private const string StaffPrefix = "staff:";
+
+    public static string Staff(string subjectId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
+        return StaffPrefix + subjectId;
+    }
+
+    public static bool TryParseStaff(string? actor, out string subjectId)
+    {
+        if (actor is not null
+            && actor.StartsWith(StaffPrefix, StringComparison.Ordinal)
+            && actor.Length > StaffPrefix.Length)
+        {
+            subjectId = actor[StaffPrefix.Length..];
+            return true;
+        }
+
+        subjectId = string.Empty;
+        return false;
+    }
 }
 
 public enum IntakeSourceReadStatus
@@ -301,18 +339,25 @@ public sealed class IntakeArtifactRetentionException : Exception
     }
 }
 
+/// <param name="DeclaredCaseId">
+/// The Case a member of staff chose before uploading (Add evidence on a Case
+/// page, FRD-18). Processing links the file to it as that member of staff's
+/// decision and runs no identification. Null for every other route.
+/// </param>
 public sealed record IntakeSource(
     string FileName,
     string MediaType,
     ReadOnlyMemory<byte> Content,
     DateTimeOffset ReceivedAtUtc,
     string Actor,
-    IntakeSourceIdentity SourceIdentity);
+    IntakeSourceIdentity SourceIdentity,
+    Guid? DeclaredCaseId = null);
 
 public sealed record StreamedIntakeSource(
     string FileName, string MediaType, long ContentLength,
     Func<CancellationToken, ValueTask<Stream>> OpenContentAsync,
-    DateTimeOffset ReceivedAtUtc, string Actor, IntakeSourceIdentity SourceIdentity);
+    DateTimeOffset ReceivedAtUtc, string Actor, IntakeSourceIdentity SourceIdentity,
+    Guid? DeclaredCaseId = null);
 
 /// <summary>One uploaded source whose immutable bytes can be reopened without materialising them in Web memory.</summary>
 
@@ -708,11 +753,19 @@ public sealed record IntakeReceipt(
     string? AcceptedCaseReference = null,
     string? ManualLinkedCaseReference = null,
     ActorKind? ManualAssociationActorKind = null,
-    string? ManualAssociationOperationKey = null)
+    string? ManualAssociationOperationKey = null,
+    Guid? DeclaredCaseId = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
+
+    /// <summary>
+    /// The member of staff who uploaded this file chose its Case first (Add
+    /// evidence on a Case page). Processing links it there in their name; no
+    /// identification ran and no Unidentified item is made for it.
+    /// </summary>
+    public bool HasDeclaredDestination => DeclaredCaseId is not null;
 
     public Guid? CurrentCaseId =>
         ManualAssociationVersion is null ? AcceptedCaseId : ManualLinkedCaseId;
@@ -770,7 +823,8 @@ public sealed record IntakeReceiptDraft(
     MailRouteEvaluationResult? MailRouteDecision = null,
     MailClassificationResult? MailClassificationDecision = null,
     CaseMatchEvaluationResult? CaseMatchDecision = null,
-    IReadOnlyList<IntakeSearchDocument>? SearchDocuments = null)
+    IReadOnlyList<IntakeSearchDocument>? SearchDocuments = null,
+    Guid? DeclaredCaseId = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
@@ -1179,6 +1233,36 @@ public interface IIntakeMutationStore
         AutomaticIntakeLinkRequest request,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records the association a member of staff declared before uploading
+    /// (Add evidence on a Case page) as that member of staff's decision. It
+    /// writes only the receipt's own association and history rows, never the
+    /// Case row, and takes no edit lease, like automatic association. Replays
+    /// by operation key. A prior association of any kind wins
+    /// (<see cref="DeclaredDestinationLinkOutcome.Superseded"/>); a missing or
+    /// archived Case yields <see cref="DeclaredDestinationLinkOutcome.CaseUnavailable"/>.
+    /// </summary>
+    Task<DeclaredDestinationLinkOutcome> LinkDeclaredDestinationAsync(
+        DeclaredDestinationLinkRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Declared upload destinations are not supported by this store.");
+}
+
+public sealed record DeclaredDestinationLinkRequest(
+    Guid ReceiptId,
+    Guid CaseId,
+    string StaffSubjectId,
+    string OperationKey,
+    string Reason);
+
+public enum DeclaredDestinationLinkOutcome
+{
+    Linked,
+    AlreadyLinked,
+    Superseded,
+    CaseUnavailable
 }
 
 public sealed class IntakeOperationConflictException()

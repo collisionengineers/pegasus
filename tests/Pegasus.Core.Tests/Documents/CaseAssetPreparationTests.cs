@@ -14,7 +14,8 @@ public sealed class CaseAssetPreparationTests
         Guid? documentId = null,
         Guid? versionId = null,
         Guid? caseId = null,
-        CaseAssetReportRole role = CaseAssetReportRole.NotUsed,
+        bool inReport = false,
+        IReadOnlyList<Guid>? tags = null,
         int? order = null,
         CaseAssetRotation rotation = CaseAssetRotation.None,
         CaseAssetCrop? crop = null,
@@ -22,7 +23,10 @@ public sealed class CaseAssetPreparationTests
         string contentType = "image/jpeg",
         int sourceVersion = 1,
         long preparationVersion = 0,
-        bool fullPage = false) =>
+        bool fullPage = false,
+        DateTimeOffset? recordedAtUtc = null,
+        string fileName = "image.jpg",
+        bool canPrint = true) =>
         new(
             caseId ?? CaseId,
             occurrenceId ?? Guid.NewGuid(),
@@ -31,14 +35,20 @@ public sealed class CaseAssetPreparationTests
             sourceVersion,
             sha256,
             contentType,
-            role,
+            inReport,
             order,
             rotation,
             crop ?? CaseAssetCrop.Full,
             preparationVersion,
             null,
             null,
-            fullPage);
+            fullPage)
+        {
+            TagIds = tags ?? [],
+            SourceFileName = fileName,
+            RecordedAtUtc = recordedAtUtc ?? Now,
+            CanPrint = canPrint
+        };
 
     private static DocumentVersion Confirmed(
         CaseAssetPreparation item,
@@ -62,36 +72,37 @@ public sealed class CaseAssetPreparationTests
             isRemoved,
             null);
 
+    /// <summary>
+    /// More than one image may carry the Overview or Close-up tag (operator,
+    /// 26 September 2026): the save accepts it, and the report takes the first.
+    /// </summary>
     [Fact]
-    public void DuplicateCloseUpIsRejected()
+    public void TwoImagesTaggedOverviewSaveAndTheFirstInOrderPrintsAsTheOverview()
     {
-        var first = Item(role: CaseAssetReportRole.CloseUp);
-        var second = Item(role: CaseAssetReportRole.CloseUp);
-        Assert.Throws<InvalidOperationException>(() =>
-            CaseAssetPreparationPolicy.ValidateSet(CaseId, [first, second], NoConfirmedSources));
+        var first = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], order: 1);
+        var second = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], order: 2);
+
+        var saved = CaseAssetPreparationPolicy.ValidateSet(CaseId, [second, first], NoConfirmedSources);
+        var report = CaseAssetPreparationPolicy.ForReport(saved);
+
+        Assert.Equal(2, saved.Count);
+        Assert.Equal(
+            [(first.OccurrenceId, CaseAssetReportRole.Overview), (second.OccurrenceId, CaseAssetReportRole.Supporting)],
+            report.Select(image => (image.OccurrenceId, image.Role)).ToArray());
     }
 
     [Fact]
-    public void DuplicateOverviewIsRejected()
+    public void AReportWithoutTaggedImagesIsNotASaveBlock()
     {
-        var first = Item(role: CaseAssetReportRole.Overview);
-        var second = Item(role: CaseAssetReportRole.Overview);
-        Assert.Throws<InvalidOperationException>(() =>
-            CaseAssetPreparationPolicy.ValidateSet(CaseId, [first, second], NoConfirmedSources));
+        var untagged = new[] { Item(inReport: true, order: 1) };
+
+        var result = CaseAssetPreparationPolicy.ValidateSet(CaseId, untagged, NoConfirmedSources);
+
+        Assert.True(Assert.Single(result).InReport);
+        Assert.All(
+            CaseAssetPreparationPolicy.ForReport(result),
+            image => Assert.Equal(CaseAssetReportRole.Supporting, image.Role));
     }
-
-    [Fact]
-    public void MissingReadinessRolesIsNotASaveBlock()
-    {
-        var supportingOnly = new[] { Item(role: CaseAssetReportRole.Supporting, order: 1) };
-
-        var result = CaseAssetPreparationPolicy.ValidateSet(CaseId, supportingOnly, NoConfirmedSources);
-
-        Assert.Single(result);
-        Assert.DoesNotContain(result, item => item.Role == CaseAssetReportRole.CloseUp);
-        Assert.DoesNotContain(result, item => item.Role == CaseAssetReportRole.Overview);
-    }
-
     [Theory]
     [InlineData(-0.1, 0, 0.5, 0.5)]
     [InlineData(0, -0.1, 0.5, 0.5)]
@@ -135,7 +146,7 @@ public sealed class CaseAssetPreparationTests
     [InlineData(CaseAssetRotation.Clockwise270)]
     public void EachDefinedRotationIsAccepted(CaseAssetRotation rotation)
     {
-        var item = Item(role: CaseAssetReportRole.CloseUp, rotation: rotation);
+        var item = Item(inReport: true, rotation: rotation);
 
         var result = CaseAssetPreparationPolicy.ValidateSet(CaseId, [item], NoConfirmedSources);
 
@@ -145,7 +156,7 @@ public sealed class CaseAssetPreparationTests
     [Fact]
     public void AnUndefinedRotationFailsClosed()
     {
-        var item = Item(role: CaseAssetReportRole.CloseUp, rotation: (CaseAssetRotation)45);
+        var item = Item(inReport: true, rotation: (CaseAssetRotation)45);
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             CaseAssetPreparationPolicy.ValidateSet(CaseId, [item], NoConfirmedSources));
     }
@@ -158,7 +169,7 @@ public sealed class CaseAssetPreparationTests
         // saving the same crop values under two different rotations keeps
         // them byte-identical.
         var crop = new CaseAssetCrop(0.1m, 0.1m, 0.5m, 0.5m);
-        var rotated = Item(role: CaseAssetReportRole.CloseUp, rotation: CaseAssetRotation.Clockwise90, crop: crop);
+        var rotated = Item(inReport: true, rotation: CaseAssetRotation.Clockwise90, crop: crop);
 
         var validated = Assert.Single(
             CaseAssetPreparationPolicy.ValidateSet(CaseId, [rotated], NoConfirmedSources));
@@ -168,25 +179,26 @@ public sealed class CaseAssetPreparationTests
     }
 
     [Fact]
-    public void ReorderingSupportingImagesRenormalizesToAContiguousSequence()
+    public void ReorderingTheImagesInTheReportRenormalizesToAContiguousSequence()
     {
-        var a = Item(role: CaseAssetReportRole.Supporting, order: 5);
-        var b = Item(role: CaseAssetReportRole.Supporting, order: 2);
-        var c = Item(role: CaseAssetReportRole.Supporting, order: 9);
+        var a = Item(inReport: true, order: 5);
+        var b = Item(inReport: true, tags: [ImageTagVocabulary.CloseUpId], order: 2);
+        var c = Item(inReport: true, order: 9);
+        var unordered = Item(inReport: true);
 
-        var result = CaseAssetPreparationPolicy.ValidateSet(CaseId, [a, b, c], NoConfirmedSources);
+        var result = CaseAssetPreparationPolicy.ValidateSet(CaseId, [a, unordered, b, c], NoConfirmedSources);
 
         Assert.Equal(
-            [b.OccurrenceId, a.OccurrenceId, c.OccurrenceId],
+            [b.OccurrenceId, a.OccurrenceId, c.OccurrenceId, unordered.OccurrenceId],
             result.OrderBy(item => item.Order).Select(item => item.OccurrenceId).ToArray());
-        Assert.Equal([1, 2, 3], result.OrderBy(item => item.Order).Select(item => item.Order).ToArray());
+        Assert.Equal([1, 2, 3, 4], result.OrderBy(item => item.Order).Select(item => item.Order).ToArray());
     }
 
     [Fact]
     public void ReplayingAnAlreadyNormalizedSetIsIdempotent()
     {
-        var a = Item(role: CaseAssetReportRole.Supporting, order: 5);
-        var b = Item(role: CaseAssetReportRole.Supporting, order: 2);
+        var a = Item(inReport: true, order: 5);
+        var b = Item(inReport: true, order: 2);
 
         var first = CaseAssetPreparationPolicy.ValidateSet(CaseId, [a, b], NoConfirmedSources);
         var second = CaseAssetPreparationPolicy.ValidateSet(CaseId, first, NoConfirmedSources);
@@ -197,45 +209,40 @@ public sealed class CaseAssetPreparationTests
     }
 
     [Fact]
-    public void ResetRestoresNotUsedNullOrderNoneRotationAndFullCrop()
+    public void AnImageOutOfTheReportClaimsNoPageOfItsOwn()
     {
-        var prepared = Item(role: CaseAssetReportRole.Supporting, order: 3, rotation: CaseAssetRotation.Half);
-        var reset = prepared with
-        {
-            Role = CaseAssetReportRole.NotUsed,
-            Order = null,
-            Rotation = CaseAssetRotation.None,
-            Crop = CaseAssetCrop.Full
-        };
+        var item = Item(inReport: false, rotation: CaseAssetRotation.Half, fullPage: true);
 
-        var result = Assert.Single(CaseAssetPreparationPolicy.ValidateSet(CaseId, [reset], NoConfirmedSources));
+        var result = Assert.Single(CaseAssetPreparationPolicy.ValidateSet(CaseId, [item], NoConfirmedSources));
 
-        Assert.Equal(CaseAssetReportRole.NotUsed, result.Role);
+        Assert.False(result.InReport);
         Assert.Null(result.Order);
-        Assert.Equal(CaseAssetRotation.None, result.Rotation);
-        Assert.True(result.Crop.IsFull);
+        Assert.False(result.FullPage);
+        Assert.Equal(CaseAssetRotation.Half, result.Rotation);
     }
 
     [Fact]
-    public void AnUnusedAssetCannotCarryASupportingOrder()
+    public void AnImageOutOfTheReportCannotCarryAnOrder()
     {
-        var item = Item(role: CaseAssetReportRole.NotUsed, order: 1);
+        var item = Item(inReport: false, order: 1);
         Assert.Throws<InvalidOperationException>(() =>
             CaseAssetPreparationPolicy.ValidateSet(CaseId, [item], NoConfirmedSources));
     }
 
     [Fact]
-    public void UnsupportedMediaFailsClosed()
+    public void UnsupportedMediaFailsClosedOnlyInTheReport()
     {
-        var item = Item(role: CaseAssetReportRole.CloseUp, contentType: "application/pdf");
+        var inReport = Item(inReport: true, contentType: "application/pdf");
         Assert.Throws<InvalidOperationException>(() =>
-            CaseAssetPreparationPolicy.ValidateSet(CaseId, [item], NoConfirmedSources));
-    }
+            CaseAssetPreparationPolicy.ValidateSet(CaseId, [inReport], NoConfirmedSources));
 
+        var outOfReport = Item(inReport: false, contentType: "application/pdf");
+        Assert.Single(CaseAssetPreparationPolicy.ValidateSet(CaseId, [outOfReport], NoConfirmedSources));
+    }
     [Fact]
     public void HashMismatchAgainstTheCurrentConfirmedSourceFailsClosed()
     {
-        var item = Item(role: CaseAssetReportRole.Overview, sha256: "recorded-hash");
+        var item = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], sha256: "recorded-hash");
         var confirmed = Confirmed(item, sha256: "different-hash");
 
         Assert.Throws<InvalidOperationException>(() =>
@@ -248,7 +255,7 @@ public sealed class CaseAssetPreparationTests
     [Fact]
     public void ASupersededNoLongerCurrentSourceFailsClosed()
     {
-        var item = Item(role: CaseAssetReportRole.Overview);
+        var item = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId]);
         var confirmed = Confirmed(item, isCurrent: false);
 
         Assert.Throws<InvalidOperationException>(() =>
@@ -261,7 +268,7 @@ public sealed class CaseAssetPreparationTests
     [Fact]
     public void ALogicallyRemovedSourceFailsClosed()
     {
-        var item = Item(role: CaseAssetReportRole.Overview);
+        var item = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId]);
         var confirmed = Confirmed(item, isRemoved: true);
 
         Assert.Throws<InvalidOperationException>(() =>
@@ -274,7 +281,7 @@ public sealed class CaseAssetPreparationTests
     [Fact]
     public void ANotYetConfirmedSourceFailsClosed()
     {
-        var item = Item(role: CaseAssetReportRole.Overview);
+        var item = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId]);
         var confirmed = Confirmed(item, status: DocumentCustodyStatus.Pending);
 
         Assert.Throws<InvalidOperationException>(() =>
@@ -287,27 +294,126 @@ public sealed class CaseAssetPreparationTests
     [Fact]
     public void ACrossCaseAssetIsRejected()
     {
-        var otherCase = Item(caseId: Guid.NewGuid(), role: CaseAssetReportRole.Supporting, order: 1);
+        var otherCase = Item(caseId: Guid.NewGuid(), inReport: true, order: 1);
         Assert.Throws<InvalidOperationException>(() =>
             CaseAssetPreparationPolicy.ValidateSet(CaseId, [otherCase], NoConfirmedSources));
     }
 
+    /// <summary>
+    /// The tag decides how an image in the report prints (operator, 26
+    /// September 2026): the first image tagged Close-up, then the first other
+    /// one tagged Overview, then the rest in order as Supporting. An image out
+    /// of the report never prints, whatever it is tagged.
+    /// </summary>
     [Fact]
-    public void ForReportOrdersCloseUpThenOverviewThenSupportingByOrderAndExcludesNotUsed()
+    public void ForReportPrintsTheTaggedCloseUpThenOverviewThenTheRestInOrder()
     {
-        var closeUp = Item(role: CaseAssetReportRole.CloseUp, fullPage: true);
-        var overview = Item(role: CaseAssetReportRole.Overview);
-        var supportingTwo = Item(role: CaseAssetReportRole.Supporting, order: 2);
-        var supportingOne = Item(role: CaseAssetReportRole.Supporting, order: 1);
-        var notUsed = Item(role: CaseAssetReportRole.NotUsed);
+        var closeUp = Item(inReport: true, tags: [ImageTagVocabulary.CloseUpId], order: 3, fullPage: true);
+        var overview = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], order: 4);
+        var supportingTwo = Item(inReport: true, order: 2);
+        var supportingOne = Item(inReport: true, order: 1);
+        var outOfReport = Item(inReport: false, tags: [ImageTagVocabulary.CloseUpId]);
 
         var report = CaseAssetPreparationPolicy.ForReport(
-            [supportingTwo, closeUp, notUsed, overview, supportingOne]);
+            [supportingTwo, closeUp, outOfReport, overview, supportingOne]);
 
         Assert.Equal(
-            [closeUp.OccurrenceId, overview.OccurrenceId, supportingOne.OccurrenceId, supportingTwo.OccurrenceId],
-            report.Select(item => item.OccurrenceId).ToArray());
+            [
+                (closeUp.OccurrenceId, CaseAssetReportRole.CloseUp, (int?)null),
+                (overview.OccurrenceId, CaseAssetReportRole.Overview, (int?)null),
+                (supportingOne.OccurrenceId, CaseAssetReportRole.Supporting, (int?)1),
+                (supportingTwo.OccurrenceId, CaseAssetReportRole.Supporting, (int?)2),
+            ],
+            report.Select(item => (item.OccurrenceId, item.Role, item.Order)).ToArray());
         Assert.True(report[0].FullPage);
-        Assert.DoesNotContain(report, item => item.OccurrenceId == notUsed.OccurrenceId);
+    }
+
+    /// <summary>
+    /// Only an image that can print counts (operator, 26 September 2026): one
+    /// still being stored, superseded or removed is not one of the report's
+    /// images, whatever it is tagged, and the next one tagged the same prints.
+    /// </summary>
+    [Fact]
+    public void AnImageThatCannotPrintIsNotOneOfTheReportsImages()
+    {
+        var arriving = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], order: 1, canPrint: false);
+        var overview = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId], order: 2);
+        var supporting = Item(inReport: true, order: 3);
+
+        var report = CaseAssetPreparationPolicy.ForReport([arriving, overview, supporting]);
+
+        Assert.Equal(
+            [
+                (overview.OccurrenceId, CaseAssetReportRole.Overview, (int?)null),
+                (supporting.OccurrenceId, CaseAssetReportRole.Supporting, (int?)1),
+            ],
+            report.Select(item => (item.OccurrenceId, item.Role, item.Order)).ToArray());
+    }
+
+    /// <summary>
+    /// Images nobody has ordered follow the order they arrived, then their
+    /// file names, never their identifiers: the gallery, the supporting
+    /// images and the first image tagged Overview all read this order.
+    /// </summary>
+    [Fact]
+    public void ImagesWithNoOrderFollowArrivalThenFileName()
+    {
+        // Identifiers run against arrival, so an identifier order would fail.
+        var firstIn = Item(
+            occurrenceId: Guid.Parse("f0000000-0000-0000-0000-000000000000"),
+            inReport: true, tags: [ImageTagVocabulary.OverviewId], recordedAtUtc: Now, fileName: "b.jpg");
+        var sameMomentEarlierName = Item(
+            occurrenceId: Guid.Parse("e0000000-0000-0000-0000-000000000000"),
+            inReport: true, recordedAtUtc: Now.AddMinutes(1), fileName: "img_0001.jpg");
+        var sameMomentLaterName = Item(
+            occurrenceId: Guid.Parse("d0000000-0000-0000-0000-000000000000"),
+            inReport: true, tags: [ImageTagVocabulary.OverviewId], recordedAtUtc: Now.AddMinutes(1), fileName: "IMG_0002.jpg");
+        var lastIn = Item(
+            occurrenceId: Guid.Parse("a0000000-0000-0000-0000-000000000000"),
+            inReport: true, recordedAtUtc: Now.AddMinutes(2), fileName: "a.jpg");
+        var ordered = Item(inReport: true, order: 1, recordedAtUtc: Now.AddMinutes(3), fileName: "z.jpg");
+
+        var report = CaseAssetPreparationPolicy.ForReport(
+            [lastIn, sameMomentLaterName, ordered, sameMomentEarlierName, firstIn]);
+
+        Assert.Equal(
+            [
+                (firstIn.OccurrenceId, CaseAssetReportRole.Overview),
+                (ordered.OccurrenceId, CaseAssetReportRole.Supporting),
+                (sameMomentEarlierName.OccurrenceId, CaseAssetReportRole.Supporting),
+                (sameMomentLaterName.OccurrenceId, CaseAssetReportRole.Supporting),
+                (lastIn.OccurrenceId, CaseAssetReportRole.Supporting),
+            ],
+            report.Select(item => (item.OccurrenceId, item.Role)).ToArray());
+
+        var saved = CaseAssetPreparationPolicy.ValidateSet(
+            CaseId, [lastIn, sameMomentLaterName, ordered, sameMomentEarlierName, firstIn], NoConfirmedSources);
+        Assert.Equal(
+            [
+                ordered.OccurrenceId, firstIn.OccurrenceId, sameMomentEarlierName.OccurrenceId,
+                sameMomentLaterName.OccurrenceId, lastIn.OccurrenceId,
+            ],
+            saved.OrderBy(item => item.Order).Select(item => item.OccurrenceId).ToArray());
+    }
+
+    /// <summary>One image tagged both Close-up and Overview prints once, as the Close-up.</summary>
+    [Fact]
+    public void AnImageTaggedCloseUpAndOverviewPrintsOnceAsTheCloseUp()
+    {
+        var both = Item(inReport: true, tags: [ImageTagVocabulary.OverviewId, ImageTagVocabulary.CloseUpId], order: 1);
+
+        var image = Assert.Single(CaseAssetPreparationPolicy.ForReport([both]));
+
+        Assert.Equal(CaseAssetReportRole.CloseUp, image.Role);
+    }
+
+    [Theory]
+    [InlineData("00000000-0000-4000-8000-0000000017a3", true)]
+    [InlineData("00000000-0000-4000-8000-0000000017a4", true)]
+    [InlineData("00000000-0000-4000-8000-0000000017a1", false)]
+    [InlineData("00000000-0000-4000-8000-0000000017a2", false)]
+    public void ThirdPartyAndReflectionTakeAnImageOutOfTheReport(string tagId, bool takesOut)
+    {
+        Assert.Equal(takesOut, ImageTagVocabulary.TakesImageOutOfReport(Guid.Parse(tagId)));
     }
 }

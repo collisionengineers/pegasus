@@ -126,14 +126,17 @@ public sealed class UnidentifiedReconciliationTests
         var store = services.GetRequiredService<IUnidentifiedStore>();
         var reconciler = services.GetRequiredService<ReconcileUnidentifiedDestinations>();
 
-        // Forward direction: a manual link on a still-NeedsSorting receipt.
-        var linked = await reconciler.ExecuteAsync(50);
-        Assert.Equal(1, linked.Resolved);
+        // Forward direction: the staff link on a still-NeedsSorting receipt
+        // resolved the item in its own request (LinkIntake, FRD-22). The sweep
+        // then only completes the fresh resolution's recheck watermark and
+        // writes nothing.
         var resolvedToA = await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
         Assert.Equal(UnidentifiedState.Resolved, resolvedToA!.State);
         Assert.Equal(UnidentifiedResolutionTargetKind.InstructionCase, resolvedToA.ResolutionTargetKind);
         Assert.Equal(caseA.ToString("N"), resolvedToA.ResolutionTargetId);
         Assert.Equal("RECON26001", resolvedToA.ResolutionTargetReference);
+        var linked = await reconciler.ExecuteAsync(50);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0), linked);
 
         // Statement 14, first half: the resolution is complete, so the queue
         // does not hand the row back and the sweep is quiet.
@@ -163,14 +166,15 @@ public sealed class UnidentifiedReconciliationTests
             entry => entry.PreviousState == UnidentifiedState.Resolved
                 && entry.NewState == UnidentifiedState.Open);
 
-        // Relink to a different case: the open item follows it.
+        // Relink to a different case: the open item follows it, again in the
+        // link's own request; the sweep only rechecks the moved association.
         await LinkAsync(factory.Services, receiptId, caseB, actor, "recon-link-b");
-        var relinked = await reconciler.ExecuteAsync(50);
-        Assert.Equal(1, relinked.Resolved);
         var resolvedToB = await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId));
         Assert.Equal(UnidentifiedState.Resolved, resolvedToB!.State);
         Assert.Equal(caseB.ToString("N"), resolvedToB.ResolutionTargetId);
         Assert.Equal("RECON26002", resolvedToB.ResolutionTargetReference);
+        var relinked = await reconciler.ExecuteAsync(50);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0), relinked);
 
         // The withdrawn destination stays on the record permanently.
         var history = await store.HistoryAsync(resolvedToB.Id);
@@ -256,7 +260,12 @@ public sealed class UnidentifiedReconciliationTests
         var secondReceiptId = IntakeWebDriver.ReceiptId(secondUpload);
         var secondCase = await SeedCaseAsync(factory.Services, secondReceiptId, "RECON26011");
         await LinkAsync(factory.Services, secondReceiptId, secondCase, actor, "recheck-link-second");
-        Assert.Equal(1, (await reconciler.ExecuteAsync(50)).Resolved);
+        // The link resolved its item in-request; the sweep completes the
+        // fresh resolution's recheck watermark and writes nothing.
+        Assert.Equal(
+            UnidentifiedState.Resolved,
+            (await store.GetByOriginAsync(UnidentifiedOrigin.Receipt(secondReceiptId)))!.State);
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0), await reconciler.ExecuteAsync(50));
 
         var thirdCase = await SeedCaseAsync(factory.Services, secondReceiptId, "RECON26012");
         await ReverseAsync(factory.Services, secondReceiptId, secondCase, actor, "recheck-unlink-second");
@@ -325,9 +334,11 @@ public sealed class UnidentifiedReconciliationTests
         var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
         var reconciler = scope.ServiceProvider.GetRequiredService<ReconcileUnidentifiedDestinations>();
 
-        Assert.True(await reconciler.SynchronizeForSubmissionGroupAsync(groupId, CancellationToken.None));
+        // The last member's link resolved the group-owned item in its own
+        // request (LinkIntake), so a repeated synchronization has nothing left.
         var resolved = await store.GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(groupId));
         Assert.Equal(UnidentifiedState.Resolved, resolved!.State);
+        Assert.False(await reconciler.SynchronizeForSubmissionGroupAsync(groupId, CancellationToken.None));
 
         // Null watermark first selects this aggregate of two version-zero links;
         // marking it retires the real SQL row until a member association moves.
@@ -351,7 +362,10 @@ public sealed class UnidentifiedReconciliationTests
         Assert.Equal(UnidentifiedState.Open, reopened!.State);
 
         await LinkAsync(factory.Services, receiptIds[0], caseId, actor, "group-recheck-relink");
-        Assert.True(await reconciler.SynchronizeForSubmissionGroupAsync(groupId, CancellationToken.None));
+        Assert.Equal(
+            UnidentifiedState.Resolved,
+            (await store.GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(groupId)))!.State);
+        Assert.False(await reconciler.SynchronizeForSubmissionGroupAsync(groupId, CancellationToken.None));
         Assert.Single(await store.ListResolutionsToRecheckAsync(50));
         Assert.Equal(
             new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0),

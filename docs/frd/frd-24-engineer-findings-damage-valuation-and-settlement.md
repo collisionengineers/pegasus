@@ -9,8 +9,8 @@
 - A damage entry records the areas it covers, a severity and a note. Impact
   location and severity are derived by `Pegasus.Core`, never typed in.
 - Glass's, Brego, Super CAP, CAP and Cazana are guide valuation sources.
-  Engineer's Value is adopted, with its basis card's retail and trade values,
-  by a staff member's Save when the calculation changed, in a fixed order.
+  Retail value, Trade value and Engineer's Value are boxes on Valuation.
+  Staff type them or fill them from a guide card, and the Save records them.
 - Settlement saves with the Case's single workspace Save. Equity is derived,
   never typed in.
 - AI and Market Research only propose. An authorised person decides.
@@ -101,13 +101,18 @@ on the workspace and on the report alike.
 
 The record also carries tyres and seat belts per corner, the spare tyre, the
 centre belt, which airbags deployed in the Engineer's words (for example
-`None` or `Driver and passenger front`, recorded under Tyres & seat belts and
-printed in the report's Vehicle Details), unrelated damage with its
-deduction, and paint or material transfer. `impact_location` and
-`impact_severity` are derived from the areas by `Pegasus.Core`, never typed
-in: one distinct area reads as itself, more read Multiple. The report prints
-the marked diagram
-([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
+`None` or `Driver and passenger front`, recorded under Tyres & seat belts),
+unrelated damage with its deduction, and paint or material transfer.
+`impact_location` and `impact_severity` are derived from the areas by
+`Pegasus.Core`, never typed in: one distinct area reads as itself, more read
+Multiple.
+
+The report prints the marked diagram, which is the Case page's own plan, and
+no damage or tyre table (operator, 27 September 2026). Tyres, seat belts,
+airbags, the unrelated-damage deduction and paint or material transfer are
+recorded on the Case and not printed. Unrelated damage prints as its own
+paragraph when its switch is on
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-wording-blocks)).
 
 ### Valuation sources
 
@@ -133,30 +138,32 @@ connected today; connecting one needs its own accepted decision
 
 Every entry keeps its date and time, and the retail and trade values and
 guide month it was given; a guide card may hold any of them blank. An
-Engineer's Value or AI market research entry always carries its figures and a
-mileage: an adopted Engineer's Value takes the Case's accepted mileage in
-miles, so a Save that would adopt one while the Case has no mileage is
-refused, as the lookup is. Glass's valuation and Glass's repair estimating are two systems
+Engineer's Value or AI market research entry always carries its figures. An
+Engineer's Value calculated from a guide card records the Case's accepted
+mileage in miles when the Case has one; none is needed (operator, 26
+September 2026). Glass's valuation and Glass's repair estimating are two systems
 and both are used: the valuation source and the estimate import source keep
 separate label entries and are never merged. An AI market research entry is
 the proposal recorded by the `MarketResearch` job
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
 it never becomes the Engineer's Value by itself.
 
-**Engineer's Value** is adopted only by an enabled human staff member's Case
-Save, and only when the valuation calculation changed since the page opened
-(a different basis card, the basis card's retail or trade, or any calculator
-control; operator, 23 September 2026), in this order:
-commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
-condition deduction, rounding to whole pounds away from zero. No field of the
-Save writes the adopted value directly; an unchanged calculation adopts
-nothing. The adoption also records the basis card's retail and trade as the
-Case's retail and trade values, which the report prints beside the
-Engineer's Value; a later adoption replaces all three together. A basis card
-without a trade figure records no trade value, and report readiness names
-Trade value until trade is entered on that card and the Case saved, which
-adopts again
+**Retail value, Trade value and Engineer's Value** are three boxes at the
+top of Valuation (operator, 26 September 2026). The report prints them in its
+Vehicle Data table. Staff type them, or choose a guide card as the basis: the
+card's retail and trade fill the first two boxes in place, and the
+calculation fills the Engineer's Value. Any box can be overtyped. The Case's
+single workspace Save records the three like any field, and no mileage is
+needed. Each is a report blocker until it is entered
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+
+The calculation starts from the basis card's retail and applies, in this
+order: commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
+condition deduction, rounding to whole pounds away from zero. When the
+calculation changed since the page opened (a different basis card, the basis
+card's retail or trade, or any calculator control; operator, 23 September
+2026), the Save also records it against its basis card, so the Case keeps
+where the figures came from. Typed values need no calculation.
 This calculation is current required behaviour. Extra rationale or
 revaluation-history scope needs its own accepted contract.
 
@@ -173,6 +180,12 @@ Financial ratio lines are allowed, not required; the "no percentage" rule in
 only to completeness. Outcome meanings are owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
 
+The report prints the outcome, the roadworthiness and the unroadworthy
+reason. On a total loss it prints the category and the salvage value. On a
+contract repair it prints the agreed contract sum. The other settlement
+fields are recorded on the Case and not printed (operator, 27 September
+2026).
+
 **The Decisions surface (v28, ruled 20 September 2026).** Outcome, Salvage
 category and Roadworthiness are chosen from a radio group of their codes,
 with the unset state offered as "Not recorded"; the select stays the posted
@@ -183,12 +196,11 @@ last touch wins. While the outcome is not a total loss the salvage rows are
 absent and a "Salvage · Not applicable" line stands in their place. While
 Roadworthiness is Unroadworthy, Temporary repairs possible (Yes or No),
 Temporary repair method and Temporary repair cost follow the unroadworthy
-reason; otherwise they are absent (operator, 24 September 2026), and the
-report's Vehicle Details prints their values only for an unroadworthy vehicle;
-for any other vehicle those rows read —. Beside the typed
-reserve, a computed **Repair reserve** reads the Current repair
-specification's VAT-inclusive cost rounded up to the next £50 on a
-Repairable outcome, and Not applicable otherwise; it is never written.
+reason; otherwise they are absent (operator, 24 September 2026). They are
+recorded on the Case and not printed on the report (operator, 27 September
+2026). Beside the typed reserve, a computed **Repair reserve** reads the
+Current repair specification's VAT-inclusive cost rounded up to the next £50
+on a Repairable outcome, and Not applicable otherwise; it is never written.
 
 **The unroadworthy reason bank (v28 P15).** An Engineer inserts a wording
 into the reason, joined to what is already there with "and", and may save
@@ -199,7 +211,7 @@ a wording.
 
 Settlement saves with the Case's single workspace Save. Storage per day and
 recovery use the existing typed Inspection members; a lump storage charge is
-a separate fact. The repair total is read from the Current accepted repair
+a separate fact. The repair total is read from the Current repair
 specification; repair days are no longer recorded (v28 P32). Equity
 uses the report's existing calculation over accepted inputs and is absent
 when those inputs are incomplete, never a made-up zero.
@@ -236,9 +248,8 @@ circular readiness gate is acceptable.
 - A correction never edits an accepted or issued finding in place.
 - Equity is absent when its accepted inputs are incomplete, never a made-up
   zero.
-- No assessment field writes the Engineer's Value or its basis card's retail
-  and trade; only a staff Save whose valuation calculation changed adopts
-  them.
+- The Engineer's Value and its retail and trade values are professional
+  findings: only staff record them, never automation.
 - A valuation source with no connected provider shows the card's notice and
   still lets the figures be typed by hand; the Case Save records them.
 - Research evidence and an AI valuation proposal never become the Engineer's
@@ -247,9 +258,9 @@ circular readiness gate is acceptable.
 
 ## Acceptance evidence
 
-Core tests cover the Engineer's Value order. Integration tests cover an
-adoption recording its basis card's retail and trade and a basis card without
-trade leaving Trade value outstanding. Web tests cover Airbags deployed and
+Core tests cover the Engineer's Value order. Integration tests cover typed
+values saving without a mileage and clearing their blockers, and a
+calculation recorded against its basis card. Web tests cover Airbags deployed and
 the temporary repair rows in read and edit and through the Case Save. Live
 Glass's evidence is a separate tier
 ([engineering](../engineering.md#required-evidence-tiers)).

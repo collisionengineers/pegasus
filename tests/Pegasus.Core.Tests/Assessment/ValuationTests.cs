@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.Assessment;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
@@ -80,9 +80,9 @@ public sealed class ValuationTests
     }
 
     /// <summary>
-    /// An Engineer's Value row is the entry surface of the confirmed
-    /// assessment.values.engineer finding, so it is refused when it cannot be
-    /// written to that field rather than persisted and silently dropped.
+    /// An Engineer's Value row records a value the assessment.values.engineer
+    /// finding could hold, so one it could not hold is refused rather than
+    /// persisted.
     /// </summary>
     [Fact]
     public void AnEngineersValueRowIsRefusedWhenItCannotBecomeTheAssessmentField()
@@ -97,13 +97,12 @@ public sealed class ValuationTests
     }
 
     /// <summary>
-    /// One owner: the number the product consumes is the assessment field, and
-    /// its value comes from the Engineer's Value row's retail figure,
+    /// The value an Engineer's Value row carries is its retail figure,
     /// canonicalized by the assessment vocabulary rather than by a second
-    /// format of this file's own.
+    /// format of this file's own. Other sources carry none.
     /// </summary>
     [Fact]
-    public void EngineersValueFieldIsTheCanonicalizedRetailFigureAndNothingElseWritesIt()
+    public void EngineersValueFieldIsTheCanonicalizedRetailFigure()
     {
         Assert.Equal(
             "12000.00",
@@ -121,8 +120,8 @@ public sealed class ValuationTests
     }
 
     /// <summary>
-    /// Any staff role may record a guide card. The Engineer's Value is adopted
-    /// by the Case save's Apply, which owns its own authority check.
+    /// Any staff role may record a guide card. The Engineer's Value is a box
+    /// of its own on Valuation, not a guide card.
     /// </summary>
     [Theory]
     [InlineData(StaffRole.Administrator)]
@@ -194,6 +193,10 @@ public sealed class ValuationTests
         // Unlike a guide card, they always carry their figures.
         Assert.Throws<ArgumentException>(() =>
             ValuationPolicy.ValidateDetails(Details(source) with { RetailValue = null }));
+        // A mileage is recorded when the Case has one; none is needed
+        // (operator, 26 September 2026).
+        var withoutMileage = Details(source) with { Mileage = null };
+        Assert.Equal(withoutMileage, ValuationPolicy.ValidateDetails(withoutMileage));
     }
 
     [Fact]

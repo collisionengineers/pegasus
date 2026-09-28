@@ -100,7 +100,10 @@ public sealed class CaseReportGenerationTests
             ],
         });
 
-        AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        // The name and signature are the account's, so the Case cannot clear it.
+        var reason = AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        Assert.Equal(CaseReportReadiness.SignOffAccountIncomplete, reason);
+        Assert.Equal("An Administrator sets a name and signature on the account in Accounts.", reason.HowToResolve);
     }
 
     [Fact]
@@ -115,7 +118,41 @@ public sealed class CaseReportGenerationTests
             EligibleSignOffEngineers = [Profile() with { IsDefault = false }],
         });
 
-        AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        // An account is offered, so staff choose it on the Case.
+        var reason = AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        Assert.Equal(CaseReportReadiness.SignOffEngineerNotChosen, reason);
+        Assert.Equal("Choose the Sign-off Engineer on Case details.", reason.HowToResolve);
+    }
+
+    /// <summary>
+    /// The preview names the Sign-off Engineer blocker as generation does, in
+    /// each of its three cases.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void ThePreviewNamesTheSameSignOffBlocker(bool resolved, bool accountsOffered)
+    {
+        // A resolved account here has a name and no signature.
+        var profile = Profile() with { Signature = [], IsDefault = false };
+        var generation = CaseReportReadiness.Evaluate(ReadyInput() with
+        {
+            PersistedSignOffEngineerId = resolved ? SignatoryId : null,
+            EligibleSignOffEngineers = accountsOffered ? [profile] : [],
+        });
+        var preview = AssessmentReportProjection.Prepare(
+            AssessmentReportProjectionTests.ReadyAssessment(),
+            Estimate(),
+            resolved
+                ? new ReportSignatory(
+                    profile.PrintedName, profile.Qualifications, profile.Signature, profile.SignatureContentType)
+                : null,
+            accountsOffered);
+
+        Assert.Equal(
+            AssertBlocked(generation, CaseReportReadiness.SignatoryRequirement),
+            Assert.Single(preview.Reasons, reason => reason.Requirement == CaseReportReadiness.SignatoryRequirement));
     }
 
     [Fact]
@@ -125,6 +162,20 @@ public sealed class CaseReportGenerationTests
 
         var reason = AssertBlocked(result, CaseReportReadiness.CurrentEstimateRequirement);
         Assert.Equal(CaseReportReadiness.CurrentEstimateMissing, reason);
+    }
+
+    [Fact]
+    public void ACurrentEstimateWithNoLinesBlocksGeneration()
+    {
+        // Putting a spec in use no longer needs lines; readiness names the gap.
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with
+        {
+            CurrentEstimate = Estimate() with { Lines = [] },
+        });
+
+        var reason = AssertBlocked(result, CaseReportReadiness.CurrentEstimateRequirement);
+        Assert.Equal(CaseReportReadiness.CurrentEstimateEmpty, reason);
+        Assert.Equal("The Current repair spec has no lines.", reason.WhyOutstanding);
     }
 
     [Fact]
@@ -142,12 +193,102 @@ public sealed class CaseReportGenerationTests
         AssertBlocked(result, CaseReportReadiness.LabourRateRequirement);
     }
 
+    /// <summary>
+    /// A repair spec whose repairer VAT status is Unknown charges VAT on
+    /// nothing, so the report would understate the repair cost: it blocks
+    /// generation (operator, 27 September 2026). The preview names the same
+    /// item, which tells staff where the status is recorded.
+    /// </summary>
     [Fact]
-    public void AMissingAcceptedEngineerValueBlocksGeneration()
+    public void AnUnknownRepairerVatStatusBlocksGenerationAndThePreviewAlike()
+    {
+        var estimate = Estimate();
+        var unknown = estimate with { Details = estimate.Details with { Vat = null } };
+
+        var generation = CaseReportReadiness.Evaluate(ReadyInput() with { CurrentEstimate = unknown });
+        var preview = AssessmentReportProjection.Prepare(
+            AssessmentReportProjectionTests.ReadyAssessment(),
+            unknown,
+            new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
+
+        var reason = AssertBlocked(generation, CaseReportReadiness.RepairerVatRequirement);
+        Assert.Equal(CaseReportReadiness.RepairerVatStatusUnknown, reason);
+        Assert.Equal(reason, Assert.Single(generation.Reasons));
+        Assert.Equal(reason, Assert.Single(preview.Reasons));
+        Assert.Equal(
+            "The Current repair spec does not say whether the repairer is VAT registered, so the report cannot work out the VAT.",
+            reason.WhyOutstanding);
+        Assert.Equal(
+            "Choose Registered or Not registered as the Repairer VAT status on the Repair Spec section.",
+            reason.HowToResolve);
+    }
+
+    /// <summary>
+    /// The template words VAT on every cost and VAT on parts and paint only.
+    /// Any other hand-picked set has no accepted wording, whatever the
+    /// status, so it blocks generation and the preview too.
+    /// </summary>
+    [Theory]
+    [InlineData(RepairerVatStatus.Registered, EstimateVatCategories.Labour)]
+    [InlineData(RepairerVatStatus.NotRegistered, EstimateVatCategories.Parts | EstimateVatCategories.Specialist)]
+    [InlineData(RepairerVatStatus.Unknown, EstimateVatCategories.All)]
+    public void AVatTreatmentTheTemplateCannotWordBlocksGenerationAndThePreviewAlike(
+        RepairerVatStatus status, EstimateVatCategories categories)
+    {
+        var estimate = Estimate();
+        var handPicked = estimate with
+        {
+            Details = estimate.Details with
+            {
+                Vat = new EstimateVatPolicy(status, categories, CategoriesOverridden: true),
+            },
+        };
+
+        var generation = CaseReportReadiness.Evaluate(ReadyInput() with { CurrentEstimate = handPicked });
+        var preview = AssessmentReportProjection.Prepare(
+            AssessmentReportProjectionTests.ReadyAssessment(),
+            handPicked,
+            new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
+
+        var reason = AssertBlocked(generation, CaseReportReadiness.RepairerVatRequirement);
+        // An unknown status is named first: recording it is what staff do.
+        Assert.Equal(
+            status == RepairerVatStatus.Unknown
+                ? CaseReportReadiness.RepairerVatStatusUnknown
+                : CaseReportReadiness.RepairerVatHandPicked,
+            reason);
+        Assert.Equal(reason, Assert.Single(preview.Reasons));
+        Assert.Contains("on the Repair Spec section", reason.HowToResolve, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(RepairerVatStatus.Registered)]
+    [InlineData(RepairerVatStatus.NotRegistered)]
+    public void ARecordedRepairerVatStatusIsReady(RepairerVatStatus status)
+    {
+        var estimate = Estimate();
+
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with
+        {
+            CurrentEstimate = estimate with
+            {
+                Details = estimate.Details with { Vat = EstimateVatPolicy.For(status) },
+            },
+        });
+
+        Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
+    }
+
+    /// <summary>
+    /// A typed Engineer's Value is the Case's value: generation needs no
+    /// applied valuation behind it (operator, 26 September 2026).
+    /// </summary>
+    [Fact]
+    public void ATypedEngineersValueNeedsNoAppliedValuation()
     {
         var result = CaseReportReadiness.Evaluate(ReadyInput() with { AppliedValuation = null });
 
-        AssertBlocked(result, CaseReportReadiness.EngineerValueRequirement);
+        Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
     }
 
     [Fact]
@@ -169,7 +310,80 @@ public sealed class CaseReportGenerationTests
             Preparations = [Preparation(CloseUpOccurrence, CaseAssetReportRole.CloseUp)],
         });
 
-        AssertBlocked(result, CaseReportReadiness.OverviewImageRequirement);
+        var reason = AssertBlocked(result, CaseReportReadiness.OverviewImageRequirement);
+        Assert.Equal("Tag one Case image Overview on the Files section.", reason.HowToResolve);
+    }
+
+    /// <summary>
+    /// An image out of the report never prints, so its Overview tag clears
+    /// nothing until it is put back in (operator, 26 September 2026).
+    /// </summary>
+    [Fact]
+    public void AnOverviewTaggedImageOutOfTheReportLeavesTheBlocker()
+    {
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with
+        {
+            Preparations =
+            [
+                Preparation(CloseUpOccurrence, CaseAssetReportRole.CloseUp),
+                Preparation(OverviewOccurrence, CaseAssetReportRole.Overview) with { InReport = false },
+            ],
+        });
+
+        var reason = AssertBlocked(result, CaseReportReadiness.OverviewImageRequirement);
+        Assert.Contains("tagged Overview", reason.WhyOutstanding, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Staff cannot clear the Sign-off Engineer on the Case: the name and
+    /// signature are the account's, set in Accounts (operator, 26 September 2026).
+    /// </summary>
+    [Fact]
+    public void TheSignOffBlockerNamesAccounts()
+    {
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with { EligibleSignOffEngineers = [] });
+
+        var reason = AssertBlocked(result, CaseReportReadiness.SignatoryRequirement);
+        Assert.Equal(CaseReportReadiness.SignOffAccountMissing, reason);
+        Assert.Equal("An Administrator sets a name and signature on the account in Accounts.", reason.HowToResolve);
+    }
+
+    /// <summary>
+    /// Only an image that can print counts (operator, 26 September 2026): one
+    /// still being stored is not one of the report's images and raises no
+    /// blocker, though it is in the report and has no confirmed source yet.
+    /// </summary>
+    [Fact]
+    public void AnImageThatCannotPrintRaisesNoBlocker()
+    {
+        var input = ReadyInput();
+        var arriving = Preparation(Guid.NewGuid(), CaseAssetReportRole.Overview) with { CanPrint = false };
+
+        var result = CaseReportReadiness.Evaluate(input with { Preparations = [.. input.Preparations, arriving] });
+
+        Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
+        Assert.DoesNotContain(result.Images, image => image.OccurrenceId == arriving.OccurrenceId);
+    }
+
+    /// <summary>
+    /// A tag on an image that cannot print clears nothing: the blocker asks
+    /// for the tag, and nothing names the image's storage.
+    /// </summary>
+    [Fact]
+    public void AnOverviewTaggedImageThatCannotPrintLeavesOnlyTheOverviewBlocker()
+    {
+        var result = CaseReportReadiness.Evaluate(ReadyInput() with
+        {
+            Preparations =
+            [
+                Preparation(CloseUpOccurrence, CaseAssetReportRole.CloseUp),
+                Preparation(OverviewOccurrence, CaseAssetReportRole.Overview) with { CanPrint = false },
+            ],
+        });
+
+        Assert.Equal(
+            CaseReportReadiness.OverviewImageRequirement,
+            Assert.Single(result.Reasons).Requirement);
     }
 
     [Fact]
@@ -184,7 +398,10 @@ public sealed class CaseReportGenerationTests
 
         var result = CaseReportReadiness.Evaluate(input with { ConfirmedImageSources = moved });
 
-        AssertBlocked(result, CaseReportReadiness.ImageSourceRequirement);
+        // Staff cannot switch the image: the blocker names it and sends them to Files.
+        var reason = AssertBlocked(result, CaseReportReadiness.ImageSourceRequirement);
+        Assert.Equal("The stored version of close-up.png has changed.", reason.WhyOutstanding);
+        Assert.Equal("Open the Files section to see the image as it is stored now.", reason.HowToResolve);
     }
 
     [Fact]
@@ -215,8 +432,9 @@ public sealed class CaseReportGenerationTests
     }
 
     /// <summary>
-    /// The report prints the trade value of the Engineer's Value basis card,
-    /// recorded by the adoption, so a Case without one is not generated.
+    /// The report prints the trade value beside the Engineer's Value, so a
+    /// Case without one is not generated; it is entered on Valuation
+    /// (operator, 26 September 2026).
     /// </summary>
     [Fact]
     public void AMissingTradeValueBlocksGeneration()
@@ -230,7 +448,7 @@ public sealed class CaseReportGenerationTests
             input with { Assessment = input.Assessment with { Fields = withoutTrade } });
 
         var reason = AssertBlocked(result, "Trade value");
-        Assert.Equal("Valuation", reason.Source);
+        Assert.Equal("Enter it on the Valuation section.", reason.HowToResolve);
     }
 
     /// <summary>
@@ -252,30 +470,6 @@ public sealed class CaseReportGenerationTests
 
         Assert.False(result.IsReady);
         Assert.Equal("Inspection date", Assert.Single(result.Reasons).Requirement);
-    }
-
-    /// <summary>
-    /// A total loss prints only Category S, so any other category is refused
-    /// before the freeze rather than at render.
-    /// </summary>
-    [Fact]
-    public void ANonPrintableSalvageCategoryBlocksGeneration()
-    {
-        var input = ReadyInput();
-        AssessmentFieldValue[] fields =
-        [
-            .. input.Assessment.Fields.Select(field => field.Path == AssessmentVocabulary.Outcome
-                ? field with { Value = "total_loss" }
-                : field),
-            Field(AssessmentVocabulary.SalvageCategory, "B"),
-            Field(AssessmentVocabulary.SalvageValue, "500.00"),
-        ];
-
-        var result = CaseReportReadiness.Evaluate(
-            input with { Assessment = input.Assessment with { Fields = fields } });
-
-        var reason = AssertBlocked(result, "Salvage category");
-        Assert.Equal(AssessmentVocabulary.SalvageCategory, reason.Field);
     }
 
     /// <summary>
@@ -310,7 +504,6 @@ public sealed class CaseReportGenerationTests
         string? FieldOf(string requirement) =>
             Assert.Single(reasons, reason => reason.Requirement == requirement).Field;
 
-        Assert.Equal(AssessmentVocabulary.ValueEngineer, FieldOf(CaseReportReadiness.EngineerValueRequirement));
         Assert.Equal(
             AssessmentVocabulary.ReportValuationCommentaryText,
             FieldOf(CaseReportReadiness.ValuationCommentaryRequirement));
@@ -326,7 +519,6 @@ public sealed class CaseReportGenerationTests
         {
             var material = Assert.Single(reasons, item => item.Requirement == requirement);
             Assert.Null(material.Field);
-            Assert.Null(material.EstimateLine);
         }
     }
 
@@ -355,16 +547,14 @@ public sealed class CaseReportGenerationTests
             Assert.Single(reasons, reason => reason.Requirement == requirement).HowToResolve;
 
         Assert.Contains(
-            "the Case details section",
+            "in Accounts",
             HowToResolve(CaseReportReadiness.SignatoryRequirement),
             StringComparison.Ordinal);
         Assert.Contains(
             "the Repair Spec section",
             HowToResolve(CaseReportReadiness.CurrentEstimateRequirement),
             StringComparison.Ordinal);
-        // With nothing adopted, the post-review Engineer's Value item is the
-        // one blocker for the missing value; the rail does not repeat it.
-        Assert.DoesNotContain(reasons, reason => reason.Requirement == CaseReportReadiness.EngineerValueRequirement);
+        // The post-review Engineer's Value item is the one blocker for the missing value.
         var engineerValue = Assert.Single(reasons, reason => reason.Field == AssessmentVocabulary.ValueEngineer);
         Assert.Contains("the Valuation section", engineerValue.HowToResolve, StringComparison.Ordinal);
         Assert.Contains(
@@ -397,6 +587,28 @@ public sealed class CaseReportGenerationTests
         {
             Assessment = input.Assessment with { Fields = fields },
             AppliedValuation = Valuation() with { Reason = "  " },
+        });
+
+        AssertBlocked(result, CaseReportReadiness.ValuationCommentaryRequirement);
+    }
+
+    /// <summary>
+    /// "Engineer's Value applied." is the reason the Case save records by
+    /// itself: a message for the screen, not commentary. It does not satisfy
+    /// the switch, so it can never print as the report's commentary.
+    /// </summary>
+    [Fact]
+    public void TheCaseSavesOwnReasonDoesNotSatisfyTheValuationCommentarySwitch()
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields
+            .Append(Field(AssessmentVocabulary.ReportValuationCommentary, "true"))
+            .ToArray();
+
+        var result = CaseReportReadiness.Evaluate(input with
+        {
+            Assessment = input.Assessment with { Fields = fields },
+            AppliedValuation = Valuation() with { Reason = ValuationCalculationPolicy.AppliedReason },
         });
 
         AssertBlocked(result, CaseReportReadiness.ValuationCommentaryRequirement);
@@ -580,7 +792,8 @@ public sealed class CaseReportGenerationTests
 
         await Use(store, renderer, custody).ExecuteAsync(Request(), default);
 
-        Assert.Equal(["freeze", "render", "retain", "confirm"], store.Sequence);
+        // Custody is asked what it holds before anything is drawn.
+        Assert.Equal(["freeze", "ask", "render", "retain", "confirm"], store.Sequence);
     }
 
     [Fact]
@@ -669,23 +882,149 @@ public sealed class CaseReportGenerationTests
         Assert.Single(store.Confirmations);
     }
 
+    /// <summary>
+    /// A request can end after custody recorded the file and before the
+    /// report's row was given its version. The retry asks custody by the
+    /// operation key all the same, and confirms the file custody holds.
+    /// </summary>
     [Fact]
-    public async Task AStillPendingArtifactIsRenderedAgainUnderTheSameOperationKey()
+    public async Task ARowWithNoRecordedVersionAsksCustodyBeforeRendering()
     {
-        var store = new FakeStore { PendingDocumentId = Guid.NewGuid(), PendingVersionId = Guid.NewGuid() };
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var store = new FakeStore();
         var renderer = new RecordingRenderer();
         var custody = new RecordingCustody();
         var status = new RecordingCustodyStatus
         {
             Result = new CaseArtifactCustodyResult(
-                CaseArtifactCustodyDisposition.Pending, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
-                null, null, null, null, null, null, "pending-key"),
+                CaseArtifactCustodyDisposition.Confirmed, documentId, versionId, Guid.NewGuid(),
+                "box-file", "box-version", Sha256Of([1, 2, 3]), 3, "application/pdf", null, null),
         };
 
-        await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
 
-        Assert.Equal([CaseReportArtifactKind.AssessmentReport], renderer.Kinds);
-        Assert.Equal("operation-1", custody.LastRequest!.OperationKey);
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.Equal("operation-1", status.LastOperationKey);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        var confirmed = Assert.Single(store.Confirmations);
+        Assert.Equal(documentId, confirmed.DocumentId);
+        Assert.Equal(versionId, confirmed.VersionId);
+        Assert.Equal("box-file", confirmed.BoxFileId);
+        Assert.Equal(["freeze", "ask", "confirm"], store.Sequence);
+    }
+
+    /// <summary>
+    /// A drawn file carries its own creation time, so drawing a file custody
+    /// still holds as Pending could never match it. The retry records what
+    /// custody says, with custody's identities, and draws nothing.
+    /// </summary>
+    [Fact]
+    public async Task AStillPendingFileIsRecordedAsPendingWithoutRenderingAgain()
+    {
+        var store = new FakeStore { PendingDocumentId = Guid.NewGuid(), PendingVersionId = Guid.NewGuid() };
+        var renderer = new RecordingRenderer();
+        var custody = new RecordingCustody();
+        var held = new CaseArtifactCustodyResult(
+            CaseArtifactCustodyDisposition.Pending, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            null, null, Sha256Of([1, 2, 3]), 3, "application/pdf", "case_custody_pending", "pending-key");
+        var status = new RecordingCustodyStatus { Result = held };
+
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Pending, result.Outcome);
+        Assert.Equal("operation-1", status.LastOperationKey);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        Assert.Empty(store.Confirmations);
+        var recorded = Assert.Single(store.Outcomes);
+        Assert.Equal(CaseReportArtifactStatus.Pending, recorded.Status);
+        Assert.Equal(held.DocumentId, recorded.DocumentId);
+        Assert.Equal(held.VersionId, recorded.VersionId);
+        Assert.Equal("pending-key", recorded.PendingContentStorageKey);
+        Assert.Equal("case_custody_pending", recorded.FailureCode);
+        Assert.Equal(["freeze", "ask", "record"], store.Sequence);
+    }
+
+    [Fact]
+    public async Task AFailedFileIsRecordedAsFailedWithoutRenderingAgain()
+    {
+        var store = new FakeStore();
+        var renderer = new RecordingRenderer();
+        var custody = new RecordingCustody();
+        var held = new CaseArtifactCustodyResult(
+            CaseArtifactCustodyDisposition.Failed, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            null, null, Sha256Of([1, 2, 3]), 3, "application/pdf", "case_custody_failed", null);
+        var status = new RecordingCustodyStatus { Result = held };
+
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Failed, result.Outcome);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        var recorded = Assert.Single(store.Outcomes);
+        Assert.Equal(CaseReportArtifactStatus.Failed, recorded.Status);
+        Assert.Equal(held.VersionId, recorded.VersionId);
+        Assert.Equal("case_custody_failed", recorded.FailureCode);
+    }
+
+    /// <summary>
+    /// Custody holds a record of the file though it cannot say what became
+    /// of it. A second drawing would still be refused against that record, so
+    /// the retry keeps the outcome and draws nothing.
+    /// </summary>
+    [Fact]
+    public async Task AFileCustodyCannotAccountForIsRecordedWithoutRenderingAgain()
+    {
+        var store = new FakeStore();
+        var renderer = new RecordingRenderer();
+        var custody = new RecordingCustody();
+        var held = new CaseArtifactCustodyResult(
+            CaseArtifactCustodyDisposition.Unknown, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            null, null, null, null, null, null, null);
+        var status = new RecordingCustodyStatus { Result = held };
+
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Pending, result.Outcome);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        var recorded = Assert.Single(store.Outcomes);
+        Assert.Equal(CaseReportArtifactStatus.Unknown, recorded.Status);
+        Assert.Equal(held.VersionId, recorded.VersionId);
+    }
+
+    /// <summary>
+    /// The fee note, the Repair Spec and the image pack retry as the report
+    /// does: a stored file is confirmed under its own name and nothing is
+    /// drawn, the Repair Spec's own document included.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseReportArtifactKind.AssessmentReport, "CE_100_assessment.pdf")]
+    [InlineData(CaseReportArtifactKind.FeeNote, "CE_100_fee_note.pdf")]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, "CE_100_repair_specification.pdf")]
+    [InlineData(CaseReportArtifactKind.ImagePack, "CE_100_images.pdf")]
+    public async Task ARetryOfEveryArtifactKindConfirmsTheStoredFileWithoutDrawingIt(
+        CaseReportArtifactKind kind, string expectedFileName)
+    {
+        var store = new FakeStore();
+        var renderer = new RecordingRenderer();
+        var custody = new RecordingCustody();
+        var status = new RecordingCustodyStatus
+        {
+            Result = new CaseArtifactCustodyResult(
+                CaseArtifactCustodyDisposition.Confirmed, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+                "box-file", "box-version", Sha256Of([1, 2, 3]), 3, "application/pdf", null, null),
+        };
+
+        // The default Repair Spec document source refuses every call.
+        var result = await Use(store, renderer, custody, status).ExecuteAsync(Request(kind), default);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, result.Outcome);
+        Assert.Empty(renderer.Kinds);
+        Assert.Equal(0, custody.Calls);
+        Assert.Equal(expectedFileName, Assert.Single(store.Confirmations).FileName);
     }
 
     [Fact]
@@ -746,13 +1085,15 @@ public sealed class CaseReportGenerationTests
     {
         custody.Sequence = store.Sequence;
         renderer.Sequence = store.Sequence;
+        status ??= new RecordingCustodyStatus();
+        status.Sequence = store.Sequence;
         return new GenerateCaseReport(
             store,
             new FakeContentSource(),
             renderer,
             repairSpecificationDocuments ?? new RefusingRepairSpecificationDocuments(),
             custody,
-            status ?? new RecordingCustodyStatus(),
+            status,
             TimeProvider.System);
     }
 
@@ -829,10 +1170,17 @@ public sealed class CaseReportGenerationTests
     private static RepairSpecificationVersion Estimate() =>
         AssessmentReportProjectionTests.ReadyCurrentEstimate();
 
+    /// <summary>An image in the report wearing the tag that prints it as <paramref name="role"/>.</summary>
     private static CaseAssetPreparation Preparation(Guid occurrenceId, CaseAssetReportRole role) => new(
         CaseId, occurrenceId, DocumentIdOf(occurrenceId), VersionIdOf(occurrenceId), 1,
-        Sha256Of([(byte)role]), "image/png", role, null, CaseAssetRotation.None,
-        CaseAssetCrop.Full, 1, "engineer-1", RecordedAtUtc);
+        Sha256Of([(byte)role]), "image/png", true, null, CaseAssetRotation.None,
+        CaseAssetCrop.Full, 1, "engineer-1", RecordedAtUtc)
+    {
+        TagIds = [role == CaseAssetReportRole.CloseUp ? ImageTagVocabulary.CloseUpId : ImageTagVocabulary.OverviewId],
+        SourceFileName = role == CaseAssetReportRole.CloseUp ? "close-up.png" : "overview.png",
+        RecordedAtUtc = RecordedAtUtc,
+        CanPrint = true
+    };
 
     private static DocumentVersion Version(Guid occurrenceId) => new(
         VersionIdOf(occurrenceId), DocumentIdOf(occurrenceId), 1, "photo.png", "image/png", 8,
@@ -848,7 +1196,7 @@ public sealed class CaseReportGenerationTests
         new([.. occurrenceId.ToByteArray().Select(value => (byte)(value ^ 0x22))]);
 
     private static AssessmentFieldValue Field(string path, string value) => new(
-        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc);
+        path, value, ActorKind.Staff, "engineer-1", RecordedAtUtc);
 
     private sealed class FakeStore : ICaseReportGenerationStore
     {
@@ -1016,20 +1364,22 @@ public sealed class CaseReportGenerationTests
 
     private sealed class RecordingCustodyStatus : ICaseArtifactCustodyStatus
     {
+        public List<string>? Sequence { get; set; }
+
         public (Guid CaseId, Guid DocumentId, Guid VersionId, Guid OccurrenceId)? LastQuery { get; private set; }
 
         public string? LastOperationKey { get; private set; }
 
-        public CaseArtifactCustodyResult Result { get; init; } = new(
-            CaseArtifactCustodyDisposition.Unknown, null, null, null,
-            null, null, null, null, null, null, null);
+        /// <summary>What custody holds under the operation key; nothing on a first request.</summary>
+        public CaseArtifactCustodyResult? Result { get; init; }
 
         public Task<CaseArtifactCustodyResult> GetAsync(
             ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
             CancellationToken cancellationToken)
         {
             LastQuery = (caseId, documentId, versionId, occurrenceId);
-            return Task.FromResult(Result);
+            return Task.FromResult(Result
+                ?? throw new FileNotFoundException("Custody holds nothing under these identities."));
         }
 
         /// <summary>
@@ -1041,7 +1391,8 @@ public sealed class CaseReportGenerationTests
             CancellationToken cancellationToken)
         {
             LastOperationKey = operationKey;
-            return Task.FromResult<CaseArtifactCustodyResult?>(Result);
+            Sequence?.Add("ask");
+            return Task.FromResult(Result);
         }
     }
 }

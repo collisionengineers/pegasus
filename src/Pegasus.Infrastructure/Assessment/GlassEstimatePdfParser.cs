@@ -366,7 +366,7 @@ internal static class GlassEstimatePdfParser
             if (row.Overlap is { } overlap) notes.Add(FormattableString.Invariant($"Printed overlap: {overlap:0.00} h (net hours retained)."));
             if (row.Labour is { } labour) notes.Add(FormattableString.Invariant($"Printed labour: {labour:0.00} GBP."));
             return new(type, row.Guide, row.Description, paint ? null : row.Hours,
-                row.Operation == "RP" ? row.Material : null, false, row.PartNumber, null, "estimated", "reference",
+                row.Operation == "RP" ? row.Material : null, false, row.PartNumber, null, "reference",
                 notes.Count == 0 ? null : string.Join(' ', notes), PaintWorkUnits: paint ? row.Hours : null,
                 Materials: row.Operation == "RP" ? null : row.Material,
                 SourceRowIdentity: FormattableString.Invariant($"{row.Section.ToString().ToLowerInvariant()}:p{row.Page}:r{row.Position}:{row.Guide}"));

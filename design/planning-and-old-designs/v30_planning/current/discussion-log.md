@@ -171,3 +171,14 @@ Implemented on `task/upload-flow-five-designs` and recorded under Part 7 of
 the notes and the Upload page's how-it-should-work. The five new Upload
 design files and their evidence are committed with it as the record of what
 was implemented.
+
+## 25 September 2026, after Release 66 — the Upload picker's aside
+
+Operator, with three screenshots of the live picker: "UI narration... we dont
+want this" (the "One upload. One decision." aside with its three numbered
+steps beside the empty picker) "we do want this" (the picker alone: heading,
+drop target, Choose files, the three limits).
+
+Ruling: the aside is removed. The picker keeps its column; the Selected files
+roster still takes the right column once files are chosen. No other change to
+Upload E. Delivered on `task/upload-drop-aside`.

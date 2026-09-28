@@ -15,8 +15,9 @@
   are editable by every enabled staff role in Not ready, Review and With
   Engineer, and read-only in Held,
   Completed and Query.
-- Engineers can import an estimate directly from the Estimate section using
-  its keyboard-accessible Import action or a section-scoped file drop.
+- Staff with Case edit rights can import an estimate on the Repair Spec
+  section using its keyboard-accessible Import action or a section-scoped
+  file drop. The imported spec is the one in use at once.
 - Once an Inspection + Audit Case has its Audit, a Views card heads the
   aside. The Audit view is the default; the Inspection view is read-only.
 
@@ -79,6 +80,10 @@ An aside beside the sections holds **Figures** (three figures) and **Next action
 per-kind action, and the next permitted action with a link to its section;
 With Engineer, while the report is not ready, its first blocker and how many
 follow, linking to the section that clears that blocker).
+Once the report is ready, the Next action is **Generate report** until the
+report is stored, or **Waiting for the report to be stored** while its file
+is on its way to Box. Delivery is the Next action only once the report is
+stored (operator, 27 September 2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 Below 1441px the aside folds into a strip above the sections.
@@ -96,7 +101,8 @@ The Repair Spec and the Valuation calculator have no save of their own. A
 refusal refuses the whole save and keeps every proposed value on the page
 with its original authority for review. Ctrl S saves the same way and keeps
 editing open, as does a save the page makes first so an action can carry on
-from it (Apply or Remove scaling, and the unsaved-changes question's Save).
+from it (Apply or Remove scaling, Generate report while editing, and the
+unsaved-changes question's Save).
 Pressing a section's Edit enters edit mode in place: the section stays where
 it was on the screen. Selecting a tab also updates the section that Refresh
 submits; after a refresh its active lazy body loads.
@@ -108,9 +114,9 @@ controls. The Overview and Inspection sections each show exactly one panel
 per mode. Each value carries its source tag in its label line in both modes
 (Extracted, AI, E-mail, Lookup, Principal, Automatic); a staff value carries
 none ([FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds)).
-A control opens holding the value its box shows, except a decision's AI
-proposal awaiting review, which stays in the Decisions strip's Proposed
-column. The edit-mode Overview uses the label **Claim reference** for
+A control opens holding the value its box shows. A value keeps its tag
+until staff change it: a Save that reposts it unchanged leaves its
+provenance alone (operator, 25 September 2026). The edit-mode Overview uses the label **Claim reference** for
 the provider's claim number everywhere it appears. Our ref is the separate,
 immutable Case reference. The Registration, Make and Model inputs live in
 the Vehicle section's edit state, not on Overview.
@@ -127,8 +133,8 @@ Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Repair Spec, Decisions, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
-in Held and after completion. Adopting the Engineer's Value is a human
-staff act: the Save adopts it when the valuation calculation changed.
+in Held and after completion. The Engineer's Value is a staff finding, typed
+or filled from a guide card on Valuation.
 
 ### Inspection and Audit views
 
@@ -241,8 +247,8 @@ itself, never the e-mail it arrived in:
 - when a standalone Audit is accepted, from the report retained at intake;
 - when staff **Mark as original report**, from that document.
 
-A filled cell is tagged **Extracted** until a staff Save confirms it. A fill
-lands only on a cell staff have not confirmed and never clears one, so a
+A filled cell is tagged **Extracted** until staff change it. A fill lands
+only on a cell staff have not recorded and never clears one, so a
 staff-entered value is never overwritten. A cell stays blank for staff when
 the report prints no value for it, prints two different values, or prints a
 word the cell's list does not hold. Roadworthiness reads a printed Yes/No or
@@ -282,7 +288,7 @@ Transmission keeps its place among them and is edited in place, picked from
 Manual, Automatic, Semi-automatic, CVT or Unknown, because no approved lookup
 returns it (operator, 24 September 2026). One **Look up DVLA & MOT** action
 (`EXT-01`) fills an empty Make, Model, Year or Mileage and a Vehicle type
-that staff have not confirmed, and records the lookup's own facts. It never
+that staff have not recorded, and records the lookup's own facts. It never
 overwrites an extracted or staff-entered value. There is no checks panel and
 no suggestion table. Run Experian check stays the disabled seam. A labelled
 Vehicle history area holds the history-check narrative as read-only text,
@@ -315,9 +321,14 @@ The field set is owned by
 
 ### Valuation
 
+Valuation opens with one row of three boxes: **Retail value**, **Trade
+value** and **Engineer's Value**, the figures the report prints in its
+Vehicle Data table (operator, 26 September 2026). They are fields of the Case
+form, greyed while reading, and the ribbon Save records them.
+
 Valuation lists each entry with its source, date, time, retail and trade
-values, and guide month, with the mileage an Engineer's Value or AI market
-research entry carries (`EXT-10`). Sources are Glass's, Brego, Super
+values, and guide month (`EXT-10`). A calculated Engineer's Value entry
+carries a mileage when the Case has one. Sources are Glass's, Brego, Super
 CAP, CAP and Cazana guide cards, Engineer's Value and AI market research
 (automation only). Read and edit show the same cards: each guide source is
 one card with month, retail and trade boxes holding that source's
@@ -337,17 +348,41 @@ above the cards create a `MarketResearch` job and show a
 "Researching · {month}" card until it completes; a re-run replaces the card
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
 Read and edit list the same value increases, every active preset with a tick
-on each the latest adoption applied, and the calculator opens on that
-applied selection. The calculator has no Apply of its own (operator, 23
-September 2026): the ribbon Save adopts the Engineer's Value it shows when
-the calculation changed since the page opened — a different basis card, the
-basis card's retail or trade, or any of its controls — and an unchanged
-calculation adopts nothing. The adoption records the basis card's retail and
-trade with the Engineer's Value
+on each the latest recorded calculation applied, and the calculator opens on
+that applied selection. Choosing a card as the basis fills Retail value and
+Trade value from it, and the calculation fills Engineer's Value; any box can
+be overtyped. The calculator has no Apply of its own (operator, 23 September
+2026): when the calculation changed since the page opened — a different
+basis card, the basis card's retail or trade, or any of its controls — the
+ribbon Save records it against its basis card; an unchanged calculation
+records nothing
 ([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 The calculator applies presets and custom lines through Core. Valuation
 sources are owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources).
+
+### Glass's window and Case edits
+
+Launch and Resume open the provider window from the staff gesture and save
+pending Case edits through the existing keep-edit Save first. Only a confirmed
+save continues with the freshly rendered authority. Validation failure, a
+conflict, lost response or new edits during the save leaves the draft intact
+and makes no provider request. A blocked popup gives an actionable refusal.
+
+The same-origin launch handoff refreshes only the Glass's launch slot and
+session controls on the original Case before visiting the provider URL. It
+preserves dirty fields, their Case version and lease, focus, and reading
+position. Older refresh responses cannot overwrite newer controls. Save &
+Exit refreshes the workspace in place when it is clean; with pending edits it
+refreshes the session controls and reports the returned result without
+rebasing or discarding the draft. The latest Draft becomes visible after the
+staff member saves or cancels those edits. With no opener, the popup retains
+a server-rendered route back to the Case.
+
+Close uses the displayed session version and fresh confirmation that the
+external session is closed. A version conflict refreshes the controls and asks
+for confirmation again. Close never silently substitutes the current version
+for the version the staff member confirmed.
 
 ### Repair Spec
 
@@ -367,7 +402,8 @@ Financial ratio lines are permitted. The field meanings are owned by
 
 ### Report
 
-Image role, order, rotation and crop live on the image tile in Files. The
+Whether the report uses an image, its order, rotation and crop live on the
+image tile in Files. The
 Report section shows the readiness list — one row per blocker with the
 requirement, its source, why it is outstanding, what clears it and a link to
 the section that clears it
@@ -375,11 +411,31 @@ the section that clears it
 — wording blocks, Generate / Preview report draft, and a separate Fee pane
 for the agreed fee, description lines and fee note preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+**Generate report** is offered in and out of edit mode when nothing blocks;
+in edit mode it saves the Case first. The **Report not ready** label and the
+blocker list show in both modes (operator, 26 September 2026).
 The content switches are under **On the report** in Valuation. The report
 renders the sign-off Engineer tuple and the marked damage diagram. The
+diagram is the Case page's own plan: the report and the Damage section draw
+the same vehicle and place each disc alike (operator, 27 September 2026). The
 **Statement of truth** cell shows the accepted statement the report prints,
 read-only; no Case edits it
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
+
+**The report card** names the report and says where it stands in plain words
+(operator, 27 September 2026). Before any generation it reads "No generation
+yet." After one it reads "Generated" with the date and time, then one chip:
+Stored, Storing, Storage failed, Not confirmed or Not generated. Only Stored
+is green. A report that was never drawn shows Not generated alone, with no
+date. No raw state name is shown. What each word means is in
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point).
+
+Once the report is stored the card offers **Open report**, or **Open report
+with fee note** when the report carries its fee note. It opens the stored
+report in the page's document viewer; without script the link gives the
+file. After **Generate report** stores a report, that report opens in the
+viewer by itself, once. A report still being filed shows the warning notice
+"The report is still being filed to Box." in amber, never as a confirmation.
 
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
@@ -394,7 +450,9 @@ readiness list, generation and delivery are not shown.
 
 Files is one panel with three tabs: Documents, Images and Correspondence.
 All three are rendered, so a no-script visit shows the lists one after the
-other under their own headings. The panel header carries Add evidence, Open
+other under their own headings. The panel header carries Add evidence,
+which opens Upload for this Case with the destination already declared
+([FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)), Open
 Box case folder (or the folder's own state chip before custody is confirmed)
 and Open Operations. Once the Case has an Audit, a second chip follows for
 the `a.` audit folder, in the Case folder chip's tones: **Box audit ·
@@ -406,11 +464,20 @@ recorded time and custody-state chip, with Preview, Save as and, while
 editing, delete. When an Audit lists **Original report missing**, each
 non-image row also offers **Mark as original report** while editing. That
 action assigns the Audit report role, clears the requirement and fills the
-[Original report](#original-report) cells from that document.
+[Original report](#original-report) cells from that document. While the
+Engineer sections are editable, a confirmed row that exactly one estimate
+format recognises — an Audatex that arrived by email, say — also offers
+**Import as repair spec** (operator, 25 September 2026). It imports that
+file through the same import as the Repair Spec section, with no second copy
+([Assessment](#assessment)).
 
-**Images** is one grid of every image occurrence: the Case's own image
-documents plus, for each vehicle-images record associated with the Case, its
-photographs labelled by Image reference. Each tile shows:
+**Images** is one grid of the Case's image documents. A vehicle-images
+record that is associated with the Case and not yet merged into it lists its
+photographs below the grid, under its Image reference. When the merge
+completes they are Case images and the record's group goes, so each
+photograph shows once
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). Each
+tile shows:
 
 - a lazy-loaded thumbnail that expands to the full image, with the original
   filename as the accessible name. It is served only by an authorised staff
@@ -420,6 +487,9 @@ photographs labelled by Image reference. Each tile shows:
   ([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)), and for
   a Case image a Tag picker naming every vocabulary entry plus New tag with
   a colour;
+- while the Case edit lease is held, **In report**, on or off, posted at
+  once like a tag, so readiness reads it with no Case save (operator, 26
+  September 2026);
 - Preview and, while the Case edit lease is held, Crop.
 
 The Crop lease gate is the record's whole edit mode
@@ -427,7 +497,8 @@ The Crop lease gate is the record's whole edit mode
 once the Case reaches Completed or Query, and never on an archived Case. It
 is not tied to With Engineer, so a Review-state Case shows Crop. Images open
 in a full-screen viewer (title, tag, position, Rotate, Zoom, Download, In
-report while editing, and a filmstrip). Crop happens on the viewer stage. A
+report while editing, which is the tile's own In report, and a filmstrip).
+Crop happens on the viewer stage. A
 crop is a stored rectangle: the tile and the report show the cropped region
 and Download returns the original.
 
@@ -468,18 +539,24 @@ chaser are on the Triage Case page
 
 The Engineer workbench is the Damage, Valuation, Repair Spec, Decisions and
 Report sections of the Case record. The sections can always be read and are
-read-only in Completed. An image has one place (v28 P50): its report
-role, its order and the tools that change them are on its tile under Files —
-a distinct `Close-up` first, `Overview` second, optional supporting images in
-explicit order, and non-destructive crops that leave the retained source and
-its hash untouched. Beneath the grid a line counts what the report uses. The
-tile also carries Rotate, **Full page** and Remove (v28 P41): Full page is a
-flag on an image the report uses, so the image prints on a page of its own;
-Remove sets the role to Not used and the file stays on the Case, with Undo
-for eight seconds; the grip drags a tile above the one it lands on and the
-order the tiles then stand in is the report's supporting order. While the
-Case edits, clicking the image itself toggles whether the report uses it
-(v28 P27). The Report section carries no image surface.
+read-only in Completed. An image has one place (v28 P50): whether the report
+uses it, its order and the tools that change them are on its tile under
+Files, and non-destructive crops leave the retained source and its hash
+untouched. A new image is in the report. The tile has no report
+role: its tag decides how it prints, the first tagged `Close-up` first and
+the first other one tagged `Overview` second, the rest as supporting images
+in order (operator, 26 September 2026). The Close-up prints on page 1 and the
+Overview leads the image pages
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+Beneath the grid a line counts what the report uses, out of the images that
+can print
+([FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis));
+an image still being stored is in neither number. The tile also carries
+Rotate and **Full page** (v28 P41): Full page is a flag on an image the
+report uses, so the image prints on a page of its own; the grip drags a tile
+above the one it lands on and the order the tiles then stand in is the
+report's order. While the Case edits, clicking the image itself presses its
+In report (v28 P27). The Report section carries no image surface.
 
 The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
 repairer's document) carries the repair specification set (`EXT-09`): named
@@ -489,18 +566,21 @@ when the repairer, claimant or storage postcode is in London or the Home
 Counties) — VAT categories, lines with a Material amount each (P48; the
 Materials total is the column's sum) and totals. There are no repair days
 and no notes on a spec (P32); a spec is renamed by double-clicking its tab.
-One spec is Current and drives the report. Each version's rate prices
+One spec is Current and drives the report. A new spec — typed in, imported
+or returned from Glass's — is Current as soon as it is recorded; **Use repair
+spec** switches to another live spec. Each version's rate prices
 panel, paint and Specialist work-unit hours. The VAT rule is owned by
 [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report);
-an unknown repairer VAT status never gates **Use repair spec** (P10). Lines
-an import brought in read `imported · AX`, `GL`, `JSON` or `AI` on their
+an unknown repairer VAT status never gates **Use repair spec** (P10), and it
+does block the report (operator, 27 September 2026). Lines an import brought
+in read `imported · AX`, `GL`, `JSON` or `AI` on their
 Source chip (P18); a cell Core finds off-pattern reads amber and named
 Off-pattern, and the rollup carries the off-pattern amount as specialist
 (P37). **Delete all lines** sits beside Add line and asks first; a removed
 line or lines can be put back from the toast for eight seconds (P16). No
 provider-versus-assessed savings figure is shown. Reading and editing are one
 layout (operator, 23 September 2026): a spec that cannot be changed — every
-spec while reading, and a spec that is not a Draft while editing — shows the
+spec while reading, and a discarded spec while editing — shows the
 same header cells, the same grid columns and the same contract, discount and
 VAT bars as the editor, each value greyed in its control's place and a line's
 Type in the editor's words; a scaled spec's Target % of value bar stands in
@@ -509,7 +589,8 @@ its place with the Scaled state; the tools (add and delete lines, the Target
 edits. The spec has no save of its own: the ribbon Save records it, and a
 spec left unchanged is not rewritten. Apply and Remove scaling save first and
 then scale the saved spec. The More menu holds New repair spec
-(editing, recorded by the Save), **Print Repair Spec** for a saved spec with lines, and Compare,
+(editing, recorded by the Save and starting on the one enabled labour-rate
+card), **Print Repair Spec** for a saved spec with lines, and Compare,
 greyed out until the Case holds two specs (P9). Previewing the document
 does not save or discard pending edits. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
@@ -551,11 +632,14 @@ opens the native file picker; dropping a file over Repair Spec uses
 the same upload path and shows a temporary drop overlay. Exactly one supported
 PDF, XML or JSON file is accepted. From read mode, the server acquires the Case
 edit lease against the submitted Case version before storing the file through
-the normal Case document upload flow.
+the normal Case document upload flow. A dropped file whose bytes are already
+confirmed in Case Files, and a Documents row's **Import as repair spec**,
+import that stored file instead of storing another copy.
 
 After the source is confirmed in Case Files, its registered provider parser
-runs immediately. A successful import selects the new named Draft and displays
-its estimate lines in the editor. A parser refusal creates no partial Draft;
+runs immediately. A successful import records the new named spec as the
+Current one, on the one enabled labour-rate card, and displays its lines in
+the editor. A parser refusal creates no partial spec;
 the confirmed original remains in Case Files so the same source can be retried.
 Only registered parser types are accepted. An ambiguous file is refused, not
 guessed. Provenance and replay rules are owned by

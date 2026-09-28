@@ -85,7 +85,7 @@ public static class UnidentifiedMediaKindPolicy
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(mediaType);
-        return mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+        return UnidentifiedFileKind.Broad(mediaType) == BroadFileKind.Image
             ? UnidentifiedMediaKind.Image
             : UnidentifiedMediaKind.Document;
     }
@@ -797,26 +797,57 @@ public sealed class ReopenUnidentified(IUnidentifiedStore store) : IReopenUniden
 }
 
 /// <summary>
-/// What kind of file an item that could not be read was, in operator words.
-/// One rule, so the Inbox attachment badge, the upload confirmation row and the
-/// Unidentified record all say the same thing about the same file.
+/// The broad kind of a file, from its media type, in the order the Inbox
+/// preview names the kinds it counts.
+/// </summary>
+public enum BroadFileKind
+{
+    Image,
+    Document,
+    Email,
+    Video,
+    Other
+}
+
+/// <summary>
+/// What kind of file an item is, from its media type: its broad
+/// <see cref="BroadFileKind"/> and, in operator words, its name. One table for
+/// both, so the Inbox attachment badge and preview, the upload confirmation
+/// row and the Unidentified record all say the same thing about the same file.
 /// </summary>
 public static class UnidentifiedFileKind
 {
+    public static BroadFileKind Broad(string? mediaType) => Read(mediaType).Kind;
+
     public static string Describe(string? mediaType, string? fileName)
     {
-        var type = mediaType?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (Read(mediaType).Name is { } name)
+        {
+            return name;
+        }
+
         var extension = Path.GetExtension(fileName ?? string.Empty).TrimStart('.').ToLowerInvariant();
+        return extension.Length is > 0 and <= 8 ? extension.ToUpperInvariant() + " file" : "File";
+    }
+
+    /// <summary>A type with no name of its own is described by its file extension.</summary>
+    private static (BroadFileKind Kind, string? Name) Read(string? mediaType)
+    {
+        var type = mediaType?.Trim().ToLowerInvariant() ?? string.Empty;
         return type switch
         {
-            "application/pdf" => "PDF",
-            _ when type.StartsWith("image/", StringComparison.Ordinal) => "Image",
-            "application/msword" or "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "Word document",
-            "application/vnd.ms-excel" or "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "Spreadsheet",
-            "message/rfc822" or "application/vnd.ms-outlook" => "E-mail",
-            "text/plain" => "Text file",
-            _ when extension.Length is > 0 and <= 8 => extension.ToUpperInvariant() + " file",
-            _ => "File"
+            "application/pdf" => (BroadFileKind.Document, "PDF"),
+            _ when type.StartsWith("image/", StringComparison.Ordinal) => (BroadFileKind.Image, "Image"),
+            "application/msword" or "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                => (BroadFileKind.Document, "Word document"),
+            "application/vnd.ms-excel" or "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                => (BroadFileKind.Document, "Spreadsheet"),
+            "message/rfc822" or "application/vnd.ms-outlook" => (BroadFileKind.Email, "E-mail"),
+            "text/plain" => (BroadFileKind.Document, "Text file"),
+            _ when type.StartsWith("application/vnd.openxmlformats-officedocument.", StringComparison.Ordinal)
+                => (BroadFileKind.Document, null),
+            _ when type.StartsWith("video/", StringComparison.Ordinal) => (BroadFileKind.Video, null),
+            _ => (BroadFileKind.Other, null)
         };
     }
 }

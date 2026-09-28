@@ -8,7 +8,11 @@ namespace Pegasus.Core.Reports;
 
 public static class AssessmentReportContract
 {
-    public const string TemplateVersion = "rendererref1-v5";
+    /// <summary>
+    /// v6 (27 September 2026): the snapshot carries only what the template
+    /// (<c>reference/rendererref1</c>) prints.
+    /// </summary>
+    public const string TemplateVersion = "rendererref1-v6";
     public const string VatNumber = "262 0937 10";
     public const decimal FeeVatRate = 0.20m;
     public const string AccountName = "Collision Engineers Ltd";
@@ -66,16 +70,12 @@ public static class AssessmentReportContract
     }
 
     /// <summary>
-    /// The one salvage category a total-loss report prints: the active
-    /// total-loss template has accepted wording for Category S only (operator,
-    /// 24 September 2026). Readiness names any other category before a report
-    /// is projected.
+    /// The category recorded when a total loss has no salvage category
+    /// (operator, 26 September 2026): the badge reads TOTAL LOSS with no
+    /// category and no salvage paragraph prints. Every other recorded
+    /// category prints its accepted wording.
     /// </summary>
-    public const string PrintableSalvageCategory = "S";
-
-    /// <summary>Whether the active total-loss template has accepted wording for <paramref name="category"/>.</summary>
-    public static bool PrintsSalvageCategory(string? category) =>
-        string.Equals(category, PrintableSalvageCategory, StringComparison.Ordinal);
+    public const string NoSalvageCategory = "N/A";
 }
 
 public enum AssessmentReportOutcome
@@ -120,63 +120,47 @@ public sealed record AcceptedReportSource(
     }
 }
 
+/// <summary>
+/// The vehicle facts the report prints: the template's Vehicle Details and
+/// Vehicle Data and no others (operator, 27 September 2026). The Case records
+/// more about the vehicle than the report prints. <see cref="Engine"/> and
+/// <see cref="Fuel"/> are as recorded; <see cref="AssessmentReportWording"/>
+/// formats them for print.
+/// </summary>
 public sealed record ReportVehicle(
     string Registration,
     string Make,
     string Model,
     string Year,
-    string VehicleType,
     string Condition,
     string MileageDescription,
     string MileageSource,
     string? Vin,
     string? Engine,
-    string? Fuel,
-    string? Transmission,
-    string? Colour,
-    string? Body,
-    DateOnly? TaxExpiry,
-    DateOnly? MotExpiry,
-    string? AirbagsDeployed,
-    bool? TemporaryRepairsPossible,
-    string? TemporaryRepairMethod,
-    decimal? TemporaryRepairCost);
+    string? Fuel);
 
 /// <summary>
-/// One recorded damage as the report prints it: the area names, the severity
-/// and note, the area codes, and the disc the operator drew (unit-plan terms;
-/// null for a damage recorded by area alone, drawn from its codes).
+/// One recorded damage as the report draws it: the area codes, its severity
+/// code, which shades its disc as the Case page shades it, and the disc the
+/// operator drew (unit-plan terms; null for a damage recorded by area alone,
+/// drawn from its codes).
 /// </summary>
-public sealed record ReportImpact(string Areas, string Severity, string Note, IReadOnlyList<string> Codes, DamageDisc? Disc = null);
+public sealed record ReportImpact(IReadOnlyList<string> Codes, string Severity, DamageDisc? Disc = null);
 
+/// <summary>
+/// The damage the report prints: the recorded damages the diagram marks and
+/// the Nature of Incident block lists, and the unrelated damage its own block
+/// describes.
+/// </summary>
 public sealed record ReportDamage(
     IReadOnlyList<ReportImpact> Impacts,
-    string? RightFrontTyre, string? LeftFrontTyre, string? RightRearTyre, string? LeftRearTyre,
-    string? RightFrontBelt, string? LeftFrontBelt, string? RightRearBelt, string? LeftRearBelt,
-    string? SpareTyre, string? CentreBelt,
-    string? Unrelated, decimal? UnrelatedDeduction, string? MaterialTransfer);
+    string? Unrelated);
 
-public sealed record ReportSettlement(
-    decimal? Excess,
-    decimal? Betterment,
-    bool? ClaimantVatRegistered,
-    decimal? Reserve,
-    decimal Equity,
-    string? RepairDelays,
-    string? ReportDelay,
-    decimal? StoragePerDay,
-    decimal? Recovery,
-    DateOnly? HireStart,
-    decimal? HireDailyCost,
-    decimal? Diminution,
-    string? SalvageAt,
-    string? SalvageAgent,
-    string? SalvageAgentReference,
-    bool? SalvageMoved,
-    bool? SalvageOwnerRetains,
-    bool? SalvageValueAgreed,
-    DateOnly? SalvageSettled,
-    decimal? ContractSum = null);
+/// <summary>
+/// The one settlement fact the report prints beyond its own figures: the
+/// agreed contract repair sum, held only for a contract repair.
+/// </summary>
+public sealed record ReportSettlement(decimal? ContractSum = null);
 
 /// <summary>
 /// One prepared report image: the confirmed custody bytes plus the report
@@ -219,10 +203,14 @@ public sealed record ReportImageEvidence(
             throw new ReportRenderRejectedException(
                 $"Report image '{CustodyReference}' carries an unrecognized rotation.");
         }
+        // A hash is compared by value: intake records it in capitals and
+        // staff uploads in small letters, and both name the same bytes.
         var actual = Convert.ToHexStringLower(SHA256.HashData(Content));
-        if (!actual.Equals(Sha256, StringComparison.Ordinal))
+        if (!actual.Equals(Sha256, StringComparison.OrdinalIgnoreCase))
         {
-            throw new ReportRenderRejectedException("A report image did not match its custody hash.");
+            throw new ReportRenderRejectedException(
+                $"The stored version of {CustodyReference} has changed. "
+                + "Open the Files section to see the image as it is stored now.");
         }
     }
 }
@@ -243,9 +231,9 @@ public static class AssessmentReportRenderPolicy
 /// The report's repair-cost block: the Current estimate's canonical
 /// <see cref="EstimateTotals"/> (the one owner of estimate money — EXT-09,
 /// FRD-11 § Estimate VAT on the rendered report) plus the hours and rate the
-/// report prints as descriptive quantities. Nothing here re-derives a figure,
-/// and the VAT label is taken from the estimate's own percentage, never from
-/// a repairer-registered boolean.
+/// report prints as descriptive quantities. Nothing here re-derives a figure.
+/// The VAT row's label states what the estimate's own percentage is charged
+/// on, in the template's words.
 /// </summary>
 public sealed record ReportRepairCosts(
     decimal LabourHours,
@@ -262,7 +250,7 @@ public sealed record ReportRepairCosts(
             hours.PricedPanel,
             hours.PricedPaint,
             estimate.Details.HourlyRate,
-            EstimateTotals.ForProjection(estimate));
+            EstimateTotals.Compute(estimate));
     }
 
     [JsonIgnore]
@@ -275,17 +263,61 @@ public sealed record ReportRepairCosts(
     public decimal Total => Totals.Printed.Gross;
 
     /// <summary>
-    /// The printed VAT row's label, derived from the estimate's own
-    /// percentage. The categories the percentage is charged on are the
-    /// estimate's; this label never claims a different rule.
+    /// The labour hours the report prints, in its Labour Hours row and its
+    /// Labour Hours tile: panel hours plus paint hours. The Case page reads
+    /// this figure too, so the two never disagree.
     /// </summary>
     [JsonIgnore]
-    public string VatLabel =>
-        $"VAT ({VatPercent.ToString("0.##", CultureInfo.InvariantCulture)}%)";
+    public decimal TotalLabourHours => LabourHours + PaintHours;
+
+    /// <summary>
+    /// Total labour as the report prints it: printed panel labour plus printed
+    /// paint labour, so the rows above Sub Total add up to it.
+    /// </summary>
+    [JsonIgnore]
+    public decimal TotalLabour => Totals.Printed.Labour;
+
+    /// <summary>
+    /// The printed VAT row's label, or null when the template has no wording
+    /// for what this estimate charges VAT on. A report is never generated
+    /// without one: <see cref="CaseReportReadiness.RepairerVatBlocker"/> names
+    /// the gap first.
+    /// </summary>
+    [JsonIgnore]
+    public string? VatLabel => VatLabelOf(Totals.VatPolicy, VatPercent);
+
+    /// <summary>
+    /// The template's two VAT rows (DESIGN_SPEC.md § values and repair cost
+    /// calculation): a registered repairer charges VAT on the whole sub total
+    /// and the row reads "VAT (20%)"; a repairer who is not registered charges
+    /// it on parts and paint only and the row says so. The percentage is the
+    /// estimate's own. An unknown repairer VAT status, and any other
+    /// hand-picked set of costs, has no accepted wording.
+    /// </summary>
+    public static string? VatLabelOf(EstimateVatPolicy policy, decimal vatPercent)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        if (policy.RepairerStatus == RepairerVatStatus.Unknown)
+        {
+            return null;
+        }
+        var percent = vatPercent.ToString("0.##", CultureInfo.InvariantCulture);
+        if (policy.Categories == EstimateVatCategories.All)
+        {
+            return $"VAT ({percent}%)";
+        }
+        return policy.Categories == PartsAndPaint
+            ? $"VAT ({percent}% — parts & paint only)"
+            : null;
+    }
+
+    private const EstimateVatCategories PartsAndPaint =
+        EstimateVatCategories.Parts | EstimateVatCategories.Materials;
 
     /// <summary>
     /// Fails closed when the printed components do not reconcile to the
-    /// printed total, or the report has no hourly rate to print.
+    /// printed total, the report has no hourly rate to print, or the VAT row
+    /// has no wording.
     /// </summary>
     public void Validate()
     {
@@ -294,12 +326,17 @@ public sealed record ReportRepairCosts(
             throw new ReportRenderRejectedException(
                 "The report's labour hours and hourly rate are incomplete.");
         }
-        var components = Printed.Parts + Printed.PanelLabour + Printed.PaintLabour
-            + Printed.Materials + Printed.Specialist;
+        var components = Printed.Parts + Printed.Labour + Printed.Materials + Printed.Specialist;
         if (components != Printed.Net || Printed.Net + Printed.Vat != Printed.Gross)
         {
             throw new ReportRenderRejectedException(
                 "The printed repair-cost components do not reconcile to the printed total.");
+        }
+        if (VatLabel is null)
+        {
+            throw new ReportRenderRejectedException(
+                "The report cannot print the VAT on this repair spec. "
+                + "Record the repairer's VAT status on the Repair Spec section.");
         }
     }
 }
@@ -334,20 +371,12 @@ public sealed record AssessmentReportPresentation(
     string SettlementText,
     decimal? RecommendedSettlement)
 {
-    public static string DamageAreas(IReadOnlyList<string> codes)
-    {
-        ArgumentNullException.ThrowIfNull(codes);
-        return string.Join(", ", codes.Select(code =>
-            Assessment.AssessmentVocabulary.DamageAreas.TryGetValue(code, out var name)
-                ? name
-                : throw new ReportRenderRejectedException($"Unsupported damage area '{code}'.")));
-    }
-
-    public static string DamageSeverity(string code) =>
-        Assessment.AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var display)
-            ? display.Display
-            : throw new ReportRenderRejectedException($"Unsupported damage severity '{code}'.");
-
+    /// <summary>
+    /// An enumerated assessment code as the Case page reads it. The report
+    /// prints none of these: its own words are
+    /// <see cref="ReportWordingComposition"/>'s and
+    /// <see cref="AssessmentReportWording"/>'s.
+    /// </summary>
     public static string AssessmentCode(string? code) => code switch
     {
         null => "—",
@@ -426,6 +455,21 @@ public sealed record AssessmentReportSnapshot(
     public IReadOnlyList<string> StatementOfTruth => AssessmentReportContract.StatementOfTruth(Content, Guides);
 
     /// <summary>
+    /// Whether the vehicle is recorded as unroadworthy. The template prints
+    /// that badge in red and the roadworthy one in charcoal, and the
+    /// Engineer's Comments carry the reason.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsUnroadworthy => LegalStatus.Equals("unroadworthy", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the vehicle was assessed from images. The report then names no
+    /// address and carries the Desktop Assessment section.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsImageBased => AssessmentMethod == "image_based";
+
+    /// <summary>
     /// The images in printed order: Close-up first, Overview second, then
     /// Supporting by its persisted order.
     /// </summary>
@@ -473,12 +517,11 @@ public sealed record AssessmentReportSnapshot(
                 "Unrelated damage was selected for the report but none is recorded.");
         }
         if (Outcome == AssessmentReportOutcome.TotalLoss &&
-            (!AssessmentReportContract.PrintsSalvageCategory(SalvageCategory) || SalvageValue is null or < 0))
+            (!IsRecordedSalvageCategory(SalvageCategory) || SalvageValue is null or < 0))
         {
-            throw new ReportRenderRejectedException("The active total-loss report requires accepted Category S wording and salvage value.");
+            throw new ReportRenderRejectedException("The total-loss report requires a recorded salvage category and salvage value.");
         }
-        if (LegalStatus.Equals("unroadworthy", StringComparison.OrdinalIgnoreCase) &&
-            string.IsNullOrWhiteSpace(UnroadworthyReason))
+        if (IsUnroadworthy && string.IsNullOrWhiteSpace(UnroadworthyReason))
         {
             throw new ReportRenderRejectedException("An accepted unroadworthy reason is required.");
         }
@@ -503,7 +546,11 @@ public sealed record AssessmentReportSnapshot(
         AcceptedReportSource.Required(ImpactLocation, nameof(ImpactLocation));
         if (!PayloadVersion.Equals(AssessmentReportContract.TemplateVersion, StringComparison.Ordinal))
         {
-            throw new ReportRenderRejectedException($"Unsupported payload version '{PayloadVersion}'.");
+            // Staff read this refusal: a report frozen before the layout
+            // changed cannot be printed on the layout that replaced it.
+            throw new ReportRenderRejectedException(
+                "This report was generated before the report's layout changed, so it cannot be printed again. "
+                + "Save a change to the Case, then generate the report again.");
         }
         if (Outcome == AssessmentReportOutcome.ContractRepair && Settlement.ContractSum is not > 0)
         {
@@ -511,11 +558,19 @@ public sealed record AssessmentReportSnapshot(
         }
     }
 
+    /// <summary>
+    /// The title, badge, settlement heading, value box label and settlement
+    /// sentence of each outcome, word for word as the template's four sample
+    /// reports print them. The badge of a total loss with no category is the
+    /// operator's ruling of 26 September 2026.
+    /// </summary>
     public AssessmentReportPresentation Presentation() => Outcome switch
     {
         AssessmentReportOutcome.TotalLoss => new(
             "TOTAL LOSS REPORT",
-            $"TOTAL LOSS — CATEGORY {SalvageCategory}",
+            SalvageCategory == AssessmentReportContract.NoSalvageCategory
+                ? "TOTAL LOSS"
+                : $"TOTAL LOSS — CATEGORY {SalvageCategory}",
             "Settlement",
             "Recommended equitable settlement (pre-accident value less salvage)",
             $"We consider that an equitable settlement would be {Money(EngineerValue - SalvageValue!.Value)}, which represents the pre-accident engineer value of the vehicle of {Money(EngineerValue)} less the value of the salvage of {Money(SalvageValue.Value)}.",
@@ -527,13 +582,13 @@ public sealed record AssessmentReportSnapshot(
             Costs.Total),
         AssessmentReportOutcome.CashInLieu => new(
             "CASH IN LIEU REPORT", "CASH IN LIEU",
-            "Settlement", "Cash in lieu settlement",
+            "Settlement", "Recommended cash in lieu settlement (estimated repair cost)",
             $"We recommend settlement by way of a cash in lieu payment based upon the estimated repair cost of {Money(Costs.Total)}.",
             Costs.Total),
         AssessmentReportOutcome.ContractRepair => new(
             "CONTRACT REPAIR REPORT", "CONTRACT REPAIR",
-            "Contract Repair", "Agreed contract repair",
-            $"A contract repair has been agreed for the sum of {Money(Settlement.ContractSum!.Value)} including VAT. Costs cannot increase above this figure.",
+            "Contract Repair", "Agreed contract repair (including VAT)",
+            ReportWordingComposition.ContractRepairSentence(Settlement.ContractSum!.Value),
             Settlement.ContractSum!.Value),
         _ => throw new ReportRenderRejectedException("Unsupported assessment outcome."),
     };
@@ -549,6 +604,16 @@ public sealed record AssessmentReportSnapshot(
 
     private static string Money(decimal value) =>
         value.ToString("£#,##0.00", CultureInfo.GetCultureInfo("en-GB"));
+
+    /// <summary>
+    /// One of the assessment vocabulary's own salvage category codes, exactly
+    /// as recorded. Anything else is unknown outcome data and stops rendering
+    /// (FRD-11) rather than printing a badge with no matching wording.
+    /// </summary>
+    private static bool IsRecordedSalvageCategory(string? category) =>
+        category is not null
+        && AssessmentVocabulary.Definitions[AssessmentVocabulary.SalvageCategory].Codes is { } codes
+        && codes.Contains(category, StringComparer.Ordinal);
 }
 
 public sealed record RenderedReportArtifact(

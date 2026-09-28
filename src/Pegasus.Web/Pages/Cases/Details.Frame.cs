@@ -93,14 +93,17 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// Whether a section head offers Edit: outside an edit session, on a Case
-    /// this viewer could edit, for a section that has controls at all. The
-    /// Files and Notes sections act through their own immediate posts. The
-    /// Inspection view offers no Edit anywhere (v29 P3).
+    /// Whether a section head offers Edit: outside an edit session, while no
+    /// one holds the Case's lease, on a Case this viewer could edit, for a
+    /// section that has controls at all. A held lease is taken over from the
+    /// ribbon only; a lazily loaded section does not resolve the holder, so it
+    /// asks whether any lease is live rather than whose it is. The Files and
+    /// Notes sections act through their own immediate posts. The Inspection
+    /// view offers no Edit anywhere (v29 P3).
     /// </summary>
     public bool SectionOffersEdit(string key) =>
         !IsEditing
-        && !ColleagueIsEditing
+        && CurrentEditLease is null
         && !IsPostReportReadOnly
         && CurrentWorkflow?.Archive is null
         && !IsInspectionView
@@ -159,7 +162,7 @@ public sealed partial class DetailsModel
     /// (rendered by the view), then the next permitted lifecycle action. With
     /// Engineer, while the report is not ready, it names the first blocker at
     /// the section that clears it, and at the Report section when that blocker
-    /// has none.
+    /// has none. Delivery is the next action only once the report is stored.
     /// </summary>
     public (string Label, string SectionKey) NextAction
     {
@@ -197,6 +200,19 @@ public sealed partial class DetailsModel
             {
                 return (CaseWorkspaceLabels.ReportDelivery.GenerateReport, "report");
             }
+            // A report that is not stored cannot be delivered. One on its way
+            // to Box is waited for; one never drawn, failed or not confirmed is
+            // generated again.
+            var reportFiling = CurrentReportGeneration.Artifacts
+                .FirstOrDefault(artifact => artifact.Kind == Pegasus.Core.Reports.CaseReportArtifactKind.AssessmentReport)
+                ?.Filing;
+            if (reportFiling != Pegasus.Core.Reports.CaseReportArtifactFiling.Stored)
+            {
+                return (reportFiling == Pegasus.Core.Reports.CaseReportArtifactFiling.BeingStored
+                        ? CaseWorkspaceLabels.ReportDelivery.WaitingForStorage
+                        : CaseWorkspaceLabels.ReportDelivery.GenerateReport,
+                    "report");
+            }
             if (workflow.ReportSentEvidence is not null)
             {
                 return ("Mark completed", "overview");
@@ -211,7 +227,7 @@ public sealed partial class DetailsModel
 
     /// <summary>The Figures aside's repair cost inc VAT from the current estimate.</summary>
     public decimal? RepairCostIncVat =>
-        AcceptedSpecification is { } estimate
+        CurrentSpecification is { } estimate
             ? Pegasus.Core.Reports.ReportRepairCosts.For(estimate).Total
             : null;
 

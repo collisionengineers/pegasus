@@ -151,12 +151,13 @@ public sealed class RepairSpecificationActTests
         Assert.Contains("reduced from", statement, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The sentence that names the sum is the report's own
+    /// (<c>ReportWordingTests</c>); the sum itself is money on the Case.
+    /// </summary>
     [Fact]
-    public void TheContractRepairSentenceNamesTheAgreedSumAsTheCap()
+    public void TheAgreedContractSumIsRecordedAsMoney()
     {
-        Assert.Equal(
-            "A contract repair has been agreed for the total sum of £1,250.00. Costs cannot increase above this figure.",
-            RepairSpecificationWording.ContractRepair(1_250m));
         Assert.Equal(AssessmentFieldType.Money,
             AssessmentVocabulary.Definitions[AssessmentVocabulary.SettlementContractSum].Type);
     }
@@ -287,13 +288,13 @@ public sealed class RepairSpecificationActTests
         EstimateDetails details, params CaseEstimateLineRecord[] lines) => new(
         Guid.NewGuid(), CaseId, 1, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
-        lines, null, Engineer.SubjectId, Now, null, null, null, null, details);
+        lines, Engineer.SubjectId, Now, details);
 
     private static CaseEstimateLineRecord Line(
         string type, decimal? workUnits = null, decimal? paintWorkUnits = null,
         decimal? price = null, int? quantity = null, decimal? materials = null) => new(
-        Guid.NewGuid(), 1, type, null, "Line", workUnits, price, false, null, null, null, null, null,
-        ActorKind.Staff, Engineer.SubjectId, Now, Engineer.SubjectId, Now,
+        Guid.NewGuid(), 1, type, null, "Line", workUnits, price, false, null, null, null, null,
+        ActorKind.Staff, Engineer.SubjectId, Now,
         paintWorkUnits, quantity, materials);
 
     private static RepairSpecificationSnapshot Snapshot(
@@ -317,8 +318,8 @@ public sealed class RepairSpecificationActTests
                 Details = request.Details,
                 Lines = [.. request.Lines.Select((line, index) => new CaseEstimateLineRecord(
                     Guid.NewGuid(), index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits,
-                    line.Price, line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel,
-                    line.Justification, ActorKind.Staff, Engineer.SubjectId, Now, null, null,
+                    line.Price, line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel,
+                    line.Justification, ActorKind.Staff, Engineer.SubjectId, Now,
                     line.PaintWorkUnits, line.Quantity, line.Materials))],
             });
         }
@@ -356,9 +357,7 @@ public sealed class RepairSpecificationActTests
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> SaveImportedEstimateAsync(SaveEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-        public Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(Guid caseId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-        public Task<RepairSpecificationVersion?> GetCurrentDraftAsync(Guid caseId, CancellationToken cancellationToken) =>
+        public Task<RepairSpecificationVersion?> GetCurrentAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<RepairSpecificationVersion> DuplicateEstimateAsync(DuplicateEstimateRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -403,8 +402,6 @@ public sealed class RepairSpecificationActTests
                     engineerValue.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
                     Engineer.SubjectId,
-                    Now,
-                    Engineer.SubjectId,
                     Now),
             };
             if (contractSum is { } sum)
@@ -414,15 +411,11 @@ public sealed class RepairSpecificationActTests
                     "contract_repair",
                     ActorKind.Staff,
                     Engineer.SubjectId,
-                    Now,
-                    Engineer.SubjectId,
                     Now));
                 fields.Add(new(
                     AssessmentVocabulary.SettlementContractSum,
                     sum.ToString(CultureInfo.InvariantCulture),
                     ActorKind.Staff,
-                    Engineer.SubjectId,
-                    Now,
                     Engineer.SubjectId,
                     Now));
             }

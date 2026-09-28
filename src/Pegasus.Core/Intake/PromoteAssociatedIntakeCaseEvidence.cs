@@ -30,6 +30,15 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
             return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
         }
 
+        // A registered Image intake's photographs reach the Case through its
+        // merge: the fold moves the Vehicle images folder into the Case folder
+        // and files each photograph as a Case image (FRD-05, FRD-19). Filing
+        // them here as well would place them on the Case twice.
+        if (receipt.Decision == IntakeDecision.ImageIntakeRegistered)
+        {
+            return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
+        }
+
         // A matched follow-up is filed whether or not it carries photographs:
         // its email and documents belong on the Case too (operator, 23 September 2026).
         // A receipt that retained nothing has nothing to file.
