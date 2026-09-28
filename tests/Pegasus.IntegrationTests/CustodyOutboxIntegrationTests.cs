@@ -1799,6 +1799,22 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(apiFirstVersion + 1, afterFirstApi.Version);
         Assert.Equal("22 Park Avenue", Assert.Single(evaTransport.Payloads).ClaimantAddress);
         Assert.Equal(1, evaImages.ReadCount);
+        // Box reads an exact file and version, so the bundle's read names the
+        // identities each image was stored under.
+        Assert.NotEmpty(evaImages.Reads);
+        await using (var stored = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            foreach (var read in evaImages.Reads)
+            {
+                var version = await stored.Set<DocumentVersionEntity>().AsNoTracking()
+                    .SingleAsync(item => item.Id == read.Address.VersionId);
+                Assert.False(string.IsNullOrWhiteSpace(version.BoxFileId));
+                Assert.Equal(version.BoxFileId, read.Address.BoxFileId);
+                Assert.Equal(version.BoxVersionId, read.Address.BoxVersionId);
+            }
+        }
 
         await SetClaimantAddressAsync(confirmed: "\u200b");
         var knownApiReplay = await submitter.ExecuteAsync(
@@ -2139,10 +2155,13 @@ public sealed class CustodyOutboxIntegrationTests
     {
         public int ReadCount { get; private set; }
 
+        public IReadOnlyList<ManagedDocumentContentRead> Reads { get; private set; } = [];
+
         public Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
             IReadOnlyList<ManagedDocumentContentRead> reads, CancellationToken cancellationToken)
         {
             ReadCount++;
+            Reads = reads;
             return inner.ReadVersionsAsync(reads, cancellationToken);
         }
 
@@ -2248,20 +2267,28 @@ public sealed class CustodyOutboxIntegrationTests
         await using var context = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
-        var roles = await (
+        var filed = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 join version in context.Set<DocumentVersionEntity>().AsNoTracking()
                     on occurrence.VersionId equals version.Id
                 where occurrence.CaseId == outcome.Identity.CaseId
-                select new { version.FileName, occurrence.SemanticRole })
-            .ToDictionaryAsync(item => item.FileName, item => item.SemanticRole);
+                select new { version.FileName, occurrence.SemanticRole, version.Sha256 })
+            .ToDictionaryAsync(item => item.FileName);
 
         Assert.Equal(
             DocumentSemanticRole.Image,
-            roles["1_CLVoffside-V1.jpg"]);
+            filed["1_CLVoffside-V1.jpg"].SemanticRole);
         Assert.Equal(
             DocumentSemanticRole.Instruction,
-            roles["53364_1_LtrtoEngineerIn.pdf"]);
+            filed["53364_1_LtrtoEngineerIn.pdf"].SemanticRole);
+        // A document's hash is recorded in small letters, whoever filed it:
+        // the report reads the photograph's hash exactly as it is stored.
+        Assert.Equal(
+            Convert.ToHexStringLower(SHA256.HashData(photograph)),
+            filed["1_CLVoffside-V1.jpg"].Sha256);
+        Assert.Equal(
+            Convert.ToHexStringLower(SHA256.HashData(letter)),
+            filed["53364_1_LtrtoEngineerIn.pdf"].Sha256);
     }
 
     /// <summary>

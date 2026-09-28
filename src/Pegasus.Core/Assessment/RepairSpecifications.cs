@@ -3,23 +3,27 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
 
+/// <summary>
+/// A specification is live (Draft) or discarded. Which live one the Case uses
+/// is <see cref="RepairSpecificationVersion.IsCurrent"/>: a spec a staff member
+/// creates is Current at once, and a Current spec stays editable while the
+/// Case is writable. The numbers are pinned because report snapshots store
+/// them.
+/// </summary>
 public enum RepairSpecificationState
 {
-    Draft,
-    Accepted,
-    Superseded,
-    Discarded,
+    Draft = 0,
+    Discarded = 3,
 }
 
+/// <summary>Where a specification's figures came from; the numbers are pinned as above.</summary>
 public enum RepairSpecificationSourceRoute
 {
-    LegacyUnresolved,
-    Manual,
-    Glasses,
-    AudatexPdf,
-    ApprovedAiProposal,
-    Json,
-    AiDraft,
+    Manual = 1,
+    Glasses = 2,
+    AudatexPdf = 3,
+    Json = 5,
+    AiDraft = 6,
 }
 
 public sealed record RepairSpecificationSource(
@@ -28,26 +32,6 @@ public sealed record RepairSpecificationSource(
     string? SourceVersion,
     string? Sha256);
 
-/// <summary>
-/// What an accepted estimate was costed at. The four component amounts, the
-/// VAT and the total are the printed figures (B04): each component rounded
-/// to pence away from zero, the net their sum, the total the net plus the
-/// printed VAT. <see cref="Printed"/> carries the same figures with panel
-/// labour, paint labour and materials still separate, and
-/// <see cref="VatPolicy"/> the categories the VAT was charged on.
-/// </summary>
-public sealed record RepairCalculationBasis(
-    decimal Labour,
-    decimal Parts,
-    decimal PaintMaterials,
-    decimal SpecialistOther,
-    bool RepairerVatRegistered,
-    decimal Vat,
-    decimal Total,
-    string PolicyVersion,
-    EstimateVatPolicy? VatPolicy = null,
-    EstimatePrintedTotals? Printed = null);
-
 public sealed record RepairSpecificationVersion(
     Guid SpecificationId,
     Guid CaseId,
@@ -55,18 +39,12 @@ public sealed record RepairSpecificationVersion(
     RepairSpecificationState State,
     RepairSpecificationSource Source,
     IReadOnlyList<CaseEstimateLineRecord> Lines,
-    RepairCalculationBasis? CalculationBasis,
     string CreatedBy,
     DateTimeOffset CreatedAtUtc,
-    string? AcceptedBy,
-    DateTimeOffset? AcceptedAtUtc,
-    Guid? SupersedesSpecificationId,
-    string? SupersessionReason,
     EstimateDetails Details,
     bool IsCurrent = false,
     Guid? AiJobId = null,
     string? DiscardReason = null,
-    EstimateTotals? RecordedTotals = null,
     RepairSpecificationSupplementary? Supplementary = null);
 
 public static class RepairSpecificationPolicy
@@ -74,15 +52,12 @@ public static class RepairSpecificationPolicy
     public const string PolicyKey = "repair-specification";
 
     /// <summary>
-    /// v2: the calculation basis of an estimate made Current is derived by
-    /// <see cref="EstimateTotals"/> (FRD-11 § Estimate VAT on the rendered
-    /// report) instead of being typed from the source document.
-    /// v3 (B04): the basis is the printed projection — each discounted
-    /// category and the VAT rounded to pence independently, net the sum of
-    /// the printed components — over the seven closed line operations, the
-    /// four discounts and the repairer's VAT categories.
-    /// v4: Specialist work-unit hours are priced as panel labour; fixed-price
-    /// Specialist hours remain recorded but are not priced.
+    /// The calculation <see cref="EstimateTotals"/> stamps. v3 (B04): the
+    /// printed projection — each discounted category and the VAT rounded to
+    /// pence independently, net the sum of the printed components — over the
+    /// seven closed line operations, the four discounts and the repairer's VAT
+    /// categories. v4: Specialist work-unit hours are priced as panel labour;
+    /// fixed-price Specialist hours remain recorded but are not priced.
     /// </summary>
     public const int PolicyVersion = 4;
 
@@ -92,8 +67,20 @@ public static class RepairSpecificationPolicy
         if (actor.Kind != ActorKind.Staff)
         {
             throw new InvalidOperationException(
-                "Only authenticated staff can change or accept a repair specification.");
+                "Only authenticated staff can change a repair specification.");
         }
+    }
+
+    /// <summary>
+    /// A specification a staff member creates — typed in, imported or returned
+    /// from Glass's — is the one the Case uses straight away (operator,
+    /// 25 September 2026). An Automation (AI) draft only proposes, so it waits
+    /// for Use repair spec.
+    /// </summary>
+    public static bool BecomesCurrentWhenCreated(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.Kind == ActorKind.Staff;
     }
 
     /// <summary>
@@ -103,7 +90,6 @@ public static class RepairSpecificationPolicy
     public static bool IsDocumentRoute(RepairSpecificationSourceRoute route) => route
         is RepairSpecificationSourceRoute.Glasses
         or RepairSpecificationSourceRoute.AudatexPdf
-        or RepairSpecificationSourceRoute.ApprovedAiProposal
         or RepairSpecificationSourceRoute.Json;
 
     public static RepairSpecificationSource ValidateSource(RepairSpecificationSource source)
@@ -112,11 +98,6 @@ public static class RepairSpecificationPolicy
         if (!Enum.IsDefined(source.Route))
         {
             throw new InvalidOperationException("The repair-specification source names no known route.");
-        }
-        if (source.Route == RepairSpecificationSourceRoute.LegacyUnresolved)
-        {
-            throw new InvalidOperationException(
-                "Legacy repair lines require authoritative source review before acceptance.");
         }
         if (!IsDocumentRoute(source.Route))
         {
@@ -139,62 +120,6 @@ public static class RepairSpecificationPolicy
             SourceVersion = source.SourceVersion!.Trim(),
             Sha256 = source.Sha256!.ToLowerInvariant(),
         };
-    }
-
-    public static RepairCalculationBasis ValidateCalculationBasis(RepairCalculationBasis basis)
-    {
-        ArgumentNullException.ThrowIfNull(basis);
-        if (basis.Labour < 0 || basis.Parts < 0 || basis.PaintMaterials < 0
-            || basis.SpecialistOther < 0 || basis.Vat < 0 || basis.Total < 0)
-        {
-            throw new InvalidOperationException("Repair calculation inputs and totals cannot be negative.");
-        }
-        var printedNet = basis.Labour + basis.Parts + basis.PaintMaterials + basis.SpecialistOther;
-        if (basis.Total != printedNet + basis.Vat)
-        {
-            throw new InvalidOperationException(
-                "Repair calculation total does not match its printed components and recorded VAT.");
-        }
-        if (basis.Printed is { } printed)
-        {
-            var components = printed.Parts + printed.PanelLabour + printed.PaintLabour
-                + printed.Materials + printed.Specialist;
-            if (printed.Net != components
-                || printed.Gross != printed.Net + printed.Vat
-                || printed.Net != printedNet
-                || printed.Vat != basis.Vat
-                || printed.Gross != basis.Total)
-            {
-                throw new InvalidOperationException(
-                    "Printed repair calculation totals must be the sum of their printed components.");
-            }
-        }
-        Required(basis.PolicyVersion, nameof(basis.PolicyVersion));
-        return basis;
-    }
-
-    public static void ValidateAcceptance(
-        RepairSpecificationVersion specification,
-        ActionActor actor)
-    {
-        ArgumentNullException.ThrowIfNull(specification);
-        ArgumentNullException.ThrowIfNull(actor);
-        RequireStaffAuthor(actor);
-        if (specification.State != RepairSpecificationState.Draft)
-        {
-            throw new InvalidOperationException("Only a draft repair specification can be accepted.");
-        }
-        if (specification.Lines.Count == 0 || specification.Lines.Any(line => !line.IsConfirmed))
-        {
-            throw new InvalidOperationException(
-                "Every accepted repair specification requires confirmed ordered lines.");
-        }
-        _ = ValidateSource(specification.Source);
-        if (specification.CalculationBasis is null)
-        {
-            throw new InvalidOperationException("An accepted repair specification requires its calculation basis.");
-        }
-        _ = ValidateCalculationBasis(specification.CalculationBasis);
     }
 
     private static void Required(string? value, string name)
@@ -246,11 +171,7 @@ public interface IRepairSpecificationStore
         Guid specificationId,
         CancellationToken cancellationToken);
 
-    Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(
-        Guid caseId,
-        CancellationToken cancellationToken);
-
-    Task<RepairSpecificationVersion?> GetCurrentDraftAsync(
+    Task<RepairSpecificationVersion?> GetCurrentAsync(
         Guid caseId,
         CancellationToken cancellationToken);
 

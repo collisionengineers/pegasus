@@ -206,9 +206,7 @@ public sealed class V1ActivityReportPersistenceTests
                 Value = "999.99",
                 RecordedByKind = "Staff",
                 RecordedBy = Guid.NewGuid().ToString("D"),
-                RecordedAtUtc = sentAt,
-                ConfirmedBy = Guid.NewGuid().ToString("D"),
-                ConfirmedAtUtc = sentAt
+                RecordedAtUtc = sentAt
             });
             await context.SaveChangesAsync();
         }

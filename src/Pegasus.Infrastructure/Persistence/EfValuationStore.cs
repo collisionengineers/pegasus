@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// Reads Case valuations and applied valuations, and owns the valuation writes
-/// the Case workspace save performs (guide cards, adoption, Engineer's Value,
+/// the Case workspace save performs (guide cards, the applied valuation,
 /// report staleness).
 /// </summary>
 public sealed class EfValuationStore(
@@ -23,21 +23,23 @@ public sealed class EfValuationStore(
         new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Adopts a calculated valuation as the Case's Engineer's Value inside the
-    /// Case save's own transaction (23 September 2026: one Save, which adopts
-    /// only a calculation the operator changed). The basis card, the
-    /// maintained presets and the Engineer's finding authority are rechecked
-    /// here — the form is the request, never the authority. The basis is the
-    /// card as this save leaves it: when the save recorded the basis source's
-    /// card for a new guide month, that new card is the one on screen. The
-    /// claimant's VAT position is the one this save records. The Case save
-    /// owns the version, the workflow event and the history line; this writes
-    /// the Engineer's Value row and field, the basis card's retail and trade
-    /// fields, the applied snapshot and its action-history entry. No stamp is
-    /// checked: every writer of a guide card moves the Case version, which the
-    /// save has already checked.
+    /// Records where a Case save's valuation came from, inside the Case save's
+    /// own transaction (23 September 2026: one Save, which records only a
+    /// calculation the operator changed). The Retail, Trade and Engineer's
+    /// value boxes are ordinary fields the same save writes, typed or filled
+    /// from the card (operator, 26 September 2026); this writes none of them.
+    /// It records the calculated Engineer's Value row, with the Case's mileage
+    /// when it has one, the applied snapshot naming the basis card, and its
+    /// action-history entry. The basis card and the maintained presets are
+    /// rechecked here — the form is the request, never the authority. The
+    /// basis is the card as this save leaves it: when the save recorded the
+    /// basis source's card for a new guide month, that new card is the one on
+    /// screen. The claimant's VAT position is the one this save records. The
+    /// Case save owns the version, the workflow event and the history line.
+    /// No stamp is checked: every writer of a guide card moves the Case
+    /// version, which the save has already checked.
     /// </summary>
-    internal static async Task<ValuationAdopted> AdoptAsync(
+    internal static async Task<AppliedValuation> AdoptAsync(
         PegasusDbContext context,
         CaseWorkflowEntity workflow,
         ActionActor actor,
@@ -68,11 +70,9 @@ public sealed class EfValuationStore(
             ValuationCalculationPolicy.Resolve(selection, basis));
         var accepted = ValuationCalculationPolicy.AcceptedValue(calculation);
 
-        // The Valuations table stays the one entry surface of
-        // assessment.values.engineer: the adoption writes an Engineer's Value
-        // row and the existing field owner resolves the confirmed field from
-        // it, so applying a calculation and typing a value cannot become two
-        // owners of the same number.
+        // The calculated value, with the Case's own mileage when it has one:
+        // a guide card carries none, and a value from a card needs none
+        // (operator, 26 September 2026).
         var adopted = new CaseValuationEntity
         {
             Id = Guid.NewGuid(),
@@ -80,8 +80,6 @@ public sealed class EfValuationStore(
             Source = ValuationSource.EngineersValue.ToString(),
             Date = DateOnly.FromDateTime(now.UtcDateTime),
             Time = TimeOnly.FromDateTime(now.UtcDateTime),
-            // The Case's own mileage (operator, 24 September 2026): a guide
-            // card carries none. The value needs it, as the lookup does.
             Mileage = caseMileageInMiles,
             RetailValue = accepted,
             TradeValue = 0m,
@@ -90,24 +88,6 @@ public sealed class EfValuationStore(
         };
         context.CaseValuations.Add(adopted);
         ValuationPolicy.ValidateDetails(Map(adopted).Details);
-        var engineersValue = await WriteEngineersValueAsync(
-            context,
-            workflow,
-            workId,
-            actor,
-            adopted,
-            cancellationToken);
-        // The report's Retail value and Trade value are the basis card's
-        // (operator, 24 September 2026), recorded with the Engineer's Value
-        // from the card as this save leaves it, so they change only when a
-        // Save adopts again.
-        var basisValues = await WriteAdoptedBasisValuesAsync(
-            context,
-            workId,
-            actor,
-            ValuationCalculationPolicy.AdoptedBasisFields(calculation, guideEntity.TradeValue),
-            now,
-            cancellationToken);
 
         var snapshot = new AppliedValuationSnapshot(
             resultingCaseVersion,
@@ -153,40 +133,22 @@ public sealed class EfValuationStore(
             "valuation_applied",
             operationKey,
             reason,
-            engineersValue?.Before is null && basisValues.Values.All(change => change.Before is null)
-                ? null
-                : JsonSerializer.Serialize(
-                    new
-                    {
-                        EngineersValue = engineersValue?.Before,
-                        BasisValues = basisValues.ToDictionary(pair => pair.Key, pair => pair.Value.Before),
-                    },
-                    SerializerOptions),
-            JsonSerializer.Serialize(
-                new
-                {
-                    AppliedValuation = result,
-                    EngineersValue = engineersValue?.After,
-                    BasisValues = basisValues.ToDictionary(pair => pair.Key, pair => pair.Value.After),
-                },
-                SerializerOptions),
+            null,
+            JsonSerializer.Serialize(new { AppliedValuation = result }, SerializerOptions),
             ValuationCalculationPolicy.PolicyStamp,
             now);
-        return new(result, engineersValue);
+        return result;
     }
 
-    /// <summary>An adoption a Case save recorded, and the Engineer's Value field either side of it.</summary>
-    internal sealed record ValuationAdopted(AppliedValuation Applied, EngineersValueChange? EngineersValue)
-    {
-        /// <summary>The report's valuation dependencies once this adoption stands.</summary>
-        public CaseReportValuationDependencies Apply(CaseReportValuationDependencies dependencies) =>
-            WithEngineersValue(dependencies, EngineersValue) with
-            {
-                AppliedValuationId = Applied.Id,
-                AcceptedEngineerValue = Applied.AcceptedEngineerValue,
-                AppliedValuationReason = Applied.Reason,
-            };
-    }
+    /// <summary>The report's valuation dependencies once <paramref name="applied"/> stands.</summary>
+    internal static CaseReportValuationDependencies WithApplied(
+        CaseReportValuationDependencies dependencies,
+        AppliedValuation applied) => dependencies with
+        {
+            AppliedValuationId = applied.Id,
+            AcceptedEngineerValue = applied.AcceptedEngineerValue,
+            AppliedValuationReason = applied.Reason,
+        };
 
     /// <summary>
     /// Every adoption this case has recorded, newest first. Earlier rows stay
@@ -431,117 +393,10 @@ public sealed class EfValuationStore(
     /// <summary>
     /// The one order valuations are read in: the entered local date and time,
     /// newest first, with the audit time and the stable identity breaking
-    /// exact ties. The table's row order and the case's current Engineer's
-    /// Value are the same question, so they are never asked two ways.
+    /// exact ties.
     /// </summary>
     private static (DateOnly Date, TimeOnly Time, DateTimeOffset RecordedAtUtc, Guid Id) OrderKey(
         CaseValuationEntity item) => (item.Date, item.Time, item.RecordedAtUtc, item.Id);
-
-    /// <summary>
-    /// <c>assessment.values.engineer</c> is the one owner of the Engineer's
-    /// Value the product consumes: Send to Claude's target percentage and the
-    /// rendered report read that field. An adoption therefore writes it in
-    /// this same transaction, from the case's latest Engineer's Value row, so
-    /// the Valuations table stays the entry surface and never becomes a
-    /// second owner.
-    /// </summary>
-    private static async Task<EngineersValueChange?> WriteEngineersValueAsync(
-        PegasusDbContext context,
-        CaseWorkflowEntity workflow,
-        Guid workId,
-        ActionActor actor,
-        CaseValuationEntity saved,
-        CancellationToken cancellationToken)
-    {
-        AssessmentPolicy.RequireFindingConfirmationAuthority(actor);
-        if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
-            || !AssessmentPolicy.IsWritableState(state))
-        {
-            throw new InvalidOperationException(
-                "An Engineer's Value cannot be recorded in the Case's current state.");
-        }
-
-        var engineersValue = ValuationSource.EngineersValue.ToString();
-        var others = await context.CaseValuations
-            .Where(item => item.WorkId == workId
-                && item.Source == engineersValue
-                && item.Id != saved.Id)
-            .ToArrayAsync(cancellationToken);
-        var latest = others.Append(saved)
-            .OrderByDescending(OrderKey)
-            .First();
-        var existing = await context.CaseAssessmentFields.SingleOrDefaultAsync(
-            item => item.WorkId == workId
-                && item.FieldPath == AssessmentVocabulary.ValueEngineer,
-            cancellationToken);
-        var before = existing?.Value;
-        var selected = Map(latest);
-        var value = ValuationPolicy.EngineersValueField(selected.Details)
-            ?? throw new InvalidDataException(
-                "The selected Engineer's Value row does not carry an Engineer's Value.");
-        var recordedBy = selected.LastEditedBy ?? selected.RecordedBy;
-        var recordedAtUtc = selected.LastEditedAtUtc ?? selected.RecordedAtUtc;
-        var written = AssessmentFieldWriter.Write(
-            context,
-            workId,
-            existing,
-            AssessmentVocabulary.ValueEngineer,
-            value,
-            ActorKind.Staff,
-            recordedBy,
-            recordedAtUtc,
-            confirmedBy: recordedBy);
-        return new(before, written.Value);
-    }
-
-    /// <summary>
-    /// Writes the basis values an adoption records
-    /// (<see cref="ValuationCalculationPolicy.AdoptedBasisFields"/>) as
-    /// confirmed staff findings through the one field writer, and removes one
-    /// the basis card does not carry, so no figure from an earlier basis
-    /// survives.
-    /// </summary>
-    private static async Task<Dictionary<string, (string? Before, string? After)>> WriteAdoptedBasisValuesAsync(
-        PegasusDbContext context,
-        Guid workId,
-        ActionActor actor,
-        IReadOnlyList<KeyValuePair<string, string?>> values,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var changes = new Dictionary<string, (string? Before, string? After)>(StringComparer.Ordinal);
-        foreach (var (path, value) in values)
-        {
-            var existing = await context.CaseAssessmentFields.SingleOrDefaultAsync(
-                item => item.WorkId == workId && item.FieldPath == path,
-                cancellationToken);
-            var before = existing?.Value;
-            if (value is null)
-            {
-                if (existing is not null)
-                {
-                    context.CaseAssessmentFields.Remove(existing);
-                }
-            }
-            else
-            {
-                AssessmentFieldWriter.Write(
-                    context,
-                    workId,
-                    existing,
-                    path,
-                    value,
-                    ActorKind.Staff,
-                    actor.SubjectId,
-                    now,
-                    confirmedBy: actor.SubjectId);
-            }
-            changes[path] = (before, value);
-        }
-        return changes;
-    }
-
-    internal sealed record EngineersValueChange(string? Before, string? After);
 
     private static async Task<CaseReportValuationDependencies> ReadReportDependenciesAsync(
         PegasusDbContext context,
@@ -575,12 +430,6 @@ public sealed class EfValuationStore(
             applied?.AcceptedEngineerValue,
             applied?.Reason);
     }
-
-    private static CaseReportValuationDependencies WithEngineersValue(
-        CaseReportValuationDependencies dependencies,
-        EngineersValueChange? change) => change is null
-            ? dependencies
-            : dependencies with { EngineersValue = change.After };
 
     internal static async Task MarkStaleIfNeededAsync(
         PegasusDbContext context,
@@ -766,7 +615,6 @@ public sealed class EfValuationStore(
         string requestHash,
         CaseValuation result,
         CaseValuation? before,
-        EngineersValueChange? engineersValue,
         DateTimeOffset now) =>
         AddHistory(
             context,
@@ -779,14 +627,8 @@ public sealed class EfValuationStore(
             "case_valuation",
             result.ValuationId,
             JsonSerializer.Serialize(result, SerializerOptions),
-            before is null && engineersValue?.Before is null
-                ? null
-                : JsonSerializer.Serialize(
-                    new { Valuation = before, EngineersValue = engineersValue?.Before },
-                    SerializerOptions),
-            JsonSerializer.Serialize(
-                new { Valuation = result, EngineersValue = engineersValue?.After },
-                SerializerOptions),
+            before is null ? null : JsonSerializer.Serialize(new { Valuation = before }, SerializerOptions),
+            JsonSerializer.Serialize(new { Valuation = result }, SerializerOptions),
             $"{ValuationPolicy.PolicyKey}/v{ValuationPolicy.PolicyVersion}",
             now);
 

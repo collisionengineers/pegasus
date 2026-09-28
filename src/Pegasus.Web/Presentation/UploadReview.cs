@@ -44,8 +44,26 @@ public sealed record UploadReviewFile(
 {
     public bool IsImage => ImageUrl is not null;
 
-    public string Size => Bytes is { } bytes ? OperatorLabels.Upload.FileSize(bytes) : string.Empty;
+    public string Size => Bytes is { } bytes ? OperatorLabels.FileSize(bytes) : string.Empty;
+
+    /// <summary>The photographs Pegasus kept out of this document (a PDF or Word file), in stored order; empty for an image or a file not yet processed.</summary>
+    public IReadOnlyList<UploadReviewPhotograph> Photographs { get; init; } = [];
+
+    /// <summary>The retained photographs of a processed receipt, addressed by their authorised staff read.</summary>
+    public static IReadOnlyList<UploadReviewPhotograph> PhotographsOf(IntakeReceipt? receipt) =>
+        receipt is null
+            ? []
+            : InstructionEvidenceImages.Select(receipt.AssetRecords)
+                .Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage)
+                .Select(asset => new UploadReviewPhotograph(
+                    asset.Id,
+                    asset.FileName,
+                    $"/Received/{receipt.Id:D}/Asset/{asset.Id:D}"))
+                .ToArray();
 }
+
+/// <summary>One photograph pulled out of an uploaded document.</summary>
+public sealed record UploadReviewPhotograph(Guid AssetId, string Name, string Url);
 
 /// <summary>A Case the operator may choose: a suggestion or a search result.</summary>
 public sealed record UploadReviewCandidate(
@@ -155,7 +173,7 @@ public sealed record UploadReviewView(
         get
         {
             var known = Files.Where(file => file.Bytes is not null).ToArray();
-            return known.Length == 0 ? string.Empty : OperatorLabels.Upload.FileSize(known.Sum(file => file.Bytes!.Value));
+            return known.Length == 0 ? string.Empty : OperatorLabels.FileSize(known.Sum(file => file.Bytes!.Value));
         }
     }
 

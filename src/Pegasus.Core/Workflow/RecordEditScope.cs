@@ -51,8 +51,10 @@ public sealed record ClaimEditScopeRequest(
     string OperationKey)
 {
     /// <summary>
-    /// An authorised editor explicitly replaces a live scope, including one
-    /// another staff member holds. The old token is invalidated atomically.
+    /// An authorised editor explicitly replaces a live scope. The old token is
+    /// invalidated atomically. Replacing a colleague's scope is a takeover and
+    /// is recorded; replacing the caller's own is not. Without it, any live
+    /// scope refuses the claim.
     /// </summary>
     public bool TakeOver { get; init; }
 }
@@ -84,37 +86,12 @@ public sealed class EditScopeVersionConflictException(
     public long ActualVersion { get; } = actualVersion;
 }
 
-public class EditScopeConflictException : InvalidOperationException
+public sealed class EditScopeConflictException(EditScopeKind scopeKind, Guid recordId)
+    : InvalidOperationException($"{scopeKind} '{recordId}' is currently being edited by another actor.")
 {
-    public EditScopeConflictException(EditScopeKind scopeKind, Guid recordId)
-        : this(scopeKind, recordId, $"{scopeKind} '{recordId}' is currently being edited by another actor.")
-    {
-    }
-
-    /// <remarks>
-    /// The one derived refusal below is still a conflict, so a caller that has
-    /// no separate answer for it keeps the ordinary conflict behaviour instead
-    /// of failing open or failing loudly.
-    /// </remarks>
-    protected EditScopeConflictException(EditScopeKind scopeKind, Guid recordId, string message)
-        : base(message)
-    {
-        ScopeKind = scopeKind;
-        RecordId = recordId;
-    }
-
-    public EditScopeKind ScopeKind { get; }
-    public Guid RecordId { get; }
+    public EditScopeKind ScopeKind { get; } = scopeKind;
+    public Guid RecordId { get; } = recordId;
 }
-
-/// <summary>
-/// The requesting actor already holds this scope in another live window.
-/// </summary>
-public sealed class EditScopeHeldElsewhereException(EditScopeKind scopeKind, Guid recordId)
-    : EditScopeConflictException(
-        scopeKind,
-        recordId,
-        $"{scopeKind} '{recordId}' is already being edited by the same actor in another window.");
 
 public sealed class EditScopeExpiredException(EditScopeKind scopeKind, Guid recordId)
     : InvalidOperationException($"The edit lease for {scopeKind} '{recordId}' is no longer valid.")
@@ -151,30 +128,6 @@ public static class EditScopeAuthority
         string? retainedHolder,
         ActionActor actor) =>
         CaseEditAuthority.IsHolder(retainedHolderKind, retainedHolder, actor);
-
-    /// <summary>
-    /// How long a still-unexpired scope must have gone unbeaten before its own
-    /// holder may silently replace it. A scope goes stale one heartbeat before
-    /// it would lapse of its own accord, so a silent replacement only ever
-    /// takes a lease the holder was about to lose anyway. Anything sooner
-    /// would rotate the token of a window that is still open and still
-    /// beating - a hidden browser tab throttles its timers, so several
-    /// consecutive renewals can arrive late without the window having left. A
-    /// holder who is genuinely still editing elsewhere keeps the scope until
-    /// they choose to take it over.
-    /// </summary>
-    public static readonly TimeSpan StaleAfter = Duration - HeartbeatInterval;
-
-    /// <summary>
-    /// When the scope was last claimed or renewed. Persistence retains only the
-    /// expiry, and every renewal sets it to the moment of renewal plus
-    /// <see cref="Duration"/>, so the expiry carries the last heartbeat.
-    /// </summary>
-    public static DateTimeOffset LastHeartbeatUtc(DateTimeOffset expiresAtUtc) =>
-        expiresAtUtc - Duration;
-
-    public static bool IsStale(DateTimeOffset expiresAtUtc, DateTimeOffset nowUtc) =>
-        nowUtc - LastHeartbeatUtc(expiresAtUtc) > StaleAfter;
 }
 
 public interface IEditScopeLeases

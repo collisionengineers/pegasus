@@ -20,7 +20,8 @@ namespace Pegasus.Web.Pages.Cases;
 /// the chosen month, and every guide source asks GetValuation, which answers
 /// the connected provider's figures for the card to show in its boxes, or
 /// that the source is unavailable. The one Case Save (23 September 2026)
-/// records the cards and adopts a changed calculation; nothing here writes.
+/// records the cards, the Retail, Trade and Engineer's value boxes and a
+/// changed calculation; nothing here writes.
 /// </summary>
 public sealed partial class DetailsModel
 {
@@ -330,12 +331,13 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// The calculation this save adopts (operator, 23 September 2026): the
-    /// posted one, when what the calculator shows changed since the page
-    /// opened — a different basis card, the basis card's retail or trade (the
-    /// adoption records both; operator, 24 September 2026), or any calculator
-    /// control. An untouched calculator adopts nothing, and so does a basis
-    /// card left with no retail to calculate from.
+    /// The calculation this save records against its basis card (operator,
+    /// 23 September 2026): the posted one, when what the calculator shows
+    /// changed since the page opened — a different basis card, the basis
+    /// card's retail or trade, or any calculator control. An untouched
+    /// calculator records nothing, and so does a basis card left with no
+    /// retail to calculate from. The values themselves are the boxes the
+    /// same save writes.
     /// </summary>
     private static ValuationCalculationSelection? ChangedCalculation(
         ValuationSelectionForm? selection,

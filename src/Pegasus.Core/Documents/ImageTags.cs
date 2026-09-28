@@ -78,6 +78,15 @@ public static class ImageTagVocabulary
     public const string MarketResearchName = "Market research";
 
     /// <summary>
+    /// Whether putting <paramref name="tagId"/> on an image takes it out of
+    /// the report (operator, 26 September 2026): a third party's vehicle or a
+    /// reflection is not the Case vehicle's damage. Staff may put it back.
+    /// Overview and Close-up decide how an image in the report prints
+    /// (<see cref="CaseAssetPreparationPolicy.ForReport"/>).
+    /// </summary>
+    public static bool TakesImageOutOfReport(Guid tagId) => tagId == ThirdPartyId || tagId == ReflectionId;
+
+    /// <summary>
     /// The stored spelling of a supplied name: trimmed, with every interior
     /// run of Unicode whitespace (including a non-breaking space) collapsed
     /// to one ordinary space. Without this, "Third  party" (two spaces) would

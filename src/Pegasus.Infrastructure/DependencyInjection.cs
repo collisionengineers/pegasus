@@ -407,7 +407,6 @@ public static class DependencyInjection
         services.AddScoped<IAutoLinkReportEvidenceStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
-        services.AddScoped<ICaseFieldProposalQueries, EfCaseFieldProposalQueries>();
         services.AddScoped<IStaffNotificationStore, EfStaffNotificationStore>();
         services.AddScoped<IRaiseStaffNotification, RaiseStaffNotification>();
         services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();
@@ -417,6 +416,10 @@ public static class DependencyInjection
         services.AddScoped<Pegasus.Core.ReleaseNotes.IMyReleaseNotes, Pegasus.Core.ReleaseNotes.MyReleaseNotes>();
         services.AddScoped<Pegasus.Core.Support.IProblemReportStore, EfProblemReportStore>();
         services.AddScoped<Pegasus.Core.Support.ListProblemReports>();
+        services.AddScoped<Pegasus.Core.Operations.IEmailTemplateStore, EfEmailTemplateStore>();
+        services.AddScoped<Pegasus.Core.Operations.GetEmailTemplate>();
+        services.AddScoped<Pegasus.Core.Operations.UpdateEmailTemplate>();
+        services.AddScoped<Pegasus.Core.Operations.RenderEmailTemplate>();
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
@@ -425,6 +428,7 @@ public static class DependencyInjection
         services.AddScoped<IAcquireCaseEditLease, AcquireCaseEditLease>();
         services.AddScoped<IRenewCaseEditLease, RenewCaseEditLease>();
         services.AddScoped<IHeartbeatCaseEditLease, HeartbeatCaseEditLease>();
+        services.AddScoped<IResumeCaseEditLease, ResumeCaseEditLease>();
         services.AddScoped<IReleaseCaseEditLease, ReleaseCaseEditLease>();
         services.AddScoped<ICaseDueWorkStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseDueWorkQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
@@ -608,6 +612,7 @@ public static class DependencyInjection
                 provider.GetRequiredService<LocalDocumentContentStore>());
             services.AddScoped<IReadLogicalDocumentVersion, LocalLogicalDocumentVersionReader>();
             services.AddScoped<ReconcilePendingArtifactCustody>();
+            services.AddScoped<ISettleFiledCaseReportArtifacts, EfSettleFiledCaseReportArtifacts>();
             services.AddScoped(provider => new EfCaseArtifactCustody(
                 provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
                 provider.GetRequiredService<IDocumentContentStore>(),
@@ -682,6 +687,8 @@ public static class DependencyInjection
             services.AddScoped<ITagCaseImage>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IUntagCaseImage>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<ISetCaseImageInReport>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ICreateImageTag>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
@@ -839,6 +846,7 @@ public static class DependencyInjection
         services.AddScoped<ICaseArtifactCustodyStatus>(provider =>
             provider.GetRequiredService<EfCaseArtifactCustody>());
         services.AddScoped<ReconcilePendingArtifactCustody>();
+        services.AddScoped<ISettleFiledCaseReportArtifacts, EfSettleFiledCaseReportArtifacts>();
         return services;
     }
 

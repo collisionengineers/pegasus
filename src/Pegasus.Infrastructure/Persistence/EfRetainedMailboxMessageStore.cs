@@ -15,7 +15,18 @@ internal sealed class EfRetainedMailboxMessageStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
     : IRetainedMailboxMessageStore, IRetainedMailQueries, IRetainedMailClassificationStore
 {
-    private const int ExcerptLength = 300;
+    /// <summary>The preview's excerpt: eight lines or this many characters, whichever comes first.</summary>
+    private const int ExcerptLength = 600;
+    private const int ExcerptLines = 8;
+    /// <summary>
+    /// How much of the receipt's cleaned body the read paths excerpt from: the
+    /// excerpt's length again as headroom for the forwarded header block it
+    /// skips, so a long paragraph is still long enough to cut.
+    /// </summary>
+    private const int BodyHeadLength = ExcerptLength * 2;
+    /// <summary>The retained column's length (<see cref="MailboxModelConfiguration"/>); the read paths excerpt the receipt's body head instead.</summary>
+    internal const int StoredExcerptLength = 400;
+    private static readonly char[] LineOrSpace = [' ', '\n'];
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task RetainAsync(
@@ -53,7 +64,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             CcAddressesJson = JsonSerializer.Serialize(message.Metadata.CcAddresses, JsonOptions),
             ReplyToAddressesJson = JsonSerializer.Serialize(message.Metadata.ReplyToAddresses, JsonOptions),
             Subject = message.Metadata.Subject,
-            BodyExcerpt = Excerpt(message.Metadata.BodyPlainText),
+            BodyExcerpt = Excerpt(message.Metadata.BodyPlainText, StoredExcerptLength),
             BodyPlainText = message.Metadata.BodyPlainText,
             IsRead = message.Metadata.IsRead,
             SourceLength = message.SourceLength,
@@ -802,7 +813,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             return [];
         }
 
-        // Five lookups for the whole page, never one per row.
+        // Six lookups for the whole page, never one per row.
         var tokens = rows.Select(item => item.ExternalReceiptToken).Distinct().ToArray();
         var receipts = await context.IntakeReceipts
             .AsNoTracking()
@@ -821,7 +832,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 // header block is skipped; never the whole document text.
                 BodyHead = item.SearchDocuments
                     .Where(document => document.AttachmentFileName == null && document.Text != null)
-                    .Select(document => document.Text!.Substring(0, 600))
+                    .Select(document => document.Text!.Substring(0, BodyHeadLength))
                     .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
@@ -845,6 +856,27 @@ internal sealed class EfRetainedMailboxMessageStore(
                     group => group.Key,
                     group => IntakeAllocationState.FromAttempt(
                         EfIntakeAllocationStore.Map(group.First())));
+        // A Triage opened from the receipt is the message's Case as much as an
+        // instruction Case is; the intake log reads it the same way. The
+        // unique index on Triage.OriginReceiptId allows one Triage per receipt,
+        // whatever its state, so a cancelled Triage is never followed by a
+        // second from the same receipt.
+        var triageCases = receiptIds.Length == 0
+            ? new Dictionary<Guid, CurrentIntakeAssociation>()
+            : await context.Triage
+                .AsNoTracking()
+                .Where(item => item.OriginReceiptId != null && receiptIds.Contains(item.OriginReceiptId.Value))
+                .Select(item => new
+                {
+                    ReceiptId = item.OriginReceiptId!.Value,
+                    item.CaseId,
+                    item.Case.Reference,
+                    IsTriage = item.Case.Type == CaseTypeCodes.Triage
+                })
+                .ToDictionaryAsync(
+                    item => item.ReceiptId,
+                    item => new CurrentIntakeAssociation(item.CaseId, item.Reference, item.IsTriage),
+                    cancellationToken);
         var resolved = UnidentifiedState.Resolved.ToString();
         var receiptOrigin = UnidentifiedOriginKind.Receipt.ToString();
         var resolvedUnidentifiedReceiptIds = receiptIds.Length == 0
@@ -886,6 +918,24 @@ internal sealed class EfRetainedMailboxMessageStore(
                     && associations.AllocationMayStandIn(receipt.Id)
                         ? allocationState
                         : null;
+                var triageCase = receipt is null
+                    ? null
+                    : triageCases.GetValueOrDefault(receipt.Id);
+                // The manual acceptance route writes a CaseIntakeLinks row; the
+                // automatic allocation route records its created case on the
+                // succeeded attempt; a Triage request records the Triage Case it
+                // opened. Any one of them is the case.
+                var caseId = linkedCase?.CaseId ?? allocationCase?.CaseId ?? triageCase?.CaseId;
+                var caseReference = linkedCase?.Reference ?? allocationCase?.CaseReference ?? triageCase?.Reference;
+                // Whether that Case is a Triage is its own type, in the same
+                // order: a message staff linked to a Triage Case is on a
+                // Triage as surely as one that opened it. An allocation
+                // records the type of the Case it created.
+                var isTriageCase = linkedCase?.IsTriage
+                    ?? (allocationCase?.CaseId is null
+                        ? triageCase?.IsTriage
+                        : allocationCase.AttemptedCaseType == CaseType.Triage)
+                    ?? false;
                 var classification = receipt?.Classification is null
                     ? null
                     : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification);
@@ -933,11 +983,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                         ? null
                         : EfIntakeReceiptStore.ParseDecision(receipt.Decision),
                     receipt?.Id,
-                    // The manual acceptance route writes a CaseIntakeLinks row;
-                    // the automatic allocation route records its created case on
-                    // the succeeded attempt instead. Either one is the case.
-                    linkedCase?.CaseId ?? allocationCase?.CaseId,
-                    linkedCase?.Reference ?? allocationCase?.CaseReference,
+                    caseId,
+                    caseReference,
                     allocationState,
                     row.SearchMatches,
                     row.CurrentFolderType is null
@@ -950,7 +997,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                 {
                     DismissedAtUtc = row.DismissedAtUtc,
                     UnidentifiedResolved = receipt is not null
-                        && resolvedUnidentifiedReceiptIds.Contains(receipt.Id)
+                        && resolvedUnidentifiedReceiptIds.Contains(receipt.Id),
+                    IsTriageCase = isTriageCase
                 };
             })
             .ToArray();
@@ -1049,21 +1097,79 @@ internal sealed class EfRetainedMailboxMessageStore(
     }
 
     /// <summary>
-    /// The list excerpt, computed once at retention rather than on every read.
-    /// Whitespace is collapsed so a quoted reply does not spend the excerpt on
-    /// blank lines, and the cut lands on a word boundary.
+    /// The excerpt as the sender wrote it, line breaks kept: runs of spaces
+    /// collapse, blank lines fall away, and it stops after
+    /// <see cref="ExcerptLines"/> lines or at a word boundary before
+    /// <paramref name="maxLength"/>, whichever comes first, with an ellipsis
+    /// where it stopped. Retention stores it at the column's length; the read
+    /// paths excerpt the receipt's cleaned body head at the preview's.
     /// </summary>
-    internal static string? Excerpt(string? bodyPlainText)
+    internal static string? Excerpt(string? bodyPlainText, int maxLength = ExcerptLength)
     {
         if (string.IsNullOrWhiteSpace(bodyPlainText))
         {
             return null;
         }
 
-        var collapsed = new StringBuilder(Math.Min(bodyPlainText.Length, ExcerptLength + 64));
-        var pendingSpace = false;
-        foreach (var character in bodyPlainText)
+        var lines = new List<string>(ExcerptLines);
+        var length = 0;
+        var moreLines = false;
+        var remaining = bodyPlainText.AsSpan();
+        while (!remaining.IsEmpty)
         {
+            var newline = remaining.IndexOf('\n');
+            var line = CollapseSpaces(newline < 0 ? remaining : remaining[..newline], maxLength);
+            remaining = newline < 0 ? ReadOnlySpan<char>.Empty : remaining[(newline + 1)..];
+            if (line.Length == 0)
+            {
+                continue;
+            }
+            if (lines.Count == ExcerptLines || length > maxLength)
+            {
+                moreLines = true;
+                break;
+            }
+
+            lines.Add(line);
+            length += line.Length + 1;
+        }
+
+        var text = string.Join('\n', lines);
+        if (text.Length == 0)
+        {
+            return null;
+        }
+        if (!moreLines && text.Length <= maxLength)
+        {
+            return text;
+        }
+        // The ellipsis counts against the limit: the stored excerpt fills a
+        // column of exactly that length, and one character over fails the
+        // insert.
+        if (text.Length < maxLength)
+        {
+            return text + "…";
+        }
+
+        var cut = text.LastIndexOfAny(LineOrSpace, maxLength - 1);
+        return (cut > 0 ? text[..cut] : text[..(maxLength - 1)]) + "…";
+    }
+
+    /// <summary>
+    /// One line with its runs of whitespace collapsed and its ends trimmed.
+    /// It stops once it passes <paramref name="limit"/>: the excerpt cuts
+    /// there anyway, and a body can be one very long line.
+    /// </summary>
+    private static string CollapseSpaces(ReadOnlySpan<char> line, int limit)
+    {
+        var collapsed = new StringBuilder(Math.Min(line.Length, limit + 1));
+        var pendingSpace = false;
+        foreach (var character in line)
+        {
+            if (collapsed.Length > limit)
+            {
+                break;
+            }
             if (char.IsWhiteSpace(character))
             {
                 pendingSpace = collapsed.Length > 0;
@@ -1077,20 +1183,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             }
 
             collapsed.Append(character);
-            if (collapsed.Length > ExcerptLength)
-            {
-                break;
-            }
         }
 
-        var text = collapsed.ToString();
-        if (text.Length <= ExcerptLength)
-        {
-            return text.Length == 0 ? null : text;
-        }
-
-        var cut = text.LastIndexOf(' ', ExcerptLength - 1);
-        return (cut > 0 ? text[..cut] : text[..ExcerptLength]) + "…";
+        return collapsed.ToString();
     }
 
     private static IReadOnlyList<string> Deserialize(string json) =>
@@ -1144,8 +1239,8 @@ internal sealed class EfRetainedMailboxMessageStore(
         string ExternalReceiptToken,
         bool BodyMatched,
         string? CurrentFolderType,
-        // Enough retained body, newlines intact, to read the forwarded
-        // header block from. BodyExcerpt collapses whitespace, so it cannot
+        // Enough retained body, blank lines intact, to read the forwarded
+        // header block from. BodyExcerpt drops blank lines, so it cannot
         // answer this question (MAIL-009).
         string? BodyHead = null,
         IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null,

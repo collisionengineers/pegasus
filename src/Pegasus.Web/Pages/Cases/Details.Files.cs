@@ -44,8 +44,8 @@ public sealed partial class DetailsModel
             : [.. CaseFiles.Current(FilesSection?.Documents ?? Case!.Documents).Where(IsCaseImage)];
 
     /// <summary>
-    /// The Images tab's tile order: the report's persisted order first, then
-    /// images without a report role in their existing document order.
+    /// The Images tab's tile order: the report's own order first, then the
+    /// images the report does not use in their existing document order.
     /// </summary>
     public IReadOnlyList<CaseFile> ReportOrderedCaseImageFiles
     {

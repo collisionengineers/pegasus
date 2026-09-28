@@ -190,9 +190,15 @@ report-generation section, not a toggle on the evidence screen.
 
 **Report images are prepared without changing the source.** The retained
 bytes and their hashes never change. Every crop or ordering act writes
-normalised output beside the source. A report needs two distinct images, one
-marked `Close-up` first and one `Overview` second; optional supporting images
-follow in the order the operator set. Crop and order data are a normalised,
+normalised output beside the source. A report needs two distinct images in
+the report, one tagged `Close-up`, printed first, and one tagged `Overview`,
+printed second (operator, 26 September 2026). Where more than one carries a
+tag, the first in the order the operator set prints as it and the rest as
+supporting images, which follow in that order. Images nobody has ordered
+follow the order they arrived, then their file names. Only an image that can
+print counts: its stored version is confirmed, current and not removed. Any
+other image is not one of the report's images and raises no blocker. It joins
+the report when its storage confirms. Crop and order data are a normalised,
 versioned, attributed record under the same expected-version and edit-lease
 rules as other Case changes. An issued report keeps the exact curation
 snapshot and source hashes it used, so later changes never alter it.
@@ -219,7 +225,7 @@ The mileage tiers and discrepancy rule are in
 or source, retrieval time, effective date, source age, response or version
 identity, and a typed outcome: current, stale, unavailable, partial or
 failed. A refresh creates a new observation. It never silently overwrites a
-last-good observation, a staff-confirmed value or a higher-tier mileage.
+last-good observation, a staff-recorded value or a higher-tier mileage.
 Accepting, rejecting or linking an external fact goes into permanent history.
 Routine calls, retries and polling are content-safe telemetry.
 
@@ -233,20 +239,24 @@ the facts only the lookup holds.
 - Vehicle type follows one rule: type approval, then wheelplan, then
   rigid-body revenue weight. L1 and L2 mopeds are `scooter`, other L-class
   vehicles are `motorcycle`, and heavy, PSV or tractor classifications are
-  `other`. It fills only where staff have not confirmed a type. A changed
-  lookup classification may replace an earlier unconfirmed lookup value; an
-  unchanged value is not re-stamped.
-- A Lookup Vehicle type stays unconfirmed until staff Save, which re-stamps
-  it as staff-confirmed.
+  `other`. It fills only where staff have not recorded a type. A changed
+  lookup classification may replace an earlier lookup value; an unchanged
+  value is not re-stamped.
+- A Lookup Vehicle type keeps its Lookup tag until staff change it; a Save
+  that leaves it untouched leaves its provenance alone (operator, 25
+  September 2026).
 - Engine, Fuel, Colour, Tax expiry and MOT expiry are the lookup's alone
   (operator, 24 September 2026). Engine and fuel are DVLA's, else DVSA's;
   colour is DVLA's, else DVSA's primary colour; tax expiry is DVLA's tax due
   date; MOT expiry is the latest expiry date in the DVSA MOT history. Each is
-  recorded confirmed with Lookup provenance, so none awaits review, and the
-  Case shows it read-only; no staff or automation save writes it. Each answer
-  replaces a changed value, leaves an unchanged one as it stands and stales a
-  generated report when one changes. An answer where each provider either
-  described the vehicle or said it holds no such vehicle also clears a fact
+  recorded with Lookup provenance and the Case shows it read-only; no staff
+  or automation save writes it. Each answer
+  replaces a changed value and leaves an unchanged one as it stands. A
+  changed Engine or Fuel stales a generated report, because the report prints
+  them. Colour, Tax expiry and MOT expiry are not printed, so a change to one
+  leaves the report current (operator, 27 September 2026). An answer where
+  each provider either described the vehicle or said it holds no such vehicle
+  also clears a fact
   it no longer carries, so a DVSA not-found clears MOT expiry and a DVLA
   not-found clears tax expiry. An answer with a failed provider leaves what
   it did not carry.
@@ -270,9 +280,9 @@ sweep, which remains the recovery path if the creation-time attempt fails or
 is unavailable. The outcome shows on the Case whichever trigger produced it:
 looked up and current, or a stated failure reason, separately from whether
 any field was filled. The automatic trigger fills only an empty Make, Model,
-Year or Mileage and an unconfirmed Vehicle type, and records the lookup's own
-facts, under the rules above. It never overwrites or confirms a field staff
-can edit.
+Year or Mileage and a Vehicle type staff have not recorded, and records the
+lookup's own facts, under the rules above. It never overwrites a value staff
+recorded.
 
 **A 404 is classified first.** Only a 404 whose body is that provider's own
 vehicle-not-found error counts as `NotFound`. Any other 404 (a gateway, route
@@ -345,7 +355,7 @@ neither picks a provider nor authorises an external call.
 | Thing | States |
 | --- | --- |
 | VRM read | suggestion, `NoReadableResult`, unknown, dependency unavailable, technical failure; confirmed by staff or registered automatically at the bar |
-| Vehicle lookup | current, stale, unavailable, partial, failed; a filled field is Lookup then staff-confirmed on Save, and the lookup's own facts are recorded confirmed with Lookup provenance |
+| Vehicle lookup | current, stale, unavailable, partial, failed; a filled field keeps Lookup provenance until staff change it, and the lookup's own facts are recorded with Lookup provenance |
 
 ## Edge cases and fail-closed behaviour
 

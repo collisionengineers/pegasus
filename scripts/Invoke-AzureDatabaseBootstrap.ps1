@@ -511,15 +511,6 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|ProblemReports')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|ProblemReports')
-    # 20260913200000_CaseFieldProposals: the AI's proposed value per decision field,
-    # kept so Settlement can show Awaiting, Accepted or Corrected. Web and Worker
-    # both record and resolve proposals; neither deletes them.
-    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
-        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-            $expected.Add("$role|G|$permission|CaseFieldProposals")
-        }
-        $expected.Add("$role|D|DELETE|CaseFieldProposals")
-    }
     # 20260921090527_ReportWordingBlocks: the Engineer's changes to the report's
     # narrative blocks (v28 P30). Web writes them with the Case save, the Worker
     # reads them when it renders a report, and nothing deletes one.
@@ -579,6 +570,17 @@ function Get-MigrationPermissionMatrix {
     # 20260925090000_VehicleLookupDerivedFacts: the Worker's lookup fill clears a
     # lookup-derived Case fact that a complete answer no longer carries.
     $expected.Add('pegasus_worker_runtime_role|G|DELETE|CaseAssessmentFields')
+    # 20260927002303_EmailTemplates: Web reads, adds and edits the editable
+    # templates; neither role deletes one.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|EmailTemplates")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|EmailTemplates')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|EmailTemplates')
+    # 20260928090000_GrantWorkerGeneratedCaseArtifactUpdate: the Worker's sweep
+    # records a generated report file as stored once custody has filed it, so
+    # it updates the row it could only read before. It never inserts one.
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|GeneratedCaseArtifacts')
     return @($expected | Sort-Object -Unique)
 }
 

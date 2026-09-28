@@ -229,28 +229,63 @@ message, whatever decision first proposed a Case.
 
 A Triage Case's only page is `/Cases/{id}`
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)). It
-keeps the Triage layout, headed by its `t.` Case/PO: the determinations
-(roadworthiness, repair outcome), the source facts, the linked vehicle
-images, the exact response evidence, the chaser correspondence, and `Notes`,
-which merges durable events with append-only attributable notes in time
-order. Before Notes it carries the Case's **Files** panel: the Box case
-folder's state chip, **Add evidence** (which opens Upload), and the documents
-with view and download, or the empty state. It shows none of the Case
-record's sections, and has no Set principal.
+keeps the Triage layout, headed by its `t.` Case/PO. It has no Edit step:
+each action posts once and holds the record for its one save
+([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)). It shows none
+of the Case record's sections, and has no Set principal.
 
-A correction is a new note. There is no note edit and no note delete. Its
-retained source opens with **Open message** when it came by e-mail,
-otherwise **Open file**; a Triage made with Create case has none. **Assign to
-me** is offered where the Triage has no assignee and the operator may take
-it. **Assign to Engineer** opens a compact dialog (engineer select, Assign
-and Cancel). Assignment records no reason. The determination reason and
-other meaningful Triage decisions keep their required reasons
+**Ribbon.** The `t.` Case/PO, registration, Principal, source, opened date
+and time, the assignee with one **Assign** button, the linked Case (its
+Case/PO as a link, or None) and the state chip.
+
+**Record bar.** **Open message** when the request came by e-mail, otherwise
+**Open file**; a Triage made with Create case has neither. **Link case** or
+**Unlink case**. Nothing else.
+
+**Determinations** is the one main panel: roadworthiness, repair outcome and
+reason, then only the buttons the state permits.
+
+| State | Primary button | Other buttons |
+| --- | --- | --- |
+| Open | Save determinations | Await information, Cancel Triage |
+| Awaiting information | Save determinations | Cancel Triage |
+| Finding recorded | Complete Triage | Save determinations (a correction), Await information, Cancel Triage |
+| Completed | Reply with outcome, when a reply can be sent | Record correction, Reopen |
+| Cancelled | Reopen | none |
+
+On a Completed or Cancelled Triage the two determinations are greyed boxes
+in the same places. A correction is still offered on Completed: **Record
+correction** below the boxes opens the same determinations form in a
+dialog, and the correction supersedes the finding
 ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
-Completion records the decided outcome. Optional **Reply with outcome** opens
-the email feature with an editable preset template. The sent correspondence
-attaches to the Triage and is never a completion gate. A chaser is sent from
-the chaser correspondence panel where FRD-03 offers it. Server-side
-transitions stay reachable where a handler exists.
+Complete and Await information act on the click and ask no reason. Cancel
+Triage, Reopen, Link case and Unlink case keep their reason dialogs, as does
+the determination reason.
+Each action shows its own notice. The completion notice links to Reply with
+outcome when a reply can be sent.
+
+**Assign** opens one dialog. It lists eligible staff with the signed-in
+person first as "Name (you)". Nothing is preselected. Its buttons are
+Unassign (when assigned), Cancel and Assign. Neither asks a reason.
+
+Below Determinations come the linked vehicle images, the correspondence
+panel, the exact response evidence when there is any, the Case's **Files**
+panel and `Notes`. Files shows the Box case folder's state chip, **Add
+evidence** (which opens Upload for this Case,
+[FRD-18](frd-18-manual-upload.md#upload-for-a-declared-case)), and the
+documents with view and download, or the empty state. `Notes` merges durable
+events with append-only attributable notes in time order. A correction is a
+new note. There is no note edit and no note delete.
+
+**Correspondence.** The panel renders only when the Triage came by e-mail and
+its approved mailbox may send. It holds one reply form. Before Completed it
+is the chaser FRD-03 offers. Once Completed it is **Reply with outcome**: the
+same To, the subject "Re: {original subject}" and a body rendered from the
+Triage outcome template
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)), which staff
+edit before Send. The server decides which it
+is. The sent correspondence attaches to the Triage and is never a completion
+gate. Server-side transitions stay reachable where a handler exists.
 
 ### Search
 

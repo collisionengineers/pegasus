@@ -443,12 +443,51 @@ public sealed class EfCaseReportGenerationStore(
         ArgumentNullException.ThrowIfNull(request);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         RequireHash(request.Sha256);
-        var caseKey = request.CaseId.ToString("D");
 
+        try
+        {
+            return await ConfirmInTransactionAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (CaseAllocationRetry.IsRetryable(exception))
+        {
+            // The Worker's settle pass reached the same artifact and the
+            // database ended one of the two transactions. Confirming is
+            // idempotent, so a second attempt reads the row as the other left it.
+            return await ConfirmInTransactionAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<CaseReportGenerationRecord> ConfirmInTransactionAsync(
+        ConfirmCaseReportArtifactRequest request, CancellationToken cancellationToken)
+    {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
 
+        if (await ConfirmArtifactAsync(context, request, cancellationToken).ConfigureAwait(false))
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return await RequireRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The same-context confirmation core the public confirmation and the
+    /// Worker's settle pass both call inside their own transaction, so a
+    /// generated artifact is confirmed one way whoever confirms it. An
+    /// artifact already confirmed with the same bytes is left exactly as it
+    /// stands and the answer is false. This never saves — the caller's
+    /// transaction does.
+    /// </summary>
+    internal static async Task<bool> ConfirmArtifactAsync(
+        PegasusDbContext context,
+        ConfirmCaseReportArtifactRequest request,
+        CancellationToken cancellationToken)
+    {
+        var caseKey = request.CaseId.ToString("D");
         var (generation, artifact) = await RequireArtifactAsync(
             context, request.CaseId, request.GenerationId, request.ArtifactId, cancellationToken)
             .ConfigureAwait(false);
@@ -461,8 +500,7 @@ public sealed class EfCaseReportGenerationStore(
                     "The generated artifact is already confirmed with different immutable bytes.");
             }
 
-            return await RequireRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
-                .ConfigureAwait(false);
+            return false;
         }
 
         artifact.State = nameof(CaseReportArtifactStatus.Confirmed);
@@ -543,10 +581,7 @@ public sealed class EfCaseReportGenerationStore(
             }
         }
 
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        return await RequireRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
-            .ConfigureAwait(false);
+        return true;
     }
 
     public async Task<CaseReportGenerationRecord> RecordArtifactOutcomeAsync(
@@ -856,31 +891,15 @@ public sealed class EfCaseReportGenerationStore(
         {
             return;
         }
-        var value = reportDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        if (existing is null)
-        {
-            context.CaseAssessmentFields.Add(new()
-            {
-                WorkId = workId,
-                FieldPath = AssessmentVocabulary.ReportDate,
-                Value = value,
-                RecordedByKind = request.Actor.Kind.ToString(),
-                RecordedBy = request.Actor.SubjectId,
-                RecordedAtUtc = now,
-                ConfirmedBy = request.Actor.Kind == ActorKind.Staff ? request.Actor.SubjectId : null,
-                ConfirmedAtUtc = request.Actor.Kind == ActorKind.Staff ? now : null,
-            });
-            return;
-        }
-        existing.Value = value;
-        existing.RecordedByKind = request.Actor.Kind.ToString();
-        existing.RecordedBy = request.Actor.SubjectId;
-        existing.RecordedAtUtc = now;
-        if (request.Actor.Kind == ActorKind.Staff)
-        {
-            existing.ConfirmedBy = request.Actor.SubjectId;
-            existing.ConfirmedAtUtc = now;
-        }
+        AssessmentFieldWriter.Write(
+            context,
+            workId,
+            existing,
+            AssessmentVocabulary.ReportDate,
+            reportDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            request.Actor.Kind,
+            request.Actor.SubjectId,
+            now);
     }
 
     private static bool SignatoryMatches(
@@ -1037,8 +1056,6 @@ public sealed class EfCaseReportGenerationStore(
             ?? throw new InvalidOperationException("A ready case report has a resolved sign-off Engineer.");
         var estimate = inputs.Readiness.CurrentEstimate
             ?? throw new InvalidOperationException("A ready case report has a Current estimate.");
-        var valuation = inputs.Readiness.AppliedValuation
-            ?? throw new InvalidOperationException("A ready case report has an accepted Engineer's Value.");
 
         return new CaseReportGenerationSnapshot(
             request.CaseId,
@@ -1053,8 +1070,10 @@ public sealed class EfCaseReportGenerationStore(
             estimate.SpecificationId,
             estimate.Version,
             report.Costs,
-            valuation.AcceptedEngineerValue,
-            valuation.Id,
+            // The value the report prints is the recorded field; a card's
+            // calculation row is frozen by identity only when one exists.
+            report.EngineerValue,
+            inputs.Readiness.AppliedValuation?.Id,
             readiness.Content,
             inputs.Projection.Guides ?? ReportGuideSources.None,
             reportDate,

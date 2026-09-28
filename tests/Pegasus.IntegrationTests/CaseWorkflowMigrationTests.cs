@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Pegasus.Core.Assessment;
@@ -424,7 +424,14 @@ public sealed class CaseWorkflowMigrationTests
                 "20260924090000_IntakeAssetBoxParentFolder",
                 "20260924180000_CaseWorksAndTriageCases",
                 "20260925090000_VehicleLookupDerivedFacts",
-                "20260925120000_RetireInstructionDate"
+                "20260925120000_RetireInstructionDate",
+                "20260925150000_RemovePerFieldConfirmation",
+                "20260925190000_EditLeaseTakeoverHistoryEvents",
+                "20260926090000_RepairSpecInUseOnCreate",
+                "20260926150000_DeclaredUploadDestination",
+                "20260927002303_EmailTemplates",
+                "20260927004150_ImageInReport",
+                "20260928090000_GrantWorkerGeneratedCaseArtifactUpdate"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

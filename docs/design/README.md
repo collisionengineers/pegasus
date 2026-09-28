@@ -290,7 +290,8 @@ shared `.dismiss` × so it can be put away before it expires.
   visible word in a small `src-tag` pill in the cell's label line, the same in
   read and edit: Extracted · AI · E-mail · Lookup · Principal · Automatic ·
   Provider API. Lookup reads blue, AI navy, every other source neutral. A value
-  staff typed or corrected carries no tag. There is no provenance icon or
+  staff typed or corrected carries no tag; a value staff left untouched keeps
+  its tag across a Save (operator, 25 September 2026). There is no provenance icon or
   hover tooltip (operator, 23 September 2026: one tag system, the Lookup
   chip's). Source labels, policy keys and provenance sentences do not appear
   in markup.
@@ -574,7 +575,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `filter` | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Filter bars |
 | `lock` | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Edit lease, idle lock |
 | `external` | `external-link` | `27EB1A4F2FC62CA8E0B422442016854B17A5178EC7EE0DE23EB894BD5E5C5DF3` | Open Operations, retained source |
-| `eye` | `eye` | `73D6B13F2AE0E9AA498E371618CF4CC6392C75F1A4C23FCDF1B981451368EF7A` | Preview, Show key |
+| `eye` | `eye` | `73D6B13F2AE0E9AA498E371618CF4CC6392C75F1A4C23FCDF1B981451368EF7A` | Preview, Open report, Show key |
 | `bell` | `bell` | `5B315496E663ECA0E7465EDAD43FCD54BF00577C1737A5E8F9CC5352D185E79F` | Utility bar notifications |
 | `signout` | `log-out` | `20B23EB0AF17FE443827B2E64EC23057092180CDE64B3FAC5F2A9DC210A70880` | Sign out |
 | `calendar` | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date filters, due |
@@ -597,13 +598,13 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | — | `rotate-cw` | `5DE57E248094872B06E8408E710E05E1D89BDEB2243DDF780254C8632FC6DDFB` | Rotate view right (paired with `rotate-ccw`) |
 | `activity` (undefined in the prototype) | `activity` | `8E33259DA8A236EBC5D6C96F27DFAB90CE1F69D78F9D935FA28A143443F2380B` | Service health, presence |
 | `spark` (undefined) | `sparkles` | `D412CDDF7D44B1EED79ACB99F7D64A85E99BB77E9780FE49770883301EE63652` | Automation & AI nav entry, AI job rows |
-| `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply |
+| `reply` (undefined) | `reply` | `60A232864F635C41D9D82E6FDDB744EB8ABC8A1CAF369B1772B7F0CAF8C6D3FA` | Reply; Triage Reply with outcome |
 | `flag` (undefined) | `flag` | `A55F63EE07DFA4078A73AC54401544201065765B3DDB64C23B39CAC355A8AAE9` | Flag message |
 | `sort` (undefined) | `arrow-up-down` | `9F9C9571C4A30B5642E7D6BBA19E58C836CC57F8ECDC5D044EB0819065C534BC` | Sort toggle |
 
 The v26 shell and Case record glyphs below are inlined only by
-`_LucideSprite.cshtml`, which now carries ninety-six symbols: the sixty above
-plus these thirty-six. Each checksum is the SHA-256 of the glyph's UTF-8
+`_LucideSprite.cshtml`, which now carries ninety-seven symbols: the sixty above
+plus these thirty-seven. Each checksum is the SHA-256 of the glyph's UTF-8
 `<symbol id="icon-…">…</symbol>` element in that partial. "No caller" marks a
 glyph the v26 mockups reference that no current page draws.
 
@@ -617,7 +618,7 @@ glyph the v26 mockups reference that no current page draws.
 | — | `users` | `EEE334506429CAE176E7E392A686D8C504C856F11349B2D47D0450D772200FB6` | No caller |
 | — | `images` | `3736526CF1887288E9D504986D739ADFE2BF83FA0A5411F37529ECD5E87F0285` | Cases Awaiting instruction; Search vehicle images |
 | — | `forward` | `966C6DDDFF8EDD62B3F529C90209A061685034199BB8670F1FF6A0281979AD26` | Forward message |
-| — | `unlink` | `FA6C00D4700751303B08AF8A35E90B3CE581A77DA80F428F585130BACB39DAE4` | Unlink a message from its Case |
+| — | `unlink` | `FA6C00D4700751303B08AF8A35E90B3CE581A77DA80F428F585130BACB39DAE4` | Unlink a message from its Case; Triage Unlink case |
 | — | `file-output` | `C109CACE75A7483445BF22061B3141C5210AB2706012502180288644E3917F62` | No caller |
 | — | `eye-off` | `56982F58FC81CBE4EB066E455259234DE2F2FE4B120631693BA0FA5544EB516F` | No caller |
 | — | `key-round` | `5E7E3CD234E740B048195FBEF0B1C66E7CA85500AE1C7ACA7F35117496576E83` | No caller |
@@ -644,7 +645,8 @@ glyph the v26 mockups reference that no current page draws.
 | — | `scroll-text` | `9AD7578BF07319745EE8D157FDE09551A4AD21445317910C61AA569A2BB550F5` | Administration nav and hub: Logs |
 | — | `square` | `7FA36224EAE826CF7CE1320F27BB389EF13B3FA5D359948A7A78720FEF80E8ED` | Case record: an unticked item |
 | — | `square-check` | `05FC6728D20C44ACD31C6226C6B99396AD5B490B89460D8E018CC004655A7F41` | No caller |
-| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified Reopen; Damage Reset; restore composed wording |
+| — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
+| — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
 
 The v26 rail no longer draws the prototype's rail glyphs for three routes:
 Cases uses `list-checks`, Operations `activity` and Administration `settings`
@@ -670,7 +672,8 @@ never copied, except the Case Workspace v2 fixture set
 | Asset class | Approved consumer and boundary |
 | --- | --- |
 | Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the sign-in frame |
-| Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
+| Report layout | QuestPDF code in `src/Pegasus.Infrastructure/Reports`. There is no report template file and no document stylesheet. The page style follows the supplied template, `reference/rendererref1` Design I ([FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation)) |
+| Vehicle plan | One drawing. Its geometry is owned by `Pegasus.Core`; the Case page and the report both draw from it, and each brings its own colours |
 | Supplied engineer signatures | The report snapshot carries the Case Sign-off Engineer account's printed name, optional qualifications and supplied signature image bytes/media type. No signature is embedded as an application resource. Supplied signature assets remain governed and are never Web decorative imagery. |
 | Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
 
@@ -773,8 +776,9 @@ Repair Spec and the valuation calculator carry no Save or Apply of their own.
 There is no separate Add valuation
 dialog. This does not
 remove the Estimate section's selected configured-staff-account Glass's
-repair-estimate launch; a connected Glass's valuation provider
-supersedes the earlier rule that Pegasus "records no Glass's valuation". Glass's and Audatex file
+repair-estimate launch. A Glass's valuation is a card the Engineer fills in;
+no guide provider is connected
+([FRD-24](../frd/frd-24-engineer-findings-damage-valuation-and-settlement.md)). Glass's and Audatex file
 import stays in scope through the Estimate section's direct Import button and
 temporary section-scoped drop overlay; Cazana remains the disabled seam.
 
@@ -849,7 +853,7 @@ deleted in wave 5.
 | `valuation-card` | One valuation entry: source, date, time, guide month, retail, trade (and the mileage an Engineer's Value or AI entry carries) |
 | `outcome-option` | Settlement outcome choice |
 | `derived` | A value derived, never entered: impact location and severity, equity, the Incident narrative and the statement of truth read from their report owners, and a permitted ratio line where one is shown |
-| `report-image`, `cropper` | Image preparation on the Files tiles: designated Close-up and Overview, supporting images in order, non-destructive crop |
+| `report-image`, `cropper` | Image preparation on the Files tiles: In report on or off, the Close-up and Overview their tags decide, the report order, non-destructive crop |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker`, `blocker-actions` | Outstanding requirements, and the Report section's blockers; `blocker-actions` holds a blocker's link to the section that clears it |
 | `timeline`, `notes-list`, `note-entry` | History and Notes |
@@ -1002,14 +1006,14 @@ this section holds the cross-cutting rules every page is held to.
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; on the Case record each report blocker links to the section that clears it; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
 | Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
-| Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
+| Repair specifications | Each specification has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT does not block Use repair spec; it does block the report (27 September 2026). Totals compute once in Core. A saved version offers **Print Repair Spec** in read and edit modes. Read and edit are one layout (23 September 2026): a spec that cannot be changed shows the editor's header cells, grid columns and contract, discount and VAT bars with each value greyed in its control's place; only the tools are edit-only. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
 | Mail preview | Keyboard and pointer intent exposes an accessible preview that changes no message or Case state; when intent moves away the pane restores the selected message and stays visible with its navigation links. |
 | Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
-| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage, Mail, Image Intake and Operations; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
+| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail, Image Intake and Operations; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
 
 ### Presentation responsibilities
 

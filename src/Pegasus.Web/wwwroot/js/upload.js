@@ -24,8 +24,11 @@
         return wrap;
     }
 
-    function mib(bytes) {
-        return (bytes / 1048576).toFixed(2) + ' MiB';
+    function fileSize(bytes) {
+        // The same form as OperatorLabels.FileSize: decimal megabytes to one
+        // decimal, never bytes.
+        var megabytes = bytes / 1000000;
+        return megabytes < 0.1 ? 'under 0.1 MB' : megabytes.toFixed(1) + ' MB';
     }
 
     function files(count) {
@@ -71,13 +74,13 @@
         var submitLabel = form.querySelector('[data-select-submit-label]');
         var errors = form.querySelector('[data-select-errors]');
         var errorList = form.querySelector('[data-select-error-list]');
-        var aside = select.querySelector('[data-select-aside]');
         var panel = select.querySelector('[data-select-files]');
         var count = select.querySelector('[data-select-count]');
         var list = select.querySelector('[data-select-list]');
-        var maxFiles = Number(select.getAttribute('data-max-files')) || 20;
-        var maxBytes = Number(select.getAttribute('data-max-bytes')) || 104857600;
-        var maxTotal = Number(select.getAttribute('data-max-total')) || 209715200;
+        // The limits the page declares from their one owner, IntakeEnvelopeLimits.
+        var maxFiles = Number(select.getAttribute('data-max-files'));
+        var maxBytes = Number(select.getAttribute('data-max-bytes'));
+        var maxTotal = Number(select.getAttribute('data-max-total'));
         var accepted = /\.(jpe?g|png|pdf|docx?|eml|msg|mp4|mov)$/i;
         var store = new DataTransfer();
         var previews = [];
@@ -98,11 +101,11 @@
             dropHeading.textContent = any ? 'Add more files' : 'Drop files here';
             choose.classList.toggle('btn--primary', !any);
             actions.hidden = !any;
-            summary.textContent = any ? files(chosen.length) + ' · ' + mib(total) : '';
+            summary.textContent = any ? files(chosen.length) + ' · ' + fileSize(total) : '';
             submitLabel.textContent = 'Upload ' + files(chosen.length);
-            aside.hidden = any;
             panel.hidden = !any;
-            count.textContent = any ? files(chosen.length) + ' · ' + mib(total) : '';
+            select.classList.toggle('has-files', any);
+            count.textContent = any ? files(chosen.length) + ' · ' + fileSize(total) : '';
             revoke();
             list.replaceChildren.apply(list, chosen.map(function (file, index) {
                 var row = document.createElement('li');
@@ -125,7 +128,7 @@
                 title.textContent = file.name;
                 title.title = file.name;
                 var meta = document.createElement('small');
-                meta.textContent = mib(file.size) + ' · ' + kindOf(file);
+                meta.textContent = fileSize(file.size) + ' · ' + kindOf(file);
                 name.append(title, meta);
                 var tail;
                 if (uploading) {
@@ -169,11 +172,11 @@
                 messages.push('Choose no more than ' + maxFiles + ' files.');
             }
             if (all.reduce(function (sum, file) { return sum + file.size; }, 0) > maxTotal) {
-                messages.push('The upload must be ' + mib(maxTotal) + ' or less.');
+                messages.push('The upload must be ' + fileSize(maxTotal) + ' or less.');
             }
             all.forEach(function (file) {
                 if (!accepted.test(file.name)) { messages.push(file.name + ': this file type is not supported.'); }
-                if (file.size > maxBytes) { messages.push(file.name + ': this file exceeds ' + mib(maxBytes) + '.'); }
+                if (file.size > maxBytes) { messages.push(file.name + ': this file exceeds ' + fileSize(maxBytes) + '.'); }
                 if (file.size === 0) { messages.push(file.name + ': this file is empty.'); }
             });
             if (messages.length) {
@@ -312,11 +315,37 @@
             }
         };
 
+        // The photographs pulled out of a document travel with its roster
+        // entry, so switching the inspected file redraws them without a fetch.
+        var photos = function (file) {
+            var block = inspector.querySelector('[data-inspect-photos]');
+            if (!block) { return; }
+            var strip = block.querySelector('[data-inspect-photos-strip]');
+            var list = file.photos || [];
+            strip.replaceChildren.apply(strip, list.map(function (photo) {
+                var tile = document.createElement('a');
+                tile.className = 'up-film';
+                tile.href = photo.url;
+                tile.target = '_blank';
+                tile.rel = 'noopener';
+                tile.setAttribute('aria-label', photo.name);
+                var img = document.createElement('img');
+                img.src = photo.url;
+                img.loading = 'lazy';
+                img.alt = '';
+                tile.appendChild(img);
+                return tile;
+            }));
+            block.querySelector('[data-inspect-photos-count]').textContent = file.photosLabel || '';
+            block.hidden = list.length === 0;
+        };
+
         var inspect = function (index) {
             var file = roster[index];
             if (!file) { return; }
             inspected = index;
             media(file, inspector.querySelector('[data-inspect-photo]'));
+            photos(file);
             var name = inspector.querySelector('[data-inspect-name]');
             name.textContent = file.name;
             name.title = file.name;

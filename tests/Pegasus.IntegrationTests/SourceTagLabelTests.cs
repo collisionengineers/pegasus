@@ -40,7 +40,7 @@ public sealed class SourceTagLabelTests
     {
         var at = DateTimeOffset.UnixEpoch;
         AssessmentFieldValue Recorded(ActorKind kind, string by) =>
-            new(AssessmentVocabulary.VehicleVin, "WVWZZZ1JZXW000001", kind, by, at, null, null);
+            new(AssessmentVocabulary.VehicleVin, "WVWZZZ1JZXW000001", kind, by, at);
 
         Assert.Equal(
             new OperatorLabels.SourceTagWord("Lookup", "lookup"),

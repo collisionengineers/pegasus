@@ -114,7 +114,7 @@ public static class CaseWorkspaceLabels
     // The Case editor's assessment-field membership and labels. Types, allowed
     // codes and finding authority remain owned by AssessmentVocabulary and the
     // workspace command. The Automation MCP write reuses this membership
-    // (IsStaffConfirmable, FRD-10), so adding an editor here widens what
+    // (HasStaffEditor, FRD-10), so adding an editor here widens what
     // automation may write.
     public static class Editors
     {
@@ -145,6 +145,17 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SettlementSalvageOwnerRetains] = "Owner retains salvage",
             [AssessmentVocabulary.SettlementSalvageValueAgreed] = "Salvage value agreed",
             [AssessmentVocabulary.SettlementSalvageSettled] = "Salvage settled"
+        };
+
+        /// <summary>
+        /// The three values the report prints side by side, first in Valuation
+        /// (operator, 26 September 2026): typed, or filled from a guide card.
+        /// </summary>
+        public static IReadOnlyDictionary<string, string> Valuation { get; } = new Dictionary<string, string>
+        {
+            [AssessmentVocabulary.ValueRetail] = "Retail value",
+            [AssessmentVocabulary.ValueTrade] = "Trade value",
+            [AssessmentVocabulary.ValueEngineer] = CaseWorkspaceLabels.Valuation.EngineersValueHead
         };
 
         /// <summary>An Audit's original report (v28 P51), Case data beside the claim.</summary>
@@ -205,7 +216,7 @@ public static class CaseWorkspaceLabels
         {
             if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
             if (field == FormName(AssessmentVocabulary.VehicleCondition)) return "Pre-incident condition";
-            foreach (var entry in Settlement.Concat(OriginalReport).Concat(Report).Concat(Damage).Concat(Vehicle))
+            foreach (var entry in Settlement.Concat(Valuation).Concat(OriginalReport).Concat(Report).Concat(Damage).Concat(Vehicle))
             {
                 if (field == FormName(entry.Key)) return entry.Value;
             }
@@ -220,17 +231,18 @@ public static class CaseWorkspaceLabels
         }
 
         public static bool IsAssessmentField(string path) =>
-            Settlement.ContainsKey(path) || OriginalReport.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
+            Settlement.ContainsKey(path) || Valuation.ContainsKey(path) || OriginalReport.ContainsKey(path)
+            || Report.ContainsKey(path) || Damage.ContainsKey(path)
             || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck
             || path == AssessmentVocabulary.VehicleCondition;
 
         /// <summary>
-        /// Every assessment path a staff member records, and so confirms or
-        /// clears, through the Case editor: the editor fields above and the
+        /// Every assessment path a staff member records, and so can change or
+        /// clear, through the Case editor: the editor fields above and the
         /// paths a section writes through its own typed member.
         /// pegasus_assessment_update accepts only these (FRD-10).
         /// </summary>
-        public static bool IsStaffConfirmable(string path) =>
+        public static bool HasStaffEditor(string path) =>
             IsAssessmentField(path) || CaseWorkspacePolicy.TypedPaths.Contains(path);
 
         /// <summary>
@@ -253,6 +265,7 @@ public static class CaseWorkspaceLabels
             };
             if (shownElsewhere is not null) return shownElsewhere;
             if (Settlement.ContainsKey(field)) return "settlement";
+            if (Valuation.ContainsKey(field)) return "valuation";
             if (OriginalReport.ContainsKey(field)) return "original-report";
             if (Report.ContainsKey(field)) return "report";
             if (Damage.ContainsKey(field)) return "damage";
@@ -266,8 +279,6 @@ public static class CaseWorkspaceLabels
                     or CaseDataFieldNames.VehicleYear or CaseDataFieldNames.VehicleMileage => "vehicle",
                 AssessmentVocabulary.DamageImpacts or AssessmentVocabulary.ImpactSeverity
                     or AssessmentVocabulary.ImpactLocation => "damage",
-                AssessmentVocabulary.ValueRetail or AssessmentVocabulary.ValueTrade
-                    or AssessmentVocabulary.ValueEngineer => "valuation",
                 AssessmentVocabulary.ReportDate => "report",
                 AssessmentVocabulary.SettlementStoragePerDay or AssessmentVocabulary.CostRecoveryCharge
                     or CaseDataFieldNames.InspectionDate or CaseDataFieldNames.InspectionMode
@@ -325,16 +336,11 @@ public static class CaseWorkspaceLabels
 
     /// <summary>
     /// The Settlement section's own words (v26 § Settlement): the figures
-    /// strip, the Decisions strip and its proposal column.
+    /// strip and the Decisions strip.
     /// </summary>
     public static class Settlement
     {
         public const string Decisions = "Decisions";
-        public const string Awaiting = "Awaiting";
-        public const string Accepted = "Accepted";
-        public const string Corrected = "Corrected";
-        public const string Accept = "Accept";
-        public const string AcceptAll = "Accept all";
         public const string SetInValuation = "Set in Valuation";
         public const string ValuationLink = "Valuation";
         public const string EngineersValue = "Engineer's Value";
@@ -351,8 +357,6 @@ public static class CaseWorkspaceLabels
         public const string CostsHireDelays = "Costs, hire & delays";
         public const string Salvage = "Salvage";
         public const string StorageCharge = "Storage charge";
-        public const string AwaitingReview = "awaiting review";
-        public const string AiProposal = "AI proposal";
         public const string NotApplicable = "Not applicable";
         public const string ComputedRepairReserve = "Repair reserve (computed)";
         public const string RoundedUpToFifty = "repair cost rounded up to the next \u00a350";
@@ -395,9 +399,15 @@ public static class CaseWorkspaceLabels
         public static string? BlockerSection(AssessmentReadinessItem item) => item switch
         {
             { Field: { } field } => Editors.SectionOf(field),
-            { EstimateLine: not null } => "estimate",
-            { Requirement: CaseReportReadiness.SignatoryRequirement } => "overview",
-            { Requirement: CaseReportReadiness.CurrentEstimateRequirement or CaseReportReadiness.LabourRateRequirement } => "estimate",
+            // Staff choose the Sign-off Engineer on Case details. Its name and
+            // signature are the account's, set in Accounts, so no Case section
+            // clears those blockers (operator, 26 September 2026).
+            _ when item == CaseReportReadiness.SignOffEngineerNotChosen => "overview",
+            {
+                Requirement: CaseReportReadiness.CurrentEstimateRequirement
+                    or CaseReportReadiness.LabourRateRequirement
+                    or CaseReportReadiness.RepairerVatRequirement
+            } => "estimate",
             {
                 Requirement: CaseReportReadiness.CloseUpImageRequirement
                     or CaseReportReadiness.OverviewImageRequirement
@@ -477,8 +487,20 @@ public static class CaseWorkspaceLabels
             RepairSpecificationSourceRoute.AudatexPdf => SourceImported + " \u00b7 AX",
             RepairSpecificationSourceRoute.Glasses => SourceImported + " \u00b7 GL",
             RepairSpecificationSourceRoute.Json => SourceImported + " \u00b7 JSON",
-            RepairSpecificationSourceRoute.ApprovedAiProposal or RepairSpecificationSourceRoute.AiDraft => SourceImported + " \u00b7 AI",
-            _ => SourceImported
+            RepairSpecificationSourceRoute.AiDraft => SourceImported + " \u00b7 AI",
+            RepairSpecificationSourceRoute.Manual => SourceImported,
+            _ => throw new ArgumentOutOfRangeException(nameof(route), route, null)
+        };
+
+        /// <summary>The short route tag a version row and the Compare table show.</summary>
+        public static string RouteTag(RepairSpecificationSourceRoute route) => route switch
+        {
+            RepairSpecificationSourceRoute.Manual => RouteManual,
+            RepairSpecificationSourceRoute.Glasses => RouteGlasses,
+            RepairSpecificationSourceRoute.AudatexPdf => RouteAudatex,
+            RepairSpecificationSourceRoute.Json => RouteJson,
+            RepairSpecificationSourceRoute.AiDraft => RouteAi,
+            _ => throw new ArgumentOutOfRangeException(nameof(route), route, null)
         };
         public const string Blend = "Blend";
         public const string LabourRateCard = "Labour-rate card";
@@ -506,7 +528,6 @@ public static class CaseWorkspaceLabels
         public const string RouteAudatex = "Audatex PDF";
         public const string RouteJson = "JSON";
         public const string RouteAi = "AI";
-        public const string RouteUnknown = "Recorded";
         public const string HeldFromAnotherCase = "Your account is held from another Case";
         public const string Started = "started";
         public const string AvailableWhileEditing = "Available while editing";
@@ -521,7 +542,7 @@ public static class CaseWorkspaceLabels
     {
         public const string FileLabel = "Estimate file";
         public const string DropEstimate = "Drop estimate to import";
-        public const string DropHint = "One PDF, XML or JSON file, up to 10 MB.";
+        public const string DropHint = "One PDF, XML or JSON file, up to 32 MiB.";
         public const string Importing = "Importing estimate…";
         public const string ExactlyOneFile = "Choose exactly one estimate file.";
         public const string NonEmptyFile = "Choose a non-empty estimate file.";
@@ -530,7 +551,14 @@ public static class CaseWorkspaceLabels
         public const string UnsavedEstimate = "Save or cancel the estimate changes before importing another estimate.";
         public const string ActionInProgress = "Wait for the current Case action to finish before importing an estimate.";
         public const string StorageFailed = "The estimate source could not be retained.";
-        public const string Imported = "Estimate imported as a Draft.";
+        public const string Imported = "Estimate imported. It is the repair spec in use.";
+        public const string NotAnEstimateFile = "That file cannot be imported as a repair spec.";
+
+        /// <summary>
+        /// A file already imported replays the spec it made and leaves the
+        /// spec in use as it was (FRD-25); Use repair spec switches to it.
+        /// </summary>
+        public const string AlreadyImported = "This file was already imported. Its repair spec is shown; the repair spec in use is unchanged.";
     }
 
     /// <summary>
@@ -592,8 +620,8 @@ public static class CaseWorkspaceLabels
 
         /// <summary>
         /// A Vehicle-section assessment value as a read value: a date in the
-        /// office's short form, an enumerated code in the words the report
-        /// prints, everything else as recorded.
+        /// office's short form, an enumerated code as words, everything else
+        /// as recorded.
         /// </summary>
         public static string AssessmentValue(string path, string value)
         {
@@ -685,7 +713,6 @@ public static class CaseWorkspaceLabels
         public const string Applied = "Applied";
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
-        public const string ChooseBasis = "Choose a basis card to calculate.";
         public const string GuideRetail = "Guide retail";
         public const string ProposedEngineersValue = "Proposed Engineer's Value";
 
@@ -735,8 +762,7 @@ public static class CaseWorkspaceLabels
 
     /// <summary>
     /// The estimate header's VAT surface (B08): the repairer's status, the
-    /// categories the estimate's percentage is charged on, and the condition
-    /// that gates Use estimate while neither has been recorded. The category
+    /// categories the estimate's percentage is charged on. The category
     /// names are the totals block's own, so the screen never labels the same
     /// money two ways.
     /// </summary>
@@ -835,18 +861,16 @@ public static class CaseWorkspaceLabels
     {
         public const string FullPage = "Full page";
         public const string PrintOnItsOwnPage = "Print on its own page";
-        public const string Remove = "Remove image";
         public const string Rotate = "Rotate";
         public const string DragToReorder = "Drag to reorder";
         public const string InReport = "In report";
         public const string NotInReport = "Not in report";
-        public const string Undo = "Undo";
-        public const string ImageRemoved = "Image removed";
+        public const string PutInReport = "The image is in the report.";
+        public const string TakenOutOfReport = "The image is out of the report.";
 
         /// <summary>The count line under the image grid: how many of the Case's images the report uses.</summary>
         public static string InReportCount(int included, int total) => $"{included} of {total} in report";
 
-        public const string Role = "Role";
         public const string Order = "Order";
         public const string Rotation = "Rotation";
         public const string Crop = "Crop";
@@ -854,15 +878,6 @@ public static class CaseWorkspaceLabels
         public const string RotateLeft = "Rotate left";
         public const string RotateRight = "Rotate right";
         public const string FullFrame = "Full frame";
-
-        public static string RoleLabel(CaseAssetReportRole role) => role switch
-        {
-            CaseAssetReportRole.NotUsed => "Not used",
-            CaseAssetReportRole.CloseUp => "Close-up",
-            CaseAssetReportRole.Overview => "Overview",
-            CaseAssetReportRole.Supporting => "Supporting",
-            _ => role.ToString(),
-        };
     }
 
     /// <summary>
@@ -877,17 +892,59 @@ public static class CaseWorkspaceLabels
         public const string GenerateFeeNote = "Generate fee note";
         public const string ReportGenerated = "The report was generated.";
         public const string FeeNoteGenerated = "The fee note was generated.";
+        public const string ReportNotGenerated = "The report could not be generated.";
+        public const string FeeNoteNotGenerated = "The fee note could not be generated.";
         public const string GenerationPending =
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
-        public const string CurrentGeneration = "Generated";
-        public const string GenerationState = "State";
         public const string IncludeFeeNote = "Include fee note";
-        public const string DownloadReport = "Report";
+        public const string OpenReport = "Open report";
+        public const string OpenReportWithFeeNote = "Open report with fee note";
         public const string DownloadFeeNote = "Fee note";
-        public const string DownloadReportWithFeeNote = "Report with fee note";
         public const string GenerationStaleNotice =
             "A newer fact changed after this generation. Generate again before delivery.";
+
+        /// <summary>
+        /// Where a generated document's file stands, in the words Files uses
+        /// for a file's storage, so the two sections cannot name one state two
+        /// ways.
+        /// </summary>
+        public static string Filing(CaseReportArtifactFiling filing) => filing switch
+        {
+            CaseReportArtifactFiling.Stored => OperatorLabels.CustodyState(DocumentCustodyStatus.Confirmed),
+            CaseReportArtifactFiling.BeingStored => OperatorLabels.CustodyState(DocumentCustodyStatus.Pending),
+            CaseReportArtifactFiling.StorageFailed => OperatorLabels.CustodyState(DocumentCustodyStatus.Failed),
+            CaseReportArtifactFiling.Unconfirmed => "Not confirmed",
+            _ => "Not generated",
+        };
+
+        /// <summary>The Next action while the report's file is on its way to Box.</summary>
+        public const string WaitingForStorage = "Waiting for the report to be stored";
+
+        /// <summary>
+        /// Generate report was pressed over unsaved changes and the saved Case
+        /// no longer offers it.
+        /// </summary>
+        public const string NotReadyAfterSave =
+            "The report is not ready after the save. The Report section lists what is missing.";
+
+        /// <summary>The generation ran out of time.</summary>
+        public static string TookTooLong(CaseReportArtifactKind kind) =>
+            $"{Document(kind)} took too long to generate.";
+
+        /// <summary>The document was not stored because Box could not be reached or written to.</summary>
+        public static string NotStoredInBox(CaseReportArtifactKind kind) =>
+            $"{Document(kind)} could not be stored in Box just now.";
+
+        /// <summary>The document a generation makes, as a sentence about it begins.</summary>
+        private static string Document(CaseReportArtifactKind kind) => kind switch
+        {
+            CaseReportArtifactKind.AssessmentReport => "The report",
+            CaseReportArtifactKind.FeeNote => "The fee note",
+            CaseReportArtifactKind.RepairSpecification => "The Repair Spec",
+            _ => "The images",
+        };
+
         public const string PrepareDelivery = "Prepare delivery";
         public const string DeliveryPrepared = "Delivery prepared";
         public const string SendPreparedReport = "Send prepared report";
@@ -909,8 +966,8 @@ public static class CaseWorkspaceLabels
         public const string GenerateImages = "Generate images";
         public const string RepairSpecGenerated = "The Repair Spec was generated.";
         public const string ImagesGenerated = "The images were generated.";
-        public const string DownloadRepairSpec = "Repair Spec";
-        public const string DownloadImages = "Images";
+        public const string RepairSpecNotGenerated = "The Repair Spec could not be generated.";
+        public const string ImagesNotGenerated = "The images could not be generated.";
         public const string PreviewRepairSpec = "Preview Repair Spec";
         public const string PreviewImages = "Preview images";
         public const string Attach = "Attach";
@@ -940,11 +997,21 @@ public static class CaseWorkspaceLabels
         public const string CloseConsequence = "Closing this record releases the Glass's account for another estimate.";
         public const string Closed = "The Glass's session was closed.";
         public const string CloseRefused = "The Glass's session was not closed.";
+        public const string CloseChanged = "The Glass's session changed. Its controls have been refreshed. Confirm external closure again before closing it.";
         public const string State = "State";
         public const string OpenOn = "Open on";
 
-        /// <summary>The outcomes a launch, a return or a resume reports.</summary>
-        public const string Imported = "The Glass's estimate was recorded as a draft.";
+        /// <summary>
+        /// The outcomes a launch, a return or a resume reports. A recorded
+        /// estimate is named as recorded, not as the spec in use: the outcome
+        /// stays on the section for as long as the session is the newest one,
+        /// and a same-file replay or a later Use repair spec may leave another
+        /// spec in use.
+        /// </summary>
+        public const string ImportedWithChanges = "The Glass's estimate was recorded as a repair spec, and your unsaved changes are still here. Save or cancel them to view it.";
+        public const string ReturnedWithChanges = "Glass's has returned. Your unsaved changes are still here; the session controls show its current state.";
+
+        public const string Imported = "The Glass's estimate was recorded as a repair spec.";
 
         public const string AwaitingImport = "The Glass's estimate is held. Not yet recorded.";
 
@@ -1002,6 +1069,7 @@ public static class CaseWorkspaceLabels
         public const string BoxAuditConfirmed = "Box audit · confirmed";
         public const string OpenInBox = "Open in Box";
         public const string View = "View";
+        public const string ImportEstimate = "Import as repair spec";
         public const string Remove = "Remove";
         public const string RemoveFile = "Remove file";
         public const string Compose = "Compose";

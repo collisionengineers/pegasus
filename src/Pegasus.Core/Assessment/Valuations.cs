@@ -42,13 +42,14 @@ public static class ValuationSources
 /// which is a different fact from the day it was recorded here; it is held
 /// as the first day of that month so two cards for the same month sort and
 /// compare as one value.
-/// An <see cref="ValuationSource.EngineersValue"/> row additionally writes
-/// the confirmed <c>assessment.values.engineer</c> field, which stays the one
-/// owner of the Engineer's Value the product consumes.
+/// An <see cref="ValuationSource.EngineersValue"/> row records an Engineer's
+/// Value calculated from a guide card, with the Case's mileage when it has
+/// one; the <c>assessment.values.engineer</c> field is the value the product
+/// consumes, typed or filled from the card (operator, 26 September 2026).
 /// A guide source's card holds whatever staff entered or Get valuation brought
 /// back, so any of its mileage, retail, trade and guide month may be absent
 /// (operator, 23 September 2026); an Engineer's Value or AI market research
-/// row always carries its figures.
+/// row always carries its retail and trade.
 /// </summary>
 public sealed record ValuationDetails(
     ValuationSource Source,
@@ -105,19 +106,21 @@ public static class ValuationPolicy
                 "The valuation guide month must be represented by the first day of the month.",
                 nameof(details));
         }
+        // The mileage is recorded when the Case has one; a value filled from
+        // a guide card needs none (operator, 26 September 2026).
         if (!ValuationSources.IsGuide(details.Source)
-            && (details.Mileage is null || details.RetailValue is null || details.TradeValue is null))
+            && (details.RetailValue is null || details.TradeValue is null))
         {
             throw new ArgumentException(
-                "An Engineer's Value or market research valuation carries its mileage, retail and trade values.",
+                "An Engineer's Value or market research valuation carries its retail and trade values.",
                 nameof(details));
         }
         Money(details.RetailValue, "retail value");
         Money(details.TradeValue, "trade value");
 
-        // An Engineer's Value row is the entry surface of
-        // assessment.values.engineer, so a row that cannot be written to that
-        // field is refused here rather than persisted and silently dropped.
+        // An Engineer's Value row records a value the
+        // assessment.values.engineer finding could hold, so one it could not
+        // hold is refused here rather than persisted.
         EngineersValueField(details);
         return details;
     }
@@ -140,9 +143,9 @@ public static class ValuationPolicy
     /// <summary>
     /// One guide source's card as the Case save records it (23 September
     /// 2026: the source cards have no Save of their own), with whatever of
-    /// its boxes were entered. The Engineer's Value is adopted by a Case Save
-    /// that changes the valuation calculation and AI market research is the
-    /// automation's, so neither is a guide card.
+    /// its boxes were entered. The Engineer's Value is a box of its own on
+    /// Valuation and AI market research is the automation's, so neither is a
+    /// guide card.
     /// </summary>
     public static ValuationDetails ValidateGuideEntry(ActionActor actor, ValuationDetails details)
     {
@@ -152,7 +155,7 @@ public static class ValuationPolicy
         if (details.Source == ValuationSource.EngineersValue)
         {
             throw new InvalidOperationException(
-                "The Engineer's Value is adopted by saving a changed valuation calculation, not recorded as a guide card.");
+                "The Engineer's Value is entered on the Valuation section, not recorded as a guide card.");
         }
         RequireActor(actor, details);
         return ValidateDetails(details);
@@ -220,9 +223,9 @@ public static class ValuationPolicy
 
     /// <summary>
     /// Recording or correcting a valuation is ordinary casework. An
-    /// Engineer's Value row carries the confirmed
-    /// <c>assessment.values.engineer</c> professional finding, so every staff
-    /// actor who records it passes that field's shared confirmation rule.
+    /// Engineer's Value row carries the <c>assessment.values.engineer</c>
+    /// professional finding, so every staff actor who records it passes that
+    /// field's finding-authority rule.
     /// </summary>
     private static void RequireActor(ActionActor actor, ValuationDetails details)
     {
@@ -235,15 +238,15 @@ public static class ValuationPolicy
         }
         if (details.Source == ValuationSource.EngineersValue)
         {
-            AssessmentPolicy.RequireFindingConfirmationAuthority(actor);
+            AssessmentPolicy.RequireFindingAuthority(actor);
         }
     }
 
     /// <summary>
-    /// The confirmed <c>assessment.values.engineer</c> value an Engineer's
+    /// The <c>assessment.values.engineer</c> value an Engineer's
     /// Value row carries: its retail figure, which is the pre-accident value
     /// a settlement is measured from (FRD-11 total-loss report). Null for
-    /// every other source, which writes no assessment field.
+    /// every other source.
     /// </summary>
     public static string? EngineersValueField(ValuationDetails details)
     {

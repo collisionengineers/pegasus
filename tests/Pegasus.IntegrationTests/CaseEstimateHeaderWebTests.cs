@@ -116,6 +116,8 @@ public sealed class CaseEstimateHeaderWebTests
         }
         // The editor has no form of its own: its controls belong to the Case form (one Save).
         Assert.Contains("name=\"estimateName\" form=\"case-edit-form\"", editing, StringComparison.Ordinal);
+        // That edit session has ended; the same staff member now reads the Case.
+        store.LeaseHolder = null;
 
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
@@ -214,7 +216,7 @@ public sealed class CaseEstimateHeaderWebTests
         Assert.Contains("data-case-editing=\"true\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-estimate-send-to-ai", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
-            OperatorLabels.CaseWorkspace.EngineerSections.ConfirmedEngineerValueRequired,
+            OperatorLabels.CaseWorkspace.EngineerSections.EngineerValueRequired,
             html,
             StringComparison.Ordinal);
     }
@@ -232,9 +234,9 @@ public sealed class CaseEstimateHeaderWebTests
                 new(RepairSpecificationSourceRoute.Manual, null, null, null),
                 includeLine
                     ? [new(Guid.NewGuid(), 1, "repair", null, "Repair door", 1m, null, false,
-                        null, null, null, null, null, ActorKind.Staff, "engineer", now, "engineer", now)]
+                        null, null, null, null, ActorKind.Staff, "engineer", now)]
                     : [],
-                null, "engineer", now, null, null, null, null, details);
+                "engineer", now, details);
         }
 
         public RepairSpecificationVersion Estimate { get; }

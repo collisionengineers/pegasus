@@ -102,9 +102,15 @@ public sealed class DetailsModel(
     public bool IsEditing => EditLease is not null;
 
     /// <summary>
-    /// An authorised editor may replace a live scope held in another window.
+    /// A colleague holds a live scope that an authorised editor may take over. The viewer's own
+    /// scope is never taken over: Edit simply claims it back.
     /// </summary>
     public bool CanTakeOverEdit { get; private set; }
+
+    /// <summary>
+    /// The viewer holds a live scope from another window; Edit replaces it without a takeover.
+    /// </summary>
+    public bool ViewerHoldsEditScope { get; private set; }
 
     /// <summary>The record as the operator reading an ownership sentence names it.</summary>
     private const string RecordName = "Image Intake record";
@@ -121,8 +127,12 @@ public sealed class DetailsModel(
         if (!IsEditing && TryGetActor(out var editActor)
             && StaffAuthorization.IsAuthorized(editActor, StaffAccessRight.PerformCasework))
         {
-            CanTakeOverEdit = await editScopes.GetActiveAsync(
-                EditScopeKind.ImageIntake, id, editActor, cancellationToken) is not null;
+            if (await editScopes.GetActiveAsync(
+                    EditScopeKind.ImageIntake, id, editActor, cancellationToken) is { } active)
+            {
+                ViewerHoldsEditScope = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, editActor);
+                CanTakeOverEdit = !ViewerHoldsEditScope;
+            }
         }
         Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
         if (TryGetActor(out var sourceActor))
@@ -226,7 +236,6 @@ public sealed class DetailsModel(
         }
         catch (EditScopeConflictException)
         {
-            CanTakeOverEdit = true;
             ModelState.AddModelError(
                 string.Empty,
                 await EditConflictMessageAsync(id, actor, cancellationToken));
@@ -346,11 +355,6 @@ public sealed class DetailsModel(
                 cancellationToken);
             await OnGetAsync(id, cancellationToken);
             return Page();
-        }
-        catch (EditScopeHeldElsewhereException)
-        {
-            CanTakeOverEdit = true;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
         }
         catch (EditScopeConflictException)
         {

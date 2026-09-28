@@ -73,8 +73,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var launched = await workspace.LaunchAsync();
 
-        Assert.Equal(HttpStatusCode.Found, launched.StatusCode);
-        var estimator = new Uri(launched.Headers.Location!.ToString(), UriKind.Absolute);
+        Assert.Equal(HttpStatusCode.OK, launched.StatusCode);
+        var estimator = await ReadEstimatorAsync(launched);
         Assert.Equal(GlassProviderFixture.EstimatorBase.Host, estimator.Host);
         var caller = new Uri(Query(estimator.Query)["caller"], UriKind.Absolute);
         Assert.Equal(new Uri(PegasusOrigin).Host, caller.Host);
@@ -104,8 +104,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
         using var first = await workspace.PostAsync("LaunchGlass", form);
         using var second = await workspace.PostAsync("LaunchGlass", form);
 
-        Assert.Equal(HttpStatusCode.Found, second.StatusCode);
-        Assert.Equal(first.Headers.Location, second.Headers.Location);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(await ReadEstimatorAsync(first), await ReadEstimatorAsync(second));
         Assert.Single(await workspace.SessionsAsync());
         Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
     }
@@ -231,7 +231,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var launchForm = await workspace.LaunchFormAsync();
         using (var first = await workspace.PostAsync("LaunchGlass", launchForm))
         {
-            Assert.Equal(HttpStatusCode.Found, first.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         }
         var liveHtml = await workspace.CaseHtmlAsync();
         Assert.DoesNotContain("handler=LaunchGlass", liveHtml, StringComparison.Ordinal);
@@ -315,7 +315,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         await workspace.ClaimLeaseAsync();
         using (var launched = await workspace.LaunchAsync())
         {
-            Assert.Equal(HttpStatusCode.Found, launched.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, launched.StatusCode);
         }
         Assert.Equal(GlassRepairEstimateSessionState.Active, Assert.Single(await workspace.SessionsAsync()).State);
         var html = await workspace.CaseHtmlAsync();
@@ -332,7 +332,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var next = await workspace.LaunchAsync();
 
-        Assert.Equal(HttpStatusCode.Found, next.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
         Assert.Equal(2, (await workspace.SessionsAsync()).Count);
     }
 
@@ -356,14 +356,16 @@ public sealed class GlassRepairEstimateCallbackWebTests
     // ------------------------------------------------------------- the return
 
     /// <summary>
-    /// The whole operator journey: Save &amp; Exit lands the calculation as a
-    /// Draft on the Case, keeps both of the provider's documents, completes the
-    /// session, and puts the operator back on the Estimate section.
+    /// The whole operator journey: Save &amp; Exit lands the calculation as the
+    /// Case's repair spec in use, priced on the one enabled labour-rate card,
+    /// keeps both of the provider's documents, completes the session, and puts
+    /// the operator back on the Estimate section.
     /// </summary>
     [Fact]
-    public async Task TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession()
+    public async Task TheProvidersReturnLandsTheSpecInUseKeepsBothDocumentsAndCompletesTheSession()
     {
         await using var workspace = await Workspace.CreateAsync(role: StaffRoleNames.User);
+        var card = await workspace.AddRateCardAsync("80", 80m);
         await workspace.ClaimLeaseAsync();
         var launchVersion = await workspace.CaseVersionAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
@@ -379,6 +381,9 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var estimate = Assert.Single(await workspace.EstimatesAsync());
         Assert.Equal(RepairSpecificationSourceRoute.Glasses, estimate.Source.Route);
         Assert.Equal(RepairSpecificationState.Draft, estimate.State);
+        Assert.True(estimate.IsCurrent);
+        Assert.Equal(new EstimateRateSnapshot(card.Id, card.Version, 80m), estimate.Details.Rate);
+        Assert.Equal(80m, estimate.Details.HourlyRate);
         Assert.NotEmpty(estimate.Lines);
         Assert.Equal(BothDocuments, await workspace.RetainedMediaTypesAsync());
         // Only landing the Draft is a staff mutation; retaining its two source
@@ -591,17 +596,77 @@ public sealed class GlassRepairEstimateCallbackWebTests
     // --------------------------------------------------------------- the wait
 
     /// <summary>
-    /// The Case moved on while the operator was inside Glass's: everything the
-    /// provider produced is kept, nothing is imported, and the estimate lands
-    /// when the Engineer takes the Case back.
+    /// The staff member left edit mode while Glass's was open, so the launch's
+    /// edit authority is spent. Nobody holds the Case, so the return takes a
+    /// fresh lease for the returning staff member and lands the estimate as
+    /// the repair spec in use (FRD-25).
     /// </summary>
     [Fact]
-    public async Task AReturnThatLostTheCasesEditAuthorityWaitsUntilTheResumeImportsIt()
+    public async Task AReturnWhoseLaunchLeaseEndedTakesAFreshLeaseAndLandsTheSpecInUse()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        var card = await workspace.AddRateCardAsync("80", 80m);
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        await workspace.FinishEditingAsync();
+
+        using (var returned = await workspace.ReturnAsync(correlation))
+        {
+            await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
+        }
+
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Null(session.FailureCode);
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
+        var estimate = Assert.Single(await workspace.EstimatesAsync());
+        Assert.Equal(RepairSpecificationSourceRoute.Glasses, estimate.Source.Route);
+        Assert.True(estimate.IsCurrent);
+        Assert.Equal(new EstimateRateSnapshot(card.Id, card.Version, 80m), estimate.Details.Rate);
+        Assert.Equal(BothDocuments, await workspace.RetainedMediaTypesAsync());
+    }
+
+    /// <summary>
+    /// The return has already succeeded when the landing's own Case read
+    /// faults: the estimate stays held for Resume, nothing is imported, and
+    /// the operator is handed back to the Estimate section with the session
+    /// as it stands rather than an error page.
+    /// </summary>
+    [Fact]
+    public async Task AReturnWhoseCaseReadFaultsKeepsTheEstimateHeldAndReportsTheSession()
+    {
+        var fault = new CaseReadFault();
+        await using var workspace = await Workspace.CreateAsync(caseReadFault: fault);
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        await workspace.FinishEditingAsync();
+        fault.Armed = true;
+
+        using (var returned = await workspace.ReturnAsync(correlation))
+        {
+            await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
+        }
+        fault.Armed = false;
+
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.AwaitingImport, session.State);
+        Assert.NotNull(session.CallbackConsumedAtUtc);
+        Assert.Empty(await workspace.EstimatesAsync());
+    }
+
+    /// <summary>
+    /// The same return while the staff member is back in edit mode under a
+    /// new lease: landing the estimate would overtake their unsaved edits, so
+    /// it waits, with everything the provider produced kept, until Resume
+    /// imports it.
+    /// </summary>
+    [Fact]
+    public async Task AReturnWhileTheStaffMemberHoldsTheCaseAgainWaitsUntilTheResumeImportsIt()
     {
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
         await workspace.FinishEditingAsync();
+        await workspace.ClaimLeaseAsync();
 
         using (var returned = await workspace.ReturnAsync(correlation))
         {
@@ -616,7 +681,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
         // rather than asking Glass's for a second copy.
         Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
 
-        await workspace.ClaimLeaseAsync();
         using var resumed = await workspace.PostAsync("ResumeGlass", await workspace.ResumeFormAsync());
 
         await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
@@ -624,7 +688,37 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
         var estimate = Assert.Single(await workspace.EstimatesAsync());
         Assert.Equal(RepairSpecificationSourceRoute.Glasses, estimate.Source.Route);
+        Assert.True(estimate.IsCurrent);
         Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
+    }
+
+    /// <summary>
+    /// The same return while another staff member holds the Case: the return
+    /// never takes the Case from them, so the estimate waits and nothing is
+    /// imported.
+    /// </summary>
+    [Fact]
+    public async Task AReturnWhileAnotherStaffMemberHoldsTheCaseWaitsAndImportsNothing()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        await workspace.FinishEditingAsync();
+        var holder = await workspace.HoldAsAnotherStaffMemberAsync();
+        var heldVersion = await workspace.CaseVersionAsync();
+
+        using (var returned = await workspace.ReturnAsync(correlation))
+        {
+            await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
+        }
+
+        var waiting = Assert.Single(await workspace.SessionsAsync());
+        Assert.Null(waiting.FailureCode);
+        Assert.Equal(GlassRepairEstimateSessionState.AwaitingImport, waiting.State);
+        Assert.Empty(await workspace.EstimatesAsync());
+        Assert.Equal(2, (await workspace.RetainedMediaTypesAsync()).Count);
+        Assert.Equal(holder, await workspace.LeaseHolderAsync());
+        Assert.Equal(heldVersion, await workspace.CaseVersionAsync());
     }
 
     // -------------------------------------------------------------- the shape
@@ -635,6 +729,101 @@ public sealed class GlassRepairEstimateCallbackWebTests
     /// rendering it, so the response is that hand-back document naming the
     /// section, not a redirect to it.
     /// </summary>
+    private static async Task<Uri> ReadEstimatorAsync(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        var html = await response.Content.ReadAsStringAsync();
+        var attribute = Regex.Match(html, "data-glass-launch=\"([^\"]+)\"", RegexOptions.CultureInvariant);
+        Assert.True(attribute.Success, "A successful launch renders the same-origin handoff.");
+        // MapStaticAssets fingerprints the file name in the rendered script URL.
+        Assert.Matches(
+            """<script\b[^>]*\bsrc="/js/glass-return(?:\.[A-Za-z0-9]+)?\.js(?:\?v=[^"]*)?"[^>]*></script>""",
+            html);
+        return new Uri(WebUtility.HtmlDecode(attribute.Groups[1].Value), UriKind.Absolute);
+    }
+
+    [Fact]
+    public async Task GlassControlsReadReturnsCurrentSessionFormsWithoutChangingCaseOrLease()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var initial = await workspace.LaunchFormAsync();
+        using var launched = await workspace.PostAsync("LaunchGlass", initial);
+        await ReadEstimatorAsync(launched);
+        var session = Assert.Single(await workspace.SessionsAsync());
+        var count = workspace.Mva.Requests.Count;
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        request.Headers.Add("X-Pegasus-Edit-Lease", initial["editLeaseToken"]);
+        using var response = await workspace.Client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+        var html = await response.Content.ReadAsStringAsync();
+        var resume = FormFor(html, "ResumeGlass");
+        var close = FormFor(html, "CloseGlass");
+        Assert.Equal(session.Version.ToString(CultureInfo.InvariantCulture), resume["expectedSessionVersion"]);
+        Assert.Equal(resume["expectedSessionVersion"], close["expectedSessionVersion"]);
+        Assert.Equal(initial["editLeaseToken"], resume["editLeaseToken"]);
+        Assert.DoesNotContain("case-edit-form", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("ere.test", html, StringComparison.Ordinal);
+        Assert.Equal(count, workspace.Mva.Requests.Count);
+        Assert.Equal(session, Assert.Single(await workspace.SessionsAsync()));
+        using var readOnly = await workspace.Client.GetAsync($"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        Assert.DoesNotContain("data-glass-window", await readOnly.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StaleClosePreservesTheHoldAndRequiresFreshConfirmation()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        using var launched = await workspace.LaunchAsync();
+        await ReadEstimatorAsync(launched);
+        var html = await workspace.CaseHtmlAsync();
+        var staleClose = FormFor(html, "CloseGlass");
+        using var resumed = await workspace.PostAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
+        await ReadEstimatorAsync(resumed);
+        var current = Assert.Single(await workspace.SessionsAsync());
+        staleClose["reason"] = "Confirmed closed externally";
+        staleClose["externalSessionClosed"] = "true";
+        using var refused = await workspace.PostAsync("CloseGlass", staleClose);
+        Assert.Equal(HttpStatusCode.Found, refused.StatusCode);
+        Assert.Equal(current, Assert.Single(await workspace.SessionsAsync()));
+        var refreshed = await workspace.CaseHtmlAsync();
+        Assert.Contains("Confirm external closure again", refreshed, StringComparison.Ordinal);
+        var fresh = FormFor(refreshed, "CloseGlass");
+        Assert.Equal(current.Version.ToString(CultureInfo.InvariantCulture), fresh["expectedSessionVersion"]);
+        Assert.DoesNotMatch("name=\"externalSessionClosed\"[^>]*checked", refreshed);
+        fresh["reason"] = staleClose["reason"];
+        fresh["externalSessionClosed"] = "true";
+        using var closed = await workspace.PostAsync("CloseGlass", fresh);
+        Assert.Equal(GlassRepairEstimateSessionState.Cancelled, Assert.Single(await workspace.SessionsAsync()).State);
+    }
+
+    [Fact]
+    public async Task ControlsRequireSignInAndNeverExposeAnotherEngineersSession()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.SeedAnotherEngineersSessionAsync();
+        var session = Assert.Single(await workspace.SessionsAsync());
+        using var anonymous = new HttpRequestMessage(HttpMethod.Get, $"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        anonymous.Headers.Add("X-Test-Anonymous", "true");
+        using var challenged = await workspace.Client.SendAsync(anonymous);
+        Assert.Equal(HttpStatusCode.Redirect, challenged.StatusCode);
+        using var ownControls = await workspace.Client.GetAsync($"/Cases/{workspace.CaseId:D}?handler=GlassSession");
+        Assert.Equal(HttpStatusCode.OK, ownControls.StatusCode);
+        var html = await ownControls.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(session.Id.ToString("D"), html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=CloseGlass", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ResumeGlass", html, StringComparison.Ordinal);
+        using var missing = await workspace.Client.GetAsync($"/Cases/{Guid.NewGuid():D}?handler=GlassSession");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal(session, Assert.Single(await workspace.SessionsAsync()));
+        Assert.Empty(workspace.Mva.Requests);
+    }
+
     private static async Task AssertHandsBackToTheEstimateSectionAsync(HttpResponseMessage response, Guid caseId)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -697,6 +886,21 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public bool OnComplete { get; set; }
     }
 
+    /// <summary>A switch the test flips to make the host's Case read fault.</summary>
+    private sealed class CaseReadFault
+    {
+        public bool Armed { get; set; }
+    }
+
+    /// <summary>The host's own Case read, faulting while the switch is armed.</summary>
+    private sealed class FaultingCases(IGetCase inner, CaseReadFault fault) : IGetCase
+    {
+        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
+            fault.Armed
+                ? throw new InvalidDataException("The Case read faulted on the return.")
+                : inner.ExecuteAsync(query, cancellationToken);
+    }
+
     /// <summary>The real gateway with one fault a test can switch on: an unrelated failure inside a return.</summary>
     private sealed class FaultingGateway(IGlassRepairEstimateGateway inner, GatewayFault fault) : IGlassRepairEstimateGateway
     {
@@ -755,7 +959,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public Guid CaseId { get; }
 
         public static async Task<Workspace> CreateAsync(
-            bool credentialed = true, string role = StaffRoleNames.Engineer, GatewayFault? fault = null)
+            bool credentialed = true,
+            string role = StaffRoleNames.Engineer,
+            GatewayFault? fault = null,
+            CaseReadFault? caseReadFault = null)
         {
             var mva = new ScriptedGlass();
             GlassProviderFixture.Script(mva);
@@ -785,6 +992,12 @@ public sealed class GlassRepairEstimateCallbackWebTests
                         services.AddScoped<GlassRepairEstimateGateway>();
                         services.AddScoped<IGlassRepairEstimateGateway>(provider =>
                             new FaultingGateway(provider.GetRequiredService<GlassRepairEstimateGateway>(), fault));
+                    }
+                    if (caseReadFault is not null)
+                    {
+                        services.AddScoped<GetCase>();
+                        services.AddScoped<IGetCase>(provider =>
+                            new FaultingCases(provider.GetRequiredService<GetCase>(), caseReadFault));
                     }
                 });
             });
@@ -875,6 +1088,40 @@ public sealed class GlassRepairEstimateCallbackWebTests
             Assert.Equal(1, changed);
         }
 
+        /// <summary>
+        /// Another staff member takes the Case into edit mode, as the Case
+        /// row records a live lease.
+        /// </summary>
+        public async Task<string> HoldAsAnotherStaffMemberAsync()
+        {
+            var holder = Guid.NewGuid().ToString("D");
+            await using var scope = factory.Services.CreateAsyncScope();
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == CaseId);
+            Assert.Null(workflow.EditLeaseHolder);
+            workflow.EditLeaseHolder = holder;
+            workflow.EditLeaseHolderKind = nameof(ActorKind.Staff);
+            workflow.EditLeaseTokenHash = new string('A', 64);
+            workflow.EditLeaseOperationKey = Guid.NewGuid().ToString("N");
+            workflow.EditLeaseExpiresAtUtc = DateTimeOffset.MaxValue;
+            await context.SaveChangesAsync();
+            return holder;
+        }
+
+        public async Task<string?> LeaseHolderAsync()
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            return await context.CaseWorkflows
+                .Where(item => item.CaseId == CaseId)
+                .Select(item => item.EditLeaseHolder)
+                .SingleAsync();
+        }
+
         public async Task FinishEditingAsync()
         {
             using var released = await PostAsync("ReleaseLease", FormFor(await CaseHtmlAsync(), "ReleaseLease"));
@@ -897,8 +1144,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
         public async Task<string> LaunchAndReadCorrelationAsync()
         {
             using var launched = await LaunchAsync();
-            Assert.Equal(HttpStatusCode.Found, launched.StatusCode);
-            var estimator = new Uri(launched.Headers.Location!.ToString(), UriKind.Absolute);
+            Assert.Equal(HttpStatusCode.OK, launched.StatusCode);
+            var estimator = await ReadEstimatorAsync(launched);
             return new Uri(Query(estimator.Query)["caller"], UriKind.Absolute).Segments[^1];
         }
 
@@ -930,6 +1177,19 @@ public sealed class GlassRepairEstimateCallbackWebTests
             }
 
             return sessions;
+        }
+
+        /// <summary>An enabled labour-rate card, as an Administrator records it.</summary>
+        public async Task<LabourRateCard> AddRateCardAsync(string name, decimal hourlyRate)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            return await scope.ServiceProvider
+                .GetRequiredService<ILabourRateCardStore>()
+                .SaveAsync(
+                    new(Guid.NewGuid(), name, hourlyRate, true, 0,
+                        ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]),
+                        "Create rate", $"rate-card-{Guid.NewGuid():N}"),
+                    CancellationToken.None);
         }
 
         public async Task<IReadOnlyList<RepairSpecificationVersion>> EstimatesAsync()

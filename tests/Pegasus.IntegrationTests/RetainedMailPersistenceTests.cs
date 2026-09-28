@@ -230,6 +230,43 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal(2048, attachment.ContentLength);
     }
 
+    /// <summary>
+    /// The stored excerpt fills its 400-character column and never overflows
+    /// it: the ellipsis counts against the limit. One character over fails the
+    /// insert, and the poll would stop on that message. A line of exactly the
+    /// column's length is kept whole; with more after it, or one character
+    /// longer, it is cut at a word boundary.
+    /// </summary>
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public async Task TheStoredExcerptNeverOverflowsItsColumn(int pastTheColumn, bool moreFollows)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var line = new string('x', 5 + pastTheColumn) + string.Concat(Enumerable.Repeat(" word", 79));
+        Assert.Equal(EfRetainedMailboxMessageStore.StoredExcerptLength + pastTheColumn, line.Length);
+        var body = moreFollows ? line + "\nMore follows." : line;
+        var message = Message("long-excerpt", bodyPlainText: body);
+
+        await RetainAsync(database, message);
+
+        var stored = await database.ScalarAsync<string>(
+            $"SELECT BodyExcerpt FROM RetainedMailboxMessages WHERE ImmutableMessageId = '{message.ImmutableMessageId}';");
+        Assert.True(stored.Length <= EfRetainedMailboxMessageStore.StoredExcerptLength);
+        if (pastTheColumn == 0 && !moreFollows)
+        {
+            Assert.Equal(line, stored);
+            return;
+        }
+
+        Assert.EndsWith("…", stored, StringComparison.Ordinal);
+        var kept = stored[..^1];
+        Assert.StartsWith(kept, line, StringComparison.Ordinal);
+        Assert.Equal(' ', line[kept.Length]);
+    }
+
     [Fact]
     public async Task AttachmentProjectionUsesOrdinalAndSourceLabelForDuplicateFileNamesIncludingUnsearchableFiles()
     {

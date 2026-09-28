@@ -88,6 +88,9 @@ internal static partial class CaseWebTestSupport
         string route,
         HttpContent form)
     {
+        // The editor is in edit mode, holding the lease, when the command is refused. Earlier
+        // commits in the same test consumed the lease they carried, as the store does.
+        workspace.Store.HoldLease(workspace.Claimant);
         workspace.Store.NextFailure = new InvalidOperationException("The case refused the command.");
         using var refused = await workspace.PostAsync(route, form);
         AssertPrg(refused, workspace.Store.CaseId);
@@ -105,6 +108,8 @@ internal static partial class CaseWebTestSupport
         string route,
         HttpContent form)
     {
+        // The lease really has lapsed on the server, so there is nothing for the page to resume.
+        workspace.Store.LeaseHolder = null;
         workspace.Store.NextFailure =
             new CaseEditLeaseExpiredException(workspace.Store.CaseId, workspace.Store.CaseVersion);
         using var refused = await workspace.PostAsync(route, form);
@@ -440,13 +445,15 @@ internal static partial class CaseWebTestSupport
                     Document(UnusedOccurrenceId, VersionOf(UnusedOccurrenceId), UnusedFileName, "image/jpeg", DocumentSemanticRole.Image)
                 ]
             };
+            // Four images in the report, the first tagged Close-up and the
+            // second Overview; the fifth is out of the report.
             store.Preparations =
             [
-                Preparation(store.CaseId, CloseUpOccurrenceId, CaseAssetReportRole.CloseUp, null, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full, 2),
-                Preparation(store.CaseId, OverviewOccurrenceId, CaseAssetReportRole.Overview, null, CaseAssetRotation.None, OverviewCrop, 4),
-                Preparation(store.CaseId, FirstSupportingOccurrenceId, CaseAssetReportRole.Supporting, 1, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
-                Preparation(store.CaseId, SecondSupportingOccurrenceId, CaseAssetReportRole.Supporting, 2, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
-                Preparation(store.CaseId, UnusedOccurrenceId, CaseAssetReportRole.NotUsed, null, CaseAssetRotation.None, CaseAssetCrop.Full, 0)
+                Preparation(store.CaseId, CloseUpOccurrenceId, ImageTagVocabulary.CloseUpId, 1, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full, 2),
+                Preparation(store.CaseId, OverviewOccurrenceId, ImageTagVocabulary.OverviewId, 2, CaseAssetRotation.None, OverviewCrop, 4),
+                Preparation(store.CaseId, FirstSupportingOccurrenceId, null, 3, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
+                Preparation(store.CaseId, SecondSupportingOccurrenceId, null, 4, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
+                Preparation(store.CaseId, UnusedOccurrenceId, null, null, CaseAssetRotation.None, CaseAssetCrop.Full, 0) with { InReport = false }
             ];
             return store;
         }
@@ -466,7 +473,7 @@ internal static partial class CaseWebTestSupport
         private static CaseAssetPreparation Preparation(
             Guid caseId,
             Guid occurrenceId,
-            CaseAssetReportRole role,
+            Guid? tagId,
             int? order,
             CaseAssetRotation rotation,
             CaseAssetCrop crop,
@@ -479,13 +486,19 @@ internal static partial class CaseWebTestSupport
                 1,
                 new string('a', 64),
                 "image/jpeg",
-                role,
+                true,
                 order,
                 rotation,
                 crop,
                 preparationVersion,
                 preparationVersion == 0 ? null : "staff",
-                preparationVersion == 0 ? null : new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero));
+                preparationVersion == 0 ? null : new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero))
+            {
+                TagIds = tagId is { } tag ? [tag] : [],
+                SourceFileName = $"{occurrenceId:N}.jpg",
+                RecordedAtUtc = new DateTimeOffset(2031, 5, 6, 8, 0, 0, TimeSpan.Zero),
+                CanPrint = true
+            };
     }
 
     /// <summary>
@@ -678,6 +691,7 @@ internal static partial class CaseWebTestSupport
         Substitute<IGetCaseNotesSection>(services, store);
         Substitute<IGetCaseFilesSection>(services, store);
         Substitute<IGetAssessmentWorkspace>(services, store);
+        Substitute<IResumeCaseEditLease>(services, store);
     }
 
     /// <summary>
@@ -767,6 +781,7 @@ internal static partial class CaseWebTestSupport
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
         IAcquireCaseEditLease,
+        IResumeCaseEditLease,
         IRecordManualCaseChase,
         IHoldCase,
         IReleaseCase,
@@ -1128,6 +1143,27 @@ internal static partial class CaseWebTestSupport
         }
 
 
+        public List<ResumeCaseEditLeaseRequest> Resumes { get; } = [];
+
+        /// <summary>The holder's own live lease, as the store resumes it for any page they open.</summary>
+        Task<CaseEditLease?> IResumeCaseEditLease.ExecuteAsync(
+            ResumeCaseEditLeaseRequest request,
+            CancellationToken cancellationToken)
+        {
+            Resumes.Add(request);
+            return Task.FromResult<CaseEditLease?>(
+                request.CaseId == CaseId
+                && _leaseHolder is not null
+                && CaseEditAuthority.IsHolder(_leaseHolderKind, _leaseHolder, request.Actor)
+                    ? new CaseEditLease(
+                        request.CaseId,
+                        LeaseToken,
+                        _leaseHolder,
+                        CaseVersion,
+                        _now.AddMinutes(5))
+                    : null);
+        }
+
         Task<SaveCaseWorkspaceResult> ISaveCaseWorkspace.ExecuteAsync(
             SaveCaseWorkspaceRequest request,
             CancellationToken cancellationToken)
@@ -1138,6 +1174,7 @@ internal static partial class CaseWebTestSupport
             if (AcceptWorkspaceSaves)
             {
                 CaseVersion++;
+                ConsumeLease();
                 return Task.FromResult(new SaveCaseWorkspaceResult(CreateData(), EngineeringAssessment(), null, false));
             }
             throw new CaseVersionConflictException(CaseId, request.ExpectedVersion, CaseVersion + 1);
@@ -1150,6 +1187,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Holds.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Held });
         }
 
@@ -1160,6 +1198,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Releases.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Review });
         }
 
@@ -1170,6 +1209,7 @@ internal static partial class CaseWebTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Transitions.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with
             {
                 State = request.Destination == CaseTransitionDestination.ReportPreparation
@@ -1210,16 +1250,75 @@ internal static partial class CaseWebTestSupport
                 MostRecentNote = request.Note,
                 Version = _dueWork.Version + 1
             };
-            _leaseHolder = null;
-            _leaseOperationKey = null;
+            ConsumeLease();
             return Task.FromResult(_dueWork);
         }
+
+        /// <summary>
+        /// A committed Case mutation clears the edit lease it carried, exactly as the store's
+        /// <c>CaseMutationGuard.Complete</c> does, so a page opened afterwards has no lease to
+        /// resume until edit mode is claimed again.
+        /// </summary>
+        private void ConsumeLease()
+        {
+            _leaseHolder = null;
+            _leaseOperationKey = null;
+        }
+
+        /// <summary>The actor holds the live lease, as a scenario that needs it held states.</summary>
+        public void HoldLease(ActionActor actor)
+        {
+            _leaseHolder = actor.SubjectId;
+            _leaseHolderKind = actor.Kind;
+            _leaseOperationKey = Guid.NewGuid().ToString("N");
+        }
+    }
+
+    /// <summary>
+    /// The Case as an Engineer (or <paramref name="role"/>) reads it, holding
+    /// no edit lease: for an action that claims its own lease, or to enter
+    /// edit mode from.
+    /// </summary>
+    internal static async Task<LeasedWorkspace> OpenEngineerWorkspaceAsync(
+        RecordingCaseDetailsStore store,
+        Action<IServiceCollection> substitutePorts,
+        StaffRole role = StaffRole.Engineer)
+    {
+        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role);
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        return new(baseFactory, factory, client, store, AntiforgeryValue(initial));
     }
 
     internal static async Task<LeasedWorkspace> EnterEngineerEditModeAsync(
         RecordingCaseDetailsStore store,
         Action<IServiceCollection> substitutePorts,
         StaffRole role = StaffRole.Engineer)
+    {
+        var (baseFactory, factory, client) = EngineerClient(store, substitutePorts, role);
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var claim = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initial),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initial, "operationKey"))));
+        AssertPrg(claim, store.CaseId);
+        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
+        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+    }
+
+    /// <summary>
+    /// A signed-in staff client in <paramref name="role"/> over the recording
+    /// store, with the Engineer sections open and <paramref name="substitutePorts"/>
+    /// replacing further ports after the store's.
+    /// </summary>
+    private static (IntakeWebApplicationFactory BaseFactory, WebApplicationFactory<Program> Factory, HttpClient Client)
+        EngineerClient(
+            RecordingCaseDetailsStore store,
+            Action<IServiceCollection> substitutePorts,
+            StaffRole role)
     {
         var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -1243,18 +1342,6 @@ internal static partial class CaseWebTestSupport
             BaseAddress = new Uri("https://localhost")
         });
         client.DefaultRequestHeaders.Add("X-Test-Roles", role.ToString());
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        using var claim = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
-            Form(
-                AntiforgeryValue(initial),
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", InputValue(initial, "operationKey"))));
-        AssertPrg(claim, store.CaseId);
-        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
-        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
+        return (baseFactory, factory, client);
     }
-
 }

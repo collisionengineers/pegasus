@@ -61,7 +61,8 @@ public sealed record AssessmentReportProjectionInput(
     ReportGuideSources? Guides = null,
     string? ValuationCommentary = null,
     bool IncludeFeeNote = false,
-    IReadOnlyList<CaseReportWording>? Wording = null);
+    IReadOnlyList<CaseReportWording>? Wording = null,
+    bool SignOffEngineersOffered = false);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -79,8 +80,8 @@ public sealed record AssessmentReportProjectionResult(
 /// assessment plus its case-report inputs, or names the work still
 /// outstanding. Every fact the report prints is a readiness item
 /// <see cref="Prepare"/> returns (<see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/>
-/// plus the sign-off, Current repair spec and labour-rate items it shares with
-/// <see cref="CaseReportReadiness"/>), so a Case that is not ready is refused
+/// plus the sign-off, Current repair spec, labour-rate and repairer VAT items
+/// it shares with <see cref="CaseReportReadiness"/>), so a Case that is not ready is refused
 /// with named items before anything is projected; the guards in
 /// <see cref="Project"/> are invariant assertions a ready Case never reaches.
 /// </summary>
@@ -92,7 +93,8 @@ public static class AssessmentReportProjection
     public static AssessmentReportDraftPreparation Prepare(
         CaseAssessmentProjection assessment,
         RepairSpecificationVersion? currentEstimate = null,
-        ReportSignatory? signatory = null)
+        ReportSignatory? signatory = null,
+        bool signOffEngineersOffered = false)
     {
         ArgumentNullException.ThrowIfNull(assessment);
         var reasons = new List<AssessmentReadinessItem>(
@@ -102,17 +104,28 @@ public static class AssessmentReportProjection
         // generation name them identically. The report's repair cost is the
         // Current repair spec's canonical total (EXT-09, FRD-11 § Estimate VAT
         // on the rendered report); there is no hand-typed cost path.
-        if (signatory?.IsComplete != true)
+        if (CaseReportReadiness.SignOffBlocker(signatory?.IsComplete, signOffEngineersOffered) is { } signOff)
         {
-            reasons.Add(CaseReportReadiness.SignatoryMissing);
+            reasons.Add(signOff);
         }
         if (currentEstimate is null)
         {
             reasons.Add(CaseReportReadiness.CurrentEstimateMissing);
         }
-        else if (currentEstimate.Details.HourlyRate <= 0m)
+        else
         {
-            reasons.Add(CaseReportReadiness.LabourRateMissing);
+            if (currentEstimate.Lines.Count == 0)
+            {
+                reasons.Add(CaseReportReadiness.CurrentEstimateEmpty);
+            }
+            if (currentEstimate.Details.HourlyRate <= 0m)
+            {
+                reasons.Add(CaseReportReadiness.LabourRateMissing);
+            }
+            if (CaseReportReadiness.RepairerVatBlocker(currentEstimate) is { } repairerVat)
+            {
+                reasons.Add(repairerVat);
+            }
         }
 
         return new(reasons);
@@ -122,7 +135,8 @@ public static class AssessmentReportProjection
     {
         ArgumentNullException.ThrowIfNull(input);
         var assessment = input.Assessment;
-        var preparation = Prepare(assessment, input.CurrentEstimate, input.Signatory);
+        var preparation = Prepare(
+            assessment, input.CurrentEstimate, input.Signatory, input.SignOffEngineersOffered);
         if (!preparation.CanGenerate)
         {
             return new(null, preparation.Reasons);
@@ -187,8 +201,7 @@ public static class AssessmentReportProjection
             SupplementaryStatement: input.CurrentEstimate?.Supplementary is { ExplainOnReport: true } supplementary
                 ? supplementary.Statement
                 : null,
-            Settlement: BuildSettlement(assessment, input.CurrentEstimate)
-                ?? throw new InvalidDataException("A ready report has incomplete accepted settlement inputs."),
+            Settlement: BuildSettlement(reportOutcome, fields),
             HistoryCheck: Field(assessment, AssessmentVocabulary.HistoryCheck)!,
             EngineerComments: Field(assessment, AssessmentVocabulary.EngineersComments),
             Signatory: new ReportSignatory(
@@ -232,21 +245,36 @@ public static class AssessmentReportProjection
     /// The valuation commentary the report prints when the flag is on: the
     /// Engineer's recorded commentary text when there is one, otherwise the
     /// reason recorded on the applied valuation. Both are recorded words;
-    /// nothing is inferred and no placeholder is supplied (FRD-11). Null when
-    /// neither holds any text.
+    /// nothing is inferred and no placeholder is supplied (FRD-11). The reason
+    /// the Case save records by itself
+    /// (<see cref="ValuationCalculationPolicy.AppliedReason"/>) is a screen
+    /// message, not commentary, and never prints. Null when nothing holds
+    /// commentary.
     /// </summary>
     public static string? ValuationCommentaryOf(CaseAssessmentProjection assessment, string? appliedValuationReason)
     {
         ArgumentNullException.ThrowIfNull(assessment);
         var text = Field(assessment, AssessmentVocabulary.ReportValuationCommentaryText);
-        return !string.IsNullOrWhiteSpace(text) ? text
-            : string.IsNullOrWhiteSpace(appliedValuationReason) ? null
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            return text;
+        }
+        return string.IsNullOrWhiteSpace(appliedValuationReason)
+            || string.Equals(
+                appliedValuationReason.Trim(),
+                ValuationCalculationPolicy.AppliedReason,
+                StringComparison.Ordinal)
+            ? null
             : appliedValuationReason;
     }
 
     private static string? Field(IReadOnlyDictionary<string, string?> fields, string path) =>
         fields.GetValueOrDefault(path);
 
+    /// <summary>
+    /// The vehicle facts the template prints. A Case with no mileage prints
+    /// the template's own word for it (DESIGN_SPEC.md § vehicle details).
+    /// </summary>
     private static ReportVehicle BuildVehicle(
         CaseAssessmentProjection assessment,
         IReadOnlyDictionary<string, string?> fields)
@@ -256,132 +284,55 @@ public static class AssessmentReportProjection
         var mileageUnit = assessment.CaseOwned.MileageUnit ?? "miles";
         var mileageDescription = mileage is { } value
             ? $"{value.ToString("N0", CultureInfo.GetCultureInfo("en-GB"))} {mileageUnit}"
-            : "To be confirmed";
+            : AssessmentReportWording.NoMileage;
 
-        // Temporary repairs are the unroadworthy vehicle's (Decisions shows them only then), so a roadworthy vehicle's report carries no temporary-repair value and its rows print a dash.
-        var unroadworthy = AssessmentVocabulary.TemporaryRepairsApply(Field(fields, AssessmentVocabulary.LegalStatus));
         return new ReportVehicle(
             Registration: assessment.CaseOwned.Registration ?? string.Empty,
             Make: assessment.CaseOwned.Make ?? string.Empty,
             Model: assessment.CaseOwned.Model ?? string.Empty,
             Year: assessment.CaseOwned.Year ?? string.Empty,
-            VehicleType: Field(fields, AssessmentVocabulary.VehicleType) ?? string.Empty,
             Condition: Field(fields, AssessmentVocabulary.VehicleCondition) ?? string.Empty,
             MileageDescription: mileageDescription,
             MileageSource: mileageSource,
             Vin: Field(fields, AssessmentVocabulary.VehicleVin),
             Engine: Field(fields, AssessmentVocabulary.VehicleEngineCc),
-            Fuel: Field(fields, AssessmentVocabulary.VehicleFuel),
-            Transmission: AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.VehicleTransmission)),
-            Colour: Field(fields, AssessmentVocabulary.VehicleColour),
-            Body: Field(fields, AssessmentVocabulary.VehicleBody),
-            TaxExpiry: ParseDate(Field(fields, AssessmentVocabulary.VehicleTaxExpiry)),
-            MotExpiry: ParseDate(Field(fields, AssessmentVocabulary.VehicleMotExpiry)),
-            AirbagsDeployed: Field(fields, AssessmentVocabulary.VehicleAirbagsDeployed),
-            TemporaryRepairsPossible: unroadworthy ? ParseFlag(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairsPossible)) : null,
-            TemporaryRepairMethod: unroadworthy ? Field(fields, AssessmentVocabulary.VehicleTemporaryRepairMethod) : null,
-            TemporaryRepairCost: unroadworthy ? ParseMoney(Field(fields, AssessmentVocabulary.VehicleTemporaryRepairCost)) : null);
+            Fuel: Field(fields, AssessmentVocabulary.VehicleFuel));
     }
 
     private static ReportDamage BuildDamage(IReadOnlyDictionary<string, string?> fields)
     {
         var impacts = AssessmentPolicy.ParseImpacts(Field(fields, AssessmentVocabulary.DamageImpacts))
-            .Select(impact => new ReportImpact(
-                AssessmentReportPresentation.DamageAreas(impact.Areas),
-                AssessmentReportPresentation.DamageSeverity(impact.Severity),
-                impact.Note,
-                impact.Areas,
-                impact.Disc))
+            .Select(impact => new ReportImpact(impact.Areas, impact.Severity, impact.Disc))
             .ToArray();
-        return new(
-            impacts,
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreRightFront)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreLeftFront)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreRightRear)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageTyreLeftRear)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltRightFront)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltLeftFront)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltRightRear)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageBeltLeftRear)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageSpareTyre)),
-            AssessmentReportPresentation.AssessmentCode(Field(fields, AssessmentVocabulary.DamageCentreBelt)),
-            Field(fields, AssessmentVocabulary.DamageUnrelated),
-            ParseMoney(Field(fields, AssessmentVocabulary.DamageUnrelatedDeduction)),
-            Field(fields, AssessmentVocabulary.DamageMaterialTransfer));
+        return new(impacts, Field(fields, AssessmentVocabulary.DamageUnrelated));
     }
 
     /// <summary>
-    /// The Case display and report share the same accepted settlement figures.
-    /// Incomplete or unconfirmed calculation inputs withhold the projection;
-    /// they never become zero-valued facts. Repair days belong to Current.
+    /// The agreed contract repair sum, which only a contract repair carries.
+    /// Prepare named a missing sum, so a contract repair that reaches here
+    /// without a positive one is a defect for the error page.
     /// </summary>
-    public static ReportSettlement? BuildSettlement(
-        CaseAssessmentProjection assessment,
-        RepairSpecificationVersion? currentEstimate)
+    private static ReportSettlement BuildSettlement(
+        AssessmentReportOutcome outcome,
+        IReadOnlyDictionary<string, string?> fields)
     {
-        ArgumentNullException.ThrowIfNull(assessment);
-        if (currentEstimate is not { IsCurrent: true, State: RepairSpecificationState.Accepted }
-            || assessment.Field(AssessmentVocabulary.ValueEngineer) is not { IsConfirmed: true } value
-            || ParseMoney(value.Value) is not { } engineerValue
-            || assessment.Field(AssessmentVocabulary.SettlementBetterment) is { IsConfirmed: false }
-            || (assessment.Field(AssessmentVocabulary.Outcome)?.Value == "total_loss"
-                && assessment.Field(AssessmentVocabulary.SalvageValue) is { IsConfirmed: false }))
+        if (outcome != AssessmentReportOutcome.ContractRepair)
         {
-            return null;
+            return new ReportSettlement();
         }
-
-        if (string.Equals(
-                assessment.Field(AssessmentVocabulary.Outcome)?.Value,
-                "contract_repair",
-                StringComparison.Ordinal)
-            && assessment.Field(AssessmentVocabulary.SettlementContractSum) is not { IsConfirmed: true })
+        var agreed = ParseMoney(Field(fields, AssessmentVocabulary.SettlementContractSum));
+        if (agreed is not > 0m)
         {
-            return null;
+            throw new InvalidDataException("A ready contract repair report is missing its agreed contract sum.");
         }
-
-        var fields = assessment.Fields
-            .Where(field => field.IsConfirmed)
-            .ToDictionary(field => field.Path, field => (string?)field.Value, StringComparer.Ordinal);
-        var costs = ReportRepairCosts.For(currentEstimate);
-        var betterment = ParseMoney(Field(fields, AssessmentVocabulary.SettlementBetterment));
-        var totalLoss = string.Equals(Field(fields, AssessmentVocabulary.Outcome), "total_loss", StringComparison.Ordinal);
-        var contractRepair = string.Equals(Field(fields, AssessmentVocabulary.Outcome), "contract_repair", StringComparison.Ordinal);
-        var salvage = totalLoss ? ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue)) : null;
-        var contractSum = contractRepair ? ParseMoney(Field(fields, AssessmentVocabulary.SettlementContractSum)) : null;
-        if (contractRepair && contractSum is not > 0)
-        {
-            return null;
-        }
-
-        return new(
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementExcess)),
-            betterment,
-            ParseFlag(Field(fields, AssessmentVocabulary.SettlementClaimantVatRegistered)),
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementReserve)),
-            engineerValue - (costs.Total - (betterment ?? 0m)) - (salvage ?? 0m),
-            Field(fields, AssessmentVocabulary.SettlementRepairDelays),
-            Field(fields, AssessmentVocabulary.SettlementReportDelay),
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementStoragePerDay)),
-            ParseMoney(Field(fields, AssessmentVocabulary.CostRecoveryCharge)),
-            ParseDate(Field(fields, AssessmentVocabulary.SettlementHireStart)),
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementHireDailyCost)),
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementDiminution)),
-            totalLoss ? Field(fields, AssessmentVocabulary.SettlementSalvageAt) : null,
-            totalLoss ? Field(fields, AssessmentVocabulary.SettlementSalvageAgent) : null,
-            totalLoss ? Field(fields, AssessmentVocabulary.SettlementSalvageAgentReference) : null,
-            totalLoss ? ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageMoved)) : null,
-            totalLoss ? ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageOwnerRetains)) : null,
-            totalLoss ? ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageValueAgreed)) : null,
-            totalLoss ? ParseDate(Field(fields, AssessmentVocabulary.SettlementSalvageSettled)) : null,
-            contractSum);
+        return new ReportSettlement(agreed);
     }
 
     /// <summary>
     /// Groups the Current estimate's line descriptions for the report's
-    /// parts/repairs/operations lists. Every estimate line is already
-    /// confirmed by the time this runs — <see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/>
-    /// blocks the whole draft on the first unconfirmed line, of any type —
-    /// so this only has to group by type and drop blank descriptions.
+    /// parts/repairs/operations lists. The lines are the Current accepted
+    /// specification's — Use estimate is the acceptance — so this only has to
+    /// group by type and drop blank descriptions.
     /// </summary>
     private static string[] LinesOfType(
         IReadOnlyList<CaseEstimateLineRecord> lines, params ReadOnlySpan<string> types)

@@ -198,6 +198,12 @@ internal sealed class EfPreCaseImagePreparationStore(
                 OperationKey = $"pre-case-tag:{occurrence.Id:N}:{tag.TagId:N}"
             });
         }
+        // An image arriving tagged Third party or Reflection starts out of
+        // the report, as tagging it on the Case would leave it.
+        if (tags.Any(tag => ImageTagVocabulary.TakesImageOutOfReport(tag.TagId)))
+        {
+            occurrence.InReport = false;
+        }
     }
 
     private static async Task RequireImageAsync(PegasusDbContext context, Guid intakeAssetId, CancellationToken cancellationToken)

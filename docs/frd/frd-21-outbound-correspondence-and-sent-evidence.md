@@ -65,9 +65,12 @@ evidence of sending. A staff note that says "sent" stays an assertion unless
 the exact external evidence is retained.
 
 Triage completion is based on the recorded outcome, under
-[FRD-03](frd-03-triage.md). Its optional Reply with outcome opens a preset
-email; a retained sent reply links to the Triage Case without becoming a
-completion requirement. A manual Triage chaser is a staff send like any
+[FRD-03](frd-03-triage.md). Its optional Reply with outcome is a staff send
+with purpose `TriageOutcomeReply`: a reply to the Triage's origin message
+that opens with a preset outcome body. Its Sent item links to the Triage
+Case as response evidence, like any exact reply to that message, when the
+Triage has no response evidence yet; a Triage keeps one response link. It is
+never a completion requirement. A manual Triage chaser is a staff send like any
 other, and its exact Sent evidence is recorded the same way; it is never a
 completion requirement either.
 
@@ -120,7 +123,11 @@ and cannot send. It never silently picks the first mailbox.
 (read-only). Reply and Forward keep the retained message's reply chain and
 conversation identity. Case defaults to the Case whose correspondence the
 Reply or Forward started from, otherwise to the message's current
-association, and may be changed before sending.
+association, and may be changed before sending. A Triage outcome reply's
+Message opens with the Triage outcome template from Administration, rendered
+from the Triage's registration and finding
+([FRD-17](frd-17-administration-workspace.md#e-mail-templates)); staff edit it
+before Send.
 
 **Reply targets.** Pegasus keeps the structured MIME Reply-To addresses in
 their original order and uses the From addresses only when Reply-To is

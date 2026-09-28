@@ -470,6 +470,46 @@ public sealed class CaseArtifactCustodyRecoveryTests
         CaseMutationGuard.Require(workflow, actor, 0, lease.Token, DateTimeOffset.UtcNow);
     }
 
+    /// <summary>
+    /// The Worker's sweep can file a version while the request that recorded
+    /// it is still writing the same bytes. The request's own confirmation then
+    /// changes nothing, and it answers with what the stored row says.
+    /// </summary>
+    [Fact]
+    public async Task AVersionFiledByReconciliationDuringTheWriteIsReturnedAsConfirmed()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var artifacts = new MemoryArtifactStore();
+        var content = new ReconcilingContentStore(factory, artifacts);
+        var custody = new EfCaseArtifactCustody(factory, content, artifacts, TimeProvider.System);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var request = ArtifactRequest(actor, caseId, "generated report bytes"u8.ToArray());
+
+        var result = await custody.RetainAsync(request, default);
+
+        Assert.NotNull(content.Reconciled);
+        Assert.Equal(1, content.Reconciled!.Confirmed);
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
+        // The identities are the ones reconciliation stored, not the request's.
+        Assert.Equal(ReconcilingContentStore.ReconciledFileId, result.BoxFileId);
+        Assert.Equal(ReconcilingContentStore.ReconciledVersionId, result.BoxVersionId);
+        Assert.Null(result.FailureCode);
+        Assert.Null(result.PendingContentStorageKey);
+        await using var db = await database.CreateContextAsync();
+        var version = await db.Set<DocumentVersionEntity>().SingleAsync();
+        Assert.Equal(version.Id, result.VersionId);
+        Assert.Equal(version.DocumentId, result.DocumentId);
+        Assert.Equal(DocumentCustodyStatus.Confirmed, version.CustodyStatus);
+        Assert.Equal(ReconcilingContentStore.ReconciledFileId, version.BoxFileId);
+        Assert.Null(version.PendingContentStorageKey);
+        Assert.Equal(
+            result.OccurrenceId,
+            (await db.Set<DocumentOccurrenceEntity>().SingleAsync()).Id);
+    }
+
     [Fact]
     public async Task StatusPreservesDispositionAndSelectsExactOccurrenceWhenVersionIsShared()
     {
@@ -801,6 +841,40 @@ public sealed class CaseArtifactCustodyRecoveryTests
         public Task StoreAsync(Guid caseId, string caseReference, Guid versionId, ReadOnlyMemory<byte> content, string expectedSha256, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId, string expectedSha256, long expectedLength, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// A content store whose write for the request lets the Worker's
+    /// reconciliation run to its end first, as the ten-second sweep did in
+    /// production. Each writer is answered with its own stored identities.
+    /// </summary>
+    private sealed class ReconcilingContentStore(
+        IDbContextFactory<PegasusDbContext> factory,
+        IIntakeArtifactStore artifacts) : IDocumentContentStore
+    {
+        internal const string ReconciledFileId = "reconciled-file";
+        internal const string ReconciledVersionId = "reconciled-version";
+
+        public PendingArtifactCustodyReconciliationResult? Reconciled { get; private set; }
+
+        public Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address, ReadOnlyMemory<byte> content,
+            string expectedSha256, CancellationToken cancellationToken) =>
+            Task.FromResult(new DocumentContentWriteResult(
+                DocumentContentWriteDisposition.Created, ReconciledFileId, ReconciledVersionId));
+
+        public async Task<DocumentContentWriteResult> StoreVersionAsync(
+            ManagedDocumentContentAddress address, Stream content, long contentLength,
+            string expectedSha256, CancellationToken cancellationToken)
+        {
+            Reconciled = await new ReconcilePendingArtifactCustody(factory, this, artifacts)
+                .ExecuteAsync(10, cancellationToken);
+            return new(DocumentContentWriteDisposition.Replay, "request-file", "request-version");
+        }
+
+        public Task StoreAsync(Guid caseId, string caseReference, Guid versionId, ReadOnlyMemory<byte> content, string expectedSha256, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId, string expectedSha256, long expectedLength, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class MemoryArtifactStore : IIntakeArtifactStore, IIntakeQuarantineArtifactStore

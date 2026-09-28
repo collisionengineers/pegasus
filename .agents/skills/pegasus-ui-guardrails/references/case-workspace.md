@@ -89,11 +89,11 @@ Important ownership decisions:
 - Inspection owns inspection/storage-location details and storage money inputs.
 - Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
 - Damage owns the Plan damage clicker and engineering damage facts.
-- Valuation owns guide-source cards, the valuation calculation and the On the report content switches.
+- Valuation owns the Retail, Trade and Engineer's value boxes, guide-source cards, the valuation calculation and the On the report content switches.
 - Repair Spec owns specification tabs, header/lines, Import, Send to AI and Compare.
 - Decisions owns settlement decisions and settlement-only figures.
 - Report owns generation/preview/finality controls, report wording, report date, commentary, the Fee pane and the report's blocker list, each row linking to the section that owns the fact rather than repeating it.
-- Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces.
+- Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces. A document row may offer **Import as repair spec**, which runs Repair Spec's own import on that file (operator, 25 September 2026).
 - Notes owns the single Case timeline, notes and chase recording.
 
 Case images are not repeated under Damage. A Report image-selection/preview strip may summarize the
@@ -152,6 +152,11 @@ Do not surface the same lifecycle action again inside arbitrary section bodies.
 
 ## Valuation
 
+Valuation opens with one row of three boxes: Retail value, Trade value and Engineer's Value
+(operator, 26 September 2026). They are fields of the Case form, greyed while reading. Choosing a
+card as the basis fills them in place by script, and the operator may overtype any of them.
+Without script they are typed.
+
 One route per guide source.
 
 Glass's, Brego, Super CAP, CAP and Cazana each own one card, the same in read and edit, containing:
@@ -162,7 +167,7 @@ Glass's, Brego, Super CAP, CAP and Cazana each own one card, the same in read an
 - Get valuation (while editing).
 
 A card has no mileage box (operator, 24 September 2026): the Case's own accepted mileage is used by the
-lookup and carried by the adopted Engineer's Value.
+lookup and recorded with a calculated Engineer's Value when the Case has one.
 
 The boxes are greyed while reading and inputs of the Case form while editing. Get valuation fills
 the same card in place, without redrawing the page, or shows the card's notice when the source has
@@ -170,9 +175,10 @@ no working provider. The ribbon Save is the writer (23 September 2026): it recor
 card with whatever was entered — any box may be left blank — and an untouched or blank card records
 nothing. A card opens holding only what is recorded, in both modes.
 
-The calculator has no Apply (operator, 23 September 2026): the ribbon Save adopts the Engineer's
-Value when the calculation changed since the page opened, and an unchanged calculation adopts
-nothing. Where a surface points the operator to the value, it says **Set in Valuation**.
+The calculator has no Apply (operator, 23 September 2026): its result fills the Engineer's Value
+box, and the ribbon Save records a calculation that changed since the page opened against its basis
+card; an unchanged calculation records nothing. Where a surface points the operator to the value, it
+says **Set in Valuation**.
 
 Do not reintroduce:
 

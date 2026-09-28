@@ -1180,14 +1180,6 @@ public sealed class EfTriageStore(
         {
             throw new InvalidOperationException("The Triage record is not assigned.");
         }
-        if (eventType == "triage_state_completed"
-            && await context.TriageResponseEvidenceLinks.CountAsync(
-                item => item.TriageCaseId == triage.CaseId,
-                cancellationToken) != 1)
-        {
-            throw new InvalidOperationException(
-                "Triage completion requires exactly one replied Sent email evidence link.");
-        }
         mutation(triage);
         AppendHistory(context, triage, eventType, actor, operationKey, reason.Trim(), requestHash);
         EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.CaseId);

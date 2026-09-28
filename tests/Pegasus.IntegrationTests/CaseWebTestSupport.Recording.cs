@@ -47,7 +47,7 @@ internal static partial class CaseWebTestSupport
         private IReadOnlyList<CaseAssetPreparation> Current() =>
         [
             .. Preparations
-                .OrderBy(item => item.Role)
+                .OrderBy(item => item.InReport ? 0 : 1)
                 .ThenBy(item => item.Order ?? int.MaxValue)
         ];
     }
@@ -67,6 +67,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             Closures.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with
             {
                 State = CaseLifecycleState.ProviderCancelled,
@@ -80,6 +81,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             Reopenings.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with
             {
                 State = request.Destination == CaseReopenDestination.Review
@@ -94,6 +96,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             Archives.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with
             {
                 Archive = new(_now, request.Actor, request.Reason)
@@ -107,6 +110,7 @@ internal static partial class CaseWebTestSupport
         ILogicallyRemoveDocument,
         ITagCaseImage,
         IUntagCaseImage,
+        ISetCaseImageInReport,
         ICreateImageTag,
         IMarkAsOriginalReportStore
     {
@@ -118,6 +122,7 @@ internal static partial class CaseWebTestSupport
         public List<LogicallyRemoveDocumentCommand> DocumentRemovals { get; } = [];
         public List<TagCaseImageCommand> ImageTagsApplied { get; } = [];
         public List<UntagCaseImageCommand> ImageTagsRemoved { get; } = [];
+        public List<SetCaseImageInReportCommand> ImagesSetInReport { get; } = [];
         public List<CreateImageTagCommand> ImageTagsCreated { get; } = [];
         public List<MarkAsOriginalReportCommand> OriginalReportMarks { get; } = [];
 
@@ -127,6 +132,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             CustodyRetries.Add(request);
+            ConsumeLease();
             return Task.FromResult(new RetryCaseCustodyResult(
                 RetryCaseCustodyOutcome.Pending,
                 CaseVersion + 1,
@@ -139,6 +145,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             DocumentUploads.Add(command with { Content = command.Content.ToArray() });
+            ConsumeLease();
             var documentId = Guid.NewGuid();
             var versionId = Guid.NewGuid();
             return Task.FromResult(new AddCaseDocumentResult(
@@ -175,6 +182,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             DocumentRemovals.Add(command);
+            ConsumeLease();
             return Task.CompletedTask;
         }
 
@@ -184,6 +192,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             ImageTagsApplied.Add(command);
+            ConsumeLease();
             return Task.CompletedTask;
         }
 
@@ -193,6 +202,17 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             ImageTagsRemoved.Add(command);
+            ConsumeLease();
+            return Task.CompletedTask;
+        }
+
+        Task ISetCaseImageInReport.ExecuteAsync(
+            SetCaseImageInReportCommand command,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            ImagesSetInReport.Add(command);
+            ConsumeLease();
             return Task.CompletedTask;
         }
 
@@ -214,6 +234,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             OriginalReportMarks.Add(command);
+            ConsumeLease();
             var document = CaseDocuments.Single(value =>
                 value.Occurrences.Any(occurrence => occurrence.Id == command.DocumentOccurrenceId));
             var occurrence = document.Occurrences.Single(value => value.Id == command.DocumentOccurrenceId);
@@ -256,7 +277,7 @@ internal static partial class CaseWebTestSupport
         private CaseAssessmentProjection EngineeringAssessment() => new(
             CaseId, "QDOS3100042", CaseVersion, State, null,
             [new(AssessmentVocabulary.ReportDate, "2031-05-06", ActorKind.Staff,
-                "recorded-engineer", _now, "recorded-engineer", _now)],
+                "recorded-engineer", _now)],
             [], new("AB12CDE", null, null, null, null, null, "tbc", null, DateOnly.FromDateTime(_now.UtcDateTime), null, null,
                 null, "Case claimant", "CLM-42"));
 
@@ -349,6 +370,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             TaskCreations.Add(request);
+            ConsumeLease();
             return Task.FromResult(TaskRecord(request.TaskId, request.Description, request.AssigneeId, CaseTaskState.Open, 1));
         }
 
@@ -358,6 +380,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             TaskAssignments.Add(request);
+            ConsumeLease();
             return Task.FromResult(TaskRecord(request.TaskId, "task", request.AssigneeId, CaseTaskState.Open, request.ExpectedTaskVersion + 1));
         }
 
@@ -367,6 +390,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             TaskCompletions.Add(request);
+            ConsumeLease();
             return Task.FromResult(TaskRecord(request.TaskId, "task", null, CaseTaskState.Completed, request.ExpectedTaskVersion + 1));
         }
 
@@ -376,6 +400,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             TaskCancellations.Add(request);
+            ConsumeLease();
             return Task.FromResult(TaskRecord(request.TaskId, "task", null, CaseTaskState.Cancelled, request.ExpectedTaskVersion + 1));
         }
 
@@ -385,6 +410,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             EvidenceLinks.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow());
         }
 
@@ -394,6 +420,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             EvidenceUnlinks.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow());
         }
 
@@ -423,6 +450,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             SelfAssignments.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with { AssignedEngineerId = Guid.NewGuid() });
         }
     }
@@ -446,6 +474,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             LookupRequests.Add(command);
+            ConsumeLease();
             return Task.FromResult(new RequestedVehicleLookup(
                 Guid.NewGuid(),
                 CaseId,
@@ -471,6 +500,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             EngineerAssignments.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with
             {
                 AssignedEngineerId = request.EngineerId,
@@ -484,6 +514,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             SignOffSelections.Add(request);
+            ConsumeLease();
             return Task.FromResult(CreateWorkflow() with
             {
                 SignOffEngineerId = request.SignOffEngineerId
@@ -496,6 +527,7 @@ internal static partial class CaseWebTestSupport
         {
             ThrowNextFailure();
             LinkedReplacements.Add(request);
+            ConsumeLease();
             var replacementId = Guid.NewGuid();
             return Task.FromResult(new CaseAcceptanceOutcome(
                 new(replacementId, request.ReplacementPrincipalCode, 2031, 1, $"{request.ReplacementPrincipalCode}3100001"),
@@ -503,6 +535,37 @@ internal static partial class CaseWebTestSupport
                 CaseCustodyState.Pending,
                 Guid.NewGuid(),
                 IsDuplicate: false));
+        }
+    }
+
+    /// <summary>
+    /// Generate report as the page calls it: each request is recorded, and
+    /// <see cref="During"/> lets a test observe the Case while the generation
+    /// runs. By default the artifact is left Pending, so nothing is
+    /// confirmed; <see cref="Outcome"/> answers otherwise and
+    /// <see cref="Failure"/> throws instead of answering.
+    /// </summary>
+    internal sealed class RecordingGenerateReport : IGenerateCaseReport
+    {
+        public List<GenerateCaseReportRequest> Requests { get; } = [];
+
+        public Action? During { get; init; }
+
+        public CaseReportGenerationOutcome Outcome { get; init; } = CaseReportGenerationOutcome.Pending;
+
+        public Exception? Failure { get; init; }
+
+        public Task<CaseReportGenerationResult> ExecuteAsync(
+            GenerateCaseReportRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            During?.Invoke();
+            if (Failure is not null)
+            {
+                throw Failure;
+            }
+            return Task.FromResult(new CaseReportGenerationResult(Outcome, null, []));
         }
     }
 }

@@ -242,7 +242,8 @@ public sealed partial class DetailsModel(
                     $"Linked from {context.Item.Reference}."),
                 cancellationToken);
             lease = null;
-            await SynchronizeAsync(receipt.Id, actor, cancellationToken);
+            // The link itself files the material on the Case and resolves this
+            // item (LinkIntake); nothing more to settle here.
             StatusMessage = $"{context.Item.Reference} was linked to {destination.Reference}.";
             return RedirectToPage(new { id });
         }

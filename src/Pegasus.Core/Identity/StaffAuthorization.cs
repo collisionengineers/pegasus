@@ -17,7 +17,8 @@ public enum StaffAccessRight
     ViewOperationalReports,
     PublishReleaseNotes,
     ExecuteSystemWork,
-    SubmitProviderInstruction
+    SubmitProviderInstruction,
+    ManageEmailTemplates
 }
 
 /// <summary>
@@ -48,7 +49,8 @@ public static class StaffAuthorization
             StaffAccessRight.ManageApprovedOutlookCategories or
             StaffAccessRight.ManageAutomationClients or
             StaffAccessRight.ViewOperationalReports or
-            StaffAccessRight.PublishReleaseNotes =>
+            StaffAccessRight.PublishReleaseNotes or
+            StaffAccessRight.ManageEmailTemplates =>
                 actor.Kind == ActorKind.Staff && actor.IsInRole(StaffRole.Administrator),
 
             StaffAccessRight.ExecuteSystemWork => actor.Kind == ActorKind.SystemWorker,

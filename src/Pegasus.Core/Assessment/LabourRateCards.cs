@@ -27,6 +27,19 @@ public sealed class LabourRateCardAdministration(ILabourRateCardStore store)
     public Task<LabourRateCard> SaveAsync(SaveLabourRateCardRequest request, CancellationToken cancellationToken) =>
         store.SaveAsync(Validate(request), cancellationToken);
 
+    /// <summary>
+    /// The card a new repair spec starts on: the one enabled card. With none
+    /// or several enabled there is no choice to make for the staff member, so
+    /// the rate stays blank and report readiness asks for it. A source
+    /// document's own rate never picks a card (FRD-25).
+    /// </summary>
+    public static LabourRateCard? ForNewSpecification(IReadOnlyList<LabourRateCard> cards)
+    {
+        ArgumentNullException.ThrowIfNull(cards);
+        var enabled = cards.Where(card => card.Enabled).Take(2).ToArray();
+        return enabled.Length == 1 ? enabled[0] : null;
+    }
+
     public static SaveLabourRateCardRequest Validate(SaveLabourRateCardRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

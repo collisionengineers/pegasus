@@ -247,6 +247,15 @@ jobs:
           name: test-shard-${{ matrix.shard }}
           path: artifacts/test-shards/
           if-no-files-found: error
+      # The template conformance test renders the four sample jobs; only the
+      # shard that ran it holds them, so the others have nothing to keep.
+      - name: Retain the reports rendered against the template
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: rendered-reports-${{ matrix.shard }}
+          path: tests/Pegasus.IntegrationTests/bin/Release/net10.0/rendered-reports/
+          if-no-files-found: ignore
 
   sql-integration-coverage:
     # Proves the shards reassemble into exactly the tests the lane's filter

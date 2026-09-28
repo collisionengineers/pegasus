@@ -60,9 +60,11 @@ none of them has its own version of the rules.
 **Blockers are specific.** Each unmet requirement is one named blocker. The
 screen shows exactly which field or material is missing, where it should come
 from, why it is required, and what would clear it. Pegasus never shows an
-overall score, a percentage, or a summary such as "no unresolved field
-reviews". On the Case record each report blocker links to the section that
-clears it. Once the Case is With Engineer, while the report is not ready the
+overall score, a percentage, or a summary such as "3 items outstanding". On
+the Case record each report blocker links to the section that clears it. A
+recorded value is never a blocker because of who recorded it: there is no
+per-field review, and Hand to Engineer is the only review (operator, 25
+September 2026). Once the Case is With Engineer, while the report is not ready the
 Next action names the first blocker and links to its section (in Not ready
 and Review it names the outstanding requirement or Hand to Engineer)
 ([FRD-16](frd-16-case-record-workspace.md#report),
@@ -84,7 +86,10 @@ claim of readiness sent from a screen is not accepted as fact.
 **Photographs that arrive later.** When follow-up photographs are matched to
 a Case automatically, images count as complete only after the selected
 photographs and any required source files are confirmed in Case custody.
-Filing that is pending or failed does not clear the Images blocker. This
+Filing that is pending or failed does not clear the Images blocker.
+Photographs from a merged Vehicle images record count the same way: they
+complete the Case's images when the fold files them as Case images
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)). This
 completion is recorded once, with its actor; running it again does not
 override a later staff change. It does not clear other blockers, assign an
 Engineer, or skip Review.
@@ -121,7 +126,7 @@ received or assigned anything.
 - **Damage, Valuation, Estimate, Settlement and Report** can always be
   viewed. Staff with `PerformCasework` may edit them in Not ready, Review and
   With Engineer under the normal edit authority. They are read-only in Held
-  and Completed. Adopting the Engineer's Value is an explicit human staff act.
+  and Completed. Only staff record the Engineer's Value.
 - **Report approval** names one immutable report file and the staff member
   who approved it.
 - **Mark report sent** needs exact retained Sent evidence

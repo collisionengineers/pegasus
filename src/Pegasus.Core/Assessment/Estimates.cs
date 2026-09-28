@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -11,8 +12,10 @@ namespace Pegasus.Core.Assessment;
 /// Which repairer VAT position the repair spec stands on (B04), recorded on
 /// the spec itself, the only owner of the fact. Unknown is a real state: its
 /// totals charge VAT on nothing until the operator records the status or
-/// selects the categories, and it never gates Use repair spec (v28 P10). The
-/// claimant's VAT position never controls estimate VAT.
+/// selects the categories, and it never gates Use repair spec (v28 P10). It
+/// does block the report, which would otherwise understate the repair cost
+/// (operator, 27 September 2026). The claimant's VAT position never controls
+/// estimate VAT.
 /// </summary>
 public enum RepairerVatStatus
 {
@@ -257,7 +260,16 @@ public sealed record EstimatePrintedTotals(
     decimal Specialist,
     decimal Net,
     decimal Vat,
-    decimal Gross);
+    decimal Gross)
+{
+    /// <summary>
+    /// Total labour: printed panel labour plus printed paint labour. It is a
+    /// sum of printed components, so it reconciles to <see cref="Net"/> with
+    /// the parts, materials and specialist figures beside it.
+    /// </summary>
+    [JsonIgnore]
+    public decimal Labour => PanelLabour + PaintLabour;
+}
 
 /// <summary>
 /// The one classification of estimate hours. Only hours which the calculation
@@ -342,32 +354,6 @@ public sealed record EstimateTotals(
     int CalculationPolicyVersion,
     IReadOnlyList<EstimateAnomaly> OffPattern)
 {
-    /// <summary>
-    /// Returns the money that may be projected for this version. Editable
-    /// versions use the current calculation policy; accepted versions use
-    /// only the calculation record frozen with that version.
-    /// </summary>
-    public static EstimateTotals ForProjection(RepairSpecificationVersion estimate)
-    {
-        ArgumentNullException.ThrowIfNull(estimate);
-        if (estimate.State == RepairSpecificationState.Draft
-            || (estimate.State == RepairSpecificationState.Discarded
-                && estimate.RecordedTotals is null))
-        {
-            return Compute(estimate);
-        }
-
-        var recorded = estimate.RecordedTotals
-            ?? throw new InvalidOperationException(
-                "An accepted estimate has no recorded calculation breakdown.");
-        if (recorded.Raw is null || recorded.Printed is null || recorded.VatPolicy is null)
-        {
-            throw new InvalidOperationException(
-                "The accepted estimate's recorded calculation breakdown is incomplete.");
-        }
-        return recorded;
-    }
-
     public static EstimateTotals Compute(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
@@ -493,8 +479,7 @@ public sealed record EstimateTotals(
 /// authenticated-staff act (<see cref="RepairSpecificationPolicy.RequireStaffAuthor"/>);
 /// the Automation actor may only create or update <c>AiDraft</c> estimates
 /// that cite the Estimate job they fulfil (FRD-10 § AI job and estimate
-/// tools), and only a Draft is editable — an accepted estimate is duplicated,
-/// never changed.
+/// tools). Every live estimate, the Current one included, is edited in place.
 /// </summary>
 public static class EstimatePolicy
 {
@@ -535,7 +520,6 @@ public static class EstimatePolicy
                 GuideCode = previous.GuideCode,
                 Unpriced = previous.Unpriced && line.Price is null,
                 Betterment = previous.Betterment,
-                Status = previous.Status,
                 EvidenceLabel = previous.EvidenceLabel,
                 Justification = previous.Justification,
                 Origin = previous.Origin,
@@ -606,7 +590,7 @@ public static class EstimatePolicy
     /// same order, no line amended, the same header and the same supplementary
     /// statement. The one Case Save posts the whole editor every time, so an
     /// estimate nobody touched is left as it is rather than rewritten — which
-    /// would confirm its unconfirmed lines and stale a report it pinned.
+    /// would restamp its lines' provenance and stale a report it pinned.
     /// </summary>
     public static bool IsUnchanged(SaveEstimateRequest evidenced, RepairSpecificationVersion? existing)
     {
@@ -819,7 +803,7 @@ public static class EstimatePolicy
         }
     }
 
-    /// <summary>Document import is not an AI-draft save and conveys no acceptance authority.</summary>
+    /// <summary>A document import is not an AI-draft save; it creates one new source-backed estimate.</summary>
     public static SaveEstimateRequest ValidateImportedSave(SaveEstimateRequest request)
     {
         CaseLifecycleRules.ValidateMutation(request);
@@ -827,7 +811,7 @@ public static class EstimatePolicy
         if (request.EstimateId is not null || request.AiJobId is not null || request.ExistingLineIds is not null
             || !RepairSpecificationPolicy.IsDocumentRoute(request.Source.Route))
         {
-            throw new InvalidOperationException("A retained document import creates a new source-backed Draft only.");
+            throw new InvalidOperationException("A retained document import creates a new source-backed estimate only.");
         }
         return request with
         {
@@ -893,20 +877,24 @@ public static class EstimatePolicy
         }
     }
 
+    /// <summary>
+    /// Every live estimate is edited in place, the Current one included; the
+    /// report it feeds goes stale instead. The Automation actor changes only
+    /// an AI draft that is not yet in use.
+    /// </summary>
     public static void ValidateEditable(RepairSpecificationVersion estimate, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(estimate);
         ArgumentNullException.ThrowIfNull(actor);
-        if (estimate.State != RepairSpecificationState.Draft)
+        if (estimate.State == RepairSpecificationState.Discarded)
         {
-            throw new InvalidOperationException(
-                "Only a draft estimate can be changed; duplicate an accepted estimate to revise it.");
+            throw new InvalidOperationException("A discarded estimate cannot be changed.");
         }
         if (actor.Kind == ActorKind.Automation
-            && estimate.Source.Route != RepairSpecificationSourceRoute.AiDraft)
+            && (estimate.Source.Route != RepairSpecificationSourceRoute.AiDraft || estimate.IsCurrent))
         {
             throw new InvalidOperationException(
-                "The Automation actor can only change AI-draft estimates.");
+                "The Automation actor can only change AI-draft estimates that are not in use.");
         }
     }
 
@@ -922,9 +910,9 @@ public static class EstimatePolicy
     public static void ValidateDiscard(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
-        if (estimate.State == RepairSpecificationState.Accepted || estimate.IsCurrent)
+        if (estimate.IsCurrent)
         {
-            throw new InvalidOperationException("An accepted estimate cannot be discarded.");
+            throw new InvalidOperationException("The repair spec in use cannot be discarded.");
         }
         if (estimate.State == RepairSpecificationState.Discarded)
         {
@@ -933,54 +921,17 @@ public static class EstimatePolicy
     }
 
     /// <summary>
-    /// Making an estimate Current is the Engineer's acceptance (FRD-27 § AI
-    /// Job List: "Use estimate"). A Draft passes
-    /// <see cref="RepairSpecificationPolicy.ValidateAcceptance"/> with the
-    /// basis derived by <see cref="EstimateTotals"/>; an already accepted
-    /// estimate is simply switched to.
+    /// Use repair spec switches the Case to another live estimate (FRD-25):
+    /// an older one, a copy or an AI draft. A new staff estimate is already in
+    /// use when it is created.
     /// </summary>
-    public static RepairCalculationBasis BasisFor(RepairSpecificationVersion estimate) =>
-        BasisFor(EstimateTotals.Compute(estimate));
-
-    /// <summary>
-    /// The same basis from a calculation already made, so a caller that also
-    /// records the breakdown (the store, on acceptance) computes once.
-    /// </summary>
-    public static RepairCalculationBasis BasisFor(EstimateTotals totals)
-    {
-        ArgumentNullException.ThrowIfNull(totals);
-        var printed = totals.Printed;
-        return new(
-            printed.PanelLabour,
-            printed.Parts,
-            printed.PaintLabour + printed.Materials,
-            printed.Specialist,
-            totals.VatPolicy.RepairerStatus == RepairerVatStatus.Registered,
-            printed.Vat,
-            printed.Gross,
-            $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}",
-            totals.VatPolicy,
-            printed);
-    }
-
     public static void ValidateSetCurrent(RepairSpecificationVersion estimate, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(estimate);
         RepairSpecificationPolicy.RequireStaffAuthor(actor);
-        switch (estimate.State)
+        if (estimate.State == RepairSpecificationState.Discarded)
         {
-            case RepairSpecificationState.Draft:
-                // An unknown repairer VAT status no longer gates acceptance
-                // (v28 P10): the totals then carry no VAT.
-                RepairSpecificationPolicy.ValidateAcceptance(
-                    estimate with { CalculationBasis = BasisFor(estimate) },
-                    actor);
-                break;
-            case RepairSpecificationState.Accepted:
-                break;
-            default:
-                throw new InvalidOperationException(
-                    $"A {estimate.State.ToString().ToLowerInvariant()} estimate cannot be made current.");
+            throw new InvalidOperationException("A discarded estimate cannot be put in use.");
         }
     }
 
@@ -997,7 +948,7 @@ public static class EstimatePolicy
 
 /// <summary>
 /// Create (<see cref="EstimateId"/> null) or replace the whole content of a
-/// Draft estimate: header, ordered lines and source provenance, under the
+/// live estimate: header, ordered lines and source provenance, under the
 /// same actor, lease, version and operation-key guards as every case
 /// mutation. <see cref="AiJobId"/> is required for an AI draft.
 /// </summary>
@@ -1090,7 +1041,7 @@ public interface IListCaseEstimates
 /// cref="RepairSpecificationVersion"/>: the
 /// header fields a list surface needs, without embedding the
 /// specification's <see cref="RepairSpecificationVersion.Lines"/> — a case
-/// can carry many superseded versions and each an unbounded line list, so a
+/// can carry many estimates and each an unbounded line list, so a
 /// keyset page never grows with a specification's line count. A caller
 /// wanting the lines reads the version directly
 /// (<see cref="IRepairSpecificationStore.GetVersionAsync"/>).
@@ -1102,8 +1053,7 @@ public sealed record CaseEstimatePageItem(
     RepairSpecificationState State,
     RepairSpecificationSource Source,
     string Name,
-    bool IsCurrent,
-    RepairCalculationBasis? CalculationBasis);
+    bool IsCurrent);
 
 /// <summary>
 /// The keyset-paged sibling of <see cref="IListCaseEstimates"/> (requested by
@@ -1161,8 +1111,8 @@ public sealed class DiscardEstimate(IRepairSpecificationStore store) : IDiscardE
 }
 
 /// <summary>
-/// The staff act that consumes an Estimate job's result: once the AI draft
-/// is Current, the Draft-ready job it cites is confirmed Completed
+/// Use repair spec. It also consumes an Estimate job's result: once the AI
+/// draft is Current, the Draft-ready job it cites is confirmed Completed
 /// (FRD-27 § AI Job List). A job in any other state is left as it is — a
 /// staff member's choice of estimate never depends on the ledger.
 /// </summary>

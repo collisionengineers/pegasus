@@ -1,59 +1,65 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Reports;
+using QuestPDF.Elements.Table;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using static Pegasus.Core.Reports.AssessmentReportWording;
 using static Pegasus.Infrastructure.Reports.ReportChrome;
 
 namespace Pegasus.Infrastructure.Reports;
 
+/// <summary>
+/// The Repair Spec printout. It takes the report's running header, footer,
+/// margins, title and heading style (operator, 27 September 2026); its own
+/// tables and its own wording are as they were.
+/// </summary>
 internal static class EstimateDocumentLayout
 {
-    internal static Document Compose(EstimateDocumentSnapshot snapshot, byte[] logo) =>
-        Document.Create(document => document.Page(page =>
-        {
-            page.Size(PageSizes.A4);
-            page.MarginTop(8, Unit.Millimetre);
-            page.MarginHorizontal(12, Unit.Millimetre);
-            page.MarginBottom(8, Unit.Millimetre);
-            page.DefaultTextStyle(style => style
-                .FontFamily(FontFamily)
-                .FontSize(DataRegister)
-                .FontColor(Ink)
-                .LineHeight(BodyLineHeight));
-            page.Header().Height(8, Unit.Millimetre).Row(row =>
-            {
-                row.RelativeItem().Text(text =>
-                    text.Span($"{snapshot.EstimateName} · v{snapshot.EstimateVersion}")
-                        .Bold()
-                        .BreakAnywhere());
-                row.AutoItem().Text(snapshot.Status).Bold().FontColor(Brand);
-            });
-            page.Content().Column(column => Content(column, snapshot, logo));
-            page.Footer()
-                .Height(14, Unit.Millimetre)
-                .AlignBottom()
-                .Element(footer => Footer(
-                    footer,
-                    $"{snapshot.Registration} · {snapshot.OurReference}{FooterSeparator}{CompanyName}{FooterSeparator}{CompanyWebsite}"));
-        }));
+    // The printout's own tables, as they were before it took the report's page.
+    private const float TableRegister = 8.8f;
+    private const float TableLineHeight = 1.22f;
+    private static readonly Color Zebra = Color.FromHex("#f5f5f5");
 
-    private static void Content(ColumnDescriptor column, EstimateDocumentSnapshot snapshot, byte[] logo)
+    internal static Document Compose(EstimateDocumentSnapshot snapshot, byte[] logo) =>
+        Document.Create(document => document.Page(page => Page(
+            page,
+            logo,
+            CompanyBlock(feeNote: false),
+            Footer(snapshot.Registration, snapshot.OurReference, feeNote: false),
+            ReportBodyTop,
+            column => Content(column, snapshot),
+            identity => identity
+                .PaddingBottom(2, Unit.Millimetre)
+                .DefaultTextStyle(style => style.FontSize(TableRegister).LineHeight(TableLineHeight))
+                .Row(row =>
+                {
+                    row.RelativeItem().Text(text =>
+                        text.Span($"{snapshot.EstimateName} · v{snapshot.EstimateVersion}")
+                            .Bold()
+                            .BreakAnywhere());
+                    row.AutoItem().Text(snapshot.Status).Bold().FontColor(Brand);
+                }))));
+
+    private static void Content(ColumnDescriptor column, EstimateDocumentSnapshot snapshot)
     {
-        Letterhead(column, logo, references => references
-            .MaxWidth(94, Unit.Millimetre)
+        Title(column, "ESTIMATE", italic: true, ReportTitle);
+        column.Item()
+            .PaddingTop(ReportTitle.Beneath, Unit.Millimetre)
+            .AlignRight()
+            .MaxWidth(110, Unit.Millimetre)
             .Column(lines =>
             {
                 Reference(lines, "Date:", Date(snapshot.DocumentDate));
                 Reference(lines, "Our Ref:", snapshot.OurReference);
                 Reference(lines, "Your Ref:", snapshot.YourReference ?? "—");
-                EstimateReference(
+                Reference(
                     lines,
+                    "Estimate:",
                     $"{snapshot.EstimateName} · {snapshot.Status} (v{snapshot.EstimateVersion})");
-            }));
-        Title(column, "ESTIMATE", italic: true);
-        column.Item().PaddingBottom(3, Unit.Millimetre).Row(row =>
+            });
+        column.Item().PaddingTop(4, Unit.Millimetre).PaddingBottom(4, Unit.Millimetre).Row(row =>
         {
             row.Spacing(3, Unit.Millimetre);
             Badge(row.AutoItem(), snapshot.Status, Charcoal);
@@ -68,12 +74,17 @@ internal static class EstimateDocumentLayout
             }
         });
 
-        IdentityTable(column.Item(), snapshot);
-        LineTable(column.Item(), snapshot.Lines);
+        column.Item()
+            .DefaultTextStyle(style => style.FontSize(TableRegister).LineHeight(TableLineHeight))
+            .Column(tables =>
+            {
+                IdentityTable(tables.Item(), snapshot);
+                LineTable(tables.Item(), snapshot.Lines);
+            });
 
         if (snapshot.OtherCosts is not null)
         {
-            Section(column, "Adjustments", section => section.Item().ShowEntire().Table(table =>
+            OwnSection(column, "Adjustments", section => section.Table(table =>
             {
                 table.ColumnsDefinition(columns =>
                 {
@@ -90,26 +101,46 @@ internal static class EstimateDocumentLayout
             }));
         }
 
-        Section(column, "Hours", section => HoursTable(section.Item().ShowEntire(), snapshot.Hours));
-        Section(column, "Rate and discounts", section => RateTable(section.Item().ShowEntire(), snapshot));
-        Section(column, "Totals", section => Totals(section.Item().ShowEntire(), snapshot));
+        OwnSection(column, "Hours", section => HoursTable(section, snapshot.Hours));
+        OwnSection(column, "Rate and discounts", section => RateTable(section, snapshot));
+        OwnSection(column, "Totals", section => Totals(section, snapshot));
     }
 
-    private static void EstimateReference(ColumnDescriptor column, string value) =>
-        column.Item().Row(row =>
+    /// <summary>
+    /// One of the printout's sections: the report's heading over the
+    /// printout's own table. The printout is a page of tables, as the fee
+    /// note is, and its headings are set as closely as the fee note's.
+    /// </summary>
+    private static void OwnSection(ColumnDescriptor column, string title, Action<IContainer> table) =>
+        column.Item().ShowEntire().Column(whole =>
+            Section(whole, title, FeeNoteRhythm, opensPage: false, Brand, section => table(section.Item()
+                .DefaultTextStyle(style => style.FontSize(TableRegister).LineHeight(TableLineHeight)))));
+
+    private static void Reference(ColumnDescriptor column, string label, string value) =>
+        column.Item().Text(text =>
         {
-            row.ConstantItem(18, Unit.Millimetre)
-                .PaddingVertical(1, Unit.Millimetre)
-                .PaddingHorizontal(2, Unit.Millimetre)
-                .AlignRight()
-                .Text("Estimate:")
-                .Bold()
-                .FontColor(Color.FromHex("#111111"));
-            row.RelativeItem()
-                .PaddingVertical(1, Unit.Millimetre)
-                .PaddingLeft(6, Unit.Millimetre)
-                .Text(text => text.Span(value).Bold().BreakAnywhere());
+            text.AlignRight();
+            text.DefaultTextStyle(style => style.FontSize(TableSize));
+            text.Span(label).Bold();
+            text.Span("   ");
+            text.Span(value).BreakAnywhere();
         });
+
+    private static void HeaderCell(IContainer cell, string text, bool alignRight = false)
+    {
+        var box = cell.Background(Brand).Padding(1.4f, Unit.Millimetre);
+        if (alignRight)
+        {
+            box = box.AlignRight();
+        }
+        box.Text(text).Bold().FontColor(Colors.White);
+    }
+
+    private static IContainer BodyCell(ITableCellContainer cell, bool even) => cell
+        .Border(0.4f)
+        .BorderColor(Grid)
+        .Background(even ? Zebra : Colors.White)
+        .Padding(1.4f, Unit.Millimetre);
 
     private static void IdentityTable(IContainer container, EstimateDocumentSnapshot snapshot) => container
         .PaddingBottom(3, Unit.Millimetre)
@@ -140,11 +171,11 @@ internal static class EstimateDocumentLayout
     }
 
     private static void IdentityLabel(IContainer cell, string value) => cell
-        .Border(0.4f).BorderColor(Rule).Background(Shade).Padding(1.6f, Unit.Millimetre)
+        .Border(0.4f).BorderColor(Grid).Background(LabelShade).Padding(1.6f, Unit.Millimetre)
         .Text(value).Bold();
 
     private static void IdentityValue(IContainer cell, string value) => cell
-        .Border(0.4f).BorderColor(Rule).Padding(1.6f, Unit.Millimetre).Text(value);
+        .Border(0.4f).BorderColor(Grid).Padding(1.6f, Unit.Millimetre).Text(value);
 
     private static void LineTable(IContainer container, IReadOnlyList<EstimateDocumentLine> lines) =>
         container.Table(table =>
@@ -229,12 +260,12 @@ internal static class EstimateDocumentLayout
             });
             foreach (var entry in entries)
             {
-                table.Cell().Border(0.4f).BorderColor(Rule).Background(Shade)
+                table.Cell().Border(0.4f).BorderColor(Grid).Background(LabelShade)
                     .Padding(1.2f, Unit.Millimetre).AlignCenter().Text(entry.Label).FontSize(7.3f).Bold();
             }
             foreach (var entry in entries)
             {
-                table.Cell().Border(0.4f).BorderColor(Rule)
+                table.Cell().Border(0.4f).BorderColor(Grid)
                     .Padding(1.5f, Unit.Millimetre).AlignCenter().Text(entry.Value).Bold();
             }
         });
@@ -256,7 +287,7 @@ internal static class EstimateDocumentLayout
                 TotalRow(totals.Item(), "Net", Money(printed.Net));
                 TotalRow(totals.Item(), VatLabel(snapshot.Totals), Money(printed.Vat));
                 TotalRow(
-                    totals.Item().BorderTop(1.2f).BorderColor(Brand).Background(Shade),
+                    totals.Item().BorderTop(1.2f).BorderColor(Brand).Background(LabelShade),
                     "Gross",
                     Money(printed.Gross),
                     bold: true);
@@ -294,9 +325,9 @@ internal static class EstimateDocumentLayout
         RepairSpecificationSourceRoute.Manual => "Manual",
         RepairSpecificationSourceRoute.Glasses => "Glass's",
         RepairSpecificationSourceRoute.AudatexPdf => "Audatex",
-        RepairSpecificationSourceRoute.ApprovedAiProposal or RepairSpecificationSourceRoute.AiDraft => "AI",
+        RepairSpecificationSourceRoute.AiDraft => "AI",
         RepairSpecificationSourceRoute.Json => "JSON",
-        _ => "Unresolved",
+        _ => throw new ReportRenderRejectedException("The estimate document has an unsupported source route."),
     };
 
     private static string VatStatus(EstimateVatPolicy policy) => policy.RepairerStatus switch

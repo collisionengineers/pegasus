@@ -7,6 +7,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 
@@ -25,12 +26,16 @@ internal sealed class EfDocumentCustodyStore(
     IMarkAsOriginalReportStore,
     ITagCaseImage,
     IUntagCaseImage,
-    ICreateImageTag
+    ICreateImageTag,
+    ISetCaseImageInReport
 {
     internal const string OriginalReportRecordedEventKind = "original_report_recorded";
     /// <summary>The two history words an image tag writes on the case.</summary>
     internal const string ImageTaggedEventKind = "case_image_tagged";
     internal const string ImageUntaggedEventKind = "case_image_untagged";
+    /// <summary>The history words for putting an image in the report or taking it out.</summary>
+    internal const string ImageInReportEventKind = "case_image_in_report";
+    internal const string ImageOutOfReportEventKind = "case_image_out_of_report";
 
     public async Task<AddCaseDocumentResult> ExecuteAsync(
         AddCaseDocumentCommand command,
@@ -743,6 +748,8 @@ internal sealed class EfDocumentCustodyStore(
             command.ExpectedCaseVersion,
             command.EditLeaseToken,
             now);
+        var reportImagesBefore = await EfCaseAssetPreparationStore.LoadCurrentAsync(
+            context, command.CaseId, cancellationToken);
         context.Set<DocumentOccurrenceTagEntity>().Add(new()
         {
             OccurrenceId = occurrence.Id,
@@ -752,6 +759,22 @@ internal sealed class EfDocumentCustodyStore(
             AppliedAtUtc = now,
             OperationKey = operationKey
         });
+        if (ImageTagVocabulary.TakesImageOutOfReport(tag.Id) && occurrence.InReport)
+        {
+            // The tag took the image out, so the Case history says so, as
+            // it does when staff take one out. The line has a key of its
+            // own: the tag's replay finds its one line by the command's key.
+            SetInReport(occurrence, inReport: false, command.Actor, now);
+            context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+                "case_document",
+                command.CaseId.ToString("D"),
+                ImageOutOfReportEventKind,
+                command.Actor,
+                now,
+                $"out-of-report:{CaseOperationReplay.Hash(operationKey)}",
+                afterJson: DocumentActionHistory.Serialize(
+                    new ImageInReportHistoryValue(occurrence.Id, InReport: false))));
+        }
         context.ActionHistory.Add(DocumentActionHistory.Succeeded(
             "case_document",
             command.CaseId.ToString("D"),
@@ -761,7 +784,8 @@ internal sealed class EfDocumentCustodyStore(
             operationKey,
             afterJson: afterJson));
         CaseMutationGuard.Complete(workflow);
-        await context.SaveChangesAsync(cancellationToken);
+        await SaveStalingChangedReportImagesAsync(
+            context, command.CaseId, reportImagesBefore, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -815,6 +839,8 @@ internal sealed class EfDocumentCustodyStore(
             command.ExpectedCaseVersion,
             command.EditLeaseToken,
             now);
+        var reportImagesBefore = await EfCaseAssetPreparationStore.LoadCurrentAsync(
+            context, command.CaseId, cancellationToken);
         context.Set<DocumentOccurrenceTagEntity>().Remove(assignment);
         context.ActionHistory.Add(DocumentActionHistory.Succeeded(
             "case_document",
@@ -825,8 +851,120 @@ internal sealed class EfDocumentCustodyStore(
             operationKey,
             afterJson: afterJson));
         CaseMutationGuard.Complete(workflow);
-        await context.SaveChangesAsync(cancellationToken);
+        await SaveStalingChangedReportImagesAsync(
+            context, command.CaseId, reportImagesBefore, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Puts one image in the report or takes it out, at once (operator, 26
+    /// September 2026): the flag, the image's preparation version, one history
+    /// line and the Case version, under the same guards and replay rule as a
+    /// tag. An image put back in follows the images already ordered.
+    /// </summary>
+    async Task ISetCaseImageInReport.ExecuteAsync(
+        SetCaseImageInReportCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ValidateActor(command.Actor);
+        var operationKey = ValidateOperationKey(command.OperationKey);
+        var eventKind = command.InReport ? ImageInReportEventKind : ImageOutOfReportEventKind;
+        var afterJson = DocumentActionHistory.Serialize(
+            new ImageInReportHistoryValue(command.OccurrenceId, command.InReport));
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        if (await FindDocumentHistoryAsync(context, operationKey, cancellationToken) is { } history)
+        {
+            DocumentActionHistory.RequireExactReplay(
+                history,
+                "case_document",
+                command.CaseId.ToString("D"),
+                eventKind,
+                command.Actor,
+                reason: null,
+                afterJson);
+            return;
+        }
+
+        var occurrence = await RequireTaggableImageAsync(
+            context, command.CaseId, command.OccurrenceId, cancellationToken);
+        if (occurrence.InReport == command.InReport)
+        {
+            throw new InvalidOperationException(command.InReport
+                ? "This image is already in the report."
+                : "This image is already out of the report.");
+        }
+
+        var workflow = await RequireWorkflowAsync(context, command.CaseId, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        CaseMutationGuard.Require(
+            workflow,
+            command.Actor,
+            command.ExpectedCaseVersion,
+            command.EditLeaseToken,
+            now);
+        var reportImagesBefore = await EfCaseAssetPreparationStore.LoadCurrentAsync(
+            context, command.CaseId, cancellationToken);
+        SetInReport(occurrence, command.InReport, command.Actor, now);
+        context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+            "case_document",
+            command.CaseId.ToString("D"),
+            eventKind,
+            command.Actor,
+            now,
+            operationKey,
+            afterJson: afterJson));
+        CaseMutationGuard.Complete(workflow);
+        await SaveStalingChangedReportImagesAsync(
+            context, command.CaseId, reportImagesBefore, now, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes whether the report uses an image. Out of the report it keeps no
+    /// order and no page of its own; its preparation version moves, so a
+    /// Case save staged against the old state is refused.
+    /// </summary>
+    private static void SetInReport(
+        DocumentOccurrenceEntity occurrence,
+        bool inReport,
+        ActionActor actor,
+        DateTimeOffset now)
+    {
+        occurrence.InReport = inReport;
+        occurrence.SupportingOrder = null;
+        if (!inReport)
+        {
+            occurrence.PreparationFullPage = false;
+        }
+        occurrence.PreparationVersion = checked(occurrence.PreparationVersion + 1);
+        occurrence.PreparedBy = $"{actor.Kind}:{actor.SubjectId}";
+        occurrence.PreparedAtUtc = now;
+    }
+
+    /// <summary>
+    /// Saves this command's writes and, when they change the images the report
+    /// uses or how one prints, marks the current generation stale in the same
+    /// transaction: tags and In report decide them (operator, 26 September 2026).
+    /// </summary>
+    private static async Task SaveStalingChangedReportImagesAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        IReadOnlyList<CaseAssetPreparation> reportImagesBefore,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        await context.SaveChangesAsync(cancellationToken);
+        var reportImagesAfter = await EfCaseAssetPreparationStore.LoadCurrentAsync(
+            context, caseId, cancellationToken);
+        if (CaseReportFreshness.ClassifyImages(reportImagesBefore, reportImagesAfter).IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, caseId, CaseReportStaleReasons.ImagePreparationChanged, now, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     /// <summary>
@@ -1166,6 +1304,22 @@ internal sealed class EfDocumentCustodyStore(
         value.IsLogicallyRemoved,
         value.RemovalReason);
 
+    /// <summary>
+    /// The number the Case's next document takes: one past its highest, and
+    /// never 1, which is the source the Case was created from.
+    /// </summary>
+    internal static async Task<int> NextDocumentOrdinalAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var lastOrdinal = await context.Set<CaseDocumentEntity>()
+            .Where(value => value.CaseId == caseId)
+            .Select(value => (int?)value.Ordinal)
+            .MaxAsync(cancellationToken) ?? 1;
+        return checked(lastOrdinal + 1);
+    }
+
     internal static async Task<PendingDocumentAdd> PrepareAddAsync(
         PegasusDbContext context,
         IDocumentContentStore contentStore,
@@ -1182,15 +1336,11 @@ internal sealed class EfDocumentCustodyStore(
                 cancellationToken);
         if (document is null)
         {
-            var lastOrdinal = await context.Set<CaseDocumentEntity>()
-                .Where(value => value.CaseId == command.CaseId)
-                .Select(value => (int?)value.Ordinal)
-                .MaxAsync(cancellationToken) ?? 1;
             document = new()
             {
                 Id = Guid.NewGuid(),
                 CaseId = command.CaseId,
-                Ordinal = checked(lastOrdinal + 1),
+                Ordinal = await NextDocumentOrdinalAsync(context, command.CaseId, cancellationToken),
                 SourceOccurrenceIdentity = command.SourceOccurrenceIdentity
             };
             context.Add(document);
@@ -1381,6 +1531,10 @@ internal sealed class EfDocumentCustodyStore(
         Guid OccurrenceId,
         Guid TagId,
         string Name);
+
+    private sealed record ImageInReportHistoryValue(
+        Guid OccurrenceId,
+        bool InReport);
 
     private sealed record ImageTagCreatedHistoryValue(
         Guid TagId,

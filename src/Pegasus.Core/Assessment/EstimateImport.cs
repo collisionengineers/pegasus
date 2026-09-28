@@ -110,8 +110,10 @@ public interface IEstimateDocumentParser
 /// hash the caller recorded, then re-hashed here; the format is auto-detected
 /// across the registered parsers, and zero or more than one match fails
 /// closed rather than guessing. The parse lands as one new source-labelled
-/// Draft beside the existing estimates — importing never touches Current —
-/// and the same Case with the same source hash replays to the estimate that
+/// estimate on the one enabled labour-rate card; a staff import is the
+/// Case's Current repair spec at once, an Automation import stays a Draft
+/// (<see cref="RepairSpecificationPolicy.BecomesCurrentWhenCreated"/>). The
+/// same Case with the same source hash replays to the live estimate that
 /// import already created.
 /// </summary>
 public sealed class ImportRawEstimate(
@@ -119,7 +121,8 @@ public sealed class ImportRawEstimate(
     IGetCaseDocumentMetadata metadata,
     IReadLogicalDocumentVersion documents,
     IListCaseEstimates estimates,
-    IRepairSpecificationStore store) : IImportRawEstimate
+    IRepairSpecificationStore store,
+    ILabourRateCardStore rateCards) : IImportRawEstimate
 {
     /// <summary>The reason recorded against every imported Draft.</summary>
     public const string ImportReason = "Imported an estimate from its retained source document.";
@@ -152,7 +155,8 @@ public sealed class ImportRawEstimate(
         }
         var existing = await estimates.ExecuteAsync(request.CaseId, CaseWorkSelector.Current, cancellationToken);
         if (existing.FirstOrDefault(estimate =>
-                string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal)) is { } replayed)
+                estimate.State != RepairSpecificationState.Discarded
+                && string.Equals(estimate.Source.Sha256, sha256, StringComparison.Ordinal)) is { } replayed)
         {
             return await store.BindSourceHashReplayAsync(
                 request.CaseId,
@@ -186,6 +190,8 @@ public sealed class ImportRawEstimate(
             throw new EstimateParseRejectedException("The estimate format has not completed unambiguously.");
         }
         var artifactIdentity = $"estimate-import:{retained.OccurrenceId:D}";
+        var card = LabourRateCardAdministration.ForNewSpecification(
+            await rateCards.ListAsync(cancellationToken));
         var saved = await store.SaveImportedEstimateAsync(
             EstimatePolicy.ValidateImportedSave(
             new(request.CaseId,
@@ -208,7 +214,11 @@ public sealed class ImportRawEstimate(
                     EstimatePolicy.DefaultVatPercent),
                 [.. parsed.Lines.Select((line, index) => WithProvenance(
                     line, index + 1, artifactIdentity, request.DocumentVersionId, sha256))],
-                new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))),
+                new(parsed.Route, artifactIdentity, parsed.SourceVersion, sha256))
+            {
+                SelectedRateCardId = card?.Id,
+                SelectedRateCardVersion = card?.Version,
+            }),
             cancellationToken);
         return new(saved.SpecificationId);
     }
@@ -251,7 +261,7 @@ public sealed class ImportRawEstimate(
         };
 
     /// <summary>
-    /// The default Draft name when the caller supplies none: "{Provider} {n}",
+    /// The default estimate name when the caller supplies none: "{Provider} {n}",
     /// counting the imports this Case already holds from that provider. A
     /// caller-supplied <see cref="ImportRawEstimateRequest.Name"/> is used as
     /// given (trimmed) and validated by <see cref="EstimatePolicy.ValidateDetails"/>.
