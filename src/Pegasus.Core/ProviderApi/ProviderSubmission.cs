@@ -9,7 +9,7 @@ namespace Pegasus.Core.ProviderApi;
 
 /// <summary>
 /// API-01 (FRD-09 § Provider API principal and contract boundary; ADR-0004):
-/// an authenticated Principal submits one instruction envelope — one or more
+/// an authenticated Principal submits one instruction envelope — zero or more
 /// files — that enters the ordinary grouped durable intake path bound to
 /// that Principal, and reads back only its own submission's receipt and
 /// result. The Provider actor is the Principal; the credential only proves
@@ -271,13 +271,15 @@ public static class ProviderSubmissionPolicy
     /// (<see cref="IntakeEnvelopeLimits.MaximumProviderApiFileLength"/>) and
     /// not the manual channel's larger cap: one Provider API file may never be
     /// allowed past the envelope that carries it (C07 item 5).
+    ///
+    /// No file is required: an instruction may be declared on its own.
     /// </summary>
     public static IReadOnlyList<ProviderSubmissionFile> RequireEnvelope(
         IReadOnlyList<ProviderSubmissionFile>? files)
     {
-        if (files is null || files.Count == 0)
+        if (files is null)
         {
-            throw new ArgumentException("At least one file is required.", nameof(files));
+            return [];
         }
         if (files.Count > IntakeEnvelopeLimits.MaximumBatchFileCount
             || files.Any(file => file.Content.Length > IntakeEnvelopeLimits.MaximumProviderApiFileLength)
@@ -333,29 +335,21 @@ public static class ProviderSubmissionPolicy
     }
 
     /// <summary>
-    /// An Audit needs its original report attached whoever states its outcome.
-    /// The operator ruled on 2026-08-28 that the declared verdict decides the
-    /// reference prefix, which settles who decides — not whether the Engineer
-    /// receives the report they are auditing.
+    /// An original report is optional, even for an Audit (operator,
+    /// 2026-09-28): an Audit sent without one waits on Original report
+    /// missing until the report arrives. At most one file may claim the role.
+    /// Two would both take the fixed <c>provider-original-report</c> label,
+    /// and the single-match lookup downstream would then fail the whole
+    /// accepted intake instead of telling the provider which field was wrong.
     /// </summary>
-    public static void RequireOriginalReport(
-        ProviderInstructionKind kind,
-        IReadOnlyList<ProviderSubmissionFile> files)
+    public static void RequireAtMostOneOriginalReport(IReadOnlyList<ProviderSubmissionFile> files)
     {
         ArgumentNullException.ThrowIfNull(files);
-        if (!ProviderInstructionKinds.RequiresOriginalReport(kind))
-        {
-            return;
-        }
-        // Exactly one, not at least one. Two files claiming the role both take
-        // the fixed `provider-original-report` label, and the single-match
-        // lookup downstream then fails the whole accepted intake instead of
-        // telling the provider which field was wrong.
-        if (files.Count(file => file.Role == DocumentSemanticRole.AuditReport) != 1)
+        if (files.Count(file => file.Role == DocumentSemanticRole.AuditReport) > 1)
         {
             throw new ProviderInstructionValidationException(
                 "files",
-                "An Audit submission must attach exactly one original report, with its role stated as "
+                "A submission may attach at most one original report, with its role stated as "
                 + $"'{ProviderFileRoles.OriginalReport}'.");
         }
     }
@@ -429,7 +423,7 @@ public sealed class SubmitProviderInstruction(
         var instruction = ProviderInstructionPolicy.Normalize(request.Instruction);
         var files = ProviderSubmissionPolicy.RequireEnvelope(request.Files);
         ProviderSubmissionPolicy.RequireRetainableBody(request.RawBody);
-        ProviderSubmissionPolicy.RequireOriginalReport(instruction.Kind, files);
+        ProviderSubmissionPolicy.RequireAtMostOneOriginalReport(files);
         var bodySha256 = ProviderSubmissionPolicy.Sha256(request.RawBody);
         var principalId = request.Credential.PrincipalId;
 

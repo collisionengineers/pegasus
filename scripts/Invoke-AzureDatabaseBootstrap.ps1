@@ -581,6 +581,10 @@ function Get-MigrationPermissionMatrix {
     # records a generated report file as stored once custody has filed it, so
     # it updates the row it could only read before. It never inserts one.
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|GeneratedCaseArtifacts')
+    # 20260928160000_GrantWorkerDocumentOccurrenceUpdate: the Worker recognises
+    # the original report among the files it filed on an Audit, and gives that
+    # occurrence the Audit report role. It never deletes one.
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|DocumentOccurrences')
     return @($expected | Sort-Object -Unique)
 }
 

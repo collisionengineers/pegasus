@@ -304,6 +304,9 @@ public static class OperatorLabels
     /// </summary>
     public sealed record CaseRequirement(string Requirement, string Resolve);
 
+    /// <summary>A missing completeness requirement as the Next action names it.</summary>
+    public static string RequirementIncomplete(string requirement) => $"{requirement} incomplete";
+
     public static IReadOnlyList<CaseRequirement> CaseRequirements(bool instructionsMissing, bool imagesMissing)
     {
         var items = new List<CaseRequirement>(2);
@@ -662,6 +665,7 @@ public static class OperatorLabels
         Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
         Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review Case",
         Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
+        Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => WorkCentre.VehicleImagesPaired,
         _ => Humanise(kind.ToString())
     };
 
@@ -765,6 +769,12 @@ public static class OperatorLabels
             return days <= 0 ? "Today" : string.Create(CultureInfo.InvariantCulture, $"{days} d ago");
         }
 
+        /// <summary>
+        /// Early vehicle images paired with their Case (FRD-19, operator,
+        /// 28 September 2026): the chip, the row's kind and its bold line.
+        /// </summary>
+        public const string VehicleImagesPaired = "Vehicle images paired";
+
         /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
         public static string KindChip(NeedsAttentionKind kind) => kind switch
         {
@@ -772,6 +782,7 @@ public static class OperatorLabels
             Pegasus.Core.Operations.NeedsAttentionKind.HeldDecision => "Held",
             Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review",
             Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Unassigned",
+            Pegasus.Core.Operations.NeedsAttentionKind.VehicleImagesPaired => VehicleImagesPaired,
             Pegasus.Core.Operations.NeedsAttentionKind.Unidentified => "Unidentified",
             Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
             Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
@@ -1212,6 +1223,14 @@ public static class OperatorLabels
     /// </summary>
     public static string OfficeDate(DateTimeOffset value) =>
         LondonCalendar.DateAt(value).ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The date a due instant falls due. A Due by date's instant is the
+    /// midnight that ends it (<see cref="Pegasus.Core.Tasks.CaseDuePolicy.DueAt"/>),
+    /// so the day named is the one just before the instant, as the Work
+    /// Centre's due text reads it; a chase time names its own day.
+    /// </summary>
+    public static string DueDate(DateTimeOffset due) => OfficeDate(due.AddTicks(-1));
 
     /// <summary>
     /// The time of day in the office's zone, for the two-line surfaces that

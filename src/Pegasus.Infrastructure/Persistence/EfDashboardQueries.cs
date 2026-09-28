@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
@@ -6,7 +7,8 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The dashboard's counts, read straight from the records that hold the fact.
+/// The dashboard's counts and the Work Centre's own reads, read straight from
+/// the records that hold the fact.
 /// </summary>
 /// <remarks>
 /// Each of these is a single aggregate query. The dashboard is the most
@@ -76,4 +78,78 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
             For(query));
     }
 
+    public async Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        const string pairedEvent = "image_initiated_case_merged";
+        var staff = nameof(ActorKind.Staff);
+        var eligibleStates = EfImageIntakeCaseCandidates.EligibleStates;
+        // The pairing is the Case's latest merge event; any staff change that
+        // moved the Case version past it means someone has taken the Case up.
+        // Notes, previews and downloads move no version and system work is
+        // not staff, so neither clears it. Versions order a Case's changes
+        // exactly, where two events can share an instant.
+        var cases = await (
+            from workflow in context.CaseWorkflows.AsNoTracking()
+            join caseEntity in context.Cases.AsNoTracking() on workflow.CaseId equals caseEntity.Id
+            let pairedVersion = context.CaseWorkflowEvents
+                .Where(item => item.CaseId == workflow.CaseId && item.EventType == pairedEvent)
+                .Max(item => (long?)item.AfterVersion)
+            let pairedAt = context.CaseWorkflowEvents
+                .Where(item => item.CaseId == workflow.CaseId && item.EventType == pairedEvent
+                    && item.AfterVersion == pairedVersion)
+                .Max(item => (DateTimeOffset?)item.OccurredAtUtc)
+            where eligibleStates.Contains(workflow.State)
+                && workflow.ReportSentEvidenceId == null
+                && workflow.ArchivedAtUtc == null
+                && pairedAt != null
+                && !context.CaseWorkflowEvents.Any(item => item.CaseId == workflow.CaseId
+                    && item.ActorKind == staff
+                    && item.AfterVersion > item.BeforeVersion
+                    && item.AfterVersion > pairedVersion)
+            select new
+            {
+                workflow.CaseId,
+                caseEntity.Reference,
+                Principal = caseEntity.Principal.Code,
+                workflow.AssignedEngineerId,
+                PairedAtUtc = pairedAt!.Value
+            }).ToArrayAsync(cancellationToken);
+        if (cases.Length == 0)
+        {
+            return [];
+        }
+
+        var caseIds = cases.Select(item => item.CaseId).ToArray();
+        var merged = EfImageIntakeStore.ToCode(ImageInitiatedCaseState.MergedIntoInstructionCase);
+        var images = await context.ImageIntakes.AsNoTracking()
+            .Where(item => item.LifecycleState == merged
+                && item.MergedIntoCaseId != null
+                && caseIds.Contains(item.MergedIntoCaseId.Value))
+            .Select(item => new
+            {
+                CaseId = item.MergedIntoCaseId!.Value,
+                item.ImageIntakeReference,
+                item.CreatedAtUtc,
+                MergedAtUtc = context.ImageIntakeLifecycleEvents
+                    .Where(lifecycle => lifecycle.ImageIntakeId == item.Id && lifecycle.EventType == merged)
+                    .Max(lifecycle => (DateTimeOffset?)lifecycle.OccurredAtUtc)
+            })
+            .ToArrayAsync(cancellationToken);
+        var latest = images
+            .GroupBy(item => item.CaseId)
+            .ToDictionary(group => group.Key, group => group.MaxBy(item => item.MergedAtUtc)!);
+        return cases
+            .Where(item => latest.ContainsKey(item.CaseId))
+            .Select(item => new PairedVehicleImagesCase(
+                item.CaseId,
+                item.Reference,
+                latest[item.CaseId].ImageIntakeReference,
+                item.Principal,
+                item.AssignedEngineerId,
+                item.PairedAtUtc,
+                latest[item.CaseId].CreatedAtUtc))
+            .ToArray();
+    }
 }

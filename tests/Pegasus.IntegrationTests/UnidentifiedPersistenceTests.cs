@@ -96,6 +96,45 @@ public sealed class UnidentifiedPersistenceTests
     }
 
     [Fact]
+    public async Task AClosedQueueRowCarriesItsClosingReasonAndAnOpenRowNone()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var register = scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var actor = ActionActor.Automation("test-worker");
+        async Task<UnidentifiedItem> RegisterAsync() => (await register.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(Guid.NewGuid()),
+                UnidentifiedReasonCode.NoUsableIdentification,
+                "test detail",
+                ActionActor.SystemWorker("test-worker"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                CreatedAtUtc))).Item;
+        var open = await RegisterAsync();
+        var closed = await RegisterAsync();
+
+        await store.ResolveAsync(
+            new(
+                closed.Id,
+                closed.Version,
+                actor,
+                $"unidentified-close-test:{Guid.NewGuid():N}",
+                "  No further action is required.  ",
+                UnidentifiedResolutionTargetKind.Closed,
+                CloseUnidentified.ClosedTargetId,
+                null,
+                CreatedAtUtc));
+
+        var closedRow = Assert.Single(await store.ListClosedQueueAsync(null));
+        Assert.Equal(closed.Id, closedRow.Id);
+        Assert.Equal("No further action is required.", closedRow.ResolutionReason);
+        var openRow = Assert.Single(await store.ListQueueAsync(null));
+        Assert.Equal(open.Id, openRow.Id);
+        Assert.Null(openRow.ResolutionReason);
+    }
+
+    [Fact]
     public async Task ResolvingToANonexistentCaseIsRejectedBeforeChangingState()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();

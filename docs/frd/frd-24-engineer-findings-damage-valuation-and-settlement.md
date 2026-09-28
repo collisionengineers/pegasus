@@ -96,8 +96,16 @@ areas that disc touches, which `Pegasus.Core` reads off the disc (operator
 decision, 23 September 2026, superseding the 20 September ruling that the
 record keeps the areas only). An entry recorded by area alone, from the
 keyboard, keeps just its areas and is drawn with a disc centred between them,
-no wider than half the vehicle. Every disc is clipped to the vehicle's body,
-on the workspace and on the report alike.
+no wider than half the vehicle.
+
+The plan is the recorded Vehicle type's drawing: a van is drawn as the van, a
+motorcycle or scooter as the motorbike, and anything else, or no type, as the
+car (operator decision, 28 September 2026). All three share one body box, so
+the eight areas and a saved disc stand in the same place on each. Every
+entry's disc is drawn as the same yellow comic burst, whatever its severity,
+with no number and not clipped, so it may spill past the vehicle's outline;
+the burst is only its picture, and the disc alone decides the areas. The
+workspace and the report draw alike.
 
 The record also carries tyres and seat belts per corner, the spare tyre, the
 centre belt, which airbags deployed in the Engineer's words (for example

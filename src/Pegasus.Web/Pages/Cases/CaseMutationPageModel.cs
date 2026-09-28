@@ -352,7 +352,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
     /// decision F). A page that offers such posts supplies them; a page that
     /// does not leaves them null and its commands end the session as before.
     /// </summary>
-    protected virtual (IGetCase Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => null;
+    protected virtual (IGetCaseEditBasis Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => null;
 
     /// <summary>
     /// Claims a fresh lease on the Case's new version and stores it, so the

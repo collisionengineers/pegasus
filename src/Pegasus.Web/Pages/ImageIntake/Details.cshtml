@@ -244,7 +244,7 @@
                             .Select(item =>
                             {
                                 var href = item.AssetId is { } assetId
-                                    ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId })!
+                                    ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId, v = item.ContentHash })!
                                     : Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
                                 return new GalleryImage(
                                     href,
@@ -255,7 +255,8 @@
                                     IntakeAssetId: item.AssetId,
                                     IntakeReceiptId: item.ReceiptId,
                                     Preparation: item.AssetId is { } preparationAssetId ? Model.Preparations.GetValueOrDefault(preparationAssetId) : null,
-                                    CustodyState: item.CustodyState);
+                                    CustodyState: item.CustodyState,
+                                    ContentHash: item.ContentHash);
                             })
                             .ToArray();
                         ViewData["PreCaseImageTags"] = Model.ImageTags;

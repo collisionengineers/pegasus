@@ -11,7 +11,7 @@
 @{
     var section = Model.NotesSection;
     var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
-    var leaseToken = Model.LeaseToken;
+    var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
     var entries = (section?.History ?? []).OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
     var offersNote = !Model.IsPostReportReadOnly && workflow.Archive is null;

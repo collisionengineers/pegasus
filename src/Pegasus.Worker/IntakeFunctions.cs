@@ -3,6 +3,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Notifications;
 using Pegasus.Core.ProviderApi;
@@ -227,8 +228,21 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
     ReconcileProviderSubmissions reconcileProviderSubmissions,
     PurgeStaffNotifications purgeStaffNotifications,
+    PrepareDocumentThumbnails prepareDocumentThumbnails,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
+    /// <summary>
+    /// How many plain thumbnails one run makes. The sweep runs every few
+    /// seconds, so a small number keeps up with filing without a burst on Box.
+    /// </summary>
+    private const int ThumbnailsPerRun = 2;
+
+    /// <summary>
+    /// The longest the thumbnail sweep may take in one run. The intake work
+    /// above has already run; this keeps the timer from being held by Box.
+    /// </summary>
+    private static readonly TimeSpan ThumbnailBudget = TimeSpan.FromSeconds(20);
+
     [Function(nameof(StagedArtifactReconciliationFunction))]
     public async Task RunAsync(
         [TimerTrigger("%IntakeStagedArtifactReconciliationSchedule%", RunOnStartup = false)] TimerInfo timer,
@@ -336,7 +350,44 @@ public sealed partial class StagedArtifactReconciliationFunction(
         // existing sweep, not a new schedule.
         var purgedNotifications = await purgeStaffNotifications.ExecuteAsync(cancellationToken);
         LogStaffNotificationPurge(logger, purgedNotifications);
+
+        // Plain gallery thumbnails of newly filed photographs, made before
+        // the first view. Same existing timer trigger deliberately; this is
+        // not a new schedule. It runs last, inside its own time budget, and
+        // its failure or timeout is the thumbnail's alone: it is logged, the
+        // first view makes the thumbnail instead, and the run still succeeds.
+        using var thumbnailBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        thumbnailBudget.CancelAfter(ThumbnailBudget);
+        try
+        {
+            var thumbnails = await prepareDocumentThumbnails.ExecuteAsync(ThumbnailsPerRun, thumbnailBudget.Token);
+            if (thumbnails.Candidates > 0)
+            {
+                LogDocumentThumbnailPreparation(
+                    logger,
+                    thumbnails.Candidates,
+                    thumbnails.Prepared,
+                    thumbnails.Unrenderable,
+                    thumbnails.Failures,
+                    thumbnails.FirstFailure);
+            }
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            LogDocumentThumbnailPreparationFailed(logger, exception);
+        }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Prepared document thumbnails: {Candidates} candidates, {Prepared} prepared, {Unrenderable} not renderable, {Failures} failures. First failure: {FirstFailure}")]
+    private static partial void LogDocumentThumbnailPreparation(
+        ILogger logger, int candidates, int prepared, int unrenderable, int failures, string? firstFailure);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Preparing document thumbnails failed; the next sweep tries again.")]
+    private static partial void LogDocumentThumbnailPreparationFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(
         Level = LogLevel.Information,

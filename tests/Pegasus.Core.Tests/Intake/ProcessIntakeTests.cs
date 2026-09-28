@@ -4,6 +4,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.ProviderApi;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -990,6 +991,85 @@ public sealed class ProcessIntakeTests
         Assert.Empty(automaticEvidence.Requests);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ProviderApiAuditRecordsItsDeclaredVerdictOnlyWithARetainedReport(bool withReport)
+    {
+        // The report file is optional (operator, 2026-09-28). Without it the
+        // Audit is still processed, on first run and on replay, and records no
+        // evidence: the Case keeps Original report missing until it arrives.
+        var automaticEvidence = new RecordingAutomaticAuditEvidence();
+        var readResult = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [],
+            [],
+            [],
+            false,
+            Assets: withReport
+                ?
+                [
+                    new(
+                        ProviderInstructionPolicy.OriginalReportSourceLabel,
+                        "original-report.pdf",
+                        "application/pdf",
+                        new byte[] { 2 },
+                        IntakeAssetKind.Attachment,
+                        IntakeAssetDisposition.Attachment)
+                ]
+                : []);
+        var identity = new IntakeSourceIdentity(IntakeSourceChannel.ProviderApi, "provider-audit");
+        var store = new RecordingStore();
+        var sut = CreateSut(
+            new StubReader(readResult),
+            store,
+            automaticStandaloneAuditEvidence: automaticEvidence,
+            providerSubmissionBindings: new SingleProviderBinding(identity, new(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "QDOS",
+                new ProviderInstruction(
+                    ProviderInstructionKind.Audit,
+                    AuditAssessment.Repairable,
+                    null,
+                    ClaimNumber: "Q-AUDIT",
+                    ClaimantName: "Review Claimant",
+                    VehicleRegistration: "AB12CDE"))));
+        var source = CreateSource() with
+        {
+            FileName = ProviderInstructionPolicy.SourceFileName,
+            MediaType = ProviderInstructionPolicy.SourceMediaType,
+            SourceIdentity = identity
+        };
+
+        var result = await sut.ExecuteAsync(source);
+        store.ExistingRecord = result;
+        var replay = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
+        Assert.True(replay.IsDuplicate);
+        if (withReport)
+        {
+            Assert.Equal(2, automaticEvidence.Requests.Count);
+            Assert.All(automaticEvidence.Requests, request =>
+                Assert.Equal(AuditAssessment.Repairable, request.Assessment));
+        }
+        else
+        {
+            Assert.Empty(automaticEvidence.Requests);
+        }
+    }
+
+    private sealed class SingleProviderBinding(
+        IntakeSourceIdentity identity,
+        ProviderSubmissionBinding binding) : IProviderSubmissionBindings
+    {
+        public Task<ProviderSubmissionBinding?> FindAsync(
+            IntakeSourceIdentity sourceIdentity,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ProviderSubmissionBinding?>(sourceIdentity == identity ? binding : null);
+    }
+
     [Fact]
     public async Task AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseCaseCreatedMessage()
     {
@@ -1704,7 +1784,8 @@ public sealed class ProcessIntakeTests
         IReadOnlyList<IMailClassificationPolicy>? classificationPolicies = null,
         IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
         IRegisterUnidentified? registerUnidentified = null,
-        RetainIncomingArtifact? retainIncomingArtifact = null) =>
+        RetainIncomingArtifact? retainIncomingArtifact = null,
+        IProviderSubmissionBindings? providerSubmissionBindings = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             new InstructionExtractionPolicySelector(
                 extractionPolicies ?? [extractionPolicy ?? new QdosInstructionExtractionPolicy()]),
@@ -1714,6 +1795,7 @@ public sealed class ProcessIntakeTests
             new FixedTimeProvider(ProcessedAtUtc),
             automaticStandaloneAuditEvidence,
             registerUnidentified,
+            providerSubmissionBindings,
             retainIncomingArtifact: retainIncomingArtifact);
 
     private sealed class NoCaseMatchCandidates : ICaseMatchCandidateQueries

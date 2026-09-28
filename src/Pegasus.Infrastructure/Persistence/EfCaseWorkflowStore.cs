@@ -30,6 +30,25 @@ public sealed class EfCaseWorkflowStore(
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
         return entity is null ? null : Map(entity);
     }
+
+    public async Task<IReadOnlyDictionary<Guid, Guid?>> GetAssignedEngineersAsync(
+        IReadOnlyCollection<Guid> caseIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(caseIds);
+        if (caseIds.Count == 0)
+        {
+            return new Dictionary<Guid, Guid?>();
+        }
+
+        var ids = caseIds.Distinct().ToArray();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => ids.Contains(item.CaseId))
+            .ToDictionaryAsync(item => item.CaseId, item => item.AssignedEngineerId, cancellationToken);
+    }
+
     public async Task<bool> HasCaseMutationOperationAsync(
         Guid caseId,
         string operationKey,
@@ -602,8 +621,7 @@ public sealed class EfCaseWorkflowStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var profiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken);
+        var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
         var before = CaseSignOffEngineerResolver.Resolve(
             beforeSignOffEngineerId,
             beforeAssignedEngineerId,

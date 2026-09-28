@@ -40,7 +40,9 @@ public sealed class ImageIntakeCasePairing(
         IReadOnlyList<ImageIntakeCaseCandidate> candidates,
         string registration,
         Guid? principalId,
-        int groupExpectedMemberCount)
+        int groupExpectedMemberCount,
+        IntakeSourceChannel sourceChannel,
+        DateTimeOffset registeredAtUtc)
     {
         ArgumentNullException.ThrowIfNull(candidates);
         // A registered identity is immutable: no near-miss completion here.
@@ -50,9 +52,25 @@ public sealed class ImageIntakeCasePairing(
         return exact.Length == 1
             && (groupExpectedMemberCount <= 1 || candidates.Count == 1)
             && (principalId is null || exact[0].PrincipalId == principalId)
+            // Manual upload (operator, 28 September 2026): a Case that already
+            // existed when the images registered stays the staff decision the
+            // upload offered; only a Case created afterwards pairs by itself.
+            && (sourceChannel != IntakeSourceChannel.ManualUpload || exact[0].CreatedAtUtc > registeredAtUtc)
                 ? exact[0]
                 : null;
     }
+
+    /// <summary>
+    /// A manual group whose decision staff have started (any member carries a
+    /// staff association decision, current or reversed) keeps their
+    /// per-member links: it merges only once every member is linked and gains
+    /// no automatic sibling link.
+    /// </summary>
+    public static bool AwaitsStaffCompletion(
+        IntakeSourceChannel sourceChannel,
+        bool staffStarted,
+        bool everyMemberLinked) =>
+        sourceChannel == IntakeSourceChannel.ManualUpload && staffStarted && !everyMemberLinked;
 
     public Task<ImageIntakePairingResult> PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken) =>
         caseId == Guid.Empty
@@ -101,10 +119,8 @@ public sealed class ImageIntakeCasePairing(
             var actor = ActionActor.SystemWorker(ImageIntakeAutomation.ActorId);
             var originReceipt = await receiptQueries.GetAsync(detail.Record.Origin.ReceiptId, cancellationToken)
                 ?? throw new KeyNotFoundException("The registered image origin is unavailable.");
-            // A manual upload must not acquire a destination from the image
-            // reconciliation sweep. A later reasoned staff link is allowed to
-            // complete the existing image lifecycle through this same owner.
-            if (originReceipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload)
+            var channel = originReceipt.SourceIdentity.Channel;
+            if (channel == IntakeSourceChannel.ManualUpload)
             {
                 // A manual group confirmation owns one explicit, reasoned
                 // link per member.  Do not turn the first member link into
@@ -112,7 +128,8 @@ public sealed class ImageIntakeCasePairing(
                 // submitted operation identities and versions halfway through
                 // its one staff decision.  Once every member is linked, the
                 // existing pairing/merge path below remains the sole owner of
-                // the Image-initiated Case lifecycle.
+                // the Image-initiated Case lifecycle.  An untouched manual
+                // group pairs only with a Case created after it registered.
                 var manualImages = await imageIntakeStore.ListImagesAsync(detail.Record.Id, cancellationToken);
                 var manualMemberIds = manualImages.Select(image => image.ReceiptId)
                     .Prepend(detail.Record.Origin.ReceiptId)
@@ -120,7 +137,9 @@ public sealed class ImageIntakeCasePairing(
                     .ToArray();
                 var manualMembers = await Task.WhenAll(manualMemberIds.Select(
                     memberId => receiptQueries.GetAsync(memberId, cancellationToken)));
-                if (manualMembers.Any(member => member?.CurrentCaseId is null))
+                if (AwaitsStaffCompletion(channel,
+                        manualMembers.Any(member => member?.ManualAssociationActorKind == ActorKind.Staff),
+                        manualMembers.All(member => member?.CurrentCaseId is not null)))
                 {
                     return new(1, 0, 0);
                 }
@@ -133,7 +152,7 @@ public sealed class ImageIntakeCasePairing(
                 var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
                     detail.Record.NormalizedVehicleRegistration, cancellationToken);
                 var target = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
-                    detail.Record.PrincipalId, detail.GroupExpectedMemberCount);
+                    detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
                 if (target is null)
                 {
                     return new(1, 0, 0);
@@ -179,7 +198,7 @@ public sealed class ImageIntakeCasePairing(
                     var eligible = await caseCandidates.FindEligibleByRegistrationAsync(
                         detail.Record.NormalizedVehicleRegistration, cancellationToken);
                     var target = SelectRegisteredTarget(eligible, detail.Record.NormalizedVehicleRegistration,
-                        detail.Record.PrincipalId, detail.GroupExpectedMemberCount);
+                        detail.Record.PrincipalId, detail.GroupExpectedMemberCount, channel, detail.RegisteredAtUtc);
                     if (target is null || target.CaseId != targetId)
                     {
                         throw new IntakeAssociationConflictException("The current image destination is no longer unique.");

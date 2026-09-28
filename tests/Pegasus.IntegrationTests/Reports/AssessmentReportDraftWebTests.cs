@@ -261,9 +261,9 @@ public sealed partial class AssessmentReportDraftWebTests
 
     /// <summary>
     /// FRD-13 (issue #834): every report blocker is a row that names what is
-    /// missing and links to the Case section that clears it, and the Next
-    /// action links the first blocker to its own section rather than to
-    /// Valuation.
+    /// missing and links to the Case section that clears it. With Engineer
+    /// the rows are the Next action itself (issue 899): no one-line summary
+    /// beside them, and no second list in the Report section.
     /// </summary>
     [Fact]
     public async Task EachReportBlockerLinksToTheSectionThatClearsIt()
@@ -362,18 +362,62 @@ public sealed partial class AssessmentReportDraftWebTests
             engineerRow.Contains("blocker-actions", StringComparison.Ordinal),
             $"An Engineer's Sign-off blocker links nowhere: {engineerRow}");
 
-        var nextAction = NextActionRegex().Match(html);
-        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
-        var panel = nextAction.Value;
+        var panel = CaseWebTestSupport.NextActionRegex().Match(html).Value;
+        Assert.DoesNotContain("data-next-label", panel, StringComparison.Ordinal);
+        var report = CaseWebTestSupport.Section(html, "section-report-title");
+        Assert.Contains("data-report-gate", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-not-ready", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Issue 898: a repairer VAT blocker opens the Repair Spec for editing on
+    /// the Current spec, with the control that clears it named for focus,
+    /// from the readiness list and from the Next action alike.
+    /// </summary>
+    [Theory]
+    [InlineData(false, "#estimate-vat-status")]
+    [InlineData(true, "[data-vat-reset]")]
+    public async Task ARepairerVatBlockerOpensTheRepairSpecOnTheControlThatClearsIt(bool handPicked, string focus)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        var ready = CurrentEstimate() with { CaseId = caseId };
+        var estimate = ready with
+        {
+            Details = ready.Details with
+            {
+                Vat = handPicked
+                    ? new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true)
+                    : EstimateVatPolicy.For(RepairerVatStatus.Unknown),
+            },
+        };
+        var source = new FakeProjectionSource(ReadyInput(caseId));
+        source.Readiness = source.Readiness with { CurrentEstimate = estimate };
+        var blocker = Assert.Single(CaseReportReadiness.Evaluate(source.Readiness).Reasons);
         Assert.Equal(
-            $"{readiness.Reasons[0].Requirement} · {readiness.Reasons.Count - 1} more",
-            NextLabelRegex().Match(panel).Groups["label"].Value);
-        var link = SectionJumpRegex().Match(panel);
-        Assert.True(link.Success, "The Next action must link to a section.");
-        Assert.Equal("vehicle", link.Groups["key"].Value);
-        Assert.Contains($"href=\"/Cases/{caseId:D}?section=vehicle#section-vehicle\"", link.Value, StringComparison.Ordinal);
-        Assert.Equal("Vehicle", link.Groups["label"].Value);
-        Assert.DoesNotContain("section=valuation", panel, StringComparison.Ordinal);
+            handPicked ? CaseReportReadiness.RepairerVatHandPicked : CaseReportReadiness.RepairerVatStatusUnknown,
+            blocker);
+        using var factory = Compose(
+            baseFactory, new FakeGetCase(caseId), FullAssessmentProjection(caseId), source, new FakeRenderer([1]),
+            currentSpecification: estimate);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var row = BlockerRow(BlockerList(html), CaseReportReadiness.RepairerVatRequirement);
+        var panel = CaseWebTestSupport.NextActionRegex().Match(html).Value;
+        foreach (var place in new[] { row, panel })
+        {
+            Assert.Contains($"action=\"/Cases/{caseId:D}?handler=ClaimLease\"", place, StringComparison.Ordinal);
+            Assert.Contains("name=\"section\" value=\"estimate\"", place, StringComparison.Ordinal);
+            Assert.Contains($"name=\"estimate\" value=\"{estimate.SpecificationId:D}\"", place, StringComparison.Ordinal);
+            Assert.Contains($"data-edit-focus=\"{focus}\"", place, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-section-jump", place, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -607,7 +651,8 @@ public sealed partial class AssessmentReportDraftWebTests
         IGenerateCaseReport? generateReport = null,
         IPrepareCaseReportDelivery? prepareDelivery = null,
         ISendPreparedCaseReport? sendPreparedReport = null,
-        bool failIfReportServicesResolved = false) =>
+        bool failIfReportServicesResolved = false,
+        RepairSpecificationVersion? currentSpecification = null) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -679,7 +724,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.AddSingleton<IGetCaseAssessment>(new FakeGetCaseAssessment(assessment));
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(new FakeGetAssessmentWorkspace(
-                    AssessmentWorkspaceTestData.Create(assessment)));
+                    AssessmentWorkspaceTestData.Create(assessment) with { CurrentSpecification = currentSpecification }));
                 services.AddSingleton(projectionSource);
                 services.AddSingleton((ICaseReportSnapshotSource)projectionSource);
                 services.AddSingleton(renderer);
@@ -811,11 +856,13 @@ public sealed partial class AssessmentReportDraftWebTests
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
 
-    /// <summary>The Report section's readiness list in decoded markup.</summary>
+    /// <summary>The Next action's readiness list in decoded markup (issue 899).</summary>
     private static string BlockerList(string html)
     {
-        var list = BlockerListRegex().Match(html);
-        Assert.True(list.Success, "The Report section must list what the report still needs.");
+        var nextAction = CaseWebTestSupport.NextActionRegex().Match(html);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        var list = BlockerListRegex().Match(nextAction.Value);
+        Assert.True(list.Success, "The Next action must list what the report still needs.");
         return list.Value;
     }
 
@@ -855,9 +902,6 @@ public sealed partial class AssessmentReportDraftWebTests
     [GeneratedRegex("<a[^>]*data-blocker-accounts[^>]*>(?<label>[^<]*)</a>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex AccountsLinkRegex();
 
-    [GeneratedRegex("<section[^>]*data-next-action[^>]*>.*?</section>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
-    private static partial Regex NextActionRegex();
-
     [GeneratedRegex("<span data-next-label>(?<label>.*?)</span>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex NextLabelRegex();
 
@@ -865,7 +909,7 @@ public sealed partial class AssessmentReportDraftWebTests
     private static partial Regex SectionJumpRegex();
 
     private sealed class FakeGetCase(Guid caseId) :
-        IGetCase,
+        IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetCaseVehicleSection,
         IGetCaseValuationSection,
@@ -885,6 +929,10 @@ public sealed partial class AssessmentReportDraftWebTests
                 request.CaseId, "held-report-lease", request.Actor.SubjectId, request.ExpectedVersion,
                 DateTimeOffset.UtcNow.AddMinutes(5)));
         }
+
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
             => Task.FromResult(Details(query.CaseId));
@@ -1004,7 +1052,7 @@ public sealed partial class AssessmentReportDraftWebTests
         }
 
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
-            Guid caseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
+            Guid caseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             MetadataReads++;
             return Task.FromResult<CaseReportFreezeInputs?>(new(
