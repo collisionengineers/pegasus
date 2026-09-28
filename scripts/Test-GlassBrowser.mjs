@@ -1,4 +1,4 @@
-// Focused browser evidence for issue 861. Runs the real workspace/return scripts
+// Focused browser evidence for issue 861. Runs the real workspace, opening and return scripts
 // against deterministic HTTP/form responses in an isolated Chrome or Edge profile.
 // Usage: node scripts/Test-GlassBrowser.mjs [absolute-path-to-browser.exe]
 import { spawn } from 'node:child_process';
@@ -18,6 +18,9 @@ const output = join(root, 'artifacts/issue-861/browser', new Date().toISOString(
 await mkdir(output, { recursive: true });
 const workspaceScript = await readFile(join(root, 'src/Pegasus.Web/wwwroot/js/case-workspace.js'));
 const returnScript = await readFile(join(root, 'src/Pegasus.Web/wwwroot/js/glass-return.js'));
+const openingScript = await readFile(join(root, 'src/Pegasus.Web/wwwroot/js/glass-opening.js'));
+// The Glass's window's state answer: still running on the first ask after each load, then done and open.
+let statePolls = 0;
 
 function fixture() {
     return `<!doctype html><html><head><meta charset="utf-8"><title>Glass browser fixture</title>
@@ -81,10 +84,12 @@ function fixture() {
 }
 
 const server = createServer((req, res) => {
-    res.setHeader('Content-Type', req.url === '/workspace.js' || req.url === '/return.js' ? 'text/javascript' : 'text/html');
+    res.setHeader('Content-Type', req.url.endsWith('.js') ? 'text/javascript' : req.url === '/opening/state' ? 'application/json' : 'text/html');
     if (req.url === '/workspace.js') { res.end(workspaceScript); }
     else if (req.url === '/return.js') { res.end(returnScript); }
-    else if (req.url === '/handoff') { res.end('<body data-glass-launch="/provider"><a href="/provider">Open</a><script src="/return.js"></script>'); }
+    else if (req.url === '/opening.js') { res.end(openingScript); }
+    else if (req.url === '/opening') { statePolls = 0; res.end('<body data-glass-opening-state="/opening/state" data-glass-opening-go="/provider"><p>Preparing <a href="/provider">Continue</a></p><script src="/opening.js"></script>'); }
+    else if (req.url === '/opening/state') { res.end(JSON.stringify({ pending: statePolls++ === 0, open: true })); }
     else if (req.url === '/return') { res.end('<body data-glass-return="/case"><script src="/return.js"></script>'); }
     else if (req.url === '/provider') { res.end('<title>Provider fixture</title>Editor URL issued'); }
     else { res.end(fixture()); }
@@ -193,22 +198,22 @@ try {
     assert.equal(await evaluate("document.querySelector('[name=externalSessionClosed]').checked"), false);
     record('Stale Close refreshes confirmation without discarding edits', result);
 
-    // Real popup and opener, with the production handoff script on both legs.
-    await reset(); await evaluate("window.open=window.nativeOpen; edit('XY99ZZZ'); state.slot='resume'; state.sessionVersion=8; window.realPopup=window.open('/handoff','glass-real');"); await delay(300);
+    // Real popup and opener, with the production opening and return scripts on both legs.
+    await reset(); await evaluate("window.open=window.nativeOpen; edit('XY99ZZZ'); state.slot='resume'; state.sessionVersion=8; window.realPopup=window.open('/opening','glass-real');"); await delay(2500);
     assert.ok((await targets()).some(t => t.url === origin + '/provider'));
     assert.equal((await evaluate('result()')).sessionVersion, '8');
     await evaluate("state.status='Completed'; realPopup.location='/return';"); await waitFor('realPopup.closed');
     assert.equal(await evaluate('realPopup.closed'), true); assert.equal((await evaluate('result()')).value, 'XY99ZZZ');
-    record('Real popup handoff opens provider then returns without losing edits', await evaluate('result()'));
-    await send('Page.navigate', { url: origin + '/handoff' }); await waitFor("location.pathname === '/provider'");
+    record('Real popup waits, refreshes the Case, opens provider then returns without losing edits', await evaluate('result()'));
+    await send('Page.navigate', { url: origin + '/opening' }); await waitFor("location.pathname === '/provider'");
     assert.equal(await evaluate('location.pathname'), '/provider');
-    record('No-opener handoff continues in its own window', true);
+    record('No-opener window continues in its own window', true);
     await send('Emulation.setScriptExecutionDisabled', { value: true });
-    await send('Page.navigate', { url: origin + '/handoff' }); await delay(200);
-    assert.equal(await evaluate('location.pathname'), '/handoff');
+    await send('Page.navigate', { url: origin + '/opening' }); await delay(200);
+    assert.equal(await evaluate('location.pathname'), '/opening');
     assert.equal(await evaluate("document.querySelector('a').getAttribute('href')"), '/provider');
     await send('Emulation.setScriptExecutionDisabled', { value: false });
-    record('No-script handoff retains the server-rendered provider link', true);
+    record('No-script window retains the server-rendered Continue link', true);
     assert.deepEqual(errors, [], 'No browser runtime exceptions');
     await writeFile(join(output, 'result.json'), JSON.stringify({ browser, evidence, errors }, null, 2));
     console.log('Evidence:', join(output, 'result.json'));

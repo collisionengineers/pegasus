@@ -3245,16 +3245,19 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// Starts a Glass's Repair Estimate for this Case and sends the staff
-    /// member's own browser to the provider's estimator.
+    /// member's own browser to the Glass's window, which opens the provider's
+    /// estimator once the background launch has prepared it.
     /// </summary>
     /// <remarks>
     /// The launch stands on exactly the authority a Case write stands on — the
     /// Estimate section's own guard, so the version, the edit lease and the
     /// operation key are the ones every other Estimate command presents — and
-    /// the gateway re-proves them against the Case before it reaches Glass's.
-    /// The address the operator is sent to is never a form value: it is read
-    /// back from the session's protected state by the staff member who created it,
-    /// because it carries the one-use token the provider will return with.
+    /// the gateway re-proves them against the Case and records the session
+    /// before this request answers. The provider work runs in the background.
+    /// The address the operator is finally sent to is never a form value: it is
+    /// read back from the session's protected state by the staff member who
+    /// created it, because it carries the one-use token the provider will
+    /// return with.
     ///
     /// The gateway is a handler service rather than a page dependency: it is
     /// built from <c>Glass:*</c> configuration, and a host that has none must
@@ -3266,6 +3269,7 @@ public sealed partial class DetailsModel(
         string operationKey,
         string? editLeaseToken,
         [FromServices] IGlassRepairEstimateGateway glassEstimates,
+        [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork,
         CancellationToken cancellationToken)
     {
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -3282,7 +3286,7 @@ public sealed partial class DetailsModel(
 
         try
         {
-            var session = await glassEstimates.LaunchAsync(
+            var step = await glassEstimates.PrepareLaunchAsync(
                 new GlassRepairEstimateLaunchRequest(
                     actor,
                     id,
@@ -3291,9 +3295,9 @@ public sealed partial class DetailsModel(
                     operationKey),
                 cancellationToken);
             // A double-click replays one operation key and gets the session the
-            // first click created, so this is the same redirect either way.
-            return await OpenEstimatorAsync(
-                id, actor, session, glassEstimates, GlassLabels.LaunchRefused, cancellationToken);
+            // first click created, so it waits on the same work.
+            return await ContinueGlassAsync(
+                actor, step, glassEstimates, glassWork, GlassLabels.LaunchRefused, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -3312,7 +3316,8 @@ public sealed partial class DetailsModel(
     /// </summary>
     /// <remarks>
     /// Every resume carries the presented Case version and lease. The gateway
-    /// proves current authority and unchanged vehicle facts before provider work.
+    /// proves current authority and unchanged vehicle facts before provider work,
+    /// and the provider work runs in the background as a launch's does.
     /// The form must name this staff member's session on this Case.
     /// </remarks>
     public async Task<IActionResult> OnPostResumeGlassAsync(
@@ -3323,6 +3328,7 @@ public sealed partial class DetailsModel(
         Guid sessionId,
         long expectedSessionVersion,
         [FromServices] IGlassRepairEstimateGateway glassEstimates,
+        [FromServices] Pegasus.Web.Background.ProviderWorkQueue glassWork,
         CancellationToken cancellationToken)
     {
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -3341,11 +3347,16 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = GlassLabels.ResumeRefused;
             return GlassReturn(id);
         }
+        if (glassWork.IsInFlight(sessionId))
+        {
+            // Work for this session is already running: wait on it.
+            return GlassOpening(this, sessionId);
+        }
 
         try
         {
             // Every resume proves current authority and unchanged vehicle facts.
-            var session = await glassEstimates.ResumeAsync(
+            var step = await glassEstimates.PrepareResumeAsync(
                 new GlassRepairEstimateResumeRequest(
                     actor,
                     sessionId,
@@ -3353,8 +3364,8 @@ public sealed partial class DetailsModel(
                     expectedCaseVersion,
                     editLeaseToken!),
                 cancellationToken);
-            return await OpenEstimatorAsync(
-                id, actor, session, glassEstimates, GlassLabels.ResumeRefused, cancellationToken);
+            return await ContinueGlassAsync(
+                actor, step, glassEstimates, glassWork, GlassLabels.ResumeRefused, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
@@ -3367,32 +3378,38 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Where a launch or a resume leaves the operator: at the provider's
-    /// estimator while the session is open, and back on the Estimate section
-    /// with what the session came to when it is not.
+    /// Where a launch or a resume leaves the operator: the provider work it
+    /// owes is queued and the Glass's window waits for it, then opens the
+    /// estimator or reports what the session came to.
     /// </summary>
     /// <remarks>
-    /// The only place the estimator address is asked for at all: a session
-    /// records what a launch created but not the address it produced, which
-    /// carries the one-use callback token.
+    /// A full queue runs nothing: the claim stands and is settled as any
+    /// interrupted work is, and the operator is told it did not start.
     /// </remarks>
-    private async Task<IActionResult> OpenEstimatorAsync(
-        Guid id,
+    private async Task<IActionResult> ContinueGlassAsync(
         ActionActor actor,
-        GlassRepairEstimateSession session,
+        GlassRepairEstimateStep step,
         IGlassRepairEstimateGateway glassEstimates,
+        Pegasus.Web.Background.ProviderWorkQueue glassWork,
         string refusal,
         CancellationToken cancellationToken)
     {
-        if (await glassEstimates.GetEstimatorUrlAsync(actor, session.Id, cancellationToken) is { } estimator)
+        if (step.Continuation != GlassRepairEstimateContinuation.None
+            && !glassWork.TryEnqueue(Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork.For(actor, step)))
         {
-            // The edit authority is deliberately kept: the operator is inside
-            // the provider now and the result lands back on this Case.
-            Response.Headers.CacheControl = "no-store";
-            return Partial("_GlassLaunch", estimator.AbsoluteUri);
+            var settled = await glassEstimates.SettleInterruptedAsync(actor, step.Session.Id, cancellationToken);
+            return ReportGlassSession(this, settled, refusal);
         }
 
-        return ReportGlassSession(id, session, refusal);
+        return GlassOpening(this, step.Session.Id);
+    }
+
+    /// <summary>The Glass's window for a session whose provider work is queued, running or done.</summary>
+    public static RedirectToPageResult GlassOpening(PageModel page, Guid sessionId)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        page.Response.Headers.CacheControl = "no-store";
+        return page.RedirectToPage("/Integrations/Glass/Opening", new { sessionId });
     }
 
     /// <summary>
@@ -3429,19 +3446,25 @@ public sealed partial class DetailsModel(
         return estimateSection();
     }
 
-    private IActionResult ReportGlassSession(
-        Guid id, GlassRepairEstimateSession session, string refusal)
+    /// <summary>
+    /// What a launch, a resume or the Glass's window reports for a session
+    /// that is not open at the provider.
+    /// </summary>
+    public static IActionResult ReportGlassSession(
+        PageModel page, GlassRepairEstimateSession session, string refusal)
     {
+        ArgumentNullException.ThrowIfNull(page);
+        ArgumentNullException.ThrowIfNull(session);
         if (session.State is GlassRepairEstimateSessionState.Prepared
             or GlassRepairEstimateSessionState.Launching)
         {
             // Never opened at the provider and never settled: nothing to
             // report but the refusal the command carries.
-            TempData["CaseError"] = refusal;
-            return GlassReturn(id);
+            page.TempData["CaseError"] = refusal;
+            return GlassReturn(page, session.CaseId);
         }
 
-        return ReportSessionOutcome(session, TempData, () => GlassReturn(id));
+        return ReportSessionOutcome(session, page.TempData, () => GlassReturn(page, session.CaseId));
     }
 
     public async Task<IActionResult> OnPostCloseGlassAsync(
