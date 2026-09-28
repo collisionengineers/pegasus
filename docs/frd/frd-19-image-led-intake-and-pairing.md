@@ -293,7 +293,9 @@ to an existing case**. The operator types a Case reference and presses the
 button once: that one press finds the Case and adds the image to it. There
 is no second confirm step on this page. If no single Case matches, or the
 add cannot be made, the page says so, keeps the typed reference and changes
-nothing. A submission of several images is handled on its own submission
+nothing. Pressing the button again after it worked also says no Case
+matched, because the image was already added; it adds nothing twice.
+A submission of several images is handled on its own submission
 page, where the review dialog applies
 ([FRD-18](frd-18-manual-upload.md)).
 

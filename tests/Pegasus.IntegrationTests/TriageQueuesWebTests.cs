@@ -742,6 +742,42 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
+    public async Task AwaitingAttachPostedTwiceWithTheSameFormAddsOnceAndNamesTheRepeat()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "XY34ZZY", "ATTACH-REF-02");
+        var reference = await CaseReferenceAsync(services, caseId);
+        var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "ST12UVX");
+
+        using var surface = await client.GetAsync($"/Cases?tab=awaiting&selected={imageIntake.Id:D}");
+        var surfaceHtml = await surface.Content.ReadAsStringAsync();
+        var form = (InputValue(surfaceHtml, "operationId"), InputValue(surfaceHtml, "receiptVersion"));
+
+        using var first = await PostAttachAsync(
+            client, imageIntake.Id, imageIntake.Origin.ReceiptId, reference, "First press.", form);
+        Assert.Equal(HttpStatusCode.Redirect, first.StatusCode);
+        using var second = await PostAttachAsync(
+            client, imageIntake.Id, imageIntake.Origin.ReceiptId, reference, "Double click.", form);
+
+        // The repeat is not a second write. Where the page re-renders it does
+        // not claim that nothing happened.
+        if (second.StatusCode == HttpStatusCode.OK)
+        {
+            var secondHtml = await second.Content.ReadAsStringAsync();
+            Assert.Contains("or this image was already added", secondHtml, StringComparison.Ordinal);
+        }
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(1, await context.IntakeManualAssociations.CountAsync(item =>
+            item.IntakeReceiptId == imageIntake.Origin.ReceiptId && item.CaseId == caseId));
+    }
+
+    [Fact]
     public async Task AwaitingAttachWithAnUnknownReferenceShowsTheErrorAndLinksNothing()
     {
         using var factory = new IntakeWebApplicationFactory(
@@ -756,7 +792,7 @@ public sealed class TriageQueuesWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("No single viable case matched that reference.", html, StringComparison.Ordinal);
+        Assert.Contains("No single Case matched that reference", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Confirm and add to this case", html, StringComparison.Ordinal);
         Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
@@ -1233,12 +1269,21 @@ public sealed class TriageQueuesWebTests
         Guid id,
         Guid receiptId,
         string reference,
-        string reason)
+        string reason,
+        (string OperationId, string ReceiptVersion)? renderedForm = null)
     {
-        using var surface = await client.GetAsync($"/Cases?tab=awaiting&selected={id:D}");
-        Assert.Equal(HttpStatusCode.OK, surface.StatusCode);
-        var surfaceHtml = await surface.Content.ReadAsStringAsync();
-        var receiptVersion = InputValue(surfaceHtml, "receiptVersion");
+        string receiptVersion;
+        if (renderedForm is { } replay)
+        {
+            receiptVersion = replay.ReceiptVersion;
+        }
+        else
+        {
+            using var surface = await client.GetAsync($"/Cases?tab=awaiting&selected={id:D}");
+            Assert.Equal(HttpStatusCode.OK, surface.StatusCode);
+            var surfaceHtml = await surface.Content.ReadAsStringAsync();
+            receiptVersion = InputValue(surfaceHtml, "receiptVersion");
+        }
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         // The Cases page has no review dialog: one press resolves the typed
         // reference and attaches, so the test sends exactly one POST.
@@ -1249,7 +1294,7 @@ public sealed class TriageQueuesWebTests
                 ["__RequestVerificationToken"] = token,
                 ["id"] = id.ToString("D"),
                 ["receiptId"] = receiptId.ToString("D"),
-                ["operationId"] = Guid.NewGuid().ToString("D"),
+                ["operationId"] = renderedForm?.OperationId ?? Guid.NewGuid().ToString("D"),
                 ["receiptVersion"] = receiptVersion,
                 ["reference"] = reference,
                 ["reason"] = reason
