@@ -88,10 +88,9 @@ exclusion.
 | CASE-30 | Track native inspection/report work with optional EVA handoff | [Focused EVA manual handoff](frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff) |
 | CASE-32 | Sign-off Engineer field, default and signature tuple | [Sign-off Engineer](frd/frd-13-case-lifecycle-and-workflow.md#sign-off-engineer); [Staff accounts](frd/frd-04-parties-accounts-and-access.md#staff-accounts) |
 | CASE-34 | Inspect at fast-update choices and Case storage location | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
-| UI-01 | Operations dashboard/cockpit | [Operations](frd/frd-15-work-centre-queues-and-search.md#operations) |
 | UI-02 | Case queues for Not ready, Review, and Held | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | UI-03 | E-mail activity for Unidentified, including closed and could-not-be-read items | [Pre-Case records](frd/frd-15-work-centre-queues-and-search.md#pre-case-records) |
-| UI-04 | New cases today, Sent to Engineer, and Reports sent day/week activity | [Operations](frd/frd-15-work-centre-queues-and-search.md#operations) |
+| UI-04 | New cases today, Sent to Engineer, and Reports sent day/week activity | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-05 | Click-through filtered work queues | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | [Dashboard freshness and reconciliation](frd/frd-15-work-centre-queues-and-search.md#dashboard-freshness-and-reconciliation) |
 | UI-07 | Search and filter across Cases and pre-Case records | [Search](frd/frd-15-work-centre-queues-and-search.md#search) |
@@ -102,7 +101,7 @@ exclusion.
 | UI-16 | Operations Workspace shell: rail, counts, command palette | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
 | UI-17 | Case record: Scroll and Tabs modes over ten sections, and the Inspection and Audit views | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-18 | Awaiting instruction pre-Case queue | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
-| UI-19 | Service health is Administration-only; Operations links to it | [Operations](frd/frd-15-work-centre-queues-and-search.md#operations) |
+| UI-19 | Service health is Administration-only | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | ENG-03 | Damage record: zones with severity and note, tyres, belts, diagram | [Damage record](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record) |
 | ENG-04 | Settlement fields with derived equity | [Settlement](frd/frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement) |
 | AI-11 | Market Research AI job completed outside Pegasus | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
@@ -206,9 +205,8 @@ exclusion.
 | RPT-05 | Addenda from accepted data plus a versioned amendment (deferred) | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) |
 | RPT-07 | Estimate document rendered per estimate version from the one totals owner | [Report generation entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point) |
 | AI-08 | AI-drafted query response reviewed by human staff before sending | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
-| AI-09 | Send to AI: pointer-only hand-off, attributed writes | [Targeted sending and reviewed AI proposals](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#targeted-sending-and-reviewed-ai-proposals) |
 | AI-10 | Named AI job kinds with durable lifecycle and job list | [AI Job List](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list) |
-| MCP-07 | Administration settings for the Send to AI connector | [Send to AI connector settings](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-connector-settings) |
+| MCP-07 | Administration switch for Send to AI | [Send to AI switch](frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-switch) |
 | MI-01 | Per-Engineer throughput, query rate/types, and Audit uplift | [Reports](frd/frd-17-administration-workspace.md#reports) |
 | MI-02 | Per-principal report counts, types, and periods feeding invoice generation | [Reports](frd/frd-17-administration-workspace.md#reports) |
 | MI-03 | Holding age and instruction-to-produced, ready and sent turnaround | [Reports](frd/frd-17-administration-workspace.md#reports) |
@@ -260,3 +258,5 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 | EXT-16 | Collision Engineers guided mobile image capture | 2026-09-18, operator decision |
 | EXT-19 | Custom application domain | 2026-09-18, operator decision |
 | INT-21 | Human-reviewed extraction cohort and accuracy reporting | 2026-09-18, operator decision |
+| UI-01 | Operations dashboard/cockpit: the `/Operations` page and its rail row | 2026-09-28, operator decision |
+| AI-09 | Send to AI push hand-off to a channel, with its work-request record and connector settings; the AI Job List (`AI-10`) is the only route | 2026-09-28, operator decision |

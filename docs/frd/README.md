@@ -30,7 +30,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-12](frd-12-operator-experience.md) | Shell, navigation, display labels and the page contract | UI |
 | [FRD-13](frd-13-case-lifecycle-and-workflow.md) | Case states, readiness, Hand to Engineer, actions, Create audit, Close case, Archive, chasing, Completed and Query | CASE |
 | [FRD-14](frd-14-record-edit-leases.md) | Edit leases and record edit scopes, Take over, refusals | CASE, TRI, ACC |
-| [FRD-15](frd-15-work-centre-queues-and-search.md) | Work Centre, Cases queues, pre-Case records, the Triage Case page, Search, Operations, freshness | UI |
+| [FRD-15](frd-15-work-centre-queues-and-search.md) | Work Centre, Cases queues, pre-Case records, the Triage Case page, Search, freshness | UI |
 | [FRD-16](frd-16-case-record-workspace.md) | The Case record page, its Inspection and Audit views, and the Engineer workbench | UI, ENG |
 | [FRD-17](frd-17-administration-workspace.md) | Administration areas: accounts, contacts, workflow configuration, logs, reports | UI, MI |
 | [FRD-18](frd-18-manual-upload.md) | Staff upload page, upload limits and confirmation | INT |
@@ -42,7 +42,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md) | Engineer findings, damage record, valuation sources, settlement, Market Research | CASE, ENG, EXT |
 | [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md) | Repair specifications, Glass's sessions, estimate sources, PDF estimate import | ENG, EXT |
 | [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md) | Mailbox allowlist, activation, wipe, wake-up and recovery | MAIL, INT |
-| [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md) | Send to AI, reviewed proposals, the AI Job List, connector settings | AI, MCP |
+| [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md) | Send to AI, reviewed proposals, the AI Job List, the Send to AI switch | AI, MCP |
 
 ## Template
 

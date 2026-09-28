@@ -48,14 +48,15 @@ The authenticated routes, in rail order, are:
 3. Upload
 4. Cases
 5. Search
-6. Operations
-7. Administration, visible only to authorised Administrators
-8. the account dialog and sign-out, from the rail foot
+6. Administration, visible only to authorised Administrators
+7. the account dialog and sign-out, from the rail foot
 
 This order supersedes the 2026-08-04 order (`Dashboard → Inbox → Upload →
 Queues → Cases → Administration`): the Dashboard becomes the Work Centre,
-Queues becomes Cases, the former Cases search becomes Search, and Operations
-returns as a routed workspace. `Triage`, `Unidentified`, `Audit`,
+Queues becomes Cases and the former Cases search becomes Search. Operations
+returned as a routed workspace and was retired on 2026-09-28 (#865): its AI
+jobs live in the Work Centre and on Administration AI jobs, and Send
+Unidentified to AI is on the Unidentified record. `Triage`, `Unidentified`, `Audit`,
 `Not ready`, `Review` and `Held` keep their settled meanings. Triage is a Case
 type with its own states, reached through the Cases rail's Workflow group;
 Unidentified is a pre-Case record reached through the Cases rail. Neither is
@@ -78,8 +79,7 @@ content, top to bottom:
 - **Brand** — the refined Pegasus mark (`images/pegasus-mark-refined-128.png`, no wordmark
   inside the image) at 52px beside "PEGASUS" and the line "Case management" (v28 P1).
 - **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox
-  [count], Upload, Cases (`/cases`) [count], Search (`/search`), Operations
-  [count].
+  [count], Upload, Cases (`/cases`) [count], Search (`/search`).
 - **Nav label "Manage"**, then Administration — rendered for Administrators
   only, absent for everyone else.
 - **Rail foot** — the health line (dot and "Current · HH:MM") and the user
@@ -95,8 +95,8 @@ whose functions move to the utility bar and account dialog.
 **A rail count is a figure a page already queried**, never one the shell
 invents. The Cases count is
 `not_ready + review + with_engineer + query + held + triage + unidentified` (group
-contract §1.1); the Inbox and Operations figures are composed by the wave-2
-and wave-3 tickets that own those queries — the shell invents none. An absent
+contract §1.1); the Inbox figure is composed by the wave-2
+ticket that owns that query — the shell invents none. An absent
 count renders nothing at all — a shell-level `0` would be exactly
 the stale zero the operator-experience requirements forbid. Counts are
 supplied by one page filter (`Presentation/RailCountsPageFilter.cs`), not by
@@ -553,7 +553,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it); Cases rail groups |
 | `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
 | `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
-| `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Rail: Operations; running jobs |
+| `operations` | `loader` | `D606C955171E2BF83DA877BBC155127B0AB899007A3A16D0B90EE3C00C1926EF` | Running jobs |
 | `admin` | `layout-grid` | `DCF60CA3B7FC36D4C69ED1A6EBC4CAD464CE850786B7AEE5BD1AB0A542C0D0BE` | Rail: Administration |
 | `search` | `search` | `832472670DB14C3420D64D80271A04FE90AE32D47F4834F4E70E9A8E2678EE7E` | Utility search; palette; Search buttons; DVLA & MOT lookup |
 | `plus` | `plus` | `A1190965745A47ED26827784BBAE8B9291D5170501A02FB335D82247EA276108` | Add, Create, New estimate |
@@ -581,7 +581,7 @@ sixty glyphs; the earlier seventeen-glyph sprite was
 | `settings` | `settings` | `F6CE9F023EC1C2720723672887014349E1D3A68DF9555CA3795C5FEF95265B4A` | Principal settings, configuration |
 | `filter` | `filter` | `C4319C676F5B160213319934EB2DEC6F60DD6F73C344C0D6C84AE1699430D45C` | Filter bars |
 | `lock` | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Edit lease, idle lock |
-| `external` | `external-link` | `27EB1A4F2FC62CA8E0B422442016854B17A5178EC7EE0DE23EB894BD5E5C5DF3` | Open Operations, retained source |
+| `external` | `external-link` | `27EB1A4F2FC62CA8E0B422442016854B17A5178EC7EE0DE23EB894BD5E5C5DF3` | Retained source |
 | `eye` | `eye` | `73D6B13F2AE0E9AA498E371618CF4CC6392C75F1A4C23FCDF1B981451368EF7A` | Preview, Open report, Show key |
 | `bell` | `bell` | `5B315496E663ECA0E7465EDAD43FCD54BF00577C1737A5E8F9CC5352D185E79F` | Utility bar notifications |
 | `signout` | `log-out` | `20B23EB0AF17FE443827B2E64EC23057092180CDE64B3FAC5F2A9DC210A70880` | Sign out |
@@ -655,10 +655,9 @@ glyph the v26 mockups reference that no current page draws.
 | — | `undo` | `EE6DD129D3AD4ADD8FE1C87A3CDC8DE2E28B129C006C3F2AE52C5EB0C5FC2794` | Inbox Restore; Unidentified and Triage Reopen; Damage Reset; restore composed wording |
 | — | `mail-open` | `02B6080FE619C000EA414770A608F38F623664387E60F227B185C134641C1A10` | Administration nav and hub: E-mail templates |
 
-The v26 rail no longer draws the prototype's rail glyphs for three routes:
-Cases uses `list-checks`, Operations `activity` and Administration `settings`
-(`list`, `loader` and `layout-grid` remain in the sprite for their other
-uses).
+The v26 rail no longer draws the prototype's rail glyphs for two routes:
+Cases uses `list-checks` and Administration `settings` (`list` and
+`layout-grid` remain in the sprite for their other uses).
 
 ### Imagery and evidence
 
@@ -867,7 +866,6 @@ deleted in wave 5.
 | `document-list`, `document-row`, `gallery`, `viewer-stage` | Case Files |
 | `mail-preview`, `decision-card` | Inbox preview and message decision |
 | `estimate-tabs`, `estimate-tab`, `estimate-editor`, `estimate-form-grid`, `estimate-table`, `estimate-totals` | Repair Spec section of the Case record |
-| `ai-jobs-panel` | Operations AI Job List |
 | `admin-layout`, `admin-nav` | Administration |
 | `up-surface`, `up-workspace`, `up-select`, `up-drop`, `up-inspector`, `up-filmstrip`, `up-decision`, `up-case`, `up-file-list` (`upload.css`) | Upload: the picker with its selected files, and the review's inspector beside the one Case decision (v30 E) |
 | `report-preview` | Report draft preview dialog body |
@@ -1020,7 +1018,7 @@ this section holds the cross-cutting rules every page is held to.
 | Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
-| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail, Image Intake and Operations; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
+| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage (Cancel Triage, Reopen, Link case, Unlink case and the Record correction determinations only), Mail and Image Intake; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
 
 ### Presentation responsibilities
 

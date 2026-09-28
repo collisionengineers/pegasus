@@ -83,9 +83,8 @@ Every authenticated page renders one shell: a persistent rail, a utility
 bar and the page content.
 
 **The rail** carries, in order, **Work Centre** (`/`), **Inbox** (`/Inbox`),
-**Upload** (`/Upload`), **Cases** (`/Cases`), **Search** (`/Search`),
-**Operations** (`/Operations`) and, for administrators only,
-**Administration** (`/Administration`). Inbox, Cases and Operations carry a
+**Upload** (`/Upload`), **Cases** (`/Cases`), **Search** (`/Search`) and, for administrators only,
+**Administration** (`/Administration`). Inbox and Cases carry a
 count. The Cases count is the sum of Not ready, Review, With Engineer, Query,
 Held, Triage and Unidentified. A count is a page-queried figure: an absent
 count renders nothing, never `0`. The current route is marked by more than
@@ -182,12 +181,11 @@ raise failed; an Administrator retries it from
 | `/Search` | Advanced search ([FRD-15](frd-15-work-centre-queues-and-search.md#search)) | Cases list |
 | `/Unidentified/{id}`, `/VehicleImages/{id}` | Unidentified and vehicle-images records | The received-file page |
 | `/Received/{id}/Source`, `/Received/{id}/Image`, `/Received/{id}/Asset/{assetId}` | Open file: the retained original, served to authorised staff only | — |
-| `/Operations` | AI jobs, attention, EVA handoffs ([FRD-15](frd-15-work-centre-queues-and-search.md#operations)) | Operations Service health table |
 | `/Administration`, `/Administration/...` | Administration areas ([FRD-17](frd-17-administration-workspace.md#administration)) | Separate Principal and Claim Source areas |
 | `/Administration/Logs` | Action logs and Intake log tabs; `/Administration/ActionLogs` answers a permanent redirect keeping its query | Action Logs |
 
 There is no received-file page. Its history is the Intake log, its technical
-actions are on Operations and the Intake log, and its outcome is stated on
+actions are on the Intake log, and its outcome is stated on
 its message, its upload and the record it became
 ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
