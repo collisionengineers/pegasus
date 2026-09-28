@@ -612,6 +612,269 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(1, await harness.ActionHistoryCountAsync("case_report_generation_ready"));
     }
 
+    /// <summary>
+    /// A request can end while its file is still on its way to Box. Custody
+    /// files it afterwards, and the Worker's pass then records the report as
+    /// stored, so nobody has to press Generate report again.
+    /// </summary>
+    [Fact]
+    public async Task APendingReportWhoseFileIsFiledLaterIsSettledWithoutAnotherGenerate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var custody = new RecordingCustody(harness)
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending
+        };
+        var pending = await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pending.Outcome);
+        await harness.RecordCustodyOccurrenceAsync(custody, Harness.OperationKey);
+        var later = Harness.StartUtc.AddMinutes(4);
+
+        // Nothing is filed yet, so there is nothing to settle however old it is.
+        Assert.Equal(0, await harness.SettleAt(later).ExecuteAsync(50, CancellationToken.None));
+        Assert.Equal(
+            CaseReportArtifactStatus.Pending,
+            Assert.Single(Assert.Single(await harness.GenerationRowsAsync()).Artifacts).Status);
+
+        // Custody files the version out of process, as its reconciliation does.
+        await harness.ConfirmCustodyObjectAsync(custody.VersionId!.Value);
+
+        Assert.Equal(1, await harness.SettleAt(later).ExecuteAsync(50, CancellationToken.None));
+
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        var artifact = Assert.Single(generation.Artifacts);
+        Assert.Equal(CaseReportArtifactStatus.Confirmed, artifact.Status);
+        Assert.Equal(custody.VersionId, artifact.VersionId);
+        Assert.Equal(custody.DocumentId, artifact.DocumentId);
+        Assert.Equal(custody.Sha256, artifact.Sha256);
+        Assert.Equal($"box-file-{custody.VersionId:N}", artifact.BoxFileId);
+        Assert.Null(artifact.FailureCode);
+
+        // The history says the Worker confirmed it, and names the file as custody holds it.
+        var confirmed = Assert.Single(await harness.ArtifactConfirmedEventsAsync());
+        Assert.Equal(nameof(ActorKind.SystemWorker), confirmed.ActorKind);
+        Assert.Equal(EfSettleFiledCaseReportArtifacts.ActorId, confirmed.ActorSubjectId);
+        Assert.Equal(later, confirmed.OccurredAtUtc);
+        Assert.Equal(Harness.OperationKey, confirmed.CorrelationId);
+        using var after = JsonDocument.Parse(confirmed.AfterJson!);
+        Assert.Equal("AssessmentReport.pdf", after.RootElement.GetProperty("fileName").GetString());
+        Assert.Equal(
+            custody.VersionId,
+            Guid.Parse(after.RootElement.GetProperty("versionId").GetString()!));
+        var ready = Assert.Single(await harness.ReadyEventsAsync());
+        Assert.Equal(EfSettleFiledCaseReportArtifacts.ActorId, ready.ActorSubjectId);
+
+        // A second pass finds nothing left to settle and writes nothing more.
+        Assert.Equal(0, await harness.SettleAt(later).ExecuteAsync(50, CancellationToken.None));
+        Assert.Single(await harness.ArtifactConfirmedEventsAsync());
+        Assert.Single(await harness.ReadyEventsAsync());
+
+        // Generate report pressed afterwards answers from the settled row and draws nothing.
+        harness.Sequence.Clear();
+        var replayed = await harness.Generate(new RecordingCustody(harness), new RefusingRenderer())
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Generated, replayed.Outcome);
+        Assert.Equal(["freeze"], harness.Sequence);
+    }
+
+    /// <summary>
+    /// The production case: the file was filed while the request still ran,
+    /// and the request recorded Pending. The pass leaves the report to its
+    /// request until it was frozen more than three minutes ago.
+    /// </summary>
+    [Fact]
+    public async Task AFiledReportFrozenWithinThreeMinutesIsLeftToItsRequest()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var custody = new RecordingCustody(harness)
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending,
+            ConfirmedInCustody = true
+        };
+        var pending = await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pending.Outcome);
+        Assert.Equal(
+            DocumentCustodyStatus.Confirmed,
+            await harness.CustodyStatusAsync(custody.VersionId!.Value));
+        await harness.RecordCustodyOccurrenceAsync(custody, Harness.OperationKey);
+
+        Assert.Equal(
+            0,
+            await harness.SettleAt(Harness.StartUtc.AddMinutes(3)).ExecuteAsync(50, CancellationToken.None));
+
+        var untouched = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Pending, untouched.State);
+        Assert.Equal(CaseReportArtifactStatus.Pending, Assert.Single(untouched.Artifacts).Status);
+        Assert.Empty(await harness.ArtifactConfirmedEventsAsync());
+
+        Assert.Equal(
+            1,
+            await harness.SettleAt(Harness.StartUtc.AddMinutes(3).AddSeconds(1))
+                .ExecuteAsync(50, CancellationToken.None));
+        Assert.Equal(
+            CaseReportGenerationState.Confirmed,
+            Assert.Single(await harness.GenerationRowsAsync()).State);
+    }
+
+    /// <summary>
+    /// A fee note joins a report frozen long before, so the report's age
+    /// says nothing about the request producing the fee note. The pass goes
+    /// by when custody recorded the file as well.
+    /// </summary>
+    [Fact]
+    public async Task ACompanionDocumentIsLeftToItsRequestHoweverOldItsReportIs()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        const string feeOperationKey = "case-report-fee-later";
+        var custody = new RecordingCustody(harness)
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending,
+            ConfirmedInCustody = true
+        };
+        var feeNote = await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(
+                harness.Request(
+                    CaseReportArtifactKind.FeeNote,
+                    feeOperationKey,
+                    targetGenerationId: report.Generation!.Id),
+                CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Pending, feeNote.Outcome);
+        var asked = Harness.StartUtc.AddHours(1);
+        await harness.RecordCustodyOccurrenceAsync(custody, feeOperationKey, asked);
+
+        Assert.Equal(
+            0,
+            await harness.SettleAt(asked.AddMinutes(2)).ExecuteAsync(50, CancellationToken.None));
+        Assert.Equal(
+            1,
+            await harness.SettleAt(asked.AddMinutes(4)).ExecuteAsync(50, CancellationToken.None));
+
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        Assert.Equal(2, generation.Artifacts.Count);
+        Assert.All(
+            generation.Artifacts,
+            artifact => Assert.Equal(CaseReportArtifactStatus.Confirmed, artifact.Status));
+        // The report was ready before the fee note was asked for; it is not announced twice.
+        Assert.Single(await harness.ReadyEventsAsync());
+    }
+
+    /// <summary>
+    /// Catalogue checks run as the database owner. This runs the actual pass
+    /// as a member of the Worker's role, which must be able to update the
+    /// artifact row it could only read before.
+    /// </summary>
+    [Fact]
+    public async Task WorkerRuntimeRoleCanSettleAFiledReportThroughTheActualPass()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var custody = new RecordingCustody(harness)
+        {
+            Disposition = CaseArtifactCustodyDisposition.Pending,
+            ConfirmedInCustody = true
+        };
+        await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        await harness.RecordCustodyOccurrenceAsync(custody, Harness.OperationKey);
+        await using var connectionOwner = await harness.Factory.CreateDbContextAsync();
+        await connectionOwner.Database.OpenConnectionAsync();
+        await connectionOwner.Database.ExecuteSqlRawAsync(
+            "CREATE USER [report_settlement_caller] WITHOUT LOGIN; ALTER ROLE [pegasus_worker_runtime_role] ADD MEMBER [report_settlement_caller];");
+        await connectionOwner.Database.ExecuteSqlRawAsync("EXECUTE AS USER = 'report_settlement_caller';");
+        try
+        {
+            // EF does not own this already-open connection. The pass's read
+            // and its confirmation both run under the real runtime role.
+            var factory = new PooledDbContextFactory<PegasusDbContext>(
+                new DbContextOptionsBuilder<PegasusDbContext>()
+                    .UseSqlServer(connectionOwner.Database.GetDbConnection()).Options);
+            var settled = await new EfSettleFiledCaseReportArtifacts(
+                    factory, Harness.ClockAt(Harness.StartUtc.AddMinutes(4)))
+                .ExecuteAsync(50, CancellationToken.None);
+
+            Assert.Equal(1, settled);
+        }
+        finally
+        {
+            await connectionOwner.Database.ExecuteSqlRawAsync("REVERT;");
+        }
+
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        Assert.Equal(CaseReportArtifactStatus.Confirmed, Assert.Single(generation.Artifacts).Status);
+    }
+
+    /// <summary>
+    /// The whole chain over custody itself, with no fake between the report
+    /// and its file: the report waits for its Box folder, a second press draws
+    /// nothing, reconciliation files the version once the folder exists, and
+    /// the pass then records the report as stored.
+    /// </summary>
+    [Fact]
+    public async Task AReportWaitingForItsFolderIsFiledByReconciliationAndThenSettled()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using var scope = harness.CreateScope();
+        var content = scope.ServiceProvider.GetRequiredService<IDocumentContentStore>();
+        var custody = new EfCaseArtifactCustody(
+            harness.Factory,
+            content,
+            scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeQuarantineArtifactStore>(),
+            Harness.Clock);
+
+        var pending = await harness.GenerateThroughCustody(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pending.Outcome);
+        var waiting = Assert.Single(pending.Generation!.Artifacts);
+        Assert.Equal(CaseReportArtifactStatus.Pending, waiting.Status);
+        Assert.Equal("case_custody_pending", waiting.FailureCode);
+
+        // A second press asks custody first. Drawing again could never match
+        // the bytes custody holds, so the renderer here refuses every call.
+        harness.Sequence.Clear();
+        var pressedAgain = await harness.GenerateThroughCustody(custody, new RefusingRenderer())
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        Assert.Equal(CaseReportGenerationOutcome.Pending, pressedAgain.Outcome);
+        Assert.Equal(["freeze", "record"], harness.Sequence);
+
+        await harness.RecordCaseFolderAsync("case-root");
+        var reconciled = await new ReconcilePendingArtifactCustody(
+                harness.Factory,
+                content,
+                scope.ServiceProvider.GetRequiredService<Pegasus.Core.Intake.IIntakeArtifactStore>(),
+                Harness.Clock)
+            .ExecuteAsync(10, CancellationToken.None);
+        Assert.Equal(1, reconciled.Confirmed);
+        Assert.Equal(
+            DocumentCustodyStatus.Confirmed,
+            await harness.CustodyStatusAsync(waiting.VersionId!.Value));
+        // Filing the version leaves the report's own record as it was.
+        Assert.Equal(
+            CaseReportArtifactStatus.Pending,
+            Assert.Single(Assert.Single(await harness.GenerationRowsAsync()).Artifacts).Status);
+
+        Assert.Equal(
+            1,
+            await harness.SettleAt(Harness.StartUtc.AddMinutes(4)).ExecuteAsync(50, CancellationToken.None));
+
+        var generation = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, generation.State);
+        var settled = Assert.Single(generation.Artifacts);
+        Assert.Equal(waiting.Id, settled.Id);
+        Assert.Equal(CaseReportArtifactStatus.Confirmed, settled.Status);
+        Assert.Equal(waiting.VersionId, settled.VersionId);
+        Assert.Equal(new RecordingRenderer(harness).Sha256, settled.Sha256);
+        Assert.Null(settled.FailureCode);
+        Assert.Null(settled.PendingContentStorageKey);
+        Assert.Single(await harness.ReadyEventsAsync());
+    }
+
     [Fact]
     public async Task AFailedArtifactIsRetriedWithTheSameSnapshotOperationKeyAndArtifactRow()
     {
@@ -1506,6 +1769,32 @@ public sealed class CaseReportGenerationPersistenceTests
                 custodyStatus ?? new RecordingCustodyStatus(),
                 new FixedTimeProvider(StartUtc));
 
+        /// <summary>
+        /// The generator over custody itself, which both retains the file and
+        /// answers what it holds, clocked as the store is.
+        /// </summary>
+        public GenerateCaseReport GenerateThroughCustody(
+            EfCaseArtifactCustody custody, IAssessmentReportRenderer renderer) => new(
+            new RecordingStore(Store, Sequence),
+            new FakeContentSource(this),
+            renderer,
+            new RefusingRepairSpecificationDocuments(),
+            custody,
+            custody,
+            new FixedTimeProvider(StartUtc));
+
+        /// <summary>The harness's own services, for the local stores custody writes to.</summary>
+        public AsyncServiceScope CreateScope() => database.CreateAsyncScope();
+
+        /// <summary>Records the Case's Box folder, as creating it does.</summary>
+        public async Task RecordCaseFolderAsync(string rootRemoteId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var @case = await context.Cases.SingleAsync(item => item.Id == CaseId);
+            @case.CustodyRootRemoteId = rootRemoteId;
+            await context.SaveChangesAsync();
+        }
+
         public static IRenderCaseEstimateDocument RenderedRepairSpecificationDocumentsForTest() =>
             new RenderedRepairSpecificationDocuments();
 
@@ -1810,6 +2099,52 @@ public sealed class CaseReportGenerationPersistenceTests
                 occurrences[document.Id] = occurrenceId = Guid.NewGuid();
             }
             return new(document.Id, version.Id, request.Sha256, content) { OccurrenceId = occurrenceId };
+        }
+
+        /// <summary>
+        /// Writes the occurrence custody keeps for a retained file, under the
+        /// operation key the report's row carries, recorded at the given time.
+        /// The fake custody keeps its occurrences in memory; the Worker's
+        /// settle pass finds a filed report through this row.
+        /// </summary>
+        public async Task RecordCustodyOccurrenceAsync(
+            RecordingCustody custody, string operationKey, DateTimeOffset? recordedAtUtc = null)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var version = await context.Set<DocumentVersionEntity>().SingleAsync(
+                item => item.Id == custody.VersionId);
+            var document = await context.Set<CaseDocumentEntity>().SingleAsync(
+                item => item.Id == version.DocumentId);
+            version.CreatedAtUtc = recordedAtUtc ?? StartUtc;
+            context.Add(new DocumentOccurrenceEntity
+            {
+                Id = custody.OccurrenceId!.Value,
+                CaseId = CaseId,
+                DocumentId = document.Id,
+                VersionId = version.Id,
+                Ordinal = document.Ordinal,
+                SemanticRole = DocumentSemanticRole.OriginalSource,
+                Source = DocumentSource.Generated,
+                SourceOccurrenceIdentity = document.SourceOccurrenceIdentity,
+                RecordedAtUtc = version.CreatedAtUtc,
+                OperationKey = operationKey,
+                InReport = false
+            });
+            await context.SaveChangesAsync();
+        }
+
+        /// <summary>The Worker's settle pass, clocked to the given instant.</summary>
+        public EfSettleFiledCaseReportArtifacts SettleAt(DateTimeOffset now) =>
+            new(Factory, new FixedTimeProvider(now));
+
+        public async Task<IReadOnlyList<ActionHistoryEntity>> ArtifactConfirmedEventsAsync()
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            return await context.ActionHistory.AsNoTracking()
+                .Where(item => item.AggregateType == "case"
+                    && item.AggregateId == CaseId.ToString("D")
+                    && item.EventKind == EfCaseReportGenerationStore.ArtifactConfirmedEventKind)
+                .ToArrayAsync();
         }
 
         public async Task ConfirmCustodyObjectAsync(Guid versionId)
@@ -2401,15 +2736,16 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public string? LastOperationKey { get; private set; }
 
-        public CaseArtifactCustodyResult Result { get; init; } = new(
-            CaseArtifactCustodyDisposition.Unknown, null, null, null, null, null, null, null, null, null, null);
+        /// <summary>What custody holds under the operation key; nothing on a first request.</summary>
+        public CaseArtifactCustodyResult? Result { get; init; }
 
         public Task<CaseArtifactCustodyResult> GetAsync(
             ActionActor actor, Guid caseId, Guid documentId, Guid versionId, Guid occurrenceId,
             CancellationToken cancellationToken)
         {
             LastQuery = (caseId, documentId, versionId, occurrenceId);
-            return Task.FromResult(Result);
+            return Task.FromResult(Result
+                ?? throw new FileNotFoundException("Custody holds nothing under these identities."));
         }
 
         /// <summary>
@@ -2421,7 +2757,7 @@ public sealed class CaseReportGenerationPersistenceTests
             CancellationToken cancellationToken)
         {
             LastOperationKey = operationKey;
-            return Task.FromResult<CaseArtifactCustodyResult?>(Result);
+            return Task.FromResult(Result);
         }
     }
 

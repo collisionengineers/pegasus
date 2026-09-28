@@ -217,8 +217,11 @@ repairer's VAT status is recorded on each repair specification, the one
 owner of that fact; an `Unknown` status never blocks **Use repair spec**, and
 the specification's selected VAT categories govern its totals
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report)).
-Report readiness asks no separate repairer VAT question. Supplied, observed,
-derived and professionally accepted values keep their distinctions.
+An `Unknown` status does block the report, and so does a hand-picked set of
+VAT categories the report has no wording for (operator, 27 September 2026).
+Report readiness reads the status from the Current repair specification; the
+Case records it nowhere else. Supplied, observed, derived and professionally
+accepted values keep their distinctions.
 
 ### Retained PDF estimate import
 

@@ -210,9 +210,12 @@ Audit share them and nothing is copied. Create audit makes Pegasus create an
 `a.{Case/PO}` subfolder under the Case's Box folder. Each document records
 which folder holds it: the Case folder, or the audit folder for a report of
 the Audit. An Audit report waits as pending custody until the audit folder
-exists, then is filed there; reconciliation retries it. Every other file,
-including images, stays in the Case folder. A document is always found
-through its recorded folder, never from a reference prefix
+exists, then is filed there; reconciliation retries it. Once a generated
+report's file is filed, the Worker settles the report's own record as stored,
+so nobody presses Generate report again
+([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
+Every other file, including images, stays in the Case folder. A document is
+always found through its recorded folder, never from a reference prefix
 ([ADR-0056](../adr/0056-one-case-per-work-data-and-triage-case-type.md),
 [FRD-01](frd-01-case-identity-and-lifecycle.md)).
 

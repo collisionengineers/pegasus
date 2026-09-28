@@ -223,8 +223,9 @@ internal sealed class EfVehicleLookupWorkStore(
         var freshness = CaseReportFreshness.ClassifyVehicle(
             beforeVehicle,
             ReportVehicleDependencies(caseDataFields, selectedMileageSource));
-        // The Vehicle type and the lookup's own facts are printed assessment facts,
-        // not Case-data vehicle dependencies: the assessment classifier decides.
+        // The engine capacity and fuel the lookup records are printed assessment
+        // facts, not Case-data vehicle dependencies: the assessment classifier
+        // decides. The Vehicle type and the lookup's other facts print nowhere.
         if (!freshness.IsStale)
         {
             freshness = CaseReportFreshness.ClassifyAssessment(beforeAssessment, afterAssessment);

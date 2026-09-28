@@ -443,12 +443,51 @@ public sealed class EfCaseReportGenerationStore(
         ArgumentNullException.ThrowIfNull(request);
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         RequireHash(request.Sha256);
-        var caseKey = request.CaseId.ToString("D");
 
+        try
+        {
+            return await ConfirmInTransactionAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (CaseAllocationRetry.IsRetryable(exception))
+        {
+            // The Worker's settle pass reached the same artifact and the
+            // database ended one of the two transactions. Confirming is
+            // idempotent, so a second attempt reads the row as the other left it.
+            return await ConfirmInTransactionAsync(request, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<CaseReportGenerationRecord> ConfirmInTransactionAsync(
+        ConfirmCaseReportArtifactRequest request, CancellationToken cancellationToken)
+    {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
 
+        if (await ConfirmArtifactAsync(context, request, cancellationToken).ConfigureAwait(false))
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return await RequireRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The same-context confirmation core the public confirmation and the
+    /// Worker's settle pass both call inside their own transaction, so a
+    /// generated artifact is confirmed one way whoever confirms it. An
+    /// artifact already confirmed with the same bytes is left exactly as it
+    /// stands and the answer is false. This never saves — the caller's
+    /// transaction does.
+    /// </summary>
+    internal static async Task<bool> ConfirmArtifactAsync(
+        PegasusDbContext context,
+        ConfirmCaseReportArtifactRequest request,
+        CancellationToken cancellationToken)
+    {
+        var caseKey = request.CaseId.ToString("D");
         var (generation, artifact) = await RequireArtifactAsync(
             context, request.CaseId, request.GenerationId, request.ArtifactId, cancellationToken)
             .ConfigureAwait(false);
@@ -461,8 +500,7 @@ public sealed class EfCaseReportGenerationStore(
                     "The generated artifact is already confirmed with different immutable bytes.");
             }
 
-            return await RequireRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
-                .ConfigureAwait(false);
+            return false;
         }
 
         artifact.State = nameof(CaseReportArtifactStatus.Confirmed);
@@ -543,10 +581,7 @@ public sealed class EfCaseReportGenerationStore(
             }
         }
 
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        return await RequireRecordAsync(context, request.CaseId, request.GenerationId, cancellationToken)
-            .ConfigureAwait(false);
+        return true;
     }
 
     public async Task<CaseReportGenerationRecord> RecordArtifactOutcomeAsync(

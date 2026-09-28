@@ -153,7 +153,11 @@ public static class AssessmentVocabulary
     /// <summary>The three areas the plan cannot show, each recorded alone.</summary>
     public static IReadOnlyList<string> DamageOtherAreas { get; } = ["underside", "interior", "mechanical"];
 
-    /// <summary>Every recordable area with its name, as the record, the cells and the report print it.</summary>
+    /// <summary>
+    /// Every recordable area with its name, as the record and the Case page's
+    /// cells show it. The report names an area in its own words
+    /// (<see cref="Pegasus.Core.Reports.ReportWordingComposition.LeadingWords"/>).
+    /// </summary>
     public static IReadOnlyDictionary<string, string> DamageAreas { get; } =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -305,15 +309,6 @@ public static class AssessmentVocabulary
         VehicleTaxExpiry,
         VehicleMotExpiry
     };
-
-    /// <summary>
-    /// Whether the recorded roadworthiness makes the temporary repairs part of
-    /// the assessment (operator, 24 September 2026): only an unroadworthy
-    /// vehicle has them, so Decisions shows them and the report prints them
-    /// only then.
-    /// </summary>
-    public static bool TemporaryRepairsApply(string? legalStatus) =>
-        string.Equals(legalStatus, "unroadworthy", StringComparison.Ordinal);
 
     /// <summary>
     /// Paths the assessment surface displays but the accepted case record
