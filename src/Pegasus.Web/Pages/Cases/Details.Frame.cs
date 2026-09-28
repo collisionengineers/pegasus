@@ -158,13 +158,23 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
+    /// The report blockers the Next action lists (issue 899): while the
+    /// report is not ready and this view's assessment is writable, every
+    /// blocker, each linking to the section that clears it (FRD-13). Empty
+    /// otherwise, and always in the read-only Inspection view.
+    /// </summary>
+    public IReadOnlyList<AssessmentReadinessItem> NextActionBlockers =>
+        !AssessmentIsReadOnly && ReportDraftNotReady ? ReportDraftReasons : [];
+
+    /// <summary>
     /// The one-line Next action the aside states: the AI draft rows come first
     /// (rendered by the view), then the next permitted lifecycle action. With
-    /// Engineer, while the report is not ready, it names the first blocker at
-    /// the section that clears it, and at the Report section when that blocker
-    /// has none. Delivery is the next action only once the report is stored.
+    /// Engineer, while the report is not ready, there is no line: the
+    /// <see cref="NextActionBlockers"/> list is the next action (in the
+    /// Inspection view, which lists none, the line names Report not ready).
+    /// Delivery is the next action only once the report is stored.
     /// </summary>
-    public (string Label, string SectionKey) NextAction
+    public (string Label, string SectionKey)? NextAction
     {
         get
         {
@@ -183,17 +193,10 @@ public sealed partial class DetailsModel
                     ? OutstandingRequirements[0].Title
                     : OperatorLabels.CaseStage(workflow.State), "overview");
             }
-            if (ReportDraftNotReady && ReportDraftReasons.Count > 0)
+            if (ReportDraftNotReady)
             {
-                // One line in the aside: the first blocker and how many follow,
-                // linking to the section that clears the first (FRD-13). The
-                // Report section lists every blocker with its own link, and is
-                // the target when the first has no section.
-                var first = ReportDraftReasons[0];
-                return (ReportDraftReasons.Count > 1
-                        ? $"{first.Requirement} · {ReportDraftReasons.Count - 1} more"
-                        : first.Requirement,
-                    BlockerSectionKey(first) ?? "report");
+                // A writable view lists the blockers in place of this line.
+                return AssessmentIsReadOnly ? (CaseWorkspaceLabels.Report.NotReady, "report") : null;
             }
             if (CurrentReportGeneration is null
                 || CurrentReportGeneration.State == Pegasus.Core.Reports.CaseReportGenerationState.Stale)

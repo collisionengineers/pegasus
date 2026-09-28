@@ -261,9 +261,9 @@ public sealed partial class AssessmentReportDraftWebTests
 
     /// <summary>
     /// FRD-13 (issue #834): every report blocker is a row that names what is
-    /// missing and links to the Case section that clears it, and the Next
-    /// action links the first blocker to its own section rather than to
-    /// Valuation.
+    /// missing and links to the Case section that clears it. With Engineer
+    /// the rows are the Next action itself (issue 899): no one-line summary
+    /// beside them, and no second list in the Report section.
     /// </summary>
     [Fact]
     public async Task EachReportBlockerLinksToTheSectionThatClearsIt()
@@ -362,18 +362,11 @@ public sealed partial class AssessmentReportDraftWebTests
             engineerRow.Contains("blocker-actions", StringComparison.Ordinal),
             $"An Engineer's Sign-off blocker links nowhere: {engineerRow}");
 
-        var nextAction = NextActionRegex().Match(html);
-        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
-        var panel = nextAction.Value;
-        Assert.Equal(
-            $"{readiness.Reasons[0].Requirement} · {readiness.Reasons.Count - 1} more",
-            NextLabelRegex().Match(panel).Groups["label"].Value);
-        var link = SectionJumpRegex().Match(panel);
-        Assert.True(link.Success, "The Next action must link to a section.");
-        Assert.Equal("vehicle", link.Groups["key"].Value);
-        Assert.Contains($"href=\"/Cases/{caseId:D}?section=vehicle#section-vehicle\"", link.Value, StringComparison.Ordinal);
-        Assert.Equal("Vehicle", link.Groups["label"].Value);
-        Assert.DoesNotContain("section=valuation", panel, StringComparison.Ordinal);
+        var panel = CaseWebTestSupport.NextActionRegex().Match(html).Value;
+        Assert.DoesNotContain("data-next-label", panel, StringComparison.Ordinal);
+        var report = CaseWebTestSupport.Section(html, "section-report-title");
+        Assert.Contains("data-report-gate", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-not-ready", report, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -811,11 +804,13 @@ public sealed partial class AssessmentReportDraftWebTests
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
 
-    /// <summary>The Report section's readiness list in decoded markup.</summary>
+    /// <summary>The Next action's readiness list in decoded markup (issue 899).</summary>
     private static string BlockerList(string html)
     {
-        var list = BlockerListRegex().Match(html);
-        Assert.True(list.Success, "The Report section must list what the report still needs.");
+        var nextAction = CaseWebTestSupport.NextActionRegex().Match(html);
+        Assert.True(nextAction.Success, "The Case aside must state its Next action.");
+        var list = BlockerListRegex().Match(nextAction.Value);
+        Assert.True(list.Success, "The Next action must list what the report still needs.");
         return list.Value;
     }
 
@@ -854,9 +849,6 @@ public sealed partial class AssessmentReportDraftWebTests
 
     [GeneratedRegex("<a[^>]*data-blocker-accounts[^>]*>(?<label>[^<]*)</a>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex AccountsLinkRegex();
-
-    [GeneratedRegex("<section[^>]*data-next-action[^>]*>.*?</section>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
-    private static partial Regex NextActionRegex();
 
     [GeneratedRegex("<span data-next-label>(?<label>.*?)</span>", RegexOptions.Singleline | RegexOptions.CultureInvariant)]
     private static partial Regex NextLabelRegex();

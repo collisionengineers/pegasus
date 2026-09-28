@@ -77,9 +77,18 @@ no workflow strip and no lifecycle panel; Return to Review, Unlink report
 evidence and Archive are items of the one Actions menu.
 
 An aside beside the sections holds **Figures** (three figures) and **Next action** (AI drafts ready on the Case with their
-per-kind action, and the next permitted action with a link to its section;
-With Engineer, while the report is not ready, its first blocker and how many
-follow, linking to the section that clears that blocker).
+per-kind action, and the next permitted action with a link to its section).
+While the report is not ready, the Next action carries the report's
+readiness list: every blocker, one row each with the requirement, its source,
+why it is outstanding, what clears it and a link to the section that clears
+it ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness)).
+With Engineer the list is the next action; in Not ready and Review it follows
+that state's next action. It shows beside every section and in both modes;
+a long list scrolls within the aside rather than pushing the sections down.
+When a newer fact has made the current generation stale, the Next action
+carries the dismissable warning "A newer fact changed after this generation.
+Generate again before delivery." There is no page-wide stale bar and no
+second stale notice in Report (operator, 28 September 2026).
 Once the report is ready, the Next action is **Generate report** until the
 report is stored, or **Waiting for the report to be stored** while its file
 is on its way to Box. Delivery is the Next action only once the report is
@@ -404,16 +413,14 @@ Financial ratio lines are permitted. The field meanings are owned by
 
 Whether the report uses an image, its order, rotation and crop live on the
 image tile in Files. The
-Report section shows the readiness list — one row per blocker with the
-requirement, its source, why it is outstanding, what clears it and a link to
-the section that clears it
-([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-readiness))
-— wording blocks, Generate / Preview report draft, and a separate Fee pane
-for the agreed fee, description lines and fee note preview
+Report section shows wording blocks, Generate / Preview report draft, and a
+separate Fee pane for the agreed fee, description lines and fee note preview
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 **Generate report** is offered in and out of edit mode when nothing blocks;
-in edit mode it saves the Case first. The **Report not ready** label and the
-blocker list show in both modes (operator, 26 September 2026).
+in edit mode it saves the Case first. While something blocks, the head shows
+the one availability label **Not ready** in both modes (operator, 26
+September 2026); the blocker list itself is the aside's Next action (operator,
+28 September 2026).
 The content switches are under **On the report** in Valuation. The report
 renders the sign-off Engineer tuple and the marked damage diagram. The
 diagram is the Case page's own plan: the report and the Damage section draw
@@ -443,8 +450,10 @@ In the Audit view the report card's status begins with the Audit reference,
 and above the card one line stands for the Inspection's sent report: its
 title, "{Case/PO} · Sent {date}" and an **Inspection view** link. In the
 Inspection view the card shows the Inspection report with the status
-"{Case/PO} · Sent {date}"; it can be opened and downloaded, and the
-readiness list, generation and delivery are not shown.
+"{Case/PO} · Sent {date}"; it can be opened and downloaded, and generation
+and delivery are not shown. The Next action lists no blockers there; while
+the Audit's report is not ready its one line reads Report not ready and links
+to the Audit view.
 
 ### Files
 
@@ -680,7 +689,7 @@ read-only apart from Files' and Notes' actions that need no edit lease.
 ## Acceptance evidence
 
 Acceptance covers the ten sections and the `?section=` jump, the Report
-readiness list and the Next action each linking a blocker to its section,
+readiness list in the Next action linking each blocker to its section,
 the read-only rule in Completed, the Actions menu per state, and the one
 Save. It also covers the views: no Views card without an Audit; after Create
 audit the card and the Audit view by default; the Inspection view read-only

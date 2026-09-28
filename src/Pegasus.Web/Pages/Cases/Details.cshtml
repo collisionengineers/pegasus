@@ -112,6 +112,7 @@
         || offersCreateAudit || offersAdverseClosure;
     var staleGeneration = Model.CurrentReportGeneration is { State: CaseReportGenerationState.Stale };
     var next = Model.NextAction;
+    var reportBlockers = Model.NextActionBlockers;
     var outcome = Model.AssessmentEditorValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)
         ?? Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)?.Value;
     var salvageCategory = Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.SalvageCategory)?.Value;
@@ -437,17 +438,6 @@
                 </div>
             </div>
         </div>
-        <div data-case-stale>
-        @if (staleGeneration)
-        {
-            <div class="stale-bar" role="status" data-dismissable data-stale-bar>
-                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                <span>@CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice</span>
-                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="report" asp-route-view="@Model.ViewRoute" asp-fragment="section-report" data-section-jump="report">Open Report</a>
-                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
-            </div>
-        }
-        </div>
     </div>
 
     <div class="workspace">
@@ -513,7 +503,9 @@
         </div>
 
         @* The aside (v25 decision 7): Figures and Next action. Current
-           position is gone because the ribbon carries it. *@
+           position is gone because the ribbon carries it. Next action also
+           carries what stands between the Case and its report (issue 899):
+           a stale generation's notice and every report blocker. *@
         <aside class="workspace-aside" aria-label="Case context" data-case-aside>
             @* Views (v29 option 4): once the Case has its Audit, its two views,
                each named by the reference its report carries; the current one
@@ -577,10 +569,61 @@
                             <a class="btn btn--small btn--primary" href="@draft.Route">@action</a>
                         </div>
                     }
-                    <div class="next-row">
-                        <span data-next-label>@next.Label</span>
-                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@next.SectionKey" asp-fragment="section-@next.SectionKey" data-section-jump="@(Model.IsInspectionView ? null : next.SectionKey)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == next.SectionKey).Label</a>
-                    </div>
+                    @if (staleGeneration)
+                    {
+                        <div class="notice notice--warning" role="status" data-dismissable data-report-stale>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>@CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice</span>
+                            <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+                        </div>
+                    }
+                    @if (next is { } nextRow)
+                    {
+                        <div class="next-row">
+                            <span data-next-label>@nextRow.Label</span>
+                            <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@nextRow.SectionKey" asp-fragment="section-@nextRow.SectionKey" data-section-jump="@(Model.IsInspectionView ? null : nextRow.SectionKey)">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == nextRow.SectionKey).Label</a>
+                        </div>
+                    }
+                    @if (reportBlockers.Count > 0)
+                    {
+                        @* FRD-13: one row per blocker: what is missing, where it
+                           comes from, why it is required, what clears it, and a
+                           jump to the section that clears it. The Report head's
+                           Not ready label stays the one availability label.
+                           With Engineer the list is the next action; in Not
+                           ready and Review it follows that state's line. *@
+                        <div class="sub-panel blockers" data-report-not-ready>
+                            <h3>@CaseWorkspaceLabels.Report.NotReady</h3>
+                            <ul class="blocker-list">
+                                @foreach (var reason in reportBlockers)
+                                {
+                                    var blockerSection = Model.BlockerSectionKey(reason);
+                                    <li class="blocker" data-report-blocker="@blockerSection">
+                                        <strong>@reason.Requirement</strong>
+                                        <small>
+                                            <b>Source:</b> @reason.Source
+                                            <br /><b>Why:</b> @reason.WhyOutstanding
+                                            <br />@reason.HowToResolve
+                                        </small>
+                                        @if (blockerSection is not null)
+                                        {
+                                            <div class="blocker-actions">
+                                                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                                                   asp-route-section="@blockerSection" asp-fragment="section-@blockerSection"
+                                                   data-section-jump="@blockerSection">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == blockerSection).Label</a>
+                                            </div>
+                                        }
+                                        else if (Model.BlockerOpensAccounts(reason))
+                                        {
+                                            <div class="blocker-actions">
+                                                <a class="btn btn--small" asp-page="/Administration/Accounts/Index" data-blocker-accounts>@OperatorLabels.Admin.Accounts</a>
+                                            </div>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
                 </div>
             </section>
         </aside>
