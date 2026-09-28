@@ -453,6 +453,7 @@ public static class CaseWorkspaceLabels
         public const string Scaled = "Scaled";
         public const string Apply = "Apply";
         public const string RemoveScaling = "Remove scaling";
+        public const string ScalePreview = "Preview";
         public const string Floors = "Floors";
         public const string FloorLabour = "labour \u00a3/h";
         public const string FloorPrices = "prices %";

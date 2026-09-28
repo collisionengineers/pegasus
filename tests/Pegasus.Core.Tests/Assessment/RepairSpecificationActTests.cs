@@ -40,6 +40,31 @@ public sealed class RepairSpecificationActTests
     }
 
     [Fact]
+    public void APreviewReadsTheScaledSpecsOwnTotalsAndTheWordsApplyRecords()
+    {
+        // Issue 897: the slider previews what Apply records, so the target,
+        // the totals and the readout are Core's, one owner for each.
+        var specification = Estimate(
+            Header(rate: 80m),
+            Line("new_part", price: 400m, quantity: 2),
+            Line("repair", workUnits: 4m));
+        var target = RepairSpecificationScaling.TargetGross(2_000m, 30m);
+        Assert.Equal(600m, target);
+
+        var result = RepairSpecificationScaling.Scale(specification, target, ScalingFloors.Default);
+
+        Assert.Equal(result.Totals.Printed.Gross, result.GrossAfter);
+        Assert.Equal(result.Totals.Printed.Net + result.Totals.Printed.Vat, result.Totals.Printed.Gross);
+        Assert.True(result.GrossAfter <= target);
+        var readout = RepairSpecificationWording.ScaleReadout(result, 30m);
+        Assert.StartsWith(RepairSpecificationWording.Money(result.GrossBefore), readout, StringComparison.Ordinal);
+        Assert.Contains("(30.0 % of value)", readout, StringComparison.Ordinal);
+        Assert.Equal("Repair spec scaled: " + readout, RepairSpecificationWording.Scaled(result, 30m));
+        Assert.Throws<InvalidOperationException>(() => RepairSpecificationScaling.TargetGross(null, 30m));
+        Assert.Throws<ArgumentException>(() => RepairSpecificationScaling.TargetGross(2_000m, 0.5m));
+    }
+
+    [Fact]
     public void ScalingUsesTheLastNonExceedingRoundedEndpoint()
     {
         var specification = Estimate(

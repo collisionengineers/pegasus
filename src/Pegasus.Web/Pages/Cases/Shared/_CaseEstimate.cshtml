@@ -352,10 +352,13 @@
             {
                 @* Target % of value (v28 P34): one factor lowers prices,
                    materials and the rate to their floors; hours never
-                   move. Apply saves the Case first and scales the saved
-                   spec; Core writes the authoritative result. A tool, so
-                   it is drawn only while the spec edits. *@
-                <div class="bar est-scale" data-estimate-scale>
+                   move. Moving the slider previews Core's result in the
+                   cells, the rollup and the readout (issue 897); Apply
+                   saves the Case first and scales the saved spec, and Core
+                   writes the authoritative result. A tool, so it is drawn
+                   only while the spec edits. *@
+                <div class="bar est-scale" data-estimate-scale
+                     data-scale-preview-url="@(engineerValue is null ? null : Url.Page("/Cases/Details", "PreviewEstimateScale", new { id = caseId }))">
                     <span class="bl">@EstimateLabels.TargetPercentOfValue</span>
                     @if (scaled)
                     {
@@ -369,6 +372,8 @@
                     {
                         <input type="range" min="1" max="100" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-range />
                         <span class="dsc"><input type="number" name="targetPercent" form="case-estimate-scale-form" min="1" max="100" step="0.1" value="@suggestedPercent.ToString("0.#", CultureInfo.InvariantCulture)" inputmode="decimal" aria-label="@EstimateLabels.TargetPercentOfValue" data-scale-percent /><label>%</label></span>
+                        <span class="mono est-scale-read" data-scale-read aria-live="polite"></span>
+                        <span class="status status--navy status--plain" data-scale-preview hidden>@EstimateLabels.ScalePreview</span>
                     }
                     <span class="est-floors">@EstimateLabels.Floors
                         <span class="dsc"><label for="estimate-floor-rate">@EstimateLabels.FloorLabour</label><input id="estimate-floor-rate" name="floorRate" form="case-estimate-scale-form" type="number" min="0" step="1" inputmode="decimal" value="@ScalingFloors.Default.LabourRatePerHour.ToString("0.##", CultureInfo.InvariantCulture)" data-scale-floor-rate /></span>
@@ -1080,19 +1085,19 @@
                 <div class="wcol"><div class="wt">@CaseWorkspaceLabels.Estimate.AdditionalOperations</div><ul>@if (operations.Length == 0) {<li class="muted">@CaseWorkspaceLabels.Estimate.None</li>} @foreach (var text in operations) {<li>@text</li>}</ul></div>
             </div>
             <dl class="rollup" data-estimate-rollup>
-                <div class="rr"><dt>@OperatorLabels.CaseWorkspace.EngineerSections.Parts</dt><dd>@Money(printed.Parts)</dd></div>
-                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.PanelLabour</dt><dd>@Money(printed.PanelLabour)</dd></div>
-                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.PaintLabour</dt><dd>@Money(printed.PaintLabour)</dd></div>
-                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.Materials</dt><dd>@Money(printed.Materials)</dd></div>
-                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.Specialist</dt><dd>@Money(printed.Specialist)</dd></div>
+                <div class="rr"><dt>@OperatorLabels.CaseWorkspace.EngineerSections.Parts</dt><dd data-rollup="parts">@Money(printed.Parts)</dd></div>
+                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.PanelLabour</dt><dd data-rollup="panelLabour">@Money(printed.PanelLabour)</dd></div>
+                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.PaintLabour</dt><dd data-rollup="paintLabour">@Money(printed.PaintLabour)</dd></div>
+                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.Materials</dt><dd data-rollup="materials">@Money(printed.Materials)</dd></div>
+                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.Specialist</dt><dd data-rollup="specialist">@Money(printed.Specialist)</dd></div>
                 @if (discounts.Parts > 0m) {<div class="rr"><dt>@CaseWorkspaceLabels.EstimateDiscount.Parts</dt><dd>−@CaseWorkspaceLabels.EstimateDiscount.Value(discounts.Parts)</dd></div>}
                 @if (discounts.Materials > 0m) {<div class="rr"><dt>@CaseWorkspaceLabels.EstimateDiscount.Materials</dt><dd>−@CaseWorkspaceLabels.EstimateDiscount.Value(discounts.Materials)</dd></div>}
                 @if (discounts.Specialist > 0m) {<div class="rr"><dt>@CaseWorkspaceLabels.EstimateDiscount.Specialist</dt><dd>−@CaseWorkspaceLabels.EstimateDiscount.Value(discounts.Specialist)</dd></div>}
                 @if (discounts.Overall > 0m) {<div class="rr"><dt>@CaseWorkspaceLabels.EstimateDiscount.Overall</dt><dd>−@CaseWorkspaceLabels.EstimateDiscount.Value(discounts.Overall)</dd></div>}
-                @if (totals.Raw.OffPattern > 0m) {<div class="rr" data-estimate-off-pattern><dt>@CaseWorkspaceLabels.EstimateTotals.OffPatternItems</dt><dd>@Money(decimal.Round(totals.Raw.OffPattern, 2, MidpointRounding.AwayFromZero))</dd></div>}
-                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.Net</dt><dd>@Money(printed.Net)</dd></div>
-                <div class="rr"><dt>@OperatorLabels.CaseWorkspace.EngineerSections.Vat @totals.VatPercent.ToString("0.##", CultureInfo.InvariantCulture) % @CaseWorkspaceLabels.Estimate.On @(vatChargedOn.Length == 0 ? CaseWorkspaceLabels.EstimateVat.NoCategories.ToLowerInvariant() : string.Join(", ", vatChargedOn).ToLowerInvariant())</dt><dd>@Money(printed.Vat)</dd></div>
-                <div class="rr tot"><dt>@CaseWorkspaceLabels.Estimate.RepairCostIncVat@(isCurrent ? null : " · " + CaseWorkspaceLabels.Estimate.DraftSuffix)</dt><dd data-estimate-gross>@Money(printed.Gross)</dd></div>
+                @if (totals.Raw.OffPattern > 0m) {<div class="rr" data-estimate-off-pattern><dt>@CaseWorkspaceLabels.EstimateTotals.OffPatternItems</dt><dd data-rollup="offPattern">@Money(decimal.Round(totals.Raw.OffPattern, 2, MidpointRounding.AwayFromZero))</dd></div>}
+                <div class="rr"><dt>@CaseWorkspaceLabels.EstimateTotals.Net</dt><dd data-rollup="net">@Money(printed.Net)</dd></div>
+                <div class="rr"><dt>@OperatorLabels.CaseWorkspace.EngineerSections.Vat @totals.VatPercent.ToString("0.##", CultureInfo.InvariantCulture) % @CaseWorkspaceLabels.Estimate.On @(vatChargedOn.Length == 0 ? CaseWorkspaceLabels.EstimateVat.NoCategories.ToLowerInvariant() : string.Join(", ", vatChargedOn).ToLowerInvariant())</dt><dd data-rollup="vat">@Money(printed.Vat)</dd></div>
+                <div class="rr tot"><dt>@CaseWorkspaceLabels.Estimate.RepairCostIncVat@(isCurrent ? null : " · " + CaseWorkspaceLabels.Estimate.DraftSuffix)</dt><dd data-estimate-gross data-rollup="gross">@Money(printed.Gross)</dd></div>
             </dl>
         </div>
     }

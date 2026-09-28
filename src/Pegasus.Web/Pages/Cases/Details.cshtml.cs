@@ -2958,6 +2958,91 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
+    /// The Target % of value preview (v28 P34, issue 897): what Apply would
+    /// make of the spec as the editor holds it, for the bar's percentage and
+    /// floors. Script calls it as the slider moves; it writes nothing. Core
+    /// scales and totals the spec; the figures come back as the editor shows
+    /// them, each line by the posted row it came from.
+    /// </summary>
+    public async Task<IActionResult> OnPostPreviewEstimateScaleAsync(
+        Guid id,
+        decimal? targetPercent,
+        decimal? floorRate,
+        decimal? floorPrice,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!await HasAssessmentAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        var refused = new JsonResult(new { status = "refused" });
+        var editor = ReadEditorPost();
+        if (editor.Lines is null || targetPercent is not { } percent)
+        {
+            return refused;
+        }
+        try
+        {
+            var existing = await ResolveEstimateAsync(id, editor.EstimateId, cancellationToken);
+            var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
+            decimal? engineerValue = workspace?.Assessment.Field(AssessmentVocabulary.ValueEngineer) is { } field
+                && decimal.TryParse(field.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var recorded)
+                    ? recorded
+                    : null;
+            var target = RepairSpecificationScaling.TargetGross(engineerValue, percent);
+            var floors = new ScalingFloors(
+                floorRate ?? ScalingFloors.Default.LabourRatePerHour,
+                floorPrice ?? ScalingFloors.Default.PricePercent);
+            var edited = new RepairSpecificationVersion(
+                existing?.SpecificationId ?? Guid.Empty, id, existing?.Version ?? 1, RepairSpecificationState.Draft,
+                existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
+                [.. editor.Lines.Select((line, index) => new CaseEstimateLineRecord(
+                    Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
+                    line.Unpriced, line.PartNumber, line.Betterment, line.EvidenceLabel, line.Justification,
+                    ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow,
+                    line.PaintWorkUnits, line.Quantity, line.Materials))],
+                string.Empty, DateTimeOffset.UtcNow, EditorDetailsFrom(editor, existing));
+            var result = RepairSpecificationScaling.Scale(edited, target, floors);
+            var printed = result.Totals.Printed;
+            static string? Amount(decimal? value) => value?.ToString("0.00", CultureInfo.InvariantCulture);
+            return new JsonResult(new
+            {
+                status = "ok",
+                readout = RepairSpecificationWording.ScaleReadout(result, result.GrossAfter / engineerValue!.Value * 100m),
+                labourRate = Amount(result.Details.LabourRate),
+                lines = editor.LineRows.Select((row, index) => new
+                {
+                    row,
+                    price = Amount(result.Lines[index].Price),
+                    materials = Amount(result.Lines[index].Materials),
+                }),
+                rollup = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["parts"] = RepairSpecificationWording.Money(printed.Parts),
+                    ["panelLabour"] = RepairSpecificationWording.Money(printed.PanelLabour),
+                    ["paintLabour"] = RepairSpecificationWording.Money(printed.PaintLabour),
+                    ["materials"] = RepairSpecificationWording.Money(printed.Materials),
+                    ["specialist"] = RepairSpecificationWording.Money(printed.Specialist),
+                    ["offPattern"] = RepairSpecificationWording.Money(
+                        decimal.Round(result.Totals.Raw.OffPattern, 2, MidpointRounding.AwayFromZero)),
+                    ["net"] = RepairSpecificationWording.Money(printed.Net),
+                    ["vat"] = RepairSpecificationWording.Money(printed.Vat),
+                    ["gross"] = RepairSpecificationWording.Money(printed.Gross),
+                },
+            });
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            return refused;
+        }
+    }
+
+    /// <summary>
     /// Apply (v28 P34): scales the saved specification. The page saves the
     /// Case, the specification with it, before it asks (data-case-save-first),
     /// so the draft and both frozen versions are the ones the operator sees.
@@ -3621,7 +3706,8 @@ public sealed partial class DetailsModel(
         Guid? EstimateId,
         IReadOnlyList<EstimateEditorLine> Rows,
         IReadOnlyList<EstimateLineInput>? Lines,
-        IReadOnlyList<Guid?> ExistingLineIds)
+        IReadOnlyList<Guid?> ExistingLineIds,
+        IReadOnlyList<int> LineRows)
     {
         /// <summary>
         /// The posted VAT policy, revised from the spec's saved one
@@ -3695,6 +3781,8 @@ public sealed partial class DetailsModel(
         var rows = new List<EstimateEditorLine>(operations.Length);
         var lines = new List<EstimateLineInput>(operations.Length);
         var existingLineIds = new List<Guid?>(operations.Length);
+        // The posted row each line came from: blank rows are not lines.
+        var lineRows = new List<int>(operations.Length);
         var linesAreValid = true;
         static string Field(string?[] values, int index) =>
             index >= 0 && index < values.Length && values[index] is not null ? values[index]! : string.Empty;
@@ -3726,6 +3814,7 @@ public sealed partial class DetailsModel(
                 continue;
             }
             existingLineIds.Add(existingLineId);
+            lineRows.Add(index);
 
             var typed = EstimateOperations.TryParse(operation, out var parsedOperation);
             var workUnits = Money(labourHours);
@@ -3809,7 +3898,8 @@ public sealed partial class DetailsModel(
             estimateId,
             rows,
             linesAreValid ? lines : null,
-            existingLineIds);
+            existingLineIds,
+            lineRows);
     }
 
     /// <summary>
