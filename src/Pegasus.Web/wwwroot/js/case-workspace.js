@@ -3295,45 +3295,75 @@
         return 'Preview unavailable';
     }
 
+    function currentViewer() {
+        var viewer = window.pegasusCaseViewer;
+        return viewer && typeof viewer.openDocument === 'function' ? viewer : null;
+    }
+
+    async function openInViewer(trigger, viewer) {
+        var menu = trigger.closest('details[data-menu]');
+        if (menu) { menu.open = false; }
+        var response;
+        var message = 'Preview unavailable';
+        try {
+            response = await fetch(trigger.href, {
+                credentials: 'same-origin',
+                headers: { 'X-Pegasus-Document-Preview': '1' }
+            });
+            if (!response.ok || mediaType(response) !== 'application/pdf') {
+                message = await failureMessage(response);
+                throw new Error(message);
+            }
+            var url = URL.createObjectURL(await response.blob());
+            viewer.openDocument({
+                href: url,
+                name: fileName(response, trigger.getAttribute('data-file-name') || 'Estimate PDF'),
+                download: url,
+                downloadLabel: trigger.hasAttribute('data-report-preview') ? 'Download draft' : 'Download',
+                revoke: url,
+                invoker: trigger
+            });
+        } catch (error) {
+            if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
+            else { window.alert(message); }
+        }
+    }
+
     function bind(root) {
         root.querySelectorAll('[data-document-preview]').forEach(function (trigger) {
             if (trigger.dataset.documentPreviewBound === 'true') { return; }
             trigger.dataset.documentPreviewBound = 'true';
-            trigger.addEventListener('click', async function (event) {
-                var viewer = window.pegasusCaseViewer;
-                if (!viewer || typeof viewer.openDocument !== 'function') { return; }
+            trigger.addEventListener('click', function (event) {
+                var viewer = currentViewer();
+                if (!viewer) { return; }
                 event.preventDefault();
-                var menu = trigger.closest('details[data-menu]');
-                if (menu) { menu.open = false; }
-                var response;
-                var message = 'Preview unavailable';
-                try {
-                    response = await fetch(trigger.href, {
-                        credentials: 'same-origin',
-                        headers: { 'X-Pegasus-Document-Preview': '1' }
-                    });
-                    if (!response.ok || mediaType(response) !== 'application/pdf') {
-                        message = await failureMessage(response);
-                        throw new Error(message);
-                    }
-                    var url = URL.createObjectURL(await response.blob());
-                    viewer.openDocument({
-                        href: url,
-                        name: fileName(response, trigger.getAttribute('data-file-name') || 'Estimate PDF'),
-                        download: url,
-                        downloadLabel: trigger.hasAttribute('data-report-preview') ? 'Download draft' : 'Download',
-                        revoke: url,
-                        invoker: trigger
-                    });
-                } catch (error) {
-                    if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
-                    else { window.alert(message); }
-                }
+                openInViewer(trigger, viewer);
             });
         });
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+
+    // The report Generate report has just stored opens by itself, once: the
+    // page that follows the generation carries the mark on its Open report
+    // link, whether it was swapped in or loaded whole. The mark is taken off
+    // as it is read, so a section kept across a later swap cannot open the
+    // report again, and no later page carries it.
+    function openOnArrival() {
+        var trigger = document.querySelector('[data-document-preview][data-open-on-arrival="true"]');
+        if (!trigger) { return; }
+        trigger.removeAttribute('data-open-on-arrival');
+        var viewer = currentViewer();
+        if (viewer) { openInViewer(trigger, viewer); }
+    }
+    document.addEventListener('pegasus:case-swapped', openOnArrival);
+    // The viewer is bound further down this file, so a whole page is read
+    // once every block has run.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', openOnArrival);
+    } else {
+        window.setTimeout(openOnArrival, 0);
+    }
 })();
 
 

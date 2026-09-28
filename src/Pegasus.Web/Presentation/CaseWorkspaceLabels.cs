@@ -894,9 +894,9 @@ public static class CaseWorkspaceLabels
             "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
         public const string IncludeFeeNote = "Include fee note";
-        public const string DownloadReport = "Report";
+        public const string OpenReport = "Open report";
+        public const string OpenReportWithFeeNote = "Open report with fee note";
         public const string DownloadFeeNote = "Fee note";
-        public const string DownloadReportWithFeeNote = "Report with fee note";
         public const string GenerationStaleNotice =
             "A newer fact changed after this generation. Generate again before delivery.";
 
@@ -937,8 +937,6 @@ public static class CaseWorkspaceLabels
         public const string ImagesGenerated = "The images were generated.";
         public const string RepairSpecNotGenerated = "The Repair Spec could not be generated.";
         public const string ImagesNotGenerated = "The images could not be generated.";
-        public const string DownloadRepairSpec = "Repair Spec";
-        public const string DownloadImages = "Images";
         public const string PreviewRepairSpec = "Preview Repair Spec";
         public const string PreviewImages = "Preview images";
         public const string Attach = "Attach";
