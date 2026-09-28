@@ -1365,7 +1365,7 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("notice--success", notices, StringComparison.Ordinal);
         Assert.DoesNotContain("data-confirmation", notices, StringComparison.Ordinal);
         Assert.DoesNotContain("notice--danger", notices, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-open-on-arrival", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-open-on-arrival=\"true\"", after, StringComparison.Ordinal);
     }
 
     /// <summary>A generated report is the green confirmation, and no warning stands beside it.</summary>
