@@ -278,9 +278,11 @@ public sealed class ImageIntakeWebTests
             recognitionEngine: new FakeVrmRecognitionEngine());
         using var client = IntakeWebDriver.CreateClient(factory);
         var alpha = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "ALPHA");
-        var imageIntakeId = await RegisterImageIntakeForPrincipalAsync(factory, client);
+        // The Case exists before the manual upload registers, so pairing leaves
+        // it a staff choice: the record stays Awaiting instruction and lists it.
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "AB12 CDE", "WEB-PRINCIPAL-01");
+        var imageIntakeId = await RegisterImageIntakeForPrincipalAsync(factory, client);
         Guid casePrincipal;
         await using (var context = await factory.Database.CreateContextAsync())
         {

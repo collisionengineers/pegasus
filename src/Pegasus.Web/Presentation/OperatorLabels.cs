@@ -45,9 +45,6 @@ public static class OperatorLabels
 
     public const string PrincipalNotKnown = "Not known";
 
-    /// <summary>A Case's Principal that is no longer offered as an active choice.</summary>
-    public const string PrincipalInactive = "Inactive Principal";
-
     /// <summary>
     /// The Triage's own permanent reference, distinct from the originating
     /// provider claim number.

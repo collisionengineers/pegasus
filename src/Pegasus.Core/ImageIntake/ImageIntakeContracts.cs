@@ -402,10 +402,14 @@ public interface IImageIntakeCaseCandidates
 /// When the Case was created. A manual-upload image record pairs automatically
 /// only with a Case created after the record was registered.
 /// </param>
+/// <param name="PrincipalCode">
+/// The Case Principal's code, active or not, so the record page can name it.
+/// </param>
 public sealed record ImageIntakeCaseCandidate(
     Guid CaseId,
     string CaseReference,
     long CaseVersion,
     string ConfirmedRegistration,
     DateTimeOffset CreatedAtUtc,
-    Guid? PrincipalId = null);
+    Guid? PrincipalId = null,
+    string? PrincipalCode = null);
