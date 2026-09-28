@@ -922,6 +922,18 @@ prove the provider editor loaded. Session/version identifies the attempt in
 structured logs; stages record elapsed milliseconds and safe outcome codes.
 Provider cookies, credentials and callback URLs are not diagnostic references.
 
+If Save & Exit does not fill the repair spec, read the session first. Its
+`LastError` and the Web host's `Glass's session ... settled` warning say where
+it stopped. `glass.custody.failed` with `Unknown` means the Web host could not
+store the export in Box: read the exception logged just before it, then Resume.
+`glass.export.unreadable` means the reader refused the export: the warning
+names the position or field, the rejected XML is on the Case in Files, and
+**Fetch again** reads the same estimate once the reader is fixed. Release 74
+compiled the Box SDK's FIPS BouncyCastle assemblies ReadyToRun, which fails
+their own module check ("Module checksum failed") on the first Box sign-in;
+the Web project excludes them and `Build-ReleaseArtifacts.ps1` refuses a
+publish that compiles them.
+
 If the popup reports `dialog not found` or an undefined `openModelessDialog`,
 retain the session and collect provider startup evidence before closing it:
 
