@@ -1029,6 +1029,13 @@ public static class CaseWorkspaceLabels
         public const string ResumeRefused =
             "The Glass's session was not resumed. Retry the operation.";
 
+        /// <summary>The Glass's window while its provider work runs in the background.</summary>
+        public const string Preparing = "Preparing Glass's…";
+
+        public const string BringingBack = "Bringing the estimate back…";
+
+        public const string Continue = "Continue";
+
         /// <summary>
         /// What a settled session reports, wherever it settled: the Estimate
         /// section's own commands and the provider's return read the same one

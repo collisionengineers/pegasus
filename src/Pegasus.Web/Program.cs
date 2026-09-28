@@ -695,6 +695,12 @@ if (productionProfile)
 }
 
 builder.Services.AddPegasusReportRendering();
+// Glass's provider work runs in this host after the staff member's request has
+// answered. It stays here, not in the Worker: the session state and per-staff
+// credentials it reads are protected by this host's key ring (ADR-0058).
+builder.Services.AddSingleton<Pegasus.Web.Background.ProviderWorkQueue>();
+builder.Services.AddHostedService<Pegasus.Web.Background.ProviderWorkService>();
+builder.Services.AddScoped<Pegasus.Web.Pages.Integrations.Glass.GlassSessionWork>();
 builder.Services.AddScoped<IStaffMailAttachmentResolver, StaffMailAttachmentResolver>();
 if (developmentOfflineProfile)
 {

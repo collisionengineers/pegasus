@@ -1,7 +1,8 @@
 @page "/Integrations/Glass/Callback/{correlation}"
 @model Pegasus.Web.Pages.Integrations.Glass.CallbackModel
-@* The provider's return has no page of its own: every outcome hands the Case
-   record's Estimate section back to the Case window (Shared/_GlassReturn),
-   or answers with a refusal or nothing found. A cross-site arrival without
-   the Strict staff cookie is first bounced through this origin
-   (Shared/_GlassBounce). *@
+@* The provider's return has no page of its own: an accepted return waits in
+   the Glass's window (Integrations/Glass/Opening) while its import runs, and
+   every other outcome hands the Case record's Estimate section back to the
+   Case window (Shared/_GlassReturn), or answers with a refusal or nothing
+   found. A cross-site arrival without the Strict staff cookie is first
+   bounced through this origin (Shared/_GlassBounce). *@
