@@ -300,6 +300,30 @@
         heading.setAttribute('tabindex', '-1');
         try { heading.focus({ preventScroll: true }); } catch (_) { heading.focus(); }
     }
+    // A report blocker's Edit (issue 898) lands on the control that clears
+    // it, once edit mode has drawn that control.
+    function focusControl(key, selector) {
+        function land(host) {
+            var control = host.querySelector(selector);
+            if (!control) {
+                return;
+            }
+            control.scrollIntoView({ block: 'center' });
+            try { control.focus({ preventScroll: true }); } catch (_) { control.focus(); }
+        }
+        if (layout === 'tabs') {
+            selectTab(key);
+        }
+        var target = sectionFor(key);
+        if (!target) {
+            return;
+        }
+        if (target.hasAttribute('data-lazy')) {
+            mount(target, land);
+            return;
+        }
+        land(target);
+    }
     function jumpTo(key, focus) {
         var navigation = ++navigationVersion;
         if (layout === 'tabs') {
@@ -765,6 +789,7 @@
     function submitInPlace(form, submitter) {
         // A section-head Edit keeps its own section where it is on screen.
         var editKey = submitter ? submitter.getAttribute('data-section-edit') : null;
+        var editFocus = submitter ? submitter.getAttribute('data-edit-focus') : null;
         var editHost = editKey ? sectionFor(editKey) : null;
         var preferred = editHost ? { key: editKey, top: editHost.getBoundingClientRect().top } : null;
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
@@ -814,6 +839,7 @@
             if (!swap(html, command, preferred)) {
                 throw new Error('The server did not return the Case.');
             }
+            if (editKey && editFocus) { focusControl(editKey, editFocus); }
             if (form.hasAttribute('data-glass-close-form')) { return refreshGlassControls(); }
         }).catch(function (error) {
             // A failed save runs nothing after it.
@@ -2308,7 +2334,8 @@
 
     // Which VAT categories a repairer status charges by default — the same
     // table as EstimateVatPolicy.DefaultFor, read only to show the Overridden
-    // chip and to put the boxes back; Core still decides on Save.
+    // chip and to put the boxes back; Core still decides on Save
+    // (EstimateVatPolicy.Revised).
     var vatDefaults = {
         Registered: ['Labour', 'Parts', 'Materials', 'Specialist'],
         NotRegistered: ['Parts', 'Materials'],
@@ -2615,13 +2642,19 @@
         if (!status || !boxes.length) {
             return;
         }
-        function defaults() {
-            return vatDefaults[status.value] || [];
+        function defaults(value) {
+            return vatDefaults[value === undefined ? status.value : value] || [];
         }
-        function overridden() {
-            var expected = defaults();
+        function overridden(value) {
+            var expected = defaults(value);
             return boxes.some(function (box) {
                 return box.checked !== (expected.indexOf(box.getAttribute('data-vat-category')) >= 0);
+            });
+        }
+        function tickDefaults() {
+            var expected = defaults();
+            boxes.forEach(function (box) {
+                box.checked = expected.indexOf(box.getAttribute('data-vat-category')) >= 0;
             });
         }
         function paint() {
@@ -2629,14 +2662,20 @@
             if (chip) { chip.hidden = !over; }
             if (reset) { reset.hidden = !over; }
         }
+        // Boxes the operator did not choose by hand follow the status: a new
+        // status ticks its own categories (issue 898).
+        var previous = status.value;
         boxes.forEach(function (box) { box.addEventListener('change', paint); });
-        status.addEventListener('change', paint);
+        status.addEventListener('change', function () {
+            if (status.value !== previous && !overridden(previous)) {
+                tickDefaults();
+            }
+            previous = status.value;
+            paint();
+        });
         if (reset) {
             reset.addEventListener('click', function () {
-                var expected = defaults();
-                boxes.forEach(function (box) {
-                    box.checked = expected.indexOf(box.getAttribute('data-vat-category')) >= 0;
-                });
+                tickDefaults();
                 paint();
                 status.dispatchEvent(new Event('change', { bubbles: true }));
             });

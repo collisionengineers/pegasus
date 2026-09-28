@@ -65,6 +65,22 @@ public sealed record EstimateVatPolicy(
         new(status, DefaultFor(status), false);
 
     /// <summary>
+    /// The policy a Repair Spec edit records. Categories that were not chosen
+    /// by hand follow the repairer's status: a changed status with the saved
+    /// categories left as they were takes the new status's own categories
+    /// (issue 898). Otherwise the posted categories stand, and they are an
+    /// override when they differ from the status's own.
+    /// </summary>
+    public static EstimateVatPolicy Revised(
+        EstimateVatPolicy saved, RepairerVatStatus status, EstimateVatCategories categories)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        return status != saved.RepairerStatus && !saved.CategoriesOverridden && categories == saved.Categories
+            ? For(status)
+            : new(status, categories, categories != DefaultFor(status));
+    }
+
+    /// <summary>
     /// An unknown repairer VAT status with no hand-made override: the totals
     /// carry no VAT until the operator records the status or selects the
     /// categories. It never gates Use repair spec (v28 P10, 18 September 2026).

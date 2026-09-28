@@ -16,12 +16,13 @@ public static class CaseNextAction
     /// The next permitted lifecycle action and the section it links to. With
     /// Engineer, while the report is not ready, it names the first blocker at
     /// the section that clears it, and at the Report section when that blocker
-    /// has none. Delivery is the next action only once the report is stored.
+    /// has none, and carries that blocker. Delivery is the next action only
+    /// once the report is stored.
     /// </summary>
     /// <param name="firstRequirement">The first outstanding requirement's words, if any.</param>
     /// <param name="reportBlockers">The report readiness items; empty when the report is ready or its readiness was not read.</param>
     /// <param name="blockerSection">The section that clears a blocker on this Case, or null.</param>
-    public static (string Label, string SectionKey) Of(
+    public static (string Label, string SectionKey, AssessmentReadinessItem? Blocker) Of(
         CaseWorkflowRecord workflow,
         string? firstRequirement,
         IReadOnlyList<AssessmentReadinessItem> reportBlockers,
@@ -34,15 +35,15 @@ public static class CaseNextAction
         ArgumentNullException.ThrowIfNull(blockerSection);
         if (workflow.Archive is not null || CaseLifecycleRules.IsTerminal(workflow.State))
         {
-            return ("None", "notes");
+            return ("None", "notes", null);
         }
         if (workflow.State == CaseLifecycleState.Review)
         {
-            return (CaseWorkspaceLabels.HandToEngineer, "overview");
+            return (CaseWorkspaceLabels.HandToEngineer, "overview", null);
         }
         if (workflow.State is CaseLifecycleState.NotReady or CaseLifecycleState.Held)
         {
-            return (firstRequirement ?? OperatorLabels.CaseStage(workflow.State), "overview");
+            return (firstRequirement ?? OperatorLabels.CaseStage(workflow.State), "overview", null);
         }
         if (reportBlockers.Count > 0)
         {
@@ -54,11 +55,12 @@ public static class CaseNextAction
             return (reportBlockers.Count > 1
                     ? $"{first.Requirement} · {reportBlockers.Count - 1} more"
                     : first.Requirement,
-                blockerSection(first) ?? "report");
+                blockerSection(first) ?? "report",
+                first);
         }
         if (currentReport is null || currentReport.State == CaseReportGenerationState.Stale)
         {
-            return (CaseWorkspaceLabels.ReportDelivery.GenerateReport, "report");
+            return (CaseWorkspaceLabels.ReportDelivery.GenerateReport, "report", null);
         }
         // A report that is not stored cannot be delivered. One on its way to
         // Box is waited for; one never drawn, failed or not confirmed is
@@ -71,16 +73,17 @@ public static class CaseNextAction
             return (reportFiling == CaseReportArtifactFiling.BeingStored
                     ? CaseWorkspaceLabels.ReportDelivery.WaitingForStorage
                     : CaseWorkspaceLabels.ReportDelivery.GenerateReport,
-                "report");
+                "report",
+                null);
         }
         if (workflow.ReportSentEvidence is not null)
         {
-            return ("Mark completed", "overview");
+            return ("Mark completed", "overview", null);
         }
         if (deliveryPreparation is not null)
         {
-            return (CaseWorkspaceLabels.ReportDelivery.SendPreparedReport, "report");
+            return (CaseWorkspaceLabels.ReportDelivery.SendPreparedReport, "report", null);
         }
-        return (CaseWorkspaceLabels.ReportDelivery.PrepareDelivery, "report");
+        return (CaseWorkspaceLabels.ReportDelivery.PrepareDelivery, "report", null);
     }
 }

@@ -377,6 +377,57 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
+    /// Issue 898: a repairer VAT blocker opens the Repair Spec for editing on
+    /// the Current spec, with the control that clears it named for focus,
+    /// from the readiness list and from the Next action alike.
+    /// </summary>
+    [Theory]
+    [InlineData(false, "#estimate-vat-status")]
+    [InlineData(true, "[data-vat-reset]")]
+    public async Task ARepairerVatBlockerOpensTheRepairSpecOnTheControlThatClearsIt(bool handPicked, string focus)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        var ready = CurrentEstimate() with { CaseId = caseId };
+        var estimate = ready with
+        {
+            Details = ready.Details with
+            {
+                Vat = handPicked
+                    ? new EstimateVatPolicy(RepairerVatStatus.Registered, EstimateVatCategories.Parts, true)
+                    : EstimateVatPolicy.For(RepairerVatStatus.Unknown),
+            },
+        };
+        var source = new FakeProjectionSource(ReadyInput(caseId));
+        source.Readiness = source.Readiness with { CurrentEstimate = estimate };
+        var blocker = Assert.Single(CaseReportReadiness.Evaluate(source.Readiness).Reasons);
+        Assert.Equal(
+            handPicked ? CaseReportReadiness.RepairerVatHandPicked : CaseReportReadiness.RepairerVatStatusUnknown,
+            blocker);
+        using var factory = Compose(
+            baseFactory, new FakeGetCase(caseId), FullAssessmentProjection(caseId), source, new FakeRenderer([1]),
+            currentSpecification: estimate);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
+
+        var row = BlockerRow(BlockerList(html), CaseReportReadiness.RepairerVatRequirement);
+        var panel = NextActionRegex().Match(html).Value;
+        foreach (var place in new[] { row, panel })
+        {
+            Assert.Contains($"action=\"/Cases/{caseId:D}?handler=ClaimLease\"", place, StringComparison.Ordinal);
+            Assert.Contains("name=\"section\" value=\"estimate\"", place, StringComparison.Ordinal);
+            Assert.Contains($"name=\"estimate\" value=\"{estimate.SpecificationId:D}\"", place, StringComparison.Ordinal);
+            Assert.Contains($"data-edit-focus=\"{focus}\"", place, StringComparison.Ordinal);
+            Assert.DoesNotContain("data-section-jump", place, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     /// Accounts are offered and the Case has none chosen, so staff clear the
     /// Sign-off Engineer blocker on Case details: the row says so and links
     /// there, for an Administrator too (operator, 26 September 2026).
@@ -607,7 +658,8 @@ public sealed partial class AssessmentReportDraftWebTests
         IGenerateCaseReport? generateReport = null,
         IPrepareCaseReportDelivery? prepareDelivery = null,
         ISendPreparedCaseReport? sendPreparedReport = null,
-        bool failIfReportServicesResolved = false) =>
+        bool failIfReportServicesResolved = false,
+        RepairSpecificationVersion? currentSpecification = null) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -679,7 +731,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.AddSingleton<IGetCaseAssessment>(new FakeGetCaseAssessment(assessment));
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(new FakeGetAssessmentWorkspace(
-                    AssessmentWorkspaceTestData.Create(assessment)));
+                    AssessmentWorkspaceTestData.Create(assessment) with { CurrentSpecification = currentSpecification }));
                 services.AddSingleton(projectionSource);
                 services.AddSingleton((ICaseReportSnapshotSource)projectionSource);
                 services.AddSingleton(renderer);

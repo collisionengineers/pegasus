@@ -162,7 +162,7 @@ public sealed partial class DetailsModel
     /// (rendered by the view), then the Case's next permitted lifecycle action
     /// (<see cref="CaseNextAction"/>).
     /// </summary>
-    public (string Label, string SectionKey) NextAction =>
+    public (string Label, string SectionKey, AssessmentReadinessItem? Blocker) NextAction =>
         CaseNextAction.Of(
             Case!.Workflow,
             OutstandingRequirements.Count > 0 ? OutstandingRequirements[0].Title : null,
