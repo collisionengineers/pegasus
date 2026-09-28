@@ -610,7 +610,8 @@ public sealed class ProductionBoxCustodyTests
             "client-secret",
             "test-holding-folder"),
         new HttpClient(handler),
-        new RecordingAuthorizationHeaderProvider());
+        new RecordingAuthorizationHeaderProvider(),
+        TimeProvider.System);
 
     private static BoxContentClient CreateClient(StatefulBox box) => new(
         BoxCustodyOptions.Create(
@@ -621,7 +622,8 @@ public sealed class ProductionBoxCustodyTests
             "client-secret",
             "test-holding-folder"),
         new HttpClient(new StatefulBoxHandler(box)),
-        new RecordingAuthorizationHeaderProvider());
+        new RecordingAuthorizationHeaderProvider(),
+        TimeProvider.System);
 
     private static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };

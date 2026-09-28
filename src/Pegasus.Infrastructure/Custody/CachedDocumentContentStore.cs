@@ -20,6 +20,24 @@ public interface IDocumentContentCacheCleanup
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// A Case's managed versions read through the document content cache first:
+/// a warm version costs one cached-object read, and a cold one is read from
+/// Box once and cached for the next time. The export and the report read
+/// their photographs this way when the cache is composed.
+/// </summary>
+public interface IReadCachedDocumentVersions
+{
+    /// <summary>
+    /// The contents in the order asked for, each verified against its custody
+    /// hash and length, exactly as
+    /// <see cref="IDocumentContentStore.ReadVersionsAsync"/> returns them.
+    /// </summary>
+    Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
+        IReadOnlyList<ManagedDocumentContentRead> reads,
+        CancellationToken cancellationToken);
+}
+
 public sealed record DocumentContentCacheCleanupResult(
     int Candidates,
     int Deleted,
@@ -56,10 +74,27 @@ internal sealed class CachedDocumentContentStore(
     BoxContentClient box,
     TimeProvider timeProvider,
     IDocumentContentCacheMetrics? metrics = null)
-    : IReadLogicalDocumentVersion, IDocumentContentCacheCleanup
+    : IReadLogicalDocumentVersion, IReadCachedDocumentVersions, IDocumentContentCacheCleanup
 {
     private static readonly TimeSpan IdleLifetime = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// How long cleanup holds the entry it has claimed. Only cleanup takes
+    /// this lease, and only on an expired entry.
+    /// </summary>
     private static readonly TimeSpan ReadLeaseLifetime = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// How long after its last extension an entry is extended again. A hit
+    /// inside this interval writes nothing.
+    /// </summary>
+    internal static readonly TimeSpan TouchInterval = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// How many versions of one batch are read at once. A cold read also
+    /// takes the process-wide Box gate, so this bounds the cached reads.
+    /// </summary>
+    private const int MaximumConcurrentBatchReads = 4;
     private const string CachePrefix = "cache/";
     private const string HashMetadata = "sha256";
 
@@ -301,20 +336,24 @@ internal sealed class CachedDocumentContentStore(
             throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
         }
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var enabled = await db.Users.AsNoTracking()
+        // One round trip: the account and its current role names together.
+        var account = await db.Users.AsNoTracking()
             .Where(value => value.Id == staffId)
-            .Select(value => (bool?)value.IsEnabled)
+            .Select(value => new
+            {
+                value.IsEnabled,
+                RoleNames = (
+                    from userRole in db.UserRoles
+                    join role in db.Roles on userRole.RoleId equals role.Id
+                    where userRole.UserId == value.Id
+                    select role.Name).ToList()
+            })
             .SingleOrDefaultAsync(cancellationToken);
-        if (enabled is not true)
+        if (account is not { IsEnabled: true })
         {
             throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
         }
-        var currentRoleNames = await (
-            from userRole in db.UserRoles.AsNoTracking()
-            join role in db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-            where userRole.UserId == staffId
-            select role.Name).ToArrayAsync(cancellationToken);
-        var roles = currentRoleNames
+        var roles = account.RoleNames
             .Select(value => value switch
             {
                 StaffRoleNames.Administrator => (StaffRole?)StaffRole.Administrator,
@@ -340,30 +379,34 @@ internal sealed class CachedDocumentContentStore(
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         if (request.IntakeAssetId is { } assetId)
         {
-            var asset = await db.Set<IntakeAssetEntity>().AsNoTracking()
-                .SingleOrDefaultAsync(value => value.Id == assetId, cancellationToken)
+            // One round trip: the asset, and whether its receipt belongs to the
+            // requested Case by origin, by link or by an active manual
+            // association.
+            var requestedCaseId = request.CaseId;
+            var row = await db.Set<IntakeAssetEntity>().AsNoTracking()
+                .Where(value => value.Id == assetId)
+                .Select(value => new
+                {
+                    Asset = value,
+                    AssociatedWithCase = requestedCaseId == null
+                        || db.Cases.Any(caseEntity => caseEntity.Id == requestedCaseId
+                            && (caseEntity.OriginIntakeReceiptId == value.IntakeReceiptId
+                                || caseEntity.IntakeLinks.Any(link => link.IntakeReceiptId == value.IntakeReceiptId)))
+                        || db.Set<IntakeManualAssociationEntity>().Any(association =>
+                            association.CaseId == requestedCaseId
+                            && association.IntakeReceiptId == value.IntakeReceiptId
+                            && association.IsActive)
+                })
+                .SingleOrDefaultAsync(cancellationToken)
                 ?? throw new FileNotFoundException("The retained intake source is unavailable.");
+            var asset = row.Asset;
             if (asset.IntakeReceiptId != request.IntakeReceiptId)
             {
                 throw new UnauthorizedAccessException("The intake source does not belong to the authorized receipt.");
             }
-            if (request.CaseId is { } caseId)
+            if (!row.AssociatedWithCase)
             {
-                var associatedWithCase = await db.Cases.AsNoTracking()
-                    .AnyAsync(
-                    value => value.Id == caseId
-                        && (value.OriginIntakeReceiptId == asset.IntakeReceiptId
-                            || value.IntakeLinks.Any(link => link.IntakeReceiptId == asset.IntakeReceiptId)),
-                    cancellationToken);
-                var manuallyAssociated = await db.Set<IntakeManualAssociationEntity>().AnyAsync(
-                    value => value.CaseId == caseId
-                        && value.IntakeReceiptId == asset.IntakeReceiptId
-                        && value.IsActive,
-                    cancellationToken);
-                if (!associatedWithCase && !manuallyAssociated)
-                {
-                    throw new UnauthorizedAccessException("The intake source is not associated with the authorized Case.");
-                }
+                throw new UnauthorizedAccessException("The intake source is not associated with the authorized Case.");
             }
             // The confirmed copy is wherever custody filed it: the holding
             // folder, the Case folder or the Vehicle images folder. Box then
@@ -421,125 +464,234 @@ internal sealed class CachedDocumentContentStore(
             version.CaseRootRemoteId);
     }
 
+    /// <summary>
+    /// The cached content, or <c>null</c> when there is no live entry to
+    /// serve.
+    /// </summary>
+    /// <remarks>
+    /// A hit is the entry read and, at most once an hour, one conditional
+    /// update that pushes its idle expiry out. The update happens before the
+    /// object is read, and cleanup claims only expired entries, so an entry
+    /// being served always has most of a day left: cleanup cannot remove the
+    /// object under the read. An entry that expired, or that cleanup has
+    /// already claimed, is a miss.
+    /// </remarks>
     private async Task<Stream?> TryOpenCachedAsync(
         ResolvedSource source,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var entry = await CacheQuery(db, source).SingleOrDefaultAsync(cancellationToken);
-        if (entry is null || entry.ExpiresAtUtc <= now)
+        var entry = await CacheQuery(db, source).AsNoTracking().SingleOrDefaultAsync(cancellationToken);
+        if (entry is null || !await TryTouchAsync(db, entry, IdleLifetime, now, cancellationToken))
         {
             return null;
         }
-        if (entry.ReadLeaseExpiresAtUtc > now)
-        {
-            return await OpenUnderSharedReadLeaseAsync(entry, source, cancellationToken);
-        }
-        var leaseExpiry = now.Add(ReadLeaseLifetime);
-        var leaseToken = Guid.NewGuid();
-        var touched = await db.Set<DocumentContentCacheEntryEntity>()
-            .Where(value => value.Id == entry.Id
-                && value.ConcurrencyToken == entry.ConcurrencyToken
-                && value.ExpiresAtUtc > now
-                && (value.ReadLeaseExpiresAtUtc == null
-                    || value.ReadLeaseExpiresAtUtc <= now))
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(value => value.ReadLeaseExpiresAtUtc, leaseExpiry)
-                .SetProperty(value => value.ConcurrencyToken, leaseToken),
-                cancellationToken);
-        if (touched == 0)
-        {
-            return null;
-        }
-        try
-        {
-            var blob = container.GetBlobClient(entry.BlobIdentity);
-            var response = await blob.DownloadStreamingAsync(
-                new BlobDownloadOptions
-                {
-                    Conditions = entry.ETag is { Length: > 0 }
-                        ? new BlobRequestConditions { IfMatch = new ETag(entry.ETag) }
-                        : null
-                },
-                cancellationToken);
-            await using var content = response.Value.Content;
-            var verified = await ReadVerifiedToTemporaryAsync(
-                content, source.Length, source.Sha256, cancellationToken);
-            var completedAtUtc = timeProvider.GetUtcNow();
-            var completed = await db.Set<DocumentContentCacheEntryEntity>()
-                .Where(value => value.Id == entry.Id
-                    && value.ConcurrencyToken == leaseToken)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(value => value.ExpiresAtUtc, completedAtUtc.Add(IdleLifetime))
-                    .SetProperty(value => value.LastCleanupOutcome, (string?)null)
-                    .SetProperty(value => value.ReadLeaseExpiresAtUtc, (DateTimeOffset?)null)
-                    .SetProperty(value => value.ConcurrencyToken, Guid.NewGuid()),
-                    cancellationToken);
-            if (completed == 0)
-            {
-                await verified.DisposeAsync();
-                throw new IOException("The cache read lease was lost before access could be recorded.");
-            }
-            return verified;
-        }
-        catch (RequestFailedException exception) when (exception.Status is 404 or 412)
-        {
-            return null;
-        }
-        finally
-        {
-            await db.Set<DocumentContentCacheEntryEntity>()
-                .Where(value => value.Id == entry.Id
-                    && value.ConcurrencyToken == leaseToken)
-                .ExecuteUpdateAsync(setters => setters
-                    .SetProperty(value => value.ReadLeaseExpiresAtUtc, (DateTimeOffset?)null)
-                    .SetProperty(value => value.ConcurrencyToken, Guid.NewGuid()),
-                    CancellationToken.None);
-        }
-    }
-
-    private async Task<Stream?> OpenUnderSharedReadLeaseAsync(
-        DocumentContentCacheEntryEntity entry,
-        ResolvedSource source,
-        CancellationToken cancellationToken)
-    {
-        var blob = container.GetBlobClient(entry.BlobIdentity);
-        Azure.Response<BlobDownloadStreamingResult> response;
-        try
-        {
-            response = await blob.DownloadStreamingAsync(
-                new BlobDownloadOptions
-                {
-                    Conditions = entry.ETag is { Length: > 0 }
-                        ? new BlobRequestConditions { IfMatch = new ETag(entry.ETag) }
-                        : null
-                },
-                cancellationToken);
-        }
-        catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+        var response = await TryDownloadAsync(entry, cancellationToken);
+        if (response is null)
         {
             return null;
         }
         await using var content = response.Value.Content;
-        var verified = await ReadVerifiedToTemporaryAsync(
+        return await ReadVerifiedToTemporaryAsync(
             content, source.Length, source.Sha256, cancellationToken);
-        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var completedAt = timeProvider.GetUtcNow();
+    }
+
+    /// <summary>
+    /// Every managed version of one Case in <paramref name="reads"/>, cache
+    /// first: a warm version is read from its cached object, a cold one from
+    /// Box through the same gate, retry and fence as a single read, and then
+    /// cached for the next time. Each version is verified against its custody
+    /// hash and length either way.
+    /// </summary>
+    /// <remarks>
+    /// The caller has already authorised the Case, as it has for
+    /// <see cref="IDocumentContentStore"/>. Every version is held in memory
+    /// before any is returned.
+    /// </remarks>
+    public async Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
+        IReadOnlyList<ManagedDocumentContentRead> reads,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(reads);
+        if (reads.Count == 0)
+        {
+            return [];
+        }
+        // Every argument is checked before any I/O starts.
+        var caseId = reads[0].Address.CaseId;
+        var sources = new ResolvedSource[reads.Count];
+        for (var index = 0; index < reads.Count; index++)
+        {
+            var read = reads[index];
+            var address = read.Address;
+            if (address.CaseId != caseId || address.VersionId == Guid.Empty)
+            {
+                throw new ArgumentException("A managed content batch reads one Case only.", nameof(reads));
+            }
+            sources[index] = ResolvedSource.Create(
+                address.VersionId,
+                intakeAssetId: null,
+                address.BoxFileId,
+                address.BoxVersionId,
+                read.ExpectedSha256,
+                read.ExpectedLength,
+                address.FileName,
+                address.MediaType,
+                address.CaseRootRemoteId);
+        }
+
+        var now = timeProvider.GetUtcNow();
+        Dictionary<Guid, DocumentContentCacheEntryEntity> entries;
+        await using (var db = await dbContextFactory.CreateDbContextAsync(cancellationToken))
+        {
+            var versionIds = sources
+                .Select(source => source.DocumentVersionId!.Value)
+                .Distinct()
+                .ToArray();
+            entries = await db.Set<DocumentContentCacheEntryEntity>().AsNoTracking()
+                .Where(value => value.Variant == OriginalVariant
+                    && value.DocumentVersionId != null
+                    && versionIds.Contains(value.DocumentVersionId.Value))
+                .ToDictionaryAsync(value => value.DocumentVersionId!.Value, cancellationToken);
+        }
+
+        var contents = new ReadOnlyMemory<byte>[reads.Count];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, reads.Count),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = MaximumConcurrentBatchReads,
+                CancellationToken = cancellationToken
+            },
+            async (index, token) =>
+            {
+                var source = sources[index];
+                if (entries.TryGetValue(source.DocumentVersionId!.Value, out var entry)
+                    && await TryReadCachedBytesAsync(entry, source, now, token) is { } cached)
+                {
+                    metrics?.RecordHit();
+                    contents[index] = cached;
+                    return;
+                }
+                metrics?.RecordMiss();
+                var downloaded = await BoxDocumentContentStore.ReadGatedWithRetryAsync(
+                    async attemptToken =>
+                    {
+                        await using var remote = await box.OpenOwnedVersionReadAsync(
+                            source.BoxFileId,
+                            source.BoxVersionId,
+                            source.ExpectedParentId,
+                            source.Length,
+                            attemptToken);
+                        return await ReadVerifiedBytesAsync(
+                            remote, source.Length, source.Sha256, attemptToken);
+                    },
+                    token);
+                contents[index] = downloaded;
+                try
+                {
+                    using var published = new MemoryStream(downloaded, writable: false);
+                    await PublishAsync(source, published, token);
+                }
+                catch (Exception exception) when (exception is IOException
+                    or InvalidDataException
+                    or DbUpdateException
+                    or RequestFailedException)
+                {
+                    // The verified bytes are the answer either way; a later
+                    // read caches them.
+                }
+            });
+        return contents;
+    }
+
+    private async Task<byte[]?> TryReadCachedBytesAsync(
+        DocumentContentCacheEntryEntity entry,
+        ResolvedSource source,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (entry.ExpiresAtUtc <= now)
+        {
+            return null;
+        }
+        if (NeedsTouch(entry, IdleLifetime, now))
+        {
+            await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            if (!await TryTouchAsync(db, entry, IdleLifetime, now, cancellationToken))
+            {
+                return null;
+            }
+        }
+        var response = await TryDownloadAsync(entry, cancellationToken);
+        if (response is null)
+        {
+            return null;
+        }
+        await using var content = response.Value.Content;
+        return await ReadVerifiedBytesAsync(content, source.Length, source.Sha256, cancellationToken);
+    }
+
+    private async Task<Response<BlobDownloadStreamingResult>?> TryDownloadAsync(
+        DocumentContentCacheEntryEntity entry,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await container.GetBlobClient(entry.BlobIdentity).DownloadStreamingAsync(
+                new BlobDownloadOptions
+                {
+                    Conditions = entry.ETag is { Length: > 0 }
+                        ? new BlobRequestConditions { IfMatch = new ETag(entry.ETag) }
+                        : null
+                },
+                cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Whether a live entry's idle expiry was last pushed out more than
+    /// <see cref="TouchInterval"/> ago.
+    /// </summary>
+    internal static bool NeedsTouch(
+        DocumentContentCacheEntryEntity entry,
+        TimeSpan idleLifetime,
+        DateTimeOffset now) =>
+        entry.ExpiresAtUtc - idleLifetime <= now - TouchInterval;
+
+    /// <summary>
+    /// Whether an entry may be served: it has not expired, and when its expiry
+    /// is due to be pushed out, one conditional update did so. The update
+    /// matches only an entry that has not expired, which is also the only kind
+    /// cleanup never claims.
+    /// </summary>
+    internal static async Task<bool> TryTouchAsync(
+        PegasusDbContext db,
+        DocumentContentCacheEntryEntity entry,
+        TimeSpan idleLifetime,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (entry.ExpiresAtUtc <= now)
+        {
+            return false;
+        }
+        if (!NeedsTouch(entry, idleLifetime, now))
+        {
+            return true;
+        }
         var touched = await db.Set<DocumentContentCacheEntryEntity>()
-            .Where(value => value.Id == entry.Id
-                && value.ETag == entry.ETag
-                && value.ReadLeaseExpiresAtUtc > completedAt)
+            .Where(value => value.Id == entry.Id && value.ExpiresAtUtc > now)
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(value => value.ExpiresAtUtc, completedAt.Add(IdleLifetime))
+                .SetProperty(value => value.ExpiresAtUtc, now.Add(idleLifetime))
                 .SetProperty(value => value.LastCleanupOutcome, (string?)null),
                 cancellationToken);
-        if (touched == 0)
-        {
-            await verified.DisposeAsync();
-            throw new IOException("The shared cache read lease was lost before access could be recorded.");
-        }
-        return verified;
+        return touched == 1;
     }
 
     private async Task PublishAsync(
@@ -748,6 +900,38 @@ internal sealed class CachedDocumentContentStore(
         }
     }
 
+    private static async Task<byte[]> ReadVerifiedBytesAsync(
+        Stream content,
+        long expectedLength,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        using var verification = DocumentReadTelemetry.Start("document.content.verify");
+        if (expectedLength is < 0 or > int.MaxValue)
+        {
+            throw new InvalidDataException("Logical document length verification failed.");
+        }
+        var bytes = GC.AllocateUninitializedArray<byte>((int)expectedLength);
+        try
+        {
+            await content.ReadExactlyAsync(bytes, cancellationToken);
+        }
+        catch (EndOfStreamException exception)
+        {
+            throw new InvalidDataException("Logical document length verification failed.", exception);
+        }
+        if (await content.ReadAsync(new byte[1], cancellationToken) != 0)
+        {
+            throw new InvalidDataException("Logical document length verification failed.");
+        }
+        var actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        if (!FixedHashEquals(actual, expectedSha256))
+        {
+            throw new InvalidDataException("Logical document content verification failed.");
+        }
+        return bytes;
+    }
+
     internal static void ValidateRequest(ReadLogicalDocumentVersionRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -867,16 +1051,29 @@ internal sealed class DocumentThumbnailCache(
     internal static readonly string Variant =
         CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, null);
 
-    private static readonly TimeSpan IdleLifetime = TimeSpan.FromHours(24);
+    /// <summary>
+    /// How long an unused plain rendering is kept. The Worker makes these
+    /// ahead of the first view, so they outlive the content cache's day.
+    /// </summary>
+    internal static readonly TimeSpan PlainIdleLifetime = TimeSpan.FromDays(30);
+
+    /// <summary>How long an unused prepared-region rendering is kept.</summary>
+    private static readonly TimeSpan PreparedIdleLifetime = TimeSpan.FromHours(24);
+
     private const string CachePrefix = "cache/";
     private const string HashMetadata = "sha256";
+
+    private static TimeSpan IdleLifetimeOf(string variant) =>
+        string.Equals(variant, Variant, StringComparison.Ordinal) ? PlainIdleLifetime : PreparedIdleLifetime;
 
     /// <summary>
     /// The cached rendering, or <c>null</c> when there is none to serve.
     /// </summary>
     /// <remarks>
     /// The staff authorization is applied here rather than inherited from the
-    /// durable read, because a cache hit makes no durable read.
+    /// durable read, because a cache hit makes no durable read. A hit extends
+    /// the entry's expiry before the object is read, at most once an hour, by
+    /// the same conditional update as the content cache.
     /// </remarks>
     public Task<byte[]?> TryReadAsync(
         ActionActor actor,
@@ -902,7 +1099,9 @@ internal sealed class DocumentThumbnailCache(
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var entry = await Query(db, versionId, variant).AsNoTracking()
             .SingleOrDefaultAsync(cancellationToken);
-        if (entry is null || entry.ExpiresAtUtc <= now)
+        if (entry is null
+            || !await CachedDocumentContentStore.TryTouchAsync(
+                db, entry, IdleLifetimeOf(variant), now, cancellationToken))
         {
             return null;
         }
@@ -933,12 +1132,6 @@ internal sealed class DocumentThumbnailCache(
         {
             return null;
         }
-        await db.Set<DocumentContentCacheEntryEntity>()
-            .Where(value => value.Id == entry.Id && value.ETag == entry.ETag)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(value => value.ExpiresAtUtc, now.Add(IdleLifetime))
-                .SetProperty(value => value.LastCleanupOutcome, (string?)null),
-                cancellationToken);
         return content;
     }
 
@@ -992,7 +1185,7 @@ internal sealed class DocumentThumbnailCache(
                     ETag = etag,
                     VerifiedSha256 = hash,
                     VerifiedSize = content.LongLength,
-                    ExpiresAtUtc = now.Add(IdleLifetime),
+                    ExpiresAtUtc = now.Add(IdleLifetimeOf(variant)),
                     ConcurrencyToken = Guid.NewGuid()
                 });
             }
@@ -1002,7 +1195,7 @@ internal sealed class DocumentThumbnailCache(
                 entry.ETag = etag;
                 entry.VerifiedSha256 = hash;
                 entry.VerifiedSize = content.LongLength;
-                entry.ExpiresAtUtc = now.Add(IdleLifetime);
+                entry.ExpiresAtUtc = now.Add(IdleLifetimeOf(variant));
                 entry.LastCleanupOutcome = null;
                 entry.ReadLeaseExpiresAtUtc = null;
                 entry.ConcurrencyToken = Guid.NewGuid();
@@ -1280,7 +1473,7 @@ internal static class ImageThumbnailRendering
     /// The largest source a thumbnail is derived from. A larger file is served
     /// whole rather than buffered again for a tile.
     /// </summary>
-    private const long MaximumSourceBytes = 32L * 1024 * 1024;
+    internal const long MaximumSourceBytes = 32L * 1024 * 1024;
 
     private static readonly SemaphoreSlim DecodeGate = new(2, 2);
 

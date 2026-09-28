@@ -269,11 +269,36 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 /// this type so the approved-root descendant check and the duplicate-child and
 /// trashed-object failures are proved in exactly one place.
 /// </summary>
+/// <remarks>
+/// Every write, move, delete and upload walks the ancestry to the approved
+/// root on every call. The managed read
+/// (<see cref="OpenOwnedVersionReadAsync"/>) is the one exception: it always
+/// reads the file itself — its parent and its trash state — but it remembers,
+/// for <see cref="LiveFolderMemory"/>, that the file's folder was proved to sit
+/// under the approved root. Only a successful proof is remembered. Any 404,
+/// trashed or outside-root answer that touches a folder forgets it, and so do
+/// a folder delete and a file move. A folder moved out of the root, or
+/// trashed, outside Pegasus can therefore still be read for up to that long.
+/// </remarks>
 internal sealed class BoxContentClient(
     BoxCustodyOptions options,
     HttpClient httpClient,
-    IBoxAuthorizationHeaderProvider authorizationHeaderProvider)
+    IBoxAuthorizationHeaderProvider authorizationHeaderProvider,
+    TimeProvider timeProvider)
 {
+    /// <summary>
+    /// How long a read trusts a folder's proved ancestry.
+    /// </summary>
+    internal static readonly TimeSpan LiveFolderMemory = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Past this many remembered folders, expired entries are dropped.
+    /// </summary>
+    private const int LiveFolderPruneThreshold = 10_000;
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> liveFolders =
+        new(StringComparer.Ordinal);
+
     internal sealed record BoxItem(
         string Id,
         string Name,
@@ -610,34 +635,136 @@ internal sealed class BoxContentClient(
         return await DownloadVersionAsync(fileId, versionId, maximumLength, cancellationToken);
     }
 
-    public async Task<Stream> OpenOwnedVersionReadAsync(
+    /// <summary>
+    /// The managed read: the exact version of a file that sits directly in
+    /// <paramref name="expectedParentId"/>. The file is read fresh every time;
+    /// the folder's ancestry comes from the read memory when it is still live.
+    /// </summary>
+    public Task<Stream> OpenOwnedVersionReadAsync(
         string fileId,
         string versionId,
         string expectedParentId,
         long maximumLength,
+        CancellationToken cancellationToken) =>
+        OpenOwnedVersionAsync(
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: true, cancellationToken);
+
+    /// <summary>
+    /// The same exact-version read for a write path: the folder's ancestry is
+    /// proved again, whatever the read memory holds.
+    /// </summary>
+    public Task<Stream> OpenOwnedVersionProvedAsync(
+        string fileId,
+        string versionId,
+        string expectedParentId,
+        long maximumLength,
+        CancellationToken cancellationToken) =>
+        OpenOwnedVersionAsync(
+            fileId, versionId, expectedParentId, maximumLength, rememberAncestry: false, cancellationToken);
+
+    private async Task<Stream> OpenOwnedVersionAsync(
+        string fileId,
+        string versionId,
+        string expectedParentId,
+        long maximumLength,
+        bool rememberAncestry,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedParentId);
-        using var metadataResponse = await SendAsync(
-            HttpMethod.Get,
-            new Uri(options.BaseUri,
-                $"files/{Uri.EscapeDataString(fileId)}?fields=id,name,type,etag,file_version,size,content_type,parent,trashed_at"),
-            null,
-            cancellationToken);
-        using var metadataDocument = await ReadSuccessJsonAsync(metadataResponse, cancellationToken);
-        var file = ParseItem(metadataDocument.RootElement);
-        if (!string.Equals(file.Type, "file", StringComparison.Ordinal))
+        try
         {
-            throw new InvalidDataException("Box returned the wrong type for a custody file.");
+            using var metadataResponse = await SendAsync(
+                HttpMethod.Get,
+                new Uri(options.BaseUri,
+                    $"files/{Uri.EscapeDataString(fileId)}?fields=id,name,type,etag,file_version,size,content_type,parent,trashed_at"),
+                null,
+                cancellationToken);
+            using var metadataDocument = await ReadSuccessJsonAsync(metadataResponse, cancellationToken);
+            var file = ParseItem(metadataDocument.RootElement);
+            if (!string.Equals(file.Type, "file", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Box returned the wrong type for a custody file.");
+            }
+            if (IsTrashed(metadataDocument.RootElement))
+            {
+                throw new UnauthorizedAccessException("A Box custody object is in trash.");
+            }
+            if (!string.Equals(file.ParentId, expectedParentId, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("The Box file is outside its expected Case root.");
+            }
+            if (rememberAncestry)
+            {
+                await EnsureLiveFolderForReadAsync(expectedParentId, cancellationToken);
+            }
+            else
+            {
+                await EnsureDescendantAsync(expectedParentId, cancellationToken);
+            }
+            return await DownloadVersionWithoutAncestryAsync(
+                fileId, versionId, maximumLength, cancellationToken);
         }
-        if (!string.Equals(file.ParentId, expectedParentId, StringComparison.Ordinal))
+        catch (Exception exception) when (IsFenceFailure(exception))
         {
-            throw new InvalidDataException("The Box file is outside its expected Case root.");
+            Forget(expectedParentId);
+            throw;
         }
-        await EnsureDescendantAsync(expectedParentId, cancellationToken);
-        return await DownloadVersionWithoutAncestryAsync(
-            fileId, versionId, maximumLength, cancellationToken);
     }
+
+    /// <summary>
+    /// The read path's ancestry check: a folder proved under the approved root
+    /// within <see cref="LiveFolderMemory"/> is taken as still there, and any
+    /// other folder is walked to the root and remembered only if it gets there.
+    /// </summary>
+    internal async Task EnsureLiveFolderForReadAsync(
+        string folderId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderId);
+        if (liveFolders.TryGetValue(folderId, out var expiresAtUtc)
+            && expiresAtUtc > timeProvider.GetUtcNow())
+        {
+            return;
+        }
+        await EnsureDescendantAsync(folderId, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        if (liveFolders.Count >= LiveFolderPruneThreshold)
+        {
+            foreach (var entry in liveFolders)
+            {
+                if (entry.Value <= now)
+                {
+                    liveFolders.TryRemove(entry.Key, out _);
+                }
+            }
+        }
+        liveFolders[folderId] = now.Add(LiveFolderMemory);
+    }
+
+    /// <summary>Drops a folder from the read memory, so its next read walks the ancestry again.</summary>
+    private void Forget(string? folderId)
+    {
+        if (!string.IsNullOrEmpty(folderId))
+        {
+            liveFolders.TryRemove(folderId, out _);
+        }
+    }
+
+    /// <summary>
+    /// An answer that says the object is gone, trashed or not ours: a 404 or
+    /// 410, a 403, a trashed or outside-root refusal, or metadata that does
+    /// not describe the object asked for. A throttled or failed Box is not one.
+    /// </summary>
+    private static bool IsFenceFailure(Exception exception) =>
+        exception is UnauthorizedAccessException or InvalidDataException
+        || exception is HttpRequestException
+        {
+            StatusCode: HttpStatusCode.NotFound or HttpStatusCode.Gone or HttpStatusCode.Forbidden
+        };
+
+    private static bool IsTrashed(JsonElement item) =>
+        item.TryGetProperty("trashed_at", out var trashed)
+        && trashed.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined;
 
     private async Task<Stream> DownloadVersionAsync(
         string fileId,
@@ -733,6 +860,7 @@ internal sealed class BoxContentClient(
         string name,
         CancellationToken cancellationToken)
     {
+        Forget(newParentId);
         await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
         await EnsureDescendantAsync(newParentId, cancellationToken);
         using var content = JsonContent.Create(new { name, parent = new { id = newParentId } });
@@ -758,6 +886,7 @@ internal sealed class BoxContentClient(
         {
             throw new UnauthorizedAccessException("The approved custody root can never be removed.");
         }
+        Forget(folderId);
         await EnsureDescendantAsync(folderId, cancellationToken);
         // Deliberately non-recursive: Box refuses to delete a non-empty
         // folder, so anything unexpectedly still inside fails the removal
@@ -802,31 +931,48 @@ internal sealed class BoxContentClient(
         }
         var type = isFile ? "files" : "folders";
         var current = itemId;
-        for (var depth = 0; depth < 100; depth++)
+        // Every folder this walk touches: a failed walk forgets each of them.
+        var walked = new List<string>();
+        if (!isFile)
         {
-            var uri = new Uri(options.BaseUri,
-                $"{type}/{Uri.EscapeDataString(current)}?fields=id,parent,trashed_at");
-            using var response = await SendAsync(HttpMethod.Get, uri, null, cancellationToken);
-            using var document = await ReadSuccessJsonAsync(response, cancellationToken);
-            if (document.RootElement.TryGetProperty("trashed_at", out var trashed)
-                && trashed.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
-            {
-                throw new UnauthorizedAccessException("A Box custody object is in trash.");
-            }
-            if (!document.RootElement.TryGetProperty("parent", out var parent)
-                || parent.ValueKind == JsonValueKind.Null)
-            {
-                break;
-            }
-            current = ReadString(parent, "id")
-                ?? throw new InvalidDataException("Box omitted a parent identity.");
-            if (current.Equals(options.RootFolderId, StringComparison.Ordinal))
-            {
-                return;
-            }
-            type = "folders";
+            walked.Add(itemId);
         }
-        throw new UnauthorizedAccessException("The Box object is outside the approved custody root.");
+        try
+        {
+            for (var depth = 0; depth < 100; depth++)
+            {
+                var uri = new Uri(options.BaseUri,
+                    $"{type}/{Uri.EscapeDataString(current)}?fields=id,parent,trashed_at");
+                using var response = await SendAsync(HttpMethod.Get, uri, null, cancellationToken);
+                using var document = await ReadSuccessJsonAsync(response, cancellationToken);
+                if (IsTrashed(document.RootElement))
+                {
+                    throw new UnauthorizedAccessException("A Box custody object is in trash.");
+                }
+                if (!document.RootElement.TryGetProperty("parent", out var parent)
+                    || parent.ValueKind == JsonValueKind.Null)
+                {
+                    break;
+                }
+                current = ReadString(parent, "id")
+                    ?? throw new InvalidDataException("Box omitted a parent identity.");
+                if (current.Equals(options.RootFolderId, StringComparison.Ordinal))
+                {
+                    return;
+                }
+                walked.Add(current);
+                type = "folders";
+            }
+            throw new UnauthorizedAccessException("The Box object is outside the approved custody root.");
+        }
+        catch (Exception exception) when (IsFenceFailure(exception))
+        {
+            foreach (var folderId in walked)
+            {
+                Forget(folderId);
+            }
+            throw;
+        }
     }
 
     private async Task<HttpResponseMessage> SendAsync(
@@ -840,7 +986,31 @@ internal sealed class BoxContentClient(
         configure?.Invoke(request);
         request.Headers.Authorization = AuthenticationHeaderValue.Parse(
             await authorizationHeaderProvider.GetAuthorizationHeaderAsync(cancellationToken));
-        return await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        var response = await httpClient.SendAsync(
+            request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            // Box's rate limit, with how long it asked us to wait.
+            var retryAfter = RetryAfterOf(response);
+            response.Dispose();
+            throw new BoxThrottledException(retryAfter);
+        }
+        return response;
+    }
+
+    private TimeSpan? RetryAfterOf(HttpResponseMessage response)
+    {
+        var header = response.Headers.RetryAfter;
+        if (header?.Delta is { } delta)
+        {
+            return delta < TimeSpan.Zero ? TimeSpan.Zero : delta;
+        }
+        if (header?.Date is { } date)
+        {
+            var remaining = date - timeProvider.GetUtcNow();
+            return remaining < TimeSpan.Zero ? TimeSpan.Zero : remaining;
+        }
+        return null;
     }
 
     private static async Task<JsonDocument> ReadSuccessJsonAsync(

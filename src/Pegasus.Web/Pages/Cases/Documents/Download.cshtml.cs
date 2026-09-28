@@ -377,12 +377,14 @@ public sealed partial class DownloadModel(
     }
 
     /// <summary>
-    /// Which previews a browser may keep. An image is the page element this is
-    /// about: a tile, and the viewer's own copy of it.
+    /// Which previews a browser may keep: an image (a tile, and the viewer's
+    /// own copy of it) and a PDF the viewer shows. The URL names the version
+    /// and the ETag is its SHA-256, so a kept copy is never a stale one.
     /// </summary>
     private static bool IsCacheablePreview(string mediaType) =>
         MediaTypeHeaderValue.TryParse(mediaType, out var parsed)
-        && parsed.Type.Equals("image", StringComparison.OrdinalIgnoreCase);
+        && (parsed.Type.Equals("image", StringComparison.OrdinalIgnoreCase)
+            || parsed.MediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// A strong validator, because the bytes are exactly what the hash names.

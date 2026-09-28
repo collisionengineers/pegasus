@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Intake;
 
@@ -12,15 +13,21 @@ namespace Pegasus.Web.Pages.Intake;
 /// else stays on the forced-download route, so retained HTML or scripts can
 /// never execute from this origin.
 /// </summary>
-[ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+/// <remarks>
+/// The browser keeps the image only when <c>v=</c> names its current content
+/// hash (<see cref="IntakeImageAddress"/>); every other answer, including
+/// every refusal, is <c>private, no-store</c>.
+/// </remarks>
 public sealed partial class ImageModel(
     IDownloadIntakeSource downloadSource,
     ILogger<ImageModel> logger) : StaffPageModel
 {
     public async Task<IActionResult> OnGetAsync(
         Guid id,
+        [FromQuery] string? v = null,
         CancellationToken cancellationToken = default)
     {
+        Response.Headers.CacheControl = IntakeImageAddress.UncachedCacheControl;
         if (!TryGetActor(out var actor))
         {
             return Forbid();
@@ -44,7 +51,11 @@ public sealed partial class ImageModel(
                 return NotFound();
             }
 
-            Response.Headers.CacheControl = "private, no-store";
+            if (IntakeImageAddress.NamesContent(v, source.Sha256))
+            {
+                Response.Headers.CacheControl = IntakeImageAddress.KeptCacheControl;
+                Response.Headers.ETag = IntakeImageAddress.ContentETag(source.Sha256);
+            }
             Response.Headers.XContentTypeOptions = "nosniff";
             Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline")
             {

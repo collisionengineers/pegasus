@@ -293,7 +293,7 @@
                             // the coincidence GalleryImage documents.
                             var href = Url.Page(
                                 "/Intake/Asset",
-                                new { id = origin.ReceiptId, assetId = asset.Id })!;
+                                new { id = origin.ReceiptId, assetId = asset.Id, v = asset.ContentHash })!;
                             return new Pegasus.Web.Presentation.GalleryImage(
                                 href,
                                 href,
@@ -301,7 +301,8 @@
                                 asset.MediaType,
                                 IntakeAssetId: asset.Id,
                                 IntakeReceiptId: origin.ReceiptId,
-                                Preparation: view.Preparations.GetValueOrDefault(asset.Id));
+                                Preparation: view.Preparations.GetValueOrDefault(asset.Id),
+                                ContentHash: asset.ContentHash);
                         })
                         .ToArray();
                     ViewData["PreCaseImageTags"] = view.ImageTags;

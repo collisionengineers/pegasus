@@ -1040,6 +1040,33 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         }
     }
 
+    // The Worker's thumbnail sweep lists confirmed versions and reads and
+    // writes the content cache as the least-privilege Worker role. No grant
+    // was added for it; this asserts the ones it relies on.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerTheThumbnailSweepTables()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        foreach (var permission in new[]
+        {
+            "Cases:SELECT",
+            "CaseDocuments:SELECT",
+            "DocumentVersions:SELECT",
+            "DocumentContentCacheEntries:SELECT",
+            "DocumentContentCacheEntries:INSERT",
+            "DocumentContentCacheEntries:UPDATE",
+            "DocumentContentCacheEntries:DELETE"
+        })
+        {
+            Assert.Contains(permission, granted);
+        }
+    }
+
     [Fact]
     public async Task LatestMigrationGrantsImageIntakeLifecycleUpdatesToBothRuntimeRoles()
     {

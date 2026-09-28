@@ -73,7 +73,8 @@ public sealed class CaseArtifactCustodyRecoveryTests
                 HoldingBox.RootId,
                 "test", "test", "test", "test", "test", "test", HoldingBox.HoldingFolderId),
             new HttpClient(new HoldingBoxHandler(box)),
-            new StaticBoxAuthorizationHeaderProvider());
+            new StaticBoxAuthorizationHeaderProvider(),
+            TimeProvider.System);
         var custody = new EfCaseArtifactCustody(
             factory,
             new BoxDocumentContentStore(client),

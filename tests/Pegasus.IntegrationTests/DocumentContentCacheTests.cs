@@ -6,7 +6,10 @@ using Azure;
 using Azure.Core;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -797,6 +800,270 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// A warm read is the actor, the source and the cache entry: three SQL
+    /// round trips, and a fourth only when the entry's expiry is due to be
+    /// pushed out, which happens at most once an hour.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AWarmReadCostsThreeSqlRoundTripsAndFourWhenItExtendsTheEntry(bool document)
+    {
+        var bytes = "counted warm read"u8.ToArray();
+        var estate = document ? await Estate.CreateDocumentAsync(bytes) : await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            await using (var cold = await estate.Reader.OpenAsync(estate.Request, default))
+            {
+                _ = await ReadAsync(cold.Content);
+            }
+            var commands = new CountingCommandInterceptor();
+            var counted = new CachedDocumentContentStore(
+                new PooledDbContextFactory<PegasusDbContext>(
+                    new DbContextOptionsBuilder<PegasusDbContext>()
+                        .UseSqlServer(estate.Database.ConnectionString)
+                        .AddInterceptors(commands)
+                        .Options),
+                new CacheContainer(estate.Blob),
+                new BoxContentClient(BoxOptions(), new HttpClient(estate.Box), new Header(), estate.Clock),
+                estate.Clock);
+            estate.Box.Unavailable = true;
+
+            await using (var warm = await counted.OpenAsync(estate.Request, default))
+            {
+                Assert.Equal(bytes, await ReadAsync(warm.Content));
+            }
+            Assert.Equal(3, commands.Count);
+
+            estate.Clock.Advance(TimeSpan.FromHours(2));
+            commands.Reset();
+            await using (var extended = await counted.OpenAsync(estate.Request, default))
+            {
+                Assert.Equal(bytes, await ReadAsync(extended.Content));
+            }
+            Assert.Equal(4, commands.Count);
+            Assert.Equal(1, estate.Box.Downloads);
+            await using var db = await estate.Database.CreateContextAsync();
+            Assert.Equal(
+                estate.Clock.GetUtcNow().AddHours(24),
+                (await db.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ExpiresAtUtc);
+        }
+    }
+
+    /// <summary>
+    /// The race the read lease used to guard: a hit pushes the expiry out
+    /// before it reads the object, and cleanup claims only expired entries, so
+    /// a cleanup pass after the hit leaves the entry and its object alone.
+    /// </summary>
+    [Fact]
+    public async Task AHitExtendsTheEntryBeforeReadingSoCleanupCannotRemoveItUnderTheRead()
+    {
+        var bytes = "touch before cleanup"u8.ToArray();
+        var estate = await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            await using (var cold = await estate.Reader.OpenAsync(estate.Request, default))
+            {
+                _ = await ReadAsync(cold.Content);
+            }
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ExpiresAtUtc =
+                    estate.Clock.GetUtcNow().AddMinutes(1);
+                await db.SaveChangesAsync();
+            }
+            estate.Box.Unavailable = true;
+
+            await using (var warm = await estate.Reader.OpenAsync(estate.Request, default))
+            {
+                Assert.Equal(bytes, await ReadAsync(warm.Content));
+            }
+            estate.Clock.Advance(TimeSpan.FromMinutes(2));
+            var cleanup = await estate.Reader.ExecuteAsync(10, default);
+
+            Assert.Equal(0, cleanup.Candidates);
+            Assert.Equal(0, estate.Blob.DeleteCount);
+            await using var verify = await estate.Database.CreateContextAsync();
+            Assert.Single(await verify.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+        }
+    }
+
+    /// <summary>
+    /// An entry past its expiry is never served, even before cleanup has come
+    /// for it: the read goes to Box and records the entry afresh.
+    /// </summary>
+    [Fact]
+    public async Task AnExpiredEntryIsReadFromBoxAgainEvenBeforeCleanupRuns()
+    {
+        var bytes = "expired before cleanup"u8.ToArray();
+        var estate = await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            await using (var cold = await estate.Reader.OpenAsync(estate.Request, default))
+            {
+                _ = await ReadAsync(cold.Content);
+            }
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ExpiresAtUtc =
+                    estate.Clock.GetUtcNow().AddMinutes(-1);
+                await db.SaveChangesAsync();
+            }
+
+            await using (var reread = await estate.Reader.OpenAsync(estate.Request, default))
+            {
+                Assert.Equal(bytes, await ReadAsync(reread.Content));
+            }
+
+            Assert.Equal(2, estate.Box.Downloads);
+            await using var verify = await estate.Database.CreateContextAsync();
+            Assert.Equal(
+                estate.Clock.GetUtcNow().AddHours(24),
+                (await verify.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ExpiresAtUtc);
+        }
+    }
+
+    /// <summary>
+    /// The export and the report read a Case's photographs cache first: a
+    /// cold set is read from Box once and cached, and the same set again is
+    /// served from the cache without asking Box.
+    /// </summary>
+    [Fact]
+    public async Task ABatchReadIsServedFromTheCacheAfterItsFirstRead()
+    {
+        var bytes = "batched photograph"u8.ToArray();
+        var estate = await Estate.CreateDocumentAsync(bytes);
+        await using (estate)
+        {
+            var request = estate.Request;
+            ManagedDocumentContentRead[] reads =
+            [
+                new(
+                    new ManagedDocumentContentAddress(
+                        request.CaseId!.Value,
+                        "QDOS091",
+                        "holding",
+                        Guid.NewGuid(),
+                        1,
+                        request.DocumentId!.Value,
+                        request.VersionId!.Value,
+                        1,
+                        DocumentSemanticRole.Image,
+                        "source.bin",
+                        "application/octet-stream",
+                        "box-file-1",
+                        "box-version-1"),
+                    request.ExpectedSha256,
+                    request.ExpectedContentLength)
+            ];
+
+            var cold = await estate.Reader.ReadVersionsAsync(reads, default);
+            Assert.Equal(bytes, Assert.Single(cold).ToArray());
+            Assert.Equal(1, estate.Box.Downloads);
+
+            estate.Box.Unavailable = true;
+            var warm = await estate.Reader.ReadVersionsAsync(reads, default);
+            Assert.Equal(bytes, Assert.Single(warm).ToArray());
+            Assert.Equal(1, estate.Box.Downloads);
+        }
+    }
+
+    [Fact]
+    public async Task APlainThumbnailIsKeptThirtyDaysAndAPreparedOneADay()
+    {
+        var estate = await Estate.CreateDocumentAsync("thumbnail lifetimes"u8.ToArray());
+        await using (estate)
+        {
+            var versionId = estate.Request.VersionId!.Value;
+            var prepared = CaseDocumentThumbnails.VariantToken(CaseAssetRotation.Clockwise90, null);
+            await using var scope = estate.Database.CreateAsyncScope();
+            var cache = new DocumentThumbnailCache(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                new CacheContainer(estate.Blob),
+                estate.Clock);
+
+            await cache.WriteAsync(versionId, "plain rendering"u8.ToArray(), CancellationToken.None);
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var plain = await db.Set<DocumentContentCacheEntryEntity>().SingleAsync();
+                Assert.Equal(DocumentThumbnailCache.Variant, plain.Variant);
+                Assert.Equal(estate.Clock.GetUtcNow().AddDays(30), plain.ExpiresAtUtc);
+                db.Remove(plain);
+                await db.SaveChangesAsync();
+            }
+            estate.Blob.Content = null;
+
+            await cache.WriteAsync(versionId, prepared, "prepared rendering"u8.ToArray(), CancellationToken.None);
+            await using var verify = await estate.Database.CreateContextAsync();
+            var entry = await verify.Set<DocumentContentCacheEntryEntity>().SingleAsync();
+            Assert.Equal(prepared, entry.Variant);
+            Assert.Equal(estate.Clock.GetUtcNow().AddHours(24), entry.ExpiresAtUtc);
+        }
+    }
+
+    /// <summary>
+    /// The Worker's sweep makes the plain thumbnail of a newly filed image as
+    /// the system worker, and a version that now has one is not a candidate
+    /// again. One that cannot be rendered is not offered again for a day.
+    /// </summary>
+    [Fact]
+    public async Task TheThumbnailSweepMakesEachNewImageThumbnailOnceAndLeavesUnrenderableOnesForADay()
+    {
+        var image = TransparentPng(width: 960, height: 480);
+        var estate = await Estate.CreateDocumentAsync(image, "image/png");
+        await using (estate)
+        {
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<DocumentVersionEntity>().SingleAsync()).CreatedAtUtc =
+                    estate.Clock.GetUtcNow().AddHours(-1);
+                await db.SaveChangesAsync();
+            }
+            await using var scope = estate.Database.CreateAsyncScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            var cache = new DocumentThumbnailCache(factory, new CacheContainer(estate.Blob), estate.Clock);
+            var source = new ImmediateSource(image);
+            var sweep = new PrepareDocumentThumbnails(
+                new EfDocumentThumbnailCandidates(factory, estate.Clock),
+                new CaseDocumentThumbnailReader(source, cache));
+
+            var first = await sweep.ExecuteAsync(5, CancellationToken.None);
+
+            Assert.Equal(new PrepareDocumentThumbnailsResult(1, 1, 0, 0, null), first);
+            Assert.Equal(ActorKind.SystemWorker, Assert.Single(source.Actors).Kind);
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var thumbnail = await db.Set<DocumentContentCacheEntryEntity>().SingleAsync();
+                Assert.Equal(DocumentThumbnailCache.Variant, thumbnail.Variant);
+                Assert.Equal(estate.Request.VersionId, thumbnail.DocumentVersionId);
+            }
+            estate.Clock.Advance(TimeSpan.FromDays(2));
+            Assert.Equal(0, (await sweep.ExecuteAsync(5, CancellationToken.None)).Candidates);
+
+            // Bytes the renderer cannot decode: tried once, then left for a day.
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                db.RemoveRange(db.Set<DocumentContentCacheEntryEntity>());
+                await db.SaveChangesAsync();
+            }
+            var unrenderable = new PrepareDocumentThumbnails(
+                new EfDocumentThumbnailCandidates(factory, estate.Clock),
+                new CaseDocumentThumbnailReader(new ImmediateSource("not an image"u8.ToArray()), cache));
+            Assert.Equal(
+                new PrepareDocumentThumbnailsResult(1, 0, 1, 0, null),
+                await unrenderable.ExecuteAsync(5, CancellationToken.None));
+            Assert.Equal(0, (await unrenderable.ExecuteAsync(5, CancellationToken.None)).Candidates);
+            estate.Clock.Advance(TimeSpan.FromDays(1).Add(TimeSpan.FromMinutes(1)));
+            Assert.Equal(1, (await unrenderable.ExecuteAsync(5, CancellationToken.None)).Candidates);
+        }
+    }
+
+    private static BoxCustodyOptions BoxOptions() => BoxCustodyOptions.Create(
+        "https://api.box.com/2.0/", "https://upload.box.com/api/2.0/", "405543781910",
+        """{"boxAppSettings":{"clientID":"x","appAuth":{"publicKeyID":"x","privateKey":"x","passphrase":"x"}},"enterpriseID":"x"}""",
+        "x", "holding");
+
     private static async Task<byte[]> ReadAsync(Stream stream)
     {
         using var output = new MemoryStream();
@@ -980,7 +1247,9 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 { StaffId = staffId };
         }
 
-        public static async Task<Estate> CreateDocumentAsync(byte[] bytes)
+        public static async Task<Estate> CreateDocumentAsync(
+            byte[] bytes,
+            string mediaType = "application/octet-stream")
         {
             var database = await LocalDbTestDatabase.CreateAsync();
             var staffId = Guid.NewGuid();
@@ -1028,7 +1297,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 db.Add(new DocumentVersionEntity
                 {
                     Id = versionId, DocumentId = documentId, Version = 1, FileName = "source.bin",
-                    MediaType = "application/octet-stream", ContentLength = bytes.Length, Sha256 = hash,
+                    MediaType = mediaType, ContentLength = bytes.Length, Sha256 = hash,
                     BoxFileId = "box-file-1", BoxVersionId = "box-version-1",
                     CustodyStatus = DocumentCustodyStatus.Confirmed, CreatedAtUtc = DateTimeOffset.UtcNow,
                     CreatedBy = "test", IsCurrent = true
@@ -1045,7 +1314,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 "x", "holding");
             var clock = new MutableTimeProvider(new DateTimeOffset(2031, 1, 1, 0, 0, 0, TimeSpan.Zero));
             var reader = new CachedDocumentContentStore(
-                factory, new CacheContainer(blob), new BoxContentClient(options, new HttpClient(box), new Header()), clock);
+                factory, new CacheContainer(blob), new BoxContentClient(options, new HttpClient(box), new Header(), clock), clock);
             return new Estate(database, reader, blob, box, clock,
                 new(ActionActor.Staff(staffId, [StaffRole.Engineer]), documentId, versionId, null,
                     caseId, null, hash, bytes.Length))
@@ -1086,6 +1355,68 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
                 request.ExpectedContentLength,
                 "source.png",
                 "image/png");
+        }
+    }
+
+    /// <summary>The verified full bytes, answered at once, with who asked.</summary>
+    private sealed class ImmediateSource(byte[] content) : IReadLogicalDocumentVersion
+    {
+        public List<ActionActor> Actors { get; } = [];
+
+        public Task<LogicalDocumentContent> OpenAsync(
+            ReadLogicalDocumentVersionRequest request,
+            CancellationToken cancellationToken)
+        {
+            Actors.Add(request.Actor);
+            return Task.FromResult(new LogicalDocumentContent(
+                new MemoryStream(content, writable: false),
+                request.DocumentId,
+                request.VersionId,
+                request.IntakeAssetId,
+                request.ExpectedSha256,
+                content.LongLength,
+                "source.png",
+                "image/png"));
+        }
+    }
+
+    /// <summary>Every SQL command a context sends, whatever kind.</summary>
+    private sealed class CountingCommandInterceptor : DbCommandInterceptor
+    {
+        private int count;
+
+        public int Count => Volatile.Read(ref count);
+
+        public void Reset() => Interlocked.Exchange(ref count, 0);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<object> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref count);
+            return ValueTask.FromResult(result);
         }
     }
 
