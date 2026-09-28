@@ -19,6 +19,8 @@
   source refuses the whole import, with no OCR and no partial spec.
 - A Glass's answer that was lost stays `Unknown` and holds the account until
   the owning staff member closes the session with a reason.
+- Glass's launch and return run in the background. The Glass's window waits,
+  then opens the estimator or reports the outcome on the Case.
 
 ## Purpose
 
@@ -149,6 +151,31 @@ edits, and never reapplies the older edit. Changed intent under the same
 operation key is refused, as is a new operation against a stale Case
 version.
 
+### Glass's launch and return
+
+**Glass's runs in the background (operator, 28 September 2026).** Launch and
+Resume check the Case authority, the account and the vehicle, record the
+session, and answer at once. The provider work then runs in the background
+([ADR-0058](../adr/0058-glass-provider-work-in-the-web-host.md)). The Glass's
+window says "Preparing Glass's…" while it runs. When the estimator is ready,
+the window refreshes the Case's Glass's controls and opens the estimator. If
+the launch did not open, the window hands the outcome back to the Case.
+
+The provider's return is the same. It is checked and claimed at once: a
+stranger is refused before the one-use token is spent. The window then says
+"Bringing the estimate back…" while the relay, export, retention and import
+run. The finished outcome is reported on the Case as before. The same return
+delivered again while the import runs waits on the same work.
+
+Only the owning staff member sees the window or its progress. The estimator
+address is never shown on the page or in its progress answer.
+
+While a session's work runs it cannot be closed. The Close control is absent,
+and a Close posted anyway is refused with a reason, so nothing the work creates
+at the provider is left without a session. A second click of the same Launch
+waits on the first click's work. If the queue is full, the work runs in the
+staff member's own request, as it did before, and is never dropped.
+
 ### Glass's interrupted sessions
 
 A Glass's launch records its callback and external account before contacting
@@ -157,6 +184,18 @@ arrive. Resume continues an interrupted preparation or a known vehicle that
 has not started an estimate; an existing estimate reopens by its existing
 identity. These actions sit in the Case estimate section and do not need
 credentials reset.
+
+**Interrupted background work.** Work can stop part-way: the host restarts,
+or the work runs past its time limit. A session found waiting with no work
+running for it is settled when the window next asks:
+
+- Prepared never reached the provider. It stays Prepared and can be resumed,
+  and the Case says the estimate did not start.
+- Launching or a claimed import may have reached the provider. It becomes
+  `Unknown`, keeps the account, and follows the Unknown rule below.
+- A claimed import keeps the provider's return with its claim. If the relay
+  back to Glass's had not begun, Resume makes it once. If it had begun,
+  Resume looks the export up again and never relays again.
 
 Every Resume presents the current Case version and live edit lease, including
 preparation, an active estimate and a waiting import. The current registration
@@ -246,7 +285,7 @@ the same import. A staff Import makes the imported spec Current.
 | Thing | States |
 | --- | --- |
 | Repair specification | Draft (live) or Discarded. At most one live spec is Current: a staff-created spec is Current at once, and Use repair spec switches. Edits keep the spec; imports, scales, restores and sent reports freeze numbered versions |
-| Glass's session | launched, `Unknown` (holds the account), resumed, closed by the owning staff member with a reason |
+| Glass's session | prepared (work running in the background), launched, `Unknown` (holds the account), resumed, closed by the owning staff member with a reason. Interrupted work settles Prepared as resumable and anything past it as `Unknown` |
 
 ## Edge cases and fail-closed behaviour
 
@@ -264,7 +303,8 @@ Core and integration evidence covers identity, current authority, account
 exclusivity, uncertain writes, callback replay, custody and one import that
 lands as the Current spec on the rate card.
 Browser evidence covers save-before-launch, refusal without provider work,
-fresh controls, stale Close and preservation of edits during return.
+waiting in the Glass's window, fresh controls, stale Close and preservation of
+edits during return.
 
 The hosted editor must also pass live acceptance on the deployed artifact:
 three fresh launches across two vehicle models (cold and warm browser), three

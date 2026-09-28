@@ -997,6 +997,7 @@ public static class CaseWorkspaceLabels
         public const string CloseConsequence = "Closing this record releases the Glass's account for another estimate.";
         public const string Closed = "The Glass's session was closed.";
         public const string CloseRefused = "The Glass's session was not closed.";
+        public const string CloseWhileWorking = "The Glass's session was not closed. Glass's is still being prepared or brought back; close it when that has finished.";
         public const string CloseChanged = "The Glass's session changed. Its controls have been refreshed. Confirm external closure again before closing it.";
         public const string State = "State";
         public const string OpenOn = "Open on";
@@ -1028,6 +1029,13 @@ public static class CaseWorkspaceLabels
 
         public const string ResumeRefused =
             "The Glass's session was not resumed. Retry the operation.";
+
+        /// <summary>The Glass's window while its provider work runs in the background.</summary>
+        public const string Preparing = "Preparing Glass's…";
+
+        public const string BringingBack = "Bringing the estimate back…";
+
+        public const string Continue = "Continue";
 
         /// <summary>
         /// What a settled session reports, wherever it settled: the Estimate
