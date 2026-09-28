@@ -409,7 +409,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var html = WebUtility.HtmlDecode(await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report"));
 
         var row = BlockerRow(BlockerList(html), CaseReportReadiness.RepairerVatRequirement);
-        var panel = NextActionRegex().Match(html).Value;
+        var panel = CaseWebTestSupport.NextActionRegex().Match(html).Value;
         foreach (var place in new[] { row, panel })
         {
             Assert.Contains($"action=\"/Cases/{caseId:D}?handler=ClaimLease\"", place, StringComparison.Ordinal);
