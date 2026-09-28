@@ -302,7 +302,7 @@ public static class AssessmentReportProjection
     private static ReportDamage BuildDamage(IReadOnlyDictionary<string, string?> fields)
     {
         var impacts = AssessmentPolicy.ParseImpacts(Field(fields, AssessmentVocabulary.DamageImpacts))
-            .Select(impact => new ReportImpact(impact.Areas, impact.Disc))
+            .Select(impact => new ReportImpact(impact.Areas, impact.Severity, impact.Disc))
             .ToArray();
         return new(impacts, Field(fields, AssessmentVocabulary.DamageUnrelated));
     }

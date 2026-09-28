@@ -48,6 +48,8 @@ public sealed class AssessmentReportProjectionTests
             snapshot.Vehicle);
         var impact = Assert.Single(snapshot.Damage.Impacts);
         Assert.Equal(["right_rear"], impact.Codes);
+        // Each damage keeps its own severity, which shades its disc.
+        Assert.Equal("moderate", impact.Severity);
         // The disc the operator drew travels to the report as drawn.
         Assert.Equal(new DamageDisc(0.86, 0.86, 0.1), impact.Disc);
         Assert.Equal("Door scratch", snapshot.Damage.Unrelated);

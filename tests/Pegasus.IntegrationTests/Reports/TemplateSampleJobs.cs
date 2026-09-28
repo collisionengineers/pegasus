@@ -117,7 +117,7 @@ internal static class TemplateSampleJobs
             NewParts: Lines(worklists, "new_parts"),
             Repairs: Lines(worklists, "repairs"),
             Operations: Lines(worklists, "operations"),
-            Damage: new ReportDamage([new ReportImpact([location])], null),
+            Damage: new ReportDamage([new ReportImpact([location], Text(assessment, "impact_severity"))], null),
             Settlement: outcome == AssessmentReportOutcome.ContractRepair
                 ? new ReportSettlement(costs.Total)
                 : new ReportSettlement(),

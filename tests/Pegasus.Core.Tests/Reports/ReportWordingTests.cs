@@ -307,7 +307,7 @@ public sealed class ReportWordingTests
         {
             ImpactSeverity = severity,
             ImpactLocation = location,
-            Damage = new([new([location])], null),
+            Damage = new([new([location], severity)], null),
         };
         Assert.Equal(expected, snapshot.PrintedWording[0].Text);
     }
@@ -344,9 +344,9 @@ public sealed class ReportWordingTests
             ImpactLocation = ReportWordingComposition.SeveralAreas,
             Damage = new(
                 [
-                    new(["right_side", "right_rear"]),
-                    new(["rear", "right_rear"]),
-                    new(["underside"]),
+                    new(["right_side", "right_rear"], "moderate"),
+                    new(["rear", "right_rear"], "light"),
+                    new(["underside"], "heavy"),
                 ],
                 null),
         };

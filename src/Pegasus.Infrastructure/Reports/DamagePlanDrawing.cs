@@ -47,18 +47,17 @@ internal static class DamagePlanDrawing
     private const string ClipId = "plan-body";
 
     /// <summary>
-    /// The drawing. <paramref name="severity"/> is the report's impact
-    /// severity, which shades every disc: the report carries one severity,
-    /// the heaviest recorded.
+    /// The drawing. Each damage's disc is shaded by that damage's own
+    /// severity, as the Case page shades it.
     /// </summary>
-    internal static string Svg(IReadOnlyList<ReportImpact> impacts, string severity)
+    internal static string Svg(IReadOnlyList<ReportImpact> impacts)
     {
         ArgumentNullException.ThrowIfNull(impacts);
         var (width, height) = PlanSize();
         var discs = impacts
-            .Select(impact => DamagePlanGeometry.Disc(impact.Codes, impact.Disc))
-            .Where(disc => disc is not null)
-            .Select(disc => disc!)
+            .Select(impact => (Disc: DamagePlanGeometry.Disc(impact.Codes, impact.Disc), impact.Severity))
+            .Where(mark => mark.Disc is not null)
+            .Select(mark => (Disc: mark.Disc!, mark.Severity))
             .ToArray();
 
         var svg = new StringBuilder();
@@ -88,14 +87,11 @@ internal static class DamagePlanDrawing
         {
             Append(svg, $"<path fill=\"{RearLamp}\" stroke=\"{RearLampOutline}\" stroke-width=\"0.6\" d=\"{lamp}\"/>");
         }
-        if (discs.Length > 0)
+        foreach (var (disc, severity) in discs)
         {
             var (fill, outline) = Shade(severity);
-            foreach (var disc in discs)
-            {
-                Append(svg, $"<circle clip-path=\"url(#{ClipId})\" fill=\"{fill}\" fill-opacity=\"0.32\" stroke=\"{outline}\" stroke-width=\"1.6\" cx=\"{disc.CentreX:0.#}\" cy=\"{disc.CentreY:0.#}\" r=\"{disc.Radius:0.#}\"/>");
-                Append(svg, $"<circle fill=\"{Dot}\" stroke=\"{Body}\" stroke-width=\"1.5\" cx=\"{disc.CentreX:0.#}\" cy=\"{disc.CentreY:0.#}\" r=\"8\"/>");
-            }
+            Append(svg, $"<circle clip-path=\"url(#{ClipId})\" fill=\"{fill}\" fill-opacity=\"0.32\" stroke=\"{outline}\" stroke-width=\"1.6\" cx=\"{disc.CentreX:0.#}\" cy=\"{disc.CentreY:0.#}\" r=\"{disc.Radius:0.#}\"/>");
+            Append(svg, $"<circle fill=\"{Dot}\" stroke=\"{Body}\" stroke-width=\"1.5\" cx=\"{disc.CentreX:0.#}\" cy=\"{disc.CentreY:0.#}\" r=\"8\"/>");
         }
         svg.Append("</g></svg>");
         return svg.ToString();
@@ -106,7 +102,7 @@ internal static class DamagePlanDrawing
         if (!AssessmentVocabulary.DamageSeverities.TryGetValue(severity, out var recorded))
         {
             throw new ReportRenderRejectedException(
-                "The report cannot draw the damage because the impact severity is not one it knows. "
+                "The report cannot draw a damage because its severity is not one it knows. "
                 + "Record the damage again on the Damage section.");
         }
         return recorded.Rank < Shades.Length
