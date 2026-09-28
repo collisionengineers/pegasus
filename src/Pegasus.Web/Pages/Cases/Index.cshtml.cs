@@ -621,22 +621,31 @@ public sealed class IndexModel(
             : [];
 
         // Current work is the Case's Next action, the one the Case page's
-        // aside states (issue 896), read from the same facts: the report's
+        // aside states (issue 896), read from the same facts: the first
+        // missing requirement, and once the report is the Case's concern its
         // readiness while the assessment can open, the current report and its
         // delivery preparation.
         var caseId = details.Workflow.CaseId;
-        var access = await _getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
-        var reportInputs = access?.CanOpen == true
-            ? await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, cancellationToken)
-            : null;
-        var currentReport = await _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
-        var deliveryPreparation = currentReport is null
-            ? null
-            : await _deliveryPreparations.GetCurrentAsync(actor, caseId, cancellationToken);
+        IReadOnlyList<AssessmentReadinessItem> reportBlockers = [];
+        CaseReportGenerationRecord? currentReport = null;
+        CaseReportDeliveryPreparationRecord? deliveryPreparation = null;
+        if (CaseNextAction.ReadsTheReport(details.Workflow))
+        {
+            var access = await _getAssessmentAccess.ExecuteAsync(new(caseId, actor), cancellationToken);
+            if (access?.CanOpen == true
+                && await _reportSnapshotSource.GetAsync(caseId, actor, CaseWorkSelector.Current, cancellationToken) is { } reportInputs)
+            {
+                reportBlockers = CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons;
+            }
+            currentReport = await _reportGenerations.GetCurrentAsync(actor, caseId, CaseWorkSelector.Current, cancellationToken);
+            deliveryPreparation = currentReport is null
+                ? null
+                : await _deliveryPreparations.GetCurrentAsync(actor, caseId, cancellationToken);
+        }
         var next = CaseNextAction.Of(
             details.Workflow,
-            outstanding.Count > 0 ? outstanding[0].Resolve : null,
-            reportInputs is null ? [] : CaseReportReadiness.Evaluate(reportInputs.Readiness).Reasons,
+            missingRequirements is [var firstMissing, ..] ? OperatorLabels.RequirementIncomplete(firstMissing) : null,
+            reportBlockers,
             _ => null,
             currentReport,
             deliveryPreparation);

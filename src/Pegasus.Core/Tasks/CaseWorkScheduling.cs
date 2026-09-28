@@ -1,3 +1,5 @@
+using Pegasus.Core.AiWork;
+
 namespace Pegasus.Core.Tasks;
 
 /// <summary>
@@ -82,7 +84,7 @@ public static class CaseDuePolicy
     /// neither. Every surface that shows a Case's Due reads this.
     /// </summary>
     public static DateTimeOffset? DueAt(DateTimeOffset? nextChaseAtUtc, DateOnly? dueBy) =>
-        nextChaseAtUtc ?? (dueBy is { } date ? Pegasus.Core.AiWork.WorkTargets.EndOfDay(date) : null);
+        nextChaseAtUtc ?? (dueBy is { } date ? WorkTargets.EndOfDay(date) : null);
 }
 
 /// <summary>

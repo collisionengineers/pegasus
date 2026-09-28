@@ -304,6 +304,9 @@ public static class OperatorLabels
     /// </summary>
     public sealed record CaseRequirement(string Requirement, string Resolve);
 
+    /// <summary>A missing completeness requirement as the Next action names it.</summary>
+    public static string RequirementIncomplete(string requirement) => $"{requirement} incomplete";
+
     public static IReadOnlyList<CaseRequirement> CaseRequirements(bool instructionsMissing, bool imagesMissing)
     {
         var items = new List<CaseRequirement>(2);
@@ -1216,7 +1219,8 @@ public static class OperatorLabels
     /// <summary>
     /// The date a due instant falls due. A Due by date's instant is the
     /// midnight that ends it (<see cref="Pegasus.Core.Tasks.CaseDuePolicy.DueAt"/>),
-    /// so the day named is the one just before the instant.
+    /// so the day named is the one just before the instant, as the Work
+    /// Centre's due text reads it; a chase time names its own day.
     /// </summary>
     public static string DueDate(DateTimeOffset due) => OfficeDate(due.AddTicks(-1));
 
