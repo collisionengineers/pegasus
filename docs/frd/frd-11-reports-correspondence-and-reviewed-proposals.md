@@ -306,7 +306,9 @@ prepared or sent.
 Viewing one records `case_report_draft_previewed`, distinct from generation
 and download. Reopening a confirmed file's bytes records
 `case_report_artifact_downloaded`, at most once per Case or file, staff
-member and London day.
+member and London day. Opening the stored report in the viewer reads the same
+bytes, so it records the same event, and Case history shows it as Report
+downloaded. That includes the report opening by itself after Generate report.
 
 **Version checks.** Snapshot assembly reads the Case version first and
 refuses a changed version before freezing. Generation and preparation
@@ -339,6 +341,42 @@ a colleague's live lease refuses it. In edit mode Generate saves the Case
 first. It uses the accepted saved facts and the snapshot above, and retains
 versioned report and fee-note files, their custody outcome and history. A
 generated file is not approval, sending or receipt.
+
+**After Generate report** (operator, 27 September 2026). A report that was
+generated and stored opens in the Case page's document viewer by itself,
+once. The Report section then says where the report stands, in plain words:
+
+| Words | Meaning |
+| --- | --- |
+| Stored | The report's file is in Box. **Open report** opens it in the viewer |
+| Storing | The file was drawn and is on its way to Box |
+| Storage failed | Storing the file failed |
+| Not confirmed | What became of the file is not known |
+| Not generated | The report was never drawn |
+
+A report still being filed is a warning, never a confirmation. The notice
+reads "The report is still being filed to Box."
+
+**A report filed after its request.** A request can end while its file is
+still on its way to Box. Once the file is filed, the Worker records the
+report as stored. Nobody presses Generate report again. The Worker leaves
+alone a report generated, or a file recorded, in the last three minutes, so
+it never competes with the request still producing it.
+
+**Retry.** A retry asks what was filed before it draws anything. It never
+draws again a file that is already held. A file that is filed is recorded as
+stored. A file still being filed, or one that failed, is recorded as that.
+
+**Failures.** Staff read one plain sentence. It names the document: the
+report, the fee note, the Repair Spec or the images.
+
+| What happened | Sentence for the report |
+| --- | --- |
+| The generation ran out of time | "The report took too long to generate." |
+| Box could not be reached or written to | "The report could not be stored in Box just now." |
+| The report was refused | The refusal's own reason |
+| Storing failed, or any other fault | "The report could not be generated." |
+| Generate report was pressed over unsaved changes and the saved Case no longer offers it | "The report is not ready after the save. The Report section lists what is missing." |
 
 A fee-note preview shows the recorded fee and description without saving
 anything. Native Hand to Engineer opens engineering work without an EVA
@@ -543,6 +581,8 @@ The Case's own states are in
   is recorded, never at render.
 - An `Unknown` repairer VAT status, or a hand-picked set of VAT categories
   the report has no wording for, is a named readiness item too.
+- A report still being filed never reads as stored, and a retry never draws
+  again a file that is already held.
 - No generated file, preview, draft or export counts as Report sent.
 
 ## Acceptance evidence

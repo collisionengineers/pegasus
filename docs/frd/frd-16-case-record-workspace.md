@@ -80,6 +80,10 @@ An aside beside the sections holds **Figures** (three figures) and **Next action
 per-kind action, and the next permitted action with a link to its section;
 With Engineer, while the report is not ready, its first blocker and how many
 follow, linking to the section that clears that blocker).
+Once the report is ready, the Next action is **Generate report** until the
+report is stored, or **Waiting for the report to be stored** while its file
+is on its way to Box. Delivery is the Next action only once the report is
+stored (operator, 27 September 2026).
 Once the Case has an Audit, the **Views** card heads the aside
 ([Inspection and Audit views](#inspection-and-audit-views)).
 Below 1441px the aside folds into a strip above the sections.
@@ -417,6 +421,21 @@ the same vehicle and place each disc alike (operator, 27 September 2026). The
 **Statement of truth** cell shows the accepted statement the report prints,
 read-only; no Case edits it
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
+
+**The report card** names the report and says where it stands in plain words
+(operator, 27 September 2026). Before any generation it reads "No generation
+yet." After one it reads "Generated" with the date and time, then one chip:
+Stored, Storing, Storage failed, Not confirmed or Not generated. Only Stored
+is green. A report that was never drawn shows Not generated alone, with no
+date. No raw state name is shown. What each word means is in
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point).
+
+Once the report is stored the card offers **Open report**, or **Open report
+with fee note** when the report carries its fee note. It opens the stored
+report in the page's document viewer; without script the link gives the
+file. After **Generate report** stores a report, that report opens in the
+viewer by itself, once. A report still being filed shows the warning notice
+"The report is still being filed to Box." in amber, never as a confirmation.
 
 Once the Case has an Audit, Report follows the view
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#audit-report-parity)).
