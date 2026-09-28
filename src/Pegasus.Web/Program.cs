@@ -597,11 +597,14 @@ builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompre
 builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(
     options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
 // A new instance warms its hot reads before it reports ready (at most 45 s).
-builder.Services.AddSingleton<StartupWarmupState>();
+// /health/warm answers the platform's start-up ping from the warm-up alone, so
+// a database outage never keeps a new instance from starting.
+builder.Services.AddSingleton(provider => new StartupWarmupState(
+    provider.GetRequiredService<IConfiguration>().GetValue("Startup:Warmup", true)));
 builder.Services.AddHostedService<StartupWarmup>();
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"])
-    .AddCheck<StartupWarmupHealthCheck>("warmup", tags: ["ready"]);
+    .AddCheck<StartupWarmupHealthCheck>("warmup", tags: ["ready", "warm"]);
 builder.Services.Configure<FormOptions>(options =>
 {
     // Bounded for a whole Upload batch, not one file: IntakeEnvelopeLimits
@@ -970,7 +973,11 @@ if (!providerApiEnabled)
     });
 }
 
-app.UseHttpsRedirection();
+// The platform's probes reach the instance over plain HTTP on its own port and
+// want a status code, so the health endpoints are never redirected to HTTPS.
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/health"),
+    branch => branch.UseHttpsRedirection());
 app.UseResponseCompression();
 
 app.UseRouting();
@@ -1118,6 +1125,12 @@ app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthC
 app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("ready")
+})
+    .AllowAnonymous()
+    .ShortCircuit();
+app.MapHealthChecks("/health/warm", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("warm")
 })
     .AllowAnonymous()
     .ShortCircuit();

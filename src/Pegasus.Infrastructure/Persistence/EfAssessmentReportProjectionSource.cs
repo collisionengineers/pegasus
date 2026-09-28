@@ -99,11 +99,14 @@ internal sealed class EfAssessmentReportProjectionSource(
                 workflow.AuditReference),
             selectedWork.Kind);
 
-        // A reused workspace is still held to the version read above.
-        var workspace = reuse?.WorkspaceFor(caseId, work)
-            ?? await getAssessmentWorkspace.ExecuteAsync(
-                new(caseId, actor, work),
-                cancellationToken);
+        // A reused workspace counts only at the version read above; one read at
+        // another version is read again rather than trusted.
+        var workspace = reuse?.WorkspaceFor(caseId, work) is { } reused
+            && reused.Header.Version == workflow.Version
+                ? reused
+                : await getAssessmentWorkspace.ExecuteAsync(
+                    new(caseId, actor, work),
+                    cancellationToken);
         if (workspace is null)
         {
             return null;
