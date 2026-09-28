@@ -703,7 +703,9 @@ public sealed partial class AssessmentReportDraftWebTests
 
     /// <summary>
     /// The Current estimate the ready fixture prices from: 50 parts, five
-    /// panel hours at 30, 20 materials and 5 specialist, at 20 per cent VAT.
+    /// panel hours at 30, 20 materials and 5 specialist, at 20 per cent VAT
+    /// for a VAT registered repairer. A report is not ready until the
+    /// repairer's VAT status is recorded.
     /// </summary>
     internal static RepairSpecificationVersion CurrentEstimate() => new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
@@ -713,7 +715,9 @@ public sealed partial class AssessmentReportDraftWebTests
             EstimateLine(2, "new_part", "Door skin", null, 50m) with { Materials = 20m },
         ],
         "engineer-1", ReportFixtureAtUtc,
-        new EstimateDetails("Repairer", 30m, 5m, 20m), IsCurrent: true);
+        new EstimateDetails(
+            "Repairer", 30m, 5m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+        IsCurrent: true);
 
     private static CaseEstimateLineRecord EstimateLine(
         int position, string type, string description, decimal? workUnits, decimal? price) => new(

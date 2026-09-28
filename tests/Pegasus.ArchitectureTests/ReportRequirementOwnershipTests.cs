@@ -150,6 +150,15 @@ public sealed class ReportRequirementOwnershipTests
         var reasons = ReportBlockerTriggers()
             .SelectMany(input => CaseReportReadiness.Evaluate(input).Reasons)
             .ToArray();
+        // Both repairer VAT blockers are among them: an unknown status, and a
+        // hand-picked set of costs the template has no words for.
+        Assert.Equal(
+            2,
+            reasons
+                .Where(item => item.Requirement == CaseReportReadiness.RepairerVatRequirement)
+                .Select(item => item.WhyOutstanding)
+                .Distinct(StringComparer.Ordinal)
+                .Count());
         Assert.All(
             reasons.Where(item => item.Requirement != CaseReportReadiness.SignatoryRequirement),
             AssertLinks);
@@ -245,6 +254,7 @@ public sealed class ReportRequirementOwnershipTests
     [InlineData(null, CaseReportReadiness.SignatoryRequirement, null)]
     [InlineData(null, CaseReportReadiness.CurrentEstimateRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.LabourRateRequirement, "estimate")]
+    [InlineData(null, CaseReportReadiness.RepairerVatRequirement, "estimate")]
     [InlineData(null, CaseReportReadiness.CloseUpImageRequirement, "files")]
     [InlineData(null, CaseReportReadiness.OverviewImageRequirement, "files")]
     [InlineData(null, CaseReportReadiness.ImageSourceRequirement, "files")]
@@ -369,6 +379,24 @@ public sealed class ReportRequirementOwnershipTests
                 CreatedBy: "engineer-1",
                 CreatedAtUtc: RecordedAtUtc,
                 Details: new EstimateDetails("Repair spec", LabourRate: null, OtherCosts: null, VatPercent: 20m),
+                IsCurrent: true)
+        };
+        // VAT charged by hand on labour alone: the template has no row for it.
+        yield return NothingElseRecorded(complete) with
+        {
+            CurrentEstimate = new RepairSpecificationVersion(
+                SpecificationId: Guid.NewGuid(),
+                CaseId: complete.CaseId,
+                Version: 1,
+                State: RepairSpecificationState.Draft,
+                Source: new RepairSpecificationSource(RepairSpecificationSourceRoute.Manual, null, null, null),
+                Lines: [],
+                CreatedBy: "engineer-1",
+                CreatedAtUtc: RecordedAtUtc,
+                Details: new EstimateDetails(
+                    "Repair spec", LabourRate: 40m, OtherCosts: null, VatPercent: 20m,
+                    Vat: new EstimateVatPolicy(
+                        RepairerVatStatus.Registered, EstimateVatCategories.Labour, CategoriesOverridden: true)),
                 IsCurrent: true)
         };
     }

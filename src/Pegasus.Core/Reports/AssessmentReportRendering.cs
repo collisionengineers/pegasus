@@ -243,9 +243,9 @@ public static class AssessmentReportRenderPolicy
 /// The report's repair-cost block: the Current estimate's canonical
 /// <see cref="EstimateTotals"/> (the one owner of estimate money — EXT-09,
 /// FRD-11 § Estimate VAT on the rendered report) plus the hours and rate the
-/// report prints as descriptive quantities. Nothing here re-derives a figure,
-/// and the VAT label is taken from the estimate's own percentage, never from
-/// a repairer-registered boolean.
+/// report prints as descriptive quantities. Nothing here re-derives a figure.
+/// The VAT row's label states what the estimate's own percentage is charged
+/// on, in the template's words.
 /// </summary>
 public sealed record ReportRepairCosts(
     decimal LabourHours,
@@ -275,17 +275,61 @@ public sealed record ReportRepairCosts(
     public decimal Total => Totals.Printed.Gross;
 
     /// <summary>
-    /// The printed VAT row's label, derived from the estimate's own
-    /// percentage. The categories the percentage is charged on are the
-    /// estimate's; this label never claims a different rule.
+    /// The labour hours the report prints, in its Labour Hours row and its
+    /// Labour Hours tile: panel hours plus paint hours. The Case page reads
+    /// this figure too, so the two never disagree.
     /// </summary>
     [JsonIgnore]
-    public string VatLabel =>
-        $"VAT ({VatPercent.ToString("0.##", CultureInfo.InvariantCulture)}%)";
+    public decimal TotalLabourHours => LabourHours + PaintHours;
+
+    /// <summary>
+    /// Total labour as the report prints it: printed panel labour plus printed
+    /// paint labour, so the rows above Sub Total add up to it.
+    /// </summary>
+    [JsonIgnore]
+    public decimal TotalLabour => Totals.Printed.Labour;
+
+    /// <summary>
+    /// The printed VAT row's label, or null when the template has no wording
+    /// for what this estimate charges VAT on. A report is never generated
+    /// without one: <see cref="CaseReportReadiness.RepairerVatBlocker"/> names
+    /// the gap first.
+    /// </summary>
+    [JsonIgnore]
+    public string? VatLabel => VatLabelOf(Totals.VatPolicy, VatPercent);
+
+    /// <summary>
+    /// The template's two VAT rows (DESIGN_SPEC.md § values and repair cost
+    /// calculation): a registered repairer charges VAT on the whole sub total
+    /// and the row reads "VAT (20%)"; a repairer who is not registered charges
+    /// it on parts and paint only and the row says so. The percentage is the
+    /// estimate's own. An unknown repairer VAT status, and any other
+    /// hand-picked set of costs, has no accepted wording.
+    /// </summary>
+    public static string? VatLabelOf(EstimateVatPolicy policy, decimal vatPercent)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        if (policy.RepairerStatus == RepairerVatStatus.Unknown)
+        {
+            return null;
+        }
+        var percent = vatPercent.ToString("0.##", CultureInfo.InvariantCulture);
+        if (policy.Categories == EstimateVatCategories.All)
+        {
+            return $"VAT ({percent}%)";
+        }
+        return policy.Categories == PartsAndPaint
+            ? $"VAT ({percent}% — parts & paint only)"
+            : null;
+    }
+
+    private const EstimateVatCategories PartsAndPaint =
+        EstimateVatCategories.Parts | EstimateVatCategories.Materials;
 
     /// <summary>
     /// Fails closed when the printed components do not reconcile to the
-    /// printed total, or the report has no hourly rate to print.
+    /// printed total, the report has no hourly rate to print, or the VAT row
+    /// has no wording.
     /// </summary>
     public void Validate()
     {
@@ -294,12 +338,17 @@ public sealed record ReportRepairCosts(
             throw new ReportRenderRejectedException(
                 "The report's labour hours and hourly rate are incomplete.");
         }
-        var components = Printed.Parts + Printed.PanelLabour + Printed.PaintLabour
-            + Printed.Materials + Printed.Specialist;
+        var components = Printed.Parts + Printed.Labour + Printed.Materials + Printed.Specialist;
         if (components != Printed.Net || Printed.Net + Printed.Vat != Printed.Gross)
         {
             throw new ReportRenderRejectedException(
                 "The printed repair-cost components do not reconcile to the printed total.");
+        }
+        if (VatLabel is null)
+        {
+            throw new ReportRenderRejectedException(
+                "The report cannot print the VAT on this repair spec. "
+                + "Record the repairer's VAT status on the Repair Spec section.");
         }
     }
 }

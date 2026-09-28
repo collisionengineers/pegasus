@@ -80,8 +80,8 @@ public sealed record AssessmentReportProjectionResult(
 /// assessment plus its case-report inputs, or names the work still
 /// outstanding. Every fact the report prints is a readiness item
 /// <see cref="Prepare"/> returns (<see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/>
-/// plus the sign-off, Current repair spec and labour-rate items it shares with
-/// <see cref="CaseReportReadiness"/>), so a Case that is not ready is refused
+/// plus the sign-off, Current repair spec, labour-rate and repairer VAT items
+/// it shares with <see cref="CaseReportReadiness"/>), so a Case that is not ready is refused
 /// with named items before anything is projected; the guards in
 /// <see cref="Project"/> are invariant assertions a ready Case never reaches.
 /// </summary>
@@ -121,6 +121,10 @@ public static class AssessmentReportProjection
             if (currentEstimate.Details.HourlyRate <= 0m)
             {
                 reasons.Add(CaseReportReadiness.LabourRateMissing);
+            }
+            if (CaseReportReadiness.RepairerVatBlocker(currentEstimate) is { } repairerVat)
+            {
+                reasons.Add(repairerVat);
             }
         }
 

@@ -452,7 +452,68 @@ public sealed class AssessmentReportProjectionTests
                 2,
                 MidpointRounding.AwayFromZero),
             costs.Printed.Vat);
+        // The template's own row for a repairer who is not VAT registered
+        // (DESIGN_SPEC.md line 129).
+        Assert.Equal("VAT (20% — parts & paint only)", costs.VatLabel);
         costs.Validate();
+    }
+
+    /// <summary>
+    /// A repair spec whose repairer VAT status is Unknown charges VAT on
+    /// nothing, so its report would understate the repair cost: it blocks the
+    /// report (operator, 27 September 2026). The preview and generation name
+    /// the one item, and its resolution says where to record the status.
+    /// </summary>
+    [Fact]
+    public void AnUnknownRepairerVatStatusIsNotReady()
+    {
+        var estimate = CurrentEstimate(new("Repairer", 45m, 15m, 20m), materials: 60m);
+
+        var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = estimate });
+
+        var reason = AssertNotReady(result, CaseReportReadiness.RepairerVatRequirement);
+        Assert.Equal(CaseReportReadiness.RepairerVatStatusUnknown, reason);
+        Assert.Equal("Repairer VAT status", reason.Requirement);
+        Assert.Contains("on the Repair Spec section", reason.HowToResolve, StringComparison.Ordinal);
+        Assert.Equal(reason, Assert.Single(result.Reasons));
+    }
+
+    /// <summary>
+    /// Recording the status does not by itself word a hand-picked set of
+    /// costs: the template words VAT on everything and VAT on parts and paint
+    /// only, so any other set blocks the report too.
+    /// </summary>
+    [Theory]
+    [InlineData(RepairerVatStatus.Registered, EstimateVatCategories.Labour | EstimateVatCategories.Parts)]
+    [InlineData(RepairerVatStatus.NotRegistered, EstimateVatCategories.Parts)]
+    [InlineData(RepairerVatStatus.NotRegistered, EstimateVatCategories.None)]
+    public void AHandPickedSetOfVatCostsTheTemplateCannotWordIsNotReady(
+        RepairerVatStatus status, EstimateVatCategories categories)
+    {
+        var estimate = CurrentEstimate(
+            new("Repairer", 45m, 15m, 20m, Vat: new EstimateVatPolicy(status, categories, CategoriesOverridden: true)),
+            materials: 60m);
+
+        var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = estimate });
+
+        var reason = AssertNotReady(result, CaseReportReadiness.RepairerVatRequirement);
+        Assert.Equal(CaseReportReadiness.RepairerVatHandPicked, reason);
+        Assert.Contains("on the Repair Spec section", reason.HowToResolve, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(RepairerVatStatus.Registered, "VAT (20%)")]
+    [InlineData(RepairerVatStatus.NotRegistered, "VAT (20% — parts & paint only)")]
+    public void ARecordedRepairerVatStatusIsReadyAndWordsItsRow(RepairerVatStatus status, string row)
+    {
+        var estimate = CurrentEstimate(
+            new("Repairer", 45m, 15m, 20m, Vat: EstimateVatPolicy.For(status)), materials: 60m);
+
+        var result = AssessmentReportProjection.Project(ReadyInput() with { CurrentEstimate = estimate });
+
+        Assert.True(result.IsReady, string.Join("; ", result.Reasons.Select(reason => reason.Requirement)));
+        Assert.Equal(row, result.Snapshot!.Costs.VatLabel);
+        result.Snapshot.Validate();
     }
 
     [Fact]
