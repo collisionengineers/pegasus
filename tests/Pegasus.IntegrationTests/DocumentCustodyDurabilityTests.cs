@@ -222,15 +222,17 @@ public sealed class DocumentCustodyDurabilityTests
     }
 
     /// <summary>
-    /// A fileless Provider API Audit keeps its declared verdict on the Case and
-    /// its Repairable status cell from creation (#919). Marking its report later
-    /// fills the other cells and never clears that one: a report that printed no
-    /// outcome, or one that disagrees, leaves the declared verdict standing.
+    /// A fileless Provider API Audit keeps its declared verdict on the Case from
+    /// creation (#919). Marking its report later fills Repairable status from
+    /// that verdict when the report printed no outcome or the same one, and
+    /// leaves the cell blank when the report disagrees.
     /// </summary>
     [Theory]
-    [InlineData(null)]
-    [InlineData("repairable")]
-    public async Task MarkingAFilelessAuditsReportLeavesItsDeclaredVerdictStanding(string? printedOutcome)
+    [InlineData(null, "total_loss")]
+    [InlineData("total_loss", "total_loss")]
+    [InlineData("repairable", null)]
+    public async Task MarkingAFilelessAuditsReportReconcilesItsDeclaredVerdict(
+        string? printedOutcome, string? expectedOutcome)
     {
         var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
         try
@@ -242,17 +244,8 @@ public sealed class DocumentCustodyDurabilityTests
             var versionId = await VersionIdAsync(database, occurrenceId);
             await using (var context = await database.CreateContextAsync())
             {
-                // As acceptance leaves a fileless Audit whose declared verdict is total loss.
+                // The declared verdict is on the Case; no Original report cell is filled yet.
                 (await context.Cases.SingleAsync(item => item.Id == caseId)).StandaloneAuditAssessment = "total_loss";
-                context.CaseAssessmentFields.Add(new CaseAssessmentFieldEntity
-                {
-                    WorkId = caseId,
-                    FieldPath = AssessmentVocabulary.OriginalReportOutcome,
-                    Value = "total_loss",
-                    RecordedByKind = nameof(ActorKind.Automation),
-                    RecordedBy = OriginalReportPrefillPolicy.RecorderId,
-                    RecordedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero)
-                });
                 await context.SaveChangesAsync();
             }
 
@@ -283,7 +276,9 @@ public sealed class DocumentCustodyDurabilityTests
             var cells = await verification.CaseAssessmentFields
                 .Where(item => item.WorkId == caseId)
                 .ToDictionaryAsync(item => item.FieldPath);
-            Assert.Equal("total_loss", cells[AssessmentVocabulary.OriginalReportOutcome].Value);
+            Assert.Equal(
+                expectedOutcome,
+                cells.TryGetValue(AssessmentVocabulary.OriginalReportOutcome, out var outcome) ? outcome.Value : null);
             Assert.Equal("Laird Assessors", cells[AssessmentVocabulary.OriginalReportAssessor].Value);
             Assert.Equal("roadworthy", cells[AssessmentVocabulary.OriginalReportRoadworthiness].Value);
         }
