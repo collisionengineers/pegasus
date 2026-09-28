@@ -172,6 +172,7 @@ public sealed class CaseReportWordingWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCaseEditBasis>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetCaseVehicleSection>(services, store);
                 Substitute<IGetCaseValuationSection>(services, store);

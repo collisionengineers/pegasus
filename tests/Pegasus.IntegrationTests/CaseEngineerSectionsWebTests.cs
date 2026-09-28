@@ -38,6 +38,7 @@ public sealed class CaseEngineerSectionsWebTests
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
@@ -116,6 +117,7 @@ public sealed class CaseEngineerSectionsWebTests
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCaseEditBasis>(source);
                 services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
@@ -139,7 +141,7 @@ public sealed class CaseEngineerSectionsWebTests
     }
 
     private sealed class EngineerSectionSource :
-        IGetCase,
+        IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetAssessmentAccess,
         IGetAssessmentWorkspace,
@@ -211,6 +213,10 @@ public sealed class CaseEngineerSectionsWebTests
         }
 
         public Guid CaseId { get; }
+
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? details : null);

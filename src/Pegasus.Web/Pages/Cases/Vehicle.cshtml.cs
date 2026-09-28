@@ -19,11 +19,11 @@ namespace Pegasus.Web.Pages.Cases;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class VehicleModel(
     IRequestVehicleLookup requestVehicleLookup,
-    IGetCase getCase,
+    IGetCaseEditBasis getCaseEditBasis,
     IAcquireCaseEditLease acquireLease,
     ILogger<VehicleModel> logger) : CaseMutationPageModel(logger)
 {
-    protected override (IGetCase Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCase, acquireLease);
+    protected override (IGetCaseEditBasis Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCaseEditBasis, acquireLease);
 
     public IActionResult OnGet() => NotFound();
 
