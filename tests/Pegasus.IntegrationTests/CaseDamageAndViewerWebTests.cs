@@ -28,10 +28,11 @@ public sealed class CaseDamageAndViewerWebTests
     private const string PlanViewBox = "0 0 240 434";
 
     /// <summary>
-    /// Damage by area (v28 P5): one disc per recorded damage, as drawn or,
-    /// recorded by area, from its areas, the three chips for the areas the plan cannot show, the
-    /// five graded fills as a legend, and the recorded-areas list numbered
-    /// in the same order as the discs, with the derived cells.
+    /// Damage by area (v28 P5): one comic burst per recorded damage over its
+    /// disc, as drawn or, recorded by area, from its areas, unclipped and
+    /// unnumbered (28 September 2026); the three chips for the areas the plan
+    /// cannot show, and the recorded-areas list numbered in recorded order,
+    /// with the derived cells.
     /// </summary>
     [Fact]
     public async Task TheDamageSectionRendersTheRecordedAreasOnThePlan()
@@ -56,19 +57,26 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.Contains($"viewBox=\"{PlanViewBox}\"", damage, StringComparison.Ordinal);
         // The disc of the first damage, drawn from its two areas; the
         // underside damage has no disc; the third keeps the small disc drawn
-        // on the centre line (23 September 2026), clipped to the body. No
-        // panel zones remain.
+        // on the centre line (23 September 2026). No panel zones remain.
         Assert.Contains("data-damage-marks", damage, StringComparison.Ordinal);
-        Assert.Contains("data-mark=\"0\" data-sev=\"moderate\"", damage, StringComparison.Ordinal);
+        Assert.Contains("data-mark=\"0\"><circle class=\"area\"", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("data-mark=\"1\"", damage, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Count(damage, "<circle class=\"area\" clip-path=\"url\\(#damage-plan-clip\\)\""));
-        var centreX = DamagePlanGeometry.PlanLeft + 0.5 * DamagePlanGeometry.PlanWidth;
-        var centreY = DamagePlanGeometry.PlanTop + 0.53 * DamagePlanGeometry.PlanHeight;
-        var radius = 0.08 * DamagePlanGeometry.PlanWidth;
+        Assert.Equal(2, Regex.Count(damage, "<circle class=\"area\""));
+        var disc = new DamageDisc(
+            DamagePlanGeometry.PlanLeft + 0.5 * DamagePlanGeometry.PlanWidth,
+            DamagePlanGeometry.PlanTop + 0.53 * DamagePlanGeometry.PlanHeight,
+            0.08 * DamagePlanGeometry.PlanWidth);
         Assert.Contains(
-            string.Create(CultureInfo.InvariantCulture, $"data-mark=\"2\" data-sev=\"light\"><circle class=\"area\" clip-path=\"url(#damage-plan-clip)\" cx=\"{centreX:0.#}\" cy=\"{centreY:0.#}\" r=\"{radius:0.#}\""),
+            string.Create(CultureInfo.InvariantCulture, $"data-mark=\"2\"><circle class=\"area\" cx=\"{disc.CentreX:0.#}\" cy=\"{disc.CentreY:0.#}\" r=\"{disc.Radius:0.#}\" /><path class=\"burst\" d=\"{DamagePlanGeometry.BurstPath(disc)}\" fill=\"#ffeb69\" fill-opacity=\"0.96\" stroke=\"#1d1d1d\""),
             damage,
             StringComparison.Ordinal);
+        // One look for every burst: no severity shade, no number, no clip.
+        Assert.Equal(2, Regex.Count(damage, "<path class=\"burst\""));
+        Assert.DoesNotContain("data-sev", damage, StringComparison.Ordinal);
+        Assert.DoesNotContain("clip-path", damage, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"n\"", damage, StringComparison.Ordinal);
+        // No Vehicle type recorded: the car.
+        Assert.Contains(DamagePlanGeometry.Artwork(DamagePlanGeometry.Car), damage, StringComparison.Ordinal);
         Assert.DoesNotContain("data-damage-zone", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("dm-guides", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("data-damage-plan-area", damage, StringComparison.Ordinal);
@@ -82,10 +90,6 @@ public sealed class CaseDamageAndViewerWebTests
         Assert.Contains("is-static is-damaged\" data-damage-area=\"underside\"", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("aria-pressed", damage, StringComparison.Ordinal);
         Assert.DoesNotContain("<button type=\"button\" class=\"btn btn--small", damage, StringComparison.Ordinal);
-        foreach (var severity in AssessmentVocabulary.DamageSeverities.Keys)
-        {
-            Assert.Contains($"data-sev=\"{severity}\"", damage, StringComparison.Ordinal);
-        }
 
         // The recorded areas, numbered in recorded order, and the derived cells.
         Assert.Contains(">Recorded areas<", damage, StringComparison.Ordinal);
@@ -117,6 +121,42 @@ public sealed class CaseDamageAndViewerWebTests
     /// While the Engineer's session holds the section, the hidden impacts
     /// field joins the one Case form and the plan is live.
     /// </summary>
+    /// <summary>
+    /// The plan is the recorded vehicle's (28 September 2026): a van draws
+    /// the van and a motorcycle or scooter the motorbike, each pressable only
+    /// on its own outline.
+    /// </summary>
+    [Theory]
+    [InlineData("van", DamagePlanGeometry.Van)]
+    [InlineData("motorcycle", DamagePlanGeometry.Motorbike)]
+    [InlineData("scooter", DamagePlanGeometry.Motorbike)]
+    public async Task TheDamageSectionDrawsTheRecordedVehicle(string vehicleType, string profile)
+    {
+        var source = new DamageSource(
+            "[{\"areas\":[\"front\"],\"severity\":\"moderate\",\"note\":\"\"}]",
+            vehicleType);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => source.Substitute(services)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+
+        var html = await GetHtmlAsync(client, $"/Cases/{source.CaseId:D}?section=damage");
+        var damage = Section(html, "section-damage-title");
+
+        Assert.Contains(DamagePlanGeometry.Artwork(profile), damage, StringComparison.Ordinal);
+        Assert.DoesNotContain(DamagePlanGeometry.Artwork(DamagePlanGeometry.Car), damage, StringComparison.Ordinal);
+        foreach (var hitPath in DamagePlanGeometry.HitPaths(profile))
+        {
+            Assert.Contains($"<path d=\"{hitPath}\" />", damage, StringComparison.Ordinal);
+        }
+        Assert.Single(Regex.Matches(damage, "<path class=\"burst\""));
+    }
+
     [Fact]
     public async Task TheDamageSectionStagesItsImpactsIntoTheCaseFormWhileEditing()
     {
@@ -278,7 +318,7 @@ public sealed class CaseDamageAndViewerWebTests
     /// A With Engineer Case whose assessment carries recorded impacts, read
     /// without a lease so the Damage section renders its read view.
     /// </summary>
-    private sealed class DamageSource(string impacts) :
+    private sealed class DamageSource(string impacts, string? vehicleType = null) :
         IGetCase, IGetCaseEditBasis,
         IGetCasePageFrame,
         IGetAssessmentAccess,
@@ -323,7 +363,10 @@ public sealed class CaseDamageAndViewerWebTests
                 new(AssessmentVocabulary.ImpactLocation, "rear", ActorKind.Staff, "engineer-1",
                     DateTimeOffset.UtcNow),
                 new(AssessmentVocabulary.ImpactSeverity, "heavy", ActorKind.Staff, "engineer-1",
-                    DateTimeOffset.UtcNow)
+                    DateTimeOffset.UtcNow),
+                .. (vehicleType is null
+                    ? Array.Empty<AssessmentFieldValue>()
+                    : [new(AssessmentVocabulary.VehicleType, vehicleType, ActorKind.Staff, "engineer-1", DateTimeOffset.UtcNow)])
             ],
             [],
             new("AB12CDE", null, null, null, null, null, "tbc", null, new DateOnly(2026, 8, 2), null, null,

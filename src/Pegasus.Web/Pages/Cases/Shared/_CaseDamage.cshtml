@@ -1,13 +1,15 @@
 @*
-    Damage (v28 P5): damage by area. The workbench is the top-down plan
-    silhouette. While the section edits, pressing and dragging on the vehicle
-    sizes a disc and dragging a disc moves it; each disc is one recorded
-    damage naming the plan areas it touches, with a severity and a note.
-    Underside, Interior and Mechanical are chips, each recorded alone. Impact
-    location and severity derive from the areas. A drawn disc is kept as drawn
-    (ruled 23 September 2026), no wider than the vehicle and clipped to its
-    body, here and on the report; a damage recorded by area alone is drawn
-    with the disc its areas give (DamageAreaGeometry). The page reads without
+    Damage (v28 P5): damage by area. The workbench is the top-down plan of
+    the recorded Vehicle type: the car, the van or the motorbike. While the
+    section edits, pressing and dragging on the vehicle sizes a disc and
+    dragging a disc moves it; each disc is one recorded damage naming the plan
+    areas it touches, with a severity and a note, and is drawn as the one
+    yellow comic burst (28 September 2026), unclipped and unnumbered, here and
+    on the report. Underside, Interior and Mechanical are chips, each recorded
+    alone. Impact location and severity derive from the areas. A drawn disc is
+    kept as drawn (ruled 23 September 2026), no wider than the vehicle; a
+    damage recorded by area alone is drawn with the disc its areas give
+    (DamageAreaGeometry). The page reads without
     script: the discs, the list and the derived cells are rendered here from
     the recorded impacts, and script keeps them in step while the section
     edits; Reset returns to the values held when the edit opened. Read and
@@ -39,6 +41,7 @@
     }
     var damageFields = CaseWorkspaceLabels.Editors.Damage;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "damage");
+    var profile = DamagePlanGeometry.ProfileFor(Model.AssessmentEditorValue(AssessmentVocabulary.VehicleType));
     // The vocabulary and the plan the editor works with, handed to script once
     // so the browser holds no second copy of the areas, the bands, the disc
     // limits or the severity table.
@@ -55,7 +58,20 @@
         radius = DamageAreaGeometry.BaseRadius,
         margin = DamageAreaGeometry.Margin,
         minRadius = DamageAreaGeometry.MinRadius,
-        maxRadius = DamageAreaGeometry.MaxRadius
+        maxRadius = DamageAreaGeometry.MaxRadius,
+        burst = new
+        {
+            points = DamageBurst.Points,
+            depth = DamageBurst.SpikeDepth,
+            rotation = DamageBurst.Rotation,
+            stretchX = DamageBurst.StretchX,
+            stretchY = DamageBurst.StretchY,
+            jitter = DamageBurst.Jitter,
+            fill = DamageBurst.Fill,
+            opacity = DamageBurst.FillOpacity,
+            line = DamageBurst.Line,
+            lineWidth = DamageBurst.LineWidth
+        }
     });
     var severityTable = JsonSerializer.Serialize(AssessmentVocabulary.DamageSeverities
         .OrderBy(entry => entry.Value.Rank)
@@ -116,34 +132,15 @@
         <div class="damage-workbench">
             <div class="damage-view" data-damage-view>
                 <svg class="damage-diagram" viewBox="@DamagePlanGeometry.ViewBox" role="group" aria-label="@DamageLabels.DiagramLabel">
-                    <defs>
-                        <clipPath id="damage-plan-clip"><path d="@DamagePlanGeometry.BodyPath" /></clipPath>
-                        <linearGradient id="damage-plan-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" /><stop offset="1" stop-color="#eaeef0" /></linearGradient>
-                        <linearGradient id="damage-plan-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7dfe4" /><stop offset="1" stop-color="#b9c5cc" /></linearGradient>
-                        <filter id="damage-plan-shadow" x="-20%" y="-10%" width="140%" height="130%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#1a2a33" flood-opacity=".16" /></filter>
-                    </defs>
                     <text class="damage-diagram-label" x="120" y="8" text-anchor="middle">@DamageLabels.Front</text>
-                    @foreach (var wheel in DamagePlanGeometry.Wheels)
-                    {
-                        <rect class="dv-wheel" x="@(wheel.CentreX - 8)" y="@(wheel.CentreY - 24)" width="16" height="48" rx="5" />
-                    }
-                    @foreach (var mirror in DamagePlanGeometry.Mirrors)
-                    {
-                        <rect class="dv-mirror" x="@mirror.X" y="@mirror.Y" width="@mirror.Width" height="@mirror.Height" rx="4" />
-                    }
-                    <path class="dv-body" d="@DamagePlanGeometry.BodyPath" fill="url(#damage-plan-body)" filter="url(#damage-plan-shadow)" />
-                    <path class="dv-glass" fill="url(#damage-plan-glass)" d="@DamagePlanGeometry.FrontGlassPath" />
-                    <path class="dv-glass" fill="url(#damage-plan-glass)" d="@DamagePlanGeometry.RearGlassPath" />
-                    <path class="dv-seam" d="@DamagePlanGeometry.SeamPath" />
-                    <path class="dv-seam dv-seam--soft" d="@DamagePlanGeometry.SoftSeamPath" />
-                    @foreach (var lamp in DamagePlanGeometry.FrontLampPaths)
-                    {
-                        <path class="dv-lamp" d="@lamp" />
-                    }
-                    @foreach (var lamp in DamagePlanGeometry.RearLampPaths)
-                    {
-                        <path class="dv-lamp dv-lamp--rear" d="@lamp" />
-                    }
+                    @Html.Raw(DamagePlanGeometry.Artwork(profile))
+                    @* Where a press starts a new damage: the drawing's own outline. *@
+                    <g class="dv-hit" aria-hidden="true">
+                        @foreach (var hitPath in DamagePlanGeometry.HitPaths(profile))
+                        {
+                            <path d="@hitPath" />
+                        }
+                    </g>
                     @if (editable)
                     {
                         <g class="dm-guides" aria-hidden="true"><path d="@DamagePlanGeometry.GuidesPath" /></g>
@@ -157,8 +154,9 @@
                             </g>
                         }
                     }
-                    @* Each disc is clipped to the body, so however wide it is drawn
-                       it never paints (or catches a press) off the vehicle. *@
+                    @* Each damage is its burst over an unpainted disc: the disc
+                       catches the press that moves it and is what the areas are
+                       read from; the burst may spill past the outline. *@
                     <g class="damage-marks" data-damage-marks aria-hidden="true">
                         @for (var index = 0; index < impacts.Count; index++)
                         {
@@ -167,7 +165,7 @@
                             {
                                 continue;
                             }
-                            <g class="dm" data-mark="@index" data-sev="@impacts[index].Severity"><circle class="area" clip-path="url(#damage-plan-clip)" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" r="@Svg(disc.Radius)" /><circle class="n" r="8" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" /><text x="@Svg(disc.CentreX)" y="@Svg(disc.CentreY + 3.2)" text-anchor="middle">@(index + 1)</text></g>
+                            <g class="dm" data-mark="@index"><circle class="area" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" r="@Svg(disc.Radius)" /><path class="burst" d="@DamagePlanGeometry.BurstPath(disc)" fill="@DamageBurst.Fill" fill-opacity="@DamageBurst.FillOpacity.ToString(CultureInfo.InvariantCulture)" stroke="@DamageBurst.Line" stroke-width="@Svg(DamageBurst.LineWidth)" stroke-linejoin="round" /></g>
                         }
                     </g>
                     <text class="damage-diagram-label" x="120" y="431" text-anchor="middle">@DamageLabels.Rear</text>
@@ -177,12 +175,6 @@
                 {
                         <button type="button" class="btn btn--small" data-damage-reset><svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>@DamageLabels.Reset</span></button>
                 }
-                <div class="dv-legend" aria-label="@DamageLabels.Severity">
-                    @foreach (var severity in AssessmentVocabulary.DamageSeverities.OrderBy(entry => entry.Value.Rank))
-                    {
-                        <span><i data-sev="@severity.Key"></i>@severity.Value.Display</span>
-                    }
-                </div>
                 @* The chips stand in the same place in both modes: pressable while
                    the section edits, a greyed reading of what is recorded otherwise. *@
                 <div class="damage-extra" aria-label="@DamageLabels.OtherAreas">

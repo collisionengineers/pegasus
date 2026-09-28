@@ -53,6 +53,7 @@ public sealed class AssessmentReportProjectionTests
         // The disc the operator drew travels to the report as drawn.
         Assert.Equal(new DamageDisc(0.86, 0.86, 0.1), impact.Disc);
         Assert.Equal("Door scratch", snapshot.Damage.Unrelated);
+        Assert.Equal(DamagePlanGeometry.Car, snapshot.Damage.Profile);
         // Only a contract repair carries an agreed sum.
         Assert.Equal(new ReportSettlement(), snapshot.Settlement);
         Assert.Equal("Ed Mawdsley", snapshot.Signatory.PrintedName);
@@ -69,6 +70,27 @@ public sealed class AssessmentReportProjectionTests
     /// vehicle is unroadworthy. Its temporary repairs are recorded on the Case
     /// and printed nowhere.
     /// </summary>
+    /// <summary>
+    /// The report marks the damage on the recorded vehicle's drawing (28
+    /// September 2026): a van on the van, a motorcycle or scooter on the
+    /// motorbike, anything else on the car.
+    /// </summary>
+    [Theory]
+    [InlineData("van", DamagePlanGeometry.Van)]
+    [InlineData("motorcycle", DamagePlanGeometry.Motorbike)]
+    [InlineData("scooter", DamagePlanGeometry.Motorbike)]
+    [InlineData("caravan", DamagePlanGeometry.Car)]
+    public void TheDamageIsDrawnOnTheRecordedVehicle(string vehicleType, string profile)
+    {
+        var input = ReadyInput();
+        var fields = ReplaceField(input.Assessment.Fields, AssessmentVocabulary.VehicleType, vehicleType);
+
+        var snapshot = AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { Fields = fields } }).Snapshot!;
+
+        Assert.Equal(profile, snapshot.Damage.Profile);
+    }
+
     [Fact]
     public void AnUnroadworthyVehicleCarriesItsReasonAndNoTemporaryRepair()
     {
