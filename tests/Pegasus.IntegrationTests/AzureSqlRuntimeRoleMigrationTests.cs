@@ -1478,6 +1478,8 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             item.CaseId == caseId && item.EventType == "intake_case_auto_linked"));
         Assert.Equal(1, await context.CaseHistory.CountAsync(item =>
             item.CaseId == caseId && item.EventType == "image_initiated_case_merged"));
+        Assert.Equal(1, await context.CaseWorkflowEvents.CountAsync(item =>
+            item.CaseId == caseId && item.EventType == "image_initiated_case_merged"));
         Assert.Equal("NG22FVH", await context.InstructionDrafts.Where(item =>
             item.IntakeReceiptId == caseReceiptId).Select(item => item.VehicleRegistration).SingleAsync());
         Assert.Equal("PG18BTY", await context.CaseMatchIndex.Where(item =>

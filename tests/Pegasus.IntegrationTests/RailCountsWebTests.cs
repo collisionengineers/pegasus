@@ -147,6 +147,10 @@ public sealed class RailCountsWebTests
         }
 
         public void Reset() => Calls = 0;
+
+        public Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PairedVehicleImagesCase>>([]);
     }
 
     [Fact]
@@ -177,6 +181,10 @@ public sealed class RailCountsWebTests
     private sealed class UnexpectedDashboardQueries : IDashboardQueries
     {
         public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("A redirect must not query the rendered-page shell.");
+
+        public Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
+            CancellationToken cancellationToken) =>
             throw new InvalidOperationException("A redirect must not query the rendered-page shell.");
     }
 
