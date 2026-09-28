@@ -608,7 +608,7 @@
         window.scrollBy({ top: host.getBoundingClientRect().top - saved.top, behavior: 'instant' });
     }
 
-    var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
+    var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
     function swap(html, command, preferred) {
         glassRefreshGeneration += 1;
         var parsed = new DOMParser().parseFromString(html, 'text/html');
@@ -680,7 +680,9 @@
             });
         }
         swapRoots.forEach(function (selector) {
-            if (noticesOnly && selector !== '[data-case-notices]' && selector !== '[data-case-stale]') { return; }
+            // The aside holds no drafts and carries the stale notice (issue 899),
+            // so it refreshes with the notices.
+            if (noticesOnly && selector !== '[data-case-notices]' && selector !== '[data-case-aside]') { return; }
             if (selector === '[data-case-ribbon-actions]' && dirtyEditors.size > 0 && !mayAdvance) { return; }
             var current = document.querySelector(selector);
             var next = parsed.querySelector(selector);
@@ -701,7 +703,7 @@
         record.setAttribute('data-layout', layout);
         main = document.getElementById('case-main');
         // Dialogs first so the openers in the swapped roots find them.
-        ['[data-case-dialogs]', '[data-case-viewer-host]', '[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]'].forEach(function (selector) {
+        ['[data-case-dialogs]', '[data-case-viewer-host]', '[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '#case-main', '[data-case-aside]'].forEach(function (selector) {
             var root = document.querySelector(selector);
             if (root) { bindMounted(root); }
         });
