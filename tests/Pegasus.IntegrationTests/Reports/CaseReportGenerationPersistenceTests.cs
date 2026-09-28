@@ -2526,7 +2526,7 @@ public sealed class CaseReportGenerationPersistenceTests
 
         private static ReportImageEvidence Photo(
             Harness.SeededDocument document, CaseAssetReportRole role) => new(
-                $"{document.OccurrenceId:D}.png", "image/png", document.Content,
+                $"{document.OccurrenceId:D}.png", "image/png", ReportImageContent.Opened(_ => Task.FromResult(document.Content)),
                 document.Sha256, role, null, CaseAssetRotation.None, CaseAssetCrop.Full,
                 document.OccurrenceId, document.VersionId,
                 $"box-file-{document.VersionId:N}", $"box-version-{document.VersionId:N}",

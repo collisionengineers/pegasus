@@ -888,7 +888,7 @@ public sealed class ImageCaseCustodyIntegrationTests
             .GetAsync(caseId, StaffActor(), CaseWorkSelector.Current);
         var photograph = Assert.Single(preview!.Photos);
         Assert.Equal(inReportOccurrenceId, photograph.OccurrenceId);
-        Assert.Equal(PngBytes, photograph.Content);
+        Assert.Equal(PngBytes, await photograph.OpenAsync());
     }
 
     /// <summary>

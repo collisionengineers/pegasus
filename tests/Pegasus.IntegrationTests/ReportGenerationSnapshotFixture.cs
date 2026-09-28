@@ -20,7 +20,7 @@ internal static class ReportGenerationSnapshotFixture
             estimate.SpecificationId, estimate.Version, report.Costs, report.EngineerValue,
             Guid.Empty, report.Content, report.Guides, report.ReportDate,
             report.ReportDateOverridden, report.AgreedFee, report.FeeDescriptionLines,
-            [], [], report.PayloadVersion, "renderer/test", report)
+            [], [], report.PayloadVersion, "renderer/test", report with { Photos = [] })
         {
             CurrentEstimate = estimate
         };

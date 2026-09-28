@@ -166,7 +166,38 @@ public sealed record ReportDamage(
 public sealed record ReportSettlement(decimal? ContractSum = null);
 
 /// <summary>
-/// One prepared report image: the confirmed custody bytes plus the report
+/// The bytes of one report image, opened when the renderer prints that image
+/// and not before, so a render holds one source image in memory at a time
+/// however many the report prints. An adapter that reads custody supplies
+/// <see cref="Opened"/>; bytes already in hand convert implicitly.
+/// </summary>
+public sealed class ReportImageContent
+{
+    private readonly Func<CancellationToken, Task<byte[]>> open;
+
+    private ReportImageContent(Func<CancellationToken, Task<byte[]>> open) => this.open = open;
+
+    /// <summary>Bytes the caller already holds.</summary>
+    public static ReportImageContent Held(byte[] content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        return new(_ => Task.FromResult(content));
+    }
+
+    /// <summary>Bytes read from custody each time the image is opened.</summary>
+    public static ReportImageContent Opened(Func<CancellationToken, Task<byte[]>> open)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+        return new(open);
+    }
+
+    public static implicit operator ReportImageContent(byte[] content) => Held(content);
+
+    internal Task<byte[]> OpenAsync(CancellationToken cancellationToken) => open(cancellationToken);
+}
+
+/// <summary>
+/// One prepared report image: the confirmed custody content plus the report
 /// role, supporting order, rotation and crop an Engineer chose through
 /// <see cref="CaseAssetPreparationPolicy"/>. The preparation values are
 /// carried, never re-decided here. The retained source bytes are never
@@ -175,7 +206,7 @@ public sealed record ReportSettlement(decimal? ContractSum = null);
 public sealed record ReportImageEvidence(
     string CustodyReference,
     string ContentType,
-    byte[] Content,
+    ReportImageContent Content,
     string Sha256,
     CaseAssetReportRole Role = CaseAssetReportRole.Supporting,
     int? Order = null,
@@ -196,7 +227,8 @@ public sealed record ReportImageEvidence(
     public void Validate()
     {
         AcceptedReportSource.Required(CustodyReference, nameof(CustodyReference));
-        if (!IsAcceptedContentType(ContentType) || Content.Length == 0)
+        AcceptedReportSource.Required(Sha256, nameof(Sha256));
+        if (!IsAcceptedContentType(ContentType) || Content is null)
         {
             throw new ReportRenderRejectedException("Every report image requires accepted image bytes and content type.");
         }
@@ -206,15 +238,30 @@ public sealed record ReportImageEvidence(
             throw new ReportRenderRejectedException(
                 $"Report image '{CustodyReference}' carries an unrecognized rotation.");
         }
+    }
+
+    /// <summary>
+    /// The image's bytes, opened for one print and verified against the
+    /// custody hash as they are opened. The caller owns the array and lets
+    /// go of it as soon as it has decoded it.
+    /// </summary>
+    public async Task<byte[]> OpenAsync(CancellationToken cancellationToken = default)
+    {
+        var bytes = await Content.OpenAsync(cancellationToken).ConfigureAwait(false);
+        if (bytes is not { Length: > 0 })
+        {
+            throw new ReportRenderRejectedException("Every report image requires accepted image bytes and content type.");
+        }
         // A hash is compared by value: intake records it in capitals and
         // staff uploads in small letters, and both name the same bytes.
-        var actual = Convert.ToHexStringLower(SHA256.HashData(Content));
+        var actual = Convert.ToHexStringLower(SHA256.HashData(bytes));
         if (!actual.Equals(Sha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new ReportRenderRejectedException(
                 $"The stored version of {CustodyReference} has changed. "
                 + "Open the Files section to see the image as it is stored now.");
         }
+        return bytes;
     }
 }
 
