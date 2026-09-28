@@ -164,6 +164,9 @@ public sealed class ProductionCompositionTests
         var primary = Assert.IsType<HttpClientHandler>(handler);
         Assert.False(primary.AllowAutoRedirect);
         Assert.False(primary.UseCookies);
+        using var client = provider.GetRequiredService<IHttpClientFactory>()
+            .CreateClient(GlassRepairEstimateOptions.HttpClientName);
+        Assert.Equal(TimeSpan.FromSeconds(30), client.Timeout);
     }
 
     [Fact]

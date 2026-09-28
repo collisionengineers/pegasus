@@ -444,6 +444,7 @@ public static class DependencyInjection
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCaseHeader, GetCaseHeader>();
         services.AddScoped<IGetCase, GetCase>();
+        services.AddScoped<IGetCaseEditBasis, GetCaseEditBasis>();
         services.AddScoped<IGetCasePageFrame, GetCasePageFrame>();
         services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
         services.AddScoped<IGetCaseValuationSection, GetCaseValuationSection>();
@@ -488,6 +489,8 @@ public static class DependencyInjection
         services.AddSingleton(provider => GlassRepairEstimateOptions.Create(
             key => provider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()[key]));
         services.AddHttpClient(GlassRepairEstimateOptions.HttpClientName)
+            .ConfigureHttpClient((provider, client) =>
+                client.Timeout = provider.GetRequiredService<GlassRepairEstimateOptions>().RequestTimeout)
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
                 AllowAutoRedirect = false,

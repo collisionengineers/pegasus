@@ -1749,6 +1749,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.RemoveAll<ILabourRateCardStore>();
                 services.RemoveAll<IGetCaseFilesSection>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCaseEditBasis>(store);
                 services.AddSingleton<IGetCasePageFrame>(store);
                 services.AddSingleton<IGetCaseVehicleSection>(store);
                 services.AddSingleton<IGetCaseValuationSection>(store);
@@ -1967,7 +1968,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     /// exactly what the page handed to each one.
     /// </summary>
     internal sealed class RecordingStores(Guid caseId, decimal? engineerValue = null, decimal? contractSum = null)
-        : IGetCase, IGetCasePageFrame, IGetCaseVehicleSection, IGetCaseValuationSection,
+        : IGetCase, IGetCaseEditBasis, IGetCasePageFrame, IGetCaseVehicleSection, IGetCaseValuationSection,
           IGetCaseNotesSection, IGetAssessmentWorkspace, IRepairSpecificationStore, IAddCaseDocument,
           IGetCaseDocumentMetadata, IReadLogicalDocumentVersion,
           IAcquireCaseEditLease, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
@@ -2052,6 +2053,10 @@ public sealed partial class AssessmentEstimateImportWebTests
         public List<RepairSpecificationSnapshot> Snapshots { get; } = [];
 
         public Guid LastCreatedEstimateId { get; private set; }
+
+        async Task<CaseEditBasis?> IGetCaseEditBasis.ExecuteAsync(
+            GetCaseQuery query, CancellationToken cancellationToken) =>
+            CaseEditBasisTestData.Of(await ExecuteAsync(query, cancellationToken));
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {

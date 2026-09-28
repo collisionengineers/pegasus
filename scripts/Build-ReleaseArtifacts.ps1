@@ -42,14 +42,18 @@ try {
         '-p:IncludeSourceRevisionInInformationalVersion=false',
         '-p:ContinuousIntegrationBuild=true'
     )
-    & dotnet restore ./src/Pegasus.Web/Pegasus.Web.csproj --locked-mode
+    # The Web restore asks for ReadyToRun, so the publish below finds the
+    # runtime and compiler packs it needs (NETSDK1094 otherwise). The project
+    # already lists linux-x64, so the locked graph is unchanged.
+    & dotnet restore ./src/Pegasus.Web/Pegasus.Web.csproj --locked-mode -p:PublishReadyToRun=true
     if ($LASTEXITCODE -ne 0) { throw 'Locked Web runtime restore failed.' }
     & dotnet restore ./src/Pegasus.Worker/Pegasus.Worker.csproj --locked-mode
     if ($LASTEXITCODE -ne 0) { throw 'Locked Worker runtime restore failed.' }
     # ADR-0049: web.zip is the Web release artifact. It is a framework-dependent
     # Linux x64 publish for the App Service DOTNETCORE|10.0 stack, run from
-    # package; no container image, registry or OCI tooling is involved.
-    & dotnet publish ./src/Pegasus.Web/Pegasus.Web.csproj -c Release -r linux-x64 --self-contained false --no-restore -o $webPublish @buildProperties
+    # package; no container image, registry or OCI tooling is involved. It is
+    # compiled ReadyToRun, so a fresh instance does not JIT every first request.
+    & dotnet publish ./src/Pegasus.Web/Pegasus.Web.csproj -c Release -r linux-x64 --self-contained false -p:PublishReadyToRun=true --no-restore -o $webPublish @buildProperties
     if ($LASTEXITCODE -ne 0) { throw 'Web publish failed.' }
     $webBuildIdentity = & dotnet (Join-Path $webPublish 'Pegasus.Web.dll') --diagnostics-version | ConvertFrom-Json
     if (
@@ -109,6 +113,7 @@ try {
             name = 'web.zip'
             runtimeIdentifier = 'linux-x64'
             selfContained = $false
+            readyToRun = $true
             hostStack = 'DOTNETCORE|10.0'
         }
         migrationRuntimeIdentifier = $migrationRuntimeIdentifier

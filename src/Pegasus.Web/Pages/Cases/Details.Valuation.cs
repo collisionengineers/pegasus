@@ -217,20 +217,58 @@ public sealed partial class DetailsModel
     /// The presets are read in both modes: read and edit list the same value
     /// increases, ticked where the latest adoption applied them.
     /// </summary>
-    private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken)
+    /// <summary>The valuation section's reads, applied to the page together.</summary>
+    private sealed record ValuationSectionReads(
+        IReadOnlyList<CaseValuation> Valuations,
+        IReadOnlyList<AppliedValuation> AppliedValuations,
+        AiJobRecord? PendingMarketResearch,
+        string? AppliedByDisplayName,
+        IReadOnlyList<ValuationPreset>? Presets);
+
+    /// <summary>
+    /// Whether this request read the applied valuations, so the report
+    /// snapshot may use them rather than reading them again.
+    /// </summary>
+    private bool appliedValuationsLoaded;
+
+    private async Task LoadValuationSectionAsync(Guid caseId, ActionActor actor, CancellationToken cancellationToken) =>
+        ApplyValuationSection(await ReadValuationSectionAsync(caseId, actor, WorkSelector, cancellationToken));
+
+    private async Task<ValuationSectionReads> ReadValuationSectionAsync(
+        Guid caseId,
+        ActionActor actor,
+        CaseWorkSelector work,
+        CancellationToken cancellationToken)
     {
-        Valuations = await listCaseValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
-        AppliedValuations = await listAppliedValuations.ExecuteAsync(caseId, WorkSelector, cancellationToken);
-        PendingMarketResearch = await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
-        if (LatestAppliedValuation is { } applied)
+        var valuations = await listCaseValuations.ExecuteAsync(caseId, work, cancellationToken);
+        var applied = await listAppliedValuations.ExecuteAsync(caseId, work, cancellationToken);
+        var pending = await marketResearchQueries.GetPendingAsync(caseId, cancellationToken);
+        string? appliedBy = null;
+        if (applied.Count > 0)
         {
-            AppliedByDisplayName = Guid.TryParse(applied.AcceptedBy, out var staffId)
+            appliedBy = Guid.TryParse(applied[0].AcceptedBy, out var staffId)
                 ? (await staffAccountQueries.GetAsync(staffId, cancellationToken))?.UserName ?? ActorDisplayNames.UnknownStaff
                 : ActorDisplayNames.UnknownStaff;
         }
-        if (StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
+        var presets = StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)
+            ? await listValuationPresets.ExecuteAsync(actor, cancellationToken)
+            : null;
+        return new(valuations, applied, pending, appliedBy, presets);
+    }
+
+    private void ApplyValuationSection(ValuationSectionReads reads)
+    {
+        Valuations = reads.Valuations;
+        AppliedValuations = reads.AppliedValuations;
+        appliedValuationsLoaded = true;
+        PendingMarketResearch = reads.PendingMarketResearch;
+        if (reads.AppliedByDisplayName is not null)
         {
-            ValuationPresets = await listValuationPresets.ExecuteAsync(actor, cancellationToken);
+            AppliedByDisplayName = reads.AppliedByDisplayName;
+        }
+        if (reads.Presets is not null)
+        {
+            ValuationPresets = reads.Presets;
         }
     }
 

@@ -24,6 +24,13 @@ public interface IPerUserExternalCredentialReader
 {
     Task<PerUserExternalCredentialMaterial?> GetEnabledAsync(
         ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether the actor holds an enabled credential for the provider, without
+    /// reading the secret material.
+    /// </summary>
+    Task<bool> IsEnabledAsync(
+        ActionActor actor, ExternalCredentialProvider provider, CancellationToken cancellationToken);
 }
 
 public interface IPerUserExternalCredentialAdministration

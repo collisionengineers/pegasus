@@ -170,7 +170,7 @@ function Test-PegasusArtifactManifest {
     }
 
     Assert-ZipRoot -ArchivePath (Join-Path $manifestDirectory 'worker.zip') -RequiredRoot '.azurefunctions/'
-    # ADR-0049: web.zip is a framework-dependent publish that App Service runs
+    # ADR-0049: web.zip is a framework-dependent ReadyToRun publish that App Service runs
     # from package on the platform DOTNETCORE|10.0 stack; the entry assembly and
     # its runtimeconfig must sit at the zip root.
     Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'web.zip') -RequiredFile 'Pegasus.Web.dll'
@@ -182,6 +182,7 @@ function Test-PegasusArtifactManifest {
         $webPackage.Value.name -cne 'web.zip' -or
         $webPackage.Value.runtimeIdentifier -cne 'linux-x64' -or
         $webPackage.Value.selfContained -ne $false -or
+        -not ($webPackage.Value.PSObject.Properties['readyToRun'] -and $webPackage.Value.readyToRun -eq $true) -or
         $webPackage.Value.hostStack -cne 'DOTNETCORE|10.0'
     ) {
         throw 'The release manifest Web package identity is incomplete or invalid.'

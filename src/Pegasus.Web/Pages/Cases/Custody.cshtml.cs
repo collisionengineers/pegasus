@@ -25,7 +25,7 @@ public sealed class CustodyModel(
     IUntagCaseImage untagCaseImage,
     ISetCaseImageInReport setCaseImageInReport,
     ICreateImageTag createImageTag,
-    IGetCase getCase,
+    IGetCaseEditBasis getCaseEditBasis,
     IAcquireCaseEditLease acquireLease,
     IGetCaseKind getCaseKind,
     IEditScopeLeases editScopes,
@@ -35,7 +35,7 @@ public sealed class CustodyModel(
     /// Tagging and removing are immediate posts inside the edit
     /// session (v25 decision F): after one succeeds the session carries on.
     /// </summary>
-    protected override (IGetCase Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCase, acquireLease);
+    protected override (IGetCaseEditBasis Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCaseEditBasis, acquireLease);
 
     public IActionResult OnGet() => NotFound();
 

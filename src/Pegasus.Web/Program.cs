@@ -444,23 +444,6 @@ builder.Services.AddAuthentication(options =>
         DevelopmentOfflineAuthenticationScheme,
         displayName: null,
         _ => { });
-builder.Services.Configure<SecurityStampValidatorOptions>(options =>
-{
-    options.ValidationInterval = TimeSpan.Zero;
-    options.OnRefreshingPrincipal = context =>
-    {
-        var originalIssue = context.CurrentPrincipal?.FindFirst(OriginalIssueClaim);
-        var identity = context.NewPrincipal?.Identity as System.Security.Claims.ClaimsIdentity;
-        if (originalIssue is not null
-            && identity is not null
-            && !identity.HasClaim(claim => claim.Type == OriginalIssueClaim))
-        {
-            identity.AddClaim(originalIssue);
-        }
-
-        return Task.CompletedTask;
-    };
-});
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.Name = "__Host-Pegasus";
@@ -497,67 +480,26 @@ builder.Services.ConfigureApplicationCookie(options =>
             SecurityEventOutcome.Succeeded,
             reasonCode: null);
     };
+    // The account is checked on every request; StaffPrincipalValidator says
+    // why the principal is never rebuilt.
     options.Events.OnValidatePrincipal = async context =>
     {
         using var validation = DocumentReadTelemetry.Start("web.auth.validation");
         var subjectId = context.Principal?.FindFirst(
             System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown";
-        await SecurityStampValidator.ValidatePrincipalAsync(context);
-        if (context.Principal is null)
+        var refusal = await StaffPrincipalValidator.ValidateAsync(context, OriginalIssueClaim);
+        if (refusal is null)
         {
-            await AppendSignInSecurityEventAsync(
-                context.HttpContext,
-                subjectId,
-                SecurityEventOutcome.Denied,
-                "invalid_security_stamp");
             return;
         }
 
-        var nowSeconds = context.HttpContext.RequestServices
-            .GetRequiredService<TimeProvider>()
-            .GetUtcNow()
-            .ToUnixTimeSeconds();
-        var issuedValue = context.Principal.FindFirst(OriginalIssueClaim)?.Value;
-        if (!long.TryParse(
-                issuedValue,
-                System.Globalization.NumberStyles.None,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var issuedSeconds)
-            || issuedSeconds < 0
-            || issuedSeconds > nowSeconds
-            || nowSeconds - issuedSeconds >= (long)StaffSessionPolicy.AbsoluteLifetime.TotalSeconds)
-        {
-            context.RejectPrincipal();
-            await context.HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
-            await AppendSignInSecurityEventAsync(
-                context.HttpContext,
-                subjectId,
-                SecurityEventOutcome.Denied,
-                "absolute_session_expired");
-            return;
-        }
-
-        var userManager = context.HttpContext.RequestServices
-            .GetRequiredService<UserManager<PegasusIdentityUser>>();
-        var user = await userManager.GetUserAsync(context.Principal);
-        if (user is null || !user.IsEnabled)
-        {
-            context.RejectPrincipal();
-            await context.HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
-            await AppendSignInSecurityEventAsync(
-                context.HttpContext,
-                subjectId,
-                SecurityEventOutcome.Denied,
-                "disabled_or_missing_staff");
-            return;
-        }
-
-        // SecurityStampValidator refreshes a valid principal after checking it.
-        // That refresh is distinct from CookieAuthenticationHandler's own
-        // sliding-expiration refresh, which remains eligible independently.
-        // Reissuing on every zero-interval validation makes otherwise private,
-        // immutable document previews non-cacheable in the browser.
-        context.ShouldRenew = false;
+        context.RejectPrincipal();
+        await context.HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+        await AppendSignInSecurityEventAsync(
+            context.HttpContext,
+            subjectId,
+            SecurityEventOutcome.Denied,
+            refusal);
     };
 });
 
@@ -641,8 +583,28 @@ builder.Services.AddAuthorizationBuilder()
         .Build())
     .AddPolicy("Administrator", policy =>
         policy.RequireRole(StaffRoleNames.Administrator));
+// Pages only, over HTTPS too; a decision record accepts the BREACH risk.
+// Static assets are precompressed at build and files keep their own encoding.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ["text/html"];
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+});
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(
+    options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(
+    options => options.Level = System.IO.Compression.CompressionLevel.Fastest);
+// A new instance warms its hot reads before it reports ready (at most 45 s).
+// /health/warm answers the platform's start-up ping from the warm-up alone, so
+// a database outage never keeps a new instance from starting.
+builder.Services.AddSingleton(provider => new StartupWarmupState(
+    provider.GetRequiredService<IConfiguration>().GetValue("Startup:Warmup", true)));
+builder.Services.AddHostedService<StartupWarmup>();
 builder.Services.AddHealthChecks()
-    .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
+    .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"])
+    .AddCheck<StartupWarmupHealthCheck>("warmup", tags: ["ready", "warm"]);
 builder.Services.Configure<FormOptions>(options =>
 {
     // Bounded for a whole Upload batch, not one file: IntakeEnvelopeLimits
@@ -1017,7 +979,12 @@ if (!providerApiEnabled)
     });
 }
 
-app.UseHttpsRedirection();
+// The platform's probes reach the instance over plain HTTP on its own port and
+// want a status code, so the health endpoints are never redirected to HTTPS.
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/health"),
+    branch => branch.UseHttpsRedirection());
+app.UseResponseCompression();
 
 app.UseRouting();
 app.Use(async (context, next) =>
@@ -1164,6 +1131,12 @@ app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthC
 app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("ready")
+})
+    .AllowAnonymous()
+    .ShortCircuit();
+app.MapHealthChecks("/health/warm", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("warm")
 })
     .AllowAnonymous()
     .ShortCircuit();

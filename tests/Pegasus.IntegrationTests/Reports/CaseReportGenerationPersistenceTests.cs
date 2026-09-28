@@ -1826,7 +1826,7 @@ public sealed class CaseReportGenerationPersistenceTests
                 services.GetRequiredService<IStaffAccountQueries>(),
                 services.GetRequiredService<ICaseAssetPreparationQueries>(),
                 services.GetRequiredService<IListAppliedValuations>());
-            return await source.GetAsync(CaseId, StaffActor, CaseWorkSelector.Current, default);
+            return await source.GetAsync(CaseId, StaffActor, CaseWorkSelector.Current, reuse: null, default);
         }
 
         public async Task AddSourceAsync()
@@ -2475,7 +2475,7 @@ public sealed class CaseReportGenerationPersistenceTests
             transform = revise;
 
         public Task<CaseReportFreezeInputs?> GetAsync(
-            Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, CancellationToken cancellationToken)
+            Guid requestedCaseId, ActionActor actor, CaseWorkSelector work, ReportProjectionReuse? reuse, CancellationToken cancellationToken)
         {
             var current = transform?.Invoke(assessment) ?? assessment;
             return Task.FromResult<CaseReportFreezeInputs?>(

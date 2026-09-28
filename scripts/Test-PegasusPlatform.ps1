@@ -101,7 +101,7 @@ try {
         schemaVersion = 3; sourceRevision = 'a' * 40; sourceStatus = 'clean'; artifacts = $artifacts
         migrationRuntimeIdentifier = $nativeBundle.RuntimeIdentifier; migrationBundleName = $nativeBundle.Name
         webPackage = @{ name = 'web.zip'; runtimeIdentifier = 'linux-x64'; selfContained = $false;
-            hostStack = 'DOTNETCORE|10.0' }
+            readyToRun = $true; hostStack = 'DOTNETCORE|10.0' }
     }
     $manifestPath = Join-Path $fixtureRoot 'release-manifest.json'
     function Assert-Manifest {
@@ -150,6 +150,9 @@ try {
     $manifest.webPackage.selfContained = $true
     Assert-Manifest -ExpectedError 'Web package identity is incomplete or invalid'
     $manifest.webPackage.selfContained = $false
+    $manifest.webPackage.readyToRun = $false
+    Assert-Manifest -ExpectedError 'Web package identity is incomplete or invalid'
+    $manifest.webPackage.readyToRun = $true
     $manifest.artifacts = @($manifest.artifacts) + @(@{ name = 'web-image.tar.gz'; sizeBytes = 1; sha256 = 'c' * 64 })
     Assert-Manifest -ExpectedError 'exactly the Web ZIP, Worker ZIP, and migration bundle'
     $manifest.artifacts = @($manifest.artifacts | Select-Object -First 3)

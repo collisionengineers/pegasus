@@ -81,8 +81,7 @@ public sealed class EvaHandoffStore(
                 item.SignOffEngineerId
             })
             .SingleAsync(cancellationToken);
-        var profiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken);
+        var profiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
         EvaHandoffPolicy.StateAfterManualSend(Enum.Parse<CaseLifecycleState>(workflow.State));
         EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
             workflow.SignOffEngineerId,
@@ -166,8 +165,7 @@ public sealed class EvaHandoffStore(
                 lockedState.AssignedEngineerId,
                 cancellationToken);
         }
-        var eligibleProfiles = await new EfStaffAccountQueries(context)
-            .ListSignOffEngineersAsync(cancellationToken);
+        var eligibleProfiles = await EfStaffAccountQueries.ListSignOffEngineersAsync(context, cancellationToken);
         var signOffEngineer = EvaHandoffPolicy.ResolveRequiredSignOffEngineer(
             lockedState.SignOffEngineerId,
             lockedState.AssignedEngineerId,
