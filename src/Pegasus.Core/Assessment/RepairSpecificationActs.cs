@@ -324,13 +324,6 @@ public static class RepairSpecificationWording
             : string.Empty;
         return $"Repair spec scaled: {Money(result.GrossBefore)} \u2192 {Money(result.GrossAfter)}{share} \u00b7 prices \u00d7{result.PriceFactor.ToString("0.00", CultureInfo.InvariantCulture)}";
     }
-
-    /// <summary>
-    /// The contract repair sentence (v28 P35) the report prints once a sum is
-    /// agreed.
-    /// </summary>
-    public static string ContractRepair(decimal agreedSum) =>
-        $"A contract repair has been agreed for the total sum of {Money(agreedSum)}. Costs cannot increase above this figure.";
 }
 
 /// <summary>What a repair specification says about the one it supplements (v28 P20).</summary>
