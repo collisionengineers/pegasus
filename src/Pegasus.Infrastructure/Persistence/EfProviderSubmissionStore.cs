@@ -20,7 +20,7 @@ internal sealed class EfProviderSubmissionStore(
     // to that store and the accept path deliberately leaves it untouched, so
     // the agreement is held by the two SQL-level accept-recovery tests, which
     // find no candidate at all if these ever disagree.
-    private const string ProviderApiSourceChannel = "provider_api";
+    internal const string ProviderApiSourceChannel = "provider_api";
 
     public async Task CreateAsync(ProviderSubmissionRecord record, CancellationToken cancellationToken)
     {
@@ -143,11 +143,18 @@ internal sealed class EfProviderSubmissionStore(
             return null;
         }
 
-        var instruction = ProviderInstructionJson.Deserialize(row.DeclaredInstructionJson)
-            ?? throw new InvalidDataException(
-                $"The retained provider submission '{row.Id:D}' has no readable declaration.");
-        return new(row.Id, row.PrincipalId, row.PrincipalCode, instruction);
+        return new(row.Id, row.PrincipalId, row.PrincipalCode, ReadDeclaration(row.Id, row.DeclaredInstructionJson));
     }
+
+    /// <summary>
+    /// The declaration a retained submission stored: one read for every caller
+    /// that recovers it, the binding intake resolves and the declared verdict
+    /// Case acceptance keeps.
+    /// </summary>
+    internal static ProviderInstruction ReadDeclaration(Guid submissionId, string? declaredInstructionJson) =>
+        ProviderInstructionJson.Deserialize(declaredInstructionJson)
+            ?? throw new InvalidDataException(
+                $"The retained provider submission '{submissionId:D}' has no readable declaration.");
 
     private static ProviderSubmissionRecord ToRecord(ProviderSubmissionEntity entity) => new(
         entity.Id,

@@ -203,8 +203,15 @@ public sealed class EfCaseAcceptanceStore(
             context,
             request,
             cancellationToken);
+        // A Provider API Audit may arrive with no report, so no evidence row
+        // exists (that row needs a retained report asset, and its presence
+        // would clear Original report missing). Its declared verdict is still
+        // the Case's intake verdict from creation (#919, operator ruling).
+        var declaredAuditVerdict = standaloneAuditEvidence is null
+            ? await ReadDeclaredAuditVerdictAsync(context, request, receipt, cancellationToken)
+            : null;
         var standaloneAuditAssessment = standaloneAuditEvidence is null
-            ? (AuditAssessment?)null
+            ? declaredAuditVerdict
             : AuditAssessmentCode.Parse(standaloneAuditEvidence.Assessment);
 
         var caseId = Guid.NewGuid();
@@ -255,6 +262,14 @@ public sealed class EfCaseAcceptanceStore(
                     : null;
             await OriginalReportPrefillWriter.ApplyAsync(
                 context, caseId, reading, standaloneAuditAssessment, acceptedAtUtc, cancellationToken);
+        }
+        else if (declaredAuditVerdict is not null)
+        {
+            // No report is retained, so nothing is read: the declared verdict
+            // alone fills Repairable status. A report filed later reconciles
+            // by OriginalReportPrefillPolicy.Writes like any other.
+            await OriginalReportPrefillWriter.ApplyAsync(
+                context, caseId, null, declaredAuditVerdict, acceptedAtUtc, cancellationToken);
         }
         var dataSnapshot = CaseDataSnapshotFactory.Create(caseEntity, receipt, request, acceptedAtUtc);
         dataSnapshot.CompletenessPolicySatisfied = completenessEvaluation.SatisfiesPolicy;
@@ -440,6 +455,36 @@ public sealed class EfCaseAcceptanceStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return outcome;
+    }
+
+    /// <summary>
+    /// The verdict a Provider API Audit declared, or null for any other Case.
+    /// The submission id is the receipt's external token.
+    /// </summary>
+    private static async Task<AuditAssessment?> ReadDeclaredAuditVerdictAsync(
+        PegasusDbContext context,
+        CaseAcceptanceRequest request,
+        IntakeReceiptEntity receipt,
+        CancellationToken cancellationToken)
+    {
+        if (request.CaseType != CaseType.Audit
+            || !string.Equals(
+                receipt.SourceChannel,
+                EfProviderSubmissionStore.ProviderApiSourceChannel,
+                StringComparison.Ordinal)
+            || !Guid.TryParseExact(receipt.ExternalReceiptToken, "N", out var submissionId))
+        {
+            return null;
+        }
+
+        var json = await context.ProviderSubmissions
+            .AsNoTracking()
+            .Where(item => item.Id == submissionId)
+            .Select(item => item.DeclaredInstructionJson)
+            .SingleOrDefaultAsync(cancellationToken);
+        return json is null
+            ? null
+            : EfProviderSubmissionStore.ReadDeclaration(submissionId, json).OriginalReportVerdict;
     }
 
     private static async Task<StandaloneAuditEvidenceEntity?> ResolveStandaloneAuditEvidenceAsync(
