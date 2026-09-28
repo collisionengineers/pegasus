@@ -64,6 +64,22 @@ public sealed class CaseListDueWebTests
 
         var search = await GetAsync(client, $"/Search?registration=AB12CDE&selected={caseId:D}");
         Assert.Contains("<dt>Due</dt><dd>18 Jun 2040</dd>", search, StringComparison.Ordinal);
+
+        // A chase time beats the Due by date, and work due this instant is
+        // already late (due <= now, as the Work Centre reads it).
+        var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var due = await context.CaseDueWork.SingleAsync(item => item.CaseId == caseId);
+            due.NextChaseAtUtc = now;
+            await context.SaveChangesAsync();
+        }
+        var late = await GetAsync(client, $"/Cases?queue=review&selected={caseId:D}");
+        Assert.Contains(
+            $"<td class=\"nowrap cases-late\">{OperatorLabels.DueDate(now)}</td>", late, StringComparison.Ordinal);
+        Assert.DoesNotContain("<td class=\"nowrap\">18 Jun 2040</td>", late, StringComparison.Ordinal);
     }
 
     private static async Task<string> GetAsync(HttpClient client, string path)
