@@ -742,8 +742,9 @@ dated names are not current identity proof.
 
 Web binds its port before any remote read. The data-protection key ring, the
 Automation OAuth certificates and the verification account are read after it
-listens, because each waits on a managed-identity token and the sidecar can take
-about 100 s to answer after a start. `/health/warm` (the App Service start-up
+listens, because each waits on a managed-identity token. The first Web telemetry
+has arrived about 100 s after container start, beginning with `/msi/token`; the
+phase timings below show where that time goes. `/health/warm` (the App Service start-up
 ping) answers 200 once the warm-up has loaded the key ring and the certificates
 and run the hot reads, or after 45 s.
 

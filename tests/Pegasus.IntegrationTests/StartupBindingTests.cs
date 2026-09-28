@@ -1,10 +1,17 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using OpenIddict.Server;
 using Pegasus.Web.Health;
 using Pegasus.Web.Mcp;
@@ -115,6 +122,63 @@ public sealed class StartupBindingTests
         store.Complete(new OAuthCertificateSet([], []));
         await store.Gate(Context("/Cases"), next);
         Assert.Equal("/Cases", reached[^1]);
+    }
+
+    [Fact]
+    public async Task TheProbesNeverBuildTheTokenServerOptionsWhileTheCertificatesLoad()
+    {
+        using var signing = Certificate("pipeline-signing");
+        using var encryption = Certificate("pipeline-encryption");
+        var store = new OAuthCertificateStore();
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.Configure<OpenIddictServerOptions>(store.AddTo);
+        builder.Services.AddAuthentication()
+            .AddScheme<AuthenticationSchemeOptions, OptionsBuildingHandler>("options-building", null);
+        await using var app = builder.Build();
+
+        // The order of Program.cs: the gate, routing, authentication, endpoints.
+        app.Use(store.Gate);
+        app.UseRouting();
+        app.UseAuthentication();
+        app.MapGet("/health/warm", () => "warm").ShortCircuit();
+        app.MapGet("/diagnostics/version", () => "version").ShortCircuit();
+        app.MapGet("/Cases", () => "cases");
+        await app.StartAsync();
+        using var client = app.GetTestClient();
+
+        // A probe that reached authentication would throw here, because the
+        // options build reads the certificates that are not loaded yet.
+        Assert.Equal(StatusCodes.Status200OK, (int)(await client.GetAsync("/health/warm")).StatusCode);
+        Assert.Equal(StatusCodes.Status200OK, (int)(await client.GetAsync("/diagnostics/version")).StatusCode);
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, (int)(await client.GetAsync("/Cases")).StatusCode);
+
+        store.Complete(new OAuthCertificateSet([signing], [encryption]));
+        Assert.Equal(StatusCodes.Status200OK, (int)(await client.GetAsync("/Cases")).StatusCode);
+        var options = app.Services.GetRequiredService<IOptionsMonitor<OpenIddictServerOptions>>().CurrentValue;
+        Assert.Single(options.SigningCredentials);
+        await app.StopAsync();
+    }
+
+    /// <summary>
+    /// Stands in for the OpenIddict handlers that authentication runs on every
+    /// request: each reads the token server's options.
+    /// </summary>
+    private sealed class OptionsBuildingHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory logger,
+        UrlEncoder encoder,
+        IOptionsMonitor<OpenIddictServerOptions> serverOptions)
+        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder), IAuthenticationRequestHandler
+    {
+        public Task<bool> HandleRequestAsync()
+        {
+            _ = serverOptions.CurrentValue;
+            return Task.FromResult(false);
+        }
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync() =>
+            Task.FromResult(AuthenticateResult.NoResult());
     }
 
     [Fact]
