@@ -230,6 +230,17 @@ public sealed class CaseOperationConflictException(Guid caseId, string operation
 }
 
 /// <summary>
+/// A mutation was attempted on a closed case, which is application read-only until an
+/// authorized reopen. A designed refusal, not a fault.
+/// </summary>
+public sealed class CaseTerminalMutationException(Guid caseId)
+    : InvalidOperationException(
+        $"Closed case '{caseId}' is application read-only until an authorized reopen.")
+{
+    public Guid CaseId { get; } = caseId;
+}
+
+/// <summary>
 /// Claims one short-lived edit lease. Within a case, the normalized operation key identifies this
 /// exact request, including the expected version and the complete authorized actor identity.
 /// </summary>

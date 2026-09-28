@@ -80,11 +80,3 @@ internal static class CaseTerminalReadinessGuard
         }
     }
 }
-
-/// <summary>Public so Web can recognise this designed refusal without logging it as a fault.</summary>
-public sealed class CaseTerminalMutationException(Guid caseId)
-    : InvalidOperationException(
-        $"Closed case '{caseId}' is application read-only until an authorized reopen.")
-{
-    public Guid CaseId { get; } = caseId;
-}
