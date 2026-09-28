@@ -110,7 +110,6 @@ public sealed class SqlServerReadinessEndpointTests
                 ["ConnectionStrings:Pegasus"] =
                     "Server=127.0.0.1,1;Database=Pegasus_Unavailable;Integrated Security=true;" +
                     "Encrypt=false;Connect Timeout=1",
-                ["HTTPS_PORT"] = "443",
                 ["https_port"] = "443"
             });
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
