@@ -39,12 +39,36 @@ public sealed record CaseStageCounts(
     int Query = 0);
 
 /// <summary>
-/// The dashboard's counts. Every member returns a real number or the tile that
-/// would have shown it is not rendered — there is no placeholder value.
+/// A pre-report Case its early vehicle images were paired into, which no
+/// member of staff has changed since (FRD-19, INT-32).
+/// </summary>
+/// <param name="PairedAtUtc">When the Image-initiated Case merged into the Case.</param>
+/// <param name="ImagesRegisteredAtUtc">When the images registered as their Image-initiated Case.</param>
+public sealed record PairedVehicleImagesCase(
+    Guid CaseId,
+    string Reference,
+    string ImageReference,
+    string? Principal,
+    Guid? EngineerId,
+    DateTimeOffset PairedAtUtc,
+    DateTimeOffset ImagesRegisteredAtUtc);
+
+/// <summary>
+/// The Cases rail counts and the Work Centre's own reads. Every count is a
+/// real number or the tile that would have shown it is not rendered — there is
+/// no placeholder value.
 /// </summary>
 public interface IDashboardQueries
 {
     Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Pre-report, unarchived Cases with a merged Image-initiated Case and no
+    /// version-advancing staff change since that merge, one row per Case (its
+    /// latest merge).
+    /// </summary>
+    Task<IReadOnlyList<PairedVehicleImagesCase>> ListPairedVehicleImagesAwaitingStaffAsync(
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -74,7 +98,13 @@ public enum NeedsAttentionKind
     UnassignedEngineer,
 
     /// <summary>An AI job in Draft ready waiting for a person; due draft written + AI draft target.</summary>
-    AiDraft
+    AiDraft,
+
+    /// <summary>
+    /// A pre-report Case its early vehicle images were paired into, not
+    /// changed by staff since; due at the pairing.
+    /// </summary>
+    VehicleImagesPaired
 }
 
 /// <summary>

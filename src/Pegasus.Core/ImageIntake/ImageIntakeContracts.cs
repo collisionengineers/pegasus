@@ -398,9 +398,14 @@ public interface IImageIntakeCaseCandidates
         CancellationToken cancellationToken);
 }
 
+/// <param name="CreatedAtUtc">
+/// When the Case was created. A manual-upload image record pairs automatically
+/// only with a Case created after the record was registered.
+/// </param>
 public sealed record ImageIntakeCaseCandidate(
     Guid CaseId,
     string CaseReference,
     long CaseVersion,
     string ConfirmedRegistration,
+    DateTimeOffset CreatedAtUtc,
     Guid? PrincipalId = null);

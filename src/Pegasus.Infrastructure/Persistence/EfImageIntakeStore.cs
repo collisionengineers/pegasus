@@ -698,6 +698,7 @@ public sealed class EfImageIntakeStore(
         ImageIntakeLifecycleRules.RequireTransitionable(ParseState(entity.LifecycleState));
 
         string? caseReference = null;
+        CaseMutationAuthority? mergeAuthority = null;
         if (caseId is { } targetCaseId)
         {
             // A Case answers through its workflow; a Triage Case, which has
@@ -749,12 +750,14 @@ public sealed class EfImageIntakeStore(
                     context, entity.NormalizedVehicleRegistration, cancellationToken);
                 var memberCount = await GroupExpectedMemberCountAsync(context, entity.SubmissionGroupId, cancellationToken);
                 if (ImageIntakeCasePairing.SelectRegisteredTarget(candidates,
-                        entity.NormalizedVehicleRegistration, entity.PrincipalId, memberCount)?.CaseId != targetCaseId)
+                        entity.NormalizedVehicleRegistration, entity.PrincipalId, memberCount,
+                        ParseChannel(entity.SourceChannel), entity.CreatedAtUtc)?.CaseId != targetCaseId)
                 {
                     throw new IntakeAssociationConflictException("The automatic image association is no longer unambiguous.");
                 }
             }
             caseReference = caseAuthority.Case.Reference;
+            mergeAuthority = caseAuthority;
         }
 
         var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
@@ -806,18 +809,45 @@ public sealed class EfImageIntakeStore(
                 AttemptCount = 0,
                 DueAtUtc = now
             });
-            context.CaseHistory.Add(new CaseHistoryEntity
+            var formalCaseReason =
+                $"Image-initiated case {entity.ImageIntakeReference} merged into {caseReference}: {reason.Trim()}";
+            if (mergeAuthority!.Workflow is { } workflow)
             {
-                Id = Guid.NewGuid(),
-                CaseId = linkedCaseId,
-                EventType = "image_initiated_case_merged",
-                Actor = actor.SubjectId,
-                Reason = $"Image-initiated case {entity.ImageIntakeReference} merged into {caseReference}: {reason.Trim()}",
-                OperationKey = $"{operation}:formal-case",
-                OccurredAtUtc = now,
-                BeforeVersion = null,
-                AfterVersion = 0
-            });
+                // On the Case timeline, which reads the workflow events. The
+                // merge is a system completion, so it advances the version a
+                // member of staff's next save is checked against.
+                var beforeCaseVersion = workflow.Version;
+                mergeAuthority.CompleteSystemMutation();
+                CaseMutationHistory.Add(
+                    context,
+                    workflow,
+                    actor,
+                    $"{operation}:formal-case",
+                    formalCaseReason,
+                    "image_initiated_case_merged",
+                    fingerprint,
+                    beforeCaseVersion,
+                    workflow.Version,
+                    JsonSerializer.Serialize(new { ImageIntakeId = entity.Id, entity.ImageIntakeReference, State = ToCode(ImageInitiatedCaseState.AwaitingInstruction) }),
+                    JsonSerializer.Serialize(new { ImageIntakeId = entity.Id, entity.ImageIntakeReference, State = ToCode(targetState), CaseReference = caseReference }),
+                    "image-intake-lifecycle/v1",
+                    now);
+            }
+            else
+            {
+                context.CaseHistory.Add(new CaseHistoryEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = linkedCaseId,
+                    EventType = "image_initiated_case_merged",
+                    Actor = actor.SubjectId,
+                    Reason = formalCaseReason,
+                    OperationKey = $"{operation}:formal-case",
+                    OccurredAtUtc = now,
+                    BeforeVersion = null,
+                    AfterVersion = 0
+                });
+            }
         }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -896,7 +926,8 @@ public sealed class EfImageIntakeStore(
             var matches = eligible.Where(candidate => VrmRegistrationMatching.IsMatch(
                 intake.NormalizedVehicleRegistration, candidate.ConfirmedRegistration)).ToArray();
             var automaticTarget = ImageIntakeCasePairing.SelectRegisteredTarget(matches,
-                intake.NormalizedVehicleRegistration, intake.PrincipalId, intake.GroupExpectedMemberCount);
+                intake.NormalizedVehicleRegistration, intake.PrincipalId, intake.GroupExpectedMemberCount,
+                intake.Source, intake.RegisteredAtUtc);
             var targetCaseId = automaticTarget?.CaseId;
             var staffDecision = false;
             if (intake.AssociatedCaseId is { } linkedCaseId)
@@ -924,6 +955,16 @@ public sealed class EfImageIntakeStore(
             if (images.Any(image => associations.TryGetValue(image.ReceiptId, out var association)
                     ? !association.IsActive || association.CaseId != target
                     : !staffDecision && automaticTarget?.CaseId != target))
+            {
+                continue;
+            }
+            // A manual group staff have started is theirs to finish; it waits
+            // outside the bounded batch until every member is linked.
+            var members = images.Select(image => image.ReceiptId).Prepend(intake.OriginReceiptId).Distinct()
+                .Select(memberId => associations.GetValueOrDefault(memberId)).ToArray();
+            if (ImageIntakeCasePairing.AwaitsStaffCompletion(intake.Source,
+                    members.Any(member => member?.ActorKind == nameof(ActorKind.Staff)),
+                    members.All(member => member is { IsActive: true } && member.CaseId == target)))
             {
                 continue;
             }
@@ -1110,7 +1151,7 @@ public sealed class EfImageIntakeStore(
         return result;
     }
 
-    private static async Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
+    internal static async Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
         PegasusDbContext context,
         Guid originReceiptId,
         Guid? submissionGroupId,
@@ -1486,7 +1527,7 @@ public sealed class EfImageIntakeStore(
         _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
     };
 
-    private static IntakeSourceChannel ParseChannel(string value) => value switch
+    internal static IntakeSourceChannel ParseChannel(string value) => value switch
     {
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
@@ -1614,7 +1655,7 @@ public sealed class EfImageIntakeOriginResolver(
 public sealed class EfImageIntakeCaseCandidates(
     IDbContextFactory<PegasusDbContext> contextFactory) : IImageIntakeCaseCandidates
 {
-    private static readonly string[] EligibleStates = Enum.GetValues<CaseLifecycleState>()
+    internal static readonly string[] EligibleStates = Enum.GetValues<CaseLifecycleState>()
         .Where(state => ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, false))
         .Select(state => state.ToString())
         .ToArray();
@@ -1630,7 +1671,8 @@ public sealed class EfImageIntakeCaseCandidates(
         orderby caseEntity.Reference
         select new ImageIntakeCaseCandidate(
             caseEntity.Id, caseEntity.Reference, workflow.Version,
-            index == null ? string.Empty : index.NormalizedVrm ?? string.Empty, caseEntity.PrincipalId);
+            index == null ? string.Empty : index.NormalizedVrm ?? string.Empty, caseEntity.CreatedAtUtc,
+            caseEntity.PrincipalId);
 
     internal static async Task<IReadOnlyList<ImageIntakeCaseCandidate>> FindEligibleByRegistrationAsync(
         PegasusDbContext context,

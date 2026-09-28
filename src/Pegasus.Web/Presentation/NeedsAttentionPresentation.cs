@@ -18,6 +18,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.HeldDecision,
         NeedsAttentionKind.ReviewCase,
         NeedsAttentionKind.UnassignedEngineer,
+        NeedsAttentionKind.VehicleImagesPaired,
         NeedsAttentionKind.Unidentified,
         NeedsAttentionKind.Triage,
         NeedsAttentionKind.AiDraft
@@ -37,6 +38,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.HeldDecision => "held",
         NeedsAttentionKind.ReviewCase => "review",
         NeedsAttentionKind.UnassignedEngineer => "unassigned",
+        NeedsAttentionKind.VehicleImagesPaired => "images",
         NeedsAttentionKind.Unidentified => "unidentified",
         NeedsAttentionKind.Triage => "triage",
         NeedsAttentionKind.AiDraft => "ai",
@@ -57,7 +59,7 @@ public static class NeedsAttentionPresentation
     {
         NeedsAttentionKind.CaseChase or NeedsAttentionKind.HeldDecision
             or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer
-            or NeedsAttentionKind.Triage => "/Cases/Details",
+            or NeedsAttentionKind.VehicleImagesPaired or NeedsAttentionKind.Triage => "/Cases/Details",
         NeedsAttentionKind.Unidentified => "/Unidentified/Details",
         _ => "/Operations/Index"
     };
@@ -100,6 +102,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.HeldDecision => "Held decision",
         NeedsAttentionKind.ReviewCase => "Review Case",
         NeedsAttentionKind.UnassignedEngineer => Labels.AssignEngineer,
+        NeedsAttentionKind.VehicleImagesPaired => Labels.VehicleImagesPaired,
         NeedsAttentionKind.Unidentified => OperatorLabels.UnidentifiedReason(item.Reason),
         NeedsAttentionKind.Triage => Labels.TriageTitle(item.Reason),
         NeedsAttentionKind.AiDraft => Labels.AiDraftTitle(item.Title),
@@ -145,12 +148,14 @@ public static class NeedsAttentionPresentation
             NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer => new WorkCentreFact("Vehicle", item.Title),
             NeedsAttentionKind.Unidentified => new WorkCentreFact("Source", item.Title),
             NeedsAttentionKind.Triage => new WorkCentreFact("Registration", item.Title, Mono: true),
+            NeedsAttentionKind.VehicleImagesPaired => new WorkCentreFact("Image reference", item.Title, Mono: true),
             NeedsAttentionKind.AiDraft => new WorkCentreFact("Job", TitleLabel(item)),
             _ => new WorkCentreFact("Missing", item.Title)
         };
         var second = item.Kind switch
         {
-            NeedsAttentionKind.HeldDecision or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer =>
+            NeedsAttentionKind.HeldDecision or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer
+                or NeedsAttentionKind.VehicleImagesPaired =>
                 new WorkCentreFact("Principal", item.Detail),
             NeedsAttentionKind.Unidentified => new WorkCentreFact("Sender", item.Detail),
             NeedsAttentionKind.AiDraft => new WorkCentreFact("Instruction", item.Detail),

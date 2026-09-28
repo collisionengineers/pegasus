@@ -19,6 +19,14 @@ public sealed class ImageIntakePersistenceTests
     private const string TinyPngBase64 =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
+    /// <summary>
+    /// A minute after the host's fixed clock: a Case seeded with it was created
+    /// after the manually uploaded image the test registered, so automatic
+    /// pairing may choose it (issue 905).
+    /// </summary>
+    private static readonly DateTimeOffset CreatedAfterRegistration =
+        new(2031, 5, 6, 10, 31, 0, TimeSpan.Zero);
+
     private static ActionActor StaffActor() => ActionActor.Staff(
         DevelopmentOfflineIdentity.AdministratorId,
         [StaffRole.Administrator]);
@@ -483,7 +491,7 @@ public sealed class ImageIntakePersistenceTests
         await RegisterAsync(services, older, "XY34ZZZ", "older-nonmatching-image");
         await RegisterAsync(services, matching, "AB12CDE", "recover-linked-image");
         var caseId = await SeedCaseAsync(services, origin, "IMG26011",
-            nameof(CaseLifecycleState.Review), "AB12CDE");
+            nameof(CaseLifecycleState.Review), "AB12CDE", CreatedAfterRegistration);
         var store = services.GetRequiredService<IImageIntakeStore>();
         var mutations = services.GetRequiredService<IIntakeMutationStore>();
         await mutations.AutoLinkAsync(new(matching, caseId, 0,
@@ -511,6 +519,84 @@ public sealed class ImageIntakePersistenceTests
             item.ImageIntakeId == pending.Id && item.Kind == ExternalWorkKinds.MergeImageCaseCustody));
     }
 
+    /// <summary>
+    /// Issue 905 (operator, 28 September 2026): manually uploaded images wait
+    /// for staff over any Case that existed when they registered, and pair by
+    /// themselves with a Case created afterwards. The pairing is on the Case
+    /// timeline and in Needs attention until a member of staff changes the Case.
+    /// </summary>
+    [Fact]
+    public async Task ManualUploadPairsOnlyWithACaseCreatedAfterItRegisteredAndRaisesAttention()
+    {
+        using var factory = new IntakeWebApplicationFactory("Development", true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceipt = await UploadImageAsync(factory, client);
+        var olderOrigin = await UploadCaseOriginAsync(factory, client, "AUTO-LINK-01");
+        var laterOrigin = await UploadCaseOriginAsync(factory, client, "AUTO-LINK-02");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceipt, "AB12CDE", "manual-later-case-image");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var registered = await store.GetByOriginReceiptAsync(imageReceipt, CancellationToken.None);
+        var olderCase = await SeedCaseAsync(services, olderOrigin, "IMG26021",
+            nameof(CaseLifecycleState.Review), "AB12CDE", registered!.RegisteredAtUtc.AddMinutes(-3));
+        var mutations = services.GetRequiredService<IIntakeMutationStore>();
+        var dashboard = services.GetRequiredService<Pegasus.Core.Operations.IDashboardQueries>();
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var systemActor = ActionActor.SystemWorker(ImageIntakeAutomation.ActorId);
+
+        Assert.Empty(await store.ListPendingPairingAsync(50, null, CancellationToken.None));
+        await Assert.ThrowsAsync<IntakeAssociationConflictException>(() => mutations.AutoLinkAsync(
+            new(imageReceipt, olderCase, 0, systemActor, "manual-older-case-link",
+                "Automatic association: unambiguous registration match."),
+            DateTimeOffset.UtcNow, CancellationToken.None));
+
+        var laterCase = await SeedCaseAsync(services, laterOrigin, "IMG26022",
+            nameof(CaseLifecycleState.Review), "AB12CDE", CreatedAfterRegistration);
+        Assert.Empty(await store.ListPendingPairingAsync(50, null, CancellationToken.None));
+
+        await using var context = await contextFactory.CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.PostReport)} WHERE CaseId = {olderCase}");
+        Assert.Equal(imageReceipt,
+            Assert.Single(await store.ListPendingPairingAsync(50, null, CancellationToken.None)).OriginReceiptId);
+        await StagedArtifactReconciliationFunctionIntegrationTests.RunPairingTimerAsync(
+            services.GetRequiredService<IImageIntakeCasePairing>(), contextFactory);
+
+        var merged = await store.GetByOriginReceiptAsync(imageReceipt, CancellationToken.None);
+        Assert.Equal(ImageInitiatedCaseState.MergedIntoInstructionCase, merged!.State);
+        Assert.Equal(laterCase, merged.MergedIntoCaseId);
+        var pairedEvent = await context.CaseWorkflowEvents.AsNoTracking()
+            .SingleAsync(item => item.CaseId == laterCase && item.EventType == "image_initiated_case_merged");
+        Assert.Equal(nameof(ActorKind.SystemWorker), pairedEvent.ActorKind);
+        Assert.Equal(1, pairedEvent.BeforeVersion);
+        Assert.Equal(2, pairedEvent.AfterVersion);
+        Assert.Equal(2, await context.CaseWorkflows.AsNoTracking()
+            .Where(item => item.CaseId == laterCase).Select(item => item.Version).SingleAsync());
+        Assert.Contains(
+            await services.GetRequiredService<ICaseQueryStore>().ListHistoryAsync(laterCase, CancellationToken.None),
+            entry => entry.EventType == "image_initiated_case_merged");
+
+        var paired = Assert.Single(await dashboard.ListPairedVehicleImagesAwaitingStaffAsync(CancellationToken.None));
+        Assert.Equal(laterCase, paired.CaseId);
+        Assert.Equal("IMG26022", paired.Reference);
+        Assert.Equal("AB12CDE-01", paired.ImageReference);
+        Assert.Equal(pairedEvent.OccurredAtUtc, paired.PairedAtUtc);
+        Assert.Equal(registered.RegisteredAtUtc, paired.ImagesRegisteredAtUtc);
+
+        // A note moves no version: the pairing still needs attention.
+        await services.GetRequiredService<IAddCaseNote>().ExecuteAsync(
+            new(laterCase, StaffActor(), "note-after-pairing", "Images seen."), CancellationToken.None);
+        Assert.Single(await dashboard.ListPairedVehicleImagesAwaitingStaffAsync(CancellationToken.None));
+
+        var lease = await ClaimLeaseAsync(services, laterCase, StaffActor(), "hold-after-pairing-lease");
+        await services.GetRequiredService<IPutCaseOnHold>().ExecuteAsync(
+            new(laterCase, 2, StaffActor(), "hold-after-pairing", "Waiting for the repairer.", lease.Token),
+            CancellationToken.None);
+        Assert.Empty(await dashboard.ListPairedVehicleImagesAwaitingStaffAsync(CancellationToken.None));
+    }
+
     [Fact]
     public async Task AutomaticWriteRechecksCurrentIdentityAndPrincipalBeforeAssociation()
     {
@@ -523,7 +609,7 @@ public sealed class ImageIntakePersistenceTests
         var services = scope.ServiceProvider;
         await RegisterAsync(services, imageReceipt, "AB12CDE", "current-identity-image");
         var caseId = await SeedCaseAsync(services, origin, "IMG26011",
-            nameof(CaseLifecycleState.Review), "AB12CDE");
+            nameof(CaseLifecycleState.Review), "AB12CDE", CreatedAfterRegistration);
         var candidates = services.GetRequiredService<IImageIntakeCaseCandidates>();
         var selected = Assert.Single(await candidates.FindEligibleByRegistrationAsync("AB12CDE", CancellationToken.None));
         var mutations = services.GetRequiredService<IIntakeMutationStore>();
@@ -592,7 +678,7 @@ public sealed class ImageIntakePersistenceTests
         var services = scope.ServiceProvider;
         await RegisterAsync(services, imageReceipt, "AB12CDE", "staff-override-image");
         var firstCase = await SeedCaseAsync(services, firstOrigin, "IMG26011",
-            nameof(CaseLifecycleState.Review), "AB12CDE");
+            nameof(CaseLifecycleState.Review), "AB12CDE", CreatedAfterRegistration);
         var secondCase = await SeedCaseAsync(services, secondOrigin, "IMG26012",
             nameof(CaseLifecycleState.Review), "XY34ZZZ");
         var store = services.GetRequiredService<IImageIntakeStore>();
@@ -773,7 +859,7 @@ public sealed class ImageIntakePersistenceTests
                 imageReceiptId,
                 eligibleCaseId,
                 receipt!.Version,
-                1,
+                2,
                 unlinkLease.Token,
                 actor,
                 "unlink-eligible-case",
@@ -1010,7 +1096,8 @@ public sealed class ImageIntakePersistenceTests
             caseOriginReceiptId,
             "IMG26011",
             nameof(CaseLifecycleState.Review),
-            "AB12CDE");
+            "AB12CDE",
+            CreatedAfterRegistration);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
@@ -1429,7 +1516,8 @@ public sealed class ImageIntakePersistenceTests
         Guid originReceiptId,
         string reference,
         string workflowState,
-        string draftRegistration)
+        string draftRegistration,
+        DateTimeOffset? createdAtUtc = null)
     {
         await using var scope = services.CreateAsyncScope();
         var contextFactory =
@@ -1439,7 +1527,7 @@ public sealed class ImageIntakePersistenceTests
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
         var caseId = Guid.NewGuid();
-        var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+        var now = createdAtUtc ?? new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Image intake provider {reference}"}, {0L})");
